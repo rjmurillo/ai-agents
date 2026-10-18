@@ -132,6 +132,11 @@ def decisions_without_provenance(text: str) -> list[str]:
     A heading decision is never treated as a group over bullet decisions: a heading
     with no ``Provenance:`` of its own is reported, so no unsourced decision passes
     by hiding under a grouping heading. Give the heading a ``Provenance:`` line.
+
+    Only unindented items are decisions. An indented item belongs to the decision
+    above it: the handoff template's ``Alternatives considered: {list}`` is
+    legitimately a nested list, and counting its entries as decisions would HOLD
+    every handoff that lists two alternatives.
     """
     body = _section(_strip_comments(text), "Decisions Made")
     if not _has_heading(text, "Decisions Made"):

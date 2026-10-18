@@ -141,3 +141,23 @@ def test_a_missing_section_is_reported_once() -> None:
 def test_a_deeper_section_boundary_ends_the_decisions() -> None:
     text = "## Decisions Made\n\n- A\n  - Provenance: a\n\n## Next Steps\n\n1. Not a decision\n"
     assert checker.decisions_without_provenance(text) == []
+
+
+@pytest.mark.parametrize(
+    "decisions",
+    [
+        "1. Use X\n   - Alternatives considered:\n     1. Fixed delay\n     2. No retry\n"
+        "   - Provenance: ADR-1\n",
+        "- Use X\n  - Alternatives considered:\n    - Fixed delay\n    - No retry\n"
+        "  - Provenance: ADR-1\n",
+    ],
+)
+def test_an_indented_alternatives_list_is_not_a_set_of_decisions(decisions: str) -> None:
+    """Counting indented items would HOLD every handoff that lists two alternatives."""
+    assert _unsourced(decisions) == []
+
+
+def test_an_indented_item_does_not_borrow_or_lend_provenance() -> None:
+    """Provenance on a nested line still sources only the decision above it."""
+    decisions = "1. First\n   1. Nested step\n   - Provenance: a\n2. Second\n"
+    assert _unsourced(decisions) == ["Second"]

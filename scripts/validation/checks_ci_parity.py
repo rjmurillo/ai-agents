@@ -116,6 +116,9 @@ def _require_base_ref(repo_root: Path, label: str) -> str:
     no-open-PR case is fetched like any other. A base that is not an
     ``origin/<branch>`` ref (the local ``main`` last resort) is never fetched,
     so outside CI it fails too.
+    A slash-containing base such as ``origin/release/1.0`` is also never
+    fetched: ``_refresh_remote_base`` returns ``None``, which means no fetch was
+    attempted, so outside CI that fails as well.
     """
     base_ref = _resolve_default_base_ref(repo_root)
     if base_ref is None:
@@ -134,6 +137,16 @@ def _require_base_ref(repo_root: Path, label: str) -> str:
         raise BaseRefUnavailable(
             f"{label} could not refresh {base_ref} ({refresh_error}); "
             "a stale base can hide new findings, so fetch the base and re-run"
+        )
+    if refresh_error is None and not _is_ci():
+        # None means no fetch was attempted. Under CI the runner already fetched.
+        # Outside CI the helper also returns None for a slash-containing branch
+        # such as origin/release/1.0, which it never fetches, so the cache is stale.
+        raise BaseRefUnavailable(
+            f"{label} did not refresh {base_ref}: the refresh skips a branch name "
+            "that contains a slash, so a stale base can hide new findings. "
+            f"Run `git fetch origin {base_ref.removeprefix('origin/')}`, "
+            "then re-run with CI=true to assert the base is current"
         )
     return base_ref
 

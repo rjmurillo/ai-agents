@@ -14,7 +14,10 @@ Returns structured JSON with check states, conclusions, and summary counts.
 Supports polling until checks complete and filtering to required checks only.
 
 Exit codes follow ADR-035:
-    0 - All checks passing (or skipped/pending)
+    0 - All checks passing (or skipped/pending). Exit 0 and Status PASS do not prove
+        the required set: RequiredState carries that. It reads UNKNOWN, not SUCCESS,
+        when --base-branch '' skipped the ruleset or the merge ref is unusable, and a
+        gate must read RequiredState instead of the exit code alone.
     1 - One or more checks failed
     2 - PR not found
     3 - API error

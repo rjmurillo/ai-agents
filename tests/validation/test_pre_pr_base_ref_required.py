@@ -19,6 +19,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import checks_ci_parity
+import checks_common
 import pre_pr
 
 _DIFF_GATES = (
@@ -51,13 +52,49 @@ def test_the_base_is_refreshed_before_the_gate_diffs(monkeypatch: pytest.MonkeyP
     assert refreshed == ["origin/main"]
 
 
-def test_an_origin_base_that_needs_no_refresh_is_accepted(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("var", ["CI", "GITHUB_ACTIONS"])
+def test_an_origin_base_that_needs_no_refresh_is_accepted_under_ci(
+    monkeypatch: pytest.MonkeyPatch, var: str
 ) -> None:
-    """``None`` from the refresh means CI already fetched the base."""
+    """``None`` from the refresh under CI means the runner already fetched the base."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv(var, "true")
     _stub_base(monkeypatch, "origin/main", refresh=None)
 
     assert checks_ci_parity._require_base_ref(REPO_ROOT, "test gate") == "origin/main"
+
+
+@pytest.mark.parametrize("base", ["origin/release/1.0", "origin/fix/6506-stacked", "origin/main"])
+def test_an_origin_base_with_no_attempted_refresh_fails_outside_ci(
+    monkeypatch: pytest.MonkeyPatch, base: str
+) -> None:
+    """``None`` outside CI means no fetch ran (a slash branch), so the cache may be stale."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    refreshed = _stub_base(monkeypatch, base, refresh=None)
+
+    with pytest.raises(checks_ci_parity.BaseRefUnavailable, match=r"did not refresh") as caught:
+        checks_ci_parity._require_base_ref(REPO_ROOT, "test gate")
+    assert refreshed == [base]
+    assert f"git fetch origin {base.removeprefix('origin/')}" in str(caught.value)
+
+
+def test_a_slash_base_through_the_real_refresh_fails_outside_ci(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end with the real helper: it returns None for ``origin/a/b`` without fetching."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setattr(checks_ci_parity, "_resolve_default_base_ref", lambda _r: "origin/a/b")
+    monkeypatch.setattr(
+        checks_common,
+        "_run_subprocess",
+        lambda *_a, **_k: pytest.fail("a slash branch must not be fetched"),
+    )
+
+    with pytest.raises(checks_ci_parity.BaseRefUnavailable, match=r"did not refresh origin/a/b"):
+        checks_ci_parity._require_base_ref(REPO_ROOT, "test gate")
 
 
 def test_a_local_base_fails_because_it_is_never_fetched(

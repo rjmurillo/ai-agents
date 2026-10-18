@@ -97,6 +97,27 @@ def test_skip_scan_with_declared_sinks_still_evaluates_the_rules() -> None:
     assert verdict(good_evidence(), {"decision": "skip", "sinks": []})["verdict"] == "PASS"
 
 
+def test_skip_scan_with_a_declared_sink_does_not_excuse_a_broken_rule() -> None:
+    """Evidence may declare a sink the scan missed, and it is held to every rule."""
+    evidence = good_evidence()
+    del evidence["rollback"]
+    result = verdict(evidence, {"decision": "skip", "sinks": []})
+    assert result["verdict"] == "BLOCK"
+    assert "no rollback contract" in " | ".join(result["reasons"])
+
+
+def test_skip_scan_with_a_declared_sink_lacking_a_trace_blocks() -> None:
+    evidence = good_evidence()
+    evidence["sinks"] = [{"location": "store.py:10", "trace": []}]
+    assert "has no traced path" in reasons(evidence, {"decision": "skip", "sinks": []})
+
+
+def test_module_docstring_states_that_evidence_may_exceed_the_scan() -> None:
+    doc = " ".join((gate_verdict.__doc__ or "").split())
+    assert "Evidence may declare sinks the scan missed" in doc
+    assert "backs the declared sinks" not in doc
+
+
 @pytest.mark.parametrize("exit_code", [False, True, None, "0", 0.0, 1, -1])
 def test_preflight_exit_code_must_be_the_integer_zero(exit_code: object) -> None:
     evidence = good_evidence()

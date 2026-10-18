@@ -2407,6 +2407,64 @@ class TestMissingRequired:
         assert output["Data"]["MissingRequiredChecks"] is None
         assert rc == 0
 
+    def test_skipped_ruleset_exits_zero_but_required_state_is_unknown(self, capsys):
+        """Exit 0 and Status PASS do not prove the required set; RequiredState does.
+
+        The module docstring tells a gating caller to read RequiredState. This
+        pins both halves so a change to either one is a deliberate contract edit.
+        """
+        rollup = self._green_rollup()
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch("get_pr_checks.fetch_ruleset_required_contexts"),
+        ):
+            rc_json = main(
+                ["--pull-request", "4009", "--base-branch", "", "--output-format", "json"]
+            )
+            json_out = capsys.readouterr().out
+            rc_human = main(
+                ["--pull-request", "4009", "--base-branch", "", "--output-format", "human"]
+            )
+            human_out = capsys.readouterr().out
+
+        assert rc_json == 0
+        assert rc_human == 0
+        assert json.loads(json_out)["Data"]["RequiredState"] == "UNKNOWN"
+        assert "[PASS]" in human_out
+
+    def test_module_docstring_says_exit_zero_does_not_prove_required_state(self):
+        import get_pr_checks
+
+        doc = " ".join((get_pr_checks.__doc__ or "").split())
+        assert "do not prove the required set" in doc
+        assert "RequiredState" in doc
+
+    def test_ruleset_read_with_green_checks_reports_required_state_success(self, capsys):
+        """Control: with the ruleset read and every context reported, RequiredState is SUCCESS."""
+        rollup = self._green_rollup("Run Python Tests")
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=["Run Python Tests"],
+            ),
+        ):
+            rc = main(["--pull-request", "4009", "--output-format", "json"])
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["Data"]["RequiredState"] == "SUCCESS"
+
     def test_missing_required_summary_names_checks(self, capsys):
         """Human summary names the missing checks by count and sample."""
         rollup = self._green_rollup("Run Python Tests")

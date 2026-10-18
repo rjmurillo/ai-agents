@@ -123,7 +123,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/destructi
 
 | Verdict | Exit | Meaning |
 |---------|------|---------|
-| `PASS` | 0 | A `--scan` report backs the sinks. Every sink traced, scope measured and as expected, rollback stated, checks green. Execution may proceed. |
+| `PASS` | 0 | A `--scan` report covers every sink it found; evidence may declare more, and each declared sink is held to the same rules. Every sink traced, scope measured and as expected, rollback stated, checks green. Execution may proceed. |
 | `SKIP` | 0 | No sink declared, and a `--scan` report with `"decision": "skip"` backs it. |
 | `BLOCK` | 1 | `reasons` lists each failure. Fix the evidence, or stop. |
 

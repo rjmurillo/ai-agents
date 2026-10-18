@@ -13,7 +13,10 @@ Evidence is a JSON object the agent assembles from real command output:
       "checks": [{"command": "pytest ...", "exit_code": 0}]
     }
 
-``PASS`` means every rule held and a scan report backs the declared sinks.
+``PASS`` means every rule held and a scan report covers every sink it found.
+Evidence may declare sinks the scan missed, even under a ``skip`` report. The scan
+sets the minimum, and each declared sink is held to the same trace, scope, rollback,
+and check rules.
 ``SKIP`` means no sink was declared and a scan report with ``"decision": "skip"``
 proved the scan found none. Every verdict needs a scan report: a missing one, or
 one without a known ``decision``, blocks, because the scan is what catches a sink
