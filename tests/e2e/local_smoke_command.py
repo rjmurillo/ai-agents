@@ -4,8 +4,9 @@ Reads launcher prefixes (``env``, ``sudo``, ``npx``), shell ``-c`` command lines
 compound command lines, so the guard sees every program a call would start.
 
 Known limits: a program started through ``eval``, a variable (``$CMD``), a script file,
-or a launcher outside ``_LAUNCHERS`` is not seen. A shell option with a value other than
-``-o`` or ``-O`` (``--rcfile f``) before the command line misreads the value as the command.
+a launcher outside ``_LAUNCHERS``, or a shell outside ``_SHELLS`` is not seen. A shell
+option with a value other than ``-o`` or ``-O`` (``--rcfile f``) before the command line
+misreads the value as the command.
 """
 
 from __future__ import annotations
@@ -25,6 +26,11 @@ _PROCESS_OPEN = re.compile(r"^[;&|()<>]*[<>]\($")
 # ``&&>x``. shlex lexes the pair as one punctuation token.
 _FUSED_REDIRECT = re.compile(r"^([;&|()]+)([<>].*)$")
 _OPERATOR_SPLIT = re.compile(r"&&|\|\||[<>]\(|[;|&()`\n]")
+# A word of a Windows-style line: a double-quoted span (which may hold spaces and
+# operator characters, as in ``"C:\Program Files (x86)\copilot.exe"``) or any
+# character that is not whitespace, a quote, or the start of an operator.
+_WINDOWS_WORD = re.compile(r'(?:"[^"\n]*"|[^\s"&|;()`<>]|[<>](?!\())+')
+_WINDOWS_TOKEN = re.compile(f"{_WINDOWS_WORD.pattern}|{_OPERATOR_SPLIT.pattern}")
 # A redirection: an optional fd number or ``&``, the operator, then a target that
 # is either attached (``>/dev/null``) or the next word (``> /dev/null``).
 _REDIRECT = re.compile(r"^(?:\d*|&)(?:<<<|<<-?|<>|>>|>\||[<>]&?)(.*)$")
@@ -54,11 +60,15 @@ _LAUNCHERS: dict[str, frozenset[str]] = {
 }
 # Launchers whose program word may be a whole command line: ``watch 'copilot -p x'``.
 _COMMAND_LINE_LAUNCHERS = frozenset({"watch"})
+# ``env`` options whose value is a whole command line: ``-S 'copilot -p x'``, and the
+# attached forms ``--split-string=CMD`` and ``-SCMD``.
+_SPLIT_STRING_OPTIONS = frozenset({"-S", "--split-string"})
+_ATTACHED_COMMAND_LINE = re.compile(r"^(?:--split-string=|-S(?=.))(.*)$", re.DOTALL)
 # Positional words a launcher takes before the program: `timeout 5 copilot`.
 _LEADING_POSITIONALS = {"timeout": 1}
 # Shell reserved words that can lead a simple command: `then copilot`, `! copilot`.
 _KEYWORDS = frozenset({"if", "then", "else", "elif", "fi", "while", "until", "do", "done"})
-_KEYWORDS |= frozenset({"!", "{", "}", "case", "esac", "in", "coproc"})
+_KEYWORDS |= frozenset({"!", "{", "}", "case", "esac", "in", "coproc", "function"})
 # A command substitution, even inside double quotes: `"$(copilot)"`, `"`copilot`"`.
 _SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
 # Options after which a launcher only looks the program up instead of running it.
@@ -67,7 +77,7 @@ _LOOKUP_OPTIONS = frozenset({"-v", "-V"})
 _C_CLUSTER = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
 # Shell options that take a separate value: ``bash -c -o pipefail 'cmd'``.
 _SHELL_VALUE_OPTIONS = frozenset({"-o", "+o", "-O", "+O"})
-_POSIX_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh"})
+_POSIX_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish"})
 # Shells, mapped to the option whose value is a command line to run.
 _SHELLS: dict[str, frozenset[str]] = (
     {name: frozenset({"-c"}) for name in _POSIX_SHELLS}
@@ -102,7 +112,27 @@ def _cut_line(text: str) -> list[list[str]]:
             return _lex_line(text)
         except ValueError:
             pass
-    return [part.split() for part in _OPERATOR_SPLIT.split(text) if part.strip()]
+    return _windows_commands(text)
+
+
+def _windows_commands(text: str) -> list[list[str]]:
+    """Cut a Windows-style line at operators, keeping a double-quoted span as one word.
+
+    POSIX quoting would eat the backslashes, so this reads quotes by hand: a quoted path
+    with spaces or parentheses stays whole, and its quotes are dropped.
+    """
+    commands: list[list[str]] = []
+    current: list[str] = []
+    for token in _WINDOWS_TOKEN.findall(text):
+        if _OPERATOR_SPLIT.fullmatch(token):
+            if current:
+                commands.append(current)
+            current = []
+        else:
+            current.append(token.replace('"', ""))
+    if current:
+        commands.append(current)
+    return commands
 
 
 def _split_fused(token: str) -> tuple[str, str] | None:
@@ -210,6 +240,22 @@ def _after_prefix(words: list[str], index: int, word: str) -> int | None:
     return None
 
 
+def _option_command_line(launcher: str, word: str, following: list[str]) -> str | None:
+    """Return the command line a launcher option carries, or None if it carries none.
+
+    ``command -v`` only looks a program up, so its command line is empty. ``env`` takes a
+    whole command line attached to ``-S`` or ``--split-string=``, or as the next word.
+    """
+    if launcher == "command" and word in _LOOKUP_OPTIONS:
+        return ""
+    if launcher != "env":
+        return None
+    if word in _SPLIT_STRING_OPTIONS:
+        return following[0] if following else ""
+    attached = _ATTACHED_COMMAND_LINE.match(word)
+    return attached.group(1) if attached else None
+
+
 def _programs(words: list[str]) -> list[str]:
     """Return the programs one simple command starts: its own, or a shell's inner ones."""
     launcher = ""
@@ -223,8 +269,9 @@ def _programs(words: list[str]) -> list[str]:
             index = after
             continue
         if word.startswith("-"):
-            if launcher == "command" and word in _LOOKUP_OPTIONS:
-                return []
+            inner = _option_command_line(launcher, word, words[index:])
+            if inner is not None:
+                return program_names(inner)
             index += word in _LAUNCHERS.get(launcher, frozenset())
             continue
         name = _basename(word)
@@ -232,6 +279,8 @@ def _programs(words: list[str]) -> list[str]:
             positionals -= 1
             continue
         if name in _KEYWORDS:
+            # ``function NAME`` declares a function: skip the name, so the body is read.
+            index += name == "function"
             continue
         if name in _LAUNCHERS:
             launcher = name

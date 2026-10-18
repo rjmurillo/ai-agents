@@ -27,7 +27,7 @@ Subcommands (stdlib only, output is one JSON object):
 
 Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
 (unreachable server, remote base URL without an explicit flag, no examples to
-lint, a response over the size cap, or a run past its deadline).
+lint, a response over the size cap, or a run past its deadline with no failed example).
 """
 
 from __future__ import annotations
@@ -349,18 +349,45 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
     results: list[dict[str, Any]] = []
     for example in runnable:
         if time.monotonic() > deadline:
-            raise InputError(
-                f"run passed its {RUN_DEADLINE_SECONDS}s deadline after {len(results)} "
-                f"of {len(runnable)} examples, before `{example.id}`; nothing was verified"
-            )
+            return _past_deadline(args, base_url, results, runnable[len(results) :])
         results.append(run_example(example, base_url, sender))
     report = _evidence(args, base_url, results)
     report["lint_findings"] = findings
     if findings:
         report["verdict"] = "FAIL"
+    _write_evidence(args, report)
+    return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
+
+
+def _write_evidence(args: argparse.Namespace, report: dict[str, Any]) -> None:
     if args.evidence:
         Path(args.evidence).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
+
+
+def _past_deadline(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    unrun: list[Example],
+) -> tuple[dict[str, Any], int]:
+    """Keep the finished results when a run passes its deadline.
+
+    A finished FAIL stays exit 1: the doc is stale whether or not the rest ran. With no
+    FAIL the run is unverifiable (exit 2). Either way the evidence file records the
+    finished results, the deadline, and the examples that never ran.
+    """
+    report = _evidence(args, base_url, results)
+    failed = report["verdict"] == "FAIL"
+    report["verdict"] = "FAIL" if failed else "UNVERIFIED"
+    report["deadline_exceeded"] = {"seconds": RUN_DEADLINE_SECONDS, "unrun": [e.id for e in unrun]}
+    _write_evidence(args, report)
+    if failed:
+        return report, EXIT_FINDINGS
+    raise InputError(
+        f"run passed its {RUN_DEADLINE_SECONDS}s deadline after {len(results)} of "
+        f"{len(results) + len(unrun)} examples, before `{unrun[0].id}`; "
+        "the run is unverified and the finished results are not a verdict"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -87,6 +87,20 @@ import local_smoke_guard as guard
         "true;2>/dev/null copilot",
         "(true)>x copilot",
         "true;&>x copilot",
+        "function f { copilot; }",
+        "function f() { copilot; }",
+        "function f { echo hi; }; f; copilot",
+        "env -S 'copilot -p x'",
+        "env -S'copilot -p x'",
+        "env --split-string='copilot -p x'",
+        "env --split-string 'FOO=1 copilot'",
+        "env -i -S 'echo hi; copilot'",
+        "fish -c copilot",
+        "ash -c 'echo hi; copilot'",
+        ["mksh", "-c", "copilot"],
+        r'"C:\Program Files\copilot.exe" -p x',
+        r'"C:\Program Files (x86)\copilot.exe" --version',
+        r'echo hi & "C:\Program Files (x86)\copilot.cmd"',
     ],
 )
 def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
@@ -137,6 +151,14 @@ def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
         "bash -c -x",
         "bash -c --",
         "true;>/dev/null ls copilot",
+        "function f { echo copilot; }",
+        "function copilot { echo hi; }",
+        "env -S 'echo copilot'",
+        "env --split-string='ls copilot'",
+        "env -S",
+        "fish -c 'echo copilot'",
+        r'"C:\Program Files\node.exe" copilot.js',
+        r'"C:\Program Files (x86)\tool.exe" -p "a;copilot"',
     ],
 )
 def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> None:
@@ -170,6 +192,24 @@ def test_program_names_splits_an_operator_fused_to_a_redirection() -> None:
     assert command.program_names("true;<in copilot") == ["true", "copilot"]
     # `&>` is a redirection, so copilot stays an argument of `true`.
     assert command.program_names("true&>x copilot") == ["true"]
+
+
+def test_program_names_reads_a_function_body_and_an_env_split_string() -> None:
+    assert command.program_names("function f { a; }") == ["a"]
+    assert command.program_names("function f() { a; }") == ["a"]
+    assert command.program_names("env -S 'a -x' ") == ["a"]
+    assert command.program_names("env --split-string=b") == ["b"]
+    # Edge: an option with no command line after it starts nothing.
+    assert command.program_names("env -S") == []
+
+
+def test_program_names_keeps_a_quoted_windows_path_whole() -> None:
+    assert command.program_names(r'"C:\Program Files\a b\tool.exe" -p x') == ["tool.exe"]
+    assert command.program_names(r'"C:\Program Files (x86)\t.exe" & dir') == ["t.exe", "dir"]
+    # A quoted operator character is data, not an operator.
+    assert command.program_names(r'echo "a;b" & c') == ["echo", "c"]
+    # Edge: an unbalanced quote still yields the commands around it.
+    assert command.program_names(r'echo "oops & copilot') == ["echo", "copilot"]
 
 
 def test_program_name_keeps_returning_the_first_program() -> None:

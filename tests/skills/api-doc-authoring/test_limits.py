@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import socket
 import threading
 import time
@@ -331,6 +332,60 @@ def test_a_run_past_its_deadline_is_unverifiable(
     with pytest.raises(ax.InputError, match=r"deadline after 0 of 2 examples, before `a`"):
         ax.cmd_run(args, sender)
     assert sent == []
+
+
+def _run_that_passes_its_deadline_after_one_example(
+    write_doc: WriteDoc, monkeypatch: pytest.MonkeyPatch, status: int, evidence: Path
+) -> tuple[argparse.Namespace, Callable[..., ax.Reply]]:
+    text = GOOD_DOC + "\n```http example=b expect=200\nGET /y\n```\n"
+    doc = write_doc("d.md", text)
+    real_monotonic = time.monotonic
+
+    def sender(method: str, url: str, headers: dict[str, str], body: bytes) -> ax.Reply:
+        # The first example finishes, then the clock jumps past the run deadline.
+        monkeypatch.setattr(ax.time, "monotonic", lambda: real_monotonic() + 10_000)
+        return ax.Reply(status, b"{}")
+
+    args = argparse.Namespace(
+        docs=[str(doc)],
+        base_url="http://127.0.0.1:9",
+        allow_remote=False,
+        evidence=str(evidence),
+        touching=None,
+    )
+    return args, sender
+
+
+def test_a_failed_example_before_the_deadline_is_still_a_finding(
+    write_doc: WriteDoc, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    evidence = tmp_path / "evidence.json"
+    args, sender = _run_that_passes_its_deadline_after_one_example(
+        write_doc, monkeypatch, 500, evidence
+    )
+
+    report, code = ax.cmd_run(args, sender)
+
+    assert code == ax.EXIT_FINDINGS
+    assert report["verdict"] == "FAIL" and report["executed"] == 1 and report["failed"] == 1
+    assert report["deadline_exceeded"]["unrun"] == ["b"]
+    assert json.loads(evidence.read_text(encoding="utf-8")) == report
+
+
+def test_a_clean_partial_run_past_the_deadline_keeps_its_evidence_and_is_unverified(
+    write_doc: WriteDoc, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    evidence = tmp_path / "evidence.json"
+    args, sender = _run_that_passes_its_deadline_after_one_example(
+        write_doc, monkeypatch, 200, evidence
+    )
+
+    with pytest.raises(ax.InputError, match=r"after 1 of 2 examples, before `b`.*not a verdict"):
+        ax.cmd_run(args, sender)
+
+    saved = json.loads(evidence.read_text(encoding="utf-8"))
+    assert saved["verdict"] == "UNVERIFIED" and saved["executed"] == 1
+    assert saved["deadline_exceeded"]["unrun"] == ["b"]
 
 
 def test_a_run_inside_its_deadline_sends_every_example(write_doc: WriteDoc) -> None:
