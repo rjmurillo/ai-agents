@@ -69,7 +69,7 @@ class TestLefthookRiskLevel:
 
 
 class TestAuthFilenamePattern:
-    """The Auth filename pattern matches auth names, not author or authority words."""
+    """The Auth filename pattern matches auth names, not the word author."""
 
     @pytest.mark.parametrize(
         "path",
@@ -85,6 +85,16 @@ class TestAuthFilenamePattern:
             "scripts/ci/check_claude_authorization.py",
             ".claude/skills/api-doc-authoring/scripts/auth_helper.py",
             "src\\AuthService.cs",
+            "src/AuthOrchestrator.py",
+            "src/authOrchestrator.py",
+            "src/OAuthOrigin.ts",
+            "src/authOrg.cs",
+            "src/AuthOrder.cs",
+            "src/CertificateAuthority.cs",
+            "src/JwtAuthorityResolver.cs",
+            "lib/Authority.cs",
+            "lib/authorities.py",
+            ".claude/skills/validation-authority/scripts/validation_record.py",
         ],
     )
     def test_auth_names_stay_critical(self, path: str) -> None:
@@ -96,18 +106,15 @@ class TestAuthFilenamePattern:
             ".claude/skills/api-doc-authoring/scripts/api_examples.py",
             ".claude/skills/api-doc-authoring/scripts/doc_examples.py",
             "tests/skills/api-doc-authoring/test_cli.py",
-            ".claude/skills/validation-authority/scripts/validation_record.py",
-            "tests/skills/validation-authority/test_validation_record.py",
-            "tests/test_pr_description_closing_authority.py",
             "lib/author.py",
             "lib/AuthorInfo.cs",
             "lib/authors.ts",
             "lib/authorship.js",
-            "lib/Authority.cs",
-            "lib/authorities.py",
+            "lib/authored_by.py",
+            "lib/AuthorsList.cs",
         ],
     )
-    def test_author_and_authority_words_are_not_critical(self, path: str) -> None:
+    def test_author_words_are_not_critical(self, path: str) -> None:
         assert get_security_risk_level(path) == "none"
 
     def test_non_code_extension_does_not_match_auth_pattern(self) -> None:
