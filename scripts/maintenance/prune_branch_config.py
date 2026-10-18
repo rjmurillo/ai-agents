@@ -192,17 +192,72 @@ def find_stale_branches(
     return tuple(name for name in configured if name.casefold() not in live)
 
 
+def _remove_own_backup(backup: Path, created: os.stat_result | None) -> None:
+    """Remove a partial backup, but only the entry this process created.
+
+    ``created`` is the ``fstat`` of the descriptor opened with ``O_EXCL``.
+    If another process swapped the pathname after the open, the entry there
+    is not ours, so it stays. Without an identity (``fstat`` failed) nothing
+    is removed, because the pathname cannot be tied to this write (#6506).
+    """
+    if created is None:
+        return
+    try:
+        current = backup.lstat()
+    except OSError:
+        return
+    if (current.st_dev, current.st_ino) == (created.st_dev, created.st_ino):
+        backup.unlink(missing_ok=True)
+
+
 def _backup_config(config_path: Path) -> Path:
+    """Copy the config to a fresh ``.before-prune[.N]`` file beside it.
+
+    The backup is created with ``O_CREAT | O_EXCL``, which fails on any
+    existing entry at the name, including a dangling symlink. ``Path.exists``
+    follows links and reports a dangling one as absent, so ``copy2`` used to
+    write through a planted link to its target (CWE-59, issue #6506).
+
+    A failed write removes the partial backup only while the pathname still
+    names the file this call created, so a concurrent swap is left alone.
+    """
     base = config_path.with_name(f"{config_path.name}.before-prune")
-    backup = base
-    suffix = 0
-    while backup.exists():
-        suffix += 1
-        if suffix >= 1000:
-            raise GitError("could not choose a config backup path")
-        backup = base.with_name(f"{base.name}.{suffix}")
-    shutil.copy2(config_path, backup)
-    return backup
+    content = config_path.read_bytes()
+    mode = config_path.stat().st_mode & 0o7777
+    for suffix in range(1000):
+        backup = base if suffix == 0 else base.with_name(f"{base.name}.{suffix}")
+        try:
+            # O_BINARY (Windows only) stops CRT text mode from turning LF into
+            # CRLF, so the backup stays a byte copy of the config.
+            fd = os.open(
+                backup,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_BINARY", 0),
+                0o600,
+            )
+        except FileExistsError:
+            continue
+        created: os.stat_result | None = None
+        try:
+            try:
+                created = os.fstat(fd)
+                handle = os.fdopen(fd, "wb")
+            except BaseException:
+                # fdopen owns the descriptor only once it returns.
+                os.close(fd)
+                raise
+            with handle:
+                handle.write(content)
+                if hasattr(os, "fchmod"):
+                    os.fchmod(handle.fileno(), mode)
+        except OSError as exc:
+            _remove_own_backup(backup, created)
+            raise GitError(f"could not write config backup {backup}: {exc}") from exc
+        return backup
+    raise GitError("could not choose a config backup path")
 
 
 def _verify_config(repo: Path) -> None:
