@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -171,16 +172,20 @@ def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: 
     Raises CoverageConfigError on traversal escape, a missing target (orphan),
     or the wrong file shape for the kind.
     """
+    # A scenario names the .claude/ spelling. It may resolve into src/claude/
+    # through a link (ADR-119); a direct src/claude/ spelling is refused.
+    named = Path(os.path.normpath(repo_root / target_str))
     resolved = (repo_root / target_str).resolve()
-    allowed_roots = [(repo_root / artifact_dir).resolve()]
-    if kind == "skill":
-        # ADR-119: a shipped .claude/skills/<name> links into the plugin tree.
-        allowed_roots.append((repo_root / _SHIPPED_SKILLS_DIR).resolve())
-    else:
-        # ADR-119: a shipped .claude/rules/<name>.md links into the plugin tree.
-        allowed_roots.append((repo_root / _SHIPPED_RULES_DIR).resolve())
-    if not any(resolved.is_relative_to(root) for root in allowed_roots):
-        raise CoverageConfigError(f"{kind}_path must stay under {artifact_dir}: {target_str}")
+    shipped_dir = _SHIPPED_SKILLS_DIR if kind == "skill" else _SHIPPED_RULES_DIR
+    allowed_roots = [(repo_root / artifact_dir).resolve(), (repo_root / shipped_dir).resolve()]
+    if not named.is_relative_to(repo_root / artifact_dir) or not any(
+        resolved.is_relative_to(root) for root in allowed_roots
+    ):
+        raise CoverageConfigError(
+            f"{kind}_path must be spelled under {artifact_dir.as_posix()}/ (it may resolve into "
+            f"{shipped_dir.as_posix()}/ through a link; a direct {shipped_dir.as_posix()}/ "
+            f"path is refused): {target_str}"
+        )
     if kind == "rule":
         if resolved.suffix != ".md":
             raise CoverageConfigError(f"rule_path must be a .md file: {target_str}")
