@@ -229,6 +229,33 @@ def tracked_files(repo_root: Path, *patterns: str) -> list[str]:
     return [entry.replace("\\", "/") for entry in out.split("\0") if entry]
 
 
+def tracked_py_with_links(repo_root: Path) -> set[str]:
+    """Return tracked ``*.py`` paths plus their paths through tracked directory links.
+
+    ADR-119 replaced the dogfood copies under ``.claude/skills`` with one tracked
+    symlink per shipped skill. A document that names
+    ``.claude/skills/<skill>/scripts/x.py`` still names a real file, but git lists
+    it only as ``src/claude/skills/<skill>/scripts/x.py``. Each tracked symlink
+    whose target is a tracked directory adds the aliased path, so a lookup by the
+    documented path resolves and a genuinely missing script still does not.
+    """
+    tracked = tracked_files(repo_root, "*.py")
+    aliased = set(tracked)
+    links = [
+        entry
+        for entry in tracked_files(repo_root, ".claude/skills", ".claude/agents")
+        if (repo_root / entry).is_symlink() and (repo_root / entry).is_dir()
+    ]
+    for link in links:
+        target = (repo_root / link).resolve()
+        try:
+            prefix = target.relative_to(repo_root.resolve()).as_posix() + "/"
+        except ValueError:
+            continue
+        aliased.update(link + "/" + p[len(prefix) :] for p in tracked if p.startswith(prefix))
+    return aliased
+
+
 def is_in_scope(rel_path: str) -> bool:
     """Return whether a file carries instructions this guard should gate."""
     generated_prompt = rel_path.startswith(GENERATED_PROMPT_PREFIX) and rel_path.endswith(".md")
@@ -333,6 +360,20 @@ def _tracked_regular_file(repo_root: Path, rel_path: str) -> Path:
     return path
 
 
+def _canonical_tracked(repo_root: Path, rel_path: str, tracked_py: set[str]) -> str:
+    """Map a path reached through a dogfood link to its tracked target (ADR-119).
+
+    A link that resolves outside the repository, or to a path git does not
+    track, is left as given so ``_tracked_regular_file`` still refuses it.
+    """
+    try:
+        resolved = (repo_root / rel_path).resolve().relative_to(repo_root.resolve())
+    except (OSError, ValueError):
+        return rel_path
+    canonical = resolved.as_posix()
+    return canonical if canonical in tracked_py else rel_path
+
+
 def third_party_imports(
     rel_path: str,
     repo_root: Path,
@@ -340,6 +381,7 @@ def third_party_imports(
     seen: set[str] | None = None,
 ) -> set[str]:
     """Return non-stdlib, non-repo modules reachable at import time from ``rel_path``."""
+    rel_path = _canonical_tracked(repo_root, rel_path, tracked_py)
     seen = set() if seen is None else seen
     if rel_path in seen:
         return set()
@@ -388,10 +430,16 @@ def scan(
     stats: ScanStats | None = None,
 ) -> dict[str, list[str]]:
     """Return file paths mapped to offending script identities."""
-    tracked_py = set(tracked_files(repo_root, "*.py"))
+    tracked_py = tracked_py_with_links(repo_root)
     counts: dict[str, list[str]] = {}
-    for rel in tracked_files(repo_root, "*.md", "*.py"):
+    listed = tracked_files(repo_root, "*.md", "*.py")
+    listed_set = set(listed)
+    for rel in listed:
         if not is_in_scope(rel):
+            continue
+        # A dogfood link (ADR-119) is the same bytes as its tracked target, which
+        # this loop scans under its own path. Scanning both would double-count.
+        if _canonical_tracked(repo_root, rel, listed_set) != rel:
             continue
         scripts = _scan_file(repo_root, rel, tracked_py, details, stats)
         if scripts:

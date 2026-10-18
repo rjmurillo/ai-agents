@@ -87,6 +87,8 @@ python:
   #   AGENTS.md, README.md     tests/test_knowledge_surface_consistency.py
   #   .agents/AGENT-SYSTEM.md  tests/test_agent_role_metadata_migration.py
   - '.claude/skills/**'
+  # ADR-119: .claude/skills/<name> links here, so edits land in this tree.
+  - 'src/claude/skills/**'
   - 'src/copilot-cli/skills/**'
   - '.serena/memories/**'
   - '.project-toolkit/architecture/**'

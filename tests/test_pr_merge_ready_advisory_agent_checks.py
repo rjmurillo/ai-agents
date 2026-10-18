@@ -24,7 +24,8 @@ check_merge_readiness = _mod.check_merge_readiness
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
-CONFIG_PATH = ".claude/skills/pr-review/pr-review-config.yaml"
+# The loader resolves its own realpath, which is the canonical src/claude tree (ADR-119).
+CONFIG_PATH = "src/claude/skills/pr-review/pr-review-config.yaml"
 LISTED = ".github/workflows/ai-spec-review.yml"
 # Listed on purpose (owner decision, issue 6182) but holds no model job: the
 # deterministic Validate Spec Coverage check. The test pins that it stays so.

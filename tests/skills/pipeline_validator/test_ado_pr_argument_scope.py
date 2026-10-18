@@ -6,7 +6,7 @@ returned an error instead of a policy state. The script named in that issue
 (``.agents/tools/Wait-PrCi.ps1``) has never existed in this repository (``git log --all
 --diff-filter=ADMR -- '*Wait-PrCi*'`` returns nothing, and the tree carries zero ``.ps1``
 files), but the same defect was present here in a command this repo does ship:
-``.claude/skills/pipeline-validator/SKILL.md`` Step 2 passed ``--project`` to
+``src/claude/skills/pipeline-validator/SKILL.md`` Step 2 passed ``--project`` to
 ``az repos pr show``.
 
 The canonical contract is the Azure CLI ``azure-devops`` extension reference, fetched from
@@ -46,7 +46,7 @@ dozen lines above the defect and prove nothing about which command carries the f
 here is shown to fail on the shape it was written against (`.claude/rules/testing.md`
 SHOULD 10).
 
-``.claude/skills/pipeline-validator/SKILL.md`` is the source;
+``src/claude/skills/pipeline-validator/SKILL.md`` is the source;
 ``src/copilot-cli/skills/pipeline-validator/SKILL.md`` is generated from it by
 ``build/scripts/generate_skills.py`` (see ``.agents/governance/GENERATOR-FILES.md``). Both
 trees are asserted so the shipped Copilot copy cannot keep the defect after the Claude copy
@@ -118,7 +118,7 @@ _KNOWN_SUBCOMMANDS = sorted(
 )
 
 SKILL_PATHS = (
-    Path(".claude/skills/pipeline-validator/SKILL.md"),
+    Path("src/claude/skills/pipeline-validator/SKILL.md"),
     Path("src/copilot-cli/skills/pipeline-validator/SKILL.md"),
 )
 
@@ -127,7 +127,7 @@ SKILL_PATHS = (
 # pinning the guard to a fixed tuple would leave any newly added skill or runbook unguarded.
 KNOWN_ADO_DOC_PATHS = (
     *SKILL_PATHS,
-    Path(".claude/skills/ship/SKILL.md"),
+    Path("src/claude/skills/ship/SKILL.md"),
     Path("src/copilot-cli/skills/ship/SKILL.md"),
 )
 
@@ -306,7 +306,7 @@ class TestIdScopedCommandsRejectProjectFlags:
     def test_policy_list_invocation_is_clean(self) -> None:
         """The exact command named in issue #5077, in the file this repo does ship."""
         for path in (
-            Path(".claude/skills/ship/SKILL.md"),
+            Path("src/claude/skills/ship/SKILL.md"),
             Path("src/copilot-cli/skills/ship/SKILL.md"),
         ):
             policy_calls = [c for c in parse_calls(read(path)) if c.subcommand == "policy list"]

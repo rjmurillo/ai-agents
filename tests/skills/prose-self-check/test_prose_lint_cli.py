@@ -163,9 +163,10 @@ class TestRulesDiscovery:
         assert discover_rules_file() is None
 
     def test_walk_up_finds_the_repo_plugin_root(self) -> None:
-        # The real module sits under .claude/, whose marker is the repo's own
-        # plugin manifest; this pins the walk-up itself, not a copy of it.
-        assert mod._plugin_install_root() == PROJECT_ROOT / ".claude"
+        # The real module resolves into src/claude/ (.claude/skills/<name> is a
+        # symlink there, ADR-119), whose marker is the plugin manifest; this pins
+        # the walk-up itself, not a copy of it.
+        assert mod._plugin_install_root() == PROJECT_ROOT / "src" / "claude"
 
     def test_copilot_instructions_mirror_is_accepted(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

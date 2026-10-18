@@ -95,7 +95,9 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = [".claude", "scripts", "scripts/memory_enhancement"]
+# ADR-119: shipped skills run from src/claude through .claude links, and coverage
+# records the real path, so the plugin tree must be a source.
+source = [".claude", "src/claude", "scripts", "scripts/memory_enhancement"]
 omit = ["**/tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]
@@ -182,9 +184,8 @@ ignore = []
 # ANN suppression for pre-existing code (to be fixed incrementally)
 ".claude/skills/**/*.py" = ["ANN", "E501"]
 ".claude/hooks/**/*.py" = ["ANN"]
-# ADR-109 B3 follow-up: src/claude/skills/ mirrors .claude/skills/'s non-SKILL.md
-# files byte for byte (generate_skills.sync_claude_plugin_skill_support), so it
-# carries the same pre-existing violations and gets the same waiver.
+# ADR-119: src/claude/skills/ is the real directory each shipped .claude/skills/<name>
+# links to, so it carries the same pre-existing violations and gets the same waiver.
 "src/claude/skills/**/*.py" = ["ANN", "E501"]
 # ADR-115: src/cursor/skills/ copies the same support files byte for byte
 # (generate_skills.py, artifacts.skills in templates/platforms/cursor.yaml), so it
