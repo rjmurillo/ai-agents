@@ -18,6 +18,24 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
+# Declare this environment a remote container (Issue #5541). The ADR-104 rule 8
+# reclamation bound reads AI_AGENTS_REMOTE_CONTAINER through
+# _is_remote_container() in scripts/validation/run_workflow_local_test.py, and
+# the filesystem probe there finds nothing on a runtime that writes no marker
+# file. This gate is true only in the Claude Code web container, the environment
+# rule 8 was measured against, so the export cannot mark a laptop as a container.
+#
+# This runs before the bootstrap check so a missing bootstrap-vm.sh cannot skip
+# it. The guard matches the exact export line, not any assignment: a stale
+# `=0` line stays in the file, and the later `=1` line wins when it is sourced.
+if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  if ! grep -qxF 'export AI_AGENTS_REMOTE_CONTAINER=1' "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    echo 'export AI_AGENTS_REMOTE_CONTAINER=1' >> "$CLAUDE_ENV_FILE"
+  fi
+else
+  echo "[session-start] CLAUDE_ENV_FILE is unset; AI_AGENTS_REMOTE_CONTAINER was not persisted" >&2
+fi
+
 # Resolve repo root from the script's own location so the hook is robust
 # against $CLAUDE_PROJECT_DIR being unset, $PWD being something unexpected,
 # or any environment-variable manipulation (CWE-22 defense).

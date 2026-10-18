@@ -278,6 +278,8 @@ def _is_remote_container() -> bool:
     evidence, so it answers False on a runtime that writes no marker file and
     reports ``0::/`` under cgroup v2. An image whose reclamation bound must hold
     sets ``AI_AGENTS_REMOTE_CONTAINER`` rather than relying on being inferred.
+    ``templates/hooks/session-start.sh`` is the setter for the Claude Code web
+    container (Issue #5541). A new managed image adds its own setter.
 
     Callers use this to decide whether the environment can end the process out
     from under them: ``git_hook_policy._container_clamped`` and
