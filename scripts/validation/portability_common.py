@@ -292,6 +292,16 @@ def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     return [line for line in stdout.split("\0") if line]
 
 
+def _is_tracked_directory_link(path: Path) -> bool:
+    """Return whether a tracked entry is a link to a directory (ADR-119 dogfood link).
+
+    Git tracks a shipped skill under ``.claude/skills`` as one symlink entry, not
+    as the files beneath it. Its target tree is counted under its own root, so a
+    directory link is present, not missing. A dangling link is neither.
+    """
+    return path.is_symlink() and path.is_dir()
+
+
 def tracked_coverage_by_root(
     repo_root: Path, root_names: Iterable[str]
 ) -> dict[str, tuple[int, int]] | None:
@@ -328,7 +338,9 @@ def tracked_coverage_by_root(
         missing = 0
         for rel in real:
             resolved = resolve_path_within_root(root_resolved, repo_root / rel)
-            if resolved is None or not resolved.is_file():
+            if resolved is None:
+                missing += 1
+            elif not resolved.is_file() and not _is_tracked_directory_link(repo_root / rel):
                 missing += 1
         coverage[name] = (len(real), missing)
     return coverage

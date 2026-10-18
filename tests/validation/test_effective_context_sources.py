@@ -435,3 +435,30 @@ class TestReq2GitFailureHandling:
     def test_decode_strips_str_stderr(self) -> None:
         """A test double may hand back `str` directly; both shapes decode the same."""
         assert ecs._decode("  fatal: boom  \n") == "fatal: boom"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode")
+class TestRevFollowsTrackedLinks:
+    """ADR-119: a shipped rule is a tracked symlink; `--rev` must read its target."""
+
+    def test_rev_reads_the_target_of_a_tracked_link(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        body = "---\npaths:\n  - 'docs/**'\n---\n# Rule\n"
+        _write(tmp_path, "src/claude/rules/r.md", body)
+        (tmp_path / ".claude" / "rules").mkdir(parents=True)
+        (tmp_path / ".claude" / "rules" / "r.md").symlink_to("../../src/claude/rules/r.md")
+        sha = _commit_all(tmp_path, "link")
+
+        repo = ecs.Repo(tmp_path, sha)
+
+        assert repo.read_bytes(".claude/rules/r.md") == body.encode("utf-8")
+
+    @pytest.mark.parametrize("text", ["../../../outside.md", "/etc/hostname"])
+    def test_rev_treats_an_escaping_link_as_absent(self, tmp_path: Path, text: str) -> None:
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "AGENTS.md", "x\n")
+        (tmp_path / ".claude" / "rules").mkdir(parents=True)
+        (tmp_path / ".claude" / "rules" / "r.md").symlink_to(text)
+        sha = _commit_all(tmp_path, "escape")
+
+        assert ecs.Repo(tmp_path, sha).read_bytes(".claude/rules/r.md") is None

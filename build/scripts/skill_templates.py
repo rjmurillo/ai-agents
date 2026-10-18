@@ -7,9 +7,10 @@ whose canonical source is a mustache template under ``templates/skills/``.
 ADR-109 B3 moves this class's render target from ``.claude/skills/`` (the
 install tree) to ``src/claude/skills/`` (a plugin tree, the same shape
 ``agent_templates.py`` and ``rule_templates.py`` already use); a separate
-binplace step (``build/scripts/binplace_manifest.py``) then copies each
-rendered ``SKILL.md`` from the plugin tree onto its install-tree
-counterpart byte for byte. This module is that class's compile step, per
+binplace step (``build/scripts/binplace_manifest.py``, ``link`` row) then
+makes each ``.claude/skills/<name>`` a relative symlink to its plugin-tree
+directory, so the install tree reads the render directly. This module is
+that class's compile step, per
 ``.project-toolkit/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``, "Compile
 module: ``build/scripts/skill_templates.py``":
 
@@ -18,10 +19,11 @@ module: ``build/scripts/skill_templates.py``":
         filename minus ``.SKILL.md.tmpl``. Excludes a candidate whose name
         fails validation (two rounds of ADR-108 PR review, see
         :func:`_name_validation_error`): ``name`` MUST match
-        ``^[a-z0-9]+(-[a-z0-9]+)*$``; ``.claude/skills/<name>/`` MUST
-        already exist as a directory; it MUST NOT be a symlink; and its
-        resolved path MUST lie inside the resolved ``.claude/skills/``
-        root (CWE-22 defense). Any failure means that candidate never
+        ``^[a-z0-9]+(-[a-z0-9]+)*$``, and the skill's real directory
+        (``src/claude/skills/<name>/`` when shipped,
+        ``.claude/skills/<name>/`` when repo-local) MUST already exist,
+        MUST NOT be a symlink, and MUST resolve inside the repository
+        (CWE-22 defense). Any failure means that candidate never
         appears in this mapping, so it is never a target
         :func:`owned_targets` allowlists or :func:`compile_all` writes.
     ``discover_errors(repo_root) -> list[str]``
@@ -29,11 +31,12 @@ module: ``build/scripts/skill_templates.py``":
         template path and the reason. :func:`compile_all` grades each one
         exit 2.
     ``owned_targets(repo_root) -> set[Path]``
-        ``{src/claude/skills/<name>/SKILL.md, .claude/skills/<name>/SKILL.md}``
-        for every discovered (validated) template; the allowlist
-        ``build_all.py`` passes to the ``.claude/`` write guard, and the
-        per-skill entries ``build_all.OWNED_PREFIXES`` staleness checking
-        widens with.
+        The ``SKILL.md`` path :func:`compile_all` writes for every
+        discovered (validated) template: ``src/claude/skills/<name>/`` when
+        shipped, ``.claude/skills/<name>/`` when repo-local. Its ``.claude/``
+        members are the allowlist ``build_all.py`` passes to the
+        ``.claude/`` write guard and the per-skill entries
+        ``build_all.OWNED_PREFIXES`` staleness checking widens with.
     ``check_grammar(text) -> list[str]``
         Offending tags; empty when only partial and comment tags are
         present. Defined in the sibling ``skill_template_grammar`` module
@@ -54,9 +57,9 @@ module: ``build/scripts/skill_templates.py``":
         differ. Returns written, skipped, drifted, and an exit code (0
         pass, 1 drift, unresolved ``{{``, or a NO-REGEN skip, 2 grammar
         (template or any included partial), a missing or cyclic partial, an
-        invalid template name, a symlinked or out-of-root
-        ``.claude/skills/<name>/``, or a template with no existing
-        ``.claude/skills/<name>/`` directory (all four of the name/skill-dir
+        invalid template name, a symlinked or out-of-root skill
+        directory, or a template with no existing skill directory (all
+        four of the name/skill-dir
         failures caught by :func:`discover_errors`, before this loop ever
         sees the template), or a partial missing its trailing newline).
 
@@ -116,8 +119,9 @@ EXIT CODES (per ``compile_all``, and surfaced by callers unchanged):
       NO-REGEN-skipped template-owned target (see the "Stricter/looser/
       different than canonical" section above)
   2 - a discovered template's name does not match ``^[a-z0-9]+(-[a-z0-9]+)*$``,
-      names a skill with no existing ``.claude/skills/<name>/`` directory, or
-      that directory is a symlink or resolves outside ``.claude/skills/``
+      names a skill with no existing skill directory (see
+      :func:`_name_validation_error`), or that directory is a symlink or
+      resolves outside the repository
       (CWE-22 defense; that template is excluded from every other check
       below, and its target directory is therefore guaranteed to exist AND
       be a real, in-root directory for every template the checks below DO
@@ -197,45 +201,52 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
 def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
     """Return why ``name`` is not a valid template-owned skill name, or ``None``.
 
-    Eight checks: five from three rounds of ADR-108 review, plus three more
-    ADR-109 B3 added for the plugin-tree side (see below). ``name`` MUST
-    match the
-    same slug pattern a partial's slug does (``^[a-z0-9]+(-[a-z0-9]+)*$``).
-    ``.claude/skills/<name>/`` MUST already exist as a directory: the class
-    boundary ADR-108 section 1 and section 7 both draw is that every
-    template-owned skill converts an EXISTING skill directory; nothing in
-    this class creates a new skill out of nothing, so a misspelled or
-    freshly-invented name is a configuration error, not silently a new
-    skill. ``.claude/skills/<name>/`` MUST NOT be a symlink, and its
-    resolved path MUST lie inside the resolved ``.claude/skills/`` root
-    (second ADR review round, CWE-22 defense): ``name`` cannot itself carry
-    a path-traversal segment (the slug pattern admits no ``/`` or ``.``),
-    but a symlink at that exact location could still point the directory
-    the allowlist trusts at an arbitrary path outside ``.claude/skills/``,
-    which is exactly the tree :func:`owned_targets` promises
-    :func:`build_all.assert_no_claude_writes` a write is confined to.
+    ``name`` MUST match the same slug pattern a partial's slug does
+    (``^[a-z0-9]+(-[a-z0-9]+)*$``). The remaining checks depend on where the
+    skill lives, read from its ``metadata.distribution`` field
+    (``skill_distribution.is_repo_local``):
 
-    The ``.claude/skills/`` root itself MUST resolve inside ``repo_root``
-    (CodeRabbit on PR #5726): an intermediate symlink at ``.claude`` or
-    ``.claude/skills`` pointing at an external tree would make both the root
-    and the skill directory resolve there, so the per-skill containment check
-    below would pass while every write landed outside the repository.
+    - A shipped skill lives in the plugin tree. ``src/claude/skills/<name>/``
+      MUST already exist as a real directory, inside the repository, and its
+      ``SKILL.md`` MUST NOT be a symlink (:func:`_plugin_tree_error`). The
+      install path ``.claude/skills/<name>`` is a relative symlink into that
+      directory, placed by binplace's ``link`` row (``binplace_links.py``),
+      so it is not checked here.
+    - A repo-local skill has no plugin-tree copy and renders straight to
+      ``.claude/skills/<name>/SKILL.md``. That directory MUST already exist,
+      MUST NOT be a symlink, and MUST resolve inside the resolved
+      ``.claude/skills/`` root, which MUST itself resolve inside
+      ``repo_root`` (:func:`_install_tree_error`).
 
-    ADR-109 B3 moves the render target from ``.claude/skills/<name>/SKILL.md``
-    to ``src/claude/skills/<name>/SKILL.md`` (a separate binplace step then
-    copies the plugin tree onto ``.claude/skills/``, per
-    ``build/scripts/binplace_manifest.py``), so this function also validates
-    the PLUGIN-TREE side, mirroring ``rule_templates._name_validation_error``:
-    ``src/claude/skills/`` MUST NOT be a symlink and MUST resolve inside
-    ``repo_root``; the specific target ``src/claude/skills/<name>/SKILL.md``
-    MUST NOT itself be a symlink (CWE-22/CWE-59), the same defense the prior
-    ``.claude/skills/<name>/SKILL.md`` symlink check gave the old write
-    target, moved to the new one because :func:`compile_all` writes there
-    now, not the install path.
+    Both branches keep ADR-108's class boundary: every template-owned skill
+    converts an EXISTING skill directory, so a misspelled or invented name is
+    a configuration error, not silently a new skill. The containment and
+    no-symlink checks are the CWE-22 and CWE-59 defenses for the one path
+    :func:`compile_all` writes.
     """
     if not _NAME_RE.match(name):
         return f"{tmpl_path}: invalid template name {name!r}; must match {_NAME_RE.pattern!r}"
 
+    try:
+        repo_local = is_repo_local(repo_root, name)
+    except SkillDistributionError as exc:
+        return str(exc)
+    resolved_repo = repo_root.resolve()
+    if repo_local:
+        return _install_tree_error(repo_root, name, tmpl_path, resolved_repo)
+    return _plugin_tree_error(repo_root, name, tmpl_path, resolved_repo)
+
+
+def _install_tree_error(
+    repo_root: Path, name: str, tmpl_path: Path, resolved_repo: Path
+) -> str | None:
+    """Return why a repo-local skill's ``.claude/skills/<name>/`` is refused, or ``None``.
+
+    An intermediate symlink at ``.claude`` or ``.claude/skills`` pointing at
+    an external tree would make both the root and the skill directory resolve
+    there, so the root is checked against ``repo_root`` before the skill
+    directory is checked against the root (CodeRabbit on PR #5726).
+    """
     skills_root = repo_root / ".claude" / "skills"
     skill_dir = skills_root / name
 
@@ -244,7 +255,6 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
     if not skill_dir.is_dir():
         return f"{tmpl_path}: no existing .claude/skills/{name}/ directory"
 
-    resolved_repo = repo_root.resolve()
     resolved_root = skills_root.resolve()
     if not resolved_root.is_relative_to(resolved_repo):
         return (
@@ -257,27 +267,19 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
             f"{tmpl_path}: .claude/skills/{name}/ resolves to {resolved_skill}, "
             f"outside {resolved_root}"
         )
-
-    try:
-        repo_local = is_repo_local(repo_root, name)
-    except SkillDistributionError as exc:
-        return str(exc)
-    if repo_local:
-        symlink_error: str | None = install_target_symlink_error(repo_root, name, tmpl_path)
-        return symlink_error
-    return _plugin_tree_error(repo_root, name, tmpl_path, resolved_repo)
+    symlink_error: str | None = install_target_symlink_error(repo_root, name, tmpl_path)
+    return symlink_error
 
 
 def _plugin_tree_error(
     repo_root: Path, name: str, tmpl_path: Path, resolved_repo: Path
 ) -> str | None:
-    """Return why the PLUGIN-TREE side of ``name`` is refused, or ``None``.
+    """Return why a shipped skill's ``src/claude/skills/<name>/`` is refused, or ``None``.
 
-    Extracted out of :func:`_name_validation_error` to hold that function's
-    cyclomatic complexity under the taste-lint ceiling, the same reason
-    ``rule_templates._source_root_containment_error`` was split out of its
-    own ``_name_validation_error``. See that function's docstring for what
-    these three checks defend against.
+    The plugin root and the skill directory MUST be real directories that
+    resolve inside ``repo_root``, and the render target
+    ``src/claude/skills/<name>/SKILL.md`` MUST NOT be a symlink (CWE-22 and
+    CWE-59): :func:`compile_all` writes there.
     """
     plugin_root = repo_root / "src" / "claude" / "skills"
     if plugin_root.is_symlink():
@@ -289,17 +291,15 @@ def _plugin_tree_error(
             f"outside the repository root {resolved_repo}"
         )
 
-    plugin_target = plugin_root / name / "SKILL.md"
+    skill_dir = plugin_root / name
+    if skill_dir.is_symlink():
+        return f"{tmpl_path}: src/claude/skills/{name}/ is a symlink, not a real directory"
+    if not skill_dir.is_dir():
+        return f"{tmpl_path}: no existing src/claude/skills/{name}/ directory"
+
+    plugin_target = skill_dir / "SKILL.md"
     if plugin_target.is_symlink():
         return f"{tmpl_path}: src/claude/skills/{name}/SKILL.md is a symlink, not a real file"
-    if plugin_target.is_file():
-        resolved_target = plugin_target.resolve()
-        if not resolved_target.is_relative_to(resolved_repo):
-            return (
-                f"{tmpl_path}: src/claude/skills/{name}/SKILL.md resolves to "
-                f"{resolved_target}, outside the repository root {resolved_repo}"
-            )
-
     return None
 
 
@@ -345,33 +345,22 @@ def discover_errors(repo_root: Path) -> list[str]:
 
 
 def owned_targets(repo_root: Path) -> set[Path]:
-    """Return every path this class writes or has binplaced, for callers that need either.
+    """Return the ``SKILL.md`` path :func:`compile_all` writes for each valid template.
 
-    Two absolute paths per VALID discovered template: the plugin-tree render
-    target ``src/claude/skills/<name>/SKILL.md`` (what :func:`compile_all`
-    writes) and the binplaced install target ``.claude/skills/<name>/SKILL.md``
-    (what ``build/scripts/binplace_manifest.py`` copies it onto). Built from
-    :func:`discover`, so an invalid template name never reaches either half of
-    this set (see that function's docstring).
+    A shipped skill's target is ``src/claude/skills/<name>/SKILL.md`` in the
+    plugin tree; its install path ``.claude/skills/<name>`` is a symlink to
+    that directory (binplace ``link`` row), which the build never writes
+    through. A repo-local skill's target is ``.claude/skills/<name>/SKILL.md``
+    itself, the one ``.claude/`` path this class writes. Built from
+    :func:`discover`, so an invalid template name never reaches this set.
 
-    ``build_all.assert_no_claude_writes`` needs only the install half (it
-    guards ``.claude/``); ``build_all``'s ``OWNED_PREFIXES`` staleness/restore
-    machinery needs the install half too, per skill file rather than the
-    whole ``.claude/skills/`` prefix, since the other files under each skill
-    directory are hand-maintained. The plugin half is already covered by
-    ``OWNED_PREFIXES``'s blanket ``"src/"`` entry; returning it here anyway
-    keeps this function the single source of truth for "every path this
-    class owns," matching how ``binplace_manifest.claude_allowlist`` derives
-    the ``rules`` row's allowlist from its plugin tree.
+    ``build_all.assert_no_claude_writes`` allowlists the ``.claude/`` members;
+    ``build_all._effective_owned_prefixes`` widens its staleness and restore
+    scope with them. The plugin-tree members are already covered by
+    ``OWNED_PREFIXES``'s blanket ``"src/"`` entry.
     """
     names = discover(repo_root)
-    install = {repo_root / ".claude" / "skills" / name / "SKILL.md" for name in names}
-    plugin = {
-        repo_root / "src" / "claude" / "skills" / name / "SKILL.md"
-        for name in names
-        if not is_repo_local(repo_root, name)
-    }
-    return install | plugin
+    return {render_target(repo_root, name) for name in names}
 
 
 def _try_render(tmpl_path: Path, partials_dir: Path, result: CompileResult) -> str | None:
@@ -474,10 +463,8 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
         if rendered is None:
             continue
 
-        # target.parent (src/claude/skills/<name>/) is a plugin-tree
-        # directory, not the .claude/skills/<name>/ directory discover()
-        # required to exist (ADR-108); the plugin tree is not guaranteed to
-        # exist yet on a clean checkout, so the write below creates it.
+        # discover() required target.parent to exist as a real directory
+        # (ADR-108); the mkdir below is a no-op guard, not a creation path.
         current = target.read_text(encoding="utf-8", newline="") if target.is_file() else None
         if current == rendered:
             continue
