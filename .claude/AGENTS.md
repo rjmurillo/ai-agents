@@ -1,12 +1,12 @@
 # .claude/
 
-Binplaced dogfood copy of the `project-toolkit` plugin tree (`src/claude/`), not a marketplace source since ADR-109 B6; `hooks/` and `skills/` have own guides.
+Dogfood copy of `src/claude/` (`project-toolkit`), not a marketplace source (ADR-109 B6); `agents/*` and shipped `skills/*` are symlinks into it (ADR-119); `hooks/`, `skills/` have own guides.
 
 ## Matters
 
-- Generated, never hand-edit: `agents/`, `rules/`, `skills/<name>/SKILL.md`, `hooks/`, `settings.json`, `lib/` packages plus `lib/bootstrap.py`. Sources are `templates/` files and the repo's `scripts/` packages in the `rjmurillo/ai-agents` repository.
-- Hand-maintained here: `lib/` (mixed, see next line), `CLAUDE.md`, this guide, the seven doc files under `hooks/`, each skill's non-`SKILL.md` files. No manifest: `.claude-plugin/plugin.json` was deleted at B6.
-- `lib/` mixed: `ai_review_common/`, `github_core/`, `hook_utilities/`, `bootstrap.py` are binplaced renders of `scripts/` packages, never hand-edit; the top-level modules (`claude_hook_dispatch.py`, `paths.py`, siblings) have no `scripts/` source and are edited here.
+- Generated, never hand-edit: `agents/`, `rules/`, `skills/<name>/SKILL.md`, `hooks/`, `settings.json`, `lib/` packages plus `lib/bootstrap.py`. Sources: `templates/` and the `scripts/` packages of `rjmurillo/ai-agents`.
+- Hand-maintained here: `lib/` (mixed, see next line), `CLAUDE.md`, this guide, the seven doc files under `hooks/`, repo-local skills' non-`SKILL.md` files. No manifest: `.claude-plugin/plugin.json` was deleted at B6.
+- `lib/` mixed: `ai_review_common/`, `github_core/`, `hook_utilities/`, `bootstrap.py` render from `scripts/`, `paths.py` copies `src/claude/lib/`; never hand-edit them. Other top-level modules (`claude_hook_dispatch.py`, siblings) are edited here.
 
 ## Entry points
 
@@ -18,7 +18,7 @@ Binplaced dogfood copy of the `project-toolkit` plugin tree (`src/claude/`), not
 
 | Path | Why |
 |---|---|
-| `rules/*.md` | Rendered copy binplaced by `build_all.py`; `generate_rules.py` mirrors the plugin tree, not this copy, to two instruction trees |
+| `rules/*.md` | Shipped: links to `src/claude/rules/`. Repo-only (scope internal end to end): real files `rule_templates.py` renders here (ADR-119) |
 | `CLAUDE.md` | Passive every session; edit outside `<claude-mem-context>` |
 
 ## Skip

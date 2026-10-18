@@ -9,6 +9,10 @@
 
 # Canonical /review axis criteria (CI prompts are generated from these).
 /.claude/skills/review/references/        @rjmurillo
+# The link entry itself: retargeting it would swap every axis prompt.
+/.claude/skills/review                     @rjmurillo
+# .claude/skills/review links to src/claude/skills/review (ADR-119); edits land here.
+/src/claude/skills/review/references/     @rjmurillo
 
 # Generated CI review prompts (pr-quality gate, per role).
 /.github/prompts/pr-quality-gate-*.md     @rjmurillo
@@ -24,6 +28,9 @@
 /.claude/lib/hook_utilities/              @rjmurillo
 /scripts/github_core/                     @rjmurillo
 /.claude/lib/github_core/                 @rjmurillo
+# The plugin lib is a runtime lib too: verifiers load it when a plugin root
+# names src/claude, and paths.py is hand-maintained there (ADR-119).
+/src/claude/lib/                          @rjmurillo
 
 # Template-owned skill files (ADR-108). A template under templates/skills/ is
 # the only class permitted to write under .claude/ during the build, and the

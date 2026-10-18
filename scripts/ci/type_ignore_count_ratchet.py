@@ -119,23 +119,25 @@ def _is_generated_lib_mirror(path_str: str) -> bool:
     return path_str.startswith(_LIB_MIRROR_PREFIXES)
 
 
-# Same rationale, for the skills class (ADR-109 B3 and its support-file
-# follow-up, generate_skills.py): .claude/skills/ is the canonical,
-# hand-maintained source for every non-SKILL.md file; src/claude/skills/ and
-# src/copilot-cli/skills/ are byte-for-byte generated mirrors of it. Keyed on
-# the canonical source actually existing (same defense as the lib check
-# above), not on the output prefix alone.
+# Same rationale, for the skills class (ADR-109 B3, ADR-119): src/claude/skills/
+# is the one canonical copy of every shipped skill file. .claude/skills/<name> is
+# a symlink to it (a tracked link entry, not the files beneath it), and
+# src/copilot-cli/skills/ and the other platform trees are byte-for-byte
+# generated mirrors. A tree that predates ADR-119 still track .claude/skills/<file>
+# as a second copy, so a .claude/skills path is skipped whenever its canonical
+# twin is tracked. Keyed on the canonical source actually existing (same defense
+# as the lib check above), not on the output prefix alone.
+_SKILL_CANONICAL_ROOT = "src/claude/skills"
 _SKILL_MIRROR_ROOTS: tuple[str, ...] = (
-    "src/claude/skills",
+    ".claude/skills",
     "src/copilot-cli/skills",
     "src/codex/skills",
     "src/cursor/skills",
 )
-_SKILL_CANONICAL_ROOT = ".claude/skills"
 
 
 def _skill_mirror_canonical_source(path_str: str) -> str | None:
-    """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
+    """Return the src/claude/skills/ path a skill-mirror path maps to, if any."""
     for root in _SKILL_MIRROR_ROOTS:
         prefix = f"{root}/"
         if path_str.startswith(prefix):

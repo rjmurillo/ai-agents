@@ -60,26 +60,26 @@ def test_current_count_counts_checker_findings(tmp_path: Path) -> None:
 class TestGeneratedSkillMirrorExclusion:
     """ADR-109 B3 follow-up: a mirrored skill support file counts once, at source.
 
-    .claude/skills/<name>/ is the canonical, hand-maintained source for every
-    non-SKILL.md file; src/claude/skills/ and src/copilot-cli/skills/ each
-    carry a byte-for-byte copy (generate_skills.py). Without this exclusion a
-    violation already counted at the source recounts once per generated
-    mirror.
+    src/claude/skills/<name>/ is the canonical source for every shipped skill
+    file (ADR-119); .claude/skills/<name> links to it, and src/copilot-cli/
+    skills/ carries a byte-for-byte copy (generate_skills.py). Without this
+    exclusion a violation already counted at the source recounts once per
+    generated mirror.
     """
 
     @pytest.mark.parametrize(
         ("rel", "expected"),
         [
-            ("src/claude/skills/review/scripts/run.py", ".claude/skills/review/scripts/run.py"),
+            ("src/claude/skills/review/scripts/run.py", None),
             (
                 "src/copilot-cli/skills/review/scripts/run.py",
-                ".claude/skills/review/scripts/run.py",
+                "src/claude/skills/review/scripts/run.py",
             ),
-            ("src/cursor/skills/review/scripts/run.py", ".claude/skills/review/scripts/run.py"),
+            ("src/cursor/skills/review/scripts/run.py", "src/claude/skills/review/scripts/run.py"),
             ("src/hermes/project-toolkit-delivery/skills/review/scripts/run.py", None),
             ("src/hermes/project-toolkit-delivery/plugin.json", None),
             ("src/hermes/not-a-pack/skills/review/scripts/run.py", None),
-            (".claude/skills/review/scripts/run.py", None),
+            (".claude/skills/review/scripts/run.py", "src/claude/skills/review/scripts/run.py"),
             ("scripts/authored/run.py", None),
         ],
     )
@@ -110,6 +110,27 @@ class TestGeneratedSkillMirrorExclusion:
         )
 
         assert ratchet.current_count(tmp_path) == 1
+
+
+def test_shipped_skill_violation_counts_once_when_only_the_shipped_tree_is_tracked(
+    tmp_path: Path,
+) -> None:
+    """ADR-119 layout: .claude/skills holds a link entry, not the files beneath it.
+
+    The shipped file is tracked at src/claude/skills and at each platform mirror.
+    Mapping mirrors back to .claude/skills (untracked) counted every mirror again.
+    """
+    _git(tmp_path, "init")
+    bad_line = "subprocess.run(['x'], capture_output=True, encoding='utf-8')\n"
+    tracked = []
+    for root in ("src/claude/skills", "src/copilot-cli/skills", "src/cursor/skills"):
+        script = tmp_path / root / "review" / "scripts" / "run.py"
+        script.parent.mkdir(parents=True)
+        script.write_text(f"import subprocess\n{bad_line}", encoding="utf-8")
+        tracked.append(f"{root}/review/scripts/run.py")
+    _git(tmp_path, "add", *tracked)
+
+    assert ratchet.current_count(tmp_path) == 1
 
 
 def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
