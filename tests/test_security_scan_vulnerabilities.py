@@ -33,7 +33,7 @@ import json
 import re
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import cast
@@ -95,13 +95,24 @@ def _descriptions_for(language: str, line: str) -> list[str]:
     checked against the whole pattern set for a language. Used by the
     parametrized positive and negative pattern tests.
     """
-    descriptions = []
+    return _descriptions_for_lines(language, [line])[0]
+
+
+def _descriptions_for_lines(language: str, lines: list[str]) -> list[list[str]]:
+    """Return, per line, descriptions of every CWE-78 pattern that matches it.
+
+    A pattern with a `scrub_lines` hook sees the whole `lines` list at once, so
+    quote and here-document state carries across lines as it does in `scan_file`.
+    """
+    matched: list[list[str]] = [[] for _ in lines]
     for info in scanner.CWE78_PATTERNS[language]:
         pattern = cast(re.Pattern[str], info["pattern"])
-        scrub = cast(Callable[[str], str] | None, info.get("scrub"))
-        if pattern.search(scrub(line) if scrub else line):
-            descriptions.append(str(info["description"]))
-    return descriptions
+        scrub_lines = cast(Callable[[Sequence[str]], list[str]] | None, info.get("scrub_lines"))
+        prepared = scrub_lines(lines) if scrub_lines else lines
+        for index, text in enumerate(prepared):
+            if pattern.search(text):
+                matched[index].append(str(info["description"]))
+    return matched
 
 
 def _write(tmp_path: Path, name: str, body: str) -> str:
@@ -445,7 +456,9 @@ def test_scan_file_flags_code_after_closing_quote_of_multiline_string(tmp_path: 
     body = 'echo "first $a\nsecond line" ; rm $target\n'
     name = _write(tmp_path, "multiline.sh", body)
     vulns, _ = scanner.scan_file(str(tmp_path / name))
-    assert [v.line for v in vulns if v.pattern == UNQUOTED_VAR] == [1, 2]
+    # Line 1 opens the string, so its `$a` is quoted. Only the code after the
+    # closing quote on line 2 is unquoted.
+    assert [v.line for v in vulns if v.pattern == UNQUOTED_VAR] == [2]
 
 
 def test_bash_scrub_keeps_backtick_body_inside_double_quotes() -> None:
@@ -492,6 +505,227 @@ def test_scan_file_applies_scrub_only_to_unquoted_var_pattern(tmp_path: Path) ->
     name = _write(tmp_path, "evalq.sh", 'eval "$cmd"\n')
     vulns, _ = scanner.scan_file(str(tmp_path / name))
     assert [v.severity for v in vulns] == ["CRITICAL"]
+
+
+# ---------------------------------------------------------------------------
+# Bash multi-line quotes and here-documents (issue #6624)
+# ---------------------------------------------------------------------------
+
+
+def _unquoted_lines(tmp_path: Path, body: str) -> list[int]:
+    """Scan `body` as a Bash file; return 1-based lines with the unquoted-variable finding."""
+    name = _write(tmp_path, "case.sh", body)
+    vulns, _ = scanner.scan_file(str(tmp_path / name))
+    return [v.line for v in vulns if v.pattern == UNQUOTED_VAR]
+
+
+def test_scan_file_does_not_flag_issue_6624_single_line_shapes(tmp_path: Path) -> None:
+    body = (
+        'mkdir -p "$root/home/$dest/skills"\n'
+        'cp -r "$root/a/$dest" "$root/b/$dest/c"\n'
+        'name="$root/$dest"\n'
+        'target="${root}/home/${dest}"\n'
+        'echo "Usage: \\$HOME/foo \\$1"\n'
+        'echo "Usage: $0 --dest <dir>"\n'
+        "count=$((count + 1))\n"
+        'echo "$((count + 1))"\n'
+    )
+    assert _unquoted_lines(tmp_path, body) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # Closing line of a multi-line double-quoted assignment.
+        'msg="line one\ncopies to $dest/skills"\n',
+        # Middle line of a three-line double-quoted string.
+        'msg="one\ntwo $dest\nthree"\n',
+        # Multi-line single-quoted jq program: `$repo` is a jq variable.
+        "jq -n --arg repo \"$R\" '{\n  repo: $repo,\n  owner: $owner\n}'\n",
+        # Multi-line `$'...'` string.
+        "x=$'one\ntwo $dest'\n",
+        # Multi-line double-quoted argument with a quoted variable after a continuation.
+        'pwsh -Command "\n  Install-Module -RequiredVersion $VERSION -Force\n"\n',
+        # Double-quoted string holding a quoted command substitution over several lines.
+        'x="$(basename "$p")\nrest $dest"\n',
+    ],
+)
+def test_scan_file_does_not_flag_expansions_inside_multiline_quotes(
+    tmp_path: Path, body: str
+) -> None:
+    assert _unquoted_lines(tmp_path, body) == []
+
+
+@pytest.mark.parametrize(
+    "opener",
+    [
+        "cat <<'USAGE'",
+        'cat <<"USAGE"',
+        "cat <<\\USAGE",
+        "cat << 'USAGE'",
+        "cat > out.txt <<'USAGE'",
+    ],
+)
+def test_scan_file_does_not_flag_quoted_heredoc_body(tmp_path: Path, opener: str) -> None:
+    body = f"{opener}\nUsage: $0 --dest <dir>\ncopies to $dest/skills\nUSAGE\n"
+    assert _unquoted_lines(tmp_path, body) == []
+
+
+def test_scan_file_quoted_heredoc_with_dash_strips_leading_tabs_from_terminator(
+    tmp_path: Path,
+) -> None:
+    body = "cat <<-'EOF'\n\tUsage: $0\n\tEOF\nrm $target\n"
+    assert _unquoted_lines(tmp_path, body) == [4]
+
+
+def test_scan_file_heredoc_terminator_with_trailing_blank_does_not_end_body(
+    tmp_path: Path,
+) -> None:
+    """Bash treats `EOF ` as body text, so the body runs on and `rm $x` stays inert."""
+    body = "cat <<'EOF'\nbody\nEOF \nrm $x\nEOF\nrm $y\n"
+    assert _unquoted_lines(tmp_path, body) == [6]
+
+
+def test_scan_file_two_heredocs_on_one_line_are_read_in_order(tmp_path: Path) -> None:
+    body = "cat <<'A' <<'B'\n$one\nA\n$two\nB\nrm $after\n"
+    assert _unquoted_lines(tmp_path, body) == [6]
+
+
+def test_scan_file_heredoc_inside_command_substitution_hides_apostrophe(
+    tmp_path: Path,
+) -> None:
+    """An apostrophe in the body must not open a quote that swallows later code."""
+    body = "msg=$(cat <<EOF\nwhat's the minimum?\nEOF\n)\nrm $target\n"
+    assert _unquoted_lines(tmp_path, body) == [5]
+
+
+def test_scan_file_unquoted_heredoc_apostrophe_does_not_hide_later_code(
+    tmp_path: Path,
+) -> None:
+    body = "cat <<EOF\ndon't panic\nEOF\nrm $target\n"
+    assert _unquoted_lines(tmp_path, body) == [4]
+
+
+def test_scan_file_flags_unquoted_variable_after_closed_multiline_string(
+    tmp_path: Path,
+) -> None:
+    body = 'msg="line one\ncopies to $dest/skills"\nls $dest\n'
+    assert _unquoted_lines(tmp_path, body) == [3]
+
+
+def test_scan_file_flags_command_substitution_inside_multiline_double_quotes(
+    tmp_path: Path,
+) -> None:
+    """`$( )` runs as shell even inside a double-quoted string, on any line of it."""
+    body = 'msg="start\n$(rm $target) end\nlast"\n'
+    assert _unquoted_lines(tmp_path, body) == [2]
+
+
+def test_scan_file_flags_unquoted_heredoc_body_expansion_as_before(tmp_path: Path) -> None:
+    """An unquoted delimiter expands the body. Keep the per-line behavior."""
+    body = "cat <<EOF\nrm $target\nEOF\n"
+    assert _unquoted_lines(tmp_path, body) == [2]
+
+
+def test_scan_file_flags_code_after_heredoc_terminator(tmp_path: Path) -> None:
+    body = "cat <<'EOF'\n$inert\nEOF\nrm $target\n"
+    assert _unquoted_lines(tmp_path, body) == [4]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # Arithmetic shift is not a here-document.
+        "x=$((1<<n))\nrm $target\n",
+        "(( x = 1 << n ))\nrm $target\n",
+        # A bare delimiter must start with a letter or underscore.
+        "let x=1<<2\nrm $target\n",
+        # `<<<` is a here-string.
+        "cat <<<$word\nrm $target\n",
+        # `<<` inside quotes is text.
+        'echo "<<EOF"\nrm $target\n',
+        "echo '<<EOF'\nrm $target\n",
+        # `<<` in a comment is text.
+        "# cat <<EOF\nrm $target\n",
+    ],
+)
+def test_scan_file_non_heredoc_shift_does_not_hide_following_code(
+    tmp_path: Path, body: str
+) -> None:
+    flagged = _unquoted_lines(tmp_path, body)
+    assert flagged[-1] == body.count("\n")
+
+
+def test_scan_file_flags_arithmetic_operand_variable(tmp_path: Path) -> None:
+    """`$a` inside `$(( ))` is still scanned: arithmetic evaluates variable text."""
+    assert _unquoted_lines(tmp_path, "x=$(( $a + 1 ))\n") == [1]
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        # A quote that never closes: both lines fall back to the raw per-line scrub.
+        ('echo "open $a\nrm $b\n', [1, 2]),
+        ("echo 'open $a\nrm $b\n", [1, 2]),
+        # A command substitution that never closes.
+        ("x=$(\nrm $b\n", [2]),
+        # A quoted here-document that never ends: the body falls back to per-line scrub.
+        ("cat <<'EOF'\n$a\nrm $b\n", [2, 3]),
+    ],
+)
+def test_scan_file_unresolved_state_at_eof_falls_back_to_per_line_scrub(
+    tmp_path: Path, body: str, expected: list[int]
+) -> None:
+    """A stray opener must not hide the rest of the file."""
+    assert _unquoted_lines(tmp_path, body) == expected
+
+
+def test_scan_file_unresolved_quote_only_widens_from_where_it_opened(tmp_path: Path) -> None:
+    body = 'msg="closed $a"\nrm $kept\necho "open\nrm $b\n'
+    assert _unquoted_lines(tmp_path, body) == [2, 4]
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        [],
+        ["\n"],
+        ['echo "a\n', 'b"\n'],
+        ["cat <<'E'\n", "x $y\n", "E\n"],
+        ["cat <<'E'\n", "x $y\n"],
+        ["x=$(\n", "y\n"],
+        ["echo \\\n", "rm $x\n"],
+    ],
+)
+def test_bash_scrub_lines_preserves_line_count_and_width(lines: list[str]) -> None:
+    scrubbed = scanner.scrub_bash_lines(lines)
+    assert len(scrubbed) == len(lines)
+    assert all(len(out) <= len(raw) for out, raw in zip(scrubbed, lines, strict=True))
+
+
+def test_bash_scrub_lines_blanks_multiline_double_quote_interior() -> None:
+    out = scanner.scrub_bash_lines(['echo "a $x\n', 'b $y" $z\n'])
+    assert [line.rstrip() for line in out] == ['echo "', '    " $z']
+
+
+def test_bash_scrub_lines_blanks_quoted_heredoc_body() -> None:
+    out = scanner.scrub_bash_lines(["cat <<'E'\n", "a $b\n", "E\n", "ls $c\n"])
+    assert [line.strip() for line in out] == ["cat <<' '", "", "E", "ls $c"]
+
+
+def test_bash_scrub_lines_matches_per_line_scrub_when_no_state_crosses_lines() -> None:
+    lines = ["echo 'ab' \"cd\" $x\n", "rm $t # note $u\n", "# only a comment $v\n"]
+    assert scanner.scrub_bash_lines(lines) == [scanner.scrub_bash_line(line) for line in lines]
+
+
+def test_cli_exit_success_on_quoted_multiline_and_heredoc_shapes(tmp_path: Path) -> None:
+    body = (
+        '#!/usr/bin/env bash\nmsg="copies to\n$dest/skills"\n'
+        "cat <<'USAGE'\nUsage: $0 --dest <dir>\nUSAGE\n"
+    )
+    name = _write(tmp_path, "quoted.sh", body)
+    result = _run_cli(name, cwd=tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_python_string_concat_pattern_requires_plus_inside_literal() -> None:

@@ -13,13 +13,17 @@ docstring for the buy-vs-build rationale.
 """
 
 import re
+from collections import deque
+from collections.abc import Sequence
+from dataclasses import dataclass
 
-# Bash lexer modes. A stack of these tracks quote and substitution nesting for one line.
+# Bash lexer modes. A stack of these tracks quote and substitution nesting.
 _MODE_SINGLE = "single"
 _MODE_DOUBLE = "double"
 _MODE_ANSI = "ansi"
 _MODE_SUB = "sub"
 _MODE_TICK = "tick"
+_MODE_ARITH = "arith"
 
 
 def _blank_run(line: str, i: int, width: int = 1) -> str:
@@ -63,6 +67,10 @@ def _step_double(line: str, i: int, out: list[str], stack: list[str]) -> int:
         stack.pop()
         out.append('"')
         return i + 1
+    if line.startswith("$((", i):
+        stack.append(_MODE_ARITH)
+        out.append("$((")
+        return i + 3
     if line.startswith("$(", i):
         stack.append(_MODE_SUB)
         out.append("$(")
@@ -93,6 +101,10 @@ def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
         stack.append(_MODE_SINGLE)
     elif ch == '"':
         stack.append(_MODE_DOUBLE)
+    elif line.startswith("((", i):
+        stack.append(_MODE_ARITH)
+        out.append("((")
+        return i + 2
     elif ch == "(":
         stack.append(_MODE_SUB)
     elif ch == ")" and stack and stack[-1] == _MODE_SUB:
@@ -101,13 +113,81 @@ def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
     return i + 1
 
 
+def _step_arith(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume inside `((...))` or `$((...))`. Only `))` closes it; else it is shell text."""
+    if line.startswith("))", i):
+        stack.pop()
+        out.append("))")
+        return i + 2
+    return _step_command(line, i, out, stack)
+
+
 _STEPS = {
     _MODE_SINGLE: _step_single,
     _MODE_ANSI: _step_ansi,
     _MODE_DOUBLE: _step_double,
     _MODE_SUB: _step_command,
     _MODE_TICK: _step_command,
+    _MODE_ARITH: _step_arith,
 }
+
+
+# Modes whose text runs as shell commands, where a here-document opener is real.
+_SHELL_TEXT_MODES = (_MODE_SUB, _MODE_TICK)
+
+# A here-document opener: `<<`, optional `-`, then the delimiter word. Groups
+# 2 to 4 are the quoted forms ('X', "X", \X); group 5 is a bare word.
+# A bare word must start with a letter or underscore, so `1<<2` is not an opener.
+_HEREDOC_RE = re.compile(
+    r"<<(-?)[ \t]*(?:'([^']*)'|\"([^\"]*)\"|\\([^\s;|&<>()'\"\\$`]+)"
+    r"|([A-Za-z_][^\s;|&<>()'\"\\$`]*))"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _Heredoc:
+    """One pending here-document: where its body ends and whether it expands."""
+
+    delimiter: str
+    strip_tabs: bool
+    quoted: bool
+
+
+def _begin_heredoc(line: str, i: int, out: list[str], pending: deque[_Heredoc]) -> int:
+    """Consume `<<` at `i`; queue a here-document when a delimiter word follows.
+
+    `<<<` is a here-string, not a here-document. The delimiter word itself is
+    left for the normal lexer, which handles its quotes.
+    """
+    if line.startswith("<<<", i):
+        out.append("<<<")
+        return i + 3
+    match = _HEREDOC_RE.match(line, i)
+    if match:
+        dash, single, double, escaped, bare = match.groups()
+        quoted = single is not None or double is not None or escaped is not None
+        word = next(w for w in (single, double, escaped, bare) if w is not None)
+        pending.append(_Heredoc(word, dash == "-", quoted))
+    out.append("<<")
+    return i + 2
+
+
+def _lex_line(line: str, stack: list[str], pending: deque[_Heredoc]) -> str:
+    """Scrub one line, updating the quote `stack` and queueing here-documents.
+
+    Here-document openers are recognised in shell text, at top level or inside
+    `$( )` and backticks, so `x=$(cat <<EOF` is seen. A `<<` inside quotes or
+    inside arithmetic (`$((1<<n))`) is left alone.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(line):
+        if (not stack or stack[-1] in _SHELL_TEXT_MODES) and line.startswith("<<", i):
+            i = _begin_heredoc(line, i, out, pending)
+            continue
+        step = _STEPS[stack[-1]] if stack else _step_command
+        i = step(line, i, out, stack)
+    return "".join(out)
 
 
 def scrub_bash_line(line: str) -> str:
@@ -118,22 +198,81 @@ def scrub_bash_line(line: str) -> str:
     lookarounds that skip `"$var"` keep working. `$( )` and backtick bodies, even
     inside double quotes, stay visible because they run as unquoted shell.
 
-    The scan is per line and keeps no state between lines. A line that ends with
-    a quote or substitution still open may be opening a multi-line string or
-    closing one, and the lexer cannot tell which. It returns the raw line then,
-    so code after a closing quote is never hidden.
+    This function sees one line and keeps no state between lines. A line that
+    ends with a quote or substitution still open may be opening a multi-line
+    string or closing one, and it cannot tell which. It returns the raw line
+    then, so code after a closing quote is never hidden. Use `scrub_bash_lines`
+    to scrub a whole file with state carried across lines.
     """
-    out: list[str] = []
     stack: list[str] = []
-    i = 0
-    while i < len(line):
-        step = _STEPS[stack[-1]] if stack else _step_command
-        i = step(line, i, out, stack)
-    return line if stack else "".join(out)
+    text = _lex_line(line, stack, deque())
+    return line if stack else text
 
 
-# Optional per-pattern line preparation. When a pattern dict has a "scrub" key,
-# the scanner runs the regex against ``scrub(line)`` instead of the raw line.
+def _is_terminator(line: str, heredoc: _Heredoc) -> bool:
+    """A body ends at a line equal to the delimiter. Trailing blanks do not match."""
+    text = line.rstrip("\n")
+    if heredoc.strip_tabs:
+        text = text.lstrip("\t")
+    return text == heredoc.delimiter
+
+
+def _scrub_heredoc_body(line: str, heredoc: _Heredoc) -> str:
+    """Blank a quoted-delimiter body line, which never expands. Else scrub per line."""
+    if heredoc.quoted and not _is_terminator(line, heredoc):
+        body = line.rstrip("\n")
+        return " " * len(body) + line[len(body) :]
+    return scrub_bash_line(line)
+
+
+def scrub_bash_lines(lines: Sequence[str]) -> list[str]:
+    """Scrub a whole Bash file, carrying quote state across lines.
+
+    Same rules as `scrub_bash_line`, plus two things a single line cannot see.
+    The interior of a multi-line quoted string is blanked on every line it
+    spans. The body of a here-document with a quoted delimiter (`<<'X'`,
+    `<<"X"`, `<<\\X`) is blanked, since it never expands. The body of an
+    unquoted-delimiter here-document is scrubbed one line at a time, as before.
+
+    It fails open. If a quote or here-document is still unresolved at end of
+    file, every line from where it opened is scrubbed with `scrub_bash_line`, so
+    a stray quote never hides the rest of the file.
+    """
+    result: list[str] = []
+    stack: list[str] = []
+    queue: deque[_Heredoc] = deque()
+    active: _Heredoc | None = None
+    quote_from: int | None = None
+    body_from: int | None = None
+    for index, line in enumerate(lines):
+        if active is not None:
+            result.append(_scrub_heredoc_body(line, active))
+            if _is_terminator(line, active):
+                active = queue.popleft() if queue else None
+                if active is None:
+                    body_from = None
+            continue
+        was_open = bool(stack)
+        pending: deque[_Heredoc] = deque()
+        result.append(_lex_line(line, stack, pending))
+        if not stack:
+            quote_from = None
+        elif not was_open:
+            quote_from = index
+        if pending:
+            queue.extend(pending)
+            active = queue.popleft()
+            body_from = index + 1 if body_from is None else body_from
+    if stack or active is not None:
+        marks = [m for m in (quote_from, body_from) if m is not None]
+        start = min(marks) if marks else 0
+        result[start:] = [scrub_bash_line(line) for line in lines[start:]]
+    return result
+
+
+# Optional per-pattern file preparation. When a pattern dict has a "scrub_lines"
+# key, the scanner runs the regex against ``scrub_lines(lines)[n]`` instead of
+# raw line ``n``, so the hook can carry state from one line to the next.
 # CWE-78: Command Injection patterns by language
 CWE78_PATTERNS = {
     "python": [
@@ -251,7 +390,7 @@ CWE78_PATTERNS = {
             "pattern": re.compile(
                 r"(?<![\"'])\$\w+(?![\"'\w])",
             ),
-            "scrub": scrub_bash_line,
+            "scrub_lines": scrub_bash_lines,
             "description": "Unquoted variable expansion (potential word splitting/injection)",
             "severity": "MEDIUM",
             "recommendation": 'Quote all variable expansions: use "$var" instead of $var',
