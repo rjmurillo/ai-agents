@@ -1,0 +1,88 @@
+# MCP server grants and deny lists for the Claude read-only agents (ADR-107,
+# "Read-only agents grant servers by wildcard").
+#
+# A read-only Claude agent lists built-in tools in `tools:` and grants each MCP server
+# it reads as one logical reference, `- $mcp:<server>`. The renderer
+# (build/scripts/agent_templates.py, via agent_capabilities.py) expands it to
+# `<prefix>__*` for every prefix variant of that server. A server with write tools
+# also gets `- $deny:<list>` in `disallowedTools:`, expanded under the same prefixes,
+# so a wildcard grant is never wider than the deny list beside it. An unknown name
+# fails the build. A bare all-server MCP wildcard grants nothing on Claude Code 2.1.302
+# (probe, 2026-10-17) and the renderer rejects it.
+#
+# Why this is a sibling of templates/toolsets.yaml: toolsets.yaml is read by a
+# line-based parser in build/generate_agents_common.py that only understands named
+# lists of Copilot and VS Code tools. Servers, prefix variants, and deny lists are a
+# different schema with a different consumer.
+#
+# Claude Code spells one MCP tool by where the server is configured
+# (https://code.claude.com/docs/en/mcp and /permissions):
+#   .mcp.json or settings server   mcp__<server>__<tool>
+#   plugin-provided server         mcp__plugin_<plugin>_<server>__<tool>
+#   claude.ai connector            mcp__claude_ai_<Server>__<tool>
+# The connector segment is the connector's display name with spaces replaced by
+# underscores. Observed in a live session: Context7, hindsight, Slack,
+# Microsoft_Learn, Claude_Docs, Firecrawl. Its case is the connector's, not ours.
+#
+# Every entry is printed in the agent file and in the parent agent listing each
+# session, and the per-fixture instruction-byte ceilings cap that growth. A server
+# with write tools therefore lists only the `.mcp.json` prefix: each extra prefix
+# repeats its whole deny list. Dropped on purpose: the plugin and claude.ai spellings
+# of serena. GitHub and DeepWiki are not granted by wildcard: it has about 30 write
+# tools, and their deny list would add 1.2 KB to each agent and breach the F5 and F6
+# ceilings, so agents keep their explicit read-tool grants (`mcp__github__<tool>`)
+# and need no deny list. A bespoke corporate server is unreachable until it is
+# added here.
+
+# Placeholders: {server} is the key under `servers`; {claude_ai} expands once per
+# name in that server's `claude_ai` list. `__<tool>` or `__*` is appended.
+prefix_variants:
+  - "mcp__{server}"
+  - "mcp__plugin_{server}_{server}"
+  - "mcp__claude_ai_{claude_ai}"
+
+# Every server in .mcp.json needs an entry here: granted by an agent, or marked
+# `remote_only` with a reason. tests/build_scripts/test_agent_mcp_servers.py enforces it.
+servers:
+  serena:
+    variants: ["mcp__{server}"]
+  # Hosted service: runs no local command and writes no local file. Not granted by
+  # wildcard, because private mode exposes about 15 Devin write tools whose deny list
+  # would breach the F6 ceiling. analyst keeps its two explicit read tools.
+  deepwiki:
+    remote_only: "DeepWiki is a hosted service. It runs no local command and writes no local file."
+  # Read-only server (resolve-library-id, query-docs): no deny list, all variants.
+  context7:
+    claude_ai: [Context7]
+
+denylists:
+  # Serena tools that run a command or change a local file or symbol. The #5356
+  # control: with no shell, git config injection and --output file writes are
+  # unreachable. write_memory through safe_delete_symbol were verified against the
+  # tool list of a live Serena session (2026-10-17); execute_shell_command,
+  # create_text_file, replace_regex, replace_lines, delete_lines and insert_at_line
+  # come from the security review of this change.
+  serena-local:
+    server: serena
+    tools:
+      - execute_shell_command
+      - create_text_file
+      - replace_regex
+      - replace_lines
+      - delete_lines
+      - insert_at_line
+      - replace_content
+      - replace_in_files
+      - replace_symbol_body
+      - insert_after_symbol
+      - insert_before_symbol
+      - rename_symbol
+      - safe_delete_symbol
+
+  # Serena memory writes, split so `security` keeps the two it held on origin/main.
+  serena-memory-edit:
+    server: serena
+    tools: [write_memory, edit_memory]
+  serena-memory-delete:
+    server: serena
+    tools: [delete_memory, rename_memory]

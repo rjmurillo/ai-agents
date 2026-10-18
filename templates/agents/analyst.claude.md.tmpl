@@ -4,13 +4,26 @@ description: Research and investigation specialist who digs deep into root cause
 metadata:
   role: support
 argument-hint: Describe the topic, issue, or feature to research
-# No `tools:` key: inherit every session tool, deny only shell and local mutators.
-# See ADR-107, "Read-only agents inherit tools".
+tools:
+  - Read
+  - Glob
+  - Grep
+  - ToolSearch
+  - $mcp:serena
+  - mcp__github__issue_read
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__list_commits
+  - mcp__github__list_workflow_runs
+  - mcp__github__get_workflow_run
+  - mcp__github__get_job_logs
+  - mcp__deepwiki__read_wiki_structure
+  - mcp__deepwiki__read_wiki_contents
+  - $mcp:context7
 disallowedTools:
-  - Agent
-  - $deny:builtin-shell-edit
-  - $deny:builtin-write
   - $deny:serena-local
+  - $deny:serena-memory-edit
+  - $deny:serena-memory-delete
 {{> analyst-intro}}
    - Level 3: External documentation fetched in this session (Context7, DeepWiki MCP).
    - Level 4: Training knowledge. "I recall" and "X probably is" are Level 4. Do not publish Level 4 claims. Move them to Open Questions or remove them.

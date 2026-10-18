@@ -86,9 +86,7 @@ import hashlib
 import json
 import re
 import sys
-from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
 
 import yaml
 
@@ -117,7 +115,6 @@ from detect_agent_drift import (  # noqa: E402
 
 __all__ = ["KIND_CHANGED", "KIND_DIVERGED", "KIND_MISSING", "KIND_STALE", "Finding", "Key"]
 
-_T = TypeVar("_T")
 EXIT_OK = 0
 EXIT_DIVERGED = 1
 EXIT_CONFIG = 2
@@ -275,11 +272,9 @@ _RENDER_ERRORS = (
 )
 
 
-def _render(tmpl: Path, partials: Path, denylists: dict[str, object] | None = None) -> str:
+def _render(tmpl: Path, partials: Path, table: dict[str, object] | None = None) -> str:
     try:
-        if denylists is None:
-            return str(agent_templates.render(tmpl, partials))
-        return str(agent_templates.render_claude(tmpl, partials, denylists))
+        return str(agent_templates.render_claude(tmpl, partials, table or {}))
     except (*_RENDER_ERRORS, agent_capabilities.CapabilityError) as exc:
         raise ConfigError(f"cannot render {tmpl}: {exc}") from exc
 
@@ -287,12 +282,20 @@ def _render(tmpl: Path, partials: Path, denylists: dict[str, object] | None = No
 _MEMBER_SUFFIXES = (".shared.md", ".claude.md.tmpl", ".copilot.md.tmpl")
 
 
-def _load_config(loader: Callable[[Path], _T], repo_root: Path) -> _T:
-    """Run a ``templates/*.yaml`` loader, turning its error into a ConfigError."""
+def _load_toolsets(repo_root: Path) -> dict[str, dict[str, object]]:
     try:
-        return loader(repo_root)
+        toolsets: dict[str, dict[str, object]] = agent_capabilities.load_toolsets(repo_root)
     except agent_capabilities.CapabilityError as exc:
         raise ConfigError(str(exc)) from exc
+    return toolsets
+
+
+def _load_mcp_table(repo_root: Path) -> dict[str, object]:
+    try:
+        table: dict[str, object] = agent_capabilities.load_mcp_table(repo_root)
+    except agent_capabilities.CapabilityError as exc:
+        raise ConfigError(str(exc)) from exc
+    return table
 
 
 def _stems(repo_root: Path) -> list[str]:
@@ -312,7 +315,7 @@ def _compare_stem(
     copilot_tmpl: Path,
     partials: Path,
     toolsets: dict[str, dict[str, object]],
-    denylists: dict[str, object],
+    table: dict[str, object],
 ) -> dict[Key, str]:
     """Return the divergences between one agent's shared source and its templates."""
     found: dict[Key, str] = {}
@@ -321,15 +324,11 @@ def _compare_stem(
         (PAIR_COPILOT, copilot_tmpl, True),
     ):
         spec = CAPABILITY_KEYS[pair]
-        text = _render(tmpl, partials, denylists if pair == PAIR_CLAUDE else None)
+        text = _render(tmpl, partials, table if pair == PAIR_CLAUDE else None)
         units = extract_units(text, tuple((own, prefix) for own, _, prefix in spec), toolsets)
         shared_units = extract_units(
             shared_text, tuple((theirs, prefix) for _, theirs, prefix in spec), toolsets
         )
-        if pair == PAIR_CLAUDE:
-            agent_capabilities.reduce_deny_list_member(
-                _frontmatter(text), units, shared_units, "capability"
-            )
         agent_capabilities.drop_families_on_declaration_mismatch(units, shared_units)
         diverged = diverged_units(units, shared_units, strict=strict)
         diverged.update(section_order_divergence(units, shared_units))
@@ -341,8 +340,8 @@ def collect_divergence(repo_root: Path) -> tuple[dict[Key, str], list[Finding]]:
     """Compare every agent's members. Return divergences and missing-member findings."""
     agents = repo_root / "templates" / "agents"
     pairs = agent_templates.discover(repo_root)
-    toolsets = _load_config(agent_capabilities.load_toolsets, repo_root)
-    denylists = _load_config(agent_capabilities.load_denylists, repo_root)
+    toolsets = _load_toolsets(repo_root)
+    table = _load_mcp_table(repo_root)
     found: dict[Key, str] = {}
     missing: list[Finding] = []
     for stem in _stems(repo_root):
@@ -360,7 +359,7 @@ def collect_divergence(repo_root: Path) -> tuple[dict[Key, str], list[Finding]]:
                 copilot_tmpl,
                 agents / "partials",
                 toolsets,
-                denylists,
+                table,
             )
         )
     return found, missing

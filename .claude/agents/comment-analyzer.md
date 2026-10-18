@@ -3,15 +3,16 @@ name: comment-analyzer
 description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. Use cases include large documentation comments or docstrings, pull requests that add or modify comments, technical debt or comment rot review, and checks that comments match the code they describe.
 metadata:
   role: support
-# No `tools:` key: inherit every session tool, deny only shell and local mutators.
-# See ADR-107, "Read-only agents inherit tools".
+tools:
+  - Read
+  - Grep
+  - Glob
+  - ToolSearch
+  - mcp__serena__*
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__issue_read
 disallowedTools:
-  - Agent
-  - Bash
-  - Edit
-  - MultiEdit
-  - NotebookEdit
-  - Write
   - mcp__serena__execute_shell_command
   - mcp__serena__create_text_file
   - mcp__serena__replace_regex
@@ -25,6 +26,10 @@ disallowedTools:
   - mcp__serena__insert_before_symbol
   - mcp__serena__rename_symbol
   - mcp__serena__safe_delete_symbol
+  - mcp__serena__write_memory
+  - mcp__serena__edit_memory
+  - mcp__serena__delete_memory
+  - mcp__serena__rename_memory
 argument-hint: Point to the comments or PR to review for accuracy
 ---
 

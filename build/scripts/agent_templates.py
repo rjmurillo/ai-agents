@@ -245,7 +245,7 @@ def _try_render(
     tmpl_path: Path,
     partials_dir: Path,
     result: CompileResult,
-    denylists: dict[str, object] | None = None,
+    table: dict[str, object] | None = None,
 ) -> str | None:
     """Render one template, recording any failure onto ``result``.
 
@@ -253,15 +253,16 @@ def _try_render(
     same three exception classes are graded the same floors, extracted to
     hold this module's compile loop under the cyclomatic-complexity ceiling.
 
-    Different than canonical: when ``denylists`` is given (the Claude variant
-    only), ``- $deny:<name>`` frontmatter list items expand into the
-    ``disallowedTools`` entries for every MCP prefix variant. An unknown name
-    is a configuration error, exit 2, the same floor a missing partial gets.
+    Different than canonical: when ``table`` is given (the Claude variant
+    only), ``- $mcp:<server>`` and ``- $deny:<name>`` frontmatter list items expand
+    into MCP wildcard grants and ``disallowedTools`` entries for every prefix
+    variant of the server. An unknown name, or a bare MCP wildcard, is a configuration
+    error, exit 2, the same floor a missing partial gets.
     """
     try:
         rendered = str(render(tmpl_path, partials_dir))
-        if denylists is not None:
-            rendered = agent_capabilities.expand_deny_frontmatter(rendered, denylists)
+        if table is not None:
+            rendered = agent_capabilities.expand_frontmatter(rendered, table)
         return rendered
     except (
         TemplateGrammarError,
@@ -278,14 +279,14 @@ def _try_render(
         return None
 
 
-def render_claude(tmpl_path: Path, partials_dir: Path, denylists: dict[str, object]) -> str:
-    """Render a Claude template, then expand its ``$deny:`` references.
+def render_claude(tmpl_path: Path, partials_dir: Path, table: dict[str, object]) -> str:
+    """Render a Claude template, then expand its ``$mcp:`` and ``$deny:`` references.
 
     Raises the grammar errors :func:`render` raises, plus
-    ``agent_capabilities.CapabilityError`` for an unknown deny list.
+    ``agent_capabilities.CapabilityError`` for an unknown server or deny list.
     """
-    expanded: str = agent_capabilities.expand_deny_frontmatter(
-        str(render(tmpl_path, partials_dir)), denylists
+    expanded: str = agent_capabilities.expand_frontmatter(
+        str(render(tmpl_path, partials_dir)), table
     )
     return expanded
 
@@ -307,7 +308,7 @@ def _compile_one_pair(
     validate: bool,
     what_if: bool,
     result: CompileResult,
-    denylists: dict[str, object],
+    table: dict[str, object],
 ) -> None:
     """Render, and (unless validating) write, one stem's Claude variant.
 
@@ -335,7 +336,7 @@ def _compile_one_pair(
         result.exit_code = max(result.exit_code, 1)
         return
 
-    rendered = _try_render(claude_tmpl, partials_dir, result, denylists)
+    rendered = _try_render(claude_tmpl, partials_dir, result, table)
     if rendered is None:
         return
 
@@ -379,7 +380,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
 
     _report_discover_errors(repo_root, result)
     try:
-        denylists = agent_capabilities.load_denylists(repo_root)
+        table = agent_capabilities.load_mcp_table(repo_root)
     except agent_capabilities.CapabilityError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         result.exit_code = max(result.exit_code, 2)
@@ -395,7 +396,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
             validate=validate,
             what_if=what_if,
             result=result,
-            denylists=denylists,
+            table=table,
         )
 
     return result

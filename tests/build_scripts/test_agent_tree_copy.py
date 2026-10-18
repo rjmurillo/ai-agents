@@ -460,7 +460,9 @@ def test_committed_cursor_agents_match_the_claude_agents() -> None:
             )
         )
     ]
-    assert restricted == ["security.md"]
+    # Server wildcards (`mcp__serena__*`) are not provably read-only, so the four
+    # ADR-107 agents carry a restriction `readonly` cannot express (ADR-115 Decision 3).
+    assert restricted == ["analyst.md", "code-reviewer.md", "comment-analyzer.md", "security.md"]
     assert [p.name for p in copied] == [n for n in shipped if n not in restricted]
     for path in copied:
         frontmatter = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1])
@@ -474,4 +476,4 @@ def test_committed_readonly_agents_are_exactly_the_read_only_ones() -> None:
         for p in (REPO_ROOT / "src" / "cursor" / "agents").glob("*.md")
         if "readonly: true" in p.read_text(encoding="utf-8").split("---")[1]
     }
-    assert readonly == {"analyst", "code-reviewer", "comment-analyzer"}
+    assert readonly == set()

@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 
 TOOLSETS_RELATIVE_PATH = Path("templates") / "toolsets.yaml"
-DENYLISTS_RELATIVE_PATH = Path("templates") / "agent-denylists.yaml"
+MCP_TABLE_RELATIVE_PATH = Path("templates") / "agent-mcp-servers.yaml"
 DECLARATION = "declaration"
 RESTRICTED = "restricted"
 UNRESTRICTED = "unrestricted"
@@ -43,6 +43,7 @@ _BUILTIN: dict[str, str] = {
     "WebSearch": "network",
     "Task": "delegate",
     "TodoWrite": "track",
+    "ToolSearch": "tool-discovery",
     # VS Code and Copilot CLI spellings.
     "read": "read",
     "search": "search",
@@ -57,18 +58,37 @@ _BUILTIN: dict[str, str] = {
 }
 _SERVER_ALIASES = {"cognitionai/deepwiki": "deepwiki"}
 _CLAUDE_MCP_RE = re.compile(r"^mcp__(?P<server>.+?)__(?P<tool>.+)$")
+_PLUGIN_SERVER_RE = re.compile(r"^plugin_(?P<name>.+)_(?P=name)$")
+_CONNECTOR_PREFIX = "claude_ai_"
 _TOOLSET_PREFIX = "$toolset:"
-_DENY_PREFIX = "$deny:"
-_DENY_ITEM_RE = re.compile(r"^(?P<indent>[ \t]*)- (?P<ref>\$deny:\S*)[ \t]*$", re.MULTILINE)
+_REF_ITEM_RE = re.compile(
+    r"^(?P<indent>[ \t]*)- \$(?P<kind>deny|mcp):(?P<name>\S*)[ \t]*$", re.MULTILINE
+)
+# A bare `mcp__*` (or `mcp__`) grants no MCP tool on Claude Code 2.1.302 (probe,
+# 2026-10-17), so a template that writes one silently grants nothing.
+_GLOBAL_MCP_RE = re.compile(r"(?<![\w])mcp__\*?(?![\w*])")
 _FRONTMATTER_BLOCK_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 _TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
-# Capabilities a read-only agent must not hold (see ``_BUILTIN``).
-MUTATOR_CAPABILITIES = frozenset({"write", "execute"})
 
 
 class CapabilityError(Exception):
     """A tool list or toolset definition is unusable."""
+
+
+def _claude_server(server: str) -> str:
+    """Return the logical server for a Claude MCP prefix variant.
+
+    ``plugin_<s>_<s>`` and ``claude_ai_<Name>`` are other spellings of the server
+    a ``.mcp.json`` entry calls ``<s>``, so the parity gate must compare them as
+    one capability family.
+    """
+    plugin = _PLUGIN_SERVER_RE.match(server)
+    if plugin:
+        return plugin["name"]
+    if server.startswith(_CONNECTOR_PREFIX):
+        return server[len(_CONNECTOR_PREFIX) :].lower().replace("_", "-")
+    return server
 
 
 def classify(name: str) -> tuple[str, str]:
@@ -80,7 +100,7 @@ def classify(name: str) -> tuple[str, str]:
         return FAMILY_BUILTIN, _BUILTIN[name]
     claude = _CLAUDE_MCP_RE.match(name)
     if claude:
-        return f"mcp:{claude['server']}", claude["tool"].replace("-", "_")
+        return f"mcp:{_claude_server(claude['server'])}", claude["tool"].replace("-", "_")
     if "/" in name:
         server, tool = name.rsplit("/", 1)
         return f"mcp:{_SERVER_ALIASES.get(server, server)}", tool.replace("-", "_")
@@ -180,14 +200,14 @@ def drop_families_on_declaration_mismatch(left: dict[str, str], right: dict[str,
                 del units[unit]
 
 
-def load_denylists(repo_root: Path) -> dict[str, object]:
-    """Return the Claude deny-list definitions. A missing file is an empty mapping.
+def load_mcp_table(repo_root: Path) -> dict[str, object]:
+    """Return the MCP server and deny-list table. A missing file is an empty mapping.
 
-    The file is ``templates/agent-denylists.yaml``: ``prefix_variants``,
-    ``servers`` and ``denylists``. An empty mapping makes every ``$deny:``
-    reference an unknown name, which fails the build.
+    The file is ``templates/agent-mcp-servers.yaml``: ``prefix_variants``,
+    ``servers`` and ``denylists``. An empty mapping makes every ``$mcp:`` and
+    ``$deny:`` reference an unknown name, which fails the build.
     """
-    path = repo_root / DENYLISTS_RELATIVE_PATH
+    path = repo_root / MCP_TABLE_RELATIVE_PATH
     if not path.is_file():
         return {}
     try:
@@ -209,43 +229,62 @@ def _string_list(value: object, where: str) -> list[str]:
     return list(value)
 
 
-def _prefix_templates(value: object) -> list[str]:
+def _prefix_templates(value: object, where: str) -> list[str]:
     if not isinstance(value, list) or not value:
-        raise CapabilityError("prefix_variants must be a non-empty list")
+        raise CapabilityError(f"{where} must be a non-empty list")
     if not all(isinstance(item, str) and item.startswith("mcp__") for item in value):
-        raise CapabilityError("every prefix variant must be a string starting with 'mcp__'")
+        raise CapabilityError(f"every entry of {where} must be a string starting with 'mcp__'")
     return list(value)
 
 
-def _server_prefixes(server: str, config: dict[str, object]) -> list[str]:
-    """Return every ``mcp__...`` prefix variant for one logical server."""
-    variants = _prefix_templates(config.get("prefix_variants"))
-    servers = config.get("servers")
+def _server_prefixes(server: str, table: dict[str, object]) -> list[str]:
+    """Return every ``mcp__...`` prefix for one logical server.
+
+    A server entry may carry its own ``variants`` list; otherwise the table's
+    ``prefix_variants`` apply. Grants and denies for a server use this one list,
+    so a wildcard grant is never wider than the deny list beside it.
+    """
+    servers = table.get("servers")
     entry = servers.get(server) if isinstance(servers, dict) else None
     if not isinstance(entry, dict):
-        raise CapabilityError(f"deny list names server {server!r}, which has no `servers` entry")
+        raise CapabilityError(f"unknown MCP server {server!r}: no `servers` entry")
+    if "variants" in entry:
+        variants = _prefix_templates(entry["variants"], f"servers.{server}.variants")
+    else:
+        variants = _prefix_templates(table.get("prefix_variants"), "prefix_variants")
     prefixes: list[str] = []
     for variant in variants:
         wanted = set(_PLACEHOLDER_RE.findall(variant))
         if not wanted <= {"server", "claude_ai"}:
             raise CapabilityError(f"prefix variant {variant!r} uses an unknown placeholder")
-        if "claude_ai" in wanted:
-            names = _string_list(entry.get("claude_ai"), f"servers.{server}.claude_ai")
-        else:
-            names = [""]
+        names = (
+            _string_list(entry.get("claude_ai"), f"servers.{server}.claude_ai")
+            if "claude_ai" in wanted
+            else [""]
+        )
         prefixes.extend(variant.format(server=server, claude_ai=name) for name in names)
     return list(dict.fromkeys(prefixes))
 
 
-def expand_deny(name: str, config: dict[str, object]) -> list[str]:
+def expand_server_grant(server: str, table: dict[str, object]) -> list[str]:
+    """Return ``<prefix>__*`` for every prefix variant of ``server``.
+
+    A server-level entry is the only MCP wildcard Claude Code honors in
+    ``tools`` (probe, Claude Code 2.1.302, 2026-10-17): ``mcp__<server>__*``
+    grants that server's tools, and a bare ``mcp__*`` grants none.
+    """
+    return [f"{prefix}__*" for prefix in _server_prefixes(server, table)]
+
+
+def expand_deny(name: str, table: dict[str, object]) -> list[str]:
     """Return the tool entries for logical deny list ``name``.
 
     A list with a ``server`` expands to ``<prefix>__<tool>`` for every prefix
-    variant. A list without one is literal (built-in tool names). An unknown
-    name raises, matching ``_expand_one``: a typo must never silently deny
-    nothing.
+    variant of that server. A list without one is literal (built-in names). An
+    unknown name raises, matching ``_expand_one``: a typo must never silently
+    deny nothing.
     """
-    lists = config.get("denylists")
+    lists = table.get("denylists")
     entry = lists.get(name) if isinstance(lists, dict) else None
     if not isinstance(entry, dict):
         raise CapabilityError(f"unknown deny list {name!r}")
@@ -255,96 +294,28 @@ def expand_deny(name: str, config: dict[str, object]) -> list[str]:
         return tools
     if not isinstance(server, str):
         raise CapabilityError(f"denylists.{name}.server must be a string")
-    return [f"{prefix}__{tool}" for prefix in _server_prefixes(server, config) for tool in tools]
+    return [f"{prefix}__{tool}" for prefix in _server_prefixes(server, table) for tool in tools]
 
 
-def expand_deny_frontmatter(text: str, config: dict[str, object]) -> str:
-    """Expand each ``- $deny:<name>`` list item in the frontmatter block of ``text``.
+def expand_frontmatter(text: str, table: dict[str, object]) -> str:
+    """Expand ``- $mcp:<server>`` and ``- $deny:<name>`` list items in the frontmatter.
 
     Only the frontmatter is touched; a body that mentions ``$deny:`` is left
-    alone. A ``$deny:`` that is not a whole list item (for example inside a
-    flow list) raises, because leaving it would ship the literal text as a
-    tool name.
+    alone. A reference that is not a whole list item raises, because leaving it
+    would ship the literal text as a tool name. A bare ``mcp__*`` entry raises
+    too: it grants nothing on Claude Code 2.1.302.
     """
     match = _FRONTMATTER_BLOCK_RE.match(text)
     if match is None:
         return text
 
     def replace(item: re.Match[str]) -> str:
-        entries = expand_deny(item["ref"][len(_DENY_PREFIX) :], config)
-        return "\n".join(f"{item['indent']}- {entry}" for entry in entries)
+        expand = expand_server_grant if item["kind"] == "mcp" else expand_deny
+        return "\n".join(f"{item['indent']}- {entry}" for entry in expand(item["name"], table))
 
-    head = _DENY_ITEM_RE.sub(replace, match.group(0))
-    if _DENY_PREFIX in head:
-        raise CapabilityError("a $deny: reference must be a whole list item in the frontmatter")
+    head = _REF_ITEM_RE.sub(replace, match.group(0))
+    if "$deny:" in head or "$mcp:" in head:
+        raise CapabilityError("a $deny: or $mcp: reference must be a whole list item")
+    if _GLOBAL_MCP_RE.search(head):
+        raise CapabilityError("bare `mcp__*` grants no tool; use a `$mcp:<server>` reference")
     return head + text[match.end() :]
-
-
-def _claude_mutators() -> frozenset[str]:
-    """Claude spellings of the built-in tools whose capability is a mutator."""
-    return frozenset(
-        name
-        for name, item in _BUILTIN.items()
-        if item in MUTATOR_CAPABILITIES and name[0].isupper()
-    )
-
-
-def is_deny_list_member(frontmatter: dict[str, object]) -> bool:
-    """True when a Claude member inherits tools and denies at least one built-in mutator.
-
-    A member that omits ``tools`` and denies only ``Agent`` (the worker
-    convention, ``check_agent_delegation.py``) is not read-only by deny list; it
-    stays on the ordinary ``tools`` comparison. Denying even one mutator opts
-    the member in, so a half-finished list is caught by :func:`uncovered_mutators`
-    and not skipped.
-    """
-    if frontmatter.get("tools") is not None or frontmatter.get("disallowedTools") is None:
-        return False
-    denied = set(_names(frontmatter["disallowedTools"], "disallowedTools"))
-    return bool(denied & _claude_mutators())
-
-
-def uncovered_mutators(frontmatter: dict[str, object], *, include_write: bool = False) -> list[str]:
-    """Return Claude built-in mutator tools a deny-list member fails to deny.
-
-    Empty when the member is not deny-list shaped, because then the ordinary
-    ``tools`` comparison owns the question. A member that omits ``tools``
-    inherits every tool, so the shell and the editors must be denied by name.
-    ``Write`` is required only with ``include_write``: ``security`` held it on
-    origin/main for its reports and keeps it, and an agent never loses a
-    capability it already had. The Cursor ``readonly`` derivation passes
-    ``include_write=True`` because ``readonly`` means no file writes at all.
-    """
-    if not is_deny_list_member(frontmatter):
-        return []
-    denied = set(_names(frontmatter["disallowedTools"], "disallowedTools"))
-    required = _claude_mutators() if include_write else _claude_mutators() - {"Write"}
-    return sorted(required - denied)
-
-
-def reduce_deny_list_member(
-    frontmatter: dict[str, object],
-    units: dict[str, str],
-    shared_units: dict[str, str],
-    prefix: str,
-) -> None:
-    """Replace the capability comparison for a deny-list Claude member, in place.
-
-    Intentional difference, ADR-107 "Read-only agents inherit tools": a Claude
-    read-only agent omits ``tools`` (inherits every session tool, including MCP
-    servers whose names vary by install) and subtracts through
-    ``disallowedTools``. Its Copilot twin keeps a ``tools_copilot`` allowlist.
-    The two cannot be reduced to one comparable set, so the ``<prefix>:*``
-    units are dropped from BOTH sides for this member only. What replaces them
-    is the invariant the deny list exists to hold: every built-in mutator is
-    denied. A gap surfaces as ``<prefix>:denylist``, one-sided and so a
-    divergence that is not baselined. Does nothing for a non-member.
-    """
-    if not is_deny_list_member(frontmatter):
-        return
-    for table in (units, shared_units):
-        for unit in [u for u in table if u.startswith(f"{prefix}:")]:
-            del table[unit]
-    uncovered = uncovered_mutators(frontmatter)
-    if uncovered:
-        units[f"{prefix}:denylist"] = "\n".join(uncovered)

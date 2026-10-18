@@ -6,18 +6,46 @@ metadata:
 # Requires fresh context and separate tool state to threat-model without inherited assumptions.
 isolation_required: true
 argument-hint: Specify the code, feature, or changes to security review
-# No `tools:` key: inherit every session tool, deny only shell and local mutators.
-# `Write` and the Serena memory tools stay: this agent held them on origin/main
-# for its reports. `Bash` is denied and that absence is the enforcement (#4781,
-# #5356): deny rules match command text case-sensitively while git config keys are
-# case-insensitive, so only removing the shell closes `git -c Diff.External=`.
-# See ADR-107, "Read-only agents inherit tools".
+# Read-only review evidence plus the report writes this agent's templates need.
+# `tools` accepts bare tool names and MCP server-level patterns only
+# (https://code.claude.com/docs/en/sub-agents, "Supported frontmatter fields"
+# and "Available tools"; its worked example is `tools: Read, Grep, Glob, Bash`).
+# A parenthesised entry such as `Bash(git diff:*)` is permission-rule syntax,
+# not a tool name, so it grants no Bash at all: that spelling reproduced #4781's
+# symptom deterministically instead of fixing it.
+# No shell is granted, and that absence is this agent's enforcement. The field
+# cannot scope a shell grant, and the settings-file deny layer cannot substitute
+# for one: those rules match command text case-sensitively while git config keys
+# are case-insensitive, so `git -c Diff.External=<cmd>` reaches the same handler
+# as the denied lowercase spelling. Enumerating casings is not a control, and a
+# session-wide deny on the mutating subcommands would break every other agent
+# (the incident #5013 shape). Without `Bash`, mutating git, the `--output`
+# file-write flags, and config injection are unreachable rather than merely
+# forbidden. A review is enumerated through the pinned GitHub readers or a
+# caller-supplied diff artifact, the same path the Copilot and VS Code surfaces
+# use. `Edit` is dropped with it: the deliverables are new report files, so it
+# added a source-mutation vector for no capability. `Write` is retained for
+# those reports and stays unscoped, so the report-path limit is still an
+# obligation stated in the body, not a control. See #4781.
+tools:
+  - Read
+  - Grep
+  - Glob
+  - WebSearch
+  - WebFetch
+  - TodoWrite
+  - Write
+  - ToolSearch
+  - mcp__github__pull_request_read
+  - mcp__github__get_commit
+  - mcp__github__list_commits
+  - mcp__github__get_file_contents
+  - mcp__github__search_code
+  - mcp__github__issue_read
+  - mcp__serena__*
+# MCP wildcards grant whole servers; the deny list keeps each server's mutators out.
+# The two Serena memory writes held on origin/main stay granted. See ADR-107.
 disallowedTools:
-  - Agent
-  - Bash
-  - Edit
-  - MultiEdit
-  - NotebookEdit
   - mcp__serena__execute_shell_command
   - mcp__serena__create_text_file
   - mcp__serena__replace_regex
@@ -31,6 +59,8 @@ disallowedTools:
   - mcp__serena__insert_before_symbol
   - mcp__serena__rename_symbol
   - mcp__serena__safe_delete_symbol
+  - mcp__serena__delete_memory
+  - mcp__serena__rename_memory
 ---
 # Security Agent
 

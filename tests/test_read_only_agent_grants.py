@@ -1,15 +1,14 @@
-"""Read-only agents hold no shell or local editor on the Claude surface (issues #5767, #5356).
+"""Read-only agents hold no executor on the Claude surface (issues #5767, #5356, ADR-107).
 
 `analyst`, `security`, `code-reviewer`, and `comment-analyzer` are read-only by
-contract. On Claude Code an agent with no `tools:` key inherits every session
-tool, including MCP servers whose names vary by install. ADR-107 ("Read-only
-agents inherit tools") gives these four no `tools:` key and a `disallowedTools:`
-list that enforces only the #5356 invariant: no shell and no local file mutation.
-Remote write tools follow the user's permission rules.
+contract. Each declares a `tools:` allowlist: its origin/main built-ins plus
+`ToolSearch`, and MCP servers granted by wildcard (`$mcp:<server>`, expanded by the
+renderer). Wildcard servers that have write tools carry a matching `disallowedTools`
+list under the same prefixes. This module pins that shape in the shipped plugin tree
+and the binplaced install tree.
 
-An agent never loses a capability it held on origin/main. `LEGACY_ALLOWLISTS`
-pins each agent's `tools:` list from origin/main at 44fd46a46e (2026-10-17), and
-no entry of it may appear in the rendered deny list.
+`LEGACY_ALLOWLISTS` pins each agent's `tools:` list from origin/main at 44fd46a46e
+(2026-10-17). An agent never loses a capability it held there.
 """
 
 from __future__ import annotations
@@ -79,9 +78,33 @@ LEGACY_ALLOWLISTS: dict[str, tuple[str, ...]] = {
     "comment-analyzer": ("Read", "Grep", "Glob", *_GITHUB_READ, *_SERENA_SYMBOL_READ),
 }
 READ_ONLY_AGENTS = tuple(LEGACY_ALLOWLISTS)
-# The #5356 invariant. `security` keeps Write, so Write is required of the others only.
-SHELL_AND_EDITORS = frozenset({"Bash", "Edit", "MultiEdit", "NotebookEdit"})
+
+# Executors and session-state tools a read-only agent must never be granted. Probed
+# on Claude Code 2.1.302 (2026-10-17): an inherit-all agent still exposed several of
+# these after Bash, Edit, and Write were denied.
+FORBIDDEN_BUILTINS = frozenset(
+    {
+        "Bash",
+        "PowerShell",
+        "Monitor",
+        "Skill",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "Agent",
+        "Task",
+        "CronCreate",
+        "CronDelete",
+        "CronList",
+        "RemoteTrigger",
+        "EnterWorktree",
+        "ExitWorktree",
+        "PushNotification",
+    }
+)
 SERENA_LOCAL = ("execute_shell_command", "create_text_file", "replace_content", "rename_symbol")
+SERENA_MEMORY_DELETE = ("delete_memory", "rename_memory")
+SERENA_MEMORY_EDIT = ("write_memory", "edit_memory")
 
 
 def _frontmatter(path: Path) -> dict[str, object]:
@@ -92,77 +115,105 @@ def _frontmatter(path: Path) -> dict[str, object]:
     return loaded
 
 
-def _denied(path: Path) -> set[str]:
-    """Return ``disallowedTools``, failing when the agent also grants a ``tools`` list."""
-    frontmatter = _frontmatter(path)
-    assert frontmatter.get("tools") is None, (
-        f"{path} declares a `tools` allowlist; ADR-107 read-only agents inherit tools "
-        f"and subtract through `disallowedTools`."
-    )
-    denied = frontmatter.get("disallowedTools")
-    assert isinstance(denied, list), (
-        f"{path} has no disallowedTools list, so Claude Code grants it every tool, "
+def _list(path: Path, key: str) -> list[str]:
+    value = _frontmatter(path).get(key)
+    assert isinstance(value, list), (
+        f"{path} has no `{key}` list, so Claude Code grants it every tool, "
         f"including Bash, Edit, and Write."
     )
-    return {str(tool) for tool in denied}
+    return [str(item) for item in value]
+
+
+def _tools(path: Path) -> list[str]:
+    return _list(path, "tools")
+
+
+def _is_granted(tool: str, tools: list[str], denied: list[str]) -> bool:
+    """True when ``tool`` is named or covered by a ``<prefix>__*`` entry, and not denied."""
+    if tool in denied:
+        return False
+    if tool in tools:
+        return True
+    prefix, _, _ = tool.rpartition("__")
+    return f"{prefix}__*" in tools
 
 
 @pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)
 @pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
-def test_read_only_agent_denies_the_shell_and_the_editors(agent: str, tree: Path) -> None:
-    denied = _denied(tree / f"{agent}.md")
+def test_allowlist_contains_no_executor(agent: str, tree: Path) -> None:
+    granted = set(_tools(tree / f"{agent}.md"))
 
-    required = SHELL_AND_EDITORS if agent == "security" else SHELL_AND_EDITORS | {"Write"}
-    assert not required - denied, f"{agent} in {tree} does not deny {sorted(required - denied)}"
-    assert "Agent" in denied, f"{agent} is a worker and must deny Agent (check_agent_delegation)"
+    forbidden = FORBIDDEN_BUILTINS | ({"Write"} if agent != "security" else set())
+    assert granted.isdisjoint(forbidden), (
+        f"{agent} in {tree} holds {sorted(granted & forbidden)}; read-only agents hold no executor."
+    )
+    assert {"Read", "Grep", "Glob"} <= granted
 
 
 @pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)
 @pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
-def test_read_only_agent_denies_serena_local_mutators(agent: str, tree: Path) -> None:
-    denied = _denied(tree / f"{agent}.md")
+def test_every_origin_main_tool_is_still_granted(agent: str, tree: Path) -> None:
+    path = tree / f"{agent}.md"
+    tools, denied = _tools(path), _list(path, "disallowedTools")
 
-    for tool in SERENA_LOCAL:
+    lost = [t for t in LEGACY_ALLOWLISTS[agent] if not _is_granted(t, tools, denied)]
+    assert not lost, f"{agent} lost capabilities it held on origin/main: {lost}"
+
+
+@pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)
+@pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
+def test_no_global_mcp_wildcard_is_granted(agent: str, tree: Path) -> None:
+    """A bare mcp__* grants no tool on 2.1.302, so it is a silent no-op."""
+    tools = _tools(tree / f"{agent}.md")
+
+    assert "mcp__*" not in tools
+    assert "mcp__" not in tools
+
+
+@pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)
+@pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
+def test_serena_wildcard_denies_its_local_mutators(agent: str, tree: Path) -> None:
+    path = tree / f"{agent}.md"
+    assert "mcp__serena__*" in _tools(path)
+    denied = _list(path, "disallowedTools")
+
+    for tool in SERENA_LOCAL + SERENA_MEMORY_DELETE:
         assert f"mcp__serena__{tool}" in denied, f"{agent} does not deny mcp__serena__{tool}"
+    memory_edits = [f"mcp__serena__{t}" in denied for t in SERENA_MEMORY_EDIT]
+    assert all(memory_edits) == (agent != "security")
+    assert not any(memory_edits) == (agent == "security")
 
 
 @pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)
-@pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
-def test_no_origin_main_capability_is_denied(agent: str, tree: Path) -> None:
-    """Owner decision D3: deny an invariant item only if the agent lacked it before."""
-    denied = _denied(tree / f"{agent}.md")
+def test_context7_wildcard_covers_every_prefix_variant(tree: Path) -> None:
+    tools = _tools(tree / "analyst.md")
 
-    removed = sorted(denied & set(LEGACY_ALLOWLISTS[agent]))
-    assert not removed, f"{agent} lost capabilities it held on origin/main: {removed}"
+    for prefix in ("mcp__context7", "mcp__plugin_context7_context7", "mcp__claude_ai_Context7"):
+        assert f"{prefix}__*" in tools
 
 
-def test_security_keeps_write_and_serena_memory_writes() -> None:
-    denied = _denied(AGENT_TREES[0] / "security.md")
-
-    assert denied.isdisjoint({"Write", "mcp__serena__write_memory", "mcp__serena__edit_memory"})
-
-
-def test_missing_deny_list_is_detected(tmp_path: Path) -> None:
-    """Negative control: an agent with neither key inherits every tool."""
+def test_missing_allowlist_is_detected(tmp_path: Path) -> None:
+    """Negative control: an agent with no tools key inherits every tool."""
     agent = tmp_path / "agent.md"
     agent.write_text("---\nname: agent\ndescription: x\n---\nbody\n", encoding="utf-8")
 
-    with pytest.raises(AssertionError, match="no disallowedTools"):
-        _denied(agent)
+    with pytest.raises(AssertionError, match="no `tools` list"):
+        _tools(agent)
 
 
-def test_tools_allowlist_is_rejected(tmp_path: Path) -> None:
-    """Negative control: a template granting Bash through `tools` fails the check."""
+def test_executor_grant_is_detected(tmp_path: Path) -> None:
+    """Negative control: a granted Bash intersects the forbidden set."""
     agent = tmp_path / "agent.md"
     agent.write_text("---\nname: agent\ntools:\n  - Read\n  - Bash\n---\nbody\n", encoding="utf-8")
 
-    with pytest.raises(AssertionError, match="declares a `tools` allowlist"):
-        _denied(agent)
+    assert set(_tools(agent)) & FORBIDDEN_BUILTINS == {"Bash"}
 
 
-def test_partial_deny_list_leaves_an_editor_uncovered(tmp_path: Path) -> None:
-    """Negative control: denying Bash alone leaves the editors open."""
-    agent = tmp_path / "agent.md"
-    agent.write_text("---\nname: agent\ndisallowedTools:\n  - Bash\n---\nbody\n", encoding="utf-8")
-
-    assert SHELL_AND_EDITORS - _denied(agent) == {"Edit", "MultiEdit", "NotebookEdit"}
+def test_a_denied_tool_is_not_granted_by_its_wildcard() -> None:
+    assert not _is_granted(
+        "mcp__serena__write_memory", ["mcp__serena__*"], ["mcp__serena__write_memory"]
+    )
+    assert _is_granted(
+        "mcp__serena__read_memory", ["mcp__serena__*"], ["mcp__serena__write_memory"]
+    )
+    assert not _is_granted("mcp__serena__read_memory", ["Read"], [])

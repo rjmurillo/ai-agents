@@ -7,15 +7,16 @@ metadata:
   role: executor
 # Runs the review contract in fresh context with read-only tools, apart from the implementer.
 isolation_required: true
-# No `tools:` key: inherit every session tool, deny only shell and local mutators.
-# See ADR-107, "Read-only agents inherit tools".
+tools:
+  - Read
+  - Grep
+  - Glob
+  - ToolSearch
+  - mcp__serena__*
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__issue_read
 disallowedTools:
-  - Agent
-  - Bash
-  - Edit
-  - MultiEdit
-  - NotebookEdit
-  - Write
   - mcp__serena__execute_shell_command
   - mcp__serena__create_text_file
   - mcp__serena__replace_regex
@@ -29,6 +30,10 @@ disallowedTools:
   - mcp__serena__insert_before_symbol
   - mcp__serena__rename_symbol
   - mcp__serena__safe_delete_symbol
+  - mcp__serena__write_memory
+  - mcp__serena__edit_memory
+  - mcp__serena__delete_memory
+  - mcp__serena__rename_memory
 argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
 ---
 

@@ -4,15 +4,25 @@ description: Research and investigation specialist who digs deep into root cause
 metadata:
   role: support
 argument-hint: Describe the topic, issue, or feature to research
-# No `tools:` key: inherit every session tool, deny only shell and local mutators.
-# See ADR-107, "Read-only agents inherit tools".
+tools:
+  - Read
+  - Glob
+  - Grep
+  - ToolSearch
+  - mcp__serena__*
+  - mcp__github__issue_read
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__list_commits
+  - mcp__github__list_workflow_runs
+  - mcp__github__get_workflow_run
+  - mcp__github__get_job_logs
+  - mcp__deepwiki__read_wiki_structure
+  - mcp__deepwiki__read_wiki_contents
+  - mcp__context7__*
+  - mcp__plugin_context7_context7__*
+  - mcp__claude_ai_Context7__*
 disallowedTools:
-  - Agent
-  - Bash
-  - Edit
-  - MultiEdit
-  - NotebookEdit
-  - Write
   - mcp__serena__execute_shell_command
   - mcp__serena__create_text_file
   - mcp__serena__replace_regex
@@ -26,6 +36,10 @@ disallowedTools:
   - mcp__serena__insert_before_symbol
   - mcp__serena__rename_symbol
   - mcp__serena__safe_delete_symbol
+  - mcp__serena__write_memory
+  - mcp__serena__edit_memory
+  - mcp__serena__delete_memory
+  - mcp__serena__rename_memory
 ---
 
 # Analyst Agent

@@ -1,15 +1,13 @@
-"""Tests for the Claude deny-list expansion (ADR-107, "Read-only agents inherit tools").
+"""Tests for the Claude MCP server grants and deny lists (ADR-107).
 
-Covers `agent_capabilities` (load, expand, frontmatter substitution, mutator
-coverage), the `agent_templates` compile path, the `check_agent_source_parity`
-handling of deny-list members, and the Cursor `readonly` derivation that reads
-the same frontmatter.
+Covers `agent_capabilities` (load, expand grants and denies, frontmatter substitution,
+bare-wildcard rejection, prefix normalization), the `agent_templates` compile path,
+and the parity gate on the live templates.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import sys
 from pathlib import Path
@@ -24,10 +22,9 @@ if str(_SCRIPTS) not in sys.path:
 
 import agent_capabilities as caps  # noqa: E402
 import agent_templates  # noqa: E402
-import agent_tree_copy  # noqa: E402
 import check_agent_source_parity as gate  # noqa: E402
 
-LIVE = caps.load_denylists(_REPO_ROOT)
+LIVE = caps.load_mcp_table(_REPO_ROOT)
 
 CONFIG = {
     "prefix_variants": [
@@ -35,9 +32,14 @@ CONFIG = {
         "mcp__plugin_{server}_{server}",
         "mcp__claude_ai_{claude_ai}",
     ],
-    "servers": {"demo": {"claude_ai": ["Demo", "demo"]}},
+    "servers": {
+        "demo": {"claude_ai": ["Demo", "demo"]},
+        "solo": {"variants": ["mcp__{server}"]},
+        "hosted": {"remote_only": "hosted service, nothing local"},
+    },
     "denylists": {
         "demo-write": {"server": "demo", "tools": ["put_thing", "drop_thing"]},
+        "solo-write": {"server": "solo", "tools": ["put_thing"]},
         "mutators": {"tools": ["Bash", "Edit", "Write", "MultiEdit", "NotebookEdit"]},
     },
 }
@@ -121,42 +123,90 @@ class TestExpandDeny:
             caps.expand_deny("x", config)
 
 
+class TestServerGrants:
+    def test_wildcard_is_emitted_for_every_prefix_variant(self) -> None:
+        assert caps.expand_server_grant("demo", CONFIG) == [
+            "mcp__demo__*",
+            "mcp__plugin_demo_demo__*",
+            "mcp__claude_ai_Demo__*",
+            "mcp__claude_ai_demo__*",
+        ]
+
+    def test_per_server_variants_override_the_table(self) -> None:
+        assert caps.expand_server_grant("solo", CONFIG) == ["mcp__solo__*"]
+        assert caps.expand_deny("solo-write", CONFIG) == ["mcp__solo__put_thing"]
+
+    def test_unknown_logical_server_fails_closed(self) -> None:
+        with pytest.raises(caps.CapabilityError, match="unknown MCP server 'nope'"):
+            caps.expand_server_grant("nope", CONFIG)
+
+    def test_empty_table_fails_closed(self) -> None:
+        with pytest.raises(caps.CapabilityError, match="unknown MCP server"):
+            caps.expand_server_grant("demo", {})
+
+    def test_bad_per_server_variants_are_rejected(self) -> None:
+        config = {**CONFIG, "servers": {"s": {"variants": ["bad"]}}}
+        with pytest.raises(caps.CapabilityError, match="starting with 'mcp__'"):
+            caps.expand_server_grant("s", config)
+
+    @pytest.mark.parametrize(
+        "name,family",
+        [
+            ("mcp__serena__*", "mcp:serena"),
+            ("mcp__plugin_serena_serena__*", "mcp:serena"),
+            ("mcp__claude_ai_Context7__*", "mcp:context7"),
+            ("mcp__claude_ai_Claude_Docs__x", "mcp:claude-docs"),
+            ("mcp__github__issue_read", "mcp:github"),
+        ],
+    )
+    def test_prefix_variants_classify_as_one_server(self, name: str, family: str) -> None:
+        assert caps.classify(name)[0] == family
+
+    def test_wildcard_compares_equal_to_the_copilot_spelling(self) -> None:
+        assert caps.classify("mcp__serena__*") == caps.classify("serena/*")
+        assert caps.classify("mcp__plugin_serena_serena__*") == caps.classify("serena/*")
+
+    def test_a_plugin_name_that_is_not_doubled_is_left_alone(self) -> None:
+        assert caps.classify("mcp__plugin_a_b__x")[0] == "mcp:plugin_a_b"
+
+
 class TestLiveTable:
-    @pytest.mark.parametrize("name", ["serena-local", "builtin-shell-edit", "builtin-write"])
+    @pytest.mark.parametrize("name", ["serena-local", "serena-memory-edit", "serena-memory-delete"])
     def test_every_list_expands(self, name: str) -> None:
         assert caps.expand_deny(name, LIVE)
 
-    @pytest.mark.parametrize("name", ["serena-write", "github-write", "deepwiki-write"])
-    def test_remote_and_memory_lists_were_dropped(self, name: str) -> None:
-        """Owner decision D3: remote writes follow the user's permission rules."""
+    @pytest.mark.parametrize("name", ["github-write", "deepwiki-write", "builtin-write"])
+    def test_lists_that_do_not_fit_the_byte_budget_were_dropped(self, name: str) -> None:
         with pytest.raises(caps.CapabilityError, match="unknown deny list"):
             caps.expand_deny(name, LIVE)
 
-    def test_serena_local_is_emitted_under_the_mcp_json_prefix(self) -> None:
+    def test_serena_mutators_are_denied_under_the_grant_prefix_only(self) -> None:
+        grant = {g.removesuffix("__*") for g in caps.expand_server_grant("serena", LIVE)}
+        for name in ("serena-local", "serena-memory-edit", "serena-memory-delete"):
+            got = caps.expand_deny(name, LIVE)
+            assert {e.rsplit("__", 1)[0] for e in got} == grant
+
+    def test_serena_local_has_the_shell_and_editors(self) -> None:
         got = caps.expand_deny("serena-local", LIVE)
 
-        assert all(entry.startswith("mcp__serena__") for entry in got)
         assert "mcp__serena__execute_shell_command" in got
         assert len(got) == len(set(got)) == 13
 
-    def test_serena_memory_tools_are_not_denied(self) -> None:
-        got = {e.rsplit("__", 1)[1] for e in caps.expand_deny("serena-local", LIVE)}
-
-        assert got.isdisjoint({"write_memory", "edit_memory", "delete_memory", "rename_memory"})
-
-    def test_builtin_lists_split_write_from_the_shell_and_editors(self) -> None:
-        assert caps.expand_deny("builtin-shell-edit", LIVE) == [
-            "Bash",
-            "Edit",
-            "MultiEdit",
-            "NotebookEdit",
+    def test_context7_grant_covers_every_known_variant(self) -> None:
+        assert caps.expand_server_grant("context7", LIVE) == [
+            "mcp__context7__*",
+            "mcp__plugin_context7_context7__*",
+            "mcp__claude_ai_Context7__*",
         ]
-        assert caps.expand_deny("builtin-write", LIVE) == ["Write"]
 
     def test_read_tools_are_never_denied(self) -> None:
-        denied_tools = {e.rsplit("__", 1)[1] for e in caps.expand_deny("serena-local", LIVE)}
+        denied = {
+            e.rsplit("__", 1)[1]
+            for name in ("serena-local", "serena-memory-edit", "serena-memory-delete")
+            for e in caps.expand_deny(name, LIVE)
+        }
 
-        assert denied_tools.isdisjoint(READ_TOOLS)
+        assert denied.isdisjoint(READ_TOOLS)
 
     def test_every_mcp_json_server_is_covered_or_marked_remote_only(self) -> None:
         configured = json.loads((_REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))
@@ -187,7 +237,7 @@ class TestExpandFrontmatter:
     )
 
     def test_item_is_replaced_and_indent_kept(self) -> None:
-        out = caps.expand_deny_frontmatter(self.TEXT, CONFIG)
+        out = caps.expand_frontmatter(self.TEXT, CONFIG)
 
         front = yaml.safe_load(out.split("---\n")[1])
         assert front["disallowedTools"][0] == "Agent"
@@ -195,84 +245,78 @@ class TestExpandFrontmatter:
         assert len(front["disallowedTools"]) == 1 + 8
 
     def test_body_mentions_are_untouched(self) -> None:
-        assert caps.expand_deny_frontmatter(self.TEXT, CONFIG).endswith("Body $deny:demo-write\n")
+        assert caps.expand_frontmatter(self.TEXT, CONFIG).endswith("Body $deny:demo-write\n")
+
+    def test_server_reference_expands_to_wildcards(self) -> None:
+        text = "---\nname: x\ntools:\n  - Read\n  - $mcp:demo\n---\nbody\n"
+
+        front = yaml.safe_load(caps.expand_frontmatter(text, CONFIG).split("---\n")[1])
+
+        assert front["tools"][0] == "Read"
+        assert front["tools"][1:] == caps.expand_server_grant("demo", CONFIG)
+
+    def test_unknown_server_reference_raises(self) -> None:
+        text = "---\nname: x\ntools:\n  - $mcp:typo\n---\nbody\n"
+        with pytest.raises(caps.CapabilityError, match="unknown MCP server 'typo'"):
+            caps.expand_frontmatter(text, CONFIG)
+
+    @pytest.mark.parametrize("entry", ["mcp__*", "mcp__", "'mcp__*'"])
+    def test_global_mcp_wildcard_is_rejected(self, entry: str) -> None:
+        text = f"---\nname: x\ntools:\n  - Read\n  - {entry}\n---\nbody\n"
+        with pytest.raises(caps.CapabilityError, match="grants no tool"):
+            caps.expand_frontmatter(text, CONFIG)
+
+    def test_global_wildcard_in_a_flow_list_is_rejected(self) -> None:
+        text = "---\nname: x\ntools: [Read, mcp__*]\n---\nbody\n"
+        with pytest.raises(caps.CapabilityError, match="grants no tool"):
+            caps.expand_frontmatter(text, CONFIG)
+
+    def test_a_server_wildcard_is_not_mistaken_for_the_global_one(self) -> None:
+        text = "---\nname: x\ntools:\n  - mcp__serena__*\n---\nbody\n"
+        assert caps.expand_frontmatter(text, CONFIG) == text
+
+    def test_global_wildcard_in_the_body_is_ignored(self) -> None:
+        text = "---\nname: x\n---\nUse mcp__* here.\n"
+        assert caps.expand_frontmatter(text, CONFIG) == text
 
     def test_unknown_name_raises(self) -> None:
         with pytest.raises(caps.CapabilityError, match="unknown deny list"):
-            caps.expand_deny_frontmatter(self.TEXT.replace("demo-write", "typo", 1), CONFIG)
+            caps.expand_frontmatter(self.TEXT.replace("demo-write", "typo", 1), CONFIG)
 
     def test_inline_reference_raises(self) -> None:
         text = "---\nname: x\ndisallowedTools: [$deny:demo-write]\n---\nbody\n"
         with pytest.raises(caps.CapabilityError, match="whole list item"):
-            caps.expand_deny_frontmatter(text, CONFIG)
+            caps.expand_frontmatter(text, CONFIG)
 
     def test_text_without_frontmatter_is_returned_unchanged(self) -> None:
-        assert caps.expand_deny_frontmatter("- $deny:x\n", CONFIG) == "- $deny:x\n"
+        assert caps.expand_frontmatter("- $deny:x\n", CONFIG) == "- $deny:x\n"
 
     def test_frontmatter_without_references_is_unchanged(self) -> None:
         text = "---\nname: x\n---\nbody\n"
-        assert caps.expand_deny_frontmatter(text, CONFIG) == text
+        assert caps.expand_frontmatter(text, CONFIG) == text
 
 
 class TestLoadDenylists:
     def test_missing_file_is_empty(self, tmp_path: Path) -> None:
-        assert caps.load_denylists(tmp_path) == {}
+        assert caps.load_mcp_table(tmp_path) == {}
 
     def test_invalid_yaml_raises(self, tmp_path: Path) -> None:
         (tmp_path / "templates").mkdir()
-        (tmp_path / caps.DENYLISTS_RELATIVE_PATH).write_text("a: [", encoding="utf-8")
+        (tmp_path / caps.MCP_TABLE_RELATIVE_PATH).write_text("a: [", encoding="utf-8")
         with pytest.raises(caps.CapabilityError, match="not valid YAML"):
-            caps.load_denylists(tmp_path)
+            caps.load_mcp_table(tmp_path)
 
     def test_non_mapping_raises(self, tmp_path: Path) -> None:
         (tmp_path / "templates").mkdir()
-        (tmp_path / caps.DENYLISTS_RELATIVE_PATH).write_text("- a\n", encoding="utf-8")
+        (tmp_path / caps.MCP_TABLE_RELATIVE_PATH).write_text("- a\n", encoding="utf-8")
         with pytest.raises(caps.CapabilityError, match="must be a mapping"):
-            caps.load_denylists(tmp_path)
+            caps.load_mcp_table(tmp_path)
 
     def test_undecodable_file_raises(self, tmp_path: Path) -> None:
         (tmp_path / "templates").mkdir()
-        (tmp_path / caps.DENYLISTS_RELATIVE_PATH).write_bytes(b"\xff\xfe\x00bad")
+        (tmp_path / caps.MCP_TABLE_RELATIVE_PATH).write_bytes(b"\xff\xfe\x00bad")
         with pytest.raises(caps.CapabilityError, match="cannot read"):
-            caps.load_denylists(tmp_path)
-
-
-class TestMutatorCoverage:
-    FULL = {"disallowedTools": ["Agent", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit"]}
-    NO_WRITE = {"disallowedTools": ["Agent", "Bash", "Edit", "MultiEdit", "NotebookEdit"]}
-
-    def test_full_list_is_covered(self) -> None:
-        assert caps.is_deny_list_member(self.FULL)
-        assert caps.uncovered_mutators(self.FULL) == []
-        assert caps.uncovered_mutators(self.FULL, include_write=True) == []
-
-    def test_write_is_optional_unless_asked_for(self) -> None:
-        """`security` keeps Write, so the parity gate must not demand it."""
-        assert caps.uncovered_mutators(self.NO_WRITE) == []
-        assert caps.uncovered_mutators(self.NO_WRITE, include_write=True) == ["Write"]
-
-    def test_comma_string_form_is_read(self) -> None:
-        fm = {"disallowedTools": "Bash, Edit, Write, MultiEdit, NotebookEdit"}
-        assert caps.uncovered_mutators(fm) == []
-
-    def test_partial_list_reports_the_gap(self) -> None:
-        assert caps.uncovered_mutators({"disallowedTools": ["Bash"]}) == [
-            "Edit",
-            "MultiEdit",
-            "NotebookEdit",
-        ]
-
-    def test_agent_only_deny_is_not_a_deny_list_member(self) -> None:
-        fm = {"disallowedTools": "Agent"}
-        assert not caps.is_deny_list_member(fm)
-        assert caps.uncovered_mutators(fm) == []
-
-    def test_a_tools_allowlist_is_never_a_deny_list_member(self) -> None:
-        fm = {"tools": ["Read", "Bash"], "disallowedTools": ["Bash"]}
-        assert not caps.is_deny_list_member(fm)
-
-    def test_no_keys_is_not_a_member(self) -> None:
-        assert not caps.is_deny_list_member({})
+            caps.load_mcp_table(tmp_path)
 
 
 def _write_pair(root: Path, claude: str, copilot: str = "---\nname: w\n---\nbody\n") -> None:
@@ -280,13 +324,16 @@ def _write_pair(root: Path, claude: str, copilot: str = "---\nname: w\n---\nbody
     (agents / "partials").mkdir(parents=True, exist_ok=True)
     (agents / "w.claude.md.tmpl").write_text(claude, encoding="utf-8")
     (agents / "w.copilot.md.tmpl").write_text(copilot, encoding="utf-8")
-    (root / "templates" / "agent-denylists.yaml").write_text(
+    (root / "templates" / "agent-mcp-servers.yaml").write_text(
         yaml.safe_dump(CONFIG), encoding="utf-8"
     )
 
 
 class TestCompile:
-    CLAUDE = "---\nname: w\ndisallowedTools:\n  - $deny:mutators\n  - $deny:demo-write\n---\nbody\n"
+    CLAUDE = (
+        "---\nname: w\ntools:\n  - Read\n  - $mcp:demo\n"
+        "disallowedTools:\n  - $deny:demo-write\n---\nbody\n"
+    )
 
     def test_render_writes_expanded_entries(self, tmp_path: Path) -> None:
         _write_pair(tmp_path, self.CLAUDE)
@@ -296,8 +343,23 @@ class TestCompile:
         assert result.exit_code == 0
         out = (tmp_path / "src" / "claude" / "agents" / "w.md").read_text(encoding="utf-8")
         assert "$deny" not in out
-        assert "  - Bash\n" in out
+        assert "$mcp" not in out
+        assert "  - Read\n  - mcp__demo__*\n" in out
+        assert "  - mcp__claude_ai_demo__*\n" in out
         assert "  - mcp__plugin_demo_demo__drop_thing\n" in out
+
+    def test_unknown_logical_server_fails_the_build(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _write_pair(tmp_path, self.CLAUDE.replace("$mcp:demo", "$mcp:typo"))
+
+        assert agent_templates.compile_all(tmp_path, validate=False).exit_code == 2
+        assert "unknown MCP server 'typo'" in capsys.readouterr().err
+
+    def test_global_mcp_wildcard_fails_the_build(self, tmp_path: Path) -> None:
+        _write_pair(tmp_path, self.CLAUDE.replace("$mcp:demo", "mcp__*"))
+
+        assert agent_templates.compile_all(tmp_path, validate=False).exit_code == 2
 
     def test_unknown_logical_name_fails_the_build(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -312,13 +374,13 @@ class TestCompile:
 
     def test_missing_table_file_fails_the_build(self, tmp_path: Path) -> None:
         _write_pair(tmp_path, self.CLAUDE)
-        (tmp_path / "templates" / "agent-denylists.yaml").unlink()
+        (tmp_path / "templates" / "agent-mcp-servers.yaml").unlink()
 
         assert agent_templates.compile_all(tmp_path, validate=False).exit_code == 2
 
     def test_invalid_table_file_fails_the_build(self, tmp_path: Path) -> None:
         _write_pair(tmp_path, self.CLAUDE)
-        (tmp_path / "templates" / "agent-denylists.yaml").write_text("a: [", encoding="utf-8")
+        (tmp_path / "templates" / "agent-mcp-servers.yaml").write_text("a: [", encoding="utf-8")
 
         assert agent_templates.compile_all(tmp_path, validate=False).exit_code == 2
 
@@ -327,7 +389,7 @@ class TestCompile:
         agent_templates.compile_all(tmp_path, validate=False)
         config = yaml.safe_load(yaml.safe_dump(CONFIG))
         config["denylists"]["demo-write"] = {"server": "demo", "tools": ["put_thing"]}
-        (tmp_path / "templates" / "agent-denylists.yaml").write_text(
+        (tmp_path / "templates" / "agent-mcp-servers.yaml").write_text(
             yaml.safe_dump(config), encoding="utf-8"
         )
 
@@ -346,101 +408,29 @@ class TestCompile:
         assert "$deny:demo-write" in result.copilot_rendered["w"]
 
 
-SHARED = (
-    "---\nrole: executor\ndescription: Reads widgets.\nargument-hint: Pick a widget\n"
-    "tools_vscode: [read, search]\ntools_copilot: [read, search]\n---\n# W\n\nIntro.\n"
-)
-
-
-def _claude(front: str) -> str:
-    return (
-        "---\nname: w\ndescription: Reads widgets.\nmetadata:\n  role: executor\n"
-        f"argument-hint: Pick a widget\n{front}---\n# W\n\nIntro.\n"
-    )
-
-
-def _parity_repo(root: Path, front: str) -> Path:
-    agents = root / "templates" / "agents"
-    (agents / "partials").mkdir(parents=True)
-    (root / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
-    (agents / "w.shared.md").write_text(SHARED, encoding="utf-8")
-    (agents / "w.claude.md.tmpl").write_text(_claude(front), encoding="utf-8")
-    (agents / "w.copilot.md.tmpl").write_text(SHARED, encoding="utf-8")
-    (root / "templates" / "agent-denylists.yaml").write_text(
-        yaml.safe_dump(CONFIG), encoding="utf-8"
-    )
-    return root
-
-
-class TestParityHandlesDenyListMembers:
-    FULL = "disallowedTools:\n  - Agent\n  - $deny:mutators\n  - $deny:demo-write\n"
-
-    def test_full_deny_list_agrees_with_the_copilot_allowlist(self, tmp_path: Path) -> None:
-        _parity_repo(tmp_path, self.FULL)
-
-        found, missing = gate.collect_divergence(tmp_path)
-
-        assert found == {}
-        assert missing == []
-
-    def test_deny_list_missing_a_mutator_is_a_divergence(self, tmp_path: Path) -> None:
-        _parity_repo(tmp_path, "disallowedTools:\n  - Bash\n")
-
-        found, _ = gate.collect_divergence(tmp_path)
-
-        assert [key[2] for key in found] == ["capability:denylist"]
-
-    def test_template_granting_bash_to_a_read_only_agent_diverges(self, tmp_path: Path) -> None:
-        """A `tools` grant of Bash against the read-only Copilot list is flagged."""
-        _parity_repo(tmp_path, "tools:\n  - Read\n  - Bash\n")
-
-        found, _ = gate.collect_divergence(tmp_path)
-
-        assert any(key[2].startswith("capability:") for key in found)
-        assert gate.main(["--repo-root", str(tmp_path)]) == gate.EXIT_DIVERGED
-
-    def test_agent_only_deny_stays_on_the_ordinary_comparison(self, tmp_path: Path) -> None:
-        _parity_repo(tmp_path, "disallowedTools: Agent\n")
-
-        found, _ = gate.collect_divergence(tmp_path)
-
-        assert any(key[2] == "capability:declaration" for key in found)
-
-    def test_unknown_deny_name_is_a_config_error(self, tmp_path: Path) -> None:
-        _parity_repo(tmp_path, "disallowedTools:\n  - $deny:typo\n")
-
-        assert gate.main(["--repo-root", str(tmp_path)]) == gate.EXIT_CONFIG
-
-    def test_invalid_denylist_file_is_a_config_error(self, tmp_path: Path) -> None:
-        _parity_repo(tmp_path, self.FULL)
-        (tmp_path / "templates" / "agent-denylists.yaml").write_text("a: [", encoding="utf-8")
-
-        assert gate.main(["--repo-root", str(tmp_path)]) == gate.EXIT_CONFIG
-
-
-class TestLiveReadOnlyAgentsAreNotGrantedBash:
-    """Owner of the 'no shell for the four read-only agents' rule on the template side."""
+class TestLiveAgents:
+    """The shipped templates and the parity gate agree with the grant design."""
 
     AGENTS = ("analyst", "security", "code-reviewer", "comment-analyzer")
 
     @pytest.mark.parametrize("stem", AGENTS)
-    def test_template_has_no_tools_key_and_denies_the_mutators(self, stem: str) -> None:
+    def test_template_declares_tools_and_a_serena_deny_list(self, stem: str) -> None:
         path = _REPO_ROOT / "templates" / "agents" / f"{stem}.claude.md.tmpl"
         # The frontmatter closes inside a partial, so read the template as lines.
         lines = path.read_text(encoding="utf-8").splitlines()
 
-        assert "tools:" not in lines
-        assert "disallowedTools:" in lines
-        assert "  - $deny:builtin-shell-edit" in lines
+        assert "tools:" in lines
+        assert "  - $mcp:serena" in lines
         assert "  - $deny:serena-local" in lines
-        assert ("  - $deny:builtin-write" in lines) == (stem != "security")
+        assert "  - $deny:serena-memory-delete" in lines
+        assert ("  - $deny:serena-memory-edit" in lines) == (stem != "security")
 
     @pytest.mark.parametrize("stem", AGENTS)
     def test_granting_bash_in_the_live_template_fails_the_gate(
         self, stem: str, tmp_path: Path
     ) -> None:
         shutil.copytree(_REPO_ROOT / "templates" / "agents", tmp_path / "templates" / "agents")
-        for name in ("toolsets.yaml", "agent-denylists.yaml"):
+        for name in ("toolsets.yaml", "agent-mcp-servers.yaml"):
             shutil.copy(_REPO_ROOT / "templates" / name, tmp_path / "templates")
         (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
         baseline = tmp_path / gate.BASELINE_RELATIVE_PATH
@@ -450,36 +440,21 @@ class TestLiveReadOnlyAgentsAreNotGrantedBash:
 
         path = tmp_path / "templates" / "agents" / f"{stem}.claude.md.tmpl"
         text = path.read_text(encoding="utf-8")
-        granted, count = re.subn(
-            r"^disallowedTools:\n(?:  - .*\n)+", "tools:\n  - Read\n  - Bash\n", text, flags=re.M
+        assert "tools:\n  - Read\n" in text
+        path.write_text(
+            text.replace("tools:\n  - Read\n", "tools:\n  - Read\n  - Bash\n", 1), encoding="utf-8"
         )
-        assert count == 1
-        path.write_text(granted, encoding="utf-8")
 
         assert gate.main(["--repo-root", str(tmp_path)]) == gate.EXIT_DIVERGED
 
+    def test_unknown_server_in_a_live_template_is_a_config_error(self, tmp_path: Path) -> None:
+        shutil.copytree(_REPO_ROOT / "templates" / "agents", tmp_path / "templates" / "agents")
+        for name in ("toolsets.yaml", "agent-mcp-servers.yaml"):
+            shutil.copy(_REPO_ROOT / "templates" / name, tmp_path / "templates")
+        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+        path = tmp_path / "templates" / "agents" / "analyst.claude.md.tmpl"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("$mcp:serena", "$mcp:typo"), encoding="utf-8"
+        )
 
-class TestCursorReadonlyDerivation:
-    def test_full_deny_list_earns_readonly(self) -> None:
-        fm = {"disallowedTools": ["Agent", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit"]}
-        assert agent_tree_copy.derive_readonly(fm)
-        assert not agent_tree_copy.has_inexpressible_restriction(fm)
-
-    def test_partial_deny_list_does_not_earn_readonly(self) -> None:
-        assert not agent_tree_copy.derive_readonly({"disallowedTools": ["Bash"]})
-
-    def test_deny_list_that_keeps_write_is_not_shipped(self) -> None:
-        """`security` keeps Write: readonly would be false, and Cursor has no deny list."""
-        fm = {"disallowedTools": ["Agent", "Bash", "Edit", "MultiEdit", "NotebookEdit"]}
-        assert not agent_tree_copy.derive_readonly(fm)
-        assert agent_tree_copy.has_inexpressible_restriction(fm)
-
-    def test_agent_only_deny_is_not_a_restriction(self) -> None:
-        assert not agent_tree_copy.has_inexpressible_restriction({"disallowedTools": "Agent"})
-
-    def test_agent_only_deny_does_not_earn_readonly(self) -> None:
-        assert not agent_tree_copy.derive_readonly({"disallowedTools": "Agent"})
-
-    def test_allowlist_path_is_unchanged(self) -> None:
-        assert agent_tree_copy.derive_readonly({"tools": ["Read", "Grep"]})
-        assert not agent_tree_copy.derive_readonly({"tools": ["Read", "Bash"]})
+        assert gate.main(["--repo-root", str(tmp_path)]) == gate.EXIT_CONFIG

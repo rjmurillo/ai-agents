@@ -19,7 +19,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
     if str(_extra_path) not in sys.path:
         sys.path.insert(0, str(_extra_path))
 
-from agent_capabilities import load_denylists  # noqa: E402
+from agent_capabilities import load_mcp_table  # noqa: E402
 from agent_templates import render_claude  # noqa: E402
 from skill_template_grammar import render  # noqa: E402
 
@@ -51,7 +51,7 @@ class TestLosslessRendering:
 
         fixture_bytes = fixture_path.read_bytes()
         # render_claude also expands `$deny:` list items (ADR-107, read-only agents).
-        rendered = render_claude(template_path, partials_dir, load_denylists(_REPO_ROOT))
+        rendered = render_claude(template_path, partials_dir, load_mcp_table(_REPO_ROOT))
         rendered_bytes = str(rendered).encode("utf-8")
 
         assert rendered_bytes == fixture_bytes, (
