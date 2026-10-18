@@ -193,7 +193,7 @@
 |subagent sandbox worktree checkout moves head wrong commit: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
 |agent steering system prompt renders from live checkout: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (947)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
-|force checkout discard dirty working tree cat-file exists not reachable dangling unreachable blob fsck hash-object untracked overwrite path not content prove before delete stale clone reset hard worktree remove post-checkout hook: [git/git-prove-content-reachable-before-any-force-checkout](git/git-prove-content-reachable-before-any-force-checkout.md) (1792)
+|force checkout discard dirty working tree cat-file exists not reachable dangling unreachable blob fsck hash-object untracked overwrite path not content prove before delete stale clone reset hard worktree remove post-checkout hook: [git/git-prove-content-reachable-before-any-force-checkout](git/git-prove-content-reachable-before-any-force-checkout.md) (1978)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1253)
 |agent-shims 1password pre-push hang PATH workaround native claude CLI live evals: [git/git-agent-shims-hang-pre-push-on-a-1password-read](git/git-agent-shims-hang-pre-push-on-a-1password-read.md) (347)

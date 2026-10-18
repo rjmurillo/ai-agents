@@ -7,11 +7,23 @@ from a ref. Presence in the object database is not the same claim and does not
 support the deletion.
 
 ```bash
-git rev-list --objects origin/main | awk '{print $1}' | sort -u > reachable.txt
-git hash-object <file>                   # membership in reachable.txt is the proof
+git rev-list --objects --all | awk '{print $1}' | sort -u > reachable.txt
+git hash-object --no-filters <file>      # regular file: membership in reachable.txt is the proof
+printf %s "$(readlink <link>)" | git hash-object --stdin   # symlink: hash the link text
 ```
 
-`git ls-tree -r origin/main` is the wrong set. It reads the tip tree only, so a
+`--all` is the right scope. Content committed only on a feature branch counts as
+reachable; `origin/main` alone rejects it (measured: absent from `origin/main`,
+present under `--all`). `--all` also walks `refs/stash`, so stashed content
+passes while the stash lives and is lost when it is dropped.
+
+Measured: `git hash-object <link>` follows the link, with or without
+`--no-filters`, and returns the referent's blob. A changed symlink aimed at a
+committed file would pass the file check. Hash the link text instead; a symlink
+tree entry stores exactly that text. Quoting `$(...)` strips trailing newlines,
+which a link target cannot end in.
+
+`git ls-tree -r <ref>` is the wrong set. It reads the tip tree only, so a
 file matching an older committed revision reads as unreachable, and its third
 column carries gitlink commit OIDs for submodules. `git rev-list origin/main --
 <path>` proves nothing at all here: it lists commits that touched the path and
