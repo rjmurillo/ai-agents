@@ -77,6 +77,9 @@ def make_repo(tmp_path: Path) -> Path:
     )
     (pkg / "util.py").write_text("x = 1\n", encoding="utf-8")
     (pkg / "bootstrap.py").write_text("B = 1\n", encoding="utf-8")
+    # lib_render.PLUGIN_LIB_FILES: hand-maintained in the Claude plugin lib (ADR-119).
+    (tmp_path / "src" / "claude" / "lib").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "src" / "claude" / "lib" / "paths.py").write_text("P = 1\n", encoding="utf-8")
     for name in ("github_core", "ai_review_common"):
         (tmp_path / "scripts" / name).mkdir()
         (tmp_path / "scripts" / name / "__init__.py").write_text("", encoding="utf-8")

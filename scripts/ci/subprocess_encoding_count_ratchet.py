@@ -50,26 +50,29 @@ __all__ = [
 _BASELINE_PATH = Path(__file__).with_name("subprocess_encoding_count_baseline.txt")
 _FIXTURE_PREFIX = "tests/hooks/fixtures/"
 
-# .claude/skills/ is the canonical, hand-maintained source for every skill's
-# non-SKILL.md file (scripts, tests); src/claude/skills/ and src/copilot-cli/
-# skills/ are byte-for-byte generated mirrors of it
-# (generate_skills.py). Counting a violation at both the source and its
-# mirror(s) would inflate this ratchet with copies of the same decision
-# rather than new violations, the same rationale
+# src/claude/skills/ is the one canonical copy of every shipped skill file
+# (ADR-109 B3, ADR-119). .claude/skills/<name> is a directory link to it, which
+# git tracks as a single link entry, not as the files beneath it.
+# src/copilot-cli/skills/ and the other platform trees are byte-for-byte
+# generated mirrors (generate_skills.py). Counting a violation at both the
+# source and its mirror(s) would inflate this ratchet with copies of the same
+# decision rather than new violations, the same rationale
 # type_ignore_count_ratchet.py's ``_is_generated_lib_mirror`` already applies
-# to the lib mirror trees. Keyed on the canonical source actually existing,
-# not on the output prefix alone.
+# to the lib mirror trees. A tree that predates ADR-119 still tracks
+# .claude/skills/<file> as a second copy, so that prefix is a mirror root too.
+# Keyed on the canonical source actually existing, not on the output prefix
+# alone.
 _SKILL_MIRROR_ROOTS: tuple[str, ...] = (
-    "src/claude/skills",
+    ".claude/skills",
     "src/copilot-cli/skills",
     "src/codex/skills",
     "src/cursor/skills",
 )
-_SKILL_CANONICAL_ROOT = ".claude/skills"
+_SKILL_CANONICAL_ROOT = "src/claude/skills"
 
 
 def _skill_mirror_canonical_source(path_str: str) -> str | None:
-    """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
+    """Return the src/claude/skills/ path a skill-mirror path maps to, if any."""
     for root in _SKILL_MIRROR_ROOTS:
         prefix = f"{root}/"
         if path_str.startswith(prefix):
@@ -100,6 +103,22 @@ without registering the baseline fails.
 """
 
 
+def _is_tracked_file_link(repo_root: Path, rel: str, tracked: frozenset[str]) -> bool:
+    """Return whether ``rel`` is a link whose target is tracked and counted on its own.
+
+    A link to an untracked or out-of-tree target is not skipped: the scan then
+    fails loud on it instead of dropping it from the count.
+    """
+    path = repo_root / rel
+    if not path.is_symlink():
+        return False
+    try:
+        target = path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return False
+    return target in tracked
+
+
 def current_count(repo_root: Path) -> int | None:
     """Total subprocess encoding violations, or None if the checker failed."""
     py_files = tracked_files(repo_root, ("*.py", "**/*.py"))
@@ -107,13 +126,16 @@ def current_count(repo_root: Path) -> int | None:
         return None
 
     tracked_set = frozenset(py_files)
-    # Filter out fixture exemptions, non-existent files, and skill mirrors
-    # whose canonical .claude/skills/ source is also tracked.
+    # Filter out fixture exemptions, non-existent files, file links (the
+    # .claude/lib/bootstrap.py and paths.py links of ADR-119 decision 14 name
+    # a tracked target counted on its own), and skill mirrors whose canonical
+    # src/claude/skills/ source is also tracked.
     py_files = [
         f
         for f in py_files
         if not f.startswith(_FIXTURE_PREFIX)
         and (repo_root / f).is_file()
+        and not _is_tracked_file_link(repo_root, f, tracked_set)
         and _skill_mirror_canonical_source(f) not in tracked_set
         and not is_verbatim_hermes_mirror(repo_root, f, tracked_set)
     ]
