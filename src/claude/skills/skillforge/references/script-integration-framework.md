@@ -65,6 +65,48 @@ Does this operation require...?
 | "Transform JSON to YAML" | Yes | Deterministic transformation |
 | "Decide which approach to use" | No | Requires human judgment |
 | "Check if all tests pass" | Yes | Verification with clear exit code |
+| "Count the open threads on a PR" | Existing instrument | Exact computable fact; an existing tool already answers it |
+| "Choose between two designs with different costs" | No (map) | Ambiguous tradeoff; the agent decides from observations |
+| "Collect CI evidence, pick a fix, apply and re-check" | Partial (hybrid) | Scripts gather and validate; the agent decides in between |
+
+### Design Selection: Map, GPS, or Hybrid
+
+The tree above answers "script or prose". Before choosing, name who decides. This is a design choice, not a section every skill carries. Record it in a generated skill only where it changes the workflow.
+
+Ask these five questions about the operation:
+
+| Question | Points toward |
+|----------|---------------|
+| Is the input ambiguous, or do branch criteria need judgment? | Map |
+| Can a program check the postcondition without the agent's opinion? | GPS or hybrid |
+| Can the action be undone cheaply? | GPS is safer when yes; keep a review step when no |
+| What does a wrong action cost? | High cost keeps a reviewed decision in the path |
+| Does an instrument already perform the operation? | Reuse it; do not write a script |
+
+| Design | Use when | Shape |
+|--------|----------|-------|
+| **Map** | The case is ambiguous and judgment decides | Give observations, instruments, branch criteria, and accepted outcomes. The agent decides. |
+| **GPS** | Inputs and postconditions are deterministic | A program runs the specified operation. The agent makes no decision that a program could make. |
+| **Hybrid** | Facts are measurable, the choice needs judgment, and the action is checkable | Deterministic evidence collection, then an agent decision, then deterministic validation or execution. |
+
+Routing examples:
+
+| Task | Design | Why |
+|------|--------|-----|
+| Report the number of unresolved review threads on a PR | GPS, through the existing instrument | Exact computable fact. The github skill already returns it. |
+| Pick between two architectures with different maintenance costs | Map | Ambiguous tradeoff. No program can score it. Give criteria and let the agent decide. |
+| Gather failing-check logs, decide the fix, apply it, re-run the checks | Hybrid | Measured facts, then judgment, then a validated action. |
+
+Counter-examples:
+
+| Anti-pattern | Correct design |
+|--------------|----------------|
+| Replace an ambiguous, consequential decision with unreviewed deterministic automation (for example, a script that auto-merges on a heuristic score) | Map or hybrid: keep a reviewed decision before the action |
+| Write a new script for an operation an existing tool already performs | Reuse the tool. Add a script only after you verify the capability gap. |
+
+### Executor Success Is Not Verified Success
+
+Separate execution authority from verification authority. The step that runs an operation reports that it ran. A separate check confirms the postcondition. Exit code 0 shows the executor finished. It does not show the task outcome holds when a check can read that outcome directly (file exists with expected content, API state changed, test count matches).
 
 ---
 
@@ -166,7 +208,7 @@ def execute_and_verify(input_data):
     return Result(success=True, message="Operation verified", data=result)
 ```
 
-**Why:** Enables autonomous operation - Claude can trust the script's exit code.
+**Why:** Enables autonomous operation. The exit code reports executor success only. Where a postcondition can be checked independently, run a separate check and treat that result as the evidence, not exit 0.
 
 ### Pattern 2: Error Recovery
 
@@ -289,6 +331,7 @@ During Deep Analysis, apply the **Automation Lens** (Lens 12) to identify script
 | "What state needs to persist between skill invocations?" | Identify state management |
 | "How will the skill verify its own success?" | Enable autonomous verification |
 | "What existing scripts in the ecosystem could be reused?" | Avoid reinventing |
+| "Is this map, GPS, or hybrid (see Design Selection)?" | Decide who judges and who verifies |
 | "Can this skill run overnight without human intervention?" | Assess agentic capability |
 | "What would break if executed manually vs scripted?" | Identify fragile operations |
 | "How would another Claude instance recover from failure?" | Design error handling |

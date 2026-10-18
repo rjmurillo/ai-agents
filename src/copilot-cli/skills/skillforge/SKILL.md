@@ -191,7 +191,10 @@ and [references/specification-template.md](references/specification-template.md)
 
 Generate the skill directory in this order: structure, `SKILL.md`, references,
 assets, then scripts when scripts are needed. Keep `SKILL.md` concise and move
-deep detail into progressive-disclosure reference files.
+deep detail into progressive-disclosure reference files. Choose map, GPS, or
+hybrid design with the Design Selection section of the script integration
+framework. Record that choice in the generated skill only where it changes the
+workflow. Reuse an existing tool before adding a script.
 
 See [references/phase3-generation-deep-dive.md](references/phase3-generation-deep-dive.md),
 [references/output-structure.md](references/output-structure.md),
