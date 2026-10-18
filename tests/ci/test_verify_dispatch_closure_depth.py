@@ -43,13 +43,13 @@ def test_a_head_within_the_limit_still_has_a_merge_base(
 
     vdc.materialize_head(base, 1, sha, tmp_path / "out", remote=str(upstream))
 
-    assert vdc._merge_base(base, "HEAD", sha) == rev(base)
+    assert vdc._merge_bases(base, "HEAD", sha) == [rev(base)]
 
 
 def test_a_head_beyond_the_limit_loses_the_merge_base_but_still_materializes(
     trees: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Edge: past the bound the label degrades to None. The files are still written."""
+    """Edge: past the bound the label degrades to an empty list. The files are still written."""
     base, _ = trees
     upstream, sha = upstream_with_pr(base, {HELPER: "X = 99\n"})
     monkeypatch.setattr(vdc, "HEAD_FETCH_DEPTH", 1)
@@ -58,7 +58,7 @@ def test_a_head_beyond_the_limit_loses_the_merge_base_but_still_materializes(
     vdc.materialize_head(base, 1, sha, dest, remote=str(upstream))
 
     assert (dest / HELPER).read_text(encoding="utf-8") == "X = 99\n"
-    assert vdc._merge_base(base, "HEAD", sha) is None
+    assert vdc._merge_bases(base, "HEAD", sha) == []
 
 
 def test_a_head_beyond_the_limit_prints_a_notice_that_stale_reads_as_changed(
