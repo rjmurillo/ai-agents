@@ -73,7 +73,8 @@ gains are its claims; this skill does not reproduce them.
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author until
 the candidate is frozen. If they were exposed, list them under `exposed` in
-the manifest, move them to `train`, and add untouched holdout tasks.
+the manifest, move them to `train`, and add untouched holdout tasks written
+by a runner who has not seen the candidate (Precondition 4).
 `pair-gate` exits 2 while an exposed or invalid task sits in the `sel` split.
 
 ## Scripts
@@ -264,8 +265,8 @@ taste document with no measurable success signal has no `sel` split, so the
 gate cannot run. Say that you are flagging, not gating, and do not invent a
 score to make the gate pass.
 
-A harness that cannot run a separate `sel` runner cannot gate either; see
-Precondition 4.
+A harness that cannot run a separate `sel` runner must not run skillopt at
+all, not even to flag. See Precondition 4.
 
 ## Anti-Patterns
 
@@ -280,7 +281,8 @@ Precondition 4.
 ## Verification
 
 - [ ] `eval.json` has a nonempty `sel` split frozen before the candidate.
-- [ ] A runner other than the candidate author wrote and ran the `sel` tasks.
+- [ ] A runner other than the candidate author wrote and ran the `sel` tasks,
+      and the author never saw them.
 - [ ] No `sel` task is exposed or invalid.
 - [ ] The incumbent hash is recorded and unchanged after `apply`.
 - [ ] `pair-gate` returned `ACCEPT_PARETO` with no unverified task.

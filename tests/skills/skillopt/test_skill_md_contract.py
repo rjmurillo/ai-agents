@@ -328,12 +328,28 @@ def test_eval_set_format_says_who_may_write_replacement_holdouts(root: str) -> N
 def test_limits_and_checklist_cover_single_runner_harness(root: str) -> None:
     text = _skill_md(root)
     limits = " ".join(text[text.index("## Limits") : text.index("## Anti-Patterns")].split())
-    assert "cannot run a separate `sel` runner cannot gate" in limits
+    assert "cannot run a separate `sel` runner must not run skillopt at all" in limits
+    assert "not even to flag" in limits
     assert "Precondition 4" in limits
     checklist = " ".join(
         text[text.index("## Verification") : text.index("## Extension Points")].split()
     )
-    assert "A runner other than the candidate author wrote and ran the `sel` tasks." in checklist
+    assert (
+        "A runner other than the candidate author wrote and ran the `sel` tasks,"
+        " and the author never saw them."
+    ) in checklist
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_replacement_holdout_remedy_names_who_may_write_them(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert (
+        "add untouched holdout tasks written by a runner who has not seen the candidate"
+        " (Precondition 4)"
+    ) in preconditions
 
 
 @pytest.mark.parametrize("root", BODY_ROOTS)
