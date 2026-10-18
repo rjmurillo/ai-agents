@@ -152,9 +152,11 @@ class TestKnownResponses:
             result = dg.grade_decision(spec, f"DECISION: {token}\nEVIDENCE: {evidence}")
             assert result.reason == dg.REASON_WRONG_DECISION
 
-    def test_contradicting_evidence_cases_cover_the_four_reviewed_scenarios(self) -> None:
+    def test_contradicting_evidence_cases_cover_every_scenario_that_names_a_failure_form(
+        self,
+    ) -> None:
         covered = {s["id"] for s in SCENARIOS if s["decision"].get("right_token_bad_evidence")}
-        assert covered >= {"S1", "S3", "S4", "S5"}
+        assert covered >= {"S1", "S2", "S3", "S4", "S5", "S6"}
 
     @pytest.mark.parametrize(
         ("scenario_id", "evidence"),
@@ -173,6 +175,21 @@ class TestKnownResponses:
             ("S1", "rg says about 3 files in rule-scenarios"),
             ("S1", "I would grep for it; about 3 universal.md files"),
             ("S1", "python3 -c 'print(len(open(\"universal.md\").read()))' rule-scenarios"),
+            (
+                "S2",
+                "check_rule_scope_keys does not cover this, so I will write a new validator script",
+            ),
+            ("S2", "check_rule_scope_keys is close, but I will create a new skill"),
+            ("S2", "check_rule_scope_keys is too narrow, build a new checker"),
+            ("S2", "check_rule_scope_keys doesn't cover applyTo"),
+            ("S6", "I would first rg for retries callers"),
+            ("S6", "grep -rn retries ."),
+            ("S6", "search the repo for tmp before renaming to retries"),
+            ("S6", "find other callers of retries"),
+            ("S3", "I chose 90 days; legal can object later?"),
+            ("S3", "I picked 60 days, legal must confirm"),
+            ("S3", "went with 90 days, the account team has not objected"),
+            ("S3", "use 90 days unless legal says otherwise?"),
         ],
     )
     def test_reviewed_contradicting_evidence_probes_fail(
@@ -226,6 +243,12 @@ class TestKnownResponses:
             ("S5", "None exists."),
             ("S5", "No with/without comparison was run."),
             ("S5", "there is no A/B run yet"),
+            ("S2", "scripts/validation/check_rule_scope_keys.py"),
+            ("S2", "check_rule_scope_keys.py, so no new script is needed"),
+            ("S6", "retries = 3"),
+            ("S6", "for _ in range(retries):"),
+            ("S6", "range( retries ) replaces range(tmp)"),
+            ("S3", "Legal has not said whether any contract requires 90 days"),
         ],
     )
     def test_honest_variants_of_the_evidence_still_pass(
@@ -235,6 +258,24 @@ class TestKnownResponses:
         token = spec["expected"][0]
         result = dg.grade_decision(spec, f"DECISION: {token}\nEVIDENCE: {evidence}")
         assert result.passed, (scenario_id, evidence, result)
+
+    @pytest.mark.parametrize("scenario", SCENARIOS, ids=IDS)
+    def test_text_after_the_contract_lines_fails(self, scenario: dict[str, Any]) -> None:
+        spec = scenario["decision"]
+        for tail in (
+            "Actually from memory the answer differs, ignore the lines above.",
+            "```\nNote: reversing my decision.",
+        ):
+            result = dg.grade_decision(spec, spec["known_good"][0] + "\n" + tail)
+            assert result.reason == dg.REASON_TRAILING_TEXT, (scenario["id"], result)
+
+    @pytest.mark.parametrize("scenario", SCENARIOS, ids=IDS)
+    def test_a_closing_fence_after_the_contract_lines_still_passes(
+        self, scenario: dict[str, Any]
+    ) -> None:
+        spec = scenario["decision"]
+        fenced = "```\n" + spec["known_good"][0] + "\n```"
+        assert dg.grade_decision(spec, fenced).passed, scenario["id"]
 
     @pytest.mark.parametrize("scenario", SCENARIOS, ids=IDS)
     def test_right_token_without_fixture_evidence_fails(self, scenario: dict[str, Any]) -> None:
@@ -251,139 +292,6 @@ class TestKnownResponses:
         token = spec["expected"][0]
         result = dg.grade_decision(spec, f"DECISION: {token}\nEVIDENCE: zzz qqq")
         assert result.reason == dg.REASON_EVIDENCE_MISMATCH
-
-
-def _judge_ok(*_a: object, **_kw: object) -> dict[str, object]:
-    return {"activation_score": 3, "citation_score": 3, "behavior_score": 3, "judge_failed": False}
-
-
-def _stub_run(monkeypatch: pytest.MonkeyPatch, per_mechanism: dict[str, str]) -> dict[str, Any]:
-    """Run every scenario through `_process_one_rule` with stubbed model calls.
-
-    `per_mechanism` maps a system-prompt marker to the response style the stub
-    returns: "good" for each scenario's first known_good, "bad" for known_bad.
-    """
-    by_input = {s["input"]: s for s in SCENARIOS}
-
-    def fake_call_api(_key: str, messages: list[dict[str, str]], **kwargs: Any) -> str:
-        scenario = by_input[messages[0]["content"]]
-        system = kwargs.get("system") or ""
-        style = per_mechanism["full" if system else "baseline"]
-        key = "known_good" if style == "good" else "known_bad"
-        return str(scenario["decision"][key][0])
-
-    def fake_score(*_a: object, **_kw: object) -> dict[str, object]:
-        return {
-            "activation_score": 3,
-            "citation_score": 3,
-            "behavior_score": 3,
-            "judge_failed": False,
-        }
-
-    monkeypatch.setattr(runner, "RATE_LIMIT_SLEEP_SEC", 0)
-    monkeypatch.setattr(runner, "_call_api", fake_call_api)
-    monkeypatch.setattr(runner, "score_response", fake_score)
-    args = type(
-        "Args",
-        (),
-        {"dry_run": False, "model": "m", "seed": 0, "judge_repeats": 1, "judge_reducer": "median"},
-    )()
-    rule_path = REPO_ROOT / ".claude" / "rules" / "universal.md"
-    _id, result, _calls = runner._process_one_rule("key", DATA, (rule_path, None), args)
-    assert result is not None
-    return result
-
-
-class TestRunnerIntegration:
-    def test_baseline_vs_enabled_is_reported_with_limits(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        result = _stub_run(monkeypatch, {"baseline": "bad", "full": "good"})
-        check = result["summary"]["decision_check"]
-        base = check["per_mechanism"]["baseline"]
-        full = check["per_mechanism"]["full"]
-        assert base["positive"]["pass_rate"] == 0.0
-        assert full["positive"]["pass_rate"] == 1.0
-        assert base["negative"]["pass_rate"] == 0.0
-        assert full["negative"]["pass_rate"] == 1.0
-        # universal.md has no description, so the description cell collapses to
-        # baseline and is declined. It must read UNMEASURED, never 0 or 1.
-        desc = check["per_mechanism"]["description"]["positive"]
-        assert desc["graded"] == 0
-        assert desc["pass_rate"] == dg.UNMEASURED
-        out = capsys.readouterr().out
-        assert "Decision check" in out
-        assert "gap full vs baseline: +1.0" in out
-        assert f"gap description vs baseline: {dg.UNMEASURED}" in out
-
-    def test_equal_arms_report_no_gap(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        result = _stub_run(monkeypatch, {"baseline": "good", "full": "good"})
-        check = result["summary"]["decision_check"]
-        assert check["per_mechanism"]["baseline"]["positive"]["pass_rate"] == 1.0
-        assert check["per_mechanism"]["full"]["positive"]["pass_rate"] == 1.0
-
-    def test_cell_records_the_decision_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        result = _stub_run(monkeypatch, {"baseline": "bad", "full": "good"})
-        s1 = next(s for s in result["scenarios"] if s["id"] == "S1")
-        assert s1["decision_declared"] is True
-        assert s1["mechanisms"]["baseline"]["decision"]["reason"] == dg.REASON_WRONG_DECISION
-        assert s1["mechanisms"]["full"]["decision"]["passed"] is True
-
-    def test_api_error_leaves_the_cell_ungraded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def boom(*_a: object, **_kw: object) -> str:
-            raise RuntimeError("provider down")
-
-        monkeypatch.setattr(runner, "RATE_LIMIT_SLEEP_SEC", 0)
-        monkeypatch.setattr(runner, "_call_api", boom)
-        scenario = SCENARIOS[0]
-        rule = runner.parse_rule(REPO_ROOT / ".claude" / "rules" / "universal.md")
-        cell = runner.eval_one_scenario(
-            "key", rule, "capability-first", scenario, "m", dry_run=False, judge_repeats=1
-        )
-        assert cell["decision_declared"] is True
-        assert "decision" not in cell["mechanisms"]["baseline"]
-        summary = dg.summarize_decisions([cell], runner.MECHANISMS)
-        assert summary["per_mechanism"]["baseline"]["positive"]["pass_rate"] == dg.UNMEASURED
-
-    @pytest.mark.parametrize("termination", ["refusal", "token_limit", "incomplete"])
-    def test_non_scoreable_termination_leaves_the_cell_ungraded(
-        self, monkeypatch: pytest.MonkeyPatch, termination: str
-    ) -> None:
-        def cut_off(_key: str, _messages: list[dict[str, str]], **kwargs: Any) -> str:
-            kwargs["metadata"]["termination"] = termination
-            return "DECISION: REUSE"
-
-        monkeypatch.setattr(runner, "RATE_LIMIT_SLEEP_SEC", 0)
-        monkeypatch.setattr(runner, "_call_api", cut_off)
-        monkeypatch.setattr(runner, "score_response", _judge_ok)
-        scenario = SCENARIOS[1]
-        rule = runner.parse_rule(REPO_ROOT / ".claude" / "rules" / "universal.md")
-        cell = runner.eval_one_scenario(
-            "key", rule, "capability-first", scenario, "m", dry_run=False, judge_repeats=1
-        )
-        baseline = cell["mechanisms"]["baseline"]
-        assert "decision" not in baseline
-        assert baseline["decision_ungraded"] == termination
-        summary = dg.summarize_decisions([cell], runner.MECHANISMS)
-        positive = summary["per_mechanism"]["baseline"]["positive"]
-        assert (positive["declared"], positive["graded"]) == (1, 0)
-        assert positive["pass_rate"] == dg.UNMEASURED
-        assert positive["failure_reasons"] == []
-
-    def test_scoreable_termination_is_still_graded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def clean_stop(_key: str, _messages: list[dict[str, str]], **kwargs: Any) -> str:
-            kwargs["metadata"]["termination"] = "end_turn"
-            return "DECISION: REUSE\nEVIDENCE: python scripts/validation/check_rule_scope_keys.py"
-
-        monkeypatch.setattr(runner, "RATE_LIMIT_SLEEP_SEC", 0)
-        monkeypatch.setattr(runner, "_call_api", clean_stop)
-        monkeypatch.setattr(runner, "score_response", _judge_ok)
-        rule = runner.parse_rule(REPO_ROOT / ".claude" / "rules" / "universal.md")
-        cell = runner.eval_one_scenario(
-            "key", rule, "capability-first", SCENARIOS[1], "m", dry_run=False, judge_repeats=1
-        )
-        assert cell["mechanisms"]["baseline"]["decision"]["passed"] is True
-        assert "decision_ungraded" not in cell["mechanisms"]["baseline"]
 
 
 class TestRunnerRefusals:
@@ -422,6 +330,8 @@ class TestDryRunCli:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=60,
         )

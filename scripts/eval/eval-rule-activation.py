@@ -69,6 +69,8 @@ from _anthropic_api import (
 )
 from _anthropic_response import NON_SCOREABLE_TERMINATIONS
 from _decision_grade import (
+    VERDICT_FAIL_DECISION,
+    decision_gate,
     grade_decision,
     render_decision_check,
     summarize_decisions,
@@ -2382,10 +2384,13 @@ def _process_one_rule(
         scenario_results.append(r)
 
     summary = aggregate(scenario_results, routed=reference_path is not None)
-    print(render_table(rule_id, summary))
     decision_check = summarize_decisions(scenario_results, MECHANISMS)
     if decision_check["declared"]:
+        # Before the table, so the verdict it prints is the one the run exits on.
+        _apply_decision_gate(summary, decision_check)
         summary["decision_check"] = decision_check
+    print(render_table(rule_id, summary))
+    if decision_check["declared"]:
         print(render_decision_check(decision_check, MECHANISMS))
     result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
     if reference_path is not None:
@@ -2399,6 +2404,21 @@ def _process_one_rule(
         },
         n_calls,
     )
+
+
+def _apply_decision_gate(summary: dict[str, Any], decision_check: dict[str, Any]) -> None:
+    """Withhold a PASS that the judge gave over wrong or unmeasured calls.
+
+    The judge scores vocabulary, so every decision cell can fail while the
+    judge passes the run. Only a PASS is taken, as with NO_NEGATIVE_CASES: a
+    verdict that already failed names a more specific defect and stays. The
+    positive pool is read on `description`, the mechanism the positive verdict
+    certifies; the negative pool on the mechanisms the negative floor reads.
+    """
+    gate = decision_gate(decision_check, ["description"], summary["negative_gate_mechanisms"])
+    decision_check["gate"] = gate
+    if summary["verdict"] == "PASS" and (gate["failed"] or gate["incomplete"]):
+        summary["verdict"] = VERDICT_FAIL_DECISION
 
 
 def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:

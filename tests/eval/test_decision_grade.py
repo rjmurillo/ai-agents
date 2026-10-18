@@ -165,6 +165,46 @@ class TestGradeDecision:
             dg.grade_decision({"expected": ["A"]}, "DECISION: A\nEVIDENCE: x")
 
 
+class TestTrailingText:
+    """The prompt says DECISION and EVIDENCE are the last two lines."""
+
+    GOOD = "DECISION: MEASURE\nEVIDENCE: rg -c foo"
+
+    @pytest.mark.parametrize(
+        "tail",
+        [
+            "\nActually from memory the answer is 3, no need to run it.",
+            "\n\nOn reflection I would estimate instead.",
+            "\n```\nand then a note",
+            "\n- second evidence line",
+        ],
+    )
+    def test_prose_after_the_contract_lines_fails(self, tail: str) -> None:
+        result = dg.grade_decision(SPEC, self.GOOD + tail)
+        assert (result.passed, result.reason) == (False, dg.REASON_TRAILING_TEXT)
+        assert result.decision == "MEASURE"
+
+    @pytest.mark.parametrize("tail", ["", "\n", "\n\n  \n", "\n```", "\n```\n", "\n~~~"])
+    def test_blank_lines_and_a_closing_fence_are_allowed(self, tail: str) -> None:
+        text = "```\n" + self.GOOD + tail if tail.strip() else self.GOOD + tail
+        assert dg.grade_decision(SPEC, text).passed is True
+
+    def test_prose_before_the_contract_lines_is_ignored(self) -> None:
+        text = "I considered estimating, but no.\nMore thought here.\n" + self.GOOD
+        assert dg.grade_decision(SPEC, text).passed is True
+
+    def test_evidence_before_decision_uses_the_last_contract_line(self) -> None:
+        text = "EVIDENCE: rg -c foo\nDECISION: MEASURE"
+        assert dg.grade_decision(SPEC, text).passed is True
+
+    def test_trailing_text_does_not_mask_a_wrong_decision(self) -> None:
+        result = dg.grade_decision(SPEC, "DECISION: ESTIMATE\nEVIDENCE: rg x\nnote")
+        assert result.reason == dg.REASON_WRONG_DECISION
+
+    def test_windows_line_endings_pass(self) -> None:
+        assert dg.grade_decision(SPEC, "DECISION: MEASURE\r\nEVIDENCE: rg -c foo\r\n").passed
+
+
 class TestValidateDecisionSpec:
     def test_valid_spec(self) -> None:
         assert dg.validate_decision_spec(SPEC) is None
@@ -265,3 +305,83 @@ class TestRenderDecisionCheck:
         results = [_result(False, baseline=None, description=None, full=None)]
         text = dg.render_decision_check(dg.summarize_decisions(results, MECHS), MECHS)
         assert text.count(dg.UNMEASURED) >= 3
+
+
+def _summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    return dg.summarize_decisions(results, MECHS)
+
+
+class TestDecisionGate:
+    """A judge PASS must not survive wrong or unmeasured calls."""
+
+    POS = ["description"]
+    NEG = ["description", "full"]
+
+    def test_all_gated_cells_pass(self) -> None:
+        results = [
+            _result(False, baseline=FAIL, description=PASS, full=PASS),
+            _result(True, baseline=FAIL, description=PASS, full=PASS),
+        ]
+        gate = dg.decision_gate(_summary(results), self.POS, self.NEG)
+        assert gate == {"failed": [], "incomplete": []}
+
+    def test_a_wrong_call_on_the_gated_positive_mechanism_fails(self) -> None:
+        results = [
+            _result(False, baseline=PASS, description=FAIL, full=PASS),
+            _result(False, baseline=PASS, description=PASS, full=PASS),
+        ]
+        gate = dg.decision_gate(_summary(results), self.POS, self.NEG)
+        assert gate["failed"] == ["positive description"]
+        assert gate["incomplete"] == []
+
+    def test_a_wrong_call_on_a_negative_gate_mechanism_fails(self) -> None:
+        results = [_result(True, baseline=PASS, description=PASS, full=FAIL)]
+        gate = dg.decision_gate(_summary(results), self.POS, self.NEG)
+        assert gate["failed"] == ["negative full"]
+
+    def test_baseline_failures_never_gate(self) -> None:
+        results = [
+            _result(False, baseline=FAIL, description=PASS, full=PASS),
+            _result(True, baseline=FAIL, description=PASS, full=PASS),
+        ]
+        assert dg.decision_gate(_summary(results), self.POS, self.NEG)["failed"] == []
+
+    def test_full_positive_is_diagnostic_and_does_not_gate(self) -> None:
+        results = [_result(False, baseline=PASS, description=PASS, full=FAIL)]
+        assert dg.decision_gate(_summary(results), self.POS, self.NEG)["failed"] == []
+
+    def test_an_ungraded_declared_cell_is_incomplete_not_failed(self) -> None:
+        results = [
+            _result(False, baseline=PASS, description=PASS, full=PASS),
+            _result(False, baseline=PASS, description=None, full=PASS),
+        ]
+        gate = dg.decision_gate(_summary(results), self.POS, self.NEG)
+        assert gate == {"failed": [], "incomplete": ["positive description"]}
+
+    def test_a_mechanism_with_nothing_graded_is_incomplete(self) -> None:
+        results = [_result(False, baseline=PASS, description=None, full=None)]
+        gate = dg.decision_gate(_summary(results), self.POS, self.NEG)
+        assert gate["incomplete"] == ["positive description"]
+
+    def test_failed_and_incomplete_can_both_be_reported(self) -> None:
+        results = [
+            _result(False, baseline=PASS, description=FAIL, full=PASS),
+            _result(False, baseline=PASS, description=None, full=PASS),
+        ]
+        gate = dg.decision_gate(_summary(results), self.POS, self.NEG)
+        assert gate == {"failed": ["positive description"], "incomplete": ["positive description"]}
+
+    def test_a_pool_with_no_declared_scenario_gates_nothing(self) -> None:
+        results = [_result(False, baseline=PASS, description=PASS, full=PASS)]
+        gate = dg.decision_gate(_summary(results), self.POS, self.NEG)
+        assert gate == {"failed": [], "incomplete": []}
+
+    def test_render_names_the_gate_only_when_it_trips(self) -> None:
+        results = [_result(False, baseline=PASS, description=FAIL, full=PASS)]
+        summary = _summary(results)
+        clean = dg.render_decision_check(summary, MECHS)
+        assert "Decision gate" not in clean
+        summary["gate"] = dg.decision_gate(summary, self.POS, self.NEG)
+        text = dg.render_decision_check(summary, MECHS)
+        assert f"a judge PASS becomes {dg.VERDICT_FAIL_DECISION}" in text
+        assert "failed: positive description" in text

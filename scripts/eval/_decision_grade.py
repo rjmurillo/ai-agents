@@ -10,8 +10,11 @@ with two lines (labels in uppercase, matched case-sensitively; the token is not)
     DECISION: <one token from decision.options>
     EVIDENCE: <one line>
 
-The grade reads only those lines. Prose around them, including any rule
-keyword, never changes the result. A response passes when all of these hold:
+The grade reads only those lines. Prose before them, including any rule
+keyword, never changes the result. Prose after the last of them does: the
+prompt says they are the last two lines, so text that follows (a reversal such
+as "actually, no need to run it") fails as trailing_text. Blank lines and a
+closing code fence may follow. A response passes when all of these hold:
 
 - Every DECISION line is one bare token, and all carry the same token. Two
   different tokens, or a line that holds more than one token ("A or B"), is
@@ -19,6 +22,7 @@ keyword, never changes the result. A response passes when all of these hold:
 - That token is one of `decision.options` and one of `decision.expected`.
 - An EVIDENCE line exists, is not empty, and matches every pattern in
   `decision.evidence_all`.
+- No prose follows the last DECISION or EVIDENCE line.
 
 Each failure carries a stable `reason` code, so a report says why.
 
@@ -58,6 +62,8 @@ _EVIDENCE_RE = re.compile(
     _LINE_PREFIX + r"EVIDENCE[\s*_`]*:[ \t*_`]*(.*)$",
     re.MULTILINE,
 )
+_EVIDENCE_LABEL_RE = re.compile(_LINE_PREFIX + r"EVIDENCE[\s*_`]*:")
+_FENCE_LINES = frozenset({"```", "~~~"})
 
 REASON_PASS = "pass"
 REASON_NO_DECISION = "no_decision_line"
@@ -66,6 +72,7 @@ REASON_UNKNOWN_TOKEN = "token_not_in_options"
 REASON_WRONG_DECISION = "wrong_decision"
 REASON_NO_EVIDENCE = "no_evidence_line"
 REASON_EVIDENCE_MISMATCH = "evidence_mismatch"
+REASON_TRAILING_TEXT = "trailing_text"
 
 UNMEASURED = "UNMEASURED"
 
@@ -138,6 +145,20 @@ def validate_decision_spec(spec: object) -> str | None:
     return _validate_tokens(spec) or _validate_evidence_patterns(spec)
 
 
+def _has_trailing_text(response: str) -> bool:
+    """True when a non-blank line other than a bare fence follows the last contract line."""
+    lines = response.splitlines()
+    last = max(
+        (
+            i
+            for i, line in enumerate(lines)
+            if _DECISION_LABEL_RE.match(line) or _EVIDENCE_LABEL_RE.match(line)
+        ),
+        default=-1,
+    )
+    return any(line.strip() and line.strip() not in _FENCE_LINES for line in lines[last + 1 :])
+
+
 def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
     """Grade `response` against `spec`. Raises ValueError on a malformed spec."""
     error = validate_decision_spec(spec)
@@ -170,6 +191,8 @@ def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
             return DecisionResult(
                 False, REASON_EVIDENCE_MISMATCH, decision=token, evidence=evidence
             )
+    if _has_trailing_text(response):
+        return DecisionResult(False, REASON_TRAILING_TEXT, decision=token, evidence=evidence)
     return DecisionResult(True, REASON_PASS, decision=token, evidence=evidence)
 
 
@@ -211,6 +234,40 @@ def summarize_decisions(
     return summary
 
 
+VERDICT_FAIL_DECISION = "FAIL_DECISION"
+
+
+def decision_gate(
+    summary: Mapping[str, Any],
+    positive_mechanisms: Sequence[str],
+    negative_mechanisms: Sequence[str],
+) -> dict[str, list[str]]:
+    """Name the gated decision cells that failed or were not fully graded.
+
+    The judge verdict reads vocabulary, so a run can PASS while every call is
+    wrong. A declared pool is gated the way the judge gates it: the positive
+    pool on the mechanism the verdict certifies, the negative pool on every
+    reachable rule-carrying mechanism. A cell fails when any graded response
+    made the wrong call. A cell is incomplete when a declared scenario went
+    ungraded (API error, refusal, token limit), because a pass over a subset
+    of the pool is not a pass over the pool. A pool with no declared scenario
+    gates nothing.
+    """
+    failed: list[str] = []
+    incomplete: list[str] = []
+    for pool, mechanisms in (("positive", positive_mechanisms), ("negative", negative_mechanisms)):
+        for mech in mechanisms:
+            cell = summary["per_mechanism"][mech][pool]
+            if cell["declared"] == 0:
+                continue
+            label = f"{pool} {mech}"
+            if cell["passed"] < cell["graded"]:
+                failed.append(label)
+            if cell["graded"] < cell["declared"]:
+                incomplete.append(label)
+    return {"failed": failed, "incomplete": incomplete}
+
+
 def _fully_graded(cell: Mapping[str, Any]) -> bool:
     return bool(cell["declared"] > 0 and cell["graded"] == cell["declared"])
 
@@ -230,6 +287,13 @@ def render_decision_check(summary: Mapping[str, Any], mechanisms: Sequence[str])
         rows.append(
             f"| {mech:<12} | {_render_cell(cells['positive']):>13} "
             f"| {_render_cell(cells['negative']):>13} |"
+        )
+    gate = summary.get("gate")
+    if gate and (gate["failed"] or gate["incomplete"]):
+        rows.append(
+            f"Decision gate (a judge PASS becomes {VERDICT_FAIL_DECISION}): "
+            f"failed: {', '.join(gate['failed']) or '-'}; "
+            f"not fully graded: {', '.join(gate['incomplete']) or '-'}"
         )
     base = summary["per_mechanism"].get("baseline")
     for mech in mechanisms:
