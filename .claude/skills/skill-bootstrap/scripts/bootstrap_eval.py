@@ -460,7 +460,9 @@ def _check_out_path(out: Path, allow_in_repo: bool) -> None:
 
 def freeze(args: argparse.Namespace) -> tuple[int, Payload]:
     cases = validate_cases(_read_json(args.cases, "cases file"))
-    out = Path(args.out).resolve()
+    requested = Path(args.out)
+    # Resolve the parent only, so a symlink at --out is refused, not followed.
+    out = requested.parent.resolve() / requested.name
     _check_out_path(out, args.allow_in_repo)
     record = {
         "schema": FROZEN_SCHEMA,

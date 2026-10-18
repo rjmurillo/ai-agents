@@ -525,6 +525,21 @@ def test_freeze_reports_a_denied_write_as_exit_three(
     assert "denied" in payload["message"]
 
 
+def test_freeze_refuses_a_dangling_symlink_at_out(capsys: Capsys, tmp_path: Path) -> None:
+    cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
+    out = tmp_path / "f.json"
+    target = tmp_path / "missing.json"
+    symlink_or_skip(out, target)
+
+    code, payload = run(
+        capsys, "freeze", "--cases", str(cases_file), "--out", str(out), "--allow-in-repo"
+    )
+
+    assert code == 2
+    assert payload["error"] == "config"
+    assert not target.exists()
+
+
 def test_freeze_refuses_a_dangling_symlink_that_appears_after_the_check(
     capsys: Capsys, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -574,7 +589,9 @@ def test_freeze_refuses_an_out_that_appears_after_the_check(
 ) -> None:
     cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
     out = tmp_path / "f.json"
-    monkeypatch.setattr(bootstrap_eval, "_check_out_path", lambda *_: out.write_text("x"))
+    monkeypatch.setattr(
+        bootstrap_eval, "_check_out_path", lambda *_: out.write_text("x", encoding="utf-8")
+    )
 
     code, payload = run(
         capsys, "freeze", "--cases", str(cases_file), "--out", str(out), "--allow-in-repo"
@@ -582,7 +599,7 @@ def test_freeze_refuses_an_out_that_appears_after_the_check(
 
     assert code == 2
     assert payload["error"] == "config"
-    assert out.read_text() == "x"
+    assert out.read_text(encoding="utf-8") == "x"
 
 
 # --- freeze: malformed cases ------------------------------------------------
