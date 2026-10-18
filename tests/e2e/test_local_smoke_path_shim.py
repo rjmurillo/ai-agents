@@ -26,6 +26,7 @@ from local_smoke_fixtures import isolated_guard  # noqa: F401
 # Each test gets its own shim state, so none can strip the guard the gate armed for the session.
 pytestmark = pytest.mark.usefixtures("isolated_guard")
 
+_TIMEOUT_SECONDS = 30
 posix_only = pytest.mark.skipif(sys.platform == "win32", reason="the shim is a shell script")
 
 # Launch forms the parser does not read (the review probe of 2026-10-18). Each starts
@@ -46,12 +47,20 @@ def _run(command: list[str]) -> tuple[int, str]:
     """
     with guard._ORIGINAL_POPEN(
         command,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         encoding="utf-8",
         errors="replace",
     ) as proc:
-        _, stderr = proc.communicate()
+        try:
+            _, stderr = proc.communicate(timeout=_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            pytest.fail(
+                f"{command!r} did not exit in {_TIMEOUT_SECONDS}s; the shim did not stop it"
+            )
     return proc.returncode, stderr
 
 

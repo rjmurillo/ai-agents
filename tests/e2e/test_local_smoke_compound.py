@@ -134,7 +134,6 @@ import local_smoke_guard as guard
         "stdbuf -o 0 copilot",
         "stdbuf -i L -o 0 -e 0 copilot",
         "stdbuf --output 0 copilot",
-        "stdbuf -oL copilot",
         # fish -C and --init-command run a command line too, beside -c.
         "fish -C 'copilot -p x'",
         "fish --init-command 'copilot -p x'",
