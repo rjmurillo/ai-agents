@@ -207,7 +207,7 @@ frozen cases. Build it in every run.
    |---|---|---|
    | `gain` | The skill raises the pass rate | Keep |
    | `no_gap` | Baseline already passes | The knowledge is not missing. In `knowledge` mode this fails the gate, enforced by `score --mode knowledge` (exit 1, case listed in `failing_cases`): drop the skill or the case |
-   | `flat` | Both fail equally | The skill does not transfer. Fix the skill or the case |
+   | `flat` | Equal pass rates, below 1.0 | The skill does not transfer. Fix the skill or the case |
    | `regression` | The skill lowers the pass rate | Blocking finding |
    | `incomplete` | A condition has no runs | Run it, or report it under Limits |
 

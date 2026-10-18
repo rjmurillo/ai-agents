@@ -174,7 +174,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 ## Scripts
 
-Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py` and `bootstrap_boundary.py` only, means git is missing or failed, or a file could not be read. `bootstrap_eval.py` reports a git or read failure as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
+Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py` and `bootstrap_boundary.py` only, means git is missing or failed, or a working-tree read or `--out` write failed; `bootstrap_mine.py` reports an unreadable input file as exit 2. `bootstrap_eval.py` reports a git or read failure as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|
@@ -198,7 +198,7 @@ python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --r
 
 ## Limits
 
-- The instrument-first rule has not yet shown a capability gain. Run `20261017T164000Z-2e1e279c` found no F1 change on T1 to T4 at 1.4x to 2.5x cost per run (the report is at `evals/skill-bootstrap-capability/reports/20261017T164000Z-2e1e279c/REPORT.md` in the rjmurillo/ai-agents repository, not in this skill). Untested hypotheses: reproducibility across runs, and repositories where ad hoc scripts are hard to write.
+- The instrument-first rule has not yet shown a capability gain. Run `20261017T164000Z-2e1e279c` found no F1 gain on T1 to T4 (T1 0.867 to 0.872; T2 to T4 stayed at 1.000) at 1.4x to 2.5x cost per run (the report is at `evals/skill-bootstrap-capability/reports/20261017T164000Z-2e1e279c/REPORT.md` in the rjmurillo/ai-agents repository, not in this skill). Untested hypotheses: reproducibility across runs, and repositories where ad hoc scripts are hard to write.
 - Per-case `gain` and `regression` have no noise floor. Run each case at least twice and treat a single-run flip with suspicion.
 
 ## Anti-Patterns
