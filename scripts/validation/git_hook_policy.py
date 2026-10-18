@@ -6786,9 +6786,6 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     active_operation_result = check_active_git_operation(repo_root)
     if active_operation_result != 0:
         return active_operation_result
-    branch_result = check_branch(repo_root)
-    if branch_result != 0:
-        return branch_result
     history_result = _check_history_integrity(repo_root)
     if history_result != 0:
         return history_result
@@ -6797,6 +6794,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     except ValueError as error:
         print(f"ERROR: malformed pre-push input, {error}", file=sys.stderr)
         return 2
+    # Guard the destination ref, not the checked-out branch, so a main checkout
+    # can still delete or update an unrelated remote branch (issue #6671).
+    # Pre-commit keeps the HEAD guard through the branch-policy job.
     protected = next(
         (branch for ref in refs if (branch := _protected_push_destination(ref))),
         None,
