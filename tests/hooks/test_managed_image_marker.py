@@ -459,3 +459,30 @@ def test_devcontainer_build_dockerfile_outside_the_repo_is_not_followed(tmp_path
     assert images_missing_marker(root, [".devcontainer/devcontainer.json"]) == [
         ".devcontainer/devcontainer.json"
     ]
+
+
+@pytest.mark.parametrize(
+    "env_section",
+    [
+        '"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "0"}',
+        '"remoteEnv": {"AI_AGENTS_REMOTE_CONTAINER": null}',
+        '"remoteEnv": {"AI_AGENTS_REMOTE_CONTAINER": ""}',
+    ],
+    ids=["container-env-0", "remote-env-null-unsets", "remote-env-empty"],
+)
+def test_devcontainer_env_that_names_the_marker_overrides_its_build_dockerfile(
+    tmp_path: Path, env_section: str
+) -> None:
+    """The definition's env applies at runtime, so a Dockerfile `=1` cannot rescue a `0`."""
+    dev = tmp_path / ".devcontainer"
+    dev.mkdir()
+    (dev / "devcontainer.json").write_text(
+        '{"build": {"dockerfile": "Dockerfile"}, ' + env_section + "}", encoding="utf-8"
+    )
+    (dev / "Dockerfile").write_text(
+        "FROM base\nENV AI_AGENTS_REMOTE_CONTAINER=1\n", encoding="utf-8"
+    )
+
+    assert images_missing_marker(tmp_path, [".devcontainer/devcontainer.json"]) == [
+        ".devcontainer/devcontainer.json"
+    ]

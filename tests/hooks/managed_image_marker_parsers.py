@@ -192,6 +192,25 @@ def _devcontainer_effective_value(text: str) -> str | None:
     return None
 
 
+def _devcontainer_env_names_marker(text: str) -> bool:
+    """True when `remoteEnv` or `containerEnv` names the marker, whatever its value.
+
+    That entry applies at runtime over the image's `ENV`, so a `"0"`, an empty
+    string, or a `null` (which unsets it) is final. The build Dockerfile is not
+    consulted then.
+    """
+    try:
+        data = json.loads(_strip_jsonc(text))
+    except ValueError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    return any(
+        isinstance(data.get(section), dict) and MARKER_NAME in data[section]
+        for section in ("remoteEnv", "containerEnv")
+    )
+
+
 def _devcontainer_dockerfile(text: str) -> str | None:
     """`build.dockerfile` from a devcontainer definition, or None.
 
@@ -247,9 +266,10 @@ def _build_dockerfile_sets_marker(root: Path, rel: str, text: str) -> bool:
 
     ``containerEnv`` and ``remoteEnv`` are checked first by the caller; this is
     the fallback for a definition that takes the marker from its Dockerfile.
+    It applies only when neither env section names the marker.
     A missing or unreadable Dockerfile counts as no marker.
     """
-    if Path(rel).name not in DEVCONTAINER_FILE_NAMES:
+    if Path(rel).name not in DEVCONTAINER_FILE_NAMES or _devcontainer_env_names_marker(text):
         return False
     dockerfile = _devcontainer_dockerfile(text)
     if dockerfile is None:
