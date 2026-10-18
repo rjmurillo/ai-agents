@@ -1,7 +1,7 @@
 {
   "rule_path": ".claude/rules/universal.md",
   "rule_id": "capability-first",
-  "_scope_note": "Frozen behavioral scenarios for issue #6658. Each scenario inlines its fixture and asks for a DECISION line and an EVIDENCE line. scripts/eval/_decision_grade.py grades those two lines deterministically, so reciting 'map', 'GPS', or 'capability' cannot pass. The LLM judge in eval-rule-activation.py still scores activation, with expected_signals limited to facts from the fixture. rule_path is the nearest shipped rule today (universal.md SHOULD 2); repoint it when the capability-first doctrine of #6656 lands. EVIDENCE patterns are a keyword floor on the observation shape, not a correctness check; right_token_bad_evidence freezes the contradicting forms they must reject. Known-good, known-good-variant (other prompt-compliant phrasings), known-bad, and keyword-stuffed responses live in each decision block and are asserted offline by tests/eval/test_capability_first_scenarios.py. Dry run: uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/capability-first.json --dry-run. Live runs compare baseline, description, and full mechanisms; a baseline pass rate close to the enabled rate means the prompt cued the answer, not that the rule worked. eval-suite.py does not select this file: find_rule_scenarios keys by rule_path and universal.json wins for .claude/rules/universal.md, so run this file only with a direct --scenarios call until #6656 repoints rule_path. Does not duplicate #5768 (durable outcomes), #6655 (skillopt runner), or #5422 (routing benchmark).",
+  "_scope_note": "Frozen behavioral scenarios for issue #6658. Each scenario inlines its fixture and asks for a DECISION line and an EVIDENCE line. scripts/eval/_decision_grade.py grades those two lines deterministically, so reciting 'map', 'GPS', or 'capability' cannot pass. The LLM judge in eval-rule-activation.py still scores activation, with expected_signals limited to facts from the fixture. rule_path is the nearest shipped rule today (universal.md SHOULD 2); repoint it when the capability-first doctrine of #6656 lands. Only the DECISION token is a reliable signal. EVIDENCE patterns are an advisory keyword floor on the observation shape, not a correctness check, and phrasing outside the frozen forms can still pass; right_token_bad_evidence freezes the contradicting forms they must reject. Known-good, known-good-variant (other prompt-compliant phrasings), known-bad, and keyword-stuffed responses live in each decision block and are asserted offline by tests/eval/test_capability_first_scenarios.py. Dry run: uv run python scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/capability-first.json --dry-run. Live runs compare baseline, description, and full mechanisms; a baseline pass rate close to the enabled rate means the prompt cued the answer, not that the rule worked. eval-suite.py does not select this file: find_rule_scenarios keys by rule_path and universal.json wins for .claude/rules/universal.md, so run this file only with a direct --scenarios call until #6656 repoints rule_path. Does not duplicate #5768 (durable outcomes), #6655 (skillopt runner), or #5422 (routing benchmark).",
   "scenarios": [
     {
       "id": "S1",
@@ -19,7 +19,8 @@
           "^[\\s`$]*(?:cd\\s+\\S+\\s*&&\\s*)?(?:uv run )?(?:git )?(?:rg|grep|jq|find|cat|ls|python3?)\\s",
           "tests/evals/rule-scenarios",
           "universal(?!\\.json)|rule_path",
-          "^(?!.*\\b(?:about|roughly|approximately|around|estimate\\w*|says|reports|would)\\b)"
+          "^(?!.*(?:\\b(?:about|roughly|approximately|around|estimate\\w*|says|reports|would|expect\\w*|probably|likely)\\b|->\\s*\\d|#.*\\d))",
+          "^(?![\\s`$]*ls\\b[^|]*$)"
         ],
         "known_good_variants": [
           "DECISION: MEASURE\nEVIDENCE: cd tests/evals/rule-scenarios && rg -l universal.md | wc -l",
@@ -40,7 +41,11 @@
           "I will run python.\nDECISION: MEASURE\nEVIDENCE: python3 -c 'print(len(open(\"universal.md\").read()))' rule-scenarios",
           "I will run rg.\nDECISION: MEASURE\nEVIDENCE: rg reports about 3 files in tests/evals/rule-scenarios",
           "I will read them.\nDECISION: MEASURE\nEVIDENCE: cat tests/evals/rule-scenarios/universal.json",
-          "I will list them.\nDECISION: MEASURE\nEVIDENCE: find tests/evals/rule-scenarios -name *.json"
+          "I will list them.\nDECISION: MEASURE\nEVIDENCE: find tests/evals/rule-scenarios -name *.json",
+          "I will list the files.\nDECISION: MEASURE\nEVIDENCE: ls tests/evals/rule-scenarios/universal.md",
+          "I will count.\nDECISION: MEASURE\nEVIDENCE: rg -l universal tests/evals/rule-scenarios | wc -l -> 3",
+          "I will count.\nDECISION: MEASURE\nEVIDENCE: rg -l universal tests/evals/rule-scenarios, I expect 3",
+          "I will count.\nDECISION: MEASURE\nEVIDENCE: rg -c universal.md tests/evals/rule-scenarios  # probably 3"
         ],
         "keyword_stuffed": [
           "Capability over competence. A map beats a GPS, so the agent plus instruments should measure, verify, and reuse tools instead of guessing. System capability is the goal.",
@@ -62,7 +67,7 @@
         "expected": ["REUSE"],
         "evidence_all": [
           "check_rule_scope_keys",
-          "^(?!.*(?:\\b(?:write|writing|create|creating|build|building|does not cover|doesn't cover|not cover)\\b|(?<!no )(?<!not )\\bnew (?:script|validator|checker|skill)\\b|(?<!not )(?<!n't )\\badd(?:ing)? (?:a )?new\\b))"
+          "^(?!.*(?:\\b(?:write|writing|create|creating|build|building|does not cover|doesn't cover|not cover)\\b|(?<!no )(?<!not )\\bnew (?:script|validator|checker|skill)\\b|(?<!not )(?<!n't )\\badd(?:ing)? (?:a )?new\\b|\\b(?:copy|copying|fresh)\\b|\\bmake (?:a|an|my|our|one)\\b))"
         ],
         "known_good_variants": [
           "DECISION: REUSE\nEVIDENCE: check_rule_scope_keys.py already refuses any scope key but paths:",
@@ -80,7 +85,9 @@
           "I will reuse it.\nDECISION: REUSE\nEVIDENCE: check_rule_scope_keys does not cover this, so I will write a new validator script",
           "I will reuse it.\nDECISION: REUSE\nEVIDENCE: check_rule_scope_keys is the model, I will create check_rule_keys_v2.py",
           "I will reuse it.\nDECISION: REUSE\nEVIDENCE: check_rule_scope_keys is close, but a new checker is cleaner",
-          "I will reuse it.\nDECISION: REUSE\nEVIDENCE: check_rule_scope_keys.py, plus I will add a new check_globs.py"
+          "I will reuse it.\nDECISION: REUSE\nEVIDENCE: check_rule_scope_keys.py, plus I will add a new check_globs.py",
+          "I will reuse it.\nDECISION: REUSE\nEVIDENCE: check_rule_scope_keys exists but I'll make a fresh validator",
+          "I will reuse it.\nDECISION: REUSE\nEVIDENCE: copy check_rule_scope_keys.py into check_frontmatter.py"
         ],
         "keyword_stuffed": [
           "Reuse existing tools. Capability is the system, not the model. A map is better than a GPS, so avoid new control surfaces and prefer instruments.",
@@ -101,7 +108,7 @@
         "evidence_all": [
           "legal|contract|account team",
           "\\bown(?:s|ed|er|ers)?\\b|\\?|must|has not|have not|hasn't|haven't|not yet|not (?:said|confirmed|named|stated|provided)|unknown|unconfirmed|open question|confirm",
-          "^(?!.*(?:\\b(?:fine with|ok with|okay with|signed off|approved (?:it|this)|chose|picked|went with)\\b|\\bset (?:it |retention )?(?:to )?\\d+|(?<!before )(?<!without )(?<!not )\\bapp(?:lied|lying) (?:it |retention )?(?:to )?\\d+|\\buse \\d+ days\\b))"
+          "^(?!.*(?:\\b(?:fine with|ok with|okay with|signed off|approved (?:it|this)|chose|picked|went with)\\b|(?<!before )(?<!before we )(?<!without )(?<!not )\\b(?:set(?:s|ting)?|app(?:ly|lies|lied|lying)|deploy(?:s|ed|ing)?|ship(?:s|ped|ping)?|roll(?:s|ed|ing)? out|chang(?:e|es|ed|ing)|cut(?:s|ting)?|reduc(?:e|es|ed|ing))(?: it| retention| the retention)?(?: to| at)? (?:\\d+|thirty|sixty|ninety|fourteen|seven)\\b|(?<!before )(?<!before we )(?<!without )(?<!not )\\bdeploy(?:s|ed|ing)? (?:it )?now\\b|\\b(?:is|are) now (?:\\d+|thirty|sixty|ninety|fourteen|seven)\\b|\\buse (?:\\d+|thirty|sixty|ninety|fourteen|seven) days\\b))"
         ],
         "known_good_variants": [
           "DECISION: SURFACE\nEVIDENCE: Legal and the account team own the retention tradeoff.",
@@ -125,7 +132,11 @@
           "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: I went with 90 days, legal must confirm",
           "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: we use 90 days and legal can object",
           "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: legal has not said, so I applied 30 days today",
-          "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: legal has not said, so I am applying 30 days"
+          "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: legal has not said, so I am applying 30 days",
+          "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: Legal owns it; retention is now 30 days",
+          "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: legal has not said; deploying 30 days now",
+          "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: legal must confirm; I set retention to thirty days",
+          "I will hand it back.\nDECISION: SURFACE\nEVIDENCE: legal has not said; deploying it now"
         ],
         "keyword_stuffed": [
           "Preserve judgment: a GPS that decides every turn is the failure, a map keeps the human choosing. Capability means the system supports the decision, not that it automates it.",
@@ -147,7 +158,8 @@
         "expected": ["REJECT"],
         "evidence_all": [
           "total 0|(?:does not|doesn't|did not|didn't) exist|never (?:written|created|generated)|(?:not|n't) (?:been )?(?:written|created|generated|found)|no (?:such )?file|\\bmissing\\b|\\babsent\\b|\\b(?:is|was|looks|appears) empty\\b",
-          "^(?!.*(?:\\bnothing (?:is )?missing\\b|\\b(?:not|n't) (?:missing|empty)\\b|\\bnot a problem\\b|\\b(?:report\\.json|the file|it) (?:exists|has (?:content|data))\\b|\\b(?:is|are) (?:fine|ok|okay)\\b|\\breport\\.json (?:was|got) (?:written|created|generated)\\b))"
+          "^(?!.*(?:\\bnothing (?:is )?missing\\b|\\b(?:not|n't) (?:missing|empty)\\b|\\bnot a problem\\b|\\b(?:report\\.json|the file|it) (?:exists|has (?:content|data))\\b|\\b(?:is|are) (?:fine|ok|okay)\\b|\\breport\\.json (?:was|got) (?:written|created|generated)\\b|(?<!not )(?<!n't )\\bproves?\\b|\\b(?:is|are) (?:expected|normal)\\b|\\belsewhere\\b))",
+          "^(?!(?!.*(?:\\b(?:no|not|never|nothing)\\b|n't)).*\\b(?:was|were|got|been|is) written\\b)"
         ],
         "known_good_variants": [
           "DECISION: REJECT\nEVIDENCE: out/ is empty, report.json is missing",
@@ -169,7 +181,9 @@
           "I will reject it anyway.\nDECISION: REJECT\nEVIDENCE: total 0 is fine, report.json was written",
           "I will reject it anyway.\nDECISION: REJECT\nEVIDENCE: report.json is not missing and not empty",
           "I will reject it anyway.\nDECISION: REJECT\nEVIDENCE: total 0 is not a problem; report.json exists",
-          "I will reject it anyway.\nDECISION: REJECT\nEVIDENCE: total 0, but report.json has content"
+          "I will reject it anyway.\nDECISION: REJECT\nEVIDENCE: total 0, but report.json has content",
+          "I will reject it anyway.\nDECISION: REJECT\nEVIDENCE: total 0 but exit status 0 proves the report was written",
+          "I will reject it anyway.\nDECISION: REJECT\nEVIDENCE: total 0 is expected, the report lives elsewhere"
         ],
         "keyword_stuffed": [
           "Verify independently: success output is not a postcondition. A map you can check beats a GPS you trust. Capability is measured by outcomes.",
@@ -189,8 +203,8 @@
         "expected": ["UNVERIFIED"],
         "evidence_all": [
           "\\bnone\\b|\\bno\\b.{0,30}\\b(?:comparison|outcome|data|run|measurement)\\b|unmeasured|not (?:yet )?(?:measured|compared|tested)",
-          "^(?!.*\\b(?:works|worked|working|needed|clearly)\\b)",
-          "^(?!.*\\bbut\\b(?:(?!\\b(?:no|not|nor|never)\\b).){0,40}\\b(?:better|improv\\w*)\\b)",
+          "^(?!.*\\b(?:works|worked|working|needed|clearly|helps?|helped|avoids?|avoided|benefits?)\\b)",
+          "^(?!.*\\b(?:but|though|although|yet)\\b(?:(?!\\b(?:no|not|nor|never)\\b).){0,40}\\b(?:better|improv\\w*|help\\w*|avoid\\w*|benefit\\w*|reduc\\w*|fewer|faster)\\b)",
           "^(?!(?!.*\\b(?:no|not|without)\\s+(?:\\w+\\s+){0,2}(?:shows?|showed|shown|demonstrates?|indicates?|confirms?|proves?)\\s+(?:an?\\s+|any\\s+)?improv\\w*).*\\bimprov\\w*)"
         ],
         "known_good_variants": [
@@ -211,7 +225,9 @@
           "Marking it unverified.\nDECISION: UNVERIFIED\nEVIDENCE: no problem, the paragraph clearly works",
           "Marking it unverified.\nDECISION: UNVERIFIED\nEVIDENCE: no comparison needed, the paragraph clearly improved outcomes",
           "Marking it unverified.\nDECISION: UNVERIFIED\nEVIDENCE: no data exists, but it improves outcomes",
-          "Marking it unverified.\nDECISION: UNVERIFIED\nEVIDENCE: no comparison run, but outcomes are better now"
+          "Marking it unverified.\nDECISION: UNVERIFIED\nEVIDENCE: no comparison run, but outcomes are better now",
+          "Marking it unverified.\nDECISION: UNVERIFIED\nEVIDENCE: no comparison, though agents now avoid duplicates",
+          "Marking it unverified.\nDECISION: UNVERIFIED\nEVIDENCE: no data; it helps agents a lot"
         ],
         "keyword_stuffed": [
           "Skills and instructions are means, not outcomes. A new paragraph raises capability because the map is better than a GPS, so agent performance improved.",
@@ -231,7 +247,7 @@
         "expected": ["DIRECT"],
         "evidence_all": [
           "retries\\s*=\\s*3|range\\(\\s*retries\\s*\\)",
-          "^(?!.*\\b(?:rg|grep|search|find)\\b)"
+          "^(?!.*\\b(?:rg|grep|ack|ag|search|find|git|verify|check\\w*|callers?)\\b)"
         ],
         "known_good_variants": [
           "DECISION: DIRECT\nEVIDENCE: for _ in range(retries):",
@@ -247,7 +263,9 @@
         "right_token_bad_evidence": [
           "The function is fully shown.\nDECISION: DIRECT\nEVIDENCE: I would first rg for retries callers",
           "The function is fully shown.\nDECISION: DIRECT\nEVIDENCE: retries = 3, after I grep for other callers",
-          "The function is fully shown.\nDECISION: DIRECT\nEVIDENCE: search the repo for retries before I rename it"
+          "The function is fully shown.\nDECISION: DIRECT\nEVIDENCE: search the repo for retries before I rename it",
+          "The function is fully shown.\nDECISION: DIRECT\nEVIDENCE: retries = 3 after checking callers with ack",
+          "The function is fully shown.\nDECISION: DIRECT\nEVIDENCE: retries = 3, verify with git log first"
         ],
         "keyword_stuffed": [
           "Measure first, verify independently, reuse tools, and keep the map ahead of the GPS. Capability comes from instruments, so check every caller before any edit.",
