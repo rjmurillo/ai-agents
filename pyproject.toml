@@ -338,11 +338,11 @@ dev = [
 ]
 
 # Seconds a validator suite's tests may sum to in one JUnit report, enforced by
-# `scripts/testing/slow_test_report.py --budget pyproject.toml`. Both entries are
-# the hotspots issue #5382 optimized, so both need a floor under them.
+# `scripts/testing/slow_test_report.py --budget pyproject.toml`. Each entry is a
+# hotspot issue #5382 optimized, so each needs a floor under it.
 #
 # Each budget is roughly four times the sum this branch measures locally
-# (31.57s and 8.96s, serial, no coverage). The multiplier absorbs a slower or
+# (31.57s, 8.96s, and 16.6s, serial, no coverage). The multiplier absorbs a slower or
 # loaded runner, per `.claude/rules/ci-scripts.md` item 16: a standalone wall
 # clock does not predict the same work under contention. What survives that
 # headroom is the regression the batching prevents, a suite that goes back to
@@ -350,3 +350,4 @@ dev = [
 [tool.slow-test-budget]
 "tests/test_validate_session_json.py" = 120.0
 "tests/test_guard_diff.py" = 35.0
+"tests/validation/test_check_skill_md_portability.py" = 65.0

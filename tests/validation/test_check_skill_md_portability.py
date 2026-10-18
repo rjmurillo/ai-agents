@@ -22,6 +22,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+from typing import Any, NamedTuple
 
 import pytest
 
@@ -57,6 +58,40 @@ def _is_under_extra_scan_root(key: str, prefix: str) -> bool:
     key_parts = PurePosixPath(key).parts
     prefix_parts = PurePosixPath(prefix).parts
     return key_parts[: len(prefix_parts)] == prefix_parts
+
+
+class _RealRepoScan(NamedTuple):
+    """One CLI run over the checked-in tree, plus the scans it made."""
+
+    exit_code: int
+    scans: list[Any]
+
+
+@pytest.fixture(scope="module")
+def real_repo_scan() -> _RealRepoScan:
+    """Run the CLI on the real tree once for every test that reads it (issue #5382).
+
+    Three tests each walked and parsed the whole checked-in tree, which cost
+    about 30 seconds apiece. The tree does not change during a run, so one
+    ``main`` call serves all three. The recorded ``scan_all`` result gives the
+    drift test its counts without a second walk.
+    """
+    root = Path(__file__).resolve().parents[2]
+    scans: list[Any] = []
+    real_scan_all = cmp.scan_all
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        result = real_scan_all(*args, **kwargs)
+        scans.append(result)
+        return result
+
+    patch = pytest.MonkeyPatch()
+    patch.setattr(cmp, "scan_all", recording)
+    try:
+        exit_code = cmp.main(["--repo-root", str(root)])
+    finally:
+        patch.undo()
+    return _RealRepoScan(exit_code, scans)
 
 
 class TestCountUpstreamRefs:
@@ -1301,10 +1336,11 @@ class TestRulesScanRoot:
         assert self._run(tmp_path) == 0
         assert "src/claude/rules (2)" in capsys.readouterr().out
 
-    def test_real_rules_tree_is_baselined(self) -> None:
+    def test_real_rules_tree_is_baselined(self, real_repo_scan: _RealRepoScan) -> None:
         """The checked-in rules tree passes against the checked-in baseline."""
-        root = Path(__file__).resolve().parents[2]
-        assert cmp.main(["--repo-root", str(root)]) == 0
+        assert real_repo_scan.exit_code == 0, (
+            "CLI on the real tree failed; see captured setup output"
+        )
 
 
 class TestAgentOutputScanRoots:
@@ -1493,10 +1529,11 @@ class TestAgentOutputScanRoots:
         )
         assert rc == 1
 
-    def test_real_agent_trees_are_baselined(self) -> None:
+    def test_real_agent_trees_are_baselined(self, real_repo_scan: _RealRepoScan) -> None:
         """The checked-in agent trees pass against the checked-in baseline."""
-        root = Path(__file__).resolve().parents[2]
-        assert cmp.main(["--repo-root", str(root)]) == 0
+        assert real_repo_scan.exit_code == 0, (
+            "CLI on the real tree failed; see captured setup output"
+        )
 
 
 class TestReport:
@@ -1823,12 +1860,14 @@ class TestUnexpectedScanException:
 class TestCommittedRepoHasNoDrift:
     """The CI ratchet: the committed baseline must match the committed tree."""
 
-    def test_repo_markdown_matches_baseline(self) -> None:
+    def test_repo_markdown_matches_baseline(self, real_repo_scan: _RealRepoScan) -> None:
         root = Path(__file__).resolve().parents[2]
         if not cmp.skills_dirs(root):
             pytest.skip("no plugin root has a skills dir in this checkout")
         baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
-        current = cmp.scan_plugin_roots(root)
+        assert len(real_repo_scan.scans) == 1, "the CLI run must have scanned the tree once"
+        current = real_repo_scan.scans[0][0]
+        assert current, "an empty scan cannot show the baseline matches the tree"
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)

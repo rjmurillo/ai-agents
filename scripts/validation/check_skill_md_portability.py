@@ -92,6 +92,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -389,6 +390,14 @@ def has_portability_marker(text: str) -> bool:
     return _MARKER_PATTERN.search(_strip_inline_code(_strip_code(text))) is not None
 
 
+# One scanned file reaches ``_strip_code`` several times with the same text:
+# ``count_file_refs`` and ``count_marker_suppressed_refs`` each call
+# ``has_portability_marker``, which strips, then strip again themselves, and the
+# drift check strips again. A CommonMark parse costs milliseconds, so an
+# unmarked file was parsed several times where once is enough (issue #5382).
+# The result is a pure function of an immutable string, so it is cached. 128
+# entries hold one file's working set. A failed parse raises and is not cached.
+@functools.lru_cache(maxsize=128)
 def _strip_code(text: str) -> str:
     """Remove fenced and indented code blocks, leaving prose and inline code.
 
