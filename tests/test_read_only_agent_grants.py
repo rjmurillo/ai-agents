@@ -130,8 +130,8 @@ def _tools(path: Path) -> list[str]:
 
 def _denied(path: Path) -> list[str]:
     """Return ``disallowedTools``; the list is empty when the agent declares none."""
-    value = _frontmatter(path).get("disallowedTools") or []
-    return [str(item) for item in value]
+    value = _frontmatter(path).get("disallowedTools")
+    return [str(item) for item in value] if isinstance(value, list) else []
 
 
 def _is_granted(tool: str, tools: list[str], denied: list[str]) -> bool:
