@@ -46,8 +46,9 @@ itself behind you.
 > longer lists "up to date with main" as a merge condition.
 This memory originally recorded
 `"strict_required_status_checks_policy": false`, and reasoned that no PR was
-ever *required* to be current. That is no longer the configuration. Measured
-2026-08-08:
+ever *required* to be current. From 2026-08-04 to 2026-08-10 that was not the
+configuration (today it is again; see the note above). Measured 2026-08-08,
+during that window:
 
 ```
 gh api repos/rjmurillo/ai-agents/rules/branches/main \

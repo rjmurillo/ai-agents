@@ -703,7 +703,7 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
-1. No merge conflict with `main` (`mergeStateStatus` not `DIRTY`). Being behind `main` is not a condition. The `main` ruleset sets `strict_required_status_checks_policy: false`, so GitHub reports a behind branch as `CLEAN`, `UNSTABLE`, or `BLOCKED`, never `BEHIND`. The repository's merge-tree ratchet gate in CI already measures the merged result. Do not update a branch only because it is behind: every update re-runs CI on every open PR, and each merge makes the rest behind again. Update a branch only when it is `DIRTY`, or when a required check fails and a commit on `main` since the fork point fixes that failure.
+1. No merge conflict with `main` (`mergeStateStatus` not `DIRTY`). Being behind `main` is not a condition. The `main` ruleset sets `strict_required_status_checks_policy: false`, so GitHub reports a behind branch as `CLEAN`, `UNSTABLE`, or `BLOCKED`, never `BEHIND`. The repository's merge-tree ratchet gate in CI already measures the merged result. Do not update a branch only because it is behind. Each update re-runs that PR's CI, and each merge to `main` puts every other open PR behind again, so refreshing after every merge costs one CI run per open PR per merge. Update a branch only when it is `DIRTY`, or when a check this skill treats as blocking fails (a required check, or a non-required failure with no recorded disposition) and a commit on `main` since the fork point fixes that failure.
 2. All required checks pass.
 3. All conversations addressed: READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, RESOLVED.
 4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
@@ -1180,7 +1180,7 @@ Per PR processed:
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
-- [ ] No branch update ran only because the branch was behind `main` (behind is not a merge condition; `DIRTY`, or a red check that `main` fixed, is).
+- [ ] No branch update ran only because the branch was behind `main` (behind is not a merge condition; `DIRTY`, or a blocking red check that `main` fixed, is).
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
 - [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN` and for `HAS_HOOKS`, which takes the `CLEAN` path unchanged, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
 - [ ] All four Ready-to-Merge conditions hold before the merge command runs (CanMerge=True is insufficient alone).
