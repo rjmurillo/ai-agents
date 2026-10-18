@@ -126,12 +126,18 @@ def _opener_for(url: str) -> urllib.request.OpenerDirector:
 
 
 def _read_capped(handle: Any, url: str) -> bytes:
-    """Read a body in chunks, refusing one past the byte cap or the request deadline."""
+    """Read a body in chunks, refusing one past the byte cap or the request deadline.
+
+    `read1` returns after one socket receive, so the deadline is checked after every
+    receive. `read(n)` would wait for all n bytes, and a server that trickles one byte
+    inside the socket timeout would hold it far past the deadline.
+    """
     deadline = time.monotonic() + REQUEST_DEADLINE_SECONDS
     chunks: list[bytes] = []
     total = 0
+    read = getattr(handle, "read1", handle.read)
     while True:
-        chunk = handle.read(_CHUNK_BYTES)
+        chunk = read(_CHUNK_BYTES)
         if not chunk:
             return b"".join(chunks)
         total += len(chunk)

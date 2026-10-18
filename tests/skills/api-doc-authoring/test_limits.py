@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import threading
+import time
 import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -179,6 +180,55 @@ def test_a_slow_body_is_refused_after_the_request_deadline(
 
     with pytest.raises(ax.InputError, match="slower than 30s"):
         ax._read_capped(_Handle([b"a", b"b", b"c", b"d"]), "http://x/")
+
+
+@contextmanager
+def _serve_trickle(total: int, pause: float) -> Iterator[str]:
+    """Serve `total` bytes one at a time, `pause` seconds apart, under a Content-Length."""
+
+    class Trickle(BaseHTTPRequestHandler):
+        def log_message(self, *args: Any) -> None:
+            return
+
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Length", str(total))
+            self.end_headers()
+            try:
+                for _ in range(total):
+                    self.wfile.write(b"x")
+                    self.wfile.flush()
+                    time.sleep(pause)
+            except OSError:
+                return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Trickle)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_a_trickling_server_is_cut_off_near_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real socket: one byte per 0.1 s never trips the socket timeout, only the deadline."""
+    monkeypatch.setattr(ax, "REQUEST_DEADLINE_SECONDS", 0.5)
+    started = time.monotonic()
+    with _serve_trickle(total=100, pause=0.1) as base, pytest.raises(ax.InputError, match="slower"):
+        ax.send("GET", f"{base}/x", {}, b"")
+
+    assert time.monotonic() - started < 3.0
+
+
+def test_a_slow_body_that_finishes_inside_the_deadline_is_read_in_full() -> None:
+    with _serve_trickle(total=5, pause=0.01) as base:
+        assert ax.send("GET", f"{base}/x", {}, b"").body == b"xxxxx"
 
 
 def test_a_fast_body_finishes_inside_the_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
