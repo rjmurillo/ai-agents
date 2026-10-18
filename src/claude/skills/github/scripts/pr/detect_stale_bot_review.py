@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Detect a stale bot CHANGES_REQUESTED review that blocks merge (issue #5950).
 
-After every thread is fixed and resolved and CI is green, a PR can stay blocked
+After every thread is fixed and resolved and required CI checks pass, a PR can stay blocked
 because a bot such as CodeRabbit left a ``CHANGES_REQUESTED`` review on an
 older commit. A later bot pass posts ``COMMENTED``, which does not supersede it.
 Only an ``APPROVED`` review or a dismissal clears it, and dismissal is a human
@@ -15,8 +15,9 @@ unresolved thread count), ``get_pr_checks.py`` (CI verdict), and
 Verdicts in ``Data.verdict``:
 
     NO_BOT_CHANGES_REQUESTED  No bot holds an active CHANGES_REQUESTED review.
-    NOT_READY                 A bot holds one, but a thread is unresolved, CI is
-                              not green, or the branch needs an update first.
+    NOT_READY                 A bot holds one, but a thread is unresolved, a
+                              required CI check is not passing, or the branch
+                              needs an update first.
                               Finish that work; this is not a stale-review case.
     FRESH_CHANGES_REQUESTED   A bot review on the current head still requests
                               changes. Address its findings.
@@ -94,7 +95,8 @@ _REREVIEW_TRIGGERS: dict[str, str] = {
 }
 
 _DISMISS_MESSAGE = (
-    "Every review thread is resolved and CI is green. This review is on an older commit than head."
+    "Every review thread is resolved and required CI checks pass. "
+    "This review is on an older commit than head."
 )
 
 
@@ -227,7 +229,7 @@ def build_handoff(
     """Return the ready-to-run text a human needs to dismiss the stale reviews."""
     lines = [
         f"PR #{pr} is blocked by stale bot CHANGES_REQUESTED review(s). Head is {head_sha}.",
-        "Every review thread is resolved and CI is green, and the review is on an "
+        "Every review thread is resolved and required CI checks pass, and the review is on an "
         "older commit than head. This script does not check that the later commits "
         "fixed each finding. Confirm that before dismissing.",
         "The agent does not dismiss reviews. A human runs:",
@@ -309,15 +311,29 @@ def _common_args(owner: str, repo: str, pr: int) -> list[str]:
 
 
 def _required_checks_green(checks: dict[str, Any]) -> bool:
-    """Return True when every required check passed and the merge ref is usable.
+    """Return True when CI passes for merge purposes and the merge ref is usable.
 
-    RequiredState is SUCCESS only when no required check is failing, pending, or
-    missing and the check set is complete. get_pr_checks.py downgrades it to
-    UNKNOWN when REST cannot prove which checks are required, so an unproven
-    required set is never green. Optional checks never move it. MergeRefUsable
-    False (conflicts, dirty merge state) keeps the guard AllPassing carried.
+    When at least one check row is marked required, RequiredState decides:
+    SUCCESS only when no required check is failing, pending, or missing and the
+    check set is complete. Optional checks never move it. get_pr_checks.py
+    downgrades RequiredState to UNKNOWN when REST cannot prove which checks are
+    required, so an unproven required set is never green.
+
+    When no row is marked required, RequiredState is SUCCESS vacuously (a repo
+    can require reviews but no status checks), so AllPassing decides instead.
+
+    MergeRefUsable must be True. A missing key is never usable: build_output
+    always emits it, so a missing key means a malformed envelope.
     """
-    return checks.get("RequiredState") == "SUCCESS" and checks.get("MergeRefUsable") is not False
+    if checks.get("MergeRefUsable") is not True:
+        return False
+    rows = checks.get("Checks")
+    has_required = isinstance(rows, list) and any(
+        isinstance(row, dict) and row.get("IsRequired") is True for row in rows
+    )
+    if has_required:
+        return checks.get("RequiredState") == "SUCCESS"
+    return checks.get("AllPassing") is True
 
 
 def _fetch_inputs(
@@ -333,7 +349,8 @@ def _fetch_inputs(
     # error envelope with no RequiredState, which is an unknown, never failing CI.
     # CI is green when the required checks pass. AllPassing also counts optional
     # checks, and one that waits on an environment approval stays pending forever
-    # (issue #6632). The call omits --required-only: with no ruleset contexts on the
+    # (issue #6632). With no required check it is the only signal left, so
+    # _required_checks_green falls back to it. The call omits --required-only: with no ruleset contexts on the
     # REST fallback that flag exits 3, which is outside _CHECKS_VERDICT_EXITS.
     checks_code, checks = _run_sibling("get_pr_checks.py", args)
     if checks is None or checks_code not in _CHECKS_VERDICT_EXITS:

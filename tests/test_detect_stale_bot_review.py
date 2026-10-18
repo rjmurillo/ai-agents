@@ -106,7 +106,7 @@ class TestStaleClassification:
         assert f"commit {OLD}" in handoff
         assert "gh api -X PUT repos/o/r/pulls/7/reviews/100/dismissals" in handoff
         assert "-f event=DISMISS" in handoff
-        assert "Every review thread is resolved and CI is green" in handoff
+        assert "Every review thread is resolved and required CI checks pass" in handoff
         assert "does not check that the later commits fixed each finding" in handoff
         assert "The agent does not dismiss reviews" in handoff
 
@@ -254,9 +254,18 @@ def _checks(
     required_state: str = "SUCCESS",
     all_passing: bool = True,
     merge_ref_usable: bool | None = True,
+    required_rows: bool = True,
 ) -> dict[str, Any]:
-    """Build a get_pr_checks.py Data payload. A None merge_ref_usable omits the key."""
-    data: dict[str, Any] = {"RequiredState": required_state, "AllPassing": all_passing}
+    """Build a get_pr_checks.py Data payload.
+
+    A None merge_ref_usable omits the key. required_rows False emits one optional
+    row only, the shape of a repo that requires reviews but no status checks.
+    """
+    data: dict[str, Any] = {
+        "RequiredState": required_state,
+        "AllPassing": all_passing,
+        "Checks": [{"Name": "build", "IsRequired": required_rows}],
+    }
     if merge_ref_usable is not None:
         data["MergeRefUsable"] = merge_ref_usable
     return data
@@ -317,11 +326,41 @@ class TestMain:
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["verdict"] == "DISMISSAL_HANDOFF"
         assert "reviews/100/dismissals" in data["handoff"]
+        assert "required CI checks pass" in data["handoff"]
+        assert "CI is green" not in data["handoff"]
 
     def test_failing_optional_check_exit_1_does_not_block_the_handoff(self, capsys):
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
         fake = _siblings(
             _pr(), (1, _checks("SUCCESS", all_passing=False)), [_stale_cr(), rereview], []
+        )
+        assert _run_main(fake) == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["verdict"] == "DISMISSAL_HANDOFF"
+        assert "required CI checks pass" in data["handoff"]
+        assert "CI is green" not in data["handoff"]
+
+    def test_failing_optional_check_with_no_required_checks_reports_not_ready(self, capsys):
+        # A repo can require reviews but no status checks. RequiredState is then
+        # SUCCESS vacuously, so AllPassing must decide.
+        fake = _siblings(
+            _pr(),
+            (1, _checks("SUCCESS", all_passing=False, required_rows=False)),
+            [_stale_cr()],
+            [],
+        )
+        assert _run_main(fake) == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["verdict"] == "NOT_READY"
+        assert "CI is not passing" in data["reasons"]
+
+    def test_passing_checks_with_no_required_checks_reach_the_handoff(self, capsys):
+        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
+        fake = _siblings(
+            _pr(),
+            (0, _checks("SUCCESS", all_passing=True, required_rows=False)),
+            [_stale_cr(), rereview],
+            [],
         )
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "DISMISSAL_HANDOFF"
@@ -345,14 +384,28 @@ class TestMain:
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
-    def test_missing_merge_ref_key_is_treated_as_usable(self, capsys):
+    def test_missing_merge_ref_key_reports_not_ready(self, capsys):
+        # build_output always emits MergeRefUsable, so a missing key is malformed
+        # and must fail closed.
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
         fake = _siblings(_pr(), (0, _checks(merge_ref_usable=None)), [_stale_cr(), rereview], [])
         assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "DISMISSAL_HANDOFF"
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
     def test_envelope_without_required_state_reports_not_ready(self, capsys):
-        fake = _siblings(_pr(), (0, {"AllPassing": True}), [_stale_cr()], [])
+        fake = _siblings(
+            _pr(),
+            (
+                0,
+                {
+                    "AllPassing": True,
+                    "MergeRefUsable": True,
+                    "Checks": [{"Name": "build", "IsRequired": True}],
+                },
+            ),
+            [_stale_cr()],
+            [],
+        )
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
