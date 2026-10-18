@@ -32,6 +32,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from _inflection import has_term, stem_forms
+
 # ===========================================================================
 # RESULT TYPES
 # ===========================================================================
@@ -87,7 +89,8 @@ class InputCategory:
 
 # Patterns for detecting input category
 # The first pattern skips "the build skill" and "my make skill": there the verb is
-# the name of an existing skill, not a request to create one.
+# the name of an existing skill, not a request to create one. A request that opens
+# with an improve verb ("improve build skill") is classified before these run.
 EXPLICIT_CREATE_PATTERNS = [
     r"(?<!\bthe\s)(?<!\bmy\s)(?<!\bour\s)(?<!\bthis\s)"
     r"\b(?:create|build|make|design|develop)\s+(?:a\s+)?(?:new\s+)?skill\b",
@@ -100,8 +103,18 @@ EXPLICIT_CREATE_PATTERNS = [
 # improve request.
 SKILLFORGE_PREFIX_PATTERN = r"\bskillforge[:\s]"
 
+IMPROVE_VERBS = r"(?:improve|enhance|update|upgrade|fix|extend)"
+DETERMINERS = r"(?:the|my|our|this|a)"
+_DETERMINER_WORDS = frozenset({"the", "my", "our", "this", "a"})
+
+# An improve verb that opens the request wins over a create verb used as a skill
+# name: "improve build skill" asks to change the build skill.
+LEADING_IMPROVE_PATTERN = (
+    rf"^\s*(?:please\s+)?{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:\w+\s+)?skill\b"
+)
+
 EXPLICIT_IMPROVE_PATTERNS = [
-    r"\b(?:improve|enhance|update|upgrade|fix|extend)\s+(?:the\s+)?(?:\w+\s+)?skill\b",
+    rf"\b{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(?:\w+\s+)?skill\b",
     r"\bskill\s+(?:needs?|could\s+use|should\s+have)\b",
     r"\b(?:add|include)\s+(?:to|in)\s+(?:the\s+)?\w+\s+skill\b",
 ]
@@ -157,6 +170,16 @@ def _explicit_create(query_lower: str, signals: dict[str, Any]) -> tuple[str, di
     return InputCategory.EXPLICIT_CREATE, signals
 
 
+def _explicit_improve(query_lower: str, signals: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Build the EXPLICIT_IMPROVE result, naming the skill when the request does."""
+    skill_match = re.search(
+        rf"{IMPROVE_VERBS}\s+(?:{DETERMINERS}\s+)?(\w+(?:-\w+)*)\s+skill", query_lower
+    )
+    if skill_match and skill_match.group(1) not in _DETERMINER_WORDS:
+        signals["mentioned_skill_name"] = skill_match.group(1)
+    return InputCategory.EXPLICIT_IMPROVE, signals
+
+
 def classify_input(query: str) -> tuple[str, dict[str, Any]]:
     """
     Classify user input into a category and extract signals.
@@ -174,20 +197,17 @@ def classify_input(query: str) -> tuple[str, dict[str, Any]]:
         "extracted_purpose": None,
     }
 
+    # An opening improve verb outranks a create verb that names an existing skill.
+    if re.search(LEADING_IMPROVE_PATTERN, query_lower):
+        return _explicit_improve(query_lower, signals)
+
     # Check for explicit skill creation request
     if any(re.search(pattern, query_lower) for pattern in EXPLICIT_CREATE_PATTERNS):
         return _explicit_create(query_lower, signals)
 
     # Check for explicit improvement request
-    for pattern in EXPLICIT_IMPROVE_PATTERNS:
-        if re.search(pattern, query_lower):
-            # Try to extract skill name
-            skill_match = re.search(
-                r"(?:improve|enhance|update|fix)\s+(?:the\s+)?(\w+(?:-\w+)*)\s+skill", query_lower
-            )
-            if skill_match:
-                signals["mentioned_skill_name"] = skill_match.group(1)
-            return InputCategory.EXPLICIT_IMPROVE, signals
+    if any(re.search(pattern, query_lower) for pattern in EXPLICIT_IMPROVE_PATTERNS):
+        return _explicit_improve(query_lower, signals)
 
     # A "skillforge:" prefix with no improve verb asks the router to create.
     if re.search(SKILLFORGE_PREFIX_PATTERN, query_lower):
@@ -485,8 +505,8 @@ SCAFFOLDING_WORDS = frozenset(
 # Matched terms may carry an inflection ("test" matches "tests", "testing",
 # "tested") but never extend into another word ("test" must not match "attest").
 # A final consonant also doubles before "ing" and "ed" ("debug" matches
-# "debugging", "ship" matches "shipped").
-_DOUBLING_CONSONANTS = frozenset("bdglmnprt")
+# "debugging", "ship" matches "shipped"). _inflection.py owns the rule, shared
+# with discover_skills.py and the coverage count below.
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -535,21 +555,7 @@ def is_scaffolding_phrase(phrase: str) -> bool:
 
 def contains_term(text: str, term: str) -> bool:
     """True when term appears in text as a whole word or phrase, allowing inflection."""
-    term = term.lower()
-    suffixes = ["s", "es", "ing", "ed"]
-    if term and term[-1] in _DOUBLING_CONSONANTS:
-        suffixes += [re.escape(term[-1]) + "ing", re.escape(term[-1]) + "ed"]
-    pattern = r"(?<![a-z0-9])" + re.escape(term) + r"(?:" + "|".join(suffixes) + r")?(?![a-z0-9])"
-    return re.search(pattern, text.lower()) is not None
-
-
-def _stems(token: str) -> set[str]:
-    """Return the token plus each form with one inflectional suffix removed."""
-    forms = {token}
-    for suffix in ("ing", "es", "ed", "s"):
-        if token.endswith(suffix) and len(token) - len(suffix) >= 3:
-            forms.add(token[: -len(suffix)])
-    return forms
+    return has_term(text, term)
 
 
 def _skill_text_forms(skill: dict[str, Any]) -> set[str]:
@@ -564,7 +570,7 @@ def _skill_text_forms(skill: dict[str, Any]) -> set[str]:
     )
     forms: set[str] = set()
     for word in _TOKEN_PATTERN.findall(skill_text.lower()):
-        forms |= _stems(word)
+        forms |= stem_forms(word)
     return forms
 
 
@@ -582,8 +588,8 @@ def count_explained_terms(
     explained_forms = _skill_text_forms(skill)
     synonym_forms: set[str] = set()
     for term in synonym_terms:
-        synonym_forms |= _stems(term)
-    return sum(1 for t in tokens if _stems(t) & (explained_forms | synonym_forms))
+        synonym_forms |= stem_forms(term)
+    return sum(1 for t in tokens if stem_forms(t) & (explained_forms | synonym_forms))
 
 
 def calculate_coverage(

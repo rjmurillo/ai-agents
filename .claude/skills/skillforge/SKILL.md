@@ -299,6 +299,7 @@ The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, vali
 | `check_docs_safety.py` | Safety scan of generated documentation |
 | `frontmatter.py` | Internal helper module: shared YAML frontmatter parsing (imported, not run directly) |
 | `_constants.py` | Internal helper module: shared constants and thresholds (imported, not run directly) |
+| `_inflection.py` | Internal helper module: shared word-inflection matching for discovery and triage (imported, not run directly) |
 
 See [references/script-integration-framework.md](references/script-integration-framework.md) for when to add scripts and [references/script-patterns-catalog.md](references/script-patterns-catalog.md) for the standard patterns.
 

@@ -224,12 +224,12 @@ def test_detect_query_domains_matches_inflected_forms() -> None:
     [("testing", "test"), ("tests", "test"), ("files", "file"), ("processes", "process")],
 )
 def test_stems_link_inflected_forms(a: str, b: str) -> None:
-    assert triage._stems(a) & triage._stems(b)
+    assert triage.stem_forms(a) & triage.stem_forms(b)
 
 
 def test_stems_keep_short_words_intact() -> None:
-    assert triage._stems("is") == {"is"}
-    assert "ne" not in triage._stems("need")
+    assert triage.stem_forms("is") == {"is"}
+    assert "ne" not in triage.stem_forms("need")
 
 
 # ---------------------------------------------------------------------------
