@@ -144,7 +144,8 @@ One optimization step:
    byte-identical incumbent into `null_results.json` now (see Before
    promotion, step 2).
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
-   cosine-decayed cap on atomic patches this step.
+   cosine-decayed cap on atomic patches this step. T is 0-based, from 0 to
+   N-1; `--step N` exits 2 with `out of range`.
 3. **Reflect.** Failures become corrective rules; successes become behaviors
    to preserve. Write at most L_t patches to `patches.json`. Use only `train`
    evidence.

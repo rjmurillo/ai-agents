@@ -109,6 +109,13 @@ def test_skill_md_documents_every_verdict_and_boundary() -> None:
     assert "SOUL.md" not in text
 
 
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_skill_md_budget_step_documents_zero_based_indexing(root: str) -> None:
+    text = " ".join(_skill_md(root).split())
+    assert "`skillopt.py budget --step T --total N`" in text
+    assert "T is 0-based, from 0 to N-1" in text
+
+
 def test_skill_md_invocations_use_plugin_root_python3() -> None:
     text = _skill_md()
     prefix = (
