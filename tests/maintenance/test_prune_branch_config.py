@@ -260,6 +260,35 @@ class TestPrune:
         assert not backup.is_symlink()
         assert backup.read_bytes() == config.read_bytes()
 
+    def test_backup_is_a_byte_copy_of_config_with_lf_and_ctrl_z(self, repo: Path) -> None:
+        """No symlink, so this runs on Windows, where text mode would rewrite LF (#6506)."""
+        config = resolve_config_path(repo)
+        config.write_bytes(b"[core]\n\tbare = false\n\x1a\n[user]\n\tname = x\n")
+
+        backup = mod._backup_config(config)
+
+        assert backup.read_bytes() == config.read_bytes()
+        assert b"\r" not in backup.read_bytes()
+
+    def test_backup_open_requests_binary_mode_when_the_platform_has_it(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        o_binary = 0x8000
+        real_open = mod.os.open
+        seen: list[int] = []
+
+        def recording_open(path: Path, flags: int, mode: int = 0o777) -> int:
+            seen.append(flags)
+            return real_open(path, flags & ~o_binary, mode)
+
+        monkeypatch.setattr(mod.os, "O_BINARY", o_binary, raising=False)
+        monkeypatch.setattr(mod.os, "open", recording_open)
+
+        mod._backup_config(resolve_config_path(repo))
+
+        assert seen
+        assert all(flags & o_binary for flags in seen)
+
     def test_backup_does_not_overwrite_a_symlink_to_an_existing_file(
         self, repo: Path, tmp_path: Path
     ) -> None:

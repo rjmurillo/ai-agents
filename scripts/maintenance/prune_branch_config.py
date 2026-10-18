@@ -198,9 +198,15 @@ def _backup_config(config_path: Path) -> Path:
     for suffix in range(1000):
         backup = base if suffix == 0 else base.with_name(f"{base.name}.{suffix}")
         try:
+            # O_BINARY (Windows only) stops CRT text mode from turning LF into
+            # CRLF, so the backup stays a byte copy of the config.
             fd = os.open(
                 backup,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_BINARY", 0),
                 0o600,
             )
         except FileExistsError:
