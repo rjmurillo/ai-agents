@@ -69,6 +69,7 @@ def test_path_based_import_removes_temporary_sibling_import_path(
         [entry for entry in sys.path if entry != script_dir],
     )
     for module_name in [
+        "scan_bash_heredoc",
         "scan_bash_lexer",
         "scan_constants",
         "scan_format",
@@ -572,6 +573,70 @@ def test_scan_file_does_not_flag_quoted_heredoc_body(tmp_path: Path, opener: str
     assert _unquoted_lines(tmp_path, body) == []
 
 
+@pytest.mark.parametrize(
+    "opener",
+    [
+        "bash <<'EOF'",
+        'bash <<"EOF"',
+        "sh -s <<\\EOF",
+        "ssh host bash <<'EOF'",
+        "ssh host <<'EOF'",
+        "sudo -u deploy /bin/bash -s <<'EOF'",
+        "zsh <<-'EOF'",
+        "cat <<'EOF' | bash",
+        "cat <<'EOF' | sh -s",
+        "cat <<'EOF' | ssh host",
+        "source /dev/stdin <<'EOF'",
+        "eval $(cat <<'EOF'",
+        "bash -c $(cat <<'EOF'",
+    ],
+)
+def test_scan_file_flags_quoted_heredoc_body_that_a_shell_runs(tmp_path: Path, opener: str) -> None:
+    """A quoted delimiter stops the outer shell only. The reading shell expands the body."""
+    body = f"{opener}\nmv $target /x\nEOF\n)\n"
+    assert 2 in _unquoted_lines(tmp_path, body)
+
+
+@pytest.mark.parametrize(
+    "opener",
+    [
+        "cat <<'EOF'",
+        "python3 - <<'EOF'",
+        "cat <<'EOF' > install.sh",
+        "cat <<'EOF' > /etc/bashrc.d/x",
+        "cat <<'EOF' | grep -c 'bash'",
+        "echo 'run with bash' && cat <<'EOF'",
+        "cat <<'EOF' | sed 's/sh/x/'",
+        "read -r -d '' msg <<'EOF'",
+    ],
+)
+def test_scan_file_still_blanks_quoted_heredoc_body_no_shell_reads(
+    tmp_path: Path, opener: str
+) -> None:
+    body = f"{opener}\nmv $target /x\nEOF\n"
+    assert _unquoted_lines(tmp_path, body) == []
+
+
+def test_scan_file_shell_fed_quoted_heredoc_ends_at_terminator(tmp_path: Path) -> None:
+    body = "bash <<'EOF'\nmv $a /x\nEOF\nmv $b /y\n"
+    assert _unquoted_lines(tmp_path, body) == [2, 4]
+
+
+def test_scan_file_shell_fed_quoted_heredoc_apostrophe_does_not_hide_later_code(
+    tmp_path: Path,
+) -> None:
+    """An apostrophe in a shell-fed body fails open instead of opening a quote."""
+    body = "ssh host bash <<'EOF'\necho what's up\nEOF\nmv $t /y\n"
+    assert _unquoted_lines(tmp_path, body) == [4]
+
+
+def test_scan_file_shell_fed_and_text_heredocs_on_one_line_are_both_scanned(
+    tmp_path: Path,
+) -> None:
+    body = "bash <<'A' <<'B'\nrm $one\nA\nrm $two\nB\nrm $after\n"
+    assert _unquoted_lines(tmp_path, body) == [2, 4, 6]
+
+
 def test_scan_file_quoted_heredoc_with_dash_strips_leading_tabs_from_terminator(
     tmp_path: Path,
 ) -> None:
@@ -980,6 +1045,38 @@ def test_scan_file_case_patterns_inside_substitutions(
 def test_bash_scrub_lines_case_in_substitution_keeps_body_visible() -> None:
     lines = ['out="$(case "$m" in\n', "  fast) rm -rf $target ;;\n", 'esac)"\n']
     assert scanner.scrub_bash_lines(lines)[1] == lines[1]
+
+
+@pytest.mark.parametrize(
+    ("text", "flagged"),
+    [
+        ('x="$(case $a in a) echo esac;; b) mv $t /y;; esac)"\n', [1]),
+        ('x="$(case $a in\n a) echo esac ;;\n b) mv $t /y ;;\nesac)"\n', [1, 3]),
+        ('x="$(case $a in esac) mv $t /y ;; esac)"\n', [1]),
+    ],
+)
+def test_scan_file_esac_as_argument_in_case_body_keeps_later_arms_visible(
+    tmp_path: Path, text: str, flagged: list[int]
+) -> None:
+    """`esac` as an argument or pattern must not close the case frame early."""
+    assert _unquoted_lines(tmp_path, text) == flagged
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'x="$(case $a in a) echo hi;; esac)"\n',
+        'x="$(case $a in a) echo hi; esac)"\n',
+        'x="$(case $a in a) echo hi\nesac)"\n',
+        'x="$(case $a in a) esac)"\n',
+        'x="$(case $a in a) echo hi;;esac)"\n',
+    ],
+)
+def test_bash_scrub_lines_esac_in_command_position_still_closes_case(text: str) -> None:
+    """A real `esac` closes the frame, so the trailing `)` ends the substitution."""
+    lines = text.splitlines(keepends=True) + ['y="a\n', 'b $z"\n']
+    out = scanner.scrub_bash_lines(lines)
+    assert "$z" not in "".join(out)
 
 
 def test_bash_scrub_case_esac_requires_command_position() -> None:

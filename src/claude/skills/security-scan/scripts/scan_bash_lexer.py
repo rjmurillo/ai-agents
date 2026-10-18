@@ -9,7 +9,8 @@ unquoted expansion: comments, quoted spans, and quoted here-document bodies.
 import re
 from collections import deque
 from collections.abc import Sequence
-from dataclasses import dataclass
+
+from scan_bash_heredoc import Heredoc, begin_heredoc, is_terminator, mark_shell_fed
 
 # Bash lexer modes. A stack of these tracks quote and substitution nesting.
 _MODE_SINGLE = "single"
@@ -189,13 +190,17 @@ _COMMAND_POSITION_RE = re.compile(r"(?:^|[;&|({!)]|(?:^|\s)(?:then|do|else|elif|
 
 
 def _keyword_at(line: str, i: int, word: str, closers: str) -> bool:
-    """True when keyword `word` stands alone at `i`; `case` needs command position."""
+    """True when keyword `word` stands alone at `i` in command position.
+
+    `echo esac` inside a case body is an argument, not the closer, so `esac`
+    needs the same command position as `case`.
+    """
     end = i + len(word)
     if not line.startswith(word, i) or not _starts_word(line, i):
         return False
     if not (end == len(line) or line[end].isspace() or line[end] in closers):
         return False
-    return word == "esac" or _COMMAND_POSITION_RE.search(line[:i]) is not None
+    return _COMMAND_POSITION_RE.search(line[:i]) is not None
 
 
 def _step_case_keyword(line: str, i: int, out: list[str], stack: list[str]) -> int:
@@ -357,45 +362,8 @@ _STEPS = {
 # Modes whose text runs as shell commands, where a here-document opener is real.
 _SHELL_TEXT_MODES = (_MODE_SUB, _MODE_GROUP, _MODE_TICK, _MODE_CASE)
 
-# A here-document opener: `<<`, optional `-`, then the delimiter word. Groups
-# 2 to 4 are the quoted forms ('X', "X", \X); group 5 is a bare word.
-# A bare word is any run of non-metacharacters, so `<<!`, `<<1`, and `1<<2` are
-# openers, as in bash. Arithmetic shifts are screened out by the lexer mode.
-_HEREDOC_RE = re.compile(
-    r"<<(-?)[ \t]*(?:'([^']*)'|\"([^\"]*)\"|\\([^\s;|&<>()'\"\\$`]+)"
-    r"|([^\s;|&<>()'\"\\$`]+))"
-)
 
-
-@dataclass(frozen=True, slots=True)
-class _Heredoc:
-    """One pending here-document: where its body ends and whether it expands."""
-
-    delimiter: str
-    strip_tabs: bool
-    quoted: bool
-
-
-def _begin_heredoc(line: str, i: int, out: list[str], pending: deque[_Heredoc]) -> int:
-    """Consume `<<` at `i`; queue a here-document when a delimiter word follows.
-
-    `<<<` is a here-string, not a here-document. The delimiter word itself is
-    left for the normal lexer, which handles its quotes.
-    """
-    if line.startswith("<<<", i):
-        out.append("<<<")
-        return i + 3
-    match = _HEREDOC_RE.match(line, i)
-    if match:
-        dash, single, double, escaped, bare = match.groups()
-        quoted = single is not None or double is not None or escaped is not None
-        word = next(w for w in (single, double, escaped, bare) if w is not None)
-        pending.append(_Heredoc(word, dash == "-", quoted))
-    out.append("<<")
-    return i + 2
-
-
-def _lex_line(line: str, stack: list[str], pending: deque[_Heredoc]) -> str:
+def _lex_line(line: str, stack: list[str], pending: deque[Heredoc]) -> str:
     """Scrub one line, updating the quote `stack` and queueing here-documents.
 
     Here-document openers are recognised in shell text, at top level or inside
@@ -406,7 +374,7 @@ def _lex_line(line: str, stack: list[str], pending: deque[_Heredoc]) -> str:
     i = 0
     while i < len(line):
         if (not stack or stack[-1] in _SHELL_TEXT_MODES) and line.startswith("<<", i):
-            i = _begin_heredoc(line, i, out, pending)
+            i = begin_heredoc(line, i, out, pending)
             continue
         step = _STEPS[stack[-1]] if stack else _step_command
         i = step(line, i, out, stack)
@@ -432,17 +400,9 @@ def scrub_bash_line(line: str) -> str:
     return line if stack else text
 
 
-def _is_terminator(line: str, heredoc: _Heredoc) -> bool:
-    """A body ends at a line equal to the delimiter. Trailing blanks do not match."""
-    text = line.rstrip("\n")
-    if heredoc.strip_tabs:
-        text = text.lstrip("\t")
-    return text == heredoc.delimiter
-
-
-def _scrub_heredoc_body(line: str, heredoc: _Heredoc) -> str:
-    """Blank a quoted-delimiter body line, which never expands. Else scrub per line."""
-    if heredoc.quoted and not _is_terminator(line, heredoc):
+def _scrub_heredoc_body(line: str, heredoc: Heredoc) -> str:
+    """Blank an inert body line (quoted delimiter, no shell reader). Else scrub per line."""
+    if heredoc.inert and not is_terminator(line, heredoc):
         body = line.rstrip("\n")
         return " " * len(body) + line[len(body) :]
     return scrub_bash_line(line)
@@ -454,8 +414,13 @@ def scrub_bash_lines(lines: Sequence[str]) -> list[str]:
     Same rules as `scrub_bash_line`, plus two things a single line cannot see.
     The interior of a multi-line quoted string is blanked on every line it
     spans. The body of a here-document with a quoted delimiter (`<<'X'`,
-    `<<"X"`, `<<\\X`) is blanked, since it never expands. The body of an
-    unquoted-delimiter here-document is scrubbed one line at a time, as before.
+    `<<"X"`, `<<\\X`) is blanked, since the outer shell never expands it. That
+    holds only when the body is text. If the opener line sends the body to a
+    shell (`bash <<'X'`, `ssh host bash <<'X'`, `<<'X' | sh`, `eval`,
+    `source /dev/stdin`), the body is code and is scrubbed one line at a time.
+    The body of an unquoted-delimiter here-document is scrubbed one line at a
+    time, as before. A reader on a later line (`<<'X' |` then `bash`) is not
+    seen, so that body stays blanked.
 
     It fails open only on unresolved state. If a quote or here-document is still
     open at end of file, every line from where it opened is scrubbed with
@@ -468,21 +433,22 @@ def scrub_bash_lines(lines: Sequence[str]) -> list[str]:
     """
     result: list[str] = []
     stack: list[str] = []
-    queue: deque[_Heredoc] = deque()
-    active: _Heredoc | None = None
+    queue: deque[Heredoc] = deque()
+    active: Heredoc | None = None
     quote_from: int | None = None
     body_from: int | None = None
     for index, line in enumerate(lines):
         if active is not None:
             result.append(_scrub_heredoc_body(line, active))
-            if _is_terminator(line, active):
+            if is_terminator(line, active):
                 active = queue.popleft() if queue else None
                 if active is None:
                     body_from = None
             continue
         was_open = bool(stack)
-        pending: deque[_Heredoc] = deque()
+        pending: deque[Heredoc] = deque()
         result.append(_lex_line(line, stack, pending))
+        pending = mark_shell_fed(pending, result[-1])
         if not stack:
             quote_from = None
         elif not was_open:
