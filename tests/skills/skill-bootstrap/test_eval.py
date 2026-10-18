@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from bootstrap_helpers import symlink_or_skip
 
 _SCRIPTS = (
     Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skill-bootstrap" / "scripts"
@@ -520,7 +521,40 @@ def test_freeze_reports_a_denied_write_as_exit_three(
     )  # fmt: skip
 
     assert code == 3
+    assert payload["error"] == "external"
     assert "denied" in payload["message"]
+
+
+def test_freeze_refuses_a_dangling_symlink_that_appears_after_the_check(
+    capsys: Capsys, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
+    out = tmp_path / "f.json"
+    monkeypatch.setattr(
+        bootstrap_eval, "_check_out_path", lambda *_: symlink_or_skip(out, tmp_path / "gone")
+    )
+
+    code, payload = run(
+        capsys, "freeze", "--cases", str(cases_file), "--out", str(out), "--allow-in-repo"
+    )
+
+    assert code == 2
+    assert payload["error"] == "config"
+
+
+def test_freeze_reports_git_that_cannot_start_as_exit_three(
+    capsys: Capsys, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def not_executable(*_args: Any, **_kwargs: Any) -> None:
+        raise PermissionError("git")
+
+    monkeypatch.setattr(bootstrap_eval.subprocess, "run", not_executable)
+    cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
+
+    code, payload = run(capsys, "freeze", "--cases", str(cases_file), "--out", str(tmp_path / "f"))
+
+    assert code == 3
+    assert payload["error"] == "external"
 
 
 def test_unexpected_os_error_is_exit_two(capsys: Capsys, monkeypatch: pytest.MonkeyPatch) -> None:

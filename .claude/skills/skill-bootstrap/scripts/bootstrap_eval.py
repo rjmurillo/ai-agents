@@ -276,6 +276,8 @@ def _search_with_deadline(pattern: str, ignore_case: bool, output: str) -> bool 
             timeout=REGEX_TIMEOUT_S,
             check=False,
         )
+    except OSError as exc:
+        raise ExternalError(f"regex grader child could not start: {exc}") from exc
     except subprocess.TimeoutExpired:
         print(f"warning: regex timed out after {REGEX_TIMEOUT_S} s: {pattern!r}", file=sys.stderr)
         return None
@@ -428,6 +430,8 @@ def enclosing_repo(directory: Path) -> Path | None:
         raise ExternalError("git is not on PATH, so the in-repo check cannot run") from exc
     except subprocess.TimeoutExpired as exc:
         raise ExternalError(f"git rev-parse timed out after {GIT_TIMEOUT_S} s for {probe}") from exc
+    except OSError as exc:
+        raise ExternalError(f"git could not run for {probe}: {exc}") from exc
     if proc.returncode == 0:
         return Path(proc.stdout.strip()).resolve()
     if NOT_A_REPO in proc.stderr.lower():
@@ -435,9 +439,17 @@ def enclosing_repo(directory: Path) -> Path | None:
     raise ExternalError(f"git rev-parse failed for {probe}: {proc.stderr.strip()}")
 
 
+def _occupied(out: Path) -> ConfigError | None:
+    """A refusal when `out` exists, counting a dangling symlink as present."""
+    if out.is_symlink() or out.exists():
+        return ConfigError(f"{out} already exists; a frozen file is immutable, pick a new path")
+    return None
+
+
 def _check_out_path(out: Path, allow_in_repo: bool) -> None:
-    if out.exists():
-        raise ConfigError(f"{out} already exists; a frozen file is immutable, pick a new path")
+    refusal = _occupied(out)
+    if refusal is not None:
+        raise refusal
     repo = None if allow_in_repo else enclosing_repo(out.parent)
     if repo is not None:
         raise ConfigError(
@@ -464,8 +476,9 @@ def freeze(args: argparse.Namespace) -> tuple[int, Payload]:
         with out.open("x", encoding="utf-8") as handle:
             handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
     except FileExistsError as exc:
-        if out.exists():
-            raise ConfigError(f"{out} already exists; a frozen file is immutable") from exc
+        refusal = _occupied(out)
+        if refusal is not None:
+            raise refusal from exc
         raise ExternalError(f"cannot write {out}: {exc}") from exc
     except OSError as exc:
         raise ExternalError(f"cannot write {out}: {exc}") from exc

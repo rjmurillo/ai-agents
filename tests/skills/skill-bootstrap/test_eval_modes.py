@@ -166,6 +166,17 @@ def test_regex_match_and_miss_through_child_process():
     assert grade("xxAA") is False
 
 
+def test_regex_child_that_cannot_start_is_an_external_error(monkeypatch):
+    def cannot_start(*_args, **_kwargs):
+        raise OSError("exec format error")
+
+    grade = bootstrap_eval.compile_grader({"kind": "regex", "pattern": "a"})
+    monkeypatch.setattr(bootstrap_eval.subprocess, "run", cannot_start)
+
+    with pytest.raises(bootstrap_eval.ExternalError, match="could not start"):
+        grade("a")
+
+
 def test_regex_child_failure_is_an_external_error(monkeypatch):
     monkeypatch.setattr(bootstrap_eval, "REGEX_CHILD", "raise SystemExit(3)")
     grade = bootstrap_eval.compile_grader({"kind": "regex", "pattern": "a"})
