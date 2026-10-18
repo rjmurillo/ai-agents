@@ -777,7 +777,7 @@ If ANY checklist item cannot be completed:
 
 1. **Do not handoff** incomplete work
 2. **Complete missing items** - run tests, document results, save report
-3. **Document blockers** - if items truly cannot be completed, explain why
+3. **Document blockers** - explain why an item cannot be completed
 
 ## Handoff Protocol
 
@@ -788,7 +788,7 @@ When QA is complete:
 1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
-   - **QA COMPLETE**: "Tests: [command run], [passed]/[total] passed. Ready for user validation." Say it only when no suite is `NOT RUN` (not attempted) or `UNAVAILABLE` (tools cannot run it). Otherwise report "Gap: [suite] [NOT RUN|UNAVAILABLE], [reason]." with no readiness claim, and recommend the orchestrator route it as an infrastructure need or a failure.
+   - **QA COMPLETE**: "Tests: [cmd], [passed]/[total] passed. Ready for user validation." Only if no suite is `NOT RUN`/`UNAVAILABLE`; else `[BLOCKED] Cannot evaluate: <suite>`.
    - **QA FAILED**: "Tests failed. Recommend orchestrator routes to implementer with these failures: [list]"
 
 ## Execution Mindset

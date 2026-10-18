@@ -173,10 +173,10 @@ def test_qa_ready_claim_requires_no_unrun_suite(surface: Path) -> None:
     assert len(complete) == 1
     line = complete[0]
     assert READY_PHRASE in line
-    assert "only when no suite is `NOT RUN`" in line
-    assert "`UNAVAILABLE`" in line
-    assert "Gap: [suite] [NOT RUN|UNAVAILABLE]" in line
-    assert "no readiness claim" in line
+    assert "Only if no suite is `NOT RUN`/`UNAVAILABLE`" in line
+    assert "`[BLOCKED] Cannot evaluate: <suite>`" in line
+    # The readiness phrase must precede the condition, never follow the BLOCKED branch.
+    assert line.index(READY_PHRASE) < line.index("Only if")
 
 
 @pytest.mark.parametrize("surface", [*QA_SURFACES, QA_DEGRADED_PARTIAL])
