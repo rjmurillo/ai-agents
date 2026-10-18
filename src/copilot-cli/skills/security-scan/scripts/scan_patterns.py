@@ -22,8 +22,10 @@ _MODE_SINGLE = "single"
 _MODE_DOUBLE = "double"
 _MODE_ANSI = "ansi"
 _MODE_SUB = "sub"
+_MODE_GROUP = "group"
 _MODE_TICK = "tick"
 _MODE_ARITH = "arith"
+_MODE_CMD_ARITH = "cmdarith"
 _MODE_PARAM = "param"
 
 
@@ -33,7 +35,12 @@ def _blank_run(line: str, i: int, width: int = 1) -> str:
 
 
 # Characters after which a word, and so a `#` comment, can begin without whitespace.
-_COMMENT_LEADERS = frozenset(";&|()<>")
+# `)` is not here: it ends a word only when it closes a subshell, a `((` command,
+# or a case pattern. `_close_paren` and `_step_arith` decide that.
+_COMMENT_LEADERS = frozenset(";&|(<>")
+
+# Characters that make a following `(` part of a word: `$(`, `name=(`, `<(`, `>(`.
+_WORD_PAREN_PREFIXES = "$=<>"
 
 
 def _is_escaped(line: str, i: int) -> bool:
@@ -45,11 +52,13 @@ def _is_escaped(line: str, i: int) -> bool:
 
 
 def _starts_comment(line: str, i: int) -> bool:
-    """A `#` starts a comment at line start, after whitespace, or after `;&|()<>`.
+    """A `#` starts a comment at line start, after whitespace, or after `;&|(<>`.
 
-    Bash begins a word after a metacharacter, so `cd /tmp;# note` and
-    `x=$(ls)# note` carry comments. An escaped metacharacter does not end the
-    word. `$#`, `${#x}`, and `a#b` stay out of the comment path.
+    Bash begins a word after a metacharacter, so `cd /tmp;# note` carries a
+    comment. An escaped metacharacter does not end the word. `$#`, `${#x}`, and
+    `a#b` stay out of the comment path. A `#` after `)` is decided where the
+    `)` closes (`_close_paren`, `_step_arith`): `(cd /tmp)# note` carries a
+    comment, but `$(ls)#x` and `$((1))#x` do not, since the `#` joins the word.
     """
     if line[i] != "#":
         return False
@@ -116,6 +125,27 @@ def _open_dollar_form(line: str, i: int, out: list[str], stack: list[str]) -> in
     return 0
 
 
+def _close_paren(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume `)` at `i`. A `#` right after it is a comment only when the word ended.
+
+    The word ends after a bare `(...)` subshell and after a `)` with no opener on
+    the stack (a case pattern). It continues after `$(...)`, `name=(...)`, and
+    `<(...)`, so `echo $(date)#$y` still expands `$y`.
+    """
+    closed = _MODE_GROUP
+    if stack and stack[-1] in (_MODE_SUB, _MODE_GROUP):
+        closed = stack.pop()
+    out.append(")")
+    if closed == _MODE_GROUP and line.startswith("#", i + 1):
+        return len(line)
+    return i + 1
+
+
+def _joins_word(line: str, i: int) -> bool:
+    """True when the `(` at `i` is part of a word: `$(`, `name=(`, `<(`, or `>(`."""
+    return i > 0 and line[i - 1] in _WORD_PAREN_PREFIXES and not _is_escaped(line, i - 1)
+
+
 def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
     """Consume one character of unquoted shell text or a substitution body."""
     ch = line[i]
@@ -134,22 +164,29 @@ def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
     elif ch == '"':
         stack.append(_MODE_DOUBLE)
     elif line.startswith("((", i):
-        stack.append(_MODE_ARITH)
+        joins_word = i > 0 and line[i - 1] == "$" and not _is_escaped(line, i - 1)
+        stack.append(_MODE_ARITH if joins_word else _MODE_CMD_ARITH)
         out.append("((")
         return i + 2
     elif ch == "(":
-        stack.append(_MODE_SUB)
-    elif ch == ")" and stack and stack[-1] == _MODE_SUB:
-        stack.pop()
+        stack.append(_MODE_SUB if _joins_word(line, i) else _MODE_GROUP)
+    elif ch == ")":
+        return _close_paren(line, i, out, stack)
     out.append(ch)
     return i + 1
 
 
 def _step_arith(line: str, i: int, out: list[str], stack: list[str]) -> int:
-    """Consume inside `((...))` or `$((...))`. Only `))` closes it; else it is shell text."""
+    """Consume inside `((...))` or `$((...))`. Only `))` closes it; else it is shell text.
+
+    A `#` right after the `))` of a `((...))` command is a comment. After the
+    `))` of `$((...))` it is part of the word.
+    """
     if line.startswith("))", i):
-        stack.pop()
+        closed = stack.pop()
         out.append("))")
+        if closed == _MODE_CMD_ARITH and line.startswith("#", i + 2):
+            return len(line)
         return i + 2
     return _step_command(line, i, out, stack)
 
@@ -184,14 +221,16 @@ _STEPS = {
     _MODE_ANSI: _step_ansi,
     _MODE_DOUBLE: _step_double,
     _MODE_SUB: _step_command,
+    _MODE_GROUP: _step_command,
     _MODE_TICK: _step_command,
     _MODE_ARITH: _step_arith,
+    _MODE_CMD_ARITH: _step_arith,
     _MODE_PARAM: _step_param,
 }
 
 
 # Modes whose text runs as shell commands, where a here-document opener is real.
-_SHELL_TEXT_MODES = (_MODE_SUB, _MODE_TICK)
+_SHELL_TEXT_MODES = (_MODE_SUB, _MODE_GROUP, _MODE_TICK)
 
 # A here-document opener: `<<`, optional `-`, then the delimiter word. Groups
 # 2 to 4 are the quoted forms ('X', "X", \X); group 5 is a bare word.

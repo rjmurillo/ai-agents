@@ -678,7 +678,8 @@ def test_scan_file_digit_delimiter_body_keeps_per_line_scan(tmp_path: Path) -> N
     "first",
     [
         "cd /tmp;# don't care",
-        "x=$(ls)# it's",
+        "(cd /tmp)# it's",
+        "(( 1 ))# it's",
         "ls |# it's",
         "sleep 1 &# it's",
         "ls;;# it's",
@@ -693,12 +694,61 @@ def test_scan_file_comment_after_metacharacter_does_not_open_a_quote(
     assert _unquoted_lines(tmp_path, body) == [2]
 
 
+@pytest.mark.parametrize("first", ["x=$(ls)# it's", "echo $((1))# it's", "arr=(a)# it's"])
+def test_scan_file_hash_joining_a_word_leaves_the_apostrophe_a_real_quote(
+    tmp_path: Path, first: str
+) -> None:
+    """After `$(...)`, `$((...))`, or `name=(...)` the `#` is part of the word, so
+    bash reads the apostrophe as a real quote that runs to line 3. Line 2 is
+    inside that quote and is not an unquoted expansion."""
+    body = f"{first}\nrm -rf $danger\n# it's fine\n"
+    assert _unquoted_lines(tmp_path, body) == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "echo $(date)#$y",
+        "echo $((1))#$y",
+        "arr=(a)#$y",
+        "cat <(ls)#$y",
+        "tee >(cat)#$y",
+        "echo $(echo $((1)))#$y",
+    ],
+)
+def test_bash_scrub_hash_after_word_paren_keeps_expansion_visible(line: str) -> None:
+    """Bash joins the `#` to the word here, so `$y` expands and must stay flagged."""
+    assert "$y" in scanner.scrub_bash_line(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "(echo a)#$y",
+        "( cd /tmp )#$y",
+        "(( 1 ))#$y",
+        "echo ok; (echo a)#$y",
+        "case $x in a)#$y",
+    ],
+)
+def test_bash_scrub_hash_after_subshell_close_is_a_comment(line: str) -> None:
+    """A subshell, a `((` command, and a case pattern end the word, so `#` starts a comment."""
+    assert "$y" not in scanner.scrub_bash_line(line)
+
+
+@pytest.mark.parametrize("line", ["echo $(date)#$y", "echo $((1))#$y", "arr=(a)#$y"])
+def test_scan_file_flags_expansion_after_word_paren_hash(tmp_path: Path, line: str) -> None:
+    assert _unquoted_lines(tmp_path, f"{line}\n") == [1]
+
+
 @pytest.mark.parametrize(
     ("line", "visible"),
     [
         # `#` after a metacharacter hides the rest of the line.
         ("ls;# $a", False),
-        ("x=$(ls)# $a", False),
+        ("(ls)# $a", False),
+        # `#` after `$(...)` joins the word, so the variable expands.
+        ("x=$(ls)# $a", True),
         ("a|# $a", False),
         ("a&# $a", False),
         # An escaped backslash leaves the `;` live, so the comment still starts.
