@@ -101,8 +101,13 @@ Sources scanned (`build_skill_sources()` in `discover_skills.py`):
 | `extra-N` | Each `--extra-root PATH` (repeatable) |
 | `env-extra-N` | Each entry of `SKILLFORGE_EXTRA_ROOTS`, split on the OS path separator |
 
-A skill reached through two roots is indexed once. A missing root adds a warning
-and the scan continues. The script exits 3 only when every source is missing.
+A skill reached through two roots is indexed once. A skill name found in several
+roots is indexed once too: the root with the lowest priority number wins (the
+table above lists roots in rank order), and the hidden copies are recorded in
+the entry's `shadowed_paths`. A missing root adds a warning and the scan
+continues. The script exits 3 only when every source is missing and no skill is
+found. The folder that holds SkillForge is always a source, so the CLI does not
+reach exit 3 while that folder exists.
 
 ### Integration with Phases 1-4
 

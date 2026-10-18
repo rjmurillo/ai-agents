@@ -203,6 +203,96 @@ class TestDiscoverSkills:
         assert [s["name"] for s in result.data["skills"]].count("dup") == 1
         assert result.data["total_count"] == 1
 
+    def test_same_name_in_two_roots_keeps_higher_ranked_source(
+        self, fake_script: Path, tmp_path: Path
+    ) -> None:
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        winner = _write_skill(first, "dup")
+        loser = _write_skill(second, "dup")
+        sources = ds.build_skill_sources(
+            extra_roots=[first, second], env={}, script_path=fake_script
+        )
+        result = ds.discover_skills(sources=sources)
+        entries = [s for s in result.data["skills"] if s["name"] == "dup"]
+        assert len(entries) == 1
+        assert entries[0]["source"] == "extra-1"
+        assert entries[0]["path"] == str(winner)
+        assert entries[0]["shadowed_paths"] == [str(loser)]
+        assert result.data["domains"]["general"].count("dup") == 1
+
+    def test_reversed_root_order_flips_the_winner(self, fake_script: Path, tmp_path: Path) -> None:
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        _write_skill(first, "dup")
+        winner = _write_skill(second, "dup")
+        sources = ds.build_skill_sources(
+            extra_roots=[second, first], env={}, script_path=fake_script
+        )
+        result = ds.discover_skills(sources=sources)
+        entries = [s for s in result.data["skills"] if s["name"] == "dup"]
+        assert [e["path"] for e in entries] == [str(winner)]
+
+    def test_fixed_source_beats_runtime_root_with_same_name(
+        self,
+        isolated_fixed_sources: None,
+        fake_script: Path,
+        tmp_path: Path,
+    ) -> None:
+        custom = tmp_path / "home" / ".claude" / "skills"
+        winner = _write_skill(custom, "dup")
+        extra = tmp_path / "extra"
+        _write_skill(extra, "dup")
+        sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        entries = [s for s in result.data["skills"] if s["name"] == "dup"]
+        assert len(entries) == 1
+        assert entries[0]["source"] == "custom"
+        assert entries[0]["path"] == str(winner)
+
+    def test_name_match_ignores_case_and_whitespace(
+        self, fake_script: Path, tmp_path: Path
+    ) -> None:
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        _write_skill(first, "dup")
+        other = second / "other-folder"
+        other.mkdir(parents=True)
+        (other / "SKILL.md").write_text("---\nname: ' DUP '\ndescription: Same skill.\n---\n")
+        sources = ds.build_skill_sources(
+            extra_roots=[first, second], env={}, script_path=fake_script
+        )
+        result = ds.discover_skills(sources=sources)
+        names = [s["name"] for s in result.data["skills"] if s["name"].strip().lower() == "dup"]
+        assert names == ["dup"]
+
+    def test_distinct_names_are_not_deduped(self, fake_script: Path, tmp_path: Path) -> None:
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        _write_skill(first, "alpha")
+        _write_skill(second, "beta")
+        sources = ds.build_skill_sources(
+            extra_roots=[first, second], env={}, script_path=fake_script
+        )
+        result = ds.discover_skills(sources=sources)
+        by_name = {s["name"]: s for s in result.data["skills"]}
+        assert {"alpha", "beta"} <= set(by_name)
+        assert by_name["alpha"]["shadowed_paths"] == []
+        assert by_name["beta"]["shadowed_paths"] == []
+
+    def test_verbose_reports_shadowed_copy(
+        self, fake_script: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        _write_skill(first, "dup")
+        _write_skill(second, "dup")
+        sources = ds.build_skill_sources(
+            extra_roots=[first, second], env={}, script_path=fake_script
+        )
+        ds.discover_skills(verbose=True, sources=sources)
+        assert "Shadowed: dup (extra-2) by extra-1" in capsys.readouterr().err
+
     def test_lowercase_skill_md_is_found(self, fake_script: Path, tmp_path: Path) -> None:
         extra = tmp_path / "extra"
         _write_skill(extra, "lower", filename="skill.md")

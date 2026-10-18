@@ -10,6 +10,7 @@ Responsibilities:
 - Scan plugin-installed skills: CLAUDE_PLUGIN_ROOT, COPILOT_PLUGIN_ROOT, the
   skills folder that holds this script, --extra-root, SKILLFORGE_EXTRA_ROOTS
 - Extract skill metadata (name, triggers, keywords, domain)
+- Keep one entry per skill name, from the lowest-priority-number source
 - Build searchable JSON index for fast matching
 
 Usage:
@@ -21,7 +22,9 @@ Usage:
 Exit Codes:
     0  - Success
     1  - General failure
-    3  - Directory not found (every skill source is missing and no skill was found)
+    3  - Every skill source is missing and no skill was found. The folder that
+         holds this script is always a source, so the CLI does not reach this
+         code while that folder exists.
 """
 
 import argparse
@@ -458,6 +461,30 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
 # ===========================================================================
 
 
+def _dedupe_by_name(skills: list[dict[str, Any]], verbose: bool = False) -> list[dict[str, Any]]:
+    """Keep one entry per skill name: the one from the lowest priority number.
+
+    ``skills`` must already be sorted by priority. Each hidden copy's path is
+    recorded on the kept entry as ``shadowed_paths``, so one skill cannot fill
+    several recommendation slots in triage_skill_request.py.
+    """
+    kept: dict[str, dict[str, Any]] = {}
+    for skill in skills:
+        key = str(skill["name"]).strip().lower()
+        winner = kept.get(key)
+        if winner is None:
+            skill["shadowed_paths"] = []
+            kept[key] = skill
+            continue
+        winner["shadowed_paths"].append(skill["path"])
+        if verbose:
+            print(
+                f"  Shadowed: {skill['name']} ({skill['source']}) by {winner['source']}",
+                file=sys.stderr,
+            )
+    return list(kept.values())
+
+
 def discover_skills(
     verbose: bool = False, sources: Sequence[dict[str, Any]] | None = None
 ) -> Result:
@@ -510,8 +537,9 @@ def discover_skills(
             else:
                 warnings.append(f"Failed to parse: {skill_file}")
 
-    # Sort by priority (lower = higher priority)
-    skills.sort(key=lambda s: (s["priority"], s["name"]))
+    # Sort by priority (lower = higher priority), then keep one entry per skill name.
+    skills.sort(key=lambda s: (s["priority"], s["name"], s["path"]))
+    skills = _dedupe_by_name(skills, verbose)
 
     # Build domain index
     domain_index = {}
