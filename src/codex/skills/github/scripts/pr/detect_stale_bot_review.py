@@ -16,8 +16,11 @@ Verdicts in ``Data.verdict``:
 
     NO_BOT_CHANGES_REQUESTED  No bot holds an active CHANGES_REQUESTED review.
     NOT_READY                 A bot holds one, but a thread is unresolved, CI is
-                              not green, or the branch needs an update first.
-                              Finish that work; this is not a stale-review case.
+                              not green, the branch needs an update, or GitHub
+                              has not computed the merge state yet (UNKNOWN or
+                              missing). Finish that work, or wait and run this
+                              again for an unknown merge state. This is not a
+                              stale-review case.
     FRESH_CHANGES_REQUESTED   A bot review on the current head still requests
                               changes. Address its findings.
     REQUEST_REREVIEW          Stale review, PR ready, no re-review at head yet.
@@ -356,7 +359,10 @@ def _fetch_inputs(
             f"PR #{pr} head moved from {context.get('head_sha')} to {latest.get('head_sha')} "
             "while the inputs were fetched; run again"
         )
-    return context, checks.get("AllPassing") is True, reviews
+    # Return the recheck, not the first read: threads and merge state can change
+    # without a push, and the recheck is the freshest view of them. The head is
+    # identical in both reads, so the checks and reviews still describe it.
+    return latest, checks.get("AllPassing") is True, reviews
 
 
 def main(argv: list[str] | None = None) -> int:

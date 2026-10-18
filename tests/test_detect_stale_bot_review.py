@@ -370,6 +370,35 @@ class TestMain:
         assert envelope["Success"] is False
         assert "head moved" in envelope["Error"]["Message"]
 
+    def test_thread_opened_during_fetch_blocks_the_handoff(self, capsys):
+        """A thread opened without a push must show in the verdict, not the first read."""
+        contexts = [_pr(), _pr(review_thread_unresolved_count=1)]
+
+        def fake(script, args):
+            return {
+                "get_pr_context.py": lambda: (0, contexts.pop(0)),
+                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
+            }[script]()
+
+        assert _run_main(fake) == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["verdict"] == "NOT_READY"
+        assert data["handoff"] is None
+
+    def test_merge_state_lost_during_fetch_blocks_the_handoff(self, capsys):
+        contexts = [_pr(), _pr(merge_state_status="UNKNOWN")]
+
+        def fake(script, args):
+            return {
+                "get_pr_context.py": lambda: (0, contexts.pop(0)),
+                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
+            }[script]()
+
+        assert _run_main(fake) == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
+
     def test_head_recheck_failure_exits_3(self, capsys):
         contexts = [(0, _pr()), (3, None)]
 
