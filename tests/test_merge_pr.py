@@ -1666,11 +1666,18 @@ def _sha(number: int, salt: int = 0) -> str:
     return f"{number + salt * 1000:040x}"
 
 
-def _member(number: int, state: str = "open", salt: int = 0) -> dict:
+def _member(number: int, state: str = "open", salt: int = 0, merged: bool | None = None) -> dict:
+    """A stack listing entry. A ``closed`` member is merged unless ``merged=False``.
+
+    GitHub keeps a merged member listed with state ``closed`` and a ``merged_at``
+    (measured on stack #5472), so that is the default shape of a closed member.
+    """
+    is_merged = state == "closed" if merged is None else merged
     return {
         "number": number,
         "state": state,
         "draft": False,
+        "merged_at": "2026-09-02T03:48:13Z" if is_merged else None,
         "head": {"ref": f"branch-{number}", "sha": _sha(number, salt)},
     }
 
@@ -1847,6 +1854,50 @@ class TestAsyncMergeForStack:
         _run_stack(fake, capsys)
         # Only the target is gated; the merged member below it is not.
         assert fake.readiness_checked() == [50]
+
+    def test_readiness_gate_is_told_the_head_each_member_was_pinned_to(self, capsys):
+        fake = _StackGh(members=[_member(40), _member(50)])
+        _run_stack(fake, capsys)
+        gates = {
+            int(c[c.index("--pull-request") + 1]): c[c.index("--expected-head-sha") + 1]
+            for c in fake.calls
+            if c[0] == sys.executable
+        }
+        assert gates == {40: _sha(40), 50: _FIXTURE_HEAD}
+
+    def test_closed_member_without_merged_at_fails_closed(self, capsys):
+        fake = _StackGh(members=[_member(40, "closed", merged=False), _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert fake.readiness_checked() == []
+        message = json.dumps(env)
+        assert "#40" in message
+        assert "closed without being merged" in message
+
+    def test_closed_member_with_merged_at_is_skipped_by_the_gate(self, capsys):
+        fake = _StackGh(members=[_member(40, "closed", merged=True), _member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert fake.readiness_checked() == [50]
+
+    @pytest.mark.parametrize("merged_at", [7, True, ["2026-09-02"], {"a": 1}])
+    def test_member_with_a_mistyped_merged_at_fails_closed(self, capsys, merged_at):
+        member = _member(40, "closed")
+        member["merged_at"] = merged_at
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "merged_at" in json.dumps(env)
+
+    def test_closed_member_without_a_merged_at_key_fails_closed(self, capsys):
+        member = _member(40, "closed")
+        del member["merged_at"]
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert "closed without being merged" in json.dumps(env)
 
     def test_ready_open_downstack_member_is_checked_then_merge_proceeds(self, capsys):
         fake = _StackGh(members=[_member(40), _member(50), _member(60)])
@@ -2220,6 +2271,81 @@ class TestAsyncMergeForStack:
         fake = _StackGh(polls=[_completed(stdout=_async_body("pending"))])
         with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
             code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
+
+    def test_recovered_success_after_an_async_failure_names_the_script_gate(self, capsys):
+        """merge-async runs no branch protection, so the audit must not claim it."""
+        fake = _StackGh(polls=[_completed(stdout=_async_body("pending"))])
+        with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
+            code, env = _run_stack(fake, capsys)
+        assert code == 0
+        approval = env["Data"]["audit"]["approval"]
+        assert approval == _mod._APPROVAL_ASYNC
+        assert "branch protection" in approval
+        assert "evaluates no branch protection" in approval
+
+    def test_recovered_success_runs_the_post_merge_head_check(self, capsys):
+        """An async failure that the readback recovers must not skip the head check."""
+        fake = _StackGh(
+            polls=[_completed(stdout=_async_body("pending"))],
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40), _member(50)],
+                [_member(40, "closed", salt=1), _member(50, "closed")],
+            ],
+        )
+        with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
+            code, env = _run_stack(fake, capsys)
+        assert code == 3
+        message = json.dumps(env)
+        assert "#40" in message
+        assert "unreviewed" in message
+        assert env["Data"].get("state") != "MERGED"
+        assert env["Data"]["audit"]["approval"] == _mod._APPROVAL_ASYNC
+        assert env["Data"]["audit"]["result"] == "merged, post-merge check failed"
+
+    def test_recovered_success_with_unchanged_heads_stays_a_success(self, capsys):
+        fake = _StackGh(
+            polls=[_completed(stdout=_async_body("pending"))],
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40), _member(50)],
+                [_member(40, "closed"), _member(50, "closed")],
+            ],
+        )
+        with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
+            code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
+
+    def test_recovered_success_with_an_unreadable_post_merge_listing_is_not_success(self, capsys):
+        fake = _StackGh(
+            polls=[_completed(stdout=_async_body("pending"))],
+            members=[_member(40), _member(50)],
+        )
+        original_api = fake._api
+        reads = {"stacks": 0}
+
+        def flaky(cmd):
+            path = next(part for part in cmd if part.startswith("repos/"))
+            if "/stacks/" in path:
+                reads["stacks"] += 1
+                if reads["stacks"] >= 3:
+                    return _completed(rc=1, stderr="HTTP 502")
+            return original_api(cmd)
+
+        fake._api = flaky
+        with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
+            code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert "unverified" in json.dumps(env)
+
+    def test_failure_before_the_gate_pinned_anything_recovers_without_a_head_check(self, capsys):
+        """Nothing was gated, so there is no pin to compare; the old recovery stands."""
+        fake = _StackGh(put=subprocess.TimeoutExpired(["gh"], 60))
+        fake.listings = [[_member(40, "closed"), _member(50)]]
+        code, env = _run_stack(fake, capsys)
         assert code == 0
         assert env["Data"]["recovered"] is True
 
@@ -2634,6 +2760,16 @@ class TestAuditRecord:
         assert audit["result"] == "merged"
         assert audit["residual_risk"]
         assert "original_error" not in audit
+
+    def test_sync_rest_fallback_keeps_the_branch_protection_approval(self, capsys):
+        fake = _BlockedThenRest(rest=_completed(stdout=json.dumps({"merged": True})))
+        _, env = _run_main(fake, [], capsys)
+        assert env["Data"]["audit"]["approval"] == _mod._APPROVAL
+
+    def test_async_stack_merge_records_the_script_gate_as_approval(self, capsys):
+        _, env = _run_stack(_StackGh(), capsys)
+        assert env["Data"]["audit"]["approval"] == _mod._APPROVAL_ASYNC
+        assert env["Data"]["audit"]["approval"] != _mod._APPROVAL
 
     def test_error_envelope_carries_audit(self, capsys):
         _, env = _run_main(_FakeGh(readback=_OPEN_READBACK), [], capsys)

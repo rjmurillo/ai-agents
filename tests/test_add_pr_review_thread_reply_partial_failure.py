@@ -119,7 +119,7 @@ class TestReplyPostedReportedOnPartialFailure:
         assert out["Data"]["reason"] == "resolve_state_query_failed"
 
     def test_resolve_mutation_failure_reports_reply_posted(self, capsys):
-        rc, calls = _run([_UNRESOLVED, _UNRESOLVED], resolve_result=RuntimeError("boom"))
+        rc, calls = _run([_UNRESOLVED] * 3, resolve_result=RuntimeError("boom"))
 
         assert rc == 3
         assert calls == ["reply", "resolve"]
@@ -129,7 +129,7 @@ class TestReplyPostedReportedOnPartialFailure:
 
     def test_unconfirmed_resolve_reports_reply_posted(self, capsys):
         unconfirmed = {"resolveReviewThread": {"thread": {"id": "PRRT_abc", "isResolved": False}}}
-        rc, _ = _run([_UNRESOLVED, _UNRESOLVED], resolve_result=unconfirmed)
+        rc, _ = _run([_UNRESOLVED] * 3, resolve_result=unconfirmed)
 
         assert rc == 1
         data = _data(capsys)
@@ -188,7 +188,7 @@ class TestNoMutationReportsReplyNotPosted:
 class TestSuccessReportsBothFields:
     def test_resolve_success(self, capsys):
         resolved = {"resolveReviewThread": {"thread": {"id": "PRRT_abc", "isResolved": True}}}
-        rc, calls = _run([_UNRESOLVED, _UNRESOLVED], resolve_result=resolved)
+        rc, calls = _run([_UNRESOLVED] * 3, resolve_result=resolved)
 
         assert rc == 0
         assert calls == ["reply", "resolve"]
@@ -241,3 +241,123 @@ class TestArmedAutoMergeGuidance:
 
         assert "hand off" in bullet
         assert "Never resolve that thread outside this script" in bullet
+
+
+def _armed(**extra) -> dict:
+    return {
+        **_UNRESOLVED,
+        "pullRequest": {**_UNRESOLVED["pullRequest"], "autoMergeRequest": {"enabledAt": "t"}},
+        **extra,
+    }
+
+
+def _run_guarded(states, guard_results):
+    """Run main() with a guard returning ``guard_results`` in order; return rc and calls."""
+    calls: list[str] = []
+    queue = list(guard_results)
+    resolved = {"resolveReviewThread": {"thread": {"id": "PRRT_abc", "isResolved": True}}}
+
+    def fake_graphql(query: str, variables: dict):
+        if "addPullRequestReviewThreadReply" in query:
+            calls.append("reply")
+            return _REPLY_DATA
+        if "resolveReviewThread" in query:
+            calls.append("resolve")
+            return resolved
+        raise AssertionError(query[:80])
+
+    def fake_guard(thread_id: str, expected_identity=None) -> dict:
+        calls.append("guard")
+        outcome = queue.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    with (
+        patch.object(_mod, "assert_gh_authenticated"),
+        patch.object(_mod, "query_thread_state", side_effect=states),
+        patch.object(_mod, "guard_auto_merge_before_final_thread_resolution", fake_guard),
+        patch.object(_mod, "gh_graphql", side_effect=fake_graphql),
+    ):
+        try:
+            rc = main(_ARGS)
+        except SystemExit as exc:
+            rc = int(exc.code)
+    return rc, calls
+
+
+class TestAutoMergeArmedAfterTheGuardRead:
+    """Issue #6506: auto-merge armed after the guard read must be seen before the resolve."""
+
+    def test_armed_between_guard_and_resolve_runs_the_guard_again(self, capsys):
+        disabled = {"action": "DISABLED", "reason": "final_thread_would_unblock_armed_auto_merge"}
+        rc, calls = _run_guarded([_UNRESOLVED, _UNRESOLVED, _armed()], [_NOOP_GUARD, disabled])
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "guard", "resolve"]
+        guard = _data(capsys)["auto_merge_guard"]
+        assert guard["action"] == "DISABLED"
+        assert guard["armed_after_first_guard"] is True
+
+    def test_still_unarmed_at_the_last_read_guards_once(self, capsys):
+        rc, calls = _run_guarded([_UNRESOLVED, _UNRESOLVED, _UNRESOLVED], [_NOOP_GUARD])
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "resolve"]
+        assert "armed_after_first_guard" not in _data(capsys)["auto_merge_guard"]
+
+    def test_rearmed_after_a_disable_is_disabled_again(self, capsys):
+        disabled = {"action": "DISABLED", "reason": "final_thread_would_unblock_armed_auto_merge"}
+        rc, calls = _run_guarded([_UNRESOLVED, _UNRESOLVED, _armed()], [disabled, disabled])
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "guard", "resolve"]
+
+    def test_not_the_final_thread_skips_the_last_read(self):
+        """Resolving a thread that is not the last cannot unblock the merge; no extra read."""
+        not_final = {"action": "NOOP", "reason": "not_final_thread"}
+        rc, calls = _run_guarded([_UNRESOLVED, _UNRESOLVED], [not_final])
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "resolve"]
+
+    def test_last_read_failure_leaves_the_thread_unresolved(self, capsys):
+        rc, calls = _run_guarded(
+            [_UNRESOLVED, _UNRESOLVED, RuntimeError("rate limited")], [_NOOP_GUARD]
+        )
+
+        assert rc == 3
+        assert calls == ["reply", "guard"]
+        out = json.loads(capsys.readouterr().out)
+        _assert_posted_not_resolved(out["Data"])
+        assert out["Data"]["reason"] == "auto_merge_guard_failed"
+        assert "rate limited" in out["Error"]["Message"]
+
+    def test_second_guard_failure_leaves_the_thread_unresolved(self, capsys):
+        rc, calls = _run_guarded(
+            [_UNRESOLVED, _UNRESOLVED, _armed()],
+            [_NOOP_GUARD, RuntimeError("disable refused")],
+        )
+
+        assert rc == 3
+        assert calls == ["reply", "guard", "guard"]
+        assert json.loads(capsys.readouterr().out)["Data"]["reason"] == "auto_merge_guard_failed"
+
+
+class TestAutoMergeArmedNow:
+    @pytest.mark.parametrize(
+        ("state", "expected"),
+        [
+            (None, False),
+            ({"id": "PRRT_abc"}, False),
+            ({"pullRequest": None}, False),
+            ({"pullRequest": {"autoMergeRequest": None}}, False),
+            ({"pullRequest": {"autoMergeRequest": {"enabledAt": "t"}}}, True),
+        ],
+    )
+    def test_reads_the_request_off_the_thread_pull_request(self, state, expected):
+        with patch.object(_mod, "query_thread_state", return_value=state):
+            assert _mod._auto_merge_armed_now("PRRT_abc") is expected
+
+    def test_thread_query_asks_for_the_auto_merge_request(self):
+        assert "autoMergeRequest" in _mod._THREAD_QUERY

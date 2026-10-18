@@ -95,6 +95,7 @@ query($threadId: ID!) {
                 headRefOid
                 baseRefName
                 baseRefOid
+                autoMergeRequest { enabledAt }
             }
         }
     }
@@ -196,8 +197,20 @@ def _guard_auto_merge_before_resolution(
     fmt: str,
     expected_identity: dict[str, str] | None,
 ) -> dict[str, Any]:
+    """Disarm auto-merge before the resolve, then read the state once more.
+
+    Auto-merge armed after the guard's read would merge the PR when the final
+    thread resolves, so a PR left unarmed is read again and guarded again.
+    """
+    guard = guard_auto_merge_before_final_thread_resolution
     try:
-        return guard_auto_merge_before_final_thread_resolution(args.thread_id, expected_identity)
+        result = guard(args.thread_id, expected_identity)
+        unarmed = (
+            result.get("action") == "DISABLED" or result.get("reason") == "auto_merge_not_armed"
+        )
+        if unarmed and _auto_merge_armed_now(args.thread_id):
+            result = {**guard(args.thread_id, expected_identity), "armed_after_first_guard": True}
+        return result
     except RuntimeError as exc:
         _resolve_reply_error(
             f"Thread reply posted but auto-merge guard failed; thread left unresolved: {exc}",
@@ -209,6 +222,13 @@ def _guard_auto_merge_before_resolution(
             fmt,
         )
         raise SystemExit(3) from exc
+
+
+def _auto_merge_armed_now(thread_id: str) -> bool:
+    """True when the thread's pull request has an auto-merge request right now."""
+    thread = query_thread_state(thread_id)
+    pull_request = thread.get("pullRequest") if isinstance(thread, dict) else None
+    return isinstance(pull_request, dict) and pull_request.get("autoMergeRequest") is not None
 
 
 def _resolve_thread_after_reply(thread_id: str) -> bool:

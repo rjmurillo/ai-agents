@@ -67,7 +67,7 @@ from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
 )
-from github_core.bot_config import is_bot
+from github_core.bot_config import get_bot_authors, is_bot
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -81,8 +81,11 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Review states that move GitHub's reviewDecision. COMMENTED and PENDING do not.
 _VERDICT_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "DISMISSED"})
 
-# Merge states where the branch itself needs work before a review matters.
-_BRANCH_WORK_STATES = frozenset({"BEHIND", "DIRTY"})
+# Merge states where the branch itself needs work before a review matters, plus
+# UNKNOWN, which means GitHub has not computed the state yet. BLOCKED is not in
+# the set: a stale CHANGES_REQUESTED review is what makes a PR BLOCKED, which is
+# the case this script exists to classify.
+_BRANCH_WORK_STATES = frozenset({"BEHIND", "DIRTY", "UNKNOWN"})
 
 # get_pr_checks.py exits that still carry a verdict: pass, failing, incomplete.
 _CHECKS_VERDICT_EXITS = frozenset({0, 1, 7})
@@ -122,6 +125,20 @@ def _review_order(review: dict[str, Any]) -> tuple[str, int]:
     return str(review.get("submittedAt") or ""), review_id if isinstance(review_id, int) else 0
 
 
+def _is_bot_review(review: dict[str, Any]) -> bool:
+    """True when the review author is a bot.
+
+    The API user type outranks the naming guess. A ``User`` account whose login
+    ends in ``-bot`` is a person, so only an entry in ``bot-authors.yml`` makes
+    it a bot (a machine account such as ``rjmurillo-bot`` is listed there).
+    """
+    login = _author_login(review)
+    user_type = review.get("author_type")
+    if user_type == "User":
+        return login.lower() in {name.lower() for name in get_bot_authors()}
+    return bool(is_bot(login, user_type if isinstance(user_type, str) else None))
+
+
 def _latest_verdict_by_author(reviews: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Return each author's latest verdict-bearing review, keyed by canonical login."""
     latest: dict[str, dict[str, Any]] = {}
@@ -147,9 +164,7 @@ def _reviewed_head_after(
 def _active_bot_blockers(reviews: list[dict[str, Any]]) -> list[dict[str, Any]]:
     latest = _latest_verdict_by_author(reviews)
     return [
-        r
-        for r in latest.values()
-        if r.get("state") == "CHANGES_REQUESTED" and is_bot(_author_login(r))
+        r for r in latest.values() if r.get("state") == "CHANGES_REQUESTED" and _is_bot_review(r)
     ]
 
 
@@ -158,7 +173,7 @@ def _human_blockers(reviews: list[dict[str, Any]]) -> list[str]:
     return sorted(
         _author_login(r)
         for r in latest.values()
-        if r.get("state") == "CHANGES_REQUESTED" and not is_bot(_author_login(r))
+        if r.get("state") == "CHANGES_REQUESTED" and not _is_bot_review(r)
     )
 
 
@@ -173,7 +188,9 @@ def _readiness_reasons(pr: dict[str, Any], ci_green: bool) -> list[str]:
     if not ci_green:
         reasons.append("CI is not passing")
     state = pr.get("merge_state_status")
-    if state in _BRANCH_WORK_STATES:
+    if not isinstance(state, str) or not state:
+        reasons.append("merge state is unknown")
+    elif state in _BRANCH_WORK_STATES:
         reasons.append(f"merge state is {state}")
     return reasons
 
@@ -328,6 +345,17 @@ def _fetch_inputs(
     reviews = review_data.get("reviews") if review_data else None
     if code != 0 or not isinstance(reviews, list):
         raise RuntimeError(f"get_pr_reviews.py failed for PR #{pr} (exit {code})")
+    # The head SHA read above is the premise of every verdict. Read it again now
+    # that the slower calls are done: a push in between makes the checks and
+    # reviews describe a different head than the one classified.
+    code, latest = _run_sibling("get_pr_context.py", args)
+    if code != 0 or latest is None:
+        raise RuntimeError(f"get_pr_context.py recheck failed for PR #{pr} (exit {code})")
+    if latest.get("head_sha") != context.get("head_sha"):
+        raise RuntimeError(
+            f"PR #{pr} head moved from {context.get('head_sha')} to {latest.get('head_sha')} "
+            "while the inputs were fetched; run again"
+        )
     return context, checks.get("AllPassing") is True, reviews
 
 
