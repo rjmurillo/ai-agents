@@ -23,6 +23,7 @@ Public names:
     ``publish_bytes_atomically(path, content, *, mode=None) -> None``
     ``publish_bytes_preserving_mode(path, content) -> None``
     ``reject_symlinked_ancestors(repo_root, label, path) -> str | None``
+    ``find_repo_root(path) -> Path | None``
 """
 
 from __future__ import annotations
@@ -107,16 +108,108 @@ def write_bytes_no_redirect(path: Path, content: bytes, *, mode: int | None = No
         os.close(fd)
 
 
+def _nearest_git_root(directory: Path) -> Path | None:
+    for ancestor in (directory, *directory.parents):
+        if not ancestor.is_symlink() and (ancestor / ".git").exists():
+            return ancestor
+    return None
+
+
+def _outermost_git_root(directory: Path) -> Path | None:
+    """Return the outermost non-symlink ancestor of ``directory`` holding ``.git``."""
+    for ancestor in (*reversed(directory.parents), directory):
+        if not ancestor.is_symlink() and (ancestor / ".git").exists():
+            return ancestor
+    return None
+
+
+def find_repo_root(path: Path) -> Path | None:
+    """Return the repository root that governs ``path``, or ``None``.
+
+    Prefers the checkout the process runs in: when ``path`` lies lexically
+    under the nearest ``.git`` ancestor of the working directory, that is the
+    root. Otherwise it is the nearest ancestor of ``path`` holding a ``.git``
+    entry (a file counts, as in a linked worktree). The working-directory
+    anchor matters because a symlink planted inside the checkout can point at
+    a directory that holds its own ``.git``; the nearest-ancestor walk would
+    then pick that outside directory as the root and accept the redirect.
+
+    The fallback has the same hole when the process runs outside the target's
+    checkout: a planted link can lead to a directory with its own ``.git``,
+    and the nearest-ancestor walk would stop there. When a symlink sits
+    between an outer ``.git`` ancestor and ``path``, the outermost one is the
+    root, so ``_confine_to_repo`` sees the link and refuses (#6506).
+
+    The walk from ``path`` reads unresolved components, and a symlinked
+    ancestor is never a root. ``Path.cwd()`` is already resolved, so a
+    relative or resolved path inside a checkout whose root directory is
+    reached through a symlink still gets the real root.
+
+    An absolute path spelled through such a link is handled by what sits
+    above the link. With no ``.git`` ancestor above it, the path has no root
+    and is not confined. With an unrelated outer ``.git`` above it (a dotfiles
+    repository at ``~`` with ``~/src`` linked to ``/data/src``), the outer
+    directory is the root and the write is refused as a symlinked ancestor.
+    That layout is indistinguishable from a planted link to a nested
+    checkout, so the walk fails closed; callers pass resolved paths to avoid
+    it. Both outcomes are accepted limits.
+    """
+    absolute = path.absolute()
+    anchor = _nearest_git_root(Path.cwd())
+    if anchor is not None and absolute.is_relative_to(anchor):
+        return anchor
+    nearest = _nearest_git_root(absolute.parent)
+    if nearest is None:
+        return None
+    outermost = _outermost_git_root(absolute.parent)
+    if (
+        outermost is not None
+        and outermost != nearest
+        and reject_symlinked_ancestors(outermost, "publish target", absolute) is not None
+    ):
+        return outermost
+    return nearest
+
+
+def _confine_to_repo(path: Path) -> None:
+    """Raise ``OSError`` when ``path``'s parent chain escapes its repository.
+
+    ``os.replace`` swaps only the final directory entry. A symlinked ancestor
+    directory still redirects where that entry lives, so the swap lands in
+    whatever the link points at (CWE-59). This rejects a symlinked ancestor
+    below the repository root, then requires the resolved parent to stay
+    inside the resolved root, which also covers a link the walk cannot see
+    through a platform quirk. It narrows the window; it cannot close a swap
+    that happens between this check and ``os.replace``. A path outside any
+    checkout has no root to confine to and is left to the caller.
+    """
+    root = find_repo_root(path)
+    if root is None:
+        return
+    absolute = path.absolute()
+    error = reject_symlinked_ancestors(root, "publish target", absolute)
+    if error is not None:
+        raise OSError(errno.ELOOP, error)
+    if not absolute.parent.resolve().is_relative_to(root.resolve()):
+        raise OSError(
+            errno.EXDEV,
+            f"publish target {path} resolves outside the repository at {root}",
+        )
+
+
 def publish_bytes_atomically(path: Path, content: bytes, *, mode: int | None = None) -> None:
     """Put ``content`` at ``path`` in one step, via a sibling temp file.
 
     ``os.replace`` swaps one directory entry, so a concurrent reader opens
     either the old inode or the new one and never a partial or missing
     state, and a symlink at ``path`` is unlinked and swapped for a regular
-    file rather than written through (CWE-59). Any ``OSError`` (including the
+    file rather than written through (CWE-59). A symlinked ancestor
+    directory below the repository root is refused before anything is
+    written (see ``_confine_to_repo``). Any ``OSError`` (including the
     ``FileExistsError`` a raced temp-name collision would raise) propagates
     to the caller, which turns it into a per-path ``WARN`` and moves on.
     """
+    _confine_to_repo(path)
     temporary = path.parent / f".{path.name}.{os.urandom(8).hex()}.tmp"
     try:
         write_bytes_no_redirect(temporary, content, mode=mode)

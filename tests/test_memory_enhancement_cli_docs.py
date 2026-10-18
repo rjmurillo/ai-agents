@@ -47,8 +47,9 @@ from memory_enhancement.__main__ import _build_parser
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Documentation that instructs an agent today. Historical records are excluded.
+# Shipped skills live once under src/claude/skills; .claude/skills links to them (ADR-119).
 DOC_ROOTS = (
-    ".claude/skills",
+    "src/claude/skills",
     ".claude/rules",
     "src/copilot-cli/skills",
     "src/copilot-cli/instructions",
@@ -317,7 +318,7 @@ class TestDocumentedInvocations:
         because the two mirror roots supply most of the matches on their own.
         """
         assert set(DOC_ROOTS) == {
-            ".claude/skills",
+            "src/claude/skills",
             ".claude/rules",
             "src/copilot-cli/skills",
             "src/copilot-cli/instructions",

@@ -44,12 +44,14 @@ jobs:
           filters: |
             skills:
               - '.claude/skills/**/SKILL.md'
+              - 'src/claude/skills/**/SKILL.md'
               - 'src/copilot-cli/skills/**/SKILL.md'
             context:
               - 'CLAUDE.md'
               - 'AGENTS.md'
             validator:
               - '.claude/skills/context-optimizer/scripts/test_skill_passive_compliance.py'
+              - 'src/claude/skills/context-optimizer/scripts/test_skill_passive_compliance.py'
               - 'scripts/skill_description_budget.py'
               - 'scripts/skill_description_budget.json'
               - 'tests/test_skill_description_budget.py'

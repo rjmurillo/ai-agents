@@ -115,6 +115,9 @@ Default every skill, agent, and command to the harness-inherited model.
    generator omits both from that projection. It never resolves the alias to
    a versioned id there. Today `templates/platforms/copilot-cli.yaml` declares
    the drop, and the Claude Code copies keep the keys.
+   Amended 2026-10-17 (ADR-119 decision 11): rules 2 and 3 now bind Claude
+   agents only. `.github/agents/` links to `src/copilot-cli/agents/` and is
+   inherit-only, so no Copilot agent may carry `model:`.
 4. **Evidence lives in a sidecar manifest, not in frontmatter**
    (`.agents/governance/model-pin-evidence.json`).
 5. **Generators inject no default model.** Issue #5313 implemented this.
@@ -130,6 +133,9 @@ Rule 3's new clause is a skill rule. Generated agents are out of its scope:
 `build/generate_agents_common.py` still resolves `model_tier: haiku` to
 `claude-haiku-4.5`, because Copilot agents do read `model:`. Whether that
 override is acceptable remains the open question ADR-080 finding 4 recorded.
+Since 2026-10-17 (ADR-119 decision 11) no template sets `model_tier` on a
+Copilot agent, because `.github/agents/` links to that render and is
+inherit-only; the resolution path stays but must not fire.
 
 ## Rationale
 

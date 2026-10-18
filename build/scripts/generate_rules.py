@@ -80,6 +80,7 @@ from generate_agents_common import (  # noqa: E402
     read_yaml_frontmatter,
 )
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from rule_distribution import INTERNAL_PATH_PREFIXES  # noqa: E402
 from schema_tree_keys import RULES_OUTPUT_FORMATS  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
@@ -105,7 +106,7 @@ _SCOPE_SKIPPED: dict[str, str | None] = {}
 # `.agents/`, `.claude/`, or `.serena/`). Filtering them out at emit time
 # prevents dead `applyTo` entries that would never match a vendor-side
 # file path.
-_INTERNAL_PATH_PREFIXES = (".agents/", ".project-toolkit/", ".claude/", ".serena/")
+_INTERNAL_PATH_PREFIXES = INTERNAL_PATH_PREFIXES
 
 
 class GenerateRulesError(Exception):
@@ -570,6 +571,18 @@ def generate_rules(
             return 2, result
     keep_internal_dirs: set[str] = {_canonical_output_dir(repo_root, item) for item in raw_keep}
 
+    # ADR-119: a repo-only destination receives only the rules every other
+    # destination skipped as repo-only. The shipped rules reach it as binplace
+    # links into a shipped tree, so it holds the shipped set plus this
+    # repository's own additions, with one copy of each rule.
+    raw_repo_only = stanza.get("repoOnlyOutputDirs", [])
+    if not isinstance(raw_repo_only, list) or not all(isinstance(i, str) for i in raw_repo_only):
+        print(
+            "Error: `artifacts.rules.repoOnlyOutputDirs` must be a list of strings", file=sys.stderr
+        )
+        return 2, result
+    repo_only_dirs: set[str] = {_canonical_output_dir(repo_root, item) for item in raw_repo_only}
+
     try:
         source_dir, output_dirs = _resolve_paths(repo_root, source_dir_str, output_dir_strs)
     except GenerateRulesError as exc:
@@ -581,6 +594,24 @@ def generate_rules(
         return 1, result
 
     sources = sorted(source_dir.glob(f"*{source_suffix}"))
+    # ADR-119 decision 13: repo-only rules are not in the plugin tree; they
+    # live as real files in this directory beside links to the shipped rules.
+    repo_only_source = stanza.get("repoOnlySourceDir")
+    if repo_only_source is not None:
+        if not isinstance(repo_only_source, str):
+            print("Error: `artifacts.rules.repoOnlySourceDir` must be a string", file=sys.stderr)
+            return 2, result
+        shipped = {path.name for path in sources}
+        extra_dir = repo_root / repo_only_source
+        if extra_dir.is_dir():
+            sources = sorted(
+                sources
+                + [
+                    path
+                    for path in extra_dir.glob(f"*{source_suffix}")
+                    if not path.is_symlink() and path.is_file() and path.name not in shipped
+                ]
+            )
     if not sources:
         print(
             f"Error: no rule files found under {source_dir} (suffix={source_suffix})",
@@ -596,10 +627,21 @@ def generate_rules(
             print(f"  - {out.relative_to(repo_root)}")
 
     expected_outputs: dict[Path, set[str]] = {od: set() for od in output_dirs}
+
+    def _key(output_dir: Path) -> str:
+        try:
+            return output_dir.relative_to(repo_root).as_posix()
+        except ValueError:
+            return output_dir.as_posix()
+
+    # Shipped destinations first, so a repo-only destination knows which
+    # rules shipped.
+    ordered_dirs = sorted(output_dirs, key=lambda od: _key(od) in repo_only_dirs)
     for src in sources:
+        shipped_names: set[str] = set()
         # Process once per output target. The audit records each
         # write separately so callers can see all destinations.
-        for output_dir in output_dirs:
+        for output_dir in ordered_dirs:
             try:
                 destination = str(output_dir.relative_to(repo_root))
             except ValueError:
@@ -612,6 +654,11 @@ def generate_rules(
             except ValueError:
                 destination_key = output_dir.as_posix()
             keep_internal = destination_key in keep_internal_dirs
+            if destination_key in repo_only_dirs and shipped_names:
+                # The shipped copy arrives here as a binplace link; keep the
+                # name expected so the pruner leaves that link alone.
+                expected_outputs[output_dir] |= shipped_names
+                continue
             action, name_out, reason = _process_rule(
                 src,
                 output_dir,
@@ -634,9 +681,15 @@ def generate_rules(
             if action == "emitted":
                 result.written += 1
                 expected_outputs[output_dir].add(f"{name_out}{output_suffix}")
+                if destination_key not in repo_only_dirs:
+                    shipped_names.add(f"{name_out}{output_suffix}")
             elif action == "sentinel-skipped":
                 result.sentinel_skipped += 1
                 expected_outputs[output_dir].add(f"{name_out}{output_suffix}")
+                if destination_key not in repo_only_dirs:
+                    # A NO-REGEN shipped copy still ships; the repo-only
+                    # destination must not render a real file over its link.
+                    shipped_names.add(f"{name_out}{output_suffix}")
             elif action == "scope-skipped":
                 result.scope_skipped += 1
                 # Do NOT add to expected_outputs: the pruner should remove

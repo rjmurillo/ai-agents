@@ -76,6 +76,21 @@ _RETIRED_LINES: tuple[tuple[str, str, str], ...] = (
         "| `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/` |",
     ),
     (
+        "skill support files edited in the install tree",
+        "templates/rules/generated-artifacts.md",
+        '"edit the template": they stay hand-maintained at `.claude/skills/<name>/`,',
+    ),
+    (
+        "skill support files edited in the install tree",
+        "src/AGENTS.md",
+        "every other file mirrors from `.claude/skills/<name>/`, the hand-maintained source",
+    ),
+    (
+        "skill support files edited in the install tree",
+        "templates/rules/claude-agents.md",
+        "stays hand-maintained: edit it at `.claude/skills/<name>/`, never at `src/`",
+    ),
+    (
         "drift allowlist size as a count",
         "templates/rules/templates.md",
         "It scores two pairs over an 18-section allowlist.",
@@ -176,12 +191,12 @@ class TestFindRetiredClaims:
         assert find_retired_claims(repo) == []
 
     def test_hand_maintained_without_an_agent_tree_is_not_the_claim(self, tmp_path: Path) -> None:
-        """Skill scripts and references are still hand-maintained (ADR-108)."""
+        """Skill scripts and references are still hand-maintained (ADR-108, ADR-119)."""
         repo = _git_repo(tmp_path)
         _add(
             repo,
             "templates/rules/claude-agents.md",
-            "Scripts stay hand-maintained at `.claude/skills/<name>/`.\n",
+            "Scripts stay hand-maintained at `src/claude/skills/<name>/`.\n",
         )
 
         assert find_retired_claims(repo) == []

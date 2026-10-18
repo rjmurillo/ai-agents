@@ -27,8 +27,8 @@ Exit codes:
     2  Configuration error: bad arguments, an output root outside the allowed
        set or ignored by git, a snapshot inside the repository, or an
        unreadable snapshot.
-    3  External error: git is missing, a git command failed, or a file could
-       not be read.
+    3  External error: git is missing, fails, or times out, or a file could not
+       be read.
 
 Limits: verify compares the working tree, HEAD, the branch name, the index
 flags that hide changes (assume-unchanged, skip-worktree), and
@@ -38,13 +38,11 @@ new or changed ignored file in an authorized skill is reported as
 changes (tags, other branches, config, push), other writes inside `.git/`,
 or gitignored paths outside the output root, so an ignored output root,
 skill directory, or `--also-allow` path is refused. A file grant authorizes
-that exact path; end a directory grant with `/`. It
-catches accidental writes by a cooperating run; it is not a sandbox, and a
-snapshot taken after the writes proves nothing, so snapshot refuses to
-overwrite an existing file. Empty directories are invisible to git and to
-verify. A symlink in the output root, a skill directory, or an
-`--also-allow` path fails with exit 2.
-An unreadable working-tree file stops snapshot with exit 3. Staging is
+that exact path; end a directory grant with `/`. It catches accidental writes by
+a cooperating run; it is not a sandbox, and a snapshot taken after the writes
+proves nothing, so snapshot refuses to overwrite an existing file. Empty
+directories are invisible to git and to verify. A symlink in the output root, a
+skill directory, or an `--also-allow` path fails with exit 2. An unreadable working-tree file stops snapshot with exit 3. Staging is
 compared by status code, not by staged content. Stdlib only, so the script runs from any plugin root.
 """
 
@@ -67,6 +65,7 @@ MAX_NAME = 64
 SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/4"
 IGNORE_PROBE = "skill-bootstrap-probe/SKILL.md"
 IGNORE_CHILD = "skill-bootstrap-probe.md"
+GIT_TIMEOUT_S = 30
 
 Payload = dict[str, Any]
 
@@ -87,9 +86,12 @@ def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=GIT_TIMEOUT_S,
         )
     except FileNotFoundError as exc:
         raise GitError("git is not installed or not on PATH") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise GitError(f"git {' '.join(args)} timed out after {GIT_TIMEOUT_S} s") from exc
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -162,7 +164,7 @@ def name_defects(name: str, project: str | None = None) -> list[str]:
     defects = []
     if len(name) > MAX_NAME:
         defects.append(f"longer than {MAX_NAME} characters")
-    if not NAME_RE.match(name) or "--" in name:
+    if not NAME_RE.fullmatch(name) or "--" in name:
         defects.append("not lowercase hyphen-case")
     if project and not name.startswith(f"{project}-"):
         defects.append(f"does not use the <project>-<lens> form for project {project!r}")
@@ -441,12 +443,12 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="bootstrap_boundary", description=__doc__.split("\n\n")[0]
+        allow_abbrev=False, prog="bootstrap_boundary", description=__doc__.split("\n\n")[0]
     )
     sub = parser.add_subparsers(dest="command", required=True)
     roots = "one of: " + ", ".join(ALLOWED_ROOTS)
 
-    p_plan = sub.add_parser("plan", help="validate the output root and proposed names")
+    p_plan = sub.add_parser("plan", allow_abbrev=False, help="validate output root and names")
     p_plan.add_argument("--repo", default=".")
     p_plan.add_argument("--output-root", required=True, help=roots)
     p_plan.add_argument("--name", action="append", help="proposed skill name (repeat per name)")
@@ -455,12 +457,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_plan.add_argument("--project", help="require the <project>-<lens> prefix on new names")
 
-    p_snap = sub.add_parser("snapshot", help="record repository state before writing")
+    p_snap = sub.add_parser("snapshot", allow_abbrev=False, help="record repository state")
     p_snap.add_argument("--repo", default=".")
     p_snap.add_argument("--output-root", required=True, help=roots)
     p_snap.add_argument("--out", required=True, help="snapshot file outside the repository")
 
-    p_verify = sub.add_parser("verify", help="compare repository state with a snapshot")
+    p_verify = sub.add_parser("verify", allow_abbrev=False, help="compare state with a snapshot")
     p_verify.add_argument("--repo", default=".")
     p_verify.add_argument("--snapshot", required=True)
     p_verify.add_argument("--output-root", required=True, help=roots)

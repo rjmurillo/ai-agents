@@ -26,7 +26,7 @@ Three directories ship as installable plugins. Nothing else in this repository r
 
 Each marketplace entry names exactly one `source` directory. A consumer who installs the plugin receives that directory and nothing above it. `docs/`, `.agents/`, `build/`, `scripts/`, `templates/`, and the repository root stay behind.
 
-`src/claude/` is the sole Claude Code plugin root the marketplace lists (ADR-109 B6): `.claude-plugin/marketplace.json`'s `project-toolkit` entry sources it directly, replacing the retired `claude-agents` entry that used to name this same directory. `.claude/` still exists and is still scanned by the checks below, because it is where `build_all.py`'s binplace step writes this repository's own Claude Code load path; it carries the same `project-toolkit` name but is not an independent marketplace entry. Parity is manifest-owned-paths only, not whole-tree: binplace copies agents, rules, hooks, settings, and each skill's `SKILL.md`, never a skill's hand-maintained `scripts/`, `references/`, or `tests/`, which exist under `.claude/skills/<name>/` and not under `src/claude/skills/<name>/` (a gap ADR-109 B6's own install verification found and TASK-036 records as blocked).
+`src/claude/` is the sole Claude Code plugin root the marketplace lists (ADR-109 B6): `.claude-plugin/marketplace.json`'s `project-toolkit` entry sources it directly, replacing the retired `claude-agents` entry that used to name this same directory. `.claude/` still exists and is still scanned by the checks below, because it is where `build_all.py`'s binplace step writes this repository's own Claude Code load path; it carries the same `project-toolkit` name but is not an independent marketplace entry. Agents, shipped skills, and shipped rules there are relative symlinks into `src/claude/` (ADR-119), so both trees hold the same files; hooks and settings are byte copies.
 
 `templates/agents/**` is in scope for this rule because it is the canonical source that generates shipped agent files. The partials directory under it and the `.claude.md.tmpl` and `.copilot.md.tmpl` template files are in the same scope, since they generate shipped agent files. An outward reference introduced in any of these lands in a plugin root on the next build.
 
@@ -50,7 +50,7 @@ This repository self-hosts its own plugins. `.claude/` is both the plugin source
 
 Do not invent a new one. Issue #2050 built this stack:
 
-- `.claude/lib/paths.py`, mirrored byte-identical at `src/copilot-cli/lib/paths.py`. The portability helper. `resolve_artifact_root` and `artifact_dir` for write paths, `resolve_skill_resource` for read paths. Route through it instead of hard-coding. Import the copy inside your own root: a Copilot-side caller reaching for the `.claude/` copy is the defect this rule describes.
+- `src/claude/lib/paths.py` (linked from `.claude/lib/`), with a Copilot copy at `src/copilot-cli/lib/paths.py`. The portability helper. `resolve_artifact_root` and `artifact_dir` for write paths, `resolve_skill_resource` for read paths. Route through it instead of hard-coding. Import the copy inside your own root: a Copilot-side caller reaching for the `.claude/` copy is the defect this rule describes.
 - `check_vendor_portability.py`. Ratchet over Python files under skill script roots.
 - `check_skill_md_portability.py`. Ratchet over upstream paths in Markdown prose.
 - `check_skill_md_exec_portability.py`. Ratchet over executable invocations in `SKILL.md`.

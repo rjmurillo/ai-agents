@@ -577,6 +577,7 @@ def _write_multi_output_config(
     tmp_path: Path,
     outputs: list[str],
     keep_internal_for: list[str] | None = None,
+    repo_only: list[str] | object | None = None,
 ) -> Path:
     cfg = tmp_path / "platform.yaml"
     outputs_yaml = "\n".join(f'      - "{o}"' for o in outputs)
@@ -584,6 +585,11 @@ def _write_multi_output_config(
     if keep_internal_for is not None:
         keep_items = "\n".join(f'      - "{k}"' for k in keep_internal_for)
         keep_yaml = f"    keepInternalGlobsFor:\n{keep_items}\n"
+    if isinstance(repo_only, list):
+        repo_items = "\n".join(f'      - "{r}"' for r in repo_only)
+        keep_yaml += f"    repoOnlyOutputDirs:\n{repo_items}\n"
+    elif repo_only is not None:
+        keep_yaml += f"    repoOnlyOutputDirs: {repo_only}\n"
     cfg.write_text(
         f"""\
 schemaVersion: "1.0"
@@ -760,56 +766,50 @@ def test_output_dirs_prunes_orphans_in_every_target(tmp_path: Path) -> None:
 # issue #2892: keepInternalGlobsFor per-destination internal-scope retention --
 
 
-def test_keep_internal_globs_for_preserves_scope_in_listed_dir(tmp_path: Path) -> None:
-    """A dir in keepInternalGlobsFor keeps `.claude/**`; others still strip it.
+def test_keep_internal_globs_for_emits_all_internal_rule_only_in_listed_dir(
+    tmp_path: Path,
+) -> None:
+    """An all-internal rule is skipped from shipped dirs, emitted into a kept dir.
 
     Why it matters: the in-repo `.github/instructions` tree coexists with
     `.claude/`, so the in-repo Copilot agent needs `.claude/**`-scoped rules
     to auto-load. The distributed `src/copilot-cli/instructions` tree does
-    not carry `.claude/` and must keep filtering to avoid dead references.
+    not carry `.claude/`, so a rule scoped only to internal paths stays out.
     """
     _write_rule(
         tmp_path / "rules_src",
-        "pvb",
-        frontmatter='paths: ".claude/**,src/copilot-cli/**,docs/**"\n',
+        "internalonly",
+        frontmatter='paths: ".claude/**,.agents/x/**"\n',
         body="body\n",
     )
     cfg = _write_multi_output_config(
         tmp_path, ["keep_dir", "strip_dir"], keep_internal_for=["keep_dir"]
     )
-    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    rc, result = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
-
-    kept = (tmp_path / "keep_dir" / "pvb.instructions.md").read_text(encoding="utf-8")
-    kept_fm = kept.split("---")[1]
-    assert ".claude/**" in kept_fm  # internal scope retained
-    assert "docs/**" in kept_fm  # non-internal preserved
-
-    stripped = (tmp_path / "strip_dir" / "pvb.instructions.md").read_text(encoding="utf-8")
-    stripped_fm = stripped.split("---")[1]
-    assert ".claude/**" not in stripped_fm  # internal scope filtered
-    assert "docs/**" in stripped_fm  # non-internal preserved
+    kept = (tmp_path / "keep_dir" / "internalonly.instructions.md").read_text(encoding="utf-8")
+    assert ".claude/**" in kept.split("---")[1]
+    assert not (tmp_path / "strip_dir" / "internalonly.instructions.md").exists()
+    assert result.scope_skipped == 1
 
 
-def test_keep_internal_absent_still_strips_all_dirs(tmp_path: Path) -> None:
-    """Without keepInternalGlobsFor, every target strips internal globs.
+def test_keep_internal_absent_skips_all_internal_rule_in_every_dir(tmp_path: Path) -> None:
+    """Without keepInternalGlobsFor, an all-internal rule is written nowhere.
 
-    Regression guard: the new flag must default off so existing distributed
-    behavior is unchanged when the config omits it.
+    Regression guard: the flag defaults off, so the issue #4317 skip applies to
+    every destination. A mixed scope still ships verbatim.
     """
     _write_rule(
         tmp_path / "rules_src",
         "pvb",
-        frontmatter='paths: ".claude/**,docs/**"\n',
+        frontmatter='paths: ".claude/**"\n',
         body="body\n",
     )
     cfg = _write_multi_output_config(tmp_path, ["out_a", "out_b"])
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
     for sub in ("out_a", "out_b"):
-        fm = (tmp_path / sub / "pvb.instructions.md").read_text(encoding="utf-8").split("---")[1]
-        assert ".claude/**" not in fm
-        assert "docs/**" in fm
+        assert not (tmp_path / sub / "pvb.instructions.md").exists()
 
 
 def test_remap_frontmatter_keep_internal_true_skips_filter() -> None:
@@ -956,5 +956,131 @@ artifacts:
       paths: applyTo
 """
     )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2
+
+
+# ADR-119: repoOnlyOutputDirs ------------------------------------------------
+
+
+def test_repo_only_dir_skips_rule_emitted_to_shipped_dir(tmp_path: Path) -> None:
+    """A rule written to a shipped dir is not written to the repo-only dir."""
+    _write_rule(tmp_path / "rules_src", "shared", frontmatter='paths: "docs/**"\n', body="body\n")
+    cfg = _write_multi_output_config(
+        tmp_path,
+        ["repo_dir", "ship_dir"],
+        keep_internal_for=["repo_dir"],
+        repo_only=["repo_dir"],
+    )
+    rc, result = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    assert (tmp_path / "ship_dir" / "shared.instructions.md").is_file()
+    assert not (tmp_path / "repo_dir" / "shared.instructions.md").exists()
+    assert result.written == 1
+
+
+def test_repo_only_dir_skips_rule_whose_shipped_copy_is_no_regen(tmp_path: Path) -> None:
+    """A NO-REGEN shipped copy still ships, so the repo-only dir writes nothing."""
+    _write_rule(tmp_path / "rules_src", "shared", frontmatter='paths: "docs/**"\n', body="body\n")
+    (tmp_path / "ship_dir").mkdir()
+    (tmp_path / "ship_dir" / "shared.instructions.md").write_text("<!-- NO-REGEN -->\nkept\n")
+    cfg = _write_multi_output_config(
+        tmp_path,
+        ["repo_dir", "ship_dir"],
+        keep_internal_for=["repo_dir"],
+        repo_only=["repo_dir"],
+    )
+    rc, result = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    assert result.sentinel_skipped == 1
+    assert not (tmp_path / "repo_dir" / "shared.instructions.md").exists()
+
+
+def test_repo_only_dir_does_not_prune_existing_file_of_shipped_name(tmp_path: Path) -> None:
+    """The binplace link for a shipped rule survives: its name stays expected."""
+    _write_rule(tmp_path / "rules_src", "shared", frontmatter='paths: "docs/**"\n', body="body\n")
+    (tmp_path / "repo_dir").mkdir()
+    link_target = tmp_path / "linked.md"
+    link_target.write_text("shipped copy\n", encoding="utf-8")
+    link = tmp_path / "repo_dir" / "shared.instructions.md"
+    link.symlink_to(link_target)
+    cfg = _write_multi_output_config(
+        tmp_path,
+        ["repo_dir", "ship_dir"],
+        keep_internal_for=["repo_dir"],
+        repo_only=["repo_dir"],
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    assert link.is_symlink()
+    assert link.read_text(encoding="utf-8") == "shipped copy\n"
+
+
+def test_repo_only_dir_prunes_file_with_no_matching_rule(tmp_path: Path) -> None:
+    """Negative control: only names a rule produced are protected from pruning."""
+    _write_rule(tmp_path / "rules_src", "shared", frontmatter='paths: "docs/**"\n', body="body\n")
+    (tmp_path / "repo_dir").mkdir()
+    orphan = tmp_path / "repo_dir" / "stale.instructions.md"
+    orphan.write_text("stale\n", encoding="utf-8")
+    cfg = _write_multi_output_config(
+        tmp_path,
+        ["repo_dir", "ship_dir"],
+        keep_internal_for=["repo_dir"],
+        repo_only=["repo_dir"],
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    assert not orphan.exists()
+
+
+def test_repo_only_dir_receives_all_internal_rule(tmp_path: Path) -> None:
+    """A rule every shipped dir skipped is written to the repo-only dir."""
+    _write_rule(
+        tmp_path / "rules_src",
+        "internalonly",
+        frontmatter='paths: ".claude/**,.project-toolkit/x/**"\n',
+        body="body\n",
+    )
+    cfg = _write_multi_output_config(
+        tmp_path,
+        ["repo_dir", "ship_dir"],
+        keep_internal_for=["repo_dir"],
+        repo_only=["repo_dir"],
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    fm = (
+        (tmp_path / "repo_dir" / "internalonly.instructions.md")
+        .read_text(encoding="utf-8")
+        .split("---")[1]
+    )
+    assert ".claude/**" in fm
+    assert ".project-toolkit/x/**" in fm
+    assert not (tmp_path / "ship_dir" / "internalonly.instructions.md").exists()
+
+
+def test_repo_only_dir_trailing_slash_still_matches(tmp_path: Path) -> None:
+    """A trailing slash in repoOnlyOutputDirs canonicalizes like outputDirs."""
+    _write_rule(tmp_path / "rules_src", "shared", frontmatter='paths: "docs/**"\n', body="body\n")
+    cfg = _write_multi_output_config(tmp_path, ["repo_dir", "ship_dir"], repo_only=["repo_dir/"])
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    assert not (tmp_path / "repo_dir" / "shared.instructions.md").exists()
+
+
+@pytest.mark.parametrize("bad", ["repo_dir", "0", "false", "42"])
+def test_repo_only_non_list_rejected(tmp_path: Path, bad: str) -> None:
+    """A non-list repoOnlyOutputDirs (including falsy scalars) exits 2."""
+    _write_rule(tmp_path / "rules_src", "shared", frontmatter='paths: "docs/**"\n', body="body\n")
+    cfg = _write_multi_output_config(tmp_path, ["repo_dir"], repo_only=bad)
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2
+    assert not (tmp_path / "repo_dir").exists()
+
+
+def test_repo_only_non_string_entry_rejected(tmp_path: Path) -> None:
+    _write_rule(tmp_path / "rules_src", "shared", frontmatter='paths: "docs/**"\n', body="body\n")
+    cfg = _write_multi_output_config(tmp_path, ["repo_dir"])
+    cfg.write_text(cfg.read_text() + "    repoOnlyOutputDirs:\n      - 42\n", encoding="utf-8")
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 2

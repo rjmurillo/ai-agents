@@ -50,9 +50,11 @@ _CORE_MODULE_FILE_NAME = "api.py"
 # This repository's own plugin lib, derived from this file's location
 # (tests/skills/merge-resolver/ sits three levels below the repo root) rather
 # than from the module under test. Used where `mod` is the real, unmoved
-# module (the self-relative candidate then really is .claude/lib) and
-# `_is_own_plugin` trusts it via _SELF_PLUGIN_ROOT, not a manifest read.
-_REPO_CLAUDE_LIB = Path(__file__).resolve().parents[3] / ".claude" / "lib"
+# module and `_is_own_plugin` trusts its self-relative candidate via
+# _SELF_PLUGIN_ROOT, not a manifest read. `.claude/skills/<name>` is a symlink
+# into `src/claude/skills/<name>` (ADR-119), so the module's resolved location
+# is the plugin tree and the self-relative candidate is src/claude/lib.
+_REPO_CLAUDE_LIB = Path(__file__).resolve().parents[3] / "src" / "claude" / "lib"
 
 # A second, manifest-carrying real root: src/claude/, whose own
 # .claude-plugin/plugin.json names project-toolkit. Used in TestResolveLibDirCli
