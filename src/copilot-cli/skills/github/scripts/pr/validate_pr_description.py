@@ -68,6 +68,21 @@ def validate_issue_keywords(text: str) -> dict[str, Any]:
     }
 
 
+_SECTION_EXPECTATIONS: dict[str, str] = {
+    "Summary": "a `## Summary` heading with text under it",
+    "SpecificationReferences": "a table row starting `| **Issue** |` or `| **Spec** |`",
+    "TypeOfChange": "at least one checked `[x]` box",
+    "Changes": "a `## Changes` heading followed by a `-` or `*` bullet",
+}
+
+
+def _missing_sections_text(sections: dict[str, str]) -> str:
+    """Name each section that did not pass and what the validator looks for."""
+    return "; ".join(
+        f"{name} ({_SECTION_EXPECTATIONS[name]})" for name, v in sections.items() if v != "PASS"
+    )
+
+
 def validate_template_compliance(body: str) -> dict[str, Any]:
     """Check PR template section completion.
 
@@ -105,9 +120,13 @@ def validate_template_compliance(body: str) -> dict[str, Any]:
     total = len(sections)
     overall = "PASS" if pass_count == total else "WARN"
 
+    message = f"Template compliance: {pass_count}/{total} sections complete"
+    if overall != "PASS":
+        message += f". Missing: {_missing_sections_text(sections)}"
+
     return {
         "Status": overall,
-        "Message": f"Template compliance: {pass_count}/{total} sections complete",
+        "Message": message,
         "Sections": sections,
     }
 
