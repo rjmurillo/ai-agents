@@ -74,19 +74,37 @@ def _env_instruction_pairs(rest: str) -> list[tuple[str, str]]:
     return pairs
 
 
+def _from_instruction(rest: str) -> tuple[str, str | None]:
+    """(base reference, stage alias) of a `FROM` body, both lowercased.
+
+    Skips `--platform=...` style flags. The alias is None when there is no
+    `AS name` clause. A body with no base reference yields an empty base.
+    """
+    tokens = [t for t in rest.split() if not t.startswith("--")]
+    base = tokens[0].lower() if tokens else ""
+    alias = tokens[2].lower() if len(tokens) >= 3 and tokens[1].lower() == "as" else None
+    return base, alias
+
+
 def _dockerfile_effective_value(text: str) -> str | None:
     """Value the FINAL stage's image config carries for the marker, or None.
 
-    Only `ENV` instructions after the last `FROM` count: an `ENV` in an earlier
-    build stage is not inherited by the final image, and a `RUN` line that
-    names the variable never persists into the image config.
+    A stage starts empty when it builds on an external image, and inherits the
+    value of an earlier stage when `FROM` names that stage's alias. Only the
+    final stage counts, and a `RUN` line that names the variable never
+    persists into the image config.
     """
     effective: str | None = None
+    alias: str | None = None
+    stage_values: dict[str, str | None] = {}
     for line in _logical_dockerfile_lines(text):
         keyword, _, rest = line.partition(" ")
         word = keyword.upper()
         if word == "FROM":
-            effective = None
+            if alias is not None:
+                stage_values[alias] = effective
+            base, alias = _from_instruction(rest)
+            effective = stage_values.get(base)
         elif word == "ENV":
             for name, value in _env_instruction_pairs(rest.strip()):
                 if name == MARKER_NAME:
@@ -179,6 +197,22 @@ def _devcontainer_effective_value(text: str) -> str | None:
     return None
 
 
+def _devcontainer_dockerfile(text: str) -> str | None:
+    """`build.dockerfile` from a devcontainer definition, or None.
+
+    The path is relative to the devcontainer file. A bare `image` reference
+    names a registry image that this repository cannot read, so it is not
+    followed.
+    """
+    try:
+        data = json.loads(_strip_jsonc(text))
+    except ValueError:
+        return None
+    build = data.get("build") if isinstance(data, dict) else None
+    dockerfile = build.get("dockerfile") if isinstance(build, dict) else None
+    return dockerfile if isinstance(dockerfile, str) and dockerfile else None
+
+
 def _sets_marker(rel: str, text: str) -> bool:
     """True when the image's runtime environment holds a value ``_env_truthy()`` accepts.
 
@@ -213,6 +247,26 @@ def _is_managed_image_path(rel: str) -> bool:
     )
 
 
+def _build_dockerfile_sets_marker(root: Path, rel: str, text: str) -> bool:
+    """True when a devcontainer's `build.dockerfile` sets the marker in its final stage.
+
+    ``containerEnv`` and ``remoteEnv`` are checked first by the caller; this is
+    the fallback for a definition that takes the marker from its Dockerfile.
+    A missing or unreadable Dockerfile counts as no marker.
+    """
+    if Path(rel).name not in DEVCONTAINER_FILE_NAMES:
+        return False
+    dockerfile = _devcontainer_dockerfile(text)
+    if dockerfile is None:
+        return False
+    resolved_root = root.resolve()
+    target = ((root / rel).parent / dockerfile).resolve()
+    if not target.is_relative_to(resolved_root) or not target.is_file():
+        return False
+    dockerfile_rel = target.relative_to(resolved_root).as_posix()
+    return _sets_marker(dockerfile_rel, target.read_text(encoding="utf-8", errors="replace"))
+
+
 def _images_missing_marker(root: Path, tracked: list[str]) -> list[str]:
     """Tracked managed-image files that never assign the marker."""
     missing = []
@@ -220,7 +274,7 @@ def _images_missing_marker(root: Path, tracked: list[str]) -> list[str]:
         if not _is_managed_image_path(rel):
             continue
         text = (root / rel).read_text(encoding="utf-8", errors="replace")
-        if not _sets_marker(rel, text):
+        if not _sets_marker(rel, text) and not _build_dockerfile_sets_marker(root, rel, text):
             missing.append(rel)
     return missing
 
@@ -347,8 +401,46 @@ def test_dockerfile_marker_requires_a_truthy_env_instruction(text: str, expected
         ),
         # FROM keyword is case-insensitive.
         ("from a as b\nENV AI_AGENTS_REMOTE_CONTAINER=1\nfrom a\n", False),
+        # FROM names an earlier stage: the final image inherits its ENV.
+        ("FROM base AS build\nENV AI_AGENTS_REMOTE_CONTAINER=1\nFROM build\nRUN true\n", True),
+        # Alias match is case-insensitive and ignores FROM flags.
+        (
+            "FROM base AS Build\nENV AI_AGENTS_REMOTE_CONTAINER=1\n"
+            "FROM --platform=linux/arm64 build\n",
+            True,
+        ),
+        # The inheriting stage can override the inherited value.
+        (
+            "FROM base AS build\nENV AI_AGENTS_REMOTE_CONTAINER=1\n"
+            "FROM build\nENV AI_AGENTS_REMOTE_CONTAINER=0\n",
+            False,
+        ),
+        # Inheritance chains through several stages.
+        (
+            "FROM base AS a\nENV AI_AGENTS_REMOTE_CONTAINER=1\nFROM a AS b\nRUN true\nFROM b\n",
+            True,
+        ),
+        # An inherited stage that never set it leaves it unset.
+        ("FROM base AS build\nRUN true\nFROM build\n", False),
+        # A later stage that does not name the marking stage does not inherit.
+        (
+            "FROM base AS build\nENV AI_AGENTS_REMOTE_CONTAINER=1\nFROM other AS x\nFROM x\n",
+            False,
+        ),
     ],
-    ids=["builder-only", "final-stage", "both-stages", "final-resets", "lowercase-from"],
+    ids=[
+        "builder-only",
+        "final-stage",
+        "both-stages",
+        "final-resets",
+        "lowercase-from",
+        "inherits-from-named-stage",
+        "inherits-case-and-flags",
+        "inheriting-stage-overrides",
+        "inheritance-chain",
+        "inherited-unset",
+        "unrelated-stage",
+    ],
 )
 def test_dockerfile_marker_counts_only_the_final_stage(text: str, expected: bool) -> None:
     assert _sets_marker("Dockerfile", text) is expected
@@ -470,6 +562,29 @@ def test_devcontainer_marker_reads_only_runtime_env(text: str, expected: bool) -
     assert _sets_marker(".devcontainer.json", text) is expected
 
 
+def _tracked_files(root: Path) -> list[str]:
+    """Tracked files under ``root``. Fails in a git checkout when listing fails.
+
+    A checkout whose ``git ls-files`` breaks must not pass the image check
+    silently. Only a tree with no ``.git`` entry (such as an exported source
+    archive) skips.
+    """
+    proc = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=root,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+    if proc.returncode != 0:
+        if (root / ".git").exists():
+            pytest.fail(f"git ls-files failed in a git checkout: {proc.stderr.strip()}")
+        pytest.skip(f"not a git checkout: {proc.stderr.strip()}")
+    return [p for p in proc.stdout.split("\0") if p and (root / p).is_file()]
+
+
 def test_every_tracked_managed_image_sets_the_marker() -> None:
     """Fails when a Dockerfile, Containerfile, or devcontainer.json lacks the marker.
 
@@ -483,17 +598,120 @@ def test_every_tracked_managed_image_sets_the_marker() -> None:
     provisioned outside the repo (such as the Claude web image) has no check
     here; the SessionStart hook is its setter.
     """
-    proc = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-        check=False,
-    )
-    if proc.returncode != 0:
-        pytest.skip(f"git ls-files unavailable: {proc.stderr.strip()}")
-    tracked = [p for p in proc.stdout.split("\0") if p and (REPO_ROOT / p).is_file()]
+    assert _images_missing_marker(REPO_ROOT, _tracked_files(REPO_ROOT)) == []
 
-    assert _images_missing_marker(REPO_ROOT, tracked) == []
+
+def _fake_ls_files(returncode: int):
+    def run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(args=[], returncode=returncode, stdout="", stderr="boom")
+
+    return run
+
+
+def test_tracked_files_fails_when_git_breaks_in_a_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    monkeypatch.setattr(subprocess, "run", _fake_ls_files(128))
+
+    with pytest.raises(pytest.fail.Exception, match="git ls-files failed"):
+        _tracked_files(tmp_path)
+
+
+def test_tracked_files_skips_when_the_tree_is_not_a_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(subprocess, "run", _fake_ls_files(128))
+
+    with pytest.raises(pytest.skip.Exception, match="not a git checkout"):
+        _tracked_files(tmp_path)
+
+
+def test_tracked_files_returns_existing_files_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+
+    def run(*_args, **_kwargs):
+        return subprocess.CompletedProcess([], 0, stdout="Dockerfile\0gone\0", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert _tracked_files(tmp_path) == ["Dockerfile"]
+
+
+def test_devcontainer_takes_the_marker_from_its_build_dockerfile(tmp_path: Path) -> None:
+    dev = tmp_path / ".devcontainer"
+    dev.mkdir()
+    (dev / "devcontainer.json").write_text(
+        '{"build": {"dockerfile": "Dockerfile"}}', encoding="utf-8"
+    )
+    (dev / "Dockerfile").write_text(
+        "FROM base AS build\nENV AI_AGENTS_REMOTE_CONTAINER=1\nFROM build\n", encoding="utf-8"
+    )
+
+    assert _images_missing_marker(tmp_path, [".devcontainer/devcontainer.json"]) == []
+
+
+@pytest.mark.parametrize(
+    ("config", "dockerfile"),
+    [
+        ('{"build": {"dockerfile": "Dockerfile"}}', "FROM base\n"),
+        ('{"build": {"dockerfile": "missing.Dockerfile"}}', None),
+        ('{"build": {"dockerfile": 7}}', None),
+        ('{"build": {"dockerfile": ""}}', None),
+        ('{"build": "Dockerfile"}', None),
+        ('{"image": "registry.example/base:1"}', None),
+        ("{not json", None),
+    ],
+    ids=[
+        "dockerfile-lacks-marker",
+        "dockerfile-missing",
+        "non-string-path",
+        "empty-path",
+        "build-not-object",
+        "registry-image",
+        "malformed",
+    ],
+)
+def test_devcontainer_without_a_marker_source_is_reported(
+    tmp_path: Path, config: str, dockerfile: str | None
+) -> None:
+    dev = tmp_path / ".devcontainer"
+    dev.mkdir()
+    (dev / "devcontainer.json").write_text(config, encoding="utf-8")
+    if dockerfile is not None:
+        (dev / "Dockerfile").write_text(dockerfile, encoding="utf-8")
+
+    assert _images_missing_marker(tmp_path, [".devcontainer/devcontainer.json"]) == [
+        ".devcontainer/devcontainer.json"
+    ]
+
+
+def test_devcontainer_env_still_wins_over_its_build_dockerfile(tmp_path: Path) -> None:
+    dev = tmp_path / ".devcontainer"
+    dev.mkdir()
+    (dev / "devcontainer.json").write_text(
+        '{"build": {"dockerfile": "Dockerfile"},'
+        ' "containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "1"}}',
+        encoding="utf-8",
+    )
+    (dev / "Dockerfile").write_text("FROM base\n", encoding="utf-8")
+
+    assert _images_missing_marker(tmp_path, [".devcontainer/devcontainer.json"]) == []
+
+
+def test_devcontainer_build_dockerfile_outside_the_repo_is_not_followed(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    (root / ".devcontainer").mkdir(parents=True)
+    (root / ".devcontainer" / "devcontainer.json").write_text(
+        '{"build": {"dockerfile": "../../outside/Dockerfile"}}', encoding="utf-8"
+    )
+    (tmp_path / "outside").mkdir()
+    (tmp_path / "outside" / "Dockerfile").write_text(
+        "ENV AI_AGENTS_REMOTE_CONTAINER=1\n", encoding="utf-8"
+    )
+
+    assert _images_missing_marker(root, [".devcontainer/devcontainer.json"]) == [
+        ".devcontainer/devcontainer.json"
+    ]
