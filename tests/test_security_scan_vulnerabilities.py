@@ -941,6 +941,109 @@ def test_bash_scrub_lines_matches_per_line_scrub_when_no_state_crosses_lines() -
     assert scanner.scrub_bash_lines(lines) == [scanner.scrub_bash_line(line) for line in lines]
 
 
+def _blank_lines(lines: list[str]) -> list[bool]:
+    """Per line: True when `scrub_bash_lines` left no `$` expansion visible."""
+    return ["$" not in out for out in scanner.scrub_bash_lines(lines)]
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        # A case pattern `)` inside a multi-line "$(...)" must not close the substitution.
+        ('out="$(case "$m" in\n  fast) rm -rf $target ;;\nesac)"\n', [2]),
+        # The same case inside a bare group.
+        ('(case "$m" in\n  fast) rm $t ;;\nesac)\n', [2]),
+        # An optional leading paren on the pattern opens and closes its own group.
+        ('out="$(case "$m" in\n  (fast) rm $t ;;\nesac)"\n', [2]),
+        # A nested case keeps both frames: the inner `esac` leaves the outer open.
+        (
+            'out="$(case "$a" in\n x) case "$b" in\n y) rm $t ;;\n esac ;;\n z) rm $u ;;\nesac)"\n',
+            [3, 5],
+        ),
+        # One line, no frame needed at the end.
+        ('echo "$(case "$m" in a) rm $t ;; esac)"\n', [1]),
+        # A quoted body after the closed substitution is still blanked.
+        ('x="$(case "$m" in\n a) echo hi ;;\nesac)"\nmsg="a\nb $y"\n', []),
+        # `case` as an argument is not a keyword: the substitution closes normally.
+        ('x="$(echo case)"\nmsg="a\nb $y"\nrm $z\n', [4]),
+        # A case with no `esac` stays unresolved and falls back to the per-line scrub.
+        ('x="$(case a in\n b) rm $c ;;\n', [2]),
+    ],
+)
+def test_scan_file_case_patterns_inside_substitutions(
+    tmp_path: Path, body: str, expected: list[int]
+) -> None:
+    """A case-pattern `)` must not end a `$( )` and hide the case body (issue #6624 review)."""
+    assert _unquoted_lines(tmp_path, body) == expected
+
+
+def test_bash_scrub_lines_case_in_substitution_keeps_body_visible() -> None:
+    lines = ['out="$(case "$m" in\n', "  fast) rm -rf $target ;;\n", 'esac)"\n']
+    assert scanner.scrub_bash_lines(lines)[1] == lines[1]
+
+
+def test_bash_scrub_case_esac_requires_command_position() -> None:
+    assert scanner.scrub_bash_line("echo $(echo esac) # tail $x") == "echo $(echo esac) "
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        # Grouped arithmetic shift in a `((...))` command.
+        ["(( flags |= (1 << n) ))\n", "msg='a\n", "b $x'\n"],
+        # Grouped shift in `$((...))`, closed by `)))`.
+        ["echo $(( (1 << n)))\n", "msg='a\n", "b $x'\n"],
+        # Doubled parens inside arithmetic are two groups.
+        ["(( v = ((1 << n) + 1) ))\n", "msg='a\n", "b $x'\n"],
+        # A plain `$(( ))` still closes at `))`.
+        ["echo $(( 1 << n ))\n", "msg='a\n", "b $x'\n"],
+    ],
+)
+def test_bash_scrub_lines_grouped_arithmetic_shift_is_not_a_heredoc(lines: list[str]) -> None:
+    """`(1 << n)` must not queue a fake here-document that unblanks a later quote."""
+    assert _blank_lines(lines)[1:] == [True, True]
+
+
+def test_bash_scrub_lines_grouped_shift_does_not_swallow_a_real_heredoc() -> None:
+    lines = ["(( f |= (1 << n) ))\n", "cat <<'Q'\n", "hi $x\n", "Q\n", "ls $y\n"]
+    out = scanner.scrub_bash_lines(lines)
+    assert out[2].strip() == ""
+    assert out[4] == "ls $y\n"
+
+
+def test_bash_scrub_lines_arithmetic_group_inside_command_substitution() -> None:
+    lines = ["x=$(( (a) + $(echo $b) ))\n", "rm $c\n"]
+    assert scanner.scrub_bash_lines(lines) == lines
+
+
+def test_bash_scrub_lines_backtick_in_param_expansion_hides_comment_quote() -> None:
+    """A comment in a backtick body inside `${...}` must not open a quote."""
+    lines = ["y=${x:-`ls # it's`}\n", "rm $z\n", "msg='a\n", "b $q'\n"]
+    out = scanner.scrub_bash_lines(lines)
+    assert out[1] == "rm $z\n"
+    assert [line.rstrip() for line in out[2:]] == ["msg='", "    '"]
+
+
+def test_bash_scrub_unquoted_backtick_body_ends_comment_at_closing_tick() -> None:
+    assert scanner.scrub_bash_line("echo `ls # note` $v") == "echo `ls ` $v"
+
+
+def test_bash_scrub_backtick_body_stays_visible_and_balanced() -> None:
+    assert scanner.scrub_bash_line("rm `date` $v 'q $w'") == "rm `date` $v '    '"
+
+
+def test_bash_scrub_lines_unclosed_backtick_falls_back_to_per_line_scrub() -> None:
+    lines = ["echo `date\n", "rm $v\n"]
+    assert scanner.scrub_bash_lines(lines) == lines
+
+
+def test_bash_scrub_lines_multiline_backtick_body_is_shell_text() -> None:
+    lines = ["x=`cat <<'E'\n", "a $b\n", "E\n", "`\n", "rm $c\n"]
+    out = scanner.scrub_bash_lines(lines)
+    assert out[1].strip() == ""
+    assert out[4] == "rm $c\n"
+
+
 def test_cli_exit_success_on_quoted_multiline_and_heredoc_shapes(tmp_path: Path) -> None:
     body = (
         '#!/usr/bin/env bash\nmsg="copies to\n$dest/skills"\n'
