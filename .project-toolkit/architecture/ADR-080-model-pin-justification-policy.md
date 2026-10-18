@@ -370,6 +370,7 @@ Amendment's "46": `git show <sha>:scripts/validation/model_pin_baseline.json`.
 Of those 45, **37** were bare `sonnet` or `opus` and **8** bare `haiku` with a
 cost `model-rationale:`. The 37 are gone; the 8 remain and pass, being one agent
 (`code-reviewer`), one command (`pr-quality/all`), and six skills.
+Amended 2026-10-17: ADR-119 decision 11 removed the `code-reviewer` pin, so 7 remain.
 
 ### Why removal, and not a sweep
 

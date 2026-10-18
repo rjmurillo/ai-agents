@@ -59,6 +59,8 @@ Adopt one new artifact class and amend the three texts that forbid it: REQ-003-0
 | Output | `.claude/skills/<name>/SKILL.md`, which Claude Code loads unchanged and which the existing `generate_skills.py` directory copy mirrors into `src/copilot-cli/skills/<name>/` through the existing body translation (`copilot_body_translation.py:311-322` rewrites `allowed-tools` and the body), which this record leaves unchanged |
 | Equivalence predicate | `derived`: regenerate, then byte-compare. `generate_skills.py --validate` and `build_all.py --check` both apply it |
 
+Amended 2026-10-17 (ADR-119): for a shipped skill the existing directory the name must match is `src/claude/skills/<name>/`, a real directory inside the repository; `.claude/skills/<name>` is a symlink to it. A repo-local skill keeps the `.claude/skills/<name>/` rule above.
+
 A skill joins the class by the presence of `templates/skills/<name>.SKILL.md.tmpl` and leaves it by that file's deletion, after which its `SKILL.md` is hand-maintained again with no other step. Membership is read from the directory at run time. Two controls bound widening. `tests/build_scripts/test_skill_templates_pilot_scope.py` asserts that `discover()` returns exactly the names in its `PILOT` constant (empty until A2, the eight pilots after A2), so a ninth `.tmpl` cannot land without an edit to that file in the same diff, which makes the widening visible to review rather than implicit. `.github/CODEOWNERS` lists `/templates/skills/` and that test file under `@rjmurillo` (added by A0), so GitHub requests the owner's review on both. Neither is a hard gate unless the branch ruleset requires code-owner review; this record does not claim it does. The run-time allowlist alone is not the control.
 
 ### 2. REQ-003-010, amended

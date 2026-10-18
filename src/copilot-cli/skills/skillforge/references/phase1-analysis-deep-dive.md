@@ -115,7 +115,7 @@ FOR EACH operation in the skill:
 │   └── YES → Consider integration script
 │
 └── Can a program check the outcome independently of the executor?
-    └── NO → Add a fast-fail check and keep a reviewed decision for the outcome
+    └── NO → Keep a reviewed decision for the outcome (add a fast-fail check only if an executor script runs)
 ```
 
 **Automation Lens Questions:**

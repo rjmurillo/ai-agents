@@ -1,7 +1,7 @@
 [.github/]
 |CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON f... (see: .project-toolkit/context/github/details/github.md)
 [Matters]
-|Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/` (e... (see: .project-toolkit/context/github/details/matters.md)
+|Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/hook... (see: .project-toolkit/context/github/details/matters.md)
 [Entry points]
 |`workflows/pr-validation.yml`, job `Validate PR`: required check. PR body sha... (see: .project-toolkit/context/github/details/entry-points.md)
 [Where to look]
@@ -15,6 +15,6 @@
 [Dependencies]
 |Agent render map: `templates/AGENTS.md`. Generator order, `OWNED_PREFIXES`, b... (see: .project-toolkit/context/github/details/dependencies.md)
 [Architecture]
-|`generate_rules.py` writes both mirrors in one run, renaming `paths:` to `app... (see: .project-toolkit/context/github/details/architecture.md)
+|`generate_rules.py` renames `paths:` to `applyTo:`, drops `priority:`/`always... (see: .project-toolkit/context/github/details/architecture.md)
 [Commands]
 |(see detail file) (see: .project-toolkit/context/github/details/commands.md)

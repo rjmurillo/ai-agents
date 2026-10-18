@@ -220,8 +220,10 @@ def resilient_operation(max_retries=3):
     for attempt in range(max_retries):
         try:
             result = perform_operation()
-            if fast_fail_check(result):
+            is_valid, reason = fast_fail_check(result)
+            if is_valid:
                 return result
+            log(f"Attempt {attempt + 1} rejected: {reason}, retrying...")
         except RecoverableError as e:
             if attempt == max_retries - 1:
                 raise  # Final attempt, propagate error

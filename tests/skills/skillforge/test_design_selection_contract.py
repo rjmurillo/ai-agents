@@ -385,3 +385,17 @@ def test_generated_mirrors_match_canonical_source(root: str, skill: str, rel: st
     mirror = _REPO / root / "skills" / skill / rel
     assert mirror.is_file(), mirror
     assert mirror.read_bytes() == canonical.read_bytes()
+
+
+def test_pattern_two_unpacks_the_fast_fail_tuple_before_returning() -> None:
+    """fast_fail_check returns (is_valid, message); a bare tuple is always truthy."""
+    text = _REF.read_text(encoding="utf-8")
+    assert "is_valid, reason = fast_fail_check(result)" in text
+    assert "if fast_fail_check(result):" not in text
+
+
+def test_map_only_branch_does_not_require_a_fast_fail_check() -> None:
+    """With no executor script there is nothing to fail fast; keep the reviewed decision."""
+    phase1 = (_SKILLFORGE_REFS / "phase1-analysis-deep-dive.md").read_text(encoding="utf-8")
+    assert "add a fast-fail check only if an executor script runs" in phase1
+    assert "NO → Add a fast-fail check and keep" not in phase1
