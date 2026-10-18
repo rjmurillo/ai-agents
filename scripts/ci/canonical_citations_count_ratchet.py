@@ -14,7 +14,7 @@ The count is the number of violations ``STRICT_CANONICAL_CHECK=1`` reports:
 agree by construction. One difference is deliberate, per
 ``.claude/rules/ci-scripts.md`` MUST 9: the checker walks the directory tree
 with ``rglob``, which reads untracked files too. This ratchet lists git-TRACKED
-Python files under the same four scan roots, so the same commit scores the same
+Python files under the same five scan roots, so the same commit scores the same
 on every machine.
 
 Stdlib only: this runs by path in CI and must not depend on the project's
@@ -58,12 +58,15 @@ __all__ = [
 
 _BASELINE_PATH = Path(__file__).with_name("canonical_citations_count_baseline.txt")
 
-# The four roots ``check_canonical_citations._scan_roots`` inspects.
+# The five roots ``check_canonical_citations._scan_roots`` inspects. Shipped
+# skills are tracked at src/claude/skills; .claude/skills holds them only as
+# directory links (ADR-119) plus the repo-local skills.
 _SCAN_ROOT_PREFIXES: tuple[str, ...] = (
     ".claude/hooks/",
     "scripts/validation/",
     "build/scripts/",
     ".claude/skills/",
+    "src/claude/skills/",
 )
 
 # ``scan_file`` returns a Violation with this token when it cannot read a file.

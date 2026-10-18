@@ -74,6 +74,34 @@ class TestCli:
         assert skillopt.main(files.argv()) == 1
         assert json.loads(capsys.readouterr().out)["verdict"] == "REJECT"
 
+    def test_pair_gate_ceiling_exit_one_with_hint(self, tmp_path: Path, capsys: Capture) -> None:
+        files = PairGateFiles(
+            tmp_path,
+            {"splits": {"sel": ["a", "b"]}},
+            {"a": True, "b": True},
+            {"a": True, "b": True},
+        )
+        assert skillopt.main(files.argv()) == 1
+        report = json.loads(capsys.readouterr().out)
+        assert report["verdict"] == "REJECT_CEILING"
+        assert report["accepted"] is False
+        assert "Freeze a new sel set" in report["hint"]
+        assert "Never re-gate this candidate" in report["hint"]
+
+    def test_pair_gate_ceiling_on_train_split_is_plain_reject(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        files = PairGateFiles(
+            tmp_path,
+            {"splits": {"sel": ["a"], "train": ["t"]}},
+            {"t": True},
+            {"t": True},
+        )
+        assert skillopt.main(files.argv("--split", "train")) == 1
+        report = json.loads(capsys.readouterr().out)
+        assert report["verdict"] == "REJECT"
+        assert "hint" not in report
+
     def test_pair_gate_unverified_exit_one(self, tmp_path: Path, capsys: Capture) -> None:
         files = PairGateFiles(
             tmp_path, {"splits": {"sel": ["a"]}}, {"a": False}, {"a": "UNVERIFIED"}

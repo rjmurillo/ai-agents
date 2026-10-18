@@ -128,6 +128,25 @@ class ImportProblem:
     target: str
 
 
+_MAX_LINK_HOPS = 8
+_SYMLINK_MODE = "120000"
+
+
+def _link_target(link_path: str, text: str) -> str | None:
+    """Resolve a tracked link's text against its directory; ``None`` if it escapes."""
+    if text.startswith("/"):
+        return None
+    parts = list(PurePosixPath(link_path).parent.parts)
+    for part in PurePosixPath(text).parts:
+        if part == "..":
+            if not parts:
+                return None
+            parts.pop()
+        elif part != ".":
+            parts.append(part)
+    return "/".join(parts)
+
+
 class Repo:
     """Reads repository file bytes and directory listings, live or at a rev.
 
@@ -155,26 +174,46 @@ class Repo:
             if not candidate.is_file():
                 return None
             return candidate.read_bytes()
-        if not self._exists_at_rev(self._rev, rel_path):
-            return None
+        # ADR-119: a shipped rule or instruction is a tracked symlink, whose
+        # blob holds its target as text. Follow it at the same rev, inside the
+        # repository only, as the working tree read does through the link.
+        current = rel_path
+        for _ in range(_MAX_LINK_HOPS + 1):
+            mode = self._entry_mode(self._rev, current)
+            if mode is None:
+                return None
+            data = self._show(self._rev, current)
+            if mode != _SYMLINK_MODE:
+                return data
+            target = _link_target(current, _decode(data))
+            if target is None:
+                return None
+            current = target
+        return None
+
+    def _show(self, rev: str, rel_path: str) -> bytes:
         try:
             result = subprocess.run(
-                ["git", "show", f"{self._rev}:{rel_path}"],
+                ["git", "show", f"{rev}:{rel_path}"],
                 cwd=self._root,
                 capture_output=True,
                 timeout=30,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            msg = f"git show {self._rev}:{rel_path} failed in {self._root}: {exc}"
+            msg = f"git show {rev}:{rel_path} failed in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
         if result.returncode != 0:
             stderr = _decode(result.stderr)
-            msg = f"git show {self._rev}:{rel_path} exited {result.returncode}: {stderr}"
+            msg = f"git show {rev}:{rel_path} exited {result.returncode}: {stderr}"
             raise GitUnavailableError(msg)
         return result.stdout
 
     def _exists_at_rev(self, rev: str, rel_path: str) -> bool:
-        """True when ``rel_path`` names a blob (a file, not a tree) at ``rev``.
+        """True when ``rel_path`` names a blob at ``rev`` (see :meth:`_entry_mode`)."""
+        return self._entry_mode(rev, rel_path) is not None
+
+    def _entry_mode(self, rev: str, rel_path: str) -> str | None:
+        """Return the git mode of the blob ``rel_path`` at ``rev``, or ``None``.
 
         Takes ``rev`` as an explicit ``str`` argument, not ``self._rev``
         directly (matching :meth:`_ls_tree`'s own signature): the one caller,
@@ -218,10 +257,10 @@ class Repo:
             raise GitUnavailableError(msg)
         stdout = result.stdout.strip()
         if not stdout:
-            return False
+            return None
         metadata, _, _name = stdout.partition("\t")
         fields = metadata.split(" ")
-        return len(fields) >= 2 and fields[1] == "blob"
+        return fields[0] if len(fields) >= 2 and fields[1] == "blob" else None
 
     def is_dir(self, rel_path: str) -> bool:
         """True when ``rel_path`` names a directory (repo root if empty)."""

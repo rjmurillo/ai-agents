@@ -69,7 +69,7 @@ def test_discover_ignores_files_without_the_exact_suffix(tmp_path: Path) -> None
 def test_discover_excludes_a_bad_name(tmp_path: Path) -> None:
     """A name outside ``^[a-z0-9]+(-[a-z0-9]+)*$`` never reaches discover()'s mapping."""
     write_template(tmp_path, "Bad_Name", "body\n")
-    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+    (tmp_path / "src" / "claude" / "skills" / "Bad_Name").mkdir(parents=True)
 
     assert skill_templates.discover(tmp_path) == {}
 
@@ -84,16 +84,20 @@ def test_discover_excludes_a_name_with_no_skill_directory(tmp_path: Path) -> Non
     assert skill_templates.discover(tmp_path) == {}
 
 
+LOCAL_TEMPLATE = "---\nname: {name}\nmetadata:\n  distribution: repo-local\n---\nbody\n"
+
+
 def test_discover_excludes_a_symlinked_skill_directory_outside_the_root(
     tmp_path: Path,
 ) -> None:
-    """CWE-22 defense: a symlinked skill dir outside .claude/skills/ is exit
-    2, never template-owned. Skipped where symlinks are unsupported.
+    """CWE-22 defense: a shipped skill whose ``src/claude/skills/<name>`` is a
+    symlink is exit 2, never template-owned. Skipped where symlinks are
+    unsupported.
     """
     write_template(tmp_path, "sync", "body\n")
     outside = tmp_path / "outside-the-skills-root"
     outside.mkdir()
-    skills_root = tmp_path / ".claude" / "skills"
+    skills_root = tmp_path / "src" / "claude" / "skills"
     skills_root.mkdir(parents=True)
     link = skills_root / "sync"
     try:
@@ -109,9 +113,27 @@ def test_discover_excludes_a_symlinked_skill_directory_outside_the_root(
     assert skill_templates.owned_targets(tmp_path) == set()
 
 
+def test_discover_excludes_a_symlinked_repo_local_skill_directory(tmp_path: Path) -> None:
+    write_template(tmp_path, "sync", LOCAL_TEMPLATE.format(name="sync"))
+    outside = tmp_path / "outside-the-skills-root"
+    outside.mkdir()
+    skills_root = tmp_path / ".claude" / "skills"
+    skills_root.mkdir(parents=True)
+    try:
+        (skills_root / "sync").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("cannot create a symlink on this platform/permission set")
+
+    assert skill_templates.discover(tmp_path) == {}
+    errors = skill_templates.discover_errors(tmp_path)
+    assert len(errors) == 1
+    assert "symlink" in errors[0].lower()
+    assert skill_templates.owned_targets(tmp_path) == set()
+
+
 def test_discover_errors_reports_the_bad_name_with_template_path(tmp_path: Path) -> None:
     tmpl = write_template(tmp_path, "Bad_Name", "body\n")
-    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+    (tmp_path / "src" / "claude" / "skills" / "Bad_Name").mkdir(parents=True)
 
     errors = skill_templates.discover_errors(tmp_path)
 
@@ -129,7 +151,33 @@ def test_discover_errors_reports_the_missing_skill_directory_with_template_path(
 
     assert len(errors) == 1
     assert str(tmpl) in errors[0]
-    assert ".claude/skills/sync" in errors[0]
+    assert "src/claude/skills/sync" in errors[0]
+
+
+def test_shipped_skill_needs_the_plugin_directory_not_the_install_directory(
+    tmp_path: Path,
+) -> None:
+    """ADR-119: ``.claude/skills/<name>`` is a symlink binplace places later, so
+    a real install directory alone does not satisfy a shipped skill.
+    """
+    write_template(tmp_path, "sync", "body\n")
+    (tmp_path / ".claude" / "skills" / "sync").mkdir(parents=True)
+
+    assert skill_templates.discover(tmp_path) == {}
+    errors = skill_templates.discover_errors(tmp_path)
+    assert len(errors) == 1
+    assert "no existing src/claude/skills/sync/ directory" in errors[0]
+
+
+def test_discover_errors_reports_a_missing_repo_local_skill_directory(tmp_path: Path) -> None:
+    tmpl = write_template(tmp_path, "sync", LOCAL_TEMPLATE.format(name="sync"))
+    (tmp_path / "src" / "claude" / "skills" / "sync").mkdir(parents=True)
+
+    errors = skill_templates.discover_errors(tmp_path)
+
+    assert len(errors) == 1
+    assert str(tmpl) in errors[0]
+    assert "no existing .claude/skills/sync/ directory" in errors[0]
 
 
 def test_discover_errors_empty_on_a_clean_tree(tmp_path: Path) -> None:
@@ -143,7 +191,7 @@ def test_compile_all_reports_a_bad_name_as_exit_2_and_writes_nothing(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     tmpl = write_template(tmp_path, "Bad_Name", "body\n")
-    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+    (tmp_path / "src" / "claude" / "skills" / "Bad_Name").mkdir(parents=True)
 
     result = skill_templates.compile_all(tmp_path, validate=False)
 
@@ -166,7 +214,7 @@ def test_compile_all_reports_a_missing_skill_directory_as_exit_2(
 
 def test_owned_targets_excludes_an_invalid_name(tmp_path: Path) -> None:
     write_template(tmp_path, "Bad_Name", "body\n")
-    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+    (tmp_path / "src" / "claude" / "skills" / "Bad_Name").mkdir(parents=True)
 
     assert skill_templates.owned_targets(tmp_path) == set()
 
@@ -175,13 +223,20 @@ def test_owned_targets_empty_when_no_templates(tmp_path: Path) -> None:
     assert skill_templates.owned_targets(tmp_path) == set()
 
 
-def test_owned_targets_maps_each_template_to_its_plugin_and_install_paths(tmp_path: Path) -> None:
+def test_owned_targets_maps_each_template_to_the_path_compile_all_writes(
+    tmp_path: Path,
+) -> None:
+    """Shipped: the plugin-tree path only (``.claude/skills/<name>`` is a link).
+    Repo-local: the install-tree path only.
+    """
     write_template(tmp_path, "sync", "body\n")
     seed_target_dir(tmp_path, "sync")
+    write_template(tmp_path, "local", LOCAL_TEMPLATE.format(name="local"))
+    (tmp_path / ".claude" / "skills" / "local").mkdir(parents=True)
 
     assert skill_templates.owned_targets(tmp_path) == {
         tmp_path / "src" / "claude" / "skills" / "sync" / "SKILL.md",
-        tmp_path / ".claude" / "skills" / "sync" / "SKILL.md",
+        tmp_path / ".claude" / "skills" / "local" / "SKILL.md",
     }
 
 

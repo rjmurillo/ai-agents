@@ -16,8 +16,8 @@ copy that ``build_all.py --check`` cannot see.
 
 Since ADR-109 B1 no shared-agent copy is hand-maintained: ``src/claude/agents/X.md``
 renders from ``templates/agents/X.claude.md.tmpl``, and the binplace step in
-``build_all.py`` copies ``src/claude/agents`` to ``.claude/agents`` and
-``src/copilot-cli/agents`` to ``.github/agents``. SHARED_AGENT groups are
+``build_all.py`` links ``.claude/agents`` to ``src/claude/agents`` and
+``.github/agents`` to ``src/copilot-cli/agents`` (ADR-119). SHARED_AGENT groups are
 therefore classified for observability only and their drift is delegated to
 ``build_all.py --check``, exactly as RULE groups already are. The
 hand-maintained carve-outs below stay in place for the next class that still
