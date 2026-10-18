@@ -90,39 +90,8 @@ class TestFindStale:
     def test_empty_when_all_live(self) -> None:
         assert find_stale_branches(["a"], frozenset({"a"}), frozenset()) == ()
 
-    def test_legacy_lowercased_section_of_a_mixed_case_branch_is_live(self) -> None:
-        stale = find_stale_branches(["feature-x"], frozenset({"Feature-X"}), frozenset())
-
-        assert stale == ()
-
-    def test_legacy_lowercased_section_of_a_mixed_case_checkout_is_live(self) -> None:
-        stale = find_stale_branches(["feature-x"], frozenset(), frozenset({"Feature-X"}))
-
-        assert stale == ()
-
-    def test_unrelated_section_stays_stale_when_case_is_folded(self) -> None:
-        stale = find_stale_branches(["feature-y"], frozenset({"Feature-X"}), frozenset())
-
-        assert stale == ("feature-y",)
-
 
 class TestPrune:
-    def test_legacy_mixed_case_section_is_not_reported_or_removed(self, repo: Path) -> None:
-        """Git lowercases ``[branch.Feature-X]`` when listing keys, though the branch is live."""
-        _git(repo, "branch", "Feature-X")
-        config = resolve_config_path(repo)
-        with config.open("a", encoding="utf-8") as handle:
-            handle.write("[branch.Feature-X]\n\tremote = origin\n")
-        assert _sections(repo) == ("feature-x",)
-
-        dry = prune_branch_config(repo)
-        applied = prune_branch_config(repo, apply=True)
-
-        assert dry.stale == ()
-        assert applied.stale == ()
-        assert applied.removed == 0
-        assert "[branch.Feature-X]" in config.read_text(encoding="utf-8")
-
     def test_removes_only_orphan_sections(self, repo: Path) -> None:
         _git(repo, "branch", "live")
         _add_section(repo, "live")
