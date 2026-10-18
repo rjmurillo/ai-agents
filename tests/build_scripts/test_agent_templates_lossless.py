@@ -50,7 +50,7 @@ class TestLosslessRendering:
         partials_dir = _REPO_ROOT / "templates" / "agents" / "partials"
 
         fixture_bytes = fixture_path.read_bytes()
-        # render_claude also expands `$deny:` list items (ADR-107, read-only agents).
+        # render_claude also expands `$mcp:` list items (ADR-107, read-only agents).
         rendered = render_claude(template_path, partials_dir, load_mcp_table(_REPO_ROOT))
         rendered_bytes = str(rendered).encode("utf-8")
 

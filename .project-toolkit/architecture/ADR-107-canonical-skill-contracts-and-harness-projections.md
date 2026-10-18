@@ -634,6 +634,67 @@ Findings outside this record's scope, reported rather than fixed.
   `agent-catalog` and `adr-index` have no index row, and `generate_pr_quality_prompts.py` has a row
   but no `GENERATORS` entry. M1 must reconcile this.
 
+## Amendment 2026-10-17: Read-only agents keep an allowlist and grant Context7 by server wildcard
+
+This is an amendment to a proposed ADR. The record's frontmatter stays `status: proposed` and `implemented: false`, and the Status section still says it enforces nothing until M1 lands. This amendment changes no status. What it enforces now is narrower: four Claude agent templates and their renderer. The enforcement lives in tests and the render step, not in a hook, so ADR-097 (no tool-use hooks) is untouched: frontmatter is not a hook. The templates stay the source of the generated agent files, as ADR-109 requires.
+
+### Decision
+
+The four read-only Claude agents (`analyst`, `security`, `code-reviewer`, `comment-analyzer`) declare a `tools:` allowlist. It holds the built-ins each agent held on origin/main, plus `ToolSearch`, which loads deferred MCP tool schemas. MCP servers are granted in one of two ways. A read-only docs server (Context7) is granted by server wildcard, written in the template as `- $mcp:<server>` and expanded by the renderer into `<prefix>__*` for each known prefix variant. A server with write tools (Serena, GitHub, DeepWiki) is granted tool by tool, exactly the read tools the agent held on origin/main.
+
+No agent holds `Bash`, `PowerShell`, `Monitor`, `Skill`, `Edit`, `MultiEdit`, `NotebookEdit`, `Agent`, `Task`, `Cron*`, `RemoteTrigger`, `EnterWorktree`, `ExitWorktree`, or `PushNotification`. Only `security` holds `Write`, as on main.
+
+### Considered options
+
+- **A. Allowlist, with a wildcard only for a read-only docs server (chosen).** Built-ins are exact. Servers with write tools are granted tool by tool. Context7 is granted by name pattern, so a connector install works without listing its tools.
+- **B. Inherit every tool and deny the executors (rejected).** An earlier revision of this amendment chose it. A probe on 2026-10-17 launched a sub-agent with default Agent settings and a deny list of 11 built-ins (`Bash`, `PowerShell`, `Monitor`, `Edit`, `Write`, `MultiEdit`, `NotebookEdit`, `Skill`, `EnterWorktree`, `ExitWorktree`, `Agent`) plus the context-mode server. An earlier inherit-all probe with `Bash`, `Edit`, `Write`, `MultiEdit`, and `NotebookEdit` denied still exposed `Monitor`, `Skill`, `EnterWorktree`, `CronCreate`, `RemoteTrigger`, `PushNotification`, `DesignSync`, and the context-mode `ctx_execute` tool. After the 11-built-in deny list, `Cron*` and `RemoteTrigger` were still reachable. A deny list cannot name tools it has not seen.
+- **C. Revert to the old per-tool lists and fix dispatch (rejected).** The listed names (`mcp__github__*`, `mcp__context7__*`) do not exist on connector installs, which spell them `mcp__claude_ai_<Name>__*`. The agent would stay blind there.
+- **D. A global `mcp__*` grant (rejected).** The `probe-hybrid` agent had `tools: [Read, Glob, Grep, ToolSearch, mcp__*]` and saw only `Read`, `Glob`, and `Grep`: it granted zero MCP tools. The renderer rejects it so it cannot ship as a silent no-op.
+
+The same probes, all sub-agents launched with default Agent settings, showed that a `tools:` allowlist is honored, that `mcp__claude_ai_Context7__*` grants that server's tools, and that a bare server name such as `mcp__claude_ai_hindsight` grants all of its tools. From an agent with `tools: [Read, ToolSearch, mcp__claude_ai_Context7__*]`, `ToolSearch` for `select:Bash`, for `ctx_execute`, and for `select:mcp__claude_ai_Slack__slack_send_message` each returned "No matching deferred tools found". Nothing ungranted was callable. The sub-agents page (fetched 2026-10-17) says `disallowedTools` is applied before `tools` resolves, and that both fields accept whole-server entries.
+
+All probe evidence is from Claude Code 2.1.302 only. Other versions may differ. Connector names seen inside the probe agents: Context7, hindsight, Claude_Docs. Slack, Microsoft_Learn, and Firecrawl appeared in the parent session's tool list only.
+
+### Mechanism
+
+- `templates/agent-mcp-servers.yaml` holds the prefix variants and the server list. It is a sibling of `toolsets.yaml`, whose line parser serves the Copilot expansion only. An earlier draft held deny lists and was named `agent-denylists.yaml`; no list is in use, so none is kept.
+- `build/scripts/agent_templates.py` expands `$mcp:` list items in the Claude frontmatter through `agent_capabilities.expand_frontmatter`. An unknown server name fails the build with exit 2. A bare `mcp__*` fails it too.
+- Prefix variants are `mcp__<s>__*`, `mcp__plugin_<s>_<s>__*`, and `mcp__claude_ai_<Name>__*`. Connector names observed in the probes: Context7, hindsight, Claude_Docs.
+- `agent_capabilities.classify` maps the plugin and connector spellings to one server, so the parity gate compares Claude `mcp__serena__*` with Copilot `serena/*` as the same capability.
+- Serena is granted tool by tool under `mcp__serena__`, exactly as on main. `security` keeps `write_memory` and `edit_memory`. A wildcard would grant any future Serena executor. With one prefix emitted, a wildcard adds no reach either.
+- Context7 is a read-only docs server, granted by wildcard under all three prefixes.
+- GitHub and DeepWiki are granted tool by tool as on main. Wildcards would grant any future write tool, and denying about 30 and 15 write tools by name would add bytes to every agent file against the per-fixture ceilings. The `.mcp.json` coverage test accepts DeepWiki as `remote_only` and Serena as `explicit_only`.
+- Only the `mcp__serena__` prefix is granted. The plugin and connector spellings of Serena are not, so a Serena install under them is absent, not exposed.
+
+### Byte budget
+
+Measured on 2026-10-17 with `scripts/validation/instruction_bytes.py` at commit `3f558b393b`: F5 is 111205 of 112000 bytes and F6 is 119148 of 120000. Origin/main at `44fd46a46e` measured 111190 and 119103. No ceiling was raised.
+
+### Chesterton's Fence
+
+- **#5356, commit `5c8b89781a`.** The `security` agent was given no shell. A settings-file deny rule matches command text case-sensitively, but git config keys are case-insensitive, so `git -c Diff.External=<cmd> diff` reaches the same handler as the denied lowercase spelling. Enumerating casings is not a control. Removing the shell is. This amendment keeps that: `Bash` is not in any allowlist, and no Serena tool is granted except the read tools and the two memory writes `security` held on main, so `execute_shell_command` is not granted. `tests/test_security_diff_enumeration.py` and `tests/test_security_agent_git_write_guard.py` still pass, and `tests/test_read_only_agent_grants.py` asserts no executor in any of the four allowlists.
+- **#5767.** `code-reviewer` and `comment-analyzer` promised in prose that they never edit or run commands, while an agent with no `tools:` key inherits everything. The fix was an explicit allowlist. This amendment keeps an explicit allowlist. A test pins each agent's origin/main tools and asserts every one is still granted.
+
+### Rollback
+
+Revert the commit that adds `templates/agent-mcp-servers.yaml`, restore the four templates from origin/main, run `uv run python build/scripts/build_all.py`, and restore the divergence baseline. The generated agent files and fixtures return to the per-tool lists.
+
+### Consequences
+
+- The Cursor tree is unchanged: `agent_tree_copy.derive_readonly` treats a server wildcard as read-only, because Cursor enforces `readonly: true` itself and it only narrows the agent. `analyst`, `code-reviewer`, and `comment-analyzer` still ship. `security` holds `Write`, so it is still not shipped.
+- Copilot and VS Code templates are unchanged. This record has no evidence that their hosts support a deny list, and none is used.
+- The divergence baseline stays at 109 pins; four `capability:builtin` digests change for `ToolSearch` and one Context7 pin is removed.
+
+### Residual risk
+
+- A bespoke corporate MCP server is unreachable until it is added to the table.
+- In `bypassPermissions` mode the sub-agents docs say the parent's mode overrides a sub-agent's `permissionMode`, so an unprompted call to a granted tool is possible. The allowlist limits which tools exist, not whether they prompt.
+- A Serena install under a plugin or connector prefix gets no Serena tools.
+- Context7 is a wildcard, so a future Context7 tool is granted. Accepted because the server is read-only docs.
+- Name squatting: a repo `.mcp.json` server named `context7` is granted by `mcp__context7__*` and by the plugin spelling. The connector spelling is unaffected.
+- Context7 query text leaves the machine. That egress already existed on main for `analyst`.
+- GitHub, DeepWiki, and Serena are explicit. A new read tool in any of them is not granted until it is added.
+
 ## Related Decisions
 
 - ADR-101 (enforcement planes, `proposed`, `implemented: false`): corroborates, does not
