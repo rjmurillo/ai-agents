@@ -1191,6 +1191,10 @@ def eval_one_scenario(
             "system_prompt_chars": len(system),
         }
         _add_mechanism_metadata(mechanism_result, routing, fingerprint)
+        mechanism_result["response_chars"] = len(response)
+        output_tokens = metadata.get("output_tokens")
+        if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
+            mechanism_result["output_tokens"] = output_tokens
         result["mechanisms"][mechanism] = mechanism_result
     return result
 
@@ -1315,6 +1319,23 @@ def _incomplete_mechanisms(
     return sorted(m for m in mechs if _graded_count(per_mech[m]) < pool_size)
 
 
+def _mean_int_field(pool: list[dict[str, Any]], mech: str, field: str) -> tuple[float | None, int]:
+    """Mean of an integer field over the cells that recorded it, and how many did.
+
+    `bool` is refused by name because it is an `int` subclass. None, not 0.0,
+    when no cell recorded the field: an unmeasured size is not a size of zero.
+    """
+    values = [
+        v
+        for s in pool
+        if isinstance(v := s.get("mechanisms", {}).get(mech, {}).get(field), int)
+        and not isinstance(v, bool)
+    ]
+    if not values:
+        return None, 0
+    return round(sum(values) / len(values), 1), len(values)
+
+
 def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
@@ -1340,6 +1361,8 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     # observation supports. An absent number has to be handled; a zero does
     # not, so it travels silently into the table.
     avg = round(sum(scores) / len(scores), 2) if scores else None
+    output_token_mean, output_token_count = _mean_int_field(pool, mech, "output_tokens")
+    response_chars_mean, response_chars_count = _mean_int_field(pool, mech, "response_chars")
     return {
         "avg_score": avg,
         # The published average is rounded, and archived runs recorded it that
@@ -1356,6 +1379,15 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
         "judge_failure_samples": failure_samples,
         "legacy_reduced_count": legacy,
         "route_mismatch_count": route_missed,
+        # Output tokens the API reported for the response under test (#5405),
+        # not the judge's. None when no cell reported usage, so a provider
+        # that sends none is never read as a zero-token response.
+        "mean_output_tokens": output_token_mean,
+        "output_token_count": output_token_count,
+        # Length of the response text. A subscription CLI provider returns
+        # text with no usage block, so this is the only size signal there.
+        "mean_response_chars": response_chars_mean,
+        "response_chars_count": response_chars_count,
     }
 
 
@@ -1490,6 +1522,9 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary[f"delta_{mech_name}_vs_baseline_measured"] = _delta_measured(
             pos_cells[mech_name], pos_cells["baseline"]
         )
+    summary["output_tokens_delta_full_vs_baseline"] = _output_token_delta(
+        pos_cells["full"], pos_cells["baseline"]
+    )
     summary["delta_rounding_disagrees"] = any(
         summary[f"delta_{mech_name}_vs_baseline"]
         != summary[f"delta_{mech_name}_vs_baseline_measured"]
@@ -1693,6 +1728,19 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     treatment_avg: float = treatment["avg_score"]
     control_avg: float = control["avg_score"]
     return round(treatment_avg - control_avg, 2)
+
+
+def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """Mean output tokens, treatment minus control, or None when either is unmeasured.
+
+    A negative value means the rule shortened the response. Archived summaries
+    predate the field, so a missing key reads as unmeasured, not as zero.
+    """
+    treated = treatment.get("mean_output_tokens")
+    base = control.get("mean_output_tokens")
+    if treated is None or base is None:
+        return None
+    return round(treated - base, 1)
 
 
 def _delta_measured(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
@@ -1917,6 +1965,17 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         ),
         f"Restraint on negative cases: {restraint}",
     ]
+    token_delta = summary.get("output_tokens_delta_full_vs_baseline")
+    if token_delta is not None:
+        base_tokens = summary["per_mechanism"]["baseline"]["mean_output_tokens"]
+        full_tokens = summary["per_mechanism"]["full"]["mean_output_tokens"]
+        rows.append(
+            f"Mean output tokens: baseline {base_tokens}, full {full_tokens} ({token_delta:+})"
+        )
+    base_chars = summary["per_mechanism"]["baseline"].get("mean_response_chars")
+    full_chars = summary["per_mechanism"]["full"].get("mean_response_chars")
+    if base_chars is not None and full_chars is not None:
+        rows.append(f"Mean response chars: baseline {base_chars}, full {full_chars}")
     rows += _render_caveats(summary)
     rows += [
         "",

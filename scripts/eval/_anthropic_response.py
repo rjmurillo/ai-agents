@@ -74,6 +74,9 @@ class MessageResponse:
     block_types: tuple[str, ...]
     refusal_category: str | None = None
     refusal_explanation: str | None = None
+    # `usage.output_tokens` as the API reported it (#5405). None when the
+    # provider sends no usage block, so a missing count is never read as zero.
+    output_tokens: int | None = None
 
     @property
     def blocks_scoring(self) -> bool:
@@ -84,6 +87,21 @@ class MessageResponse:
         wrong verdict.
         """
         return self.termination in NON_SCOREABLE_TERMINATIONS
+
+
+def _read_output_tokens(payload: dict[str, Any]) -> int | None:
+    """Return `usage.output_tokens` when it is a non-negative integer, else None.
+
+    `bool` is an `int` subclass in Python, so it is refused by name: `True`
+    would otherwise be recorded as one token.
+    """
+    usage = payload.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    tokens = usage.get("output_tokens")
+    if isinstance(tokens, bool) or not isinstance(tokens, int) or tokens < 0:
+        return None
+    return tokens
 
 
 def parse_message_response(payload: dict[str, Any]) -> MessageResponse:
@@ -134,4 +152,5 @@ def parse_message_response(payload: dict[str, Any]) -> MessageResponse:
         block_types=tuple(block_types),
         refusal_category=refusal_category,
         refusal_explanation=refusal_explanation,
+        output_tokens=_read_output_tokens(payload),
     )

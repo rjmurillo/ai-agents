@@ -310,7 +310,8 @@ def call_api(
     """Call the selected provider and return assistant text.
 
     Text view over `call_api_response`. A passed `metadata` dict also gets
-    `termination`, `stop_reason`, and `refusal_category` on a refusal.
+    `termination`, `stop_reason`, `refusal_category` on a refusal, and
+    `output_tokens` when the provider reported usage.
     """
     response = call_api_response(
         api_key, messages, system, model, max_tokens, temperature, provider, seed, metadata
@@ -320,6 +321,8 @@ def call_api(
         metadata["stop_reason"] = response.stop_reason
         if response.refusal_category is not None:
             metadata["refusal_category"] = response.refusal_category
+        if response.output_tokens is not None:
+            metadata["output_tokens"] = response.output_tokens
     # Per-file mypy resolves the sibling import as Any; the field is str.
     return cast(str, response.text)
 
