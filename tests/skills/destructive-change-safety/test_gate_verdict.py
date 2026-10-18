@@ -27,7 +27,8 @@ NO_SCAN = object()
 
 
 def verdict(evidence: dict[str, Any], scan: Any = ACTIVE_SCAN) -> dict[str, Any]:
-    return gate_verdict.evaluate(evidence, None if scan is NO_SCAN else scan)
+    result: dict[str, Any] = gate_verdict.evaluate(evidence, None if scan is NO_SCAN else scan)
+    return result
 
 
 def reasons(evidence: dict[str, Any], scan: Any = ACTIVE_SCAN) -> str:
