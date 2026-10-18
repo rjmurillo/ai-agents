@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -41,19 +39,11 @@ def isolated_guard(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     from every test after it. This fixture gives the test empty shim state and puts back
     ``subprocess.Popen``, the ``os`` spawn functions, and ``PATH`` when it ends.
     """
-    popen = subprocess.Popen
-    spawns = {name: getattr(os, name) for name in local_smoke_guard._ORIGINAL_OS}
-    path = os.environ.get("PATH")
+    state = local_smoke_guard.snapshot()
     monkeypatch.setattr(local_smoke_guard, "_shim_dir", None)
     monkeypatch.setattr(local_smoke_guard, "_saved_path", None)
     try:
         yield
     finally:
         local_smoke_guard.remove_path_shim()
-        setattr(subprocess, "Popen", popen)  # noqa: B010
-        for name, value in spawns.items():
-            setattr(os, name, value)
-        if path is None:
-            os.environ.pop("PATH", None)
-        else:
-            os.environ["PATH"] = path
+        local_smoke_guard.restore(state)

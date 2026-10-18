@@ -150,3 +150,26 @@ def test_uninstall_also_removes_the_shim(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert not shim.exists()
     assert os.environ["PATH"] == "/a"
+
+
+def test_an_empty_path_before_install_is_restored_as_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Edge: PATH set to an empty string is not left pointing at the deleted shim."""
+    monkeypatch.setenv("PATH", "")
+    shim = guard.install_path_shim()
+    assert os.environ["PATH"] == str(shim)
+
+    guard.remove_path_shim()
+
+    assert os.environ["PATH"] == ""
+
+
+def test_snapshot_and_restore_put_back_popen_the_os_spawns_and_path() -> None:
+    state = guard.snapshot()
+    guard.install(lambda target, name, value: setattr(target, name, value))
+    os.environ["PATH"] = "/changed"
+
+    guard.restore(state)
+
+    assert subprocess.Popen is state["popen"]
+    assert all(getattr(os, name) is value for name, value in state["os"].items())
+    assert os.environ.get("PATH") == state["path"]

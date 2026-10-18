@@ -236,12 +236,35 @@ def remove_path_shim() -> None:
     current = os.environ.get("PATH", "")
     if current.startswith(_shim_dir.name):
         # A later change to PATH (a monkeypatch) is kept; only our prefix is removed.
-        if _saved_path is None:
-            os.environ.pop("PATH", None)
+        if not _saved_path:
+            if _saved_path is None:
+                os.environ.pop("PATH", None)
+            else:
+                os.environ["PATH"] = _saved_path
         else:
             os.environ["PATH"] = current.removeprefix(f"{_shim_dir.name}{os.pathsep}")
     _shim_dir.cleanup()
     _shim_dir, _saved_path = None, None
+
+
+def snapshot() -> dict[str, Any]:
+    """Return what ``install`` and ``install_path_shim`` change, for ``restore``."""
+    return {
+        "popen": subprocess.Popen,
+        "os": {name: getattr(os, name) for name in _ORIGINAL_OS},
+        "path": os.environ.get("PATH"),
+    }
+
+
+def restore(state: Mapping[str, Any]) -> None:
+    """Put back a ``snapshot``, leaving the shim state to ``remove_path_shim``."""
+    setattr(subprocess, "Popen", state["popen"])  # noqa: B010
+    for name, value in state["os"].items():
+        setattr(os, name, value)
+    if state["path"] is None:
+        os.environ.pop("PATH", None)
+    else:
+        os.environ["PATH"] = state["path"]
 
 
 def uninstall() -> None:

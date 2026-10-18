@@ -16,6 +16,13 @@ import local_smoke_guard as guard
 from local_smoke_command import program_names
 
 
+def _copy_suite(tmp_path: Path) -> None:
+    """Copy the conftest and the guard modules into a throwaway suite."""
+    e2e_dir = Path(__file__).resolve().parent
+    for name in ("conftest.py", "local_smoke_guard.py", "local_smoke_command.py"):
+        (tmp_path / name).write_text((e2e_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def _run_unmarked_copilot_test(
     tmp_path: Path, *, armed: bool, at_import: bool = False, by_name: bool = False
 ) -> subprocess.CompletedProcess[str]:
@@ -24,9 +31,7 @@ def _run_unmarked_copilot_test(
     With ``at_import`` the call runs at module import, during collection. With ``by_name``
     the call is ``bash -c 'builtin exec copilot'``, a form the command parser does not read.
     """
-    e2e_dir = Path(__file__).resolve().parent
-    for name in ("conftest.py", "local_smoke_guard.py", "local_smoke_command.py"):
-        (tmp_path / name).write_text((e2e_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
+    _copy_suite(tmp_path)
     fake = tmp_path / "bin" / "copilot"
     fake.parent.mkdir()
     fake.write_text(f"#!{sys.executable}\n", encoding="utf-8")
@@ -91,9 +96,7 @@ def test_conftest_leaves_copilot_alone_without_the_gate_flag(tmp_path: Path) -> 
 @pytest.mark.skipif(sys.platform == "win32", reason="the shim is a shell script")
 def test_a_test_that_uninstalls_the_guard_leaves_the_session_guard_armed(tmp_path: Path) -> None:
     """A test using ``isolated_guard`` must not strip the guard from tests that run after it."""
-    e2e_dir = Path(__file__).resolve().parent
-    for name in ("conftest.py", "local_smoke_guard.py", "local_smoke_command.py"):
-        (tmp_path / name).write_text((e2e_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
+    _copy_suite(tmp_path)
     (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
     (tmp_path / "test_a_strips.py").write_text(
         "import local_smoke_guard as guard\n\n"
