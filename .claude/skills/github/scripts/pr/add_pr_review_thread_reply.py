@@ -225,25 +225,15 @@ def _guard_auto_merge_before_resolution(
 
 
 def _auto_merge_armed_now(thread_id: str) -> bool:
-    """True when the thread's pull request has an auto-merge request right now.
-
-    An unreadable thread or pull request raises, so the caller leaves the thread
-    unresolved. Reading it as "not armed" would let the resolve go ahead blind.
-    """
-    thread = query_thread_state(thread_id)
-    if thread is None:
-        raise RuntimeError(f"could not re-read thread {thread_id} before the resolve")
-    pull_request = thread.get("pullRequest")
+    """True when the thread's pull request has an auto-merge request; raises when unreadable."""
+    pull_request = (query_thread_state(thread_id) or {}).get("pullRequest")
     if not isinstance(pull_request, dict):
-        raise RuntimeError(f"thread {thread_id} has no readable pull request before the resolve")
+        raise RuntimeError(f"cannot re-read the pull request of thread {thread_id}")
     return pull_request.get("autoMergeRequest") is not None
 
 
 def _resolve_thread_after_reply(thread_id: str) -> bool:
-    resolve_data = gh_graphql(
-        _RESOLVE_MUTATION,
-        {"threadId": thread_id},
-    )
+    resolve_data = gh_graphql(_RESOLVE_MUTATION, {"threadId": thread_id})
     return bool(
         resolve_data.get("resolveReviewThread", {}).get("thread", {}).get("isResolved", False)
     )
