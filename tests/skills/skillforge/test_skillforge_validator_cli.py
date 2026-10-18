@@ -261,6 +261,8 @@ def test_sibling_validators_answer_help(script: str):
         [sys.executable, str(_SCRIPT_DIR / script), "--help"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=_PROJECT_ROOT,
         check=False,
     )
