@@ -6,8 +6,10 @@ VS Code projections now carry no `model:` key and inherit the host default.
 The Claude projection keeps its `haiku` alias, which Claude Code resolves
 itself. This module pins both halves in the committed trees.
 
-CI has no Copilot CLI host, so these checks read the generated output. The live
-run is recorded on the pull request.
+CI has no Copilot CLI host, so these checks read the generated output. A
+top-level Copilot CLI 1.0.98 Linux run is recorded on the pull request. The
+`task` subagent dispatch path on 1.0.99-3 Windows, where the failure was first
+seen, is unverified.
 
 The last section guards every generated Copilot-side agent, not only
 code-reviewer. `scripts/validation/check_model_pins.py` skips the generated
@@ -18,12 +20,17 @@ new haiku-tier template would bring the bug back unseen.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "build"))
+
+from model_pin_manifest import format_model_id_for_platform  # noqa: E402
+
 COPILOT_SIDE_FILES = (
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "code-reviewer.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "code-reviewer.agent.md",
@@ -120,7 +127,38 @@ def _kept_pins(manifest: Path) -> dict[str, str]:
     return kept
 
 
-def _assert_pin_is_backed(path: Path, kept: dict[str, str]) -> None:
+# Each generated tree maps to the platform YAML that renders its `model:` value.
+# The generator rewrites a KEEP_PIN manifest id into the platform's own spelling
+# (format_model_id_for_platform), so the check must do the same before comparing.
+# GitHub rejects `model:` in .github/agents (templates/platforms/github.yaml), so
+# that tree has no tier map and no pin can be backed there.
+PLATFORM_YAML_BY_TREE = {
+    "src/copilot-cli": REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml",
+    "src/vs-code-agents": REPO_ROOT / "templates" / "platforms" / "vscode.yaml",
+    ".github/agents": None,
+}
+
+
+def _tiers_from_yaml(yaml_path: Path) -> dict[str, object]:
+    config = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    legacy = config.get("legacy") or {}
+    tiers = legacy.get("model_tiers") or config.get("model_tiers")
+    assert isinstance(tiers, dict), f"{yaml_path} has no model_tiers map"
+    return tiers
+
+
+def _platform_tiers(path: Path) -> dict[str, object] | None:
+    """Return the model_tiers map of the platform that rendered `path`."""
+    relative = path.resolve().relative_to(REPO_ROOT).as_posix()
+    for tree, yaml_path in PLATFORM_YAML_BY_TREE.items():
+        if relative.startswith(tree + "/"):
+            return None if yaml_path is None else _tiers_from_yaml(yaml_path)
+    raise AssertionError(f"{path} is not under a known generated Copilot tree")
+
+
+def _assert_pin_is_backed(
+    path: Path, kept: dict[str, str], tiers: dict[str, object] | None
+) -> None:
     pinned = _frontmatter(path).get("model")
     if pinned is None:
         return
@@ -129,9 +167,11 @@ def _assert_pin_is_backed(path: Path, kept: dict[str, str]) -> None:
         f"{path} pins a model with no KEEP_PIN entry in the model-pin-evidence "
         "manifest. A host without that model rejects the agent."
     )
-    assert pinned == kept[name], (
+    expected = format_model_id_for_platform(kept[name], tiers) if tiers is not None else None
+    assert pinned == expected, (
         f"{path} pins model {pinned!r} but the KEEP_PIN entry justifies "
-        f"{kept[name]!r}. The sweep evidence does not cover the pinned id."
+        f"{expected!r} on this platform (manifest id {kept[name]!r}). "
+        "The sweep evidence does not cover the pinned id."
     )
 
 
@@ -151,16 +191,25 @@ def test_generated_copilot_agents_are_discovered() -> None:
     ids=lambda p: p.relative_to(REPO_ROOT).as_posix(),
 )
 def test_generated_copilot_agent_pins_no_unbacked_model(path: Path) -> None:
-    _assert_pin_is_backed(path, _kept_pins(PIN_MANIFEST))
+    _assert_pin_is_backed(path, _kept_pins(PIN_MANIFEST), _platform_tiers(path))
+
+
+COPILOT_CLI_TIERS = _tiers_from_yaml(PLATFORM_YAML_BY_TREE["src/copilot-cli"])
+VSCODE_TIERS = _tiers_from_yaml(PLATFORM_YAML_BY_TREE["src/vs-code-agents"])
+
+
+def _write_agent(tmp_path: Path, model: str, name: str = "new-agent") -> Path:
+    agent = tmp_path / f"{name}.agent.md"
+    agent.write_text(f"---\ndescription: x\nmodel: {model}\n---\nbody\n", encoding="utf-8")
+    return agent
 
 
 def test_unbacked_pin_in_generated_agent_is_rejected(tmp_path: Path) -> None:
     """Negative control: a haiku-tier template rendered to a versioned id fails."""
-    agent = tmp_path / "new-agent.agent.md"
-    agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.5\n---\nbody\n", encoding="utf-8")
+    agent = _write_agent(tmp_path, "claude-haiku-4.5")
 
     with pytest.raises(AssertionError, match="no KEEP_PIN entry"):
-        _assert_pin_is_backed(agent, {})
+        _assert_pin_is_backed(agent, {}, COPILOT_CLI_TIERS)
 
 
 def test_manifest_backed_pin_in_generated_agent_is_accepted(tmp_path: Path) -> None:
@@ -181,21 +230,91 @@ def test_manifest_backed_pin_in_generated_agent_is_accepted(tmp_path: Path) -> N
         ),
         encoding="utf-8",
     )
-    agent = tmp_path / "new-agent.agent.md"
-    agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.5\n---\nbody\n", encoding="utf-8")
+    agent = _write_agent(tmp_path, "claude-haiku-4.5")
     kept = _kept_pins(manifest)
 
     assert kept == {"new-agent": "claude-haiku-4.5"}
-    _assert_pin_is_backed(agent, kept)
+    _assert_pin_is_backed(agent, kept, COPILOT_CLI_TIERS)
+
+
+@pytest.mark.parametrize(
+    ("manifest_id", "tiers", "rendered"),
+    [
+        # Canonical hyphen form (check_model_pins._normalize_id) on each platform.
+        ("claude-haiku-4-5", COPILOT_CLI_TIERS, "claude-haiku-4.5"),
+        ("claude-haiku-4-5", VSCODE_TIERS, "Claude Haiku 4.5 (copilot)"),
+        # Dot form, as the pre-existing copilot-cli control wrote it.
+        ("claude-haiku-4.5", COPILOT_CLI_TIERS, "claude-haiku-4.5"),
+        ("claude-haiku-4.5", VSCODE_TIERS, "Claude Haiku 4.5 (copilot)"),
+        # Non-haiku tier: the rewrite is not specific to the haiku default.
+        ("claude-sonnet-4-6", VSCODE_TIERS, "Claude Sonnet 4.6 (copilot)"),
+    ],
+)
+def test_keep_pin_matches_the_platform_rendered_spelling(
+    tmp_path: Path, manifest_id: str, tiers: dict[str, object], rendered: str
+) -> None:
+    """Positive: the generator rewrites a manifest id per platform, so the check must too.
+
+    Without the rewrite, a legitimate ADR-080 KEEP_PIN entry in the canonical
+    hyphen form would fail on copilot-cli, and on VS Code for every spelling.
+    """
+    agent = _write_agent(tmp_path, rendered)
+
+    _assert_pin_is_backed(agent, {"new-agent": manifest_id}, tiers)
+
+
+def test_raw_manifest_spelling_is_not_accepted_when_the_platform_renders_another(
+    tmp_path: Path,
+) -> None:
+    """Negative: a VS Code agent carrying the raw manifest id was not rendered by the generator."""
+    agent = _write_agent(tmp_path, "claude-haiku-4-5")
+
+    with pytest.raises(AssertionError, match="does not cover the pinned id"):
+        _assert_pin_is_backed(agent, {"new-agent": "claude-haiku-4-5"}, VSCODE_TIERS)
 
 
 def test_pin_to_a_different_model_than_the_manifest_is_rejected(tmp_path: Path) -> None:
     """Negative: a KEEP_PIN for one id does not back a regenerated pin to another."""
-    agent = tmp_path / "new-agent.agent.md"
-    agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.6\n---\nbody\n", encoding="utf-8")
+    agent = _write_agent(tmp_path, "claude-haiku-4.6")
 
     with pytest.raises(AssertionError, match="does not cover the pinned id"):
-        _assert_pin_is_backed(agent, {"new-agent": "claude-haiku-4.5"})
+        _assert_pin_is_backed(agent, {"new-agent": "claude-haiku-4.5"}, COPILOT_CLI_TIERS)
+
+
+def test_manifest_id_the_formatter_cannot_render_backs_no_pin(tmp_path: Path) -> None:
+    """Edge: a date-stamped id fails closed in the generator, so it cannot back a pin."""
+    agent = _write_agent(tmp_path, "claude-opus-4-20250514")
+
+    with pytest.raises(AssertionError, match="does not cover the pinned id"):
+        _assert_pin_is_backed(agent, {"new-agent": "claude-opus-4-20250514"}, COPILOT_CLI_TIERS)
+
+
+def test_github_tree_has_no_tier_map_so_no_pin_is_backed(tmp_path: Path) -> None:
+    """Edge: GitHub rejects `model:` in .github/agents, so even a KEEP_PIN cannot back one."""
+    agent = _write_agent(tmp_path, "claude-haiku-4.5")
+
+    with pytest.raises(AssertionError, match="does not cover the pinned id"):
+        _assert_pin_is_backed(agent, {"new-agent": "claude-haiku-4.5"}, None)
+
+
+@pytest.mark.parametrize(
+    ("relative", "expected"),
+    [
+        ("src/copilot-cli/agents/x.agent.md", COPILOT_CLI_TIERS),
+        ("src/vs-code-agents/x.agent.md", VSCODE_TIERS),
+        (".github/agents/x.agent.md", None),
+    ],
+)
+def test_platform_tiers_maps_each_generated_tree(
+    relative: str, expected: dict[str, object] | None
+) -> None:
+    assert _platform_tiers(REPO_ROOT / relative) == expected
+
+
+def test_platform_tiers_rejects_an_unknown_tree() -> None:
+    """Error path: a new generated tree must be mapped before the guard covers it."""
+    with pytest.raises(AssertionError, match="not under a known generated Copilot tree"):
+        _platform_tiers(REPO_ROOT / "src" / "claude" / "agents" / "x.md")
 
 
 def test_keep_pin_entry_without_model_backs_no_pin(tmp_path: Path) -> None:
@@ -205,11 +324,10 @@ def test_keep_pin_entry_without_model_backs_no_pin(tmp_path: Path) -> None:
         json.dumps({"pins": [{"unit": "templates/agents/x.shared.md", "decision": "KEEP_PIN"}]}),
         encoding="utf-8",
     )
-    agent = tmp_path / "x.agent.md"
-    agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.5\n---\nbody\n", encoding="utf-8")
+    agent = _write_agent(tmp_path, "claude-haiku-4.5", name="x")
 
     with pytest.raises(AssertionError, match="does not cover the pinned id"):
-        _assert_pin_is_backed(agent, _kept_pins(manifest))
+        _assert_pin_is_backed(agent, _kept_pins(manifest), COPILOT_CLI_TIERS)
 
 
 def test_non_keep_pin_manifest_entry_does_not_back_a_pin(tmp_path: Path) -> None:
