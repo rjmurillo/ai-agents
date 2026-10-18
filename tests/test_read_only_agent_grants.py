@@ -195,6 +195,63 @@ def test_context7_wildcard_covers_every_prefix_variant(tree: Path) -> None:
         assert f"{prefix}__*" in tools
 
 
+CONTEXT7_WILDCARDS = frozenset(
+    {
+        "mcp__context7__*",
+        "mcp__plugin_context7_context7__*",
+        "mcp__claude_ai_Context7__*",
+    }
+)
+
+
+def find_ungranted_by_main(agent: str, tools: list[str]) -> list[str]:
+    """Return rendered ``tools`` entries beyond origin/main, ``ToolSearch``, and Context7.
+
+    Only ``analyst`` held Context7 on main, so only it may carry the wildcards.
+    """
+    allowed = set(LEGACY_ALLOWLISTS[agent]) | {"ToolSearch"}
+    if agent == "analyst":
+        allowed |= CONTEXT7_WILDCARDS
+    return sorted(set(tools) - allowed)
+
+
+@pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)
+@pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
+def test_rendered_tools_are_a_subset_of_origin_main_plus_toolsearch_and_context7(
+    agent: str, tree: Path
+) -> None:
+    extra = find_ungranted_by_main(agent, _tools(tree / f"{agent}.md"))
+
+    assert not extra, f"{agent} in {tree} is granted beyond origin/main: {extra}"
+
+
+@pytest.mark.parametrize(
+    "agent,entry",
+    [
+        ("analyst", "CronCreate"),
+        ("analyst", "RemoteTrigger"),
+        ("analyst", "mcp__github__*"),
+        ("analyst", "mcp__github__create_pull_request"),
+        ("analyst", "mcp__claude_ai_Slack__*"),
+        ("analyst", "mcp__claude_ai_hindsight"),
+        ("analyst", "mcp__serena__execute_shell_command"),
+        ("analyst", "mcp__*"),
+        ("security", "mcp__context7__*"),
+        ("code-reviewer", "mcp__claude_ai_Context7__*"),
+        ("comment-analyzer", "Write"),
+        ("code-reviewer", "Bash"),
+    ],
+)
+def test_subset_check_rejects_entries_beyond_main(agent: str, entry: str) -> None:
+    """Negative controls: each entry is an expansion of reach the check must flag."""
+    assert find_ungranted_by_main(agent, [*LEGACY_ALLOWLISTS[agent], entry]) == [entry]
+
+
+def test_subset_check_accepts_the_legal_additions() -> None:
+    legal = [*LEGACY_ALLOWLISTS["analyst"], "ToolSearch", *sorted(CONTEXT7_WILDCARDS)]
+    assert find_ungranted_by_main("analyst", legal) == []
+
+
 def test_missing_allowlist_is_detected(tmp_path: Path) -> None:
     """Negative control: an agent with no tools key inherits every tool."""
     agent = tmp_path / "agent.md"

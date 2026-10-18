@@ -1,4 +1,4 @@
-"""Tests for the Claude MCP server grants and deny lists (ADR-107).
+"""Tests for the Claude MCP server grants (ADR-107).
 
 Covers `agent_capabilities` (load, expand grants and denies, frontmatter substitution,
 bare-wildcard rejection, prefix normalization), the `agent_templates` compile path,
@@ -37,11 +37,6 @@ CONFIG = {
         "solo": {"variants": ["mcp__{server}"]},
         "hosted": {"remote_only": "hosted service, nothing local"},
     },
-    "denylists": {
-        "demo-write": {"server": "demo", "tools": ["put_thing", "drop_thing"]},
-        "solo-write": {"server": "solo", "tools": ["put_thing"]},
-        "mutators": {"tools": ["Bash", "Edit", "Write", "MultiEdit", "NotebookEdit"]},
-    },
 }
 
 READ_TOOLS = (
@@ -60,36 +55,11 @@ READ_TOOLS = (
 )
 
 
-class TestExpandDeny:
-    def test_server_list_emits_every_prefix_variant(self) -> None:
-        got = caps.expand_deny("demo-write", CONFIG)
-
-        assert len(got) == 2 * 4
-        for prefix in ("mcp__demo", "mcp__plugin_demo_demo", "mcp__claude_ai_Demo"):
-            assert f"{prefix}__put_thing" in got
-            assert f"{prefix}__drop_thing" in got
-        assert "mcp__claude_ai_demo__put_thing" in got
-
-    def test_list_without_server_is_literal(self) -> None:
-        assert caps.expand_deny("mutators", CONFIG) == [
-            "Bash",
-            "Edit",
-            "Write",
-            "MultiEdit",
-            "NotebookEdit",
-        ]
-
-    def test_unknown_name_fails_closed(self) -> None:
-        with pytest.raises(caps.CapabilityError, match="unknown deny list 'nope'"):
-            caps.expand_deny("nope", CONFIG)
-
-    def test_empty_config_fails_closed(self) -> None:
-        with pytest.raises(caps.CapabilityError, match="unknown deny list"):
-            caps.expand_deny("demo-write", {})
-
+class TestConfigValidation:
     def test_duplicate_variants_collapse(self) -> None:
         config = {**CONFIG, "prefix_variants": ["mcp__{server}", "mcp__{server}"]}
-        assert len(caps.expand_deny("demo-write", config)) == 2
+        assert caps.expand_server_grant("solo", config) == ["mcp__solo__*"]
+        assert caps.expand_server_grant("demo", config) == ["mcp__demo__*"]
 
     @pytest.mark.parametrize(
         "patch,message",
@@ -97,7 +67,7 @@ class TestExpandDeny:
             ({"prefix_variants": []}, "prefix_variants must be a non-empty list"),
             ({"prefix_variants": ["bad_{server}"]}, "starting with 'mcp__'"),
             ({"prefix_variants": ["mcp__{nope}"]}, "unknown placeholder"),
-            ({"servers": {}}, "no `servers` entry"),
+            ({"servers": {}}, "unknown MCP server"),
             (
                 {"servers": {"demo": {"claude_ai": []}}},
                 "servers.demo.claude_ai must be a non-empty list",
@@ -110,17 +80,7 @@ class TestExpandDeny:
     )
     def test_malformed_config_is_rejected(self, patch: dict[str, object], message: str) -> None:
         with pytest.raises(caps.CapabilityError, match=message):
-            caps.expand_deny("demo-write", {**CONFIG, **patch})
-
-    def test_non_string_server_is_rejected(self) -> None:
-        config = {**CONFIG, "denylists": {"x": {"server": 3, "tools": ["a"]}}}
-        with pytest.raises(caps.CapabilityError, match="server must be a string"):
-            caps.expand_deny("x", config)
-
-    def test_empty_tool_list_is_rejected(self) -> None:
-        config = {**CONFIG, "denylists": {"x": {"tools": []}}}
-        with pytest.raises(caps.CapabilityError, match="non-empty list"):
-            caps.expand_deny("x", config)
+            caps.expand_server_grant("demo", {**CONFIG, **patch})
 
 
 class TestServerGrants:
@@ -134,7 +94,6 @@ class TestServerGrants:
 
     def test_per_server_variants_override_the_table(self) -> None:
         assert caps.expand_server_grant("solo", CONFIG) == ["mcp__solo__*"]
-        assert caps.expand_deny("solo-write", CONFIG) == ["mcp__solo__put_thing"]
 
     def test_unknown_logical_server_fails_closed(self) -> None:
         with pytest.raises(caps.CapabilityError, match="unknown MCP server 'nope'"):
@@ -180,8 +139,8 @@ class TestLiveTable:
 
         assert wildcard == {"context7"}
 
-    def test_no_deny_list_is_in_use(self) -> None:
-        assert LIVE["denylists"] == {}
+    def test_the_table_carries_no_deny_list(self) -> None:
+        assert "denylists" not in LIVE
 
     def test_context7_grant_covers_every_known_variant(self) -> None:
         assert caps.expand_server_grant("context7", LIVE) == [
@@ -190,21 +149,16 @@ class TestLiveTable:
             "mcp__claude_ai_Context7__*",
         ]
 
-    def test_every_mcp_json_server_is_covered_or_marked(self) -> None:
+    def test_every_mcp_json_server_is_marked_not_wildcard(self) -> None:
         configured = json.loads((_REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))
         servers = configured.get("mcpServers", configured)
-        covered = {
-            entry.get("server")
-            for entry in LIVE["denylists"].values()
-            if isinstance(entry, dict) and entry.get("server")
-        }
 
         for name in servers:
             entry = LIVE["servers"].get(name)
             assert isinstance(entry, dict), f".mcp.json server {name!r} has no `servers` entry"
             reasons = [entry.get(k) for k in ("remote_only", "explicit_only")]
-            assert name in covered or any(isinstance(r, str) and r.strip() for r in reasons), (
-                f".mcp.json server {name!r} has no deny list, remote_only, or explicit_only"
+            assert any(isinstance(r, str) and r.strip() for r in reasons), (
+                f".mcp.json server {name!r} needs remote_only or explicit_only"
             )
 
     def test_serena_is_explicit_only(self) -> None:
@@ -212,21 +166,14 @@ class TestLiveTable:
 
 
 class TestExpandFrontmatter:
-    TEXT = (
-        "---\nname: x\ndisallowedTools:\n  - Agent\n  - $deny:demo-write\n---\n"
-        "Body $deny:demo-write\n"
-    )
-
-    def test_item_is_replaced_and_indent_kept(self) -> None:
-        out = caps.expand_frontmatter(self.TEXT, CONFIG)
-
-        front = yaml.safe_load(out.split("---\n")[1])
-        assert front["disallowedTools"][0] == "Agent"
-        assert "mcp__claude_ai_Demo__put_thing" in front["disallowedTools"]
-        assert len(front["disallowedTools"]) == 1 + 8
+    TEXT = "---\nname: x\ntools:\n  - Read\n  - $mcp:demo\n---\nBody $mcp:demo\n"
 
     def test_body_mentions_are_untouched(self) -> None:
-        assert caps.expand_frontmatter(self.TEXT, CONFIG).endswith("Body $deny:demo-write\n")
+        assert caps.expand_frontmatter(self.TEXT, CONFIG).endswith("Body $mcp:demo\n")
+
+    def test_indent_is_kept(self) -> None:
+        text = "---\nname: x\nmetadata:\n  list:\n    - $mcp:solo\n---\nb\n"
+        assert "    - mcp__solo__*\n" in caps.expand_frontmatter(text, CONFIG)
 
     def test_server_reference_expands_to_wildcards(self) -> None:
         text = "---\nname: x\ntools:\n  - Read\n  - $mcp:demo\n---\nbody\n"
@@ -260,24 +207,20 @@ class TestExpandFrontmatter:
         text = "---\nname: x\n---\nUse mcp__* here.\n"
         assert caps.expand_frontmatter(text, CONFIG) == text
 
-    def test_unknown_name_raises(self) -> None:
-        with pytest.raises(caps.CapabilityError, match="unknown deny list"):
-            caps.expand_frontmatter(self.TEXT.replace("demo-write", "typo", 1), CONFIG)
-
     def test_inline_reference_raises(self) -> None:
-        text = "---\nname: x\ndisallowedTools: [$deny:demo-write]\n---\nbody\n"
+        text = "---\nname: x\ntools: [$mcp:demo]\n---\nbody\n"
         with pytest.raises(caps.CapabilityError, match="whole list item"):
             caps.expand_frontmatter(text, CONFIG)
 
     def test_text_without_frontmatter_is_returned_unchanged(self) -> None:
-        assert caps.expand_frontmatter("- $deny:x\n", CONFIG) == "- $deny:x\n"
+        assert caps.expand_frontmatter("- $mcp:x\n", CONFIG) == "- $mcp:x\n"
 
     def test_frontmatter_without_references_is_unchanged(self) -> None:
         text = "---\nname: x\n---\nbody\n"
         assert caps.expand_frontmatter(text, CONFIG) == text
 
 
-class TestLoadDenylists:
+class TestLoadMcpTable:
     def test_missing_file_is_empty(self, tmp_path: Path) -> None:
         assert caps.load_mcp_table(tmp_path) == {}
 
@@ -311,10 +254,7 @@ def _write_pair(root: Path, claude: str, copilot: str = "---\nname: w\n---\nbody
 
 
 class TestCompile:
-    CLAUDE = (
-        "---\nname: w\ntools:\n  - Read\n  - $mcp:demo\n"
-        "disallowedTools:\n  - $deny:demo-write\n---\nbody\n"
-    )
+    CLAUDE = "---\nname: w\ntools:\n  - Read\n  - $mcp:demo\n---\nbody\n"
 
     def test_render_writes_expanded_entries(self, tmp_path: Path) -> None:
         _write_pair(tmp_path, self.CLAUDE)
@@ -323,11 +263,10 @@ class TestCompile:
 
         assert result.exit_code == 0
         out = (tmp_path / "src" / "claude" / "agents" / "w.md").read_text(encoding="utf-8")
-        assert "$deny" not in out
         assert "$mcp" not in out
         assert "  - Read\n  - mcp__demo__*\n" in out
         assert "  - mcp__claude_ai_demo__*\n" in out
-        assert "  - mcp__plugin_demo_demo__drop_thing\n" in out
+        assert "  - mcp__plugin_demo_demo__*\n" in out
 
     def test_unknown_logical_server_fails_the_build(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -341,17 +280,6 @@ class TestCompile:
         _write_pair(tmp_path, self.CLAUDE.replace("$mcp:demo", "mcp__*"))
 
         assert agent_templates.compile_all(tmp_path, validate=False).exit_code == 2
-
-    def test_unknown_logical_name_fails_the_build(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        _write_pair(tmp_path, self.CLAUDE.replace("demo-write", "typo"))
-
-        result = agent_templates.compile_all(tmp_path, validate=False)
-
-        assert result.exit_code == 2
-        assert "unknown deny list 'typo'" in capsys.readouterr().err
-        assert not (tmp_path / "src" / "claude" / "agents" / "w.md").exists()
 
     def test_missing_table_file_fails_the_build(self, tmp_path: Path) -> None:
         _write_pair(tmp_path, self.CLAUDE)
@@ -369,7 +297,7 @@ class TestCompile:
         _write_pair(tmp_path, self.CLAUDE)
         agent_templates.compile_all(tmp_path, validate=False)
         config = yaml.safe_load(yaml.safe_dump(CONFIG))
-        config["denylists"]["demo-write"] = {"server": "demo", "tools": ["put_thing"]}
+        config["servers"]["demo"]["claude_ai"] = ["Demo"]
         (tmp_path / "templates" / "agent-mcp-servers.yaml").write_text(
             yaml.safe_dump(config), encoding="utf-8"
         )
@@ -380,13 +308,13 @@ class TestCompile:
         assert result.drifted
 
     def test_copilot_template_is_not_expanded(self, tmp_path: Path) -> None:
-        copilot = "---\nname: w\ntools:\n  - $deny:demo-write\n---\nbody\n"
+        copilot = "---\nname: w\ntools:\n  - $mcp:demo\n---\nbody\n"
         _write_pair(tmp_path, self.CLAUDE, copilot)
 
         result = agent_templates.compile_all(tmp_path, validate=False)
 
         assert result.exit_code == 0
-        assert "$deny:demo-write" in result.copilot_rendered["w"]
+        assert "$mcp:demo" in result.copilot_rendered["w"]
 
 
 class TestLiveAgents:
@@ -402,7 +330,6 @@ class TestLiveAgents:
 
         assert "tools:" in lines
         assert "  - $mcp:serena" not in lines
-        assert not [ln for ln in lines if ln.startswith("  - $deny:")]
         assert "disallowedTools:" not in lines
         assert "  - mcp__serena__read_memory" in lines or stem in {
             "code-reviewer",

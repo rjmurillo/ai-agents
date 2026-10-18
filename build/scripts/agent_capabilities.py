@@ -61,9 +61,7 @@ _CLAUDE_MCP_RE = re.compile(r"^mcp__(?P<server>.+?)__(?P<tool>.+)$")
 _PLUGIN_SERVER_RE = re.compile(r"^plugin_(?P<name>.+)_(?P=name)$")
 _CONNECTOR_PREFIX = "claude_ai_"
 _TOOLSET_PREFIX = "$toolset:"
-_REF_ITEM_RE = re.compile(
-    r"^(?P<indent>[ \t]*)- \$(?P<kind>deny|mcp):(?P<name>\S*)[ \t]*$", re.MULTILINE
-)
+_REF_ITEM_RE = re.compile(r"^(?P<indent>[ \t]*)- \$mcp:(?P<name>\S*)[ \t]*$", re.MULTILINE)
 # A bare `mcp__*` (or `mcp__`) grants no MCP tool on Claude Code 2.1.302 (probe,
 # 2026-10-17), so a template that writes one silently grants nothing.
 _GLOBAL_MCP_RE = re.compile(r"(?<![\w])mcp__\*?(?![\w*])")
@@ -201,11 +199,11 @@ def drop_families_on_declaration_mismatch(left: dict[str, str], right: dict[str,
 
 
 def load_mcp_table(repo_root: Path) -> dict[str, object]:
-    """Return the MCP server and deny-list table. A missing file is an empty mapping.
+    """Return the MCP server table. A missing file is an empty mapping.
 
-    The file is ``templates/agent-mcp-servers.yaml``: ``prefix_variants``,
-    ``servers`` and ``denylists``. An empty mapping makes every ``$mcp:`` and
-    ``$deny:`` reference an unknown name, which fails the build.
+    The file is ``templates/agent-mcp-servers.yaml``: ``prefix_variants``
+    and ``servers``. An empty mapping makes every ``$mcp:`` reference an unknown
+    name, which fails the build.
     """
     path = repo_root / MCP_TABLE_RELATIVE_PATH
     if not path.is_file():
@@ -241,8 +239,7 @@ def _server_prefixes(server: str, table: dict[str, object]) -> list[str]:
     """Return every ``mcp__...`` prefix for one logical server.
 
     A server entry may carry its own ``variants`` list; otherwise the table's
-    ``prefix_variants`` apply. Grants and denies for a server use this one list,
-    so a wildcard grant is never wider than the deny list beside it.
+    ``prefix_variants`` apply.
     """
     servers = table.get("servers")
     entry = servers.get(server) if isinstance(servers, dict) else None
@@ -276,31 +273,10 @@ def expand_server_grant(server: str, table: dict[str, object]) -> list[str]:
     return [f"{prefix}__*" for prefix in _server_prefixes(server, table)]
 
 
-def expand_deny(name: str, table: dict[str, object]) -> list[str]:
-    """Return the tool entries for logical deny list ``name``.
-
-    A list with a ``server`` expands to ``<prefix>__<tool>`` for every prefix
-    variant of that server. A list without one is literal (built-in names). An
-    unknown name raises, matching ``_expand_one``: a typo must never silently
-    deny nothing.
-    """
-    lists = table.get("denylists")
-    entry = lists.get(name) if isinstance(lists, dict) else None
-    if not isinstance(entry, dict):
-        raise CapabilityError(f"unknown deny list {name!r}")
-    tools = _string_list(entry.get("tools"), f"denylists.{name}.tools")
-    server = entry.get("server")
-    if server is None:
-        return tools
-    if not isinstance(server, str):
-        raise CapabilityError(f"denylists.{name}.server must be a string")
-    return [f"{prefix}__{tool}" for prefix in _server_prefixes(server, table) for tool in tools]
-
-
 def expand_frontmatter(text: str, table: dict[str, object]) -> str:
-    """Expand ``- $mcp:<server>`` and ``- $deny:<name>`` list items in the frontmatter.
+    """Expand ``- $mcp:<server>`` list items in the frontmatter.
 
-    Only the frontmatter is touched; a body that mentions ``$deny:`` is left
+    Only the frontmatter is touched; a body that mentions ``$mcp:`` is left
     alone. A reference that is not a whole list item raises, because leaving it
     would ship the literal text as a tool name. A bare ``mcp__*`` entry raises
     too: it grants nothing on Claude Code 2.1.302.
@@ -310,12 +286,12 @@ def expand_frontmatter(text: str, table: dict[str, object]) -> str:
         return text
 
     def replace(item: re.Match[str]) -> str:
-        expand = expand_server_grant if item["kind"] == "mcp" else expand_deny
-        return "\n".join(f"{item['indent']}- {entry}" for entry in expand(item["name"], table))
+        entries = expand_server_grant(item["name"], table)
+        return "\n".join(f"{item['indent']}- {entry}" for entry in entries)
 
     head = _REF_ITEM_RE.sub(replace, match.group(0))
-    if "$deny:" in head or "$mcp:" in head:
-        raise CapabilityError("a $deny: or $mcp: reference must be a whole list item")
+    if "$mcp:" in head:
+        raise CapabilityError("a $mcp: reference must be a whole list item")
     if _GLOBAL_MCP_RE.search(head):
         raise CapabilityError("bare `mcp__*` grants no tool; use a `$mcp:<server>` reference")
     return head + text[match.end() :]

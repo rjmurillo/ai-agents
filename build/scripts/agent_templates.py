@@ -254,10 +254,9 @@ def _try_render(
     hold this module's compile loop under the cyclomatic-complexity ceiling.
 
     Different than canonical: when ``table`` is given (the Claude variant
-    only), ``- $mcp:<server>`` and ``- $deny:<name>`` frontmatter list items expand
-    into MCP wildcard grants and ``disallowedTools`` entries for every prefix
-    variant of the server. An unknown name, or a bare MCP wildcard, is a configuration
-    error, exit 2, the same floor a missing partial gets.
+    only), ``- $mcp:<server>`` frontmatter list items expand into MCP wildcard grants
+    for every prefix variant of the server. An unknown name, or a bare MCP wildcard, is a
+    configuration error, exit 2, the same floor a missing partial gets.
     """
     try:
         rendered = str(render(tmpl_path, partials_dir))
@@ -280,10 +279,10 @@ def _try_render(
 
 
 def render_claude(tmpl_path: Path, partials_dir: Path, table: dict[str, object]) -> str:
-    """Render a Claude template, then expand its ``$mcp:`` and ``$deny:`` references.
+    """Render a Claude template, then expand its ``$mcp:`` references.
 
     Raises the grammar errors :func:`render` raises, plus
-    ``agent_capabilities.CapabilityError`` for an unknown server or deny list.
+    ``agent_capabilities.CapabilityError`` for an unknown server.
     """
     expanded: str = agent_capabilities.expand_frontmatter(
         str(render(tmpl_path, partials_dir)), table
