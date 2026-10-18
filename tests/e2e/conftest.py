@@ -21,8 +21,9 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     if local_smoke_guard.guard_active():
         local_smoke_guard.install(lambda target, name, value: setattr(target, name, value))
+        local_smoke_guard.install_path_shim()
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    """Put the real ``subprocess.Popen`` and ``os`` spawn functions back at session end."""
+    """Put the real ``subprocess.Popen``, ``os`` spawns, and ``PATH`` back at session end."""
     local_smoke_guard.uninstall()

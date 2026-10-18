@@ -13,14 +13,16 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import local_smoke_guard as guard
+from local_smoke_command import program_names
 
 
 def _run_unmarked_copilot_test(
-    tmp_path: Path, *, armed: bool, at_import: bool = False
+    tmp_path: Path, *, armed: bool, at_import: bool = False, by_name: bool = False
 ) -> subprocess.CompletedProcess[str]:
     """Run a throwaway suite that calls a fake ``copilot`` with no marker.
 
-    With ``at_import`` the call runs at module import, during collection.
+    With ``at_import`` the call runs at module import, during collection. With ``by_name``
+    the call is ``bash -c 'builtin exec copilot'``, a form the command parser does not read.
     """
     e2e_dir = Path(__file__).resolve().parent
     for name in ("conftest.py", "local_smoke_guard.py", "local_smoke_command.py"):
@@ -30,7 +32,8 @@ def _run_unmarked_copilot_test(
     fake.write_text(f"#!{sys.executable}\n", encoding="utf-8")
     fake.chmod(0o755)
     (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
-    call = f"subprocess.run([{str(fake)!r}], check=True)\n"
+    argv = ["bash", "-c", "builtin exec copilot"] if by_name else [str(fake)]
+    call = f"subprocess.run({argv!r}, check=True)\n"
     body = call if at_import else f"def test_unmarked_copilot_call():\n    {call}"
     (tmp_path / "test_unmarked.py").write_text(
         "import subprocess\n\n" + body + "\n\ndef test_placeholder():\n    pass\n",
@@ -63,6 +66,18 @@ def test_conftest_refuses_a_copilot_call_during_collection(tmp_path: Path) -> No
 
     assert result.returncode != 0, result.stdout + result.stderr
     assert "must not call Copilot" in result.stdout
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the shim is a shell script")
+def test_conftest_shim_fails_a_launch_by_name_the_parser_misses(tmp_path: Path) -> None:
+    """The PATH shim catches a launch by name that the argument guard cannot read."""
+    assert "copilot" not in program_names(["bash", "-c", "builtin exec copilot"])
+
+    result = _run_unmarked_copilot_test(tmp_path, armed=True, by_name=True)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "CalledProcessError" in result.stdout
+    assert "must not call Copilot" in result.stdout + result.stderr
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="the fake copilot is a shebang script")

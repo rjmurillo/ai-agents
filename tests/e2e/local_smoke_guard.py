@@ -14,6 +14,12 @@ that skips Python's ``os`` module: a C extension, ``ctypes`` calling ``system``,
 or a program the test starts that itself starts Copilot. Those stay a review
 concern.
 
+The command parser reads a fixed set of launchers and shells, so a program started
+through any other launcher (``script -c``, ``su -c``, ``find -exec``, ``parallel``) is
+not seen. ``install_path_shim`` is the backstop that does not depend on parsing: it puts a
+``copilot`` that exits non-zero first on ``PATH``, so a launch by bare name fails whatever
+started it. It does not stop a launch by absolute path, or on Windows a ``copilot.exe``.
+
 The refusal derives from ``BaseException``. A broad ``except Exception`` in the
 code under test would otherwise turn the refusal into a pass.
 """
@@ -23,7 +29,9 @@ from __future__ import annotations
 import inspect
 import os
 import subprocess
+import tempfile
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
 from local_smoke_command import program_names
@@ -182,8 +190,59 @@ def install(setattr_fn: Callable[[object, str, object], None]) -> None:
         setattr_fn(os, name, _guarded_os(original, program, argv, _SIGNATURES[name]))
 
 
+_SHIM_MESSAGE = (
+    "The local CLI smoke must not call Copilot. Give the test the copilot marker "
+    "so only the CI leg runs it."
+)
+_SHIM_FILES = {
+    "copilot": f"#!/bin/sh\necho '{_SHIM_MESSAGE}' >&2\nexit 126\n",
+    "copilot.cmd": f"@echo off\r\necho {_SHIM_MESSAGE} 1>&2\r\nexit /b 126\r\n",
+    "copilot.bat": f"@echo off\r\necho {_SHIM_MESSAGE} 1>&2\r\nexit /b 126\r\n",
+}
+# The shim directory and the PATH value (None when unset) from before ``install_path_shim``.
+_shim_dir: tempfile.TemporaryDirectory[str] | None = None
+_saved_path: str | None = None
+
+
+def install_path_shim() -> Path:
+    """Put a ``copilot`` that exits 126 first on ``PATH`` and return its directory.
+
+    This is the backstop for a launch the command parser cannot read. Any child that
+    looks ``copilot`` up by name finds the shim, so the launch fails whichever launcher
+    started it. Calling it again returns the directory already installed.
+    """
+    global _shim_dir, _saved_path
+    if _shim_dir is not None:
+        return Path(_shim_dir.name)
+    _shim_dir = tempfile.TemporaryDirectory(prefix="local-smoke-shim-")
+    shim = Path(_shim_dir.name)
+    for name, text in _SHIM_FILES.items():
+        (shim / name).write_text(text, encoding="utf-8", newline="")
+        (shim / name).chmod(0o755)
+    _saved_path = os.environ.get("PATH")
+    os.environ["PATH"] = f"{shim}{os.pathsep}{_saved_path}" if _saved_path else str(shim)
+    return shim
+
+
+def remove_path_shim() -> None:
+    """Take the shim off ``PATH`` and delete its directory. Does nothing if none is installed."""
+    global _shim_dir, _saved_path
+    if _shim_dir is None:
+        return
+    current = os.environ.get("PATH", "")
+    if current.startswith(_shim_dir.name):
+        # A later change to PATH (a monkeypatch) is kept; only our prefix is removed.
+        if _saved_path is None:
+            os.environ.pop("PATH", None)
+        else:
+            os.environ["PATH"] = current.removeprefix(f"{_shim_dir.name}{os.pathsep}")
+    _shim_dir.cleanup()
+    _shim_dir, _saved_path = None, None
+
+
 def uninstall() -> None:
-    """Put back the real ``subprocess.Popen`` and ``os`` entry points."""
+    """Put back the real ``subprocess.Popen``, the ``os`` entry points, and ``PATH``."""
     setattr(subprocess, "Popen", _ORIGINAL_POPEN)  # noqa: B010
     for name, original in _ORIGINAL_OS.items():
         setattr(os, name, original)
+    remove_path_shim()

@@ -8,7 +8,10 @@ a launcher outside ``_LAUNCHERS``, or a shell outside ``_SHELLS`` is not seen. A
 option with a value other than ``-o`` or ``-O`` (``--rcfile f``) before the command line
 misreads the value as the command. An unquoted Windows path with a space inside a shell's
 ``/c`` value is cut at the space. The fish attached forms ``-Ccmd`` and ``-ccmd`` are not
-read as the command line.
+read as the command line. ``script -c``, ``su -c``, ``runuser -c``, ``flock``, ``chrt``,
+``taskset``, ``find -exec``, ``parallel``, and ``doas`` are not in ``_LAUNCHERS`` either.
+``local_smoke_guard.install_path_shim`` is the backstop for a bare-name launch through any of
+them; it does not stop a launch by absolute path.
 """
 
 from __future__ import annotations
