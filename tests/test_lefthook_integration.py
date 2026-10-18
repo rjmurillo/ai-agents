@@ -6374,25 +6374,38 @@ def test_push_policy_allows_feature_update_from_main_checkout(
     assert result == 0
 
 
+def test_push_policy_allows_pushing_feature_branch_while_on_main(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, remote, head = _main_checkout_push_repo(tmp_path, monkeypatch)
+    _git(repo, "branch", "feature", head)
+
+    result = policy.check_push_refs(
+        io.StringIO(f"refs/heads/feature {head} refs/heads/feature {remote}\n"),
+        repo,
+    )
+
+    assert _git(repo, "symbolic-ref", "--short", "HEAD").stdout.strip() == "main"
+    assert result == 0
+
+
+@pytest.mark.parametrize("protected", ["main", "master"])
 def test_push_policy_blocks_deleting_protected_branch_from_main_checkout(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    protected: str,
 ) -> None:
     repo, remote, _head = _main_checkout_push_repo(tmp_path, monkeypatch)
 
-    deleted_main = policy.check_push_refs(
-        io.StringIO(f"(delete) {'0' * 40} refs/heads/main {remote}\n"),
-        repo,
-    )
-    deleted_master = policy.check_push_refs(
-        io.StringIO(f"(delete) {'0' * 40} refs/heads/master {remote}\n"),
+    result = policy.check_push_refs(
+        io.StringIO(f"(delete) {'0' * 40} refs/heads/{protected} {remote}\n"),
         repo,
     )
 
-    assert deleted_main == 1
-    assert deleted_master == 1
-    assert "cannot delete or update protected branch 'main'" in capsys.readouterr().err
+    assert result == 1
+    assert f"cannot delete or update protected branch '{protected}'" in capsys.readouterr().err
 
 
 def test_push_policy_blocks_update_of_main_from_feature_checkout(

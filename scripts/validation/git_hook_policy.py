@@ -1314,7 +1314,7 @@ def check_branch(repo_root: Path) -> int:
     branch = result.stdout.strip()
     if branch not in {"main", "master"}:
         return 0
-    print(f"ERROR: cannot commit or push directly to '{branch}'", file=sys.stderr)
+    print(f"ERROR: cannot commit directly to '{branch}'", file=sys.stderr)
     return 1
 
 
