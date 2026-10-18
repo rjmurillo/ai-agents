@@ -17,6 +17,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL_REL = Path("skills") / "skillopt"
 SHIPPED_ROOTS = (".claude", "src/claude", "src/copilot-cli", "src/codex")
+BODY_ROOTS = (*SHIPPED_ROOTS, "src/cursor", "src/hermes/project-toolkit-knowledge")
 TRIGGERS = (
     "optimize this skill",
     "make this skill better",
@@ -290,7 +291,7 @@ def test_documented_exit_codes_for_scalar_gate_and_hash(tmp_path: Path) -> None:
     assert "MISMATCH" in mismatch.stdout
 
 
-@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+@pytest.mark.parametrize("root", BODY_ROOTS)
 def test_preconditions_require_two_isolated_runners(root: str) -> None:
     text = _skill_md(root)
     start = text.index("## Preconditions")
@@ -304,7 +305,7 @@ def test_preconditions_require_two_isolated_runners(root: str) -> None:
     assert "must not write, run, or see the `sel` tasks" in preconditions
 
 
-@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+@pytest.mark.parametrize("root", BODY_ROOTS)
 def test_process_cross_reference_matches_precondition_number(root: str) -> None:
     text = _skill_md(root)
     pre_start = text.index("## Preconditions")
@@ -314,9 +315,30 @@ def test_process_cross_reference_matches_precondition_number(root: str) -> None:
     assert "(Precondition 4)" in text[proc_start:]
 
 
-@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+@pytest.mark.parametrize("root", BODY_ROOTS)
 def test_eval_set_format_says_who_may_write_replacement_holdouts(root: str) -> None:
     refs = _skill_dir(root) / "references" / "eval-set-format.md"
     text = " ".join(refs.read_text(encoding="utf-8").split())
     assert "Replacement holdouts must come from an author who has not seen the candidate" in text
     assert "If the candidate author also writes them, they are exposed too" in text
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_limits_and_checklist_cover_single_runner_harness(root: str) -> None:
+    text = _skill_md(root)
+    limits = " ".join(text[text.index("## Limits") : text.index("## Anti-Patterns")].split())
+    assert "cannot run a separate `sel` runner cannot gate" in limits
+    assert "Precondition 4" in limits
+    checklist = " ".join(
+        text[text.index("## Verification") : text.index("## Extension Points")].split()
+    )
+    assert "A runner other than the candidate author wrote and ran the `sel` tasks." in checklist
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_precondition_four_does_not_repeat_runner_sentence(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert preconditions.count("fresh subagent or another session") == 1

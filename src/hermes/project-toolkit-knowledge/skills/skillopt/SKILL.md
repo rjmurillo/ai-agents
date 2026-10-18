@@ -49,10 +49,10 @@ gains are its claims; this skill does not reproduce them.
    workspace is not deployed behavior.
 4. **Two isolated runners.** The candidate author and the `sel` runner must
    be separate: a fresh subagent or another session. The candidate author
-   must not write, run, or see the `sel` tasks. A fresh subagent or another
-   session owns them. If the harness cannot provide both, do not run
-   skillopt. Report that the gate cannot be independent. Replacement
-   holdouts written by the same agent are still exposed.
+   must not write, run, or see the `sel` tasks. If the harness cannot
+   provide both, do not run skillopt. Report that the gate cannot be
+   independent. Replacement holdouts written by the same agent are still
+   exposed.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author until
@@ -248,6 +248,9 @@ taste document with no measurable success signal has no `sel` split, so the
 gate cannot run. Say that you are flagging, not gating, and do not invent a
 score to make the gate pass.
 
+A harness that cannot run a separate `sel` runner cannot gate either; see
+Precondition 4.
+
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
@@ -261,6 +264,7 @@ score to make the gate pass.
 ## Verification
 
 - [ ] `eval.json` has a nonempty `sel` split frozen before the candidate.
+- [ ] A runner other than the candidate author wrote and ran the `sel` tasks.
 - [ ] No `sel` task is exposed or invalid.
 - [ ] The incumbent hash is recorded and unchanged after `apply`.
 - [ ] `pair-gate` returned `ACCEPT_PARETO` with no unverified task.
