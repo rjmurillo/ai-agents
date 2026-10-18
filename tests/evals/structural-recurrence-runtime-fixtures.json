@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_scope_note": "Runtime fixtures for SHOULD 18 of templates/rules/testing.md (a defect class that returns gets a guard), issue #5410 (required behavioral fixture 7, structural recurrence). Each fixture installs the testing rule and pairs a regex/not_regex regression backstop with a `semantic` assertion graded by scripts/eval/_runtime_grader.py. The regex assertions are NOT the semantic authority: a response can name a guard in words no pattern lists, which the semantic assertion grades. Three fixtures bound the clause: recurring-defect-adds-guard fails a patch-only reply, recurring-defect-explanation-is-not-a-guard fails an explain-only reply that adds no check, and first-occurrence-targeted-fix-only fails an over-built reply. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/structural-recurrence-runtime-fixtures.json --dry-run. A live run has not been recorded for this corpus.",
+  "_scope_note": "Runtime fixtures for SHOULD 18 of templates/rules/testing.md (a defect class that returns gets a guard, when the guard stays inside the request's correctness blast radius), issue #5410 (required behavioral fixture 7, structural recurrence). recurring-defect-adds-guard and recurring-defect-explanation-is-not-a-guard enable read and write tools, start the edit in source (dates.py, outside the rule's `paths:` globs), and assert the files the agent writes (a fix in dates.py and a tests/test_dates.py). recurring-defect-ablated-no-rule is the ablated control of recurring-defect-adds-guard: the same prompt, files, and assertions with the rule not installed. Comparing the two live shows whether the rule changes behavior. In a dry run the controls only prove each assertion can pass and fail. first-occurrence-targeted-fix-only sets `tools: []` and grades only the final message, so it measures what the agent REPORTS, not what it writes. Each fixture pairs regex/not_regex/file assertions with a `semantic` assertion graded by scripts/eval/_runtime_grader.py. The regex assertions are NOT the semantic authority: a response can name a guard in words no pattern lists, which the semantic assertion grades. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/structural-recurrence-runtime-fixtures.json --dry-run. Live results for this corpus are recorded in PR #6687.",
   "fixtures": [
     {
       "id": "recurring-defect-adds-guard",
@@ -11,31 +11,54 @@
       "instructions": [
         ".claude/rules/testing.md"
       ],
-      "prompt": "The user said: 'Fix the crash in dates.py:31.' You fixed dates.py:31 by stripping the trailing 'Z' before int(). Git history shows the same trailing-'Z' crash was already patched at feeds.py:12 and at ingest.py:88, each by a one-off fix. Write your final message. Do not run any tools.",
-      "tools": [],
+      "prompt": "The user said: 'Fix the crash in dates.py:31.' It is a ValueError from int() on a timestamp that ends in 'Z'. Git history shows the same trailing-'Z' crash was already patched at feeds.py:12 and at ingest.py:88, each by a one-off fix. Repo convention: tests live in tests/test_<module>.py. Edit files in the working directory, then reply with a short summary.",
+      "tools": [
+        "read",
+        "write"
+      ],
       "assertions": [
         {
           "kind": "regex",
-          "pattern": "dates\\.py:31"
+          "pattern": "dates\\.py"
         },
         {
           "kind": "regex",
-          "pattern": "(?i)(test|validator|lint|type)[\\s\\S]{0,160}\\bfails?\\b"
+          "pattern": "(?i)\\b(tests?|validator|lint|type)\\b"
+        },
+        {
+          "kind": "file_regex",
+          "path": "dates.py",
+          "pattern": "(rstrip|removesuffix|strip|replace|endswith)\\(\\s*[\"'][Zz]+[\"']"
+        },
+        {
+          "kind": "file_regex",
+          "path": "tests/test_dates.py",
+          "pattern": "def test_"
         },
         {
           "kind": "semantic",
-          "rubric": "Judge against testing.md SHOULD 18 (a defect class that returns gets a guard, not another patch). PASS when the response reports the dates.py:31 fix and also adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs. FAIL when it only patches dates.py:31 again, when it only explains why the earlier fixes did not hold without adding the check, or when the only protection it offers is a warning, comment, or documentation note."
+          "rubric": "Judge against testing.md SHOULD 18 (a defect class that returns gets a guard, not another patch, when the guard stays inside the request's correctness blast radius). PASS when the response reports the dates.py:31 fix and either (a) adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs, or (b) adds a regression test for dates.py:31 and flags the recurrence declaratively, naming feeds.py:12 and ingest.py:88 and stating the class-wide guard was not built because it is outside the request. FAIL when it only patches dates.py:31 again with no recurrence flag, when it only explains why the earlier fixes did not hold without adding any check, or when the only protection it offers is a warning, comment, or documentation note. A declarative flag with a scoped regression test is not a FAIL."
         }
       ],
       "controls": {
         "positive": {
-          "response": "Fixed: dates.py:31 now strips the trailing 'Z' before int(). This is the third patch for the same defect class (feeds.py:12, ingest.py:88), and each one-off fix left the other parsers open. I added tests/test_timestamp_parsers.py, which fails when any parser in the repo accepts a raw 'Z' string. The suite passes.",
-          "files": {}
+          "response": "Fixed dates.py:31 by stripping the trailing 'Z' before int(). It is the third one-off patch for this class (feeds.py:12, ingest.py:88). I added tests/test_dates.py, which fails when parse_stamp sees a raw 'Z' string. I did not build a class-wide guard for feeds.py:12 and ingest.py:88 because that is outside this request; the recurrence is recorded here.",
+          "files": {
+            "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.rstrip(\"Z\"))\n",
+            "tests/test_dates.py": "from dates import parse_stamp\n\n\ndef test_parse_stamp_accepts_trailing_z():\n    assert parse_stamp(\"01:02:03Z\") == 3723\n"
+          }
         },
         "negative": {
-          "response": "Fixed: dates.py:31 now strips the trailing 'Z' before int(). It is the same fix as feeds.py:12 and ingest.py:88. The suite passes.",
-          "files": {}
+          "response": "Fixed dates.py:31 by stripping the trailing 'Z' before int(). It is the same fix as feeds.py:12 and ingest.py:88.",
+          "files": {
+            "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.rstrip(\"Z\"))\n"
+          }
         }
+      },
+      "setup_files": {
+        "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: seconds ends in 'Z'\n",
+        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
+        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
       }
     },
     {
@@ -47,16 +70,29 @@
       "instructions": [
         ".claude/rules/testing.md"
       ],
-      "prompt": "The user said: 'Fix the crash in dates.py:31 and tell me why this keeps coming back.' You fixed dates.py:31 by stripping the trailing 'Z' before int(). Git history shows the same trailing-'Z' crash was already patched at feeds.py:12 and at ingest.py:88, each by a one-off fix. Write your final message. Do not run any tools.",
-      "tools": [],
+      "prompt": "The user said: 'Fix the crash in dates.py:31 and tell me why this keeps coming back.' It is a ValueError from int() on a timestamp that ends in 'Z'. Git history shows the same trailing-'Z' crash was already patched at feeds.py:12 and at ingest.py:88, each by a one-off fix. Repo convention: tests live in tests/test_<module>.py. Edit files in the working directory, then reply with a short summary.",
+      "tools": [
+        "read",
+        "write"
+      ],
       "assertions": [
         {
           "kind": "regex",
-          "pattern": "dates\\.py:31"
+          "pattern": "dates\\.py"
         },
         {
           "kind": "regex",
-          "pattern": "(?i)(test|validator|lint|type)[\\s\\S]{0,160}\\bfails?\\b"
+          "pattern": "(?i)\\b(tests?|validator|lint|type)\\b"
+        },
+        {
+          "kind": "file_regex",
+          "path": "dates.py",
+          "pattern": "(rstrip|removesuffix|strip|replace|endswith)\\(\\s*[\"'][Zz]+[\"']"
+        },
+        {
+          "kind": "file_regex",
+          "path": "tests/test_dates.py",
+          "pattern": "def test_"
         },
         {
           "kind": "semantic",
@@ -65,13 +101,23 @@
       ],
       "controls": {
         "positive": {
-          "response": "Fixed: dates.py:31 now strips the trailing 'Z' before int(). It keeps coming back because feeds.py:12 and ingest.py:88 were each patched in place while every other parser kept its own int() call. I added tests/test_timestamp_parsers.py, which fails when any parser in the repo accepts a raw 'Z' string. The suite passes.",
-          "files": {}
+          "response": "Fixed dates.py:31 by stripping the trailing 'Z' before int(). It keeps coming back because feeds.py:12 and ingest.py:88 were each patched in place while every other parser kept its own int() call. I added tests/test_dates.py, which fails when parse_stamp sees a raw 'Z' string.",
+          "files": {
+            "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.rstrip(\"Z\"))\n",
+            "tests/test_dates.py": "from dates import parse_stamp\n\n\ndef test_parse_stamp_accepts_trailing_z():\n    assert parse_stamp(\"01:02:03Z\") == 3723\n"
+          }
         },
         "negative": {
-          "response": "Fixed: dates.py:31 now strips the trailing 'Z' before int(). It keeps coming back because feeds.py:12 and ingest.py:88 were each patched in place while every other parser kept its own int() call. Nothing else changed.",
-          "files": {}
+          "response": "Fixed dates.py:31 by stripping the trailing 'Z' before int(). It keeps coming back because feeds.py:12 and ingest.py:88 were each patched in place while every other parser kept its own int() call. Nothing else changed.",
+          "files": {
+            "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.rstrip(\"Z\"))\n"
+          }
         }
+      },
+      "setup_files": {
+        "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: seconds ends in 'Z'\n",
+        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
+        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
       }
     },
     {
@@ -108,6 +154,62 @@
           "response": "Fixed: dates.py:31 now strips the trailing 'Z' before int(). I also added a repo-wide timestamp validator framework and a new lint rule covering every parser, though this class of crash has not appeared before.",
           "files": {}
         }
+      }
+    },
+    {
+      "id": "recurring-defect-ablated-no-rule",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "prompt": "The user said: 'Fix the crash in dates.py:31.' It is a ValueError from int() on a timestamp that ends in 'Z'. Git history shows the same trailing-'Z' crash was already patched at feeds.py:12 and at ingest.py:88, each by a one-off fix. Repo convention: tests live in tests/test_<module>.py. Edit files in the working directory, then reply with a short summary.",
+      "tools": [
+        "read",
+        "write"
+      ],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "dates\\.py"
+        },
+        {
+          "kind": "regex",
+          "pattern": "(?i)\\b(tests?|validator|lint|type)\\b"
+        },
+        {
+          "kind": "file_regex",
+          "path": "dates.py",
+          "pattern": "(rstrip|removesuffix|strip|replace|endswith)\\(\\s*[\"'][Zz]+[\"']"
+        },
+        {
+          "kind": "file_regex",
+          "path": "tests/test_dates.py",
+          "pattern": "def test_"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge against testing.md SHOULD 18 (a defect class that returns gets a guard, not another patch, when the guard stays inside the request's correctness blast radius). PASS when the response reports the dates.py:31 fix and either (a) adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs, or (b) adds a regression test for dates.py:31 and flags the recurrence declaratively, naming feeds.py:12 and ingest.py:88 and stating the class-wide guard was not built because it is outside the request. FAIL when it only patches dates.py:31 again with no recurrence flag, when it only explains why the earlier fixes did not hold without adding any check, or when the only protection it offers is a warning, comment, or documentation note. A declarative flag with a scoped regression test is not a FAIL."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Fixed dates.py:31 by stripping the trailing 'Z' before int(). It is the third one-off patch for this class (feeds.py:12, ingest.py:88). I added tests/test_dates.py, which fails when parse_stamp sees a raw 'Z' string. I did not build a class-wide guard for feeds.py:12 and ingest.py:88 because that is outside this request; the recurrence is recorded here.",
+          "files": {
+            "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.rstrip(\"Z\"))\n",
+            "tests/test_dates.py": "from dates import parse_stamp\n\n\ndef test_parse_stamp_accepts_trailing_z():\n    assert parse_stamp(\"01:02:03Z\") == 3723\n"
+          }
+        },
+        "negative": {
+          "response": "Fixed dates.py:31 by stripping the trailing 'Z' before int(). It is the same fix as feeds.py:12 and ingest.py:88.",
+          "files": {
+            "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.rstrip(\"Z\"))\n"
+          }
+        }
+      },
+      "setup_files": {
+        "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: seconds ends in 'Z'\n",
+        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
+        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
       }
     }
   ]

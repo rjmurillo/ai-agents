@@ -30,6 +30,9 @@ Invoke this skill when the user says any of:
 - `which model is best`
 - `cross-model comparison`
 
+A request for the best model gets per-metric leaders and a rerun plan, not a
+winner (Step 4).
+
 Do NOT invoke for web page performance (that is a different concern).
 
 ## Preconditions
@@ -112,9 +115,9 @@ Option A) or the run aborts with exit code 2 before any provider starts.
 
 Summarize the per-metric leaders: fastest (latency), cheapest (cost), highest
 quality (if judged). One run per provider is inconclusive, not a preference:
-report n, call no winner from a directional delta, and rerun to confirm. Call out any provider that errored, with its
-remediation path. Offer to save a JSON baseline so future runs can be
-diffed for regressions:
+report n, call no winner from a directional delta, and rerun to confirm. Call
+out any provider that errored, with its remediation path. Offer to save a JSON
+baseline so future runs can be diffed for regressions:
 
 ```bash
 python3 "$BENCH" <prompt-spec> --models <picked> [--judge] --output json > benchmark-$(date +%Y%m%d)-<slug>.json
