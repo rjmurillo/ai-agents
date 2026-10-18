@@ -50,14 +50,18 @@ returns PASS, FAIL, or UNKNOWN.
 
 Run the behavioral and cross-document phases `doc-accuracy` defines when
 `behavioral_escalation` is `required`, or is `on-findings` and step 3 reported a
-finding on a changed line. Scope them to `changed_documents`.
+finding on a changed line. Scope them to `changed_documents` plus any coupled
+document found below.
 
-When `coupled_documents_needed` is true no document changed, so the scan in
-step 3 has nothing to inventory. Run
+When `coupled_documents_needed` is true a cause other than a changed document
+is present (a verified effect, an agent artifact, a public API, an unreadable or
+unclassified path). Documents the diff never touched can be stale, and the scan
+in step 3 covers only the changed ones. Run
 `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts/doc_accuracy.py" --target . --phases 1 --output-dir <dir>`
 and take the documents in `<dir>/assessment.json` whose `mapped_source_files`
-include a changed path. When none map, record
-`DOC ACCURACY: SKIPPED - no document maps to the changed source`.
+include a changed path. Add each mapped document to the step 4 scope and scan
+it with the same `--diff-base` rules. When none map and `changed_documents` is
+empty, record `DOC ACCURACY: SKIPPED - no document maps to the changed source`.
 
 ## 5. Verdict
 
