@@ -183,9 +183,11 @@
         "expected": ["UNVERIFIED"],
         "evidence_all": [
           "\\bnone\\b|\\bno\\b.{0,30}\\b(?:comparison|outcome|data|run|measurement)\\b|unmeasured|not (?:yet )?(?:measured|compared|tested)",
-          "^(?!.*\\b(?:improv\\w*|works|worked|working|needed|clearly)\\b)"
+          "^(?!.*\\b(?:works|worked|working|needed|clearly)\\b)",
+          "^(?!(?!.*\\b(?:no|not|without)\\s+(?:\\w+\\s+){0,2}(?:shows?|showed|shown|demonstrates?|indicates?|confirms?|proves?)\\s+(?:an?\\s+|any\\s+)?improv\\w*).*\\bimprov\\w*)"
         ],
         "known_good_variants": [
+          "DECISION: UNVERIFIED\nEVIDENCE: No data shows improved outcomes.",
           "DECISION: UNVERIFIED\nEVIDENCE: None exists.",
           "DECISION: UNVERIFIED\nEVIDENCE: No with/without comparison was run.",
           "DECISION: UNVERIFIED\nEVIDENCE: there is no A/B run yet",
