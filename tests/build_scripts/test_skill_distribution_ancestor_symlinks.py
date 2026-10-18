@@ -19,6 +19,10 @@ if str(_REPO_ROOT / "build" / "scripts") not in sys.path:
 
 import skill_distribution  # noqa: E402
 
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="symlink creation needs Developer Mode on Windows"
+)
+
 LOCAL = "---\nname: linked\nmetadata:\n  distribution: repo-local\n---\n\nbody\n"
 
 
@@ -76,3 +80,46 @@ class TestSymlinkedAncestor:
         root_link.symlink_to(tmp_path / "repo", target_is_directory=True)
 
         assert skill_distribution.is_repo_local(root_link, "linked") is True
+
+
+class TestPluginSkillLink:
+    """The ADR-119 link ``.claude/skills/<name>`` to ``src/claude/skills/<name>``."""
+
+    def make_link(self, root: Path, name: str, text: str, link_text: str) -> None:
+        plugin = root / "src" / "claude" / "skills" / name
+        plugin.mkdir(parents=True)
+        (plugin / "SKILL.md").write_text(text, encoding="utf-8")
+        link = root / ".claude" / "skills" / name
+        link.parent.mkdir(parents=True)
+        link.symlink_to(link_text, target_is_directory=True)
+
+    def test_exact_adr_119_link_is_read(self, tmp_path: Path) -> None:
+        self.make_link(tmp_path, "linked", LOCAL, "../../src/claude/skills/linked")
+
+        assert skill_distribution.is_repo_local(tmp_path, "linked") is True
+
+    def test_link_to_another_skill_is_refused(self, tmp_path: Path) -> None:
+        self.make_link(tmp_path, "other", LOCAL, "../../src/claude/skills/other")
+        link = tmp_path / ".claude" / "skills" / "linked"
+        link.symlink_to("../../src/claude/skills/other", target_is_directory=True)
+
+        with pytest.raises(skill_distribution.SkillDistributionError, match="symlink"):
+            skill_distribution.is_repo_local(tmp_path, "linked")
+
+    def test_absolute_link_text_is_refused(self, tmp_path: Path) -> None:
+        target = tmp_path / "src" / "claude" / "skills" / "linked"
+        self.make_link(tmp_path, "linked", LOCAL, str(target))
+
+        with pytest.raises(skill_distribution.SkillDistributionError, match="symlink"):
+            skill_distribution.is_repo_local(tmp_path, "linked")
+
+    def test_linked_skill_whose_file_is_a_symlink_is_refused(self, tmp_path: Path) -> None:
+        self.make_link(tmp_path, "linked", LOCAL, "../../src/claude/skills/linked")
+        outside = tmp_path / "outside.txt"
+        outside.write_text(LOCAL, encoding="utf-8")
+        skill_md = tmp_path / "src" / "claude" / "skills" / "linked" / "SKILL.md"
+        skill_md.unlink()
+        skill_md.symlink_to(outside)
+
+        with pytest.raises(skill_distribution.SkillDistributionError, match="symlink"):
+            skill_distribution.is_repo_local(tmp_path, "linked")

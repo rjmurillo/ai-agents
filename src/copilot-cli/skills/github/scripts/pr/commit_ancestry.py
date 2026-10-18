@@ -86,8 +86,9 @@ def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str, 
 
     status is reachable, unreachable, ambiguous, or invalid; the gate fails on
     the last three. detail says why an invalid SHA failed: not-a-sha (not 4 to
-    40 hex digits), ref-name-collision (a ref carries the same name, so git
-    would resolve the ref, not the commit), missing-object (not in the local
+    40 hex digits), ref-name-collision (a ref carries the same name; for an
+    abbreviated SHA git would resolve the ref, not the commit, and a full
+    40-digit SHA is refused the same way), missing-object (not in the local
     clone), not-a-commit, or git-error: <git's first stderr line>.
 
     The SHA is lowercased before git sees it. Object-name prefixes are case

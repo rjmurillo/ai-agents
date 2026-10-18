@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - ".claude/skills/software-engineering-library/**"
+      - "src/claude/skills/software-engineering-library/**"
       - "src/copilot-cli/skills/software-engineering-library/**"
       - "tests/evals/rule-scenarios/*.json"
       - "scripts/eval/eval-rule-activation.py"

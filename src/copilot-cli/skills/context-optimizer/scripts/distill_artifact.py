@@ -120,9 +120,17 @@ def clip(line: str) -> str:
 def cell(text: str) -> str:
     """Return ``text`` clipped and safe inside one markdown table cell.
 
-    A ``|`` would end the cell and add a column, so it is escaped.
+    A ``|`` would end the cell and add a column, so it is escaped. A backslash
+    in the text would consume that escape (``\\|`` reads as a literal backslash
+    and a bare pipe), so each backslash is doubled before the control-character
+    escapes are added; those keep their single backslash. A cut at ``LINE_CAP``
+    can leave an odd run of trailing backslashes, which would escape whatever
+    follows the cell, so the last one is dropped.
     """
-    return clip(text).replace("|", "\\|")
+    safe = clip(text.replace("\\", "\\\\"))
+    if (len(safe) - len(safe.rstrip("\\"))) % 2:
+        safe = safe[:-1]
+    return safe.replace("|", "\\|")
 
 
 def detect_kind(lines: list[str]) -> str:

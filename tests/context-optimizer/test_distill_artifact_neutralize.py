@@ -37,6 +37,28 @@ def run(args: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, str, 
     return code, captured.out, captured.err
 
 
+def split_row(row: str) -> list[str]:
+    """Split a markdown table row on pipes a backslash does not escape."""
+    cells: list[str] = []
+    current: list[str] = []
+    chars = iter(row)
+    for ch in chars:
+        if ch == "\\":
+            current.append(ch + next(chars, ""))
+        elif ch == "|":
+            cells.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    cells.append("".join(current))
+    return cells[1:-1]
+
+
+def bare_pipes(text: str) -> bool:
+    """Return True when ``text`` holds a pipe that ends a table cell."""
+    return len(split_row(f"|{text}|")) > 1
+
+
 def digest_text(out: str) -> str:
     return Path(out.strip()).read_text(encoding="utf-8")
 
@@ -70,6 +92,32 @@ class TestNeutralize:
         assert da.cell("a|b") == "a\\|b"
         assert da.cell("plain") == "plain"
         assert da.cell("a\x1b|b") == "a\\x1b\\|b"
+
+    def test_cell_escapes_a_backslash_so_it_cannot_consume_the_pipe_escape(self) -> None:
+        assert da.cell("a\\|b") == "a\\\\\\|b"
+        assert not bare_pipes(da.cell("a\\|b"))
+
+    def test_cell_keeps_a_trailing_backslash_from_escaping_the_closing_pipe(self) -> None:
+        assert da.cell("dir\\") == "dir\\\\"
+
+    def test_cell_cut_inside_a_control_escape_drops_the_dangling_backslash(self) -> None:
+        # The ESC at offset 239 becomes \x1b, so the 240 character cut ends on its backslash.
+        path = "a" * 239 + "\x1b" + "tail"
+        assert da.clip(path).endswith("a\\")
+        assert da.cell(path) == "a" * 239
+
+    def test_cell_cut_inside_a_doubled_backslash_drops_the_dangling_backslash(self) -> None:
+        path = "a" * 239 + "\\" + "tail"
+        assert da.cell(path) == "a" * 239
+
+    def test_cell_cut_after_a_whole_backslash_pair_keeps_it(self) -> None:
+        path = "a" * 238 + "\\" + "tail"
+        assert da.cell(path) == "a" * 238 + "\\\\"
+
+    def test_files_table_row_keeps_four_columns_for_a_backslash_pipe_path(self) -> None:
+        cell = da.cell("src/a\\|b.py")
+        row = f"| {cell} | 1 | 2 | 3 |"
+        assert len(split_row(row)) == 4
 
 
 class TestHostileInput:

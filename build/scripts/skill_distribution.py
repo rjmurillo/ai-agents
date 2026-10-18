@@ -24,6 +24,7 @@ source), else ``.claude/skills/<name>/SKILL.md``.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -102,26 +103,40 @@ def distribution_of_text(text: str, source: str) -> str:
     return REPO_LOCAL
 
 
+def _is_plugin_link(path: Path, name: str) -> bool:
+    """Return True when ``path`` is the ADR-119 link for shipped skill ``name``.
+
+    Binplace links ``.claude/skills/<name>`` to ``../../src/claude/skills/<name>``.
+    Only that exact link text is accepted, so any other link still fails.
+    """
+    return path.is_symlink() and os.readlink(path) == f"../../src/claude/skills/{name}"
+
+
 def _skill_source(repo_root: Path, name: str) -> Path | None:
     """Return the template or installed ``SKILL.md`` for ``name``, refusing a symlink.
 
     A symlinked file, or a symlinked skill directory, would make the flag read,
-    and a parse error quote, a file outside the skill tree. A symlinked
-    ancestor (``.claude/skills`` or ``templates/skills``) does the same, so each
-    existing candidate must also resolve to a path under the real repo root's
-    ``templates/skills`` or ``.claude/skills``. The expected roots are joined
-    onto the resolved repo root and are not resolved themselves, so a symlinked
-    ancestor cannot widen the check.
+    and a parse error quote, a file outside the skill tree. The one link allowed
+    is the ADR-119 skill link (:func:`_is_plugin_link`), whose target must
+    resolve under ``src/claude/skills``. A symlinked ancestor
+    (``.claude/skills`` or ``templates/skills``) does the same as any other
+    link, so each existing candidate must also resolve to a path under the real
+    repo root's ``templates/skills`` or the skill tree it is read from. The
+    expected roots are joined onto the resolved repo root and are not resolved
+    themselves, so a symlinked ancestor cannot widen the check.
     """
     template = repo_root / "templates" / "skills" / f"{name}{_TEMPLATE_SUFFIX}"
     installed = repo_root / ".claude" / "skills" / name / "SKILL.md"
-    for link in (template, installed, installed.parent):
+    linked = _is_plugin_link(installed.parent, name)
+    refused = (template, installed) if linked else (template, installed, installed.parent)
+    for link in refused:
         if link.is_symlink():
             raise SkillDistributionError(f"{link}: is a symlink, not a regular path")
     real_root = repo_root.resolve()
+    installed_tree = real_root / ("src/claude/skills" if linked else ".claude/skills")
     for candidate, tree in (
         (template, real_root / "templates" / "skills"),
-        (installed, real_root / ".claude" / "skills"),
+        (installed, installed_tree),
     ):
         if not candidate.is_file():
             continue

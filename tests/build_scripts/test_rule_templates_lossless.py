@@ -19,6 +19,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
     if str(_extra_path) not in sys.path:
         sys.path.insert(0, str(_extra_path))
 
+from rule_distribution import render_target  # noqa: E402
 from skill_template_grammar import render  # noqa: E402
 
 # Independent pin on the corpus size (issue CodeRabbit raised on this file):
@@ -107,9 +108,10 @@ class TestLosslessRendering:
 
     @pytest.mark.parametrize("name", _discover_fixture_names())
     def test_committed_claude_plugin_file_equals_fixture(self, name: str) -> None:
-        """Committed src/claude/rules/<name>.md equals fixture."""
+        """Committed rule equals fixture: src/claude/rules, or .claude/rules if repo-only."""
         fixture_path = _fixture_dir() / f"{name}.md"
-        committed_path = _REPO_ROOT / "src" / "claude" / "rules" / f"{name}.md"
+        template_path = _REPO_ROOT / "templates" / "rules" / f"{name}.md"
+        committed_path = render_target(_REPO_ROOT, name, template_path)
 
         fixture_bytes = fixture_path.read_bytes()
         assert committed_path.is_file(), f"compiled rule missing: {committed_path}"

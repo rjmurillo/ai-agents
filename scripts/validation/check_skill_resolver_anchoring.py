@@ -40,7 +40,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-SCAN_ROOTS = ("src/copilot-cli/skills", ".claude/skills")
+# ADR-119: shipped skills are directory links under .claude/skills, which
+# rglob does not follow, so their SKILL.md files are scanned at src/claude/skills.
+SCAN_ROOTS = ("src/copilot-cli/skills", ".claude/skills", "src/claude/skills")
 
 # A resolver is a shell function whose body walks candidate roots. Match any
 # shell function header and decide by body content rather than by name: an

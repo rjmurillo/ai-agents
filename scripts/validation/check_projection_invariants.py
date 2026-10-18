@@ -17,8 +17,10 @@ Asserted here (issue #5687, ADR-107 migration step M2):
   of the source and the projection must carry the same codes with the same
   cells after the code (meaning and CI behavior).
 * A repeated ``allowed-tools`` key, a repeated ``## Exit Codes`` heading, or a
-  repeated exit-code row fails on either side. A loader keeps the last key, and
-  a later row would otherwise hide behind the first.
+  repeated exit-code row fails on either side. A loader keeps the last
+  ``allowed-tools`` key while ``parse_allowed_tools`` reads the first, and
+  ``parse_exit_codes`` keeps the last row for a code, so one copy would
+  otherwise go unchecked.
 
 Pilot inputs, because one skill cannot exercise both invariants:
 
