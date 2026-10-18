@@ -365,7 +365,9 @@ class TestMain:
             # even when every check passes. Classic branch protection may still
             # require a check, so AllPassing alone must not reach the handoff.
             (0, _checks("UNKNOWN", required_rows=False), "CI state is unknown"),
-            (0, _checks("PENDING", required_rows=False), "CI state is unknown"),
+            # RequiredState PENDING or FAILURE is proven required even with no row
+            # marked required (a ruleset context that never reported).
+            (0, _checks("PENDING", required_rows=False), "CI is not passing"),
             (7, _checks("UNKNOWN", False), "CI state is unknown"),
             # build_output always emits these keys, so a missing one is malformed.
             (0, _checks("SUCCESS", merge_ref_usable=None), "CI state is unknown"),

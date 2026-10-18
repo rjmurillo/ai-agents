@@ -316,41 +316,65 @@ def _common_args(owner: str, repo: str, pr: int) -> list[str]:
     return ["--owner", owner, "--repo", repo, "--pull-request", str(pr)]
 
 
+def _merge_state_unproven(checks: dict[str, Any]) -> bool:
+    """Return True when GitHub is still computing mergeability and reports no conflict.
+
+    get_pr_checks.build_output sets MergeRefUsable False for MergeState or
+    MergeStateStatus UNKNOWN, which GitHub reports for a moment after a push.
+    CONFLICTING and DIRTY are proven, so they win over an UNKNOWN in the other field.
+    """
+    state = checks.get("MergeState")
+    status = checks.get("MergeStateStatus")
+    if state == "CONFLICTING" or status == "DIRTY":
+        return False
+    return state == "UNKNOWN" or status == "UNKNOWN"
+
+
 def _ci_state(checks: dict[str, Any]) -> str:
     """Classify CI for merge purposes as _CI_GREEN, _CI_FAILING, or _CI_UNKNOWN.
 
     A missing or malformed key is unknown, never green: build_output always
-    emits MergeRefUsable, RequiredState, and AllPassing. MergeRefUsable False is
-    failing (no usable merge ref).
+    emits MergeRefUsable, RequiredState, and AllPassing.
 
-    When at least one check row is marked required, RequiredState decides.
-    SUCCESS is green. FAILURE or PENDING is failing. UNKNOWN, which also covers
-    an incomplete check set, is unknown. Optional checks never move it.
-    get_pr_checks.py downgrades RequiredState to UNKNOWN when REST cannot prove
-    which checks are required.
+    RequiredState FAILURE or PENDING is failing whether or not a row is marked
+    required. build_output derives both only from required checks that failed,
+    are running, or never reported against the branch ruleset, so each is
+    proven required. A stranded required check needs a fix or a re-trigger, not
+    a detector re-run.
+
+    MergeRefUsable False is failing (no usable merge ref), except while GitHub
+    is still computing mergeability (MergeState or MergeStateStatus UNKNOWN with
+    no CONFLICTING or DIRTY). That is unknown: there is nothing to fix yet. A
+    proven required failure or pending check still outranks it.
+
+    Otherwise, when at least one check row is marked required, RequiredState
+    decides. SUCCESS is green. UNKNOWN, which also covers an incomplete check
+    set, is unknown. Optional checks never move it. get_pr_checks.py downgrades
+    RequiredState to UNKNOWN when REST cannot prove which checks are required.
 
     When no row is marked required, RequiredState SUCCESS means the repo
-    requires no status checks (vacuous), so AllPassing decides. Any other
-    RequiredState there is unproven: the required set may come from classic
-    branch protection that REST cannot see. That is unknown, so the handoff
-    never claims required checks are green on an unproven set.
+    requires no status checks (vacuous), so AllPassing decides. UNKNOWN there is
+    unproven: the required set may come from classic branch protection that REST
+    cannot see. That is unknown, so the handoff never claims required checks are
+    green on an unproven set.
     """
     merge_ref_usable = checks.get("MergeRefUsable")
+    required_state = checks.get("RequiredState")
+    proven_required_open = required_state in ("FAILURE", "PENDING")
     if merge_ref_usable is False:
+        if _merge_state_unproven(checks) and not proven_required_open:
+            return _CI_UNKNOWN
         return _CI_FAILING
     if merge_ref_usable is not True:
         return _CI_UNKNOWN
-    required_state = checks.get("RequiredState")
+    if proven_required_open:
+        return _CI_FAILING
     rows = checks.get("Checks")
     has_required = isinstance(rows, list) and any(
         isinstance(row, dict) and row.get("IsRequired") is True for row in rows
     )
     if has_required:
-        if required_state == "SUCCESS":
-            return _CI_GREEN
-        if required_state in ("FAILURE", "PENDING"):
-            return _CI_FAILING
-        return _CI_UNKNOWN
+        return _CI_GREEN if required_state == "SUCCESS" else _CI_UNKNOWN
     if required_state != "SUCCESS":
         return _CI_UNKNOWN
     return _CI_GREEN if checks.get("AllPassing") is True else _CI_FAILING
