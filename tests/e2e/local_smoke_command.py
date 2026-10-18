@@ -4,7 +4,8 @@ Reads launcher prefixes (``env``, ``sudo``, ``npx``), shell ``-c`` command lines
 compound command lines, so the guard sees every program a call would start.
 
 Known limits: a program started through ``eval``, a variable (``$CMD``), a script file,
-or a launcher outside ``_LAUNCHERS`` is not seen.
+or a launcher outside ``_LAUNCHERS`` is not seen. A shell option with a value other than
+``-o`` or ``-O`` (``--rcfile f``) before the command line misreads the value as the command.
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ _CONTROL_TOKEN = re.compile(r"^[;&|()]+$")
 # A process substitution opener, ``<(`` or ``>(``, starts a command too. shlex lexes
 # it as one punctuation token, so the control pattern above does not see it.
 _PROCESS_OPEN = re.compile(r"^[;&|()<>]*[<>]\($")
+# A control operator fused with the redirection after it, as in ``;>/dev/null`` or
+# ``&&>x``. shlex lexes the pair as one punctuation token.
+_FUSED_REDIRECT = re.compile(r"^([;&|()]+)([<>].*)$")
 _OPERATOR_SPLIT = re.compile(r"&&|\|\||[<>]\(|[;|&()`\n]")
 # A redirection: an optional fd number or ``&``, the operator, then a target that
 # is either attached (``>/dev/null``) or the next word (``> /dev/null``).
@@ -61,6 +65,8 @@ _SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
 _LOOKUP_OPTIONS = frozenset({"-v", "-V"})
 # A POSIX shell short-option cluster that holds ``c``: ``-c``, ``-lc``, ``-xc``, ``-ec``.
 _C_CLUSTER = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+# Shell options that take a separate value: ``bash -c -o pipefail 'cmd'``.
+_SHELL_VALUE_OPTIONS = frozenset({"-o", "+o", "-O", "+O"})
 _POSIX_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh"})
 # Shells, mapped to the option whose value is a command line to run.
 _SHELLS: dict[str, frozenset[str]] = (
@@ -99,6 +105,22 @@ def _cut_line(text: str) -> list[list[str]]:
     return [part.split() for part in _OPERATOR_SPLIT.split(text) if part.strip()]
 
 
+def _split_fused(token: str) -> tuple[str, str] | None:
+    """Split ``;>`` into the control operator and the redirection, or return None.
+
+    A lone trailing ``&`` before ``>`` is the ``&>`` redirection, not a background
+    operator: ``true&>x copilot`` runs ``true`` with ``copilot`` as an argument.
+    """
+    match = _FUSED_REDIRECT.match(token)
+    if not match:
+        return None
+    control, redirect = match.groups()
+    trailing = len(control) - len(control.rstrip("&"))
+    if trailing % 2 and not control[: len(control) - trailing].endswith("|"):
+        control, redirect = control[:-1], "&" + redirect
+    return (control, redirect) if control else None
+
+
 def _lex_line(text: str) -> list[list[str]]:
     commands: list[list[str]] = []
     for line in text.replace("`", ";").splitlines():
@@ -106,10 +128,11 @@ def _lex_line(text: str) -> list[list[str]]:
         lexer.whitespace_split = True
         current: list[str] = []
         for token in lexer:
-            if _CONTROL_TOKEN.match(token) or _PROCESS_OPEN.match(token):
+            fused = None if _PROCESS_OPEN.match(token) else _split_fused(token)
+            if _CONTROL_TOKEN.match(token) or _PROCESS_OPEN.match(token) or fused:
                 if current:
                     commands.append(current)
-                current = []
+                current = [fused[1]] if fused else []
             else:
                 current.append(token)
         if current:
@@ -139,13 +162,34 @@ def _basename(word: str) -> str:
 
 
 def _shell_command(name: str, rest: list[str]) -> str | None:
-    """Return the command line a shell runs with ``-c`` or its equivalent."""
+    """Return the command line a shell runs with ``-c`` or its equivalent.
+
+    A POSIX shell reads the command from the first non-option word after ``-c``, so
+    later options (``-x``, ``+e``, ``-o pipefail``) and one ``--`` are skipped.
+    """
     flags = _SHELLS[name]
     posix = name in _POSIX_SHELLS
     for index, word in enumerate(rest):
         is_flag = word.lower() in flags or (posix and _C_CLUSTER.match(word) is not None)
-        if is_flag and index + 1 < len(rest):
+        if not is_flag:
+            continue
+        if posix:
+            return _first_operand(rest[index + 1 :])
+        if index + 1 < len(rest):
             return rest[index + 1]
+    return None
+
+
+def _first_operand(words: list[str]) -> str | None:
+    """Return the first non-option word, skipping options and one leading ``--``."""
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word == "--":
+            return words[index + 1] if index + 1 < len(words) else None
+        if not word.startswith(("-", "+")):
+            return word
+        index += 1 + (word in _SHELL_VALUE_OPTIONS)
     return None
 
 
@@ -200,10 +244,11 @@ def program_names(args: object) -> list[str]:
     (``then``, ``do``, ``!``, ``{``) are skipped. A launcher such as ``env``,
     ``sudo``, ``time``, ``timeout`` or ``xargs`` is skipped with its flags and the
     values its known options take. Redirections (``> out``, ``2>&1``) are
-    skipped with their targets, a process substitution ``<(...)`` starts a command,
-    and a POSIX shell option cluster holding ``c`` (``-lc``) counts as ``-c``.
-    ``command -v`` only looks a program up, so it
-    starts nothing. A version suffix on an npm package spec is dropped.
+    skipped with their targets, even when fused to an operator (``;>x``). A process
+    substitution ``<(...)`` starts a command. A POSIX shell option cluster holding
+    ``c`` (``-lc``) counts as ``-c``, and later options and one ``--`` are skipped.
+    ``command -v`` only looks a program up, so it starts nothing.
+    A version suffix on an npm package spec is dropped.
     """
     return [name for words in _commands(args) for name in _programs(words)]
 

@@ -76,6 +76,17 @@ import local_smoke_guard as guard
         "watch 'copilot -p x'",
         "busybox sh -c copilot",
         "busybox copilot",
+        "bash -c -x copilot",
+        "bash -c -- copilot",
+        "sh -ec -- copilot",
+        "bash -c +e -o pipefail 'echo hi; copilot'",
+        ["bash", "-c", "-x", "copilot"],
+        "true;>/dev/null copilot",
+        "true&&>x copilot",
+        "true;<in copilot",
+        "true;2>/dev/null copilot",
+        "(true)>x copilot",
+        "true;&>x copilot",
     ],
 )
 def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
@@ -120,6 +131,12 @@ def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
         "watch 'date -u'",
         "busybox sh -c 'echo hi'",
         "2>/dev/null echo copilot",
+        "true&>x copilot",
+        "bash -c -x 'echo copilot'",
+        "bash -c -- 'ls copilot'",
+        "bash -c -x",
+        "bash -c --",
+        "true;>/dev/null ls copilot",
     ],
 )
 def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> None:
@@ -134,6 +151,25 @@ def test_program_names_sees_through_a_redirect_a_cluster_and_a_substitution() ->
     assert command.program_names("2>/dev/null sh -lc 'a; b'") == ["a", "b"]
     assert command.program_names("diff <(a) <(b)") == ["diff", "a", "b"]
     assert command.program_names("exec 3>&1 env X=1 c") == ["c"]
+
+
+def test_program_names_reads_the_command_after_shell_options() -> None:
+    assert command.program_names("bash -c -x copilot") == ["copilot"]
+    assert command.program_names("sh -ec -- 'a; b'") == ["a", "b"]
+    assert command.program_names("bash -c -o pipefail a") == ["a"]
+    # Edge: no command line follows the options, so only the shell starts.
+    assert command.program_names("bash -c -x") == ["bash"]
+    assert command.program_names("bash -c --") == ["bash"]
+    # A non-POSIX shell still takes the next word.
+    assert command.program_names("cmd /c copilot") == ["copilot"]
+
+
+def test_program_names_splits_an_operator_fused_to_a_redirection() -> None:
+    assert command.program_names("true;>/dev/null copilot") == ["true", "copilot"]
+    assert command.program_names("true&&>x copilot") == ["true", "copilot"]
+    assert command.program_names("true;<in copilot") == ["true", "copilot"]
+    # `&>` is a redirection, so copilot stays an argument of `true`.
+    assert command.program_names("true&>x copilot") == ["true"]
 
 
 def test_program_name_keeps_returning_the_first_program() -> None:
