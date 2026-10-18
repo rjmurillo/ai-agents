@@ -394,6 +394,49 @@ class TestWorktreeRunner:
         assert report["status"] == "ahead"
         assert [c["subject"] for c in report["commits"]] == ["orphan"]
 
+    def test_every_rev_parse_local_env_var_is_dropped(self):
+        """``_GIT_ENV_KEYS`` must cover what git itself reports as repo-local."""
+        reported = subprocess.run(
+            ["git", "rev-parse", "--local-env-vars"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+        ).stdout.split()
+        assert reported
+        assert set(reported) <= set(oc._GIT_ENV_KEYS)
+
+    def test_inherited_graft_file_does_not_shrink_the_commit_list(self, tmp_path, monkeypatch):
+        """GIT_GRAFT_FILE rewires parents and hid the middle commit (issue #6506)."""
+
+        def git(cwd, *args):
+            return subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                cwd=cwd,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
+            ).stdout.strip()
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        git(repo, "init", "-q", "-b", "main")
+        shas = {}
+        for name in ("a", "b", "c"):
+            (repo / f"{name}.txt").write_text(name)
+            git(repo, "add", ".")
+            git(repo, "commit", "-q", "-m", name)
+            shas[name] = git(repo, "rev-parse", "HEAD")
+        graft = tmp_path / "grafts"
+        graft.write_text(f"{shas['c']} {shas['a']}\n", encoding="utf-8")
+        monkeypatch.setenv("GIT_GRAFT_FILE", str(graft))
+
+        report = oc.scan_unpushed_commits(shas["a"], oc.worktree_runner(str(repo)))
+
+        assert report["status"] == "ahead"
+        assert sorted(c["subject"] for c in report["commits"]) == ["b", "c"]
+
 
 class TestDefaultRunner:
     def test_returns_exit_code_and_stdout(self):

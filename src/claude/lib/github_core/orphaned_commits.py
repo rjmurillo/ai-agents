@@ -35,18 +35,29 @@ _SHA = re.compile(r"^[0-9a-fA-F]{7,64}$")
 _LAUNCH_FAILURE = 127
 #: Exit code the worktree runner reports for a path it refused to use.
 _INVALID_WORKTREE = 126
-#: Variables that point git at a repository other than the one ``-C`` names.
+#: Every repo-local variable ``git rev-parse --local-env-vars`` reports. Each
+#: one redirects, rewrites, or hides history for a child that ``-C`` should
+#: have pointed at one repository (``GIT_GRAFT_FILE`` and ``GIT_SHALLOW_FILE``
+#: hide commits, ``GIT_REPLACE_REF_BASE`` and ``GIT_NO_REPLACE_OBJECTS`` swap them).
 _GIT_ENV_KEYS = (
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_NAMESPACE",
-    "GIT_CEILING_DIRECTORIES",
+    "GIT_CONFIG",
     "GIT_CONFIG_PARAMETERS",
     "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+    # Not in the rev-parse list, but each one still steers git away from ``-C``.
+    "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES",
 )
 #: Numbered config injection variables (``GIT_CONFIG_KEY_0``, ``GIT_CONFIG_VALUE_0``).
 _GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
@@ -130,8 +141,9 @@ def worktree_runner(worktree: str) -> GitRunner:
     The tier-dispatch loop runs from a shared checkout, so the comparison must
     name the PR's worktree instead of trusting the current directory's ``HEAD``.
 
-    The path is validated, and ``GIT_DIR``, ``GIT_WORK_TREE`` and the other
-    repository-selecting variables are dropped from the child environment.
+    The path is validated, and ``GIT_DIR``, ``GIT_WORK_TREE`` and every other
+    variable that ``git rev-parse --local-env-vars`` lists are dropped from the
+    child environment.
     Inherited, they would override ``-C`` and point git back at the shared
     checkout (issue #6506). The variables that inject config values go too,
     since they can set ``core.fsmonitor`` or ``core.hooksPath`` for the child:
