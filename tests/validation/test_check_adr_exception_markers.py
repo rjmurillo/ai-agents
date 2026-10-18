@@ -171,6 +171,95 @@ def test_adr_reference_without_exception_word_is_ignored(tmp_path: Path) -> None
     assert "0 marker" in result.stdout
 
 
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "# ADR 055 Exception: space instead of hyphen",
+        "# ADR-055 Exception without the colon",
+        "# ADR-055: Exception reason after the number",
+        "# ADR-055 Exeption: misspelled word",
+        "# ADR-055 Exceptions: plural",
+        "# ADR-055 Excepton: dropped letter",
+        "# ADR_055 Exception: underscore",
+        "#ADR055 Exception: no separators",
+    ],
+)
+def test_near_miss_marker_fails_and_is_named(tmp_path: Path, comment: str) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, comment)
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert "near-miss marker" in result.stdout
+    assert "ci.yml:4" in result.stdout
+    assert "# ADR-NNN Exception:" in result.stdout
+
+
+def test_near_miss_after_a_key_is_found(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    wf_dir = tmp_path / ".github" / "workflows"
+    wf_dir.mkdir(parents=True)
+    (wf_dir / "x.yml").write_text(
+        "runs-on: windows-latest  # ADR-055 Exeption: reason\n", encoding="utf-8"
+    )
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert "x.yml:1" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "# ADR-055: ARM runner for cost optimization",
+        "# ADR-055 except where noted",
+        "# ADR-055 explains the runner choice",
+        "# See ADR-055 exception rules",
+        "# NOTE: needs x86_64 (ADR-055 exception)",
+        "# ADR-055",
+        "# ADR-055 expiry: 2027",
+        "# ADR coverage matrix",
+    ],
+)
+def test_prose_that_only_mentions_an_adr_is_not_a_near_miss(tmp_path: Path, comment: str) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, comment)
+    result = _run(tmp_path)
+    assert result.returncode == 0, result.stdout
+    assert "0 marker" in result.stdout
+
+
+def test_valid_marker_is_not_also_a_near_miss(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: windows runner")
+    result = _run(tmp_path)
+    assert result.returncode == 0
+    assert "1 marker" in result.stdout
+
+
+def test_near_miss_and_bad_marker_are_both_reported(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "superseded")
+    wf_dir = tmp_path / ".github" / "workflows"
+    wf_dir.mkdir(parents=True)
+    (wf_dir / "x.yml").write_text(
+        "# ADR-055 Exception: retired\n# ADR 055 Exception: misspelled\n", encoding="utf-8"
+    )
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert "is superseded" in result.stdout
+    assert "near-miss marker" in result.stdout
+
+
+def test_find_near_miss_returns_the_comment_text() -> None:
+    assert gate.find_near_miss("key: v  # ADR 055 Exception: why") == "# ADR 055 Exception: why"
+    assert gate.find_near_miss("# ADR-055 Exception: ok") is None
+    assert gate.find_near_miss("no comment here") is None
+
+
+def test_adapter_returns_false_on_a_near_miss(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR 055 Exception: space")
+    assert gate.validate_adr_exception_markers(tmp_path) is False
+
+
 def test_adr_without_frontmatter_passes_on_existence(tmp_path: Path) -> None:
     _adr(tmp_path, 55, None)
     _workflow(tmp_path, "# ADR-055 Exception: reason")
