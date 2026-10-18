@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -286,7 +287,7 @@ def test_removing_a_benchmark_clause_is_detected(clause_id: str) -> None:
     assert missing(mutated, BENCHMARK_CLAUSES) == [clause_id]
 
 
-def _underpowered_fixture() -> runtime_parity.Fixture:
+def _underpowered_fixture() -> Any:
     fixtures = runtime_parity.load_fixtures(UNDERPOWERED_FIXTURES_PATH)
     assert [f.fixture_id for f in fixtures] == ["single-run-benchmark-names-no-winner"]
     return fixtures[0]
