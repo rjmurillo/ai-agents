@@ -37,7 +37,7 @@ human approves it.
 
 Every comparison is against the base ref tip, never the merge base: a head
 behind the base runs the old copy of a file the base moved. With `--head-sha`, a
-finding where the head equals the merge base is labelled STALE, which still
+finding where the head equals every merge base is labelled STALE, which still
 fails and tells the author to merge the base ref (issue #6472).
 
 EXIT CODES (ADR-035):
@@ -228,24 +228,26 @@ def _base_symlinks(tool_root: Path, base_ref: str) -> set[str]:
     return {e.split("\t", 1)[1] for e in entries if e.startswith("120000 ") and "\t" in e}
 
 
-def _merge_base(tool_root: Path, base_ref: str, head_sha: str | None) -> str | None:
-    """The commit where the head branched from the base ref, or None when unknown.
+def _merge_bases(tool_root: Path, base_ref: str, head_sha: str | None) -> list[str]:
+    """Every commit where the head branched from the base ref, or [] when unknown.
 
-    None covers a head given as a work tree (no commit to compare), a shallow
-    history that does not reach the fork point, and an unrelated history. The
-    merge base only picks the STALE label; it never clears a finding.
+    [] covers a work-tree head, a shallow history that misses the fork point, and
+    an unrelated history. ``--all`` matters after a criss-cross merge: plain
+    ``merge-base`` prints one of several ancestors, and the head shapes which.
+    They only pick STALE, which needs a match at every one; they never clear.
     """
     if head_sha is None:
-        return None
+        return []
     result = subprocess.run(
-        ["git", *_INERT_GIT, "merge-base", base_ref, head_sha],
+        ["git", *_INERT_GIT, "merge-base", "--all", base_ref, head_sha],
         cwd=tool_root,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else None
+    found = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return found if result.returncode == 0 else []
 
 
 def _classify(
@@ -254,7 +256,7 @@ def _classify(
     head_root: Path,
     head_sha: str | None,
     path: str,
-    fork: str | None = None,
+    forks: list[str] | None = None,
 ) -> str | None:
     """How the head's ``path`` compares with the base ref tip, or None when equal.
 
@@ -263,8 +265,9 @@ def _classify(
     scratch tree equal the base's while the committed blob differs.
 
     Only equality with the base ref tip clears a file. A head blob that differs
-    from the tip but equals the merge-base blob is STALE: the base moved or
-    deleted the file after the branch point, and the head still runs the old copy.
+    from the tip but equals the blob at every merge base is STALE: the base moved
+    or deleted the file after the branch point, and the head still runs the old
+    copy.
     """
     base_id = _blob_id(tool_root, base_ref, path)
     if head_sha is None:
@@ -275,26 +278,26 @@ def _classify(
     head_id = _blob_id(tool_root, head_sha, path)
     if head_id is not None and head_id == base_id:
         return None
-    if fork is not None and head_id is not None and head_id == _blob_id(tool_root, fork, path):
+    if head_id is not None and forks and {_blob_id(tool_root, f, path) for f in forks} == {head_id}:
         return STALE
     return ADDED if base_id is None else CHANGED
 
 
 def _missing_roots(
-    tool_root: Path, head_root: Path, base_ref: str, roots: list[str], fork: str | None
+    tool_root: Path, head_root: Path, base_ref: str, roots: list[str], forks: list[str]
 ) -> tuple[list[str], list[str]]:
-    """Roots the base tip has and the head lacks; stale when the merge base lacks them too."""
+    """Roots the base tip has and the head lacks; stale when every merge base lacks them too."""
     missing = [
         path
         for path in roots
         if not (head_root / path).is_file() and _in_ref(tool_root, base_ref, path)
     ]
-    stale = [path for path in missing if fork is not None and not _in_ref(tool_root, fork, path)]
+    stale = [p for p in missing if forks and not any(_in_ref(tool_root, f, p) for f in forks)]
     return [path for path in missing if path not in stale], stale
 
 
 def _new_symlinks(
-    tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None, fork: str | None
+    tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None, forks: list[str]
 ) -> tuple[list[str], list[str]]:
     """Head symlinks the base tip lacks (by target with a head SHA), split into added and stale."""
     if head_sha is None:
@@ -302,7 +305,8 @@ def _new_symlinks(
     else:
         known = _same_symlinks(tool_root, base_ref, head_sha)
     found = _symlinks_in_tree(head_root) - known
-    stale = found & _same_symlinks(tool_root, fork, head_sha)
+    shared = [_same_symlinks(tool_root, fork, head_sha) for fork in forks]
+    stale = found.intersection(*shared) if shared else set()
     return sorted(found - stale), sorted(stale)
 
 
@@ -322,17 +326,17 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
     closure = gate._expand_import_closure(
         [path for path in roots if (head_root / path).is_file()], head_root
     )
-    fork = _merge_base(tool_root, base_ref, head_sha)
+    forks = _merge_bases(tool_root, base_ref, head_sha)
     report = Report(examined=len(closure))
-    removed, stale_roots = _missing_roots(tool_root, head_root, base_ref, roots, fork)
+    removed, stale_roots = _missing_roots(tool_root, head_root, base_ref, roots, forks)
     report.removed.extend(removed)
     report.stale.extend(stale_roots)
     buckets = {CHANGED: report.changed, ADDED: report.added, STALE: report.stale}
     for path in closure:
-        kind = _classify(tool_root, base_ref, head_root, head_sha, path, fork)
+        kind = _classify(tool_root, base_ref, head_root, head_sha, path, forks)
         if kind is not None:
             buckets[kind].append(path)
-    symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, fork)
+    symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, forks)
     report.symlinks.extend(symlinks)
     report.stale.extend(stale_links)
     report.unresolved.extend(gate._unresolvable_dynamic_sites(closure, head_root))
