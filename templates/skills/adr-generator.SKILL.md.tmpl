@@ -149,7 +149,7 @@ Populate the detected template with gathered content:
 
 **Lifecycle frontmatter (ADR-073, Phase 1)**: when the destination uses this
 repo's canonical template (`.project-toolkit/architecture/ADR-TEMPLATE.md`), emit the
-<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .project-toolkit/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Phase G6 runs build/scripts/generate_adr_index.py to refresh the generated ADR index when that script exists; a consumer repo without it skips the step. Issues #2050, #5280. -->
+<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .project-toolkit/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Phase G6 runs build/scripts/generate_adr_index.py to refresh the generated ADR index only in the rjmurillo/ai-agents repository; any other checkout skips the step, even one that holds a script of that name. Issues #2050, #5280. -->
 machine-readable YAML frontmatter block above the `# ADR-NNN:` heading with
 these safe defaults:
 
@@ -242,21 +242,29 @@ ledger to `adr-review` for multi-agent validation.
 <!-- vendor-portability-exec: the refresh step invokes
      build/scripts/generate_adr_index.py, which lives upstream in the
      rjmurillo/ai-agents repo and ships in no plugin root. The step is guarded
-     by an existence check and skipped in a consumer checkout (issue #5280). -->
+     by an origin remote check and skipped in any other checkout, so a repo
+     supplied script is never run (issues #5280, #6506). -->
 
 The ADR index (`.project-toolkit/architecture/README.md`) is generated from the
 ADR corpus (issue #5198). It lists each record's status, title, and decision
 summary. The gates above can edit the title and decision summary; status stays
 proposed until `adr-review` reaches consensus. Run the generator after the
 gates so the index shows the post-gate draft instead of drifting until the next
-unrelated build. Status changes after hand-off need another run:
+unrelated build. Status changes after hand-off need another run.
+
+Run it only in the `rjmurillo/ai-agents` repository. Check first:
 
 ```bash
-uv run python build/scripts/generate_adr_index.py
+git remote get-url origin | grep -Eq '(^|[/:])rjmurillo/ai-agents(\.git)?/?$' \
+  && test -f build/scripts/generate_adr_index.py \
+  && uv run python build/scripts/generate_adr_index.py
 ```
 
-If `build/scripts/generate_adr_index.py` does not exist in this checkout, skip
-the refresh. The index has not shipped there, so nothing needs regenerating.
+If the check fails, skip the refresh: either this is another repository, or
+`build/scripts/generate_adr_index.py` does not exist in this checkout. Another
+repository's script of that name is that repository's code, and running it here
+would execute whatever its branch supplied. The index has not shipped in a
+consumer checkout, so nothing needs regenerating.
 
 ---
 
@@ -300,7 +308,7 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 - [ ] File saved to destination directory determined in Phase G2
 - [ ] Claims ledger records each factual claim and its evidence status
 - [ ] Documentation accuracy, self-consistency, and refuting-seat results recorded
-- [ ] If `build/scripts/generate_adr_index.py` exists, it ran after the gates (Phase G6)
+- [ ] In the `rjmurillo/ai-agents` repository, `build/scripts/generate_adr_index.py` ran after the gates (Phase G6); in any other checkout it was skipped
 - [ ] ADR review hand-off includes the claims ledger path and gate escapes
 
 ---
