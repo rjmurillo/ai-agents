@@ -98,6 +98,25 @@ class TestParseAllowedTools:
         assert cpi.parse_allowed_tools("---\nname: x\n---\nallowed-tools: Read\n") == frozenset()
 
 
+class TestCountAllowedToolsKeys:
+    def test_one_key(self) -> None:
+        assert cpi.count_allowed_tools_keys(FM.format(tools="Read")) == 1
+
+    def test_repeated_key_counts_each(self) -> None:
+        text = "---\nname: x\nallowed-tools: Read\nallowed-tools: Read, Bash\n---\nbody\n"
+        assert cpi.count_allowed_tools_keys(text) == 2
+
+    def test_none(self) -> None:
+        assert cpi.count_allowed_tools_keys("---\nname: x\n---\n") == 0
+
+    def test_indented_key_and_body_key_do_not_count(self) -> None:
+        text = (
+            "---\nname: x\nmeta:\n  allowed-tools: Bash\nallowed-tools: Read\n---\n"
+            "allowed-tools: Bash\n"
+        )
+        assert cpi.count_allowed_tools_keys(text) == 1
+
+
 class TestParseExitCodes:
     def test_reads_rows(self) -> None:
         text = EXIT.format(rows="| 0 | ok |\n| 10 | bad   news |")
@@ -120,6 +139,32 @@ class TestParseExitCodes:
 
     def test_heading_case_insensitive(self) -> None:
         assert cpi.parse_exit_codes("## exit codes\n| 0 | ok |\n") == {"0": "ok"}
+
+    def test_reads_every_section(self) -> None:
+        text = EXIT.format(rows="| 0 | ok |") + "\n## Exit Codes\n\n| 9 | later |\n"
+        assert cpi.parse_exit_codes(text) == {"0": "ok", "9": "later"}
+
+
+class TestExitCodeDuplicates:
+    def test_clean_table(self) -> None:
+        assert cpi.exit_code_duplicates(EXIT.format(rows="| 0 | ok |\n| 1 | err |")) == []
+
+    def test_no_section(self) -> None:
+        assert cpi.exit_code_duplicates("# T\n") == []
+
+    def test_repeated_row(self) -> None:
+        problems = cpi.exit_code_duplicates(EXIT.format(rows="| 0 | ok |\n| 0 | changed |"))
+        assert problems == ["lists exit code 0 2 times"]
+
+    def test_second_heading(self) -> None:
+        text = EXIT.format(rows="| 0 | ok |") + "\n## Exit Codes\n\n| 1 | err |\n"
+        assert cpi.exit_code_duplicates(text) == [
+            "declares 2 Exit Codes sections; the comparison needs one"
+        ]
+
+    def test_second_heading_repeating_a_code_reports_both(self) -> None:
+        text = EXIT.format(rows="| 0 | ok |") + "\n## exit codes\n\n| 0 | other |\n"
+        assert len(cpi.exit_code_duplicates(text)) == 2
 
 
 class TestCheckTools:
@@ -147,6 +192,22 @@ class TestCheckTools:
     def test_missing_projection_line_fails(self) -> None:
         problems = cpi.check_tools(FM.format(tools="Read"), "---\nname: x\n---\n")
         assert problems == ["projection dropped allowed-tools entry: Read"]
+
+    def test_repeated_key_in_projection_fails_even_when_the_first_matches(self) -> None:
+        """A loader keeps the last key, so the wider second grant is the live one."""
+        projection = "---\nname: x\nallowed-tools: Read\nallowed-tools: Read, Bash\n---\nbody\n"
+        problems = cpi.check_tools(FM.format(tools="Read"), projection)
+        assert problems == [
+            "projection declares allowed-tools 2 times; a loader keeps the last one"
+        ]
+
+    def test_repeated_key_in_source_fails(self) -> None:
+        source = "---\nname: x\nallowed-tools: Read\nallowed-tools: Read\n---\nbody\n"
+        problems = cpi.check_tools(source, FM.format(tools="Read"))
+        assert problems == ["source declares allowed-tools 2 times; a loader keeps the last one"]
+
+    def test_single_key_reports_no_duplicate(self) -> None:
+        assert cpi.check_tools(FM.format(tools="Read"), FM.format(tools="Read")) == []
 
 
 class TestCheckExitCodes:
@@ -193,6 +254,30 @@ class TestCheckExitCodes:
         problems = cpi.check_exit_codes(EXIT.format(rows="| 0 | ok |"), "# T\n")
         assert problems == ["projection dropped exit code 0"]
 
+    def test_repeated_row_in_projection_fails_when_the_last_matches(self) -> None:
+        source = EXIT.format(rows="| 0 | ok |")
+        projection = EXIT.format(rows="| 0 | different |\n| 0 | ok |")
+        assert cpi.check_exit_codes(source, projection) == ["projection lists exit code 0 2 times"]
+
+    def test_second_heading_in_projection_fails(self) -> None:
+        source = EXIT.format(rows="| 0 | ok |")
+        projection = source + "\n## Exit Codes\n\n| 0 | ok |\n"
+        problems = cpi.check_exit_codes(source, projection)
+        assert any("declares 2 Exit Codes sections" in p for p in problems)
+
+    def test_second_heading_hiding_a_changed_row_fails(self) -> None:
+        source = EXIT.format(rows="| 0 | ok |")
+        projection = source + "\n## Exit Codes\n\n| 0 | changed |\n"
+        problems = cpi.check_exit_codes(source, projection)
+        assert any("declares 2 Exit Codes sections" in p for p in problems)
+        assert any("lists exit code 0 2 times" in p for p in problems)
+        assert any("row changed" in p for p in problems)
+
+    def test_repeated_row_in_source_fails(self) -> None:
+        source = EXIT.format(rows="| 0 | ok |\n| 0 | ok |")
+        problems = cpi.check_exit_codes(source, EXIT.format(rows="| 0 | ok |"))
+        assert problems == ["source lists exit code 0 2 times"]
+
 
 class TestRealTree:
     def test_committed_pilots_pass(self) -> None:
@@ -233,6 +318,23 @@ class TestNegativeControls:
         result = _run(_make_repo(tmp_path, push_pr_projection=widened))
         assert result.returncode == 1
         assert "added allowed-tools entry: Bash" in result.stderr
+
+    def test_invariant_6_repeated_allowed_tools_key_fails(self, tmp_path: Path) -> None:
+        text = _read_real(PROJECTION, "push-pr")
+        line = next(ln for ln in text.splitlines() if ln.startswith("allowed-tools:"))
+        repeated = text.replace(line, f"{line}\n{line}", 1)
+        result = _run(_make_repo(tmp_path, push_pr_projection=repeated))
+        assert result.returncode == 1
+        assert "push-pr (invariant 6)" in result.stderr
+        assert "declares allowed-tools 2 times" in result.stderr
+
+    def test_invariant_8_second_exit_codes_heading_fails(self, tmp_path: Path) -> None:
+        text = _read_real(PROJECTION, "security-scan")
+        extra = text + "\n## Exit Codes\n\n| 0 | Scan clean |\n"
+        result = _run(_make_repo(tmp_path, scan_projection=extra))
+        assert result.returncode == 1
+        assert "security-scan (invariant 8)" in result.stderr
+        assert "declares 2 Exit Codes sections" in result.stderr
 
     def test_invariant_8_dropped_code_fails(self, tmp_path: Path) -> None:
         text = _read_real(PROJECTION, "security-scan")
