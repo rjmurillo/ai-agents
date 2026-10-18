@@ -44,18 +44,18 @@ DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
 GIT_TIMEOUT_S = 30
 STDERR_TAIL_CHARS = 2000
-# Deny flags the prefix grants accept: drift --allow-commands runs repo argv; the rest
-# write files. Claude Code 2.1.302 probe (2026-10-17): drift rule refuses; without it, runs.
+# Deny flags the prefix grants accept: --allow-commands runs repo argv; the rest write
+# files. Claude Code 2.1.302 probe (2026-10-17): drift rule refuses; without it, runs.
 _SCRIPT_DIR = "python3 .claude/skills/skill-bootstrap/scripts"
 DENY_DRIFT_COMMANDS = f"Bash({_SCRIPT_DIR}/bootstrap_drift.py *--allow-commands*)"
 DENY_EVAL_IN_REPO = f"Bash({_SCRIPT_DIR}/bootstrap_eval.py *--allow-in-repo*)"
 DENY_WRITES = (
-    "Bash(git log *--output*)",
-    "Bash(git diff-tree *--output*)",
+    "Bash(git *--output*)",
     f"Bash({_SCRIPT_DIR}/bootstrap_mine.py *--out*)",
+    f"Bash({_SCRIPT_DIR}/bootstrap_eval.py *--out*)",
+    f"Bash({_SCRIPT_DIR}/bootstrap_boundary.py *--out*)",
 )
-# Not a sandbox: print mode refuses unlisted tools. Use a disposable worktree.
-_SKILL_SCRIPTS = (
+_SKILL_SCRIPTS = (  # not a sandbox: print mode refuses unlisted tools; use a worktree
     "bootstrap_mine",
     "bootstrap_forms",
     "bootstrap_eval",

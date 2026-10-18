@@ -416,9 +416,9 @@ def test_git_output_and_mine_out_flags_are_denied(monkeypatch, tmp_path):
     cap.run_one(tmp_path, "p", "m")
 
     denied = commands[0][commands[0].index("--disallowedTools") + 1 :]
-    assert "Bash(git log *--output*)" in denied
-    assert "Bash(git diff-tree *--output*)" in denied
-    assert any("bootstrap_mine.py *--out*" in rule for rule in denied)
+    assert "Bash(git *--output*)" in denied
+    for script in ("bootstrap_mine.py", "bootstrap_eval.py", "bootstrap_boundary.py"):
+        assert any(f"{script} *--out*" in rule for rule in denied)
 
 
 def test_duplicate_task_id_exits_2(tmp_path, checkout, monkeypatch):
