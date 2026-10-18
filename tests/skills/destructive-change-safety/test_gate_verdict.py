@@ -33,8 +33,73 @@ def test_complete_evidence_passes() -> None:
 
 
 def test_read_only_change_skips() -> None:
-    assert verdict({})["verdict"] == "SKIP"
     assert verdict({}, {"decision": "skip", "sinks": []})["verdict"] == "SKIP"
+
+
+def test_missing_scan_report_cannot_skip() -> None:
+    """Issue #6506: no sinks declared and no scan is an unproven claim, not a skip."""
+    result = verdict({})
+    assert result["verdict"] == "BLOCK"
+    assert "no scan report" in result["reasons"][0]
+
+
+@pytest.mark.parametrize(
+    "scan",
+    [
+        {},
+        {"sinks": []},
+        {"decision": None},
+        {"decision": ""},
+        {"decision": "SKIP"},
+        {"decision": 0},
+    ],
+)
+def test_scan_report_without_a_known_decision_blocks(scan: dict[str, Any]) -> None:
+    result = verdict({}, scan)
+    assert result["verdict"] == "BLOCK"
+    assert "no known `decision`" in result["reasons"][0]
+
+
+def test_scan_report_without_a_decision_blocks_even_with_complete_evidence() -> None:
+    assert verdict(good_evidence(), {"sinks": []})["verdict"] == "BLOCK"
+
+
+def test_declared_sinks_with_no_scan_report_still_evaluate_the_rules() -> None:
+    assert verdict(good_evidence()) == {"verdict": "PASS", "reasons": []}
+
+
+@pytest.mark.parametrize("exit_code", [False, True, None, "0", 0.0, 1, -1])
+def test_preflight_exit_code_must_be_the_integer_zero(exit_code: object) -> None:
+    evidence = good_evidence()
+    evidence["preflight"]["exit_code"] = exit_code
+    result = verdict(evidence)
+    assert result["verdict"] == "BLOCK"
+    assert "preflight did not exit 0" in reasons(evidence)
+
+
+@pytest.mark.parametrize("exit_code", [False, True, None, "0", 0.0, 2])
+def test_check_exit_code_must_be_the_integer_zero(exit_code: object) -> None:
+    evidence = good_evidence()
+    evidence["checks"] = [{"command": "pytest -q", "exit_code": exit_code}]
+    result = verdict(evidence)
+    assert result["verdict"] == "BLOCK"
+    assert "check failed: pytest -q" in reasons(evidence)
+
+
+def test_negative_measured_count_blocks() -> None:
+    evidence = good_evidence()
+    evidence["preflight"]["measured"] = -1
+    evidence["expected"] = {"max": 10}
+    result = verdict(evidence)
+    assert result["verdict"] == "BLOCK"
+    assert "preflight measured no count" in reasons(evidence)
+
+
+def test_zero_measured_count_within_max_passes() -> None:
+    evidence = good_evidence()
+    evidence["preflight"]["measured"] = 0
+    evidence["expected"] = {"max": 10}
+    assert verdict(evidence)["verdict"] == "PASS"
 
 
 def test_scan_sinks_the_evidence_omits_block() -> None:
