@@ -36,7 +36,7 @@ def _blank_run(line: str, i: int, width: int = 1) -> str:
 # or a case pattern. `_close_paren` and `_step_arith` decide that.
 _COMMENT_LEADERS = frozenset(";&|(<>")
 
-# Frames that can host a `case` statement whose patterns need their own frame.
+# Frames that can host a `case` statement.
 _CASE_HOSTS = (_MODE_SUB, _MODE_GROUP, _MODE_CASE)
 
 # Characters that make a following `(` part of a word: `$(`, `name=(`, `<(`, `>(`.
@@ -51,6 +51,13 @@ def _is_escaped(line: str, i: int) -> bool:
     return count % 2 == 1
 
 
+def _starts_word(line: str, i: int) -> bool:
+    """True when a shell word can begin at `i`: line start, whitespace, or `;&|(<>` before it."""
+    if i == 0 or line[i - 1].isspace():
+        return True
+    return line[i - 1] in _COMMENT_LEADERS and not _is_escaped(line, i - 1)
+
+
 def _starts_comment(line: str, i: int) -> bool:
     """A `#` starts a comment at line start, after whitespace, or after `;&|(<>`.
 
@@ -60,11 +67,7 @@ def _starts_comment(line: str, i: int) -> bool:
     `)` closes (`_close_paren`, `_step_arith`): `(cd /tmp)# note` carries a
     comment, but `$(ls)#x` and `$((1))#x` do not, since the `#` joins the word.
     """
-    if line[i] != "#":
-        return False
-    if i == 0 or line[i - 1].isspace():
-        return True
-    return line[i - 1] in _COMMENT_LEADERS and not _is_escaped(line, i - 1)
+    return line[i] == "#" and _starts_word(line, i)
 
 
 def _step_single(line: str, i: int, out: list[str], stack: list[str]) -> int:
@@ -147,11 +150,10 @@ def _open_dollar_form(line: str, i: int, out: list[str], stack: list[str]) -> in
 def _close_paren(line: str, i: int, out: list[str], stack: list[str]) -> int:
     """Consume `)` at `i`. A `#` right after it is a comment only when the word ended.
 
-    The word ends after a bare `(...)` subshell and after a `)` that ends a case
-    pattern. It continues after `$(...)`, `name=(...)`, and `<(...)`, so
-    `echo $(date)#$y` still expands `$y`. Inside a `case` frame (`_MODE_CASE`) a
-    `)` ends a pattern and closes nothing, so `"$(case $m in a) rm $x;; esac)"`
-    keeps its substitution open until the `)` after `esac`.
+    The word ends after a bare `(...)` subshell and after a case-pattern `)`. It
+    continues after `$(...)`, `name=(...)`, and `<(...)`, so `echo $(date)#$y`
+    still expands `$y`. Inside a `_MODE_CASE` frame a `)` ends a pattern and
+    closes nothing: the substitution stays open until the `)` after `esac`.
     """
     closed = _MODE_GROUP
     if stack and stack[-1] in (_MODE_SUB, _MODE_GROUP):
@@ -182,25 +184,12 @@ def _escape_in_command(line: str, i: int, out: list[str], stack: list[str]) -> i
     return i + 2
 
 
-def _starts_word(line: str, i: int) -> bool:
-    """True when a shell word can begin at `i`: line start, whitespace, or `;&|(<>` before it."""
-    if i == 0 or line[i - 1].isspace():
-        return True
-    return line[i - 1] in _COMMENT_LEADERS and not _is_escaped(line, i - 1)
-
-
-# Text before a word that puts it in command position: nothing, a list or
-# pipeline separator, a bracket or case-pattern `)`, or a keyword that starts a command list.
+# Text before a word in command position: a separator, bracket, `)`, or list keyword.
 _COMMAND_POSITION_RE = re.compile(r"(?:^|[;&|({!)]|(?:^|\s)(?:then|do|else|elif|time))\s*$")
 
 
 def _keyword_at(line: str, i: int, word: str, closers: str) -> bool:
-    """True when the reserved word `word` stands alone at `i` (a case or esac keyword).
-
-    `closers` lists the characters, besides whitespace and end of line, that may
-    follow it. `case` must sit in command position, so `grep -w case` and
-    `echo case` do not open a case frame.
-    """
+    """True when keyword `word` stands alone at `i`; `case` needs command position."""
     end = i + len(word)
     if not line.startswith(word, i) or not _starts_word(line, i):
         return False
@@ -210,27 +199,23 @@ def _keyword_at(line: str, i: int, word: str, closers: str) -> bool:
 
 
 def _step_case_keyword(line: str, i: int, out: list[str], stack: list[str]) -> int:
-    """Open a case frame on `case`, close it on `esac`; return the next index, or 0 for neither.
-
-    Only a case inside a substitution, group, or another case needs a frame:
-    at top level a `)` has nothing to pop.
-    """
-    if stack and stack[-1] == _MODE_CASE and _keyword_at(line, i, "esac", ";&|)"):
+    """Open a case frame on `case`, close it on `esac`; 0 when neither is at `i`."""
+    top = stack[-1] if stack else ""
+    if top == _MODE_CASE and _keyword_at(line, i, "esac", ";&|)"):
         stack.pop()
-        out.append("esac")
-        return i + 4
-    if stack and stack[-1] in _CASE_HOSTS and _keyword_at(line, i, "case", ""):
+    elif top in _CASE_HOSTS and _keyword_at(line, i, "case", ""):
         stack.append(_MODE_CASE)
-        out.append("case")
-        return i + 4
-    return 0
+    else:
+        return 0
+    out.append(line[i : i + 4])
+    return i + 4
 
 
 def _comment_end(line: str, i: int, stack: list[str]) -> int:
-    """Return where the comment starting at `i` ends: end of line, or the closing backtick.
+    """Return where the comment at `i` ends: end of line, or the closing backtick.
 
-    Bash cuts a backtick body out before it parses it, so a comment inside one
-    stops at the closing backtick. A `)` inside a `$( )` comment is comment text.
+    Bash cuts a backtick body out before parsing it, so a comment inside one
+    stops at the closing backtick.
     """
     if stack and stack[-1] == _MODE_TICK:
         for j in range(i, len(line)):
@@ -239,8 +224,8 @@ def _comment_end(line: str, i: int, stack: list[str]) -> int:
     return len(line)
 
 
-def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
-    """Consume one character of unquoted shell text or a substitution body."""
+def _step_lead(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume an escape, comment, case keyword, or `$'`/`${` opener; 0 when none starts at `i`."""
     ch = line[i]
     if ch == "\\":
         return _escape_in_command(line, i, out, stack)
@@ -250,9 +235,15 @@ def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
         advanced = _step_case_keyword(line, i, out, stack)
         if advanced:
             return advanced
-    opened = _open_dollar_form(line, i, out, stack)
-    if opened:
-        return opened
+    return _open_dollar_form(line, i, out, stack)
+
+
+def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume one character of unquoted shell text or a substitution body."""
+    ch = line[i]
+    advanced = _step_lead(line, i, out, stack)
+    if advanced:
+        return advanced
     if ch == "`":
         if stack and stack[-1] == _MODE_TICK:
             stack.pop()
@@ -278,9 +269,7 @@ def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
 def _step_arith(line: str, i: int, out: list[str], stack: list[str]) -> int:
     """Consume inside `((...))` or `$((...))`. Only `))` closes it; else it is shell text.
 
-    A bare `(` opens `_MODE_ARITH_GROUP`, so `(( f |= (1 << n) ))` keeps `<<` an
-    arithmetic shift and the group's `)` is not mistaken for the `))` closer.
-
+    A bare `(` opens `_MODE_ARITH_GROUP`, so `<<` in `(( f |= (1 << n) ))` stays a shift.
     A `#` right after the `))` of a `((...))` command is a comment. After the
     `))` of `$((...))` it is part of the word.
     """
@@ -471,11 +460,11 @@ def scrub_bash_lines(lines: Sequence[str]) -> list[str]:
     It fails open only on unresolved state. If a quote or here-document is still
     open at end of file, every line from where it opened is scrubbed with
     `scrub_bash_line`. A misread quote that a later, unrelated quote closes
-    before end of file is not caught by this fallback. The lexer therefore
-    tracks the shell forms that hide or fake a quote: comments after a
-    metacharacter, bare here-document delimiters, `${...}` bodies (unquoted, or
-    inside double quotes where quotes nest), and `\\"` inside a backtick body
-    in double quotes.
+    before end of file is not caught by that fallback, so the lexer tracks the
+    forms that hide or fake a quote: comments after a metacharacter, bare
+    here-document delimiters, `${...}` bodies (nested quotes inside double
+    quotes), `\\"` in a backtick body in double quotes, backtick bodies, grouped
+    arithmetic (`(1 << n)`), and `case` patterns inside a substitution or group.
     """
     result: list[str] = []
     stack: list[str] = []
