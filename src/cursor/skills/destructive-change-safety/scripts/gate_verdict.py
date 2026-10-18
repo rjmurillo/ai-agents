@@ -84,7 +84,9 @@ def rule_preflight(evidence: Evidence, scanned: list[str]) -> list[str]:
     if not exited_zero(preflight):
         reasons.append("preflight did not exit 0: scope is unknown")
     measured = preflight.get("measured")
-    if not is_int(measured) or measured < 0:
+    if is_int(measured) and measured < 0:
+        reasons.append("preflight measured a negative count: scope is unknown")
+    elif not is_int(measured):
         reasons.append("preflight measured no count: scope is unknown")
     return reasons
 

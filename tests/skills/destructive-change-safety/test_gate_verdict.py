@@ -121,7 +121,8 @@ def test_negative_measured_count_blocks() -> None:
     evidence["expected"] = {"max": 10}
     result = verdict(evidence)
     assert result["verdict"] == "BLOCK"
-    assert "preflight measured no count" in reasons(evidence)
+    assert "preflight measured a negative count" in reasons(evidence)
+    assert "measured no count" not in reasons(evidence)
 
 
 def test_zero_measured_count_within_max_passes() -> None:

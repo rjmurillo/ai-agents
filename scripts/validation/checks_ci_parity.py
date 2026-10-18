@@ -25,6 +25,7 @@ The wrappers live in their own module because ``checks_spec.py`` is at the
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -77,16 +78,55 @@ class BaseRefUnavailable(Exception):  # noqa: N818 - names the missing input, no
     """
 
 
+_REMOTE_HEAD = "refs/remotes/origin/HEAD"
+
+
+def _is_ci() -> bool:
+    """True under a CI runner, which fetches the base before the gates run."""
+    return any(os.environ.get(var, "").lower() in ("true", "1") for var in ("CI", "GITHUB_ACTIONS"))
+
+
+def _origin_branch(repo_root: Path, label: str) -> str:
+    """Resolve ``refs/remotes/origin/HEAD`` to ``origin/<branch>`` so it can be fetched.
+
+    ``_refresh_remote_base`` fetches only ``origin/<branch>`` refs. The remote
+    HEAD symref is what ``_resolve_default_base_ref`` returns when no PR is
+    open, the usual time to run ``pre_pr.py``, and it would otherwise pass
+    through unfetched and judge a stale cache.
+    """
+    exit_code, stdout, stderr = _run_subprocess(
+        ["git", "-C", str(repo_root), "symbolic-ref", "--short", _REMOTE_HEAD],
+        timeout=10,
+    )
+    resolved = str(stdout).strip()
+    if exit_code == 0 and resolved.startswith("origin/"):
+        return resolved
+    detail = str(stderr).strip() or f"git symbolic-ref exit {exit_code}"
+    raise BaseRefUnavailable(f"{label} could not resolve {_REMOTE_HEAD} to a branch ({detail})")
+
+
 def _require_base_ref(repo_root: Path, label: str) -> str:
     """Return the freshly fetched base ref, or raise :class:`BaseRefUnavailable`.
 
     A gate that diffs against a missing or stale base judges the wrong file set
     and can read clean while the required check fails. So an unresolved base ref
     and a failed refresh are both failures, not skips or warnings.
+
+    The remote HEAD symref is normalized to ``origin/<branch>`` first, so the
+    no-open-PR case is fetched like any other. A base that is not an
+    ``origin/<branch>`` ref (the local ``main`` last resort) is never fetched,
+    so outside CI it fails too.
     """
     base_ref = _resolve_default_base_ref(repo_root)
     if base_ref is None:
         raise BaseRefUnavailable(f"{label} needs a base ref and none resolved")
+    if base_ref == _REMOTE_HEAD:
+        base_ref = _origin_branch(repo_root, label)
+    if not base_ref.startswith("origin/") and not _is_ci():
+        raise BaseRefUnavailable(
+            f"{label} resolved {base_ref}, a local ref that is never fetched; "
+            "a stale base can hide new findings, so fetch origin and re-run"
+        )
     # CI fetches the current base before it diffs. A stale local origin/<branch>
     # changes which files and suppressions count as new, so refresh it here.
     refresh_error = _refresh_remote_base(base_ref, repo_root)

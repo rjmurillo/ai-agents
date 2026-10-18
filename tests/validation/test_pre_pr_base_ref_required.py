@@ -51,11 +51,87 @@ def test_the_base_is_refreshed_before_the_gate_diffs(monkeypatch: pytest.MonkeyP
     assert refreshed == ["origin/main"]
 
 
-def test_a_base_that_needs_no_refresh_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``None`` means no fetch was attempted (a local ref, or CI already fetched)."""
+def test_an_origin_base_that_needs_no_refresh_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``None`` from the refresh means CI already fetched the base."""
+    _stub_base(monkeypatch, "origin/main", refresh=None)
+
+    assert checks_ci_parity._require_base_ref(REPO_ROOT, "test gate") == "origin/main"
+
+
+def test_a_local_base_fails_because_it_is_never_fetched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    refreshed = _stub_base(monkeypatch, "main", refresh=None)
+
+    with pytest.raises(checks_ci_parity.BaseRefUnavailable, match=r"local ref that is never"):
+        checks_ci_parity._require_base_ref(REPO_ROOT, "test gate")
+    assert refreshed == []
+
+
+@pytest.mark.parametrize("var", ["CI", "GITHUB_ACTIONS"])
+def test_a_local_base_is_accepted_under_ci(monkeypatch: pytest.MonkeyPatch, var: str) -> None:
+    """The CI runner fetched the base before the gates ran."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv(var, "true")
     _stub_base(monkeypatch, "main", refresh=None)
 
     assert checks_ci_parity._require_base_ref(REPO_ROOT, "test gate") == "main"
+
+
+def _stub_symbolic_ref(
+    monkeypatch: pytest.MonkeyPatch, exit_code: int, stdout: str, stderr: str = ""
+) -> None:
+    def fake_run(cmd: list[str], **_kwargs: object) -> tuple[int, str, str]:
+        assert cmd[-3:] == ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]
+        return exit_code, stdout, stderr
+
+    monkeypatch.setattr(checks_ci_parity, "_run_subprocess", fake_run)
+
+
+def test_remote_head_is_resolved_to_a_branch_and_fetched(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No open PR: the symref must become origin/<branch> so the refresh fetches it."""
+    refreshed = _stub_base(monkeypatch, "refs/remotes/origin/HEAD")
+    _stub_symbolic_ref(monkeypatch, 0, "origin/main\n")
+
+    assert checks_ci_parity._require_base_ref(REPO_ROOT, "test gate") == "origin/main"
+    assert refreshed == ["origin/main"]
+
+
+def test_a_failed_refresh_of_remote_head_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_base(monkeypatch, "refs/remotes/origin/HEAD", refresh="offline")
+    _stub_symbolic_ref(monkeypatch, 0, "origin/main\n")
+
+    with pytest.raises(checks_ci_parity.BaseRefUnavailable, match=r"could not refresh origin/main"):
+        checks_ci_parity._require_base_ref(REPO_ROOT, "test gate")
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "stdout", "stderr", "detail"),
+    [
+        (
+            128,
+            "",
+            "fatal: ref refs/remotes/origin/HEAD is not a symbolic ref",
+            "not a symbolic ref",
+        ),
+        (1, "", "", "git symbolic-ref exit 1"),
+        (0, "upstream/main\n", "", "git symbolic-ref exit 0"),
+    ],
+)
+def test_an_unresolvable_remote_head_fails(
+    monkeypatch: pytest.MonkeyPatch, exit_code: int, stdout: str, stderr: str, detail: str
+) -> None:
+    refreshed = _stub_base(monkeypatch, "refs/remotes/origin/HEAD")
+    _stub_symbolic_ref(monkeypatch, exit_code, stdout, stderr)
+
+    with pytest.raises(checks_ci_parity.BaseRefUnavailable, match=detail):
+        checks_ci_parity._require_base_ref(REPO_ROOT, "test gate")
+    assert refreshed == []
 
 
 def test_a_failed_refresh_fails_instead_of_using_the_stale_cache(
