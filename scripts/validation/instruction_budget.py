@@ -171,8 +171,10 @@ def _load_always_on_skills(repo_root: Path) -> list[InstructionFile]:
     files: list[InstructionFile] = []
     for path in sorted(skills_dir.glob(f"*/{SKILL_FILE_NAME}")):
         # glob follows symlinks, so contain each file, not only the directory.
+        # Shipped skills are directory links into src/claude/skills (ADR-119),
+        # so the containment root is the repository, not the link directory.
         resolved = path.resolve()
-        if not resolved.is_relative_to(skills_dir):
+        if not resolved.is_relative_to(repo_root.resolve()):
             msg = f"SKILL.md resolves outside {SKILLS_SUBDIR}: {path.relative_to(repo_root)}"
             raise MalformedSkillFrontmatterError(msg)
         content = resolved.read_text(encoding="utf-8", errors="replace")

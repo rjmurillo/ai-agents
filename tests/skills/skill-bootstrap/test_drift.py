@@ -735,7 +735,7 @@ def _alive(pid: int) -> bool:
         return True
     try:
         return state.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0] != "Z"
-    except ProcessLookupError:
+    except (ProcessLookupError, FileNotFoundError):
         return False  # exited between the exists check and the read
 
 

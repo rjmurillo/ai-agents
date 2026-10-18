@@ -34,7 +34,8 @@ machine-readable representation.
 
 Both sides are read from disk as committed artifacts. The check never calls
 the generator, so it cannot agree with the generator by construction. It fails
-closed: a missing file, a missing ``allowed-tools`` line, an empty set, or a
+closed: a missing file, a symlinked or special file, a projection that is the
+same file as its source, a missing ``allowed-tools`` line, an empty set, or a
 missing or empty exit-code table is a finding.
 
 Exit codes:
@@ -209,11 +210,32 @@ def check_pilot(pilot: Pilot, source: str, projection: str) -> list[str]:
 
 
 def _read(path: Path) -> tuple[str, str | None]:
-    """Return (text, error). A missing or unreadable file is an error."""
+    """Return (text, error). A missing, unreadable, or non-regular file is an error.
+
+    A symlink or special file is refused before the read. A symlinked
+    projection that points at its own source would pass both invariants
+    without the transform ever running (issue #6506).
+    """
     try:
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            return "", f"{path} is not a regular file (symlink or special file)"
         return path.read_text(encoding="utf-8"), None
     except OSError as exc:
         return "", f"cannot read {path}: {exc.strerror or exc}"
+
+
+def _distinct(source_path: Path, projection_path: Path) -> str | None:
+    """Return why the two paths name the same file, or ``None``.
+
+    Compares file identity. ``_read`` already refuses symlinks, so this catches
+    a hard link between the trees.
+    """
+    try:
+        if source_path.samefile(projection_path):
+            return f"projection {projection_path} is the same file as its source {source_path}"
+    except OSError as exc:
+        return f"cannot compare {projection_path} with its source: {exc.strerror or exc}"
+    return None
 
 
 def run(repo_root: Path) -> list[str]:
@@ -225,6 +247,9 @@ def run(repo_root: Path) -> list[str]:
         source, source_error = _read(source_path)
         projection, projection_error = _read(projection_path)
         errors = [e for e in (source_error, projection_error) if e]
+        if not errors:
+            same = _distinct(source_path, projection_path)
+            errors = [same] if same else []
         problems = errors or check_pilot(pilot, source, projection)
         label = f"{pilot.skill} (invariant {pilot.invariant})"
         findings.extend(f"{label}: {problem}" for problem in problems)

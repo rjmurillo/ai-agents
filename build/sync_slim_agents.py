@@ -8,7 +8,7 @@ automates that body copy for the agents listed in `SLIMMED_AGENTS`.
 
 That direction is now backwards. `src/claude/agents/` is rendered from the
 `*.claude.md.tmpl` templates, so `--write` copies rendered output into
-`templates/agents/*.shared.md` and `.github/agents/`. `build/AGENTS.md` says not
+`templates/agents/*.shared.md` and `src/copilot-cli/agents/`. `build/AGENTS.md` says not
 to run it, `build_all.py` never calls it, and no gate runs it. Only the refusal
 below stops a backwards copy.
 
@@ -149,8 +149,9 @@ DESTINATIONS: tuple[Destination, ...] = (
         MIRROR_TRANSFORMS,
     ),
     Destination(
-        ".github/agents",
-        REPO_ROOT / ".github" / "agents",
+        # ADR-119: .github/agents/*.agent.md link here; name the real file.
+        "src/copilot-cli/agents",
+        REPO_ROOT / "src" / "copilot-cli" / "agents",
         ".agent.md",
         MIRROR_TRANSFORMS,
     ),

@@ -128,7 +128,7 @@ Every authored skill ships `reverify.json` at its skill root, so
 Add one check per load-bearing fact: each path the skill tells an agent to
 read or run, each line reference, each literal it quotes from a file, and
 each retired surface it says is gone.
-A `reverify.json` holds at most 200 checks; more makes the skill `malformed`.
+A `reverify.json` holds at most 200 checks; more reports the status `malformed`.
 Drift stops at 900 s total, and checks it did not run report `timeout`.
 
 ```json
