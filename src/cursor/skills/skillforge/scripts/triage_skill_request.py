@@ -401,9 +401,134 @@ DOMAIN_SYNONYMS = {
 }
 
 
+# Words that frame a request without describing its subject. "create a skill for
+# X" is scaffolding around X: scoring it would match every meta-skill.
+SCAFFOLDING_WORDS = frozenset(
+    {
+        # Articles, prepositions, conjunctions, pronouns, auxiliaries
+        "a",
+        "an",
+        "the",
+        "for",
+        "with",
+        "to",
+        "of",
+        "and",
+        "or",
+        "in",
+        "on",
+        "at",
+        "by",
+        "from",
+        "into",
+        "through",
+        "about",
+        "that",
+        "this",
+        "it",
+        "its",
+        "i",
+        "me",
+        "my",
+        "we",
+        "our",
+        "you",
+        "your",
+        "is",
+        "are",
+        "be",
+        "do",
+        "have",
+        "want",
+        "need",
+        "please",
+        "can",
+        "will",
+        "would",
+        "should",
+        # Creation vocabulary
+        "create",
+        "creating",
+        "make",
+        "making",
+        "build",
+        "building",
+        "new",
+        "custom",
+        "skill",
+        "skills",
+        "running",
+    }
+)
+
+# Matched terms may carry an inflection ("test" matches "tests", "testing",
+# "tested") but never extend into another word ("test" must not match "attest").
+_INFLECTION = r"(?:s|es|ing|ed)?"
+
+_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+
+
+def tokenize_for_scoring(query: str) -> list[str]:
+    """
+    Split a query into lowercase content terms, dropping request scaffolding.
+
+    Order is kept and duplicates are removed. Single characters are dropped.
+    """
+    seen: set[str] = set()
+    tokens: list[str] = []
+    for token in _TOKEN_PATTERN.findall(query.lower()):
+        if len(token) < 2 or token in SCAFFOLDING_WORDS or token in seen:
+            continue
+        seen.add(token)
+        tokens.append(token)
+    return tokens
+
+
+def contains_term(text: str, term: str) -> bool:
+    """True when term appears in text as a whole word or phrase, allowing inflection."""
+    pattern = r"(?<![a-z0-9])" + re.escape(term.lower()) + _INFLECTION + r"(?![a-z0-9])"
+    return re.search(pattern, text.lower()) is not None
+
+
+def _stems(token: str) -> set[str]:
+    """Return the token plus each form with one inflectional suffix removed."""
+    forms = {token}
+    for suffix in ("ing", "es", "ed", "s"):
+        if token.endswith(suffix) and len(token) - len(suffix) >= 3:
+            forms.add(token[: -len(suffix)])
+    return forms
+
+
+def calculate_coverage(tokens: list[str], skill: dict[str, Any]) -> float:
+    """
+    Fraction of query content terms the skill name, keywords, or description explain.
+
+    Returns 1.0 when the query has no content terms, so a scaffolding-only
+    request is not penalized for words it does not have.
+    """
+    if not tokens:
+        return 1.0
+
+    skill_text = " ".join(
+        [
+            str(skill.get("name", "")).replace("-", " ").replace("_", " "),
+            str(skill.get("description", "")),
+            " ".join(str(k) for k in skill.get("keywords", [])),
+        ]
+    )
+    explained_forms: set[str] = set()
+    for word in _TOKEN_PATTERN.findall(skill_text.lower()):
+        explained_forms |= _stems(word)
+    explained = sum(1 for t in tokens if _stems(t) & explained_forms)
+    return explained / len(tokens)
+
+
 def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
     """
     Detect which domains a query relates to using universal synonyms.
+
+    Terms match on word boundaries, so "ci" does not fire inside "social" and
+    "test" does not fire inside "attest". Inflected forms ("testing") still match.
 
     Returns:
         List of (domain_name, matched_terms) tuples, sorted by match count
@@ -412,10 +537,7 @@ def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
     detected = []
 
     for domain, synonyms in DOMAIN_SYNONYMS.items():
-        matched_terms = []
-        for term in synonyms:
-            if term in query_lower:
-                matched_terms.append(term)
+        matched_terms = [term for term in synonyms if contains_term(query_lower, term)]
         if matched_terms:
             detected.append((domain, matched_terms))
 
@@ -437,7 +559,10 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
         Tuple of (score 0-100, list of match reasons)
     """
     query_lower = query.lower()
-    query_words = set(query_lower.split())
+    # Content terms only: "create", "skill", "with" and similar scaffolding
+    # words would otherwise match meta-skills for every creation request.
+    content_tokens = tokenize_for_scoring(query)
+    query_words = set(content_tokens)
 
     skill_name = skill.get("name", "").lower()
     skill_keywords = set(k.lower() for k in skill.get("keywords", []))
@@ -485,7 +610,7 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
     desc_matched = False
     for domain, matched_terms in query_domains:
         for term in matched_terms:
-            if term in skill_description:
+            if contains_term(skill_description, term):
                 score += 10
                 reasons.append(f"description: {term}")
                 desc_matched = True
@@ -494,7 +619,7 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
             break
 
         # Also check domain name in description
-        if domain in skill_description:
+        if contains_term(skill_description, domain):
             score += 10
             reasons.append(f"description: {domain}")
             desc_matched = True
@@ -535,6 +660,14 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
     if len(significant_desc) >= 2 and "description:" not in str(reasons):
         score += 8
         reasons.append("description overlap")
+
+    # Step 8: Coverage. Scale the score by the fraction of query terms the skill
+    # explains, so one shared term in a long, unrelated request cannot reach the
+    # 50 point CREATE_NEW boundary.
+    coverage = calculate_coverage(content_tokens, skill)
+    if score and coverage < 1.0:
+        score = round(score * coverage)
+        reasons.append(f"coverage: {coverage:.0%} of query terms")
 
     return min(100, score), reasons
 
