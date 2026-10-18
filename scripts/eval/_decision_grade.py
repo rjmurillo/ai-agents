@@ -13,8 +13,9 @@ with two lines (labels in uppercase, matched case-sensitively; the token is not)
 The grade reads only those lines. Prose around them, including any rule
 keyword, never changes the result. A response passes when all of these hold:
 
-- Every DECISION line carries the same token (two different tokens is
-  ambiguous and fails).
+- Every DECISION line is one bare token, and all carry the same token. Two
+  different tokens, or a line that holds more than one token ("A or B"), is
+  ambiguous and fails.
 - That token is one of `decision.options` and one of `decision.expected`.
 - An EVIDENCE line exists, is not empty, and matches every pattern in
   `decision.evidence_all`.
@@ -33,17 +34,22 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-# A leading list marker, quote, or emphasis mark is allowed so a model that
-# bolds the label still counts. The token itself is a bare identifier.
+# A leading list marker (bullet, quote, or number such as "1." or "2)") and
+# emphasis marks are allowed so a model that bolds the label still counts.
 # The labels are matched case-sensitively, as the prompt asks for uppercase.
 # A prose line such as "Decision: I would run rg first." is then not read as a
 # contract line and cannot make a correct response ambiguous. Only the token is
 # case-insensitive.
-_LINE_PREFIX = r"^[\s>*_`\-]*"
+# The token must be the whole value: only emphasis marks and a closing period
+# may follow it. "DECISION: REUSE or BUILD" is therefore not a REUSE line. It
+# is a labeled line that is not one bare token, and it is graded ambiguous.
+_LINE_PREFIX = r"^[\s>*_`\-]*(?:\d+[.)][\s>*_`]*)?"
+_DECISION_LABEL = _LINE_PREFIX + r"DECISION[\s*_`]*:"
 _DECISION_RE = re.compile(
-    _LINE_PREFIX + r"DECISION[\s*_`]*:[\s*_`]*((?i:[A-Z][A-Z_]*))",
+    _DECISION_LABEL + r"[\s*_`]*((?i:[A-Z][A-Z_]*))[ \t\r*_`.]*$",
     re.MULTILINE,
 )
+_DECISION_LABEL_RE = re.compile(_DECISION_LABEL, re.MULTILINE)
 _EVIDENCE_RE = re.compile(
     _LINE_PREFIX + r"EVIDENCE[\s*_`]*:[ \t*_`]*(.*)$",
     re.MULTILINE,
@@ -136,11 +142,15 @@ def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
     options = {item.strip().upper() for item in spec["options"]}
     expected = {item.strip().upper() for item in spec["expected"]}
 
-    tokens = {match.upper() for match in _DECISION_RE.findall(response)}
+    matches = _DECISION_RE.findall(response)
+    tokens = {match.upper() for match in matches}
+    # A DECISION line that is not one bare token (a hedge such as "A or B", or
+    # an echoed "<A or B>" template) never counts as a decision, and it never
+    # lets a sibling line decide.
+    if len(tokens) > 1 or len(_DECISION_LABEL_RE.findall(response)) > len(matches):
+        return DecisionResult(False, REASON_AMBIGUOUS)
     if not tokens:
         return DecisionResult(False, REASON_NO_DECISION)
-    if len(tokens) > 1:
-        return DecisionResult(False, REASON_AMBIGUOUS)
     token = next(iter(tokens))
     if token not in options:
         return DecisionResult(False, REASON_UNKNOWN_TOKEN, decision=token)

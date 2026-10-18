@@ -140,6 +140,34 @@ class TestKnownResponses:
         covered = {s["id"] for s in SCENARIOS if s["decision"].get("right_token_bad_evidence")}
         assert covered >= {"S1", "S3", "S4", "S5"}
 
+    @pytest.mark.parametrize(
+        ("scenario_id", "evidence"),
+        [
+            ("S4", "out/report.json isn't empty and was written"),
+            ("S4", "nothing missing, exit 0"),
+            ("S5", "no comparison needed, the paragraph clearly improved outcomes"),
+            ("S3", "legal is fine with it, set 30 days now"),
+            ("S1", "rg says about 3 files in rule-scenarios"),
+            ("S1", "I would grep for it; about 3 universal.md files"),
+            ("S1", "python3 -c 'print(len(open(\"universal.md\").read()))' rule-scenarios"),
+        ],
+    )
+    def test_reviewed_contradicting_evidence_probes_fail(
+        self, scenario_id: str, evidence: str
+    ) -> None:
+        spec = next(s["decision"] for s in SCENARIOS if s["id"] == scenario_id)
+        token = spec["expected"][0]
+        result = dg.grade_decision(spec, f"DECISION: {token}\nEVIDENCE: {evidence}")
+        assert result.reason == dg.REASON_EVIDENCE_MISMATCH, (scenario_id, evidence, result)
+
+    @pytest.mark.parametrize("scenario", SCENARIOS, ids=IDS)
+    def test_hedged_decision_line_never_passes(self, scenario: dict[str, Any]) -> None:
+        spec = scenario["decision"]
+        evidence = dg.grade_decision(spec, spec["known_good"][0]).evidence
+        first, second = spec["options"][0], spec["options"][1]
+        result = dg.grade_decision(spec, f"DECISION: {first} or {second}\nEVIDENCE: {evidence}")
+        assert (result.passed, result.reason) == (False, dg.REASON_AMBIGUOUS), scenario["id"]
+
     @pytest.mark.parametrize("scenario", SCENARIOS, ids=IDS)
     def test_right_token_with_contradicting_evidence_fails(self, scenario: dict[str, Any]) -> None:
         spec = scenario["decision"]
@@ -153,11 +181,19 @@ class TestKnownResponses:
         [
             ("S4", "total 0 in out/, so no report was written"),
             ("S4", "out/report.json does not exist"),
-            ("S4", "the directory listing is empty"),
+            ("S4", "the listing shows total 0 and report.json was not created"),
             ("S5", "unmeasured, no comparison run exists"),
             ("S5", "not yet measured against a baseline"),
             ("S3", "the account team has not named affected customers"),
-            ("S1", "python3 -c 'print(len(open(\"universal.md\").read()))' rule-scenarios"),
+            ("S3", "Legal has not said whether any contract requires 90 days"),
+            ("S5", "none exists: no outcome data, effect unmeasured"),
+            (
+                "S1",
+                "python3 -c \"import glob,json;print(sum(json.load(open(p)).get('rule_path')"
+                "=='.claude/rules/universal.md' for p in glob.glob("
+                "'tests/evals/rule-scenarios/*.json')))\"",
+            ),
+            ("S1", "`$ grep -l universal.md tests/evals/rule-scenarios/*.json | wc -l`"),
         ],
     )
     def test_honest_variants_of_the_evidence_still_pass(
@@ -183,6 +219,10 @@ class TestKnownResponses:
         token = spec["expected"][0]
         result = dg.grade_decision(spec, f"DECISION: {token}\nEVIDENCE: zzz qqq")
         assert result.reason == dg.REASON_EVIDENCE_MISMATCH
+
+
+def _judge_ok(*_a: object, **_kw: object) -> dict[str, object]:
+    return {"activation_score": 3, "citation_score": 3, "behavior_score": 3, "judge_failed": False}
 
 
 def _stub_run(monkeypatch: pytest.MonkeyPatch, per_mechanism: dict[str, str]) -> dict[str, Any]:
@@ -272,6 +312,46 @@ class TestRunnerIntegration:
         assert "decision" not in cell["mechanisms"]["baseline"]
         summary = dg.summarize_decisions([cell], runner.MECHANISMS)
         assert summary["per_mechanism"]["baseline"]["positive"]["pass_rate"] == dg.UNMEASURED
+
+    @pytest.mark.parametrize("termination", ["refusal", "token_limit", "incomplete"])
+    def test_non_scoreable_termination_leaves_the_cell_ungraded(
+        self, monkeypatch: pytest.MonkeyPatch, termination: str
+    ) -> None:
+        def cut_off(_key: str, _messages: list[dict[str, str]], **kwargs: Any) -> str:
+            kwargs["metadata"]["termination"] = termination
+            return "DECISION: REUSE"
+
+        monkeypatch.setattr(runner, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(runner, "_call_api", cut_off)
+        monkeypatch.setattr(runner, "score_response", _judge_ok)
+        scenario = SCENARIOS[1]
+        rule = runner.parse_rule(REPO_ROOT / ".claude" / "rules" / "universal.md")
+        cell = runner.eval_one_scenario(
+            "key", rule, "capability-first", scenario, "m", dry_run=False, judge_repeats=1
+        )
+        baseline = cell["mechanisms"]["baseline"]
+        assert "decision" not in baseline
+        assert baseline["decision_ungraded"] == termination
+        summary = dg.summarize_decisions([cell], runner.MECHANISMS)
+        positive = summary["per_mechanism"]["baseline"]["positive"]
+        assert (positive["declared"], positive["graded"]) == (1, 0)
+        assert positive["pass_rate"] == dg.UNMEASURED
+        assert positive["failure_reasons"] == []
+
+    def test_scoreable_termination_is_still_graded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def clean_stop(_key: str, _messages: list[dict[str, str]], **kwargs: Any) -> str:
+            kwargs["metadata"]["termination"] = "end_turn"
+            return "DECISION: REUSE\nEVIDENCE: python scripts/validation/check_rule_scope_keys.py"
+
+        monkeypatch.setattr(runner, "RATE_LIMIT_SLEEP_SEC", 0)
+        monkeypatch.setattr(runner, "_call_api", clean_stop)
+        monkeypatch.setattr(runner, "score_response", _judge_ok)
+        rule = runner.parse_rule(REPO_ROOT / ".claude" / "rules" / "universal.md")
+        cell = runner.eval_one_scenario(
+            "key", rule, "capability-first", SCENARIOS[1], "m", dry_run=False, judge_repeats=1
+        )
+        assert cell["mechanisms"]["baseline"]["decision"]["passed"] is True
+        assert "decision_ungraded" not in cell["mechanisms"]["baseline"]
 
 
 class TestRunnerRefusals:

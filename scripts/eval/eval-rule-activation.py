@@ -1200,9 +1200,17 @@ def eval_one_scenario(
             "system_prompt_chars": len(system),
         }
         if decision_spec is not None:
-            # Graded on the response itself, so rule vocabulary in the prose
-            # cannot move it. The judge scores above are unchanged.
-            mechanism_result["decision"] = grade_decision(decision_spec, response).to_dict()
+            termination = metadata.get("termination")
+            if termination in NON_SCOREABLE_TERMINATIONS:
+                # REQ-037 AC-9: a refusal, a token-limit cutoff, or an
+                # incomplete stop is never graded as a right or wrong call.
+                # With no `decision` key, summarize_decisions leaves the cell
+                # ungraded, the same way it treats an API error.
+                mechanism_result["decision_ungraded"] = str(termination)
+            else:
+                # Graded on the response itself, so rule vocabulary in the
+                # prose cannot move it. The judge scores above are unchanged.
+                mechanism_result["decision"] = grade_decision(decision_spec, response).to_dict()
         _add_mechanism_metadata(mechanism_result, routing, fingerprint)
         result["mechanisms"][mechanism] = mechanism_result
     return result

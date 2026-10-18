@@ -45,6 +45,45 @@ class TestGradeDecision:
     def test_formatting_variants_pass(self, response: str) -> None:
         assert dg.grade_decision(SPEC, response).passed is True
 
+    @pytest.mark.parametrize(
+        "decision_line",
+        [
+            "DECISION: MEASURE or ESTIMATE",
+            "DECISION: MEASURE, then ESTIMATE",
+            "DECISION: MEASURE (ESTIMATE if no shell)",
+            "DECISION: <MEASURE or ESTIMATE>",
+        ],
+    )
+    def test_hedged_decision_line_fails_as_ambiguous(self, decision_line: str) -> None:
+        result = dg.grade_decision(SPEC, f"{decision_line}\nEVIDENCE: rg -c foo")
+        assert (result.passed, result.reason) == (False, dg.REASON_AMBIGUOUS)
+
+    def test_hedged_line_beside_a_clean_line_is_ambiguous(self) -> None:
+        text = "DECISION: MEASURE\nDECISION: MEASURE or ESTIMATE\nEVIDENCE: rg -c foo"
+        assert dg.grade_decision(SPEC, text).reason == dg.REASON_AMBIGUOUS
+
+    @pytest.mark.parametrize(
+        "decision_line",
+        [
+            "DECISION: MEASURE.",
+            "**DECISION: MEASURE**",
+            "DECISION: `MEASURE` ",
+            "DECISION: MEASURE\r",
+        ],
+    )
+    def test_trailing_emphasis_and_period_still_pass(self, decision_line: str) -> None:
+        assert dg.grade_decision(SPEC, f"{decision_line}\nEVIDENCE: rg -c foo").passed is True
+
+    @pytest.mark.parametrize("marker", ["1.", "2)", "10. ", "- 3."])
+    def test_numbered_list_marker_is_allowed(self, marker: str) -> None:
+        text = f"{marker} DECISION: MEASURE\n{marker} EVIDENCE: rg -c foo"
+        result = dg.grade_decision(SPEC, text)
+        assert (result.passed, result.decision) == (True, "MEASURE")
+
+    def test_number_not_followed_by_a_label_is_not_a_contract_line(self) -> None:
+        text = "1. I will measure.\nEVIDENCE: rg -c foo"
+        assert dg.grade_decision(SPEC, text).reason == dg.REASON_NO_DECISION
+
     def test_no_decision_line(self) -> None:
         result = dg.grade_decision(SPEC, "I would measure it. EVIDENCE: rg foo")
         assert (result.passed, result.reason) == (False, dg.REASON_NO_DECISION)
