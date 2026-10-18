@@ -24,6 +24,7 @@ if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
     import _decision_grade as dg
+    import software_engineering_library_activation_gate as gate
 
     _spec = importlib.util.spec_from_file_location(
         "eval_rule_activation_cf_run", EVAL_DIR / "eval-rule-activation.py"
@@ -284,7 +285,16 @@ class TestRunVerdictFollowsTheDecision:
         assert "positive description" in summary["decision_check"]["gate"]["incomplete"]
 
     def test_fail_decision_does_not_advance_the_rollback_streak(self) -> None:
-        gate_path = EVAL_DIR / "software_engineering_library_activation_gate.py"
-        text = gate_path.read_text(encoding="utf-8")
-        line = next(ln for ln in text.splitlines() if ln.startswith("ROLLBACK_VERDICTS"))
-        assert "FAIL_DECISION" not in line
+        state = gate._update_reference(
+            {"consecutive_activation_failures": 1}, "FAIL_DECISION", "run-1", "2026-10-18"
+        )
+        assert state["consecutive_activation_failures"] == 1
+        assert state["last_result_counted_for_rollback"] is False
+        assert state["last_verdict"] == "FAIL_DECISION"
+
+    def test_a_rollback_verdict_still_advances_the_streak(self) -> None:
+        state = gate._update_reference(
+            {"consecutive_activation_failures": 1}, "FAIL_THRESHOLD", "run-1", "2026-10-18"
+        )
+        assert state["consecutive_activation_failures"] == 2
+        assert state["last_result_counted_for_rollback"] is True

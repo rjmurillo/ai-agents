@@ -197,6 +197,21 @@ class TestTrailingText:
         text = "EVIDENCE: rg -c foo\nDECISION: MEASURE"
         assert dg.grade_decision(SPEC, text).passed is True
 
+    def test_a_reversal_between_the_contract_lines_fails(self) -> None:
+        text = "DECISION: MEASURE\nActually no, I will estimate instead.\nEVIDENCE: rg -c foo"
+        result = dg.grade_decision(SPEC, text)
+        assert (result.passed, result.reason) == (False, dg.REASON_TRAILING_TEXT)
+        assert result.decision == "MEASURE"
+
+    def test_a_reversal_between_evidence_and_decision_fails(self) -> None:
+        text = "EVIDENCE: rg -c foo\nOn reflection, estimate.\nDECISION: MEASURE"
+        assert dg.grade_decision(SPEC, text).reason == dg.REASON_TRAILING_TEXT
+
+    @pytest.mark.parametrize("gap", ["", "\n", "\n  \n", "\n```\n"])
+    def test_blank_or_fence_lines_between_the_contract_lines_pass(self, gap: str) -> None:
+        text = "DECISION: MEASURE\n" + gap + "EVIDENCE: rg -c foo"
+        assert dg.grade_decision(SPEC, text).passed is True
+
     def test_trailing_text_does_not_mask_a_wrong_decision(self) -> None:
         result = dg.grade_decision(SPEC, "DECISION: ESTIMATE\nEVIDENCE: rg x\nnote")
         assert result.reason == dg.REASON_WRONG_DECISION

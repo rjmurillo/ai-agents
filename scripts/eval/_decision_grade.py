@@ -12,9 +12,9 @@ with two lines (labels in uppercase, matched case-sensitively; the token is not)
 
 The grade reads only those lines. Prose before them, including any rule
 keyword, never changes the result. Prose after the last of them does: the
-prompt says they are the last two lines, so text that follows (a reversal such
-as "actually, no need to run it") fails as trailing_text. Blank lines and a
-closing code fence may follow. A response passes when all of these hold:
+prompt says they are the last two lines, so text between them or after them (a
+reversal such as "actually, no need to run it") fails as trailing_text. Blank
+lines and a code fence may appear around them. A response passes when all of these hold:
 
 - Every DECISION line is one bare token, and all carry the same token. Two
   different tokens, or a line that holds more than one token ("A or B"), is
@@ -22,7 +22,7 @@ closing code fence may follow. A response passes when all of these hold:
 - That token is one of `decision.options` and one of `decision.expected`.
 - An EVIDENCE line exists, is not empty, and matches every pattern in
   `decision.evidence_all`.
-- No prose follows the last DECISION or EVIDENCE line.
+- No prose sits between or after the DECISION and EVIDENCE lines.
 
 Each failure carries a stable `reason` code, so a report says why.
 
@@ -146,17 +146,23 @@ def validate_decision_spec(spec: object) -> str | None:
 
 
 def _has_trailing_text(response: str) -> bool:
-    """True when a non-blank line other than a bare fence follows the last contract line."""
+    """True when prose sits inside or after the contract block.
+
+    The block runs from the first DECISION or EVIDENCE line to the end of the
+    response. Every non-blank line in it must be a contract line or a bare
+    fence, so a reversal between the two lines fails as well as one after them.
+    """
     lines = response.splitlines()
-    last = max(
-        (
-            i
-            for i, line in enumerate(lines)
-            if _DECISION_LABEL_RE.match(line) or _EVIDENCE_LABEL_RE.match(line)
-        ),
-        default=-1,
+    contract = [
+        bool(_DECISION_LABEL_RE.match(line) or _EVIDENCE_LABEL_RE.match(line)) for line in lines
+    ]
+    first = next((i for i, is_contract in enumerate(contract) if is_contract), None)
+    if first is None:
+        return False
+    return any(
+        line.strip() and line.strip() not in _FENCE_LINES and not is_contract
+        for line, is_contract in zip(lines[first:], contract[first:], strict=True)
     )
-    return any(line.strip() and line.strip() not in _FENCE_LINES for line in lines[last + 1 :])
 
 
 def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
