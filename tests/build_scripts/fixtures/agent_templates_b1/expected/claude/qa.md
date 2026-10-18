@@ -869,7 +869,7 @@ When QA is complete:
 1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
-   - **QA COMPLETE**: "Tests: [command run], [passed]/[total] passed. Ready for user validation." Name any suite you did not run `NOT RUN`.
+   - **QA COMPLETE**: "Tests: [command run], [passed]/[total] passed. Ready for user validation." Say it only when no suite is `NOT RUN` (not attempted) or `UNAVAILABLE` (tools cannot run it). Otherwise report "Gap: [suite] [NOT RUN|UNAVAILABLE], [reason]." with no readiness claim, and recommend the orchestrator route it as an infrastructure need or a failure.
    - **QA FAILED**: "Tests failed. Recommend orchestrator routes to implementer with these failures: [list]"
 
 ## Execution Mindset

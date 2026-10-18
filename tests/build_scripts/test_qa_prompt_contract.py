@@ -151,3 +151,37 @@ def test_qa_partial_delivery_fixture_static_contract(surface: Path) -> None:
     assert "Delivered:" in completeness
     assert "Gap:" in completeness
     assert "Cannot verify completeness without requirements" in completeness
+
+
+QA_DEGRADED_PARTIAL = (
+    REPO_ROOT / "templates" / "agents" / "partials" / "qa-degraded-mode-protocol.mustache"
+)
+READY_PHRASE = "Ready for user validation"
+
+
+def _complete_lines(surface: Path) -> list[str]:
+    return [
+        ln for ln in _read(surface).splitlines() if ln.lstrip().startswith("- **QA COMPLETE**:")
+    ]
+
+
+@pytest.mark.parametrize("surface", [*QA_SURFACES, QA_DEGRADED_PARTIAL])
+def test_qa_ready_claim_requires_no_unrun_suite(surface: Path) -> None:
+    """Issue #5405: a suite that is NOT RUN or UNAVAILABLE blocks the readiness claim."""
+    complete = _complete_lines(surface)
+
+    assert len(complete) == 1
+    line = complete[0]
+    assert READY_PHRASE in line
+    assert "only when no suite is `NOT RUN`" in line
+    assert "`UNAVAILABLE`" in line
+    assert "Gap: [suite] [NOT RUN|UNAVAILABLE]" in line
+    assert "no readiness claim" in line
+
+
+@pytest.mark.parametrize("surface", [*QA_SURFACES, QA_DEGRADED_PARTIAL])
+def test_qa_ready_claim_appears_once_per_surface(surface: Path) -> None:
+    ready_lines = [ln for ln in _read(surface).splitlines() if READY_PHRASE in ln]
+
+    assert len(ready_lines) == 1
+    assert ready_lines[0].lstrip().startswith("- **QA COMPLETE**:")
