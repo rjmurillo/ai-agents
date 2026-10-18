@@ -53,14 +53,36 @@ def symlink_on_path(root: Path, relative: str) -> bool:
     return False
 
 
+def escapes_root(root: Path, relative: str) -> bool:
+    """True when `root/relative` resolves outside `root`, by `..`, an absolute path, or a link.
+
+    `symlink_on_path` walks the components it is given, so a `..` or an absolute
+    path walks past the root without meeting a link. The resolved path is the
+    backstop: whatever the route, a path that lands outside `root` is not read.
+    """
+    try:
+        (root / relative).resolve().relative_to(root.resolve())
+    except ValueError:
+        return True
+    return False
+
+
+def unreadable_path(root: Path, relative: str) -> bool:
+    """True when `relative` has a link on its path or resolves outside `root`."""
+    return symlink_on_path(root, relative) or escapes_root(root, relative)
+
+
 def _lines(root: Path, relative: str) -> tuple[list[str] | None, str]:
     """The file's lines, or `None` and a reason when it must not be diffed.
 
     A symlink, leaf or directory, is never followed: an agent could point one at
-    a file outside the workdir, and its target would land in the saved patch.
+    a file outside the workdir, and its target would land in the saved patch. A
+    path that resolves outside the workdir is not read either.
     """
     if symlink_on_path(root, relative):
         return None, "symbolic link not followed"
+    if escapes_root(root, relative):
+        return None, "path outside the workdir not followed"
     path = root / relative
     if not path.is_file():
         return [], ""

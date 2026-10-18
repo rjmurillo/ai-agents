@@ -119,6 +119,38 @@ def test_symlink_on_path_flags_a_link_at_any_depth_and_passes_plain_paths(tmp_pa
     assert rc.symlink_on_path(root, "link/deep/f.py") is True
 
 
+def test_escapes_root_flags_dotdot_and_absolute_paths_and_keeps_nested_paths(
+    tmp_path: Path,
+) -> None:
+    host = _tree(tmp_path / "host", {"a.py": "SECRET\n"})
+    root = _tree(tmp_path / "root", {"pkg/sub/f.py": "x\n"})
+    assert rc.escapes_root(root, "pkg/sub/f.py") is False
+    assert rc.escapes_root(root, "missing/deleted.py") is False
+    assert rc.escapes_root(root, "pkg/../pkg/sub/f.py") is False
+    assert rc.escapes_root(root, "../host/a.py") is True
+    assert rc.escapes_root(root, "pkg/../../host/a.py") is True
+    assert rc.escapes_root(root, str(host / "a.py")) is True
+
+
+def test_unreadable_path_covers_links_and_escapes(tmp_path: Path) -> None:
+    host = _tree(tmp_path / "host", {"a.py": "SECRET\n"})
+    root = _tree(tmp_path / "root", {"plain/f.py": "x\n"})
+    (root / "link").symlink_to(host, target_is_directory=True)
+    assert rc.unreadable_path(root, "plain/f.py") is False
+    assert rc.unreadable_path(root, "link/a.py") is True
+    assert rc.unreadable_path(root, "../host/a.py") is True
+
+
+def test_a_dotdot_path_is_not_read_into_the_patch(tmp_path: Path) -> None:
+    _tree(tmp_path / "host", {"a.py": "top-secret-value\n"})
+    before = _tree(tmp_path / "work" / "a", {})
+    after = _tree(tmp_path / "work" / "b", {})
+    # `after/../../host/a.py` is the host file; it must not reach the patch.
+    patch = rc.change_patch(before, after, ["../../host/a.py"])
+    assert "top-secret-value" not in patch
+    assert "outside the workdir" in patch
+
+
 def test_a_binary_file_is_named_but_not_diffed(tmp_path: Path) -> None:
     before = _tree(tmp_path / "a", {})
     after = _tree(tmp_path / "b", {})

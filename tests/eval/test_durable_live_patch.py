@@ -18,6 +18,7 @@ from tests.eval._durable_live_test_support import (
     grader_mod,
     live_mod,
     load,
+    record_mod,
     reviewer_settings,
     stream_text,
 )
@@ -123,3 +124,25 @@ class TestReviewPrompt:
         prompt = seen[0][2]
         assert "- slugger/added.py" in prompt
         assert "planted.py" not in prompt
+
+
+def test_without_links_drops_dotdot_and_absolute_paths_that_leave_the_workdir(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "a.py").write_text("SECRET\n", encoding="utf-8")
+    work = tmp_path / "work"
+    (work / "pkg" / "sub").mkdir(parents=True)
+    (work / "pkg" / "sub" / "b.py").write_text("ok\n", encoding="utf-8")
+    kept = record_mod.without_links(
+        work,
+        (
+            "pkg/sub/b.py",
+            "../outside/a.py",
+            "pkg/../../outside/a.py",
+            str(outside / "a.py"),
+            "pkg/../pkg/sub/b.py",
+        ),
+    )
+    assert kept == ("pkg/sub/b.py", "pkg/../pkg/sub/b.py")
