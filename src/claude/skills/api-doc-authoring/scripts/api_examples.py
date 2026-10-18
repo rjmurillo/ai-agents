@@ -25,11 +25,10 @@ Subcommands (stdlib only, output is one JSON object):
 ``run``   Send each example to a local base URL and compare status and the
           documented response. Writes an evidence file when asked.
 
-Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
-(unreachable server, remote base URL without an explicit flag, no examples to lint, a
-response over the size cap, a request past its deadline, or a run past its deadline). A
-failure or lint finding found before such a stop is still exit 1, and the evidence file
-keeps it. A stop with ``--evidence`` writes the file, verdict UNVERIFIED if nothing failed.
+Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable (unreachable
+server, remote base URL without an explicit flag, no examples to lint, a response over the size
+cap or cut short, a request or run past its deadline). A failure or lint finding found before
+such a stop is still exit 1. A stop with ``--evidence`` writes the file (UNVERIFIED if none failed).
 """
 
 from __future__ import annotations
@@ -67,9 +66,8 @@ EXIT_UNVERIFIABLE = 2
 
 TIMEOUT_SECONDS = 10
 # The socket timeout restarts on every receive, so a trickling server never trips it. These
-# bound bytes and wall clock: 2 MiB is far above a documented JSON reply, 30 s is three
-# socket timeouts. The run deadline is checked between examples, so a run can overshoot it
-# by one request deadline.
+# bound bytes and wall clock: 2 MiB is far above a documented JSON reply, 30 s is three socket
+# timeouts. A run can overshoot its deadline by one request deadline (checked between examples).
 MAX_BODY_BYTES = 2 * 1024 * 1024
 REQUEST_DEADLINE_SECONDS = 30
 RUN_DEADLINE_SECONDS = 300
@@ -120,8 +118,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 _OPENER = urllib.request.build_opener(_NoRedirect)
-# An empty ProxyHandler mapping turns off HTTP_PROXY and HTTPS_PROXY. Loopback traffic must
-# reach the local server itself: a proxy would send it past the loopback check in `check_base_url`.
+# An empty ProxyHandler turns off HTTP_PROXY and HTTPS_PROXY: loopback must reach the local server.
 _DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
 
 
@@ -131,7 +128,7 @@ def _opener_for(url: str) -> urllib.request.OpenerDirector:
 
 
 def _read_capped(handle: Any, url: str) -> bytes:
-    """Read a body in chunks and refuse one past the byte cap."""
+    """Read a body in chunks. Refuse one past the byte cap or cut short of its Content-Length."""
     chunks: list[bytes] = []
     total = 0
     while chunk := handle.read(_CHUNK_BYTES):
@@ -139,6 +136,9 @@ def _read_capped(handle: Any, url: str) -> bytes:
         if total > MAX_BODY_BYTES:
             raise InputError(f"response from {url} is over the {MAX_BODY_BYTES} byte cap")
         chunks.append(chunk)
+    size = handle.headers.get("Content-Length", "")
+    if size.isdigit() and total < int(size):
+        raise InputError(f"response from {url} was cut off at {total} of {size} bytes")
     return b"".join(chunks)
 
 

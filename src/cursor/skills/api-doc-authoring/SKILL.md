@@ -137,7 +137,7 @@ Exit `2` means unverified, never pass. It covers:
 
 - no example matched, or `lint` found no example to check;
 - the server was unreachable;
-- a response was over 2 MiB or slower than 30 s;
+- a response was over 2 MiB, cut short of its `Content-Length`, or slower than 30 s;
 - the run passed 300 s.
 
 A stop with `--evidence` writes the file either way. The verdict is `UNVERIFIED` when nothing had failed.

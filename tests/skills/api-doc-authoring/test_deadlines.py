@@ -104,6 +104,49 @@ def _stalled_error_body(conn: socket.socket) -> None:
     time.sleep(3)
 
 
+def _cut_short(status: bytes) -> Callable[[socket.socket], None]:
+    """Promise 100 body bytes, send 5, then close: a truncated reply."""
+
+    def behave(conn: socket.socket) -> None:
+        conn.recv(65536)
+        conn.sendall(b"HTTP/1.1 " + status + b"\r\nContent-Length: 100\r\n\r\nabcde")
+
+    return behave
+
+
+@pytest.mark.parametrize("status", [b"200 OK", b"500 Err"])
+def test_a_body_cut_short_of_its_content_length_is_unverifiable(status: bytes) -> None:
+    """A reply that ends early must not read as a complete reply, for any status."""
+    with _serve_raw(_cut_short(status)) as base, pytest.raises(ax.InputError, match="cut off"):
+        ax.send("GET", f"{base}/x", {}, b"")
+
+
+def test_a_body_that_matches_its_content_length_is_read_in_full() -> None:
+    """Negative control: the check does not refuse a complete reply."""
+
+    def complete(conn: socket.socket) -> None:
+        conn.recv(65536)
+        conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nabcde")
+
+    with _serve_raw(complete) as base:
+        reply = ax.send("GET", f"{base}/x", {}, b"")
+
+    assert (reply.status, reply.body) == (200, b"abcde")
+
+
+def test_a_reply_with_no_content_length_is_not_refused() -> None:
+    """Edge: a close-delimited body has no promised length to compare."""
+
+    def close_delimited(conn: socket.socket) -> None:
+        conn.recv(65536)
+        conn.sendall(b"HTTP/1.0 200 OK\r\n\r\nabcde")
+
+    with _serve_raw(close_delimited) as base:
+        reply = ax.send("GET", f"{base}/x", {}, b"")
+
+    assert reply.body == b"abcde"
+
+
 def test_a_server_that_never_answers_is_cut_off_at_the_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
