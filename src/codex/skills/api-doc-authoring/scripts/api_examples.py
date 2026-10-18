@@ -29,7 +29,8 @@ Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
 (unreachable server, remote base URL without an explicit flag, no examples to
 lint, a response over the size cap, a request past its deadline, or a run past its
 deadline). A failed example or lint finding found before the server, size cap, or
-deadline stop is still exit 1, and the evidence file keeps it.
+deadline stop is still exit 1, and the evidence file keeps it. Any such stop with
+``--evidence`` writes the file, with verdict UNVERIFIED when nothing had failed.
 """
 
 from __future__ import annotations

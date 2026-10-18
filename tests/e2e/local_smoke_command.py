@@ -8,7 +8,7 @@ a launcher outside ``_LAUNCHERS``, or a shell outside ``_SHELLS`` is not seen. A
 option with a value other than ``-o`` or ``-O`` (``--rcfile f``) before the command line
 misreads the value as the command. An unquoted Windows path with a space inside a shell's
 ``/c`` value is cut at the space. The fish attached forms ``-Ccmd`` and ``-ccmd`` are not
-read: the next word is taken as the command instead.
+read as the command line.
 """
 
 from __future__ import annotations

@@ -135,17 +135,29 @@ def _signature_of(function: Callable[..., Any]) -> inspect.Signature | None:
 _SIGNATURES = {name: _signature_of(original) for name, original in _ORIGINAL_OS.items()}
 
 
+_RESOLVE: Any = object()  # "no signature given": read it from the original
+
+
+def _names_parameters(signature: inspect.Signature | None) -> bool:
+    """Return True when keywords can be mapped to positions through ``signature``."""
+    variadic = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    return signature is not None and all(
+        p.kind not in variadic for p in signature.parameters.values()
+    )
+
+
 def _guarded_os(
     original: Callable[..., Any],
     program: int,
     argv: int | None,
-    signature: inspect.Signature | None = None,
+    signature: inspect.Signature | None = _RESOLVE,
 ) -> Callable[..., Any]:
-    signature = signature or _signature_of(original)
+    if signature is _RESOLVE:
+        signature = _signature_of(original)
 
     def guarded(*args: Any, **kwargs: Any) -> Any:
         values = _bind(signature, args, kwargs)
-        if signature is None and kwargs:
+        if kwargs and not _names_parameters(signature):
             # Keyword names cannot be mapped to positions, so fail closed.
             if argv is None and "command" in kwargs:  # os.system(command=...)
                 refuse_copilot(kwargs["command"])

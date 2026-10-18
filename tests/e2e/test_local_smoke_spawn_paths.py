@@ -269,6 +269,14 @@ def test_guarded_os_refuses_keywords_it_cannot_map_when_no_signature_resolves(
         guarded(**kwargs)
 
 
+def test_guarded_os_refuses_keywords_through_a_variadic_stand_in() -> None:
+    """A ``(*args, **kwargs)`` original names no parameter, so keywords cannot be mapped."""
+    guarded = guard._guarded_os(_launched, 0, 1)
+
+    with pytest.raises(guard.CopilotCallRefusedError):
+        guarded(path="true", argv=["true"])
+
+
 def test_guarded_os_with_no_signature_still_reads_positional_calls() -> None:
     guarded = guard._guarded_os(_launched, 0, 1, None)
 
