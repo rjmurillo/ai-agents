@@ -173,9 +173,11 @@ One optimization step:
      patches.json --score <cand> --incumbent <best> --note "..." --step T`.
    - Exit 1, `REJECT_CEILING`: the edit lost nothing and is not bad. Do not
      buffer it. No candidate can pass a gate that has no headroom, so stop the
-     loop and read the `hint`: add harder `sel` tasks that sample the failure
-     mode and re-score the incumbent, or, for a first draft whose `sel` tasks
-     came from its own requirements, hand back to `skillforge`.
+     loop and read the `hint`: freeze a new `sel` set of harder tasks that
+     sample the failure mode, re-score the incumbent on it, then author a
+     fresh candidate. Never re-gate this candidate on tasks written after it.
+     For a first draft whose `sel` tasks came from its own requirements, hand
+     back to `skillforge`.
 8. **Repeat** until the budget reaches its floor and several steps reject, or
    the step budget runs out.
 

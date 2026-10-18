@@ -19,7 +19,9 @@ _SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
 # held-out task, so no candidate can show a gain on this split.
 CEILING_HINT = (
     "The incumbent already passes every held-out task, so no candidate can show a gain. "
-    "Add harder sel tasks that sample the failure mode, then re-score the incumbent. "
+    "Freeze a new sel set of harder tasks that sample the failure mode, re-score the "
+    "incumbent, then author a fresh candidate. "
+    "Never re-gate this candidate on tasks written after it. "
     "For a first draft whose sel tasks came from its own requirements, hand back to skillforge."
 )
 

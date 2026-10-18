@@ -140,9 +140,11 @@ for every reject. Exit 2 for an invalid manifest or input file.
 the candidate regresses none. No gain is possible, so the gate cannot accept
 any candidate, even one with real training gains. It outranks `REJECT` and
 ranks below `REJECT_UNVERIFIED` and `REJECT_NULL_CONTROL`. It applies to the
-`sel` split only. Add harder held-out tasks that sample the failure mode and
-re-score the incumbent, or, for a first draft whose `sel` tasks came from its
-own requirements, hand back to `skillforge`.
+`sel` split only. Freeze a new `sel` set of harder tasks that sample the
+failure mode, re-score the incumbent on it, then author a fresh candidate.
+Never re-gate this candidate on tasks written after it: its author already
+knew the failure mode, so those tasks are not held out. For a first draft
+whose `sel` tasks came from its own requirements, hand back to `skillforge`.
 
 `score` prints the held-out pass rate. Scalar `gate` compares two numbers and
 rejects ties. Neither is the default promotion decision.

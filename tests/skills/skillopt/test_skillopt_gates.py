@@ -150,7 +150,9 @@ class TestPairGate:
         assert report["gains"] == []
         assert report["regressions"] == []
         assert list(report)[-1] == "hint"
-        assert "harder sel tasks" in report["hint"]
+        assert "Freeze a new sel set of harder tasks" in report["hint"]
+        assert "author a fresh candidate" in report["hint"]
+        assert "Never re-gate this candidate on tasks written after it" in report["hint"]
         assert "skillforge" in report["hint"]
 
     def test_ceiling_with_single_sel_task(self) -> None:

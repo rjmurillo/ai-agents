@@ -115,6 +115,16 @@ def test_skill_md_documents_every_verdict_and_boundary() -> None:
     assert "SOUL.md" not in text
 
 
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_ceiling_guidance_forbids_regating_the_same_candidate(root: str) -> None:
+    skill_dir = _skill_dir(root)
+    for rel in ("SKILL.md", "references/eval-set-format.md"):
+        text = " ".join((skill_dir / rel).read_text(encoding="utf-8").split())
+        assert "Never re-gate this candidate on tasks written after it" in text, rel
+        assert "author a fresh candidate" in text, rel
+        assert "REJECT_CEILING" in text, rel
+
+
 def test_skill_md_invocations_use_plugin_root_python3() -> None:
     text = _skill_md()
     prefix = (

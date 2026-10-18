@@ -85,7 +85,8 @@ class TestCli:
         report = json.loads(capsys.readouterr().out)
         assert report["verdict"] == "REJECT_CEILING"
         assert report["accepted"] is False
-        assert "harder sel tasks" in report["hint"]
+        assert "Freeze a new sel set" in report["hint"]
+        assert "Never re-gate this candidate" in report["hint"]
 
     def test_pair_gate_ceiling_on_train_split_is_plain_reject(
         self, tmp_path: Path, capsys: Capture
