@@ -341,13 +341,20 @@ dev = [
 # `scripts/testing/slow_test_report.py --budget pyproject.toml`. Each entry is a
 # hotspot issue #5382 optimized, so each needs a floor under it.
 #
-# Each budget is roughly four times the sum this branch measures locally
-# (31.57s, 8.96s, and 12.1s, serial, no coverage). The multiplier absorbs a slower or
-# loaded runner, per `.claude/rules/ci-scripts.md` item 16: a standalone wall
-# clock does not predict the same work under contention. What survives that
-# headroom is the regression the batching prevents, a suite that goes back to
-# rediscovering the whole repository per test and lands several times over.
+# The first two budgets are roughly four times the sum this branch measures
+# locally (31.57s and 8.96s, serial, no coverage). The multiplier absorbs a
+# slower or loaded runner, per `.claude/rules/ci-scripts.md` item 16: a
+# standalone wall clock does not predict the same work under contention. What
+# survives that headroom is the regression the batching prevents, a suite that
+# goes back to rediscovering the whole repository per test and lands several
+# times over.
+#
+# The surface parity budget is about twice its 12.8s sum, not four times. That
+# suite summed 51.2s on main before the sort-once change (2026-10-18), so a 50s
+# budget sat at 0.98x of the code it replaced and passed a revert on any
+# faster runner. At 25s a revert fails unless the runner is 2x faster, and 2x
+# still absorbs ordinary runner load.
 [tool.slow-test-budget]
 "tests/test_validate_session_json.py" = 120.0
 "tests/test_guard_diff.py" = 35.0
-"tests/build_scripts/test_surface_parity_repo.py" = 50.0
+"tests/build_scripts/test_surface_parity_repo.py" = 25.0
