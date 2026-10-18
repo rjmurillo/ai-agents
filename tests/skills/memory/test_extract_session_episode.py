@@ -3448,6 +3448,58 @@ class TestPreserveDropsDanglingCommitEvents:
         )
         assert any(e["type"] == "milestone" for e in merged["events"])
 
+    def _all_dangling(self, shas, files_changed):
+        return {
+            "timestamp": "2026-07-19T00:00:00+00:00",
+            "events": [self._event("e001", shas["dangling"])],
+            "metrics": {"commits": 1, "files_changed": files_changed},
+        }
+
+    def test_drop_that_would_zero_commits_with_file_changes_is_refused(self, shas):
+        # Squash-merged and pruned branch: every commit event dangles. Dropping
+        # all of them writes commits==0 beside files_changed>0, the shape
+        # validate_metrics_consistency rejects (issue #3873).
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), self._all_dangling(shas, 4), session_id=self.SESSION
+        )
+        assert self._contents(merged) == [f"Commit: {shas['dangling']}"]
+        assert merged["metrics"]["commits"] == 1
+        assert extract_session_episode.validate_metrics_consistency(merged["metrics"]) == []
+
+    def test_all_dangling_commits_are_dropped_when_no_files_changed(self, shas):
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), self._all_dangling(shas, 0), session_id=self.SESSION
+        )
+        assert merged["events"] == []
+        assert merged["metrics"]["commits"] == 0
+
+    def test_file_changes_from_the_fresh_extraction_also_refuse_the_drop(self, shas):
+        fresh = self._fresh()
+        fresh["metrics"]["files_changed"] = 3
+        merged = extract_session_episode.merge_preserving(
+            fresh, self._all_dangling(shas, 0), session_id=self.SESSION
+        )
+        assert merged["metrics"]["commits"] == 1
+
+    def test_refused_drop_is_idempotent(self, shas):
+        once = extract_session_episode.merge_preserving(
+            self._fresh(), self._all_dangling(shas, 4), session_id=self.SESSION
+        )
+        twice = extract_session_episode.merge_preserving(
+            self._fresh(), once, session_id=self.SESSION
+        )
+        assert twice["events"] == once["events"]
+        assert twice["metrics"] == once["metrics"]
+
+    def test_partial_drop_with_file_changes_still_drops_the_dangling_event(self, shas):
+        existing = self._existing(shas, 3)
+        existing["metrics"]["files_changed"] = 5
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), existing, session_id=self.SESSION
+        )
+        assert f"Commit: {shas['dangling']}" not in self._contents(merged)
+        assert merged["metrics"]["commits"] == 2
+
     def test_cli_preserve_drops_event_and_keeps_chain_connected(self, shas, tmp_path):
         out = tmp_path / "episodes"
         out.mkdir()
