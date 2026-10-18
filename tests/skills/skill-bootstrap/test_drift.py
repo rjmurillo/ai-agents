@@ -282,7 +282,9 @@ def test_command_passes_when_nonzero_exit_is_expected(capsys, repo, skills):
     assert only_check(payload)["status"] == "pass"
 
 
-def test_command_timeout_has_its_own_status_and_fails_the_skill(capsys, repo, skills, monkeypatch):
+def test_command_timeout_has_its_own_status_and_leaves_the_skill_incomplete(
+    capsys, repo, skills, monkeypatch
+):
     monkeypatch.setattr(bootstrap_drift, "COMMAND_TIMEOUT_S", 0.2)
     check = {"id": "R5", "kind": "command", "argv": [PY, "-c", "import time; time.sleep(30)"]}
 
@@ -290,8 +292,9 @@ def test_command_timeout_has_its_own_status_and_fails_the_skill(capsys, repo, sk
 
     assert code == 1
     assert only_check(payload)["status"] == "timeout"
-    assert payload["skills"][0]["status"] == "fail"
-    assert payload["update_candidates"] == ["s1"]
+    assert payload["skills"][0]["status"] == "incomplete"
+    assert payload["update_candidates"] == []
+    assert payload["timed_out"] == ["s1"]
     assert "timed out" in only_check(payload)["detail"]
 
 

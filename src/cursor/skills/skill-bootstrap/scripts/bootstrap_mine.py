@@ -594,6 +594,19 @@ def _skill_base(display: str, view: RepoView) -> str | None:
     return None
 
 
+def _extended_on_disk(
+    view: RepoView, base: str, path: str, max_line: int | None, tracked: str
+) -> str:
+    """Re-check a tracked file inside an authored skill against its working-tree copy.
+
+    An update run can grow a tracked file without committing it. A path outside the
+    skill directory keeps its tracked status, so a stale root reference stays stale.
+    """
+    if not path.startswith(f"{base}/"):
+        return tracked
+    return "ok" if view.disk_status(path, max_line) == "ok" else tracked
+
+
 def _resolve(
     view: RepoView, base: str | None, path: str, max_line: int | None, authored: bool
 ) -> str:
@@ -606,9 +619,15 @@ def _resolve(
     # A root file that is tracked but too short is the answer: a same-named skill file
     # must not mark that stale root reference ok. A path absent from the ref, whether
     # missing or only untracked on disk, falls back to the skill's tracked files.
+    if status == "line-out-of-range" and authored and base is not None:
+        # The one exception: the tracked file is itself inside the authored skill, so
+        # the run may have extended it on disk. Only that same path is consulted.
+        return _extended_on_disk(view, base, path, max_line, status)
     if base is None or status not in ("missing", "untracked"):
         return status
     relative = view.status(f"{base}/{path}", max_line)
+    if relative == "line-out-of-range" and authored:
+        return _extended_on_disk(view, base, f"{base}/{path}", max_line, relative)
     if relative in ("ok", "line-out-of-range"):
         return relative
     if not authored:

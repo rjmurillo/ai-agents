@@ -79,7 +79,7 @@ def test_path_checks_after_the_deadline_are_not_run(repo_and_skills, capsys, mon
     statuses = [c["status"] for c in payload["skills"][0]["checks"]]
     assert statuses == ["timeout", "timeout"]
     assert "total deadline" in payload["skills"][0]["checks"][0]["detail"]
-    assert payload["skills"][0]["status"] == "fail"
+    assert payload["skills"][0]["status"] == "incomplete"
     assert code == 1
 
 
@@ -135,5 +135,44 @@ def test_timeout_alone_does_not_make_a_passing_skill_pass(repo_and_skills, capsy
     code, payload = _run(repo, skills, [*_paths(1), sleeper], capsys, "--allow-commands")
 
     assert [c["status"] for c in payload["skills"][0]["checks"]] == ["pass", "timeout"]
-    assert payload["skills"][0]["status"] == "fail"
+    assert payload["skills"][0]["status"] == "incomplete"
     assert code == 1
+
+
+def test_timeout_only_skill_is_timed_out_not_an_update_candidate(
+    repo_and_skills, capsys, monkeypatch
+):
+    repo, skills = repo_and_skills
+    monkeypatch.setattr(drift, "TOTAL_DEADLINE_S", -1)
+
+    code, payload = _run(repo, skills, _paths(2), capsys)
+
+    assert code == 1
+    assert payload["timed_out"] == ["s1"]
+    assert payload["update_candidates"] == []
+    assert payload["update_args"] == []
+
+
+def test_failed_check_beside_a_timeout_stays_an_update_candidate(
+    repo_and_skills, capsys, monkeypatch
+):
+    repo, skills = repo_and_skills
+    monkeypatch.setattr(drift, "COMMAND_TIMEOUT_S", 0.2)
+    missing = {"id": "P1", "kind": "path_exists", "path": "no-such-file"}
+    sleeper = {"id": "C1", "kind": "command", "argv": [PY, "-c", "import time; time.sleep(30)"]}
+
+    code, payload = _run(repo, skills, [missing, sleeper], capsys, "--allow-commands")
+
+    assert code == 1
+    assert payload["skills"][0]["status"] == "fail"
+    assert payload["update_candidates"] == ["s1"]
+    assert payload["timed_out"] == []
+
+
+def test_passing_skill_has_empty_timed_out(repo_and_skills, capsys):
+    repo, skills = repo_and_skills
+
+    code, payload = _run(repo, skills, _paths(1), capsys)
+
+    assert code == 0
+    assert payload["timed_out"] == []

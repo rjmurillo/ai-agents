@@ -29,30 +29,32 @@ author chose: pass the flag only for skills you trust.
 Per-check status: pass, fail, skipped, invalid, timeout. `timeout` means a
 `command` check ran past its limit (120 s, or what is left of the total
 deadline), or a check was not run because the total deadline of 900 s for the
-whole run had passed. It is not evidence of drift, so it has its own status, but
-it still fails the skill: nothing was verified. A `reverify.json` holds at most
-200 checks; more is `malformed`. Per-skill status: `pass` when
-every non-skipped check passes, `fail` when any check fails, is invalid, or
-timed out,
-`skipped` when every check was skipped (nothing was verified, so `--require`
-fails it; a skill with only `command` checks needs `--allow-commands` or one
-path check), `no-provenance` when `reverify.json` is absent, and `malformed` when the JSON
-or schema is bad (unknown kind, missing field, duplicate id, empty check
-list).
+whole run had passed. It is not evidence of drift, so it has its own status, and
+a skill whose only non-passing checks timed out is `incomplete` rather than
+`fail`: it exits 1 and is listed under `timed_out`, never in `update_candidates`.
+A `reverify.json` holds at most 200 checks; more is `malformed`. Per-skill
+status: `pass` when every non-skipped check passes, `fail` when any check fails
+or is invalid (even if another check timed out), `incomplete` when no check
+failed but at least one timed out, `skipped` when every check was skipped
+(nothing was verified, so `--require` fails it; a skill with only `command`
+checks needs `--allow-commands` or one path check), `no-provenance` when
+`reverify.json` is absent, and `malformed` when the JSON or schema is bad
+(unknown kind, missing field, duplicate id, empty check list).
 
-The payload lists `update_candidates` (failing or malformed skills) and
-`update_args`, a JSON list of argv tokens (`--name`, X, `--update`, X, ...)
-for `bootstrap_boundary.py`. A skill directory whose name does not match
+The payload lists `timed_out` (incomplete skills, to re-run),
+`update_candidates` (failing or malformed skills) and `update_args`, a JSON
+list of argv tokens (`--name`, X, `--update`, X, ...) for
+`bootstrap_boundary.py`. A skill directory whose name does not match
 `[a-z](?:[a-z0-9-]*[a-z0-9])?`, is longer than 64 characters, or holds `--` is
-`malformed` (detail `invalid skill name`),
-so it is a candidate but never reaches `update_args`.
+`malformed` (detail `invalid skill name`), so it is a candidate but never
+reaches `update_args`.
 
 Exit codes:
 
-    0  No skill failed or is malformed (and, with `--require`, every skill has
-       provenance).
-    1  A skill failed or is malformed, or `--require` found a skill without
-       provenance.
+    0  No skill failed, is malformed, or is incomplete (and, with `--require`,
+       every skill has provenance).
+    1  A skill failed, is malformed, or timed out before every check ran, or
+       `--require` found a skill without provenance.
     2  Configuration error: bad arguments, a repo or skills root that is not a
        directory, or a `--name` with no matching skill directory.
 
@@ -298,8 +300,10 @@ def evaluate_check(check: Payload, repo: Path, allow_commands: bool, deadline: f
 
 
 def _skill_status(results: list[Payload]) -> str:
-    if any(r["status"] in ("fail", "invalid", "timeout") for r in results):
+    if any(r["status"] in ("fail", "invalid") for r in results):
         return "fail"
+    if any(r["status"] == "timeout" for r in results):
+        return "incomplete"  # unverified, not drifted: rerun, do not rebuild
     if all(r["status"] == "skipped" for r in results):
         return "skipped"  # nothing was verified, so do not report a pass
     return "pass"
@@ -361,9 +365,11 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
     safe = [n for n in candidates if valid_skill_name(n)]
     missing = [s["name"] for s in skills if s["status"] == "no-provenance"]
     unverified = [s["name"] for s in skills if s["status"] == "skipped"]
-    failed = bool(candidates) or (args.require and bool(missing or unverified))
+    timed_out = [s["name"] for s in skills if s["status"] == "incomplete"]
+    failed = bool(candidates or timed_out) or (args.require and bool(missing or unverified))
     return (1 if failed else 0), {
         "skills": skills,
+        "timed_out": timed_out,
         "update_candidates": candidates,
         "update_args": _update_args(safe),
         "no_provenance": missing,

@@ -1455,6 +1455,80 @@ def test_authored_flag_still_reports_a_file_the_update_did_not_write(capsys, cre
     assert statuses(payload) == {"scripts/ghost.py": "missing"}
 
 
+def extended_skill(crepo: Path, lines: int) -> Path:
+    """Commit a two-line skill script, then grow it on disk without committing."""
+    target = skill_repo(crepo)
+    write(crepo, ".claude/skills/demo/scripts/run.py", "".join(f"{n}\n" for n in range(lines)))
+    return target
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [".claude/skills/demo/scripts/run.py:30", "scripts/run.py:30"],
+    ids=["full-path", "skill-relative"],
+)
+def test_authored_flag_counts_lines_added_to_a_tracked_file_on_disk(capsys, crepo, ref):
+    target = extended_skill(crepo, 40)
+    target.write_text(f"See `{ref}`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target, extra=("--authored", str(target.parent)))
+
+    assert code == 0
+    assert payload["findings"] == []
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [".claude/skills/demo/scripts/run.py:30", "scripts/run.py:30"],
+    ids=["full-path", "skill-relative"],
+)
+def test_authored_flag_still_reports_a_line_past_the_extended_file(capsys, crepo, ref):
+    target = extended_skill(crepo, 5)
+    target.write_text(f"See `{ref}`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target, extra=("--authored", str(target.parent)))
+
+    assert code == 1
+    assert statuses(payload) == {ref: "line-out-of-range"}
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [".claude/skills/demo/scripts/run.py:30", "scripts/run.py:30"],
+    ids=["full-path", "skill-relative"],
+)
+def test_extended_tracked_file_is_out_of_range_without_the_authored_flag(capsys, crepo, ref):
+    target = extended_skill(crepo, 40)
+    target.write_text(f"See `{ref}`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert statuses(payload) == {ref: "line-out-of-range"}
+
+
+def test_authored_flag_does_not_rescue_a_stale_root_file_outside_the_skill(capsys, crepo):
+    target = skill_repo(crepo)
+    write(crepo, "scripts/tool.py", "".join(f"{n}\n" for n in range(40)))
+    target.write_text("See `scripts/tool.py:30`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target, extra=("--authored", str(target.parent)))
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/tool.py:30": "line-out-of-range"}
+
+
+def test_authored_flag_keeps_the_tracked_status_when_the_extended_file_was_deleted(capsys, crepo):
+    target = skill_repo(crepo)
+    (crepo / ".claude" / "skills" / "demo" / "scripts" / "run.py").unlink()
+    target.write_text("See `.claude/skills/demo/scripts/run.py:30`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target, extra=("--authored", str(target.parent)))
+
+    assert code == 1
+    assert statuses(payload) == {".claude/skills/demo/scripts/run.py:30": "line-out-of-range"}
+
+
 # ------------------------------------------------- review fixes: timeout, SHA-256, until
 
 
