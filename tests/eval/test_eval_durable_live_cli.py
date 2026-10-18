@@ -377,6 +377,10 @@ def test_every_run_saves_its_change_as_a_patch_and_the_record_stays_untimed(
     for control in ("current", "reduced"):
         patch = (out / "changes" / control / f"{TASK}-r0.patch").read_text(encoding="utf-8")
         assert patch.startswith("--- ") and "+++ b/" in patch
+        # The before side is the original file, so the stub's lines are shown as removed.
+        assert "--- a/slugger/core.py\n+++ b/slugger/core.py\n" in patch
+        assert '-    raise NotImplementedError("slugify is not implemented yet")' in patch
+        assert "--- /dev/null" not in patch
         # No human was present, so the minutes stay missing until the join step.
         assert _row_at(out, control)["economics"]["human_correction_minutes"] is None
 

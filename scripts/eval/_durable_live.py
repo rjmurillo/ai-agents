@@ -283,16 +283,15 @@ def _run_review(
     with tempfile.TemporaryDirectory(prefix="durable-review-") as name:
         scratch = Path(name)
         copy = scratch / "work"
-        apply_changes(
-            scenario, workdir, without_links(workdir, session.grades[-1].changed_paths), copy
-        )
+        shown = without_links(workdir, session.grades[-1].changed_paths)
+        apply_changes(scenario, workdir, shown, copy)
         instructions = scratch / "reviewer.md"
         instructions.write_text(REVIEWER_INSTRUCTIONS, encoding="utf-8")
         return _invoke(
             scenario,
             f"{control}{REVIEWER_CONTROL_SUFFIX}",
             len(session.invocations),
-            review_prompt(scenario.requirement, session.grades[-1].changed_paths),
+            review_prompt(scenario.requirement, shown),
             workdir=copy,
             control_file=instructions,
             settings=reviewer_settings,
@@ -300,6 +299,18 @@ def _run_review(
             runner=runner,
             read_only=True,
         )
+
+
+def _run_patch(scenario: Scenario, scratch: Path, workdir: Path, changed: Sequence[str]) -> str:
+    """The run's change as a unified diff against a fresh copy of `initial/`.
+
+    The corpus stores `initial/` as `<path>.fixture` files, so it cannot be diffed
+    in place. A materialized copy has the real paths, so a modified file shows its
+    removed lines and a deleted file shows `+++ /dev/null`.
+    """
+    before = scratch / "initial"
+    materialize(scenario, before)
+    return change_patch(before, workdir, changed)
 
 
 def _harness_failed(invocation: Invocation) -> bool:
@@ -352,9 +363,7 @@ def run_task(
             session.review = _run_review(
                 scenario, control, session, workdir, settings, budget, runner
             )
-        patch = change_patch(
-            scenario.fixture_dir("initial"), workdir, session.grades[-1].changed_paths
-        )
+        patch = _run_patch(scenario, Path(name), workdir, session.grades[-1].changed_paths)
         record = build_record(
             scenario, base_config, repeat, session, workdir, reviewer=settings.reviewer
         )
