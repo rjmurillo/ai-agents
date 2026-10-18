@@ -184,6 +184,15 @@ def _contract_in_order(response: str) -> bool:
     return kinds == ["D", "E"]
 
 
+def _contract_shape_failure(response: str) -> str | None:
+    """Reason code when the two contract lines are not the response's last two lines."""
+    if _has_trailing_text(response):
+        return REASON_TRAILING_TEXT
+    if not _contract_in_order(response):
+        return REASON_CONTRACT_ORDER
+    return None
+
+
 def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
     """Grade `response` against `spec`. Raises ValueError on a malformed spec."""
     error = validate_decision_spec(spec)
@@ -216,10 +225,9 @@ def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
             return DecisionResult(
                 False, REASON_EVIDENCE_MISMATCH, decision=token, evidence=evidence
             )
-    if _has_trailing_text(response):
-        return DecisionResult(False, REASON_TRAILING_TEXT, decision=token, evidence=evidence)
-    if not _contract_in_order(response):
-        return DecisionResult(False, REASON_CONTRACT_ORDER, decision=token, evidence=evidence)
+    shape_failure = _contract_shape_failure(response)
+    if shape_failure is not None:
+        return DecisionResult(False, shape_failure, decision=token, evidence=evidence)
     return DecisionResult(True, REASON_PASS, decision=token, evidence=evidence)
 
 
