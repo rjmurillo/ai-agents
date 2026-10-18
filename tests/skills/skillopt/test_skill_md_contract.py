@@ -311,8 +311,9 @@ def test_process_cross_reference_matches_precondition_number(root: str) -> None:
     pre_start = text.index("## Preconditions")
     pre_end = text.index("## Scripts", pre_start)
     proc_start = text.index("## Process")
+    proc_end = text.index("## Before promotion", proc_start)
     assert "4. **Two isolated runners.**" in text[pre_start:pre_end]
-    assert "(Precondition 4)" in text[proc_start:]
+    assert "(Precondition 4)" in text[proc_start:proc_end]
 
 
 @pytest.mark.parametrize("root", BODY_ROOTS)
