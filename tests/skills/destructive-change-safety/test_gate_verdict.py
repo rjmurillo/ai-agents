@@ -82,6 +82,27 @@ def test_complete_evidence_with_a_matching_scan_passes() -> None:
     assert verdict(good_evidence(), scan) == {"verdict": "PASS", "reasons": []}
 
 
+@pytest.mark.parametrize(
+    "sinks",
+    [{"location": "a.sql"}, "a.sql", 3, None, True],
+)
+@pytest.mark.parametrize("decision", ["skip", "activate"])
+def test_scan_report_with_non_list_sinks_blocks(decision: str, sinks: object) -> None:
+    """A malformed scan `sinks` must not read as an empty scan and clear the gate."""
+    result = verdict({}, {"decision": decision, "sinks": sinks})
+    assert result["verdict"] == "BLOCK"
+    assert result["reasons"] == ["scan report `sinks` must be a list"]
+
+
+def test_scan_report_with_non_list_sinks_blocks_even_with_complete_evidence() -> None:
+    scan = {"decision": "activate", "sinks": {"location": "store.py:10"}}
+    assert verdict(good_evidence(), scan)["verdict"] == "BLOCK"
+
+
+def test_skip_scan_without_a_sinks_key_still_skips() -> None:
+    assert verdict({}, {"decision": "skip"})["verdict"] == "SKIP"
+
+
 @pytest.mark.parametrize("sinks", [[], None])
 def test_activate_scan_with_no_sinks_cannot_back_a_skip(sinks: object) -> None:
     """An `activate` report that lists no sink is inconsistent, so it never skips."""

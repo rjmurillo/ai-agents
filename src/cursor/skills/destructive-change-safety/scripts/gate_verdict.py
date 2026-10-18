@@ -181,6 +181,8 @@ def evaluate(evidence: Evidence, scan_report: Evidence | None = None) -> dict[st
             "verdict": "BLOCK",
             "reasons": ["scan could not parse or cover every file: scope is unknown"],
         }
+    if "sinks" in scan_report and not isinstance(scan_report["sinks"], list):
+        return {"verdict": "BLOCK", "reasons": ["scan report `sinks` must be a list"]}
     if "sinks" in evidence and not isinstance(evidence["sinks"], list):
         return {"verdict": "BLOCK", "reasons": ["evidence `sinks` must be a list"]}
     if not as_list(evidence.get("sinks")) and not scanned:

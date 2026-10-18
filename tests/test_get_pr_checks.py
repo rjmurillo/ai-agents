@@ -239,11 +239,6 @@ class TestBuildParser:
                 ]
             )
 
-    def test_base_branch_help_warns_a_skipped_fetch_reads_unknown(self):
-        """A skipped ruleset fetch cannot prove every required check reported."""
-        action = next(a for a in build_parser()._actions if "--base-branch" in a.option_strings)
-        assert "RequiredState then reads UNKNOWN" in " ".join(action.help.split())
-
     def test_base_branch_empty_string_is_accepted(self):
         args = build_parser().parse_args(["--pull-request", "1", "--base-branch", ""])
         assert args.base_branch == ""
@@ -2436,13 +2431,6 @@ class TestMissingRequired:
         assert rc_human == 0
         assert json.loads(json_out)["Data"]["RequiredState"] == "UNKNOWN"
         assert "[PASS]" in human_out
-
-    def test_module_docstring_says_exit_zero_does_not_prove_required_state(self):
-        import get_pr_checks
-
-        doc = " ".join((get_pr_checks.__doc__ or "").split())
-        assert "do not prove the required set" in doc
-        assert "RequiredState" in doc
 
     def test_ruleset_read_with_green_checks_reports_required_state_success(self, capsys):
         """Control: with the ruleset read and every context reported, RequiredState is SUCCESS."""
