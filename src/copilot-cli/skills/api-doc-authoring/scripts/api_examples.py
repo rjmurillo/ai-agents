@@ -385,16 +385,18 @@ def _stopped(
     base_url: str,
     results: list[dict[str, Any]],
     findings: list[dict[str, Any]],
-    stop: tuple[str, dict[str, Any], str],
+    *,
+    key: str,
+    detail: dict[str, Any],
+    message: str,
 ) -> tuple[dict[str, Any], int]:
     """Keep the finished results when a run stops early.
 
     A finished FAIL or a lint finding stays exit 1: the doc is stale or malformed whether
     or not the rest ran. With neither, the run is unverifiable (exit 2). Either way the
-    evidence file records the finished results, the lint findings, and ``stop``: the report
-    key, its detail, and the message for the exit-2 error.
+    evidence file records the finished results, the lint findings, and ``detail`` under
+    ``key``. ``message`` is the exit-2 error.
     """
-    key, detail, message = stop
     report = _report(args, base_url, results, findings)
     failed = report["verdict"] == "FAIL"
     if not failed:
@@ -420,7 +422,9 @@ def _past_deadline(
         f"{len(results) + len(unrun)} examples, before `{unrun[0].id}`; "
         "the run is unverified and the finished results are not a verdict"
     )
-    return _stopped(args, base_url, results, findings, ("deadline_exceeded", detail, message))
+    return _stopped(
+        args, base_url, results, findings, key="deadline_exceeded", detail=detail, message=message
+    )
 
 
 def _request_failed(
@@ -442,7 +446,9 @@ def _request_failed(
         f"{len(results) + len(unrun)} examples: {error}; "
         "the run is unverified and the finished results are not a verdict"
     )
-    return _stopped(args, base_url, results, findings, ("request_failed", detail, message))
+    return _stopped(
+        args, base_url, results, findings, key="request_failed", detail=detail, message=message
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

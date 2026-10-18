@@ -39,9 +39,10 @@ _WINDOWS_TOKENS = tuple(
 )
 # A quoted span that holds whitespace: ``"C:\Program Files\copilot.exe"`` or the single-quoted form.
 _QUOTED_SPACE = re.compile(r'"[^"]*\s[^"]*"|\'[^\']*\s[^\']*\'')
-# cmd drops the first and last quote of a ``/c`` or ``/k`` value that starts and ends with
-# one, so ``cmd /c ""C:\Program Files\copilot.exe" -p x"`` runs the quoted path.
-_CMD_OUTER_QUOTE = re.compile(r'(?im)\bcmd(?:\.exe)?"?(?:\s+/[a-z:]+)*?\s+/[ck]\s+"(.+)"\s*$')
+# cmd drops the first and the last quote of the line after ``/c`` or ``/k``, so
+# ``cmd /c ""C:\Program Files\copilot.exe" -p x" >nul`` runs the quoted path. The greedy
+# match ends at the last quote on the line, so a redirect or operator after it is still read.
+_CMD_OUTER_QUOTE = re.compile(r'(?im)\bcmd(?:\.exe)?"?(?:\s+/[a-z:]+)*?\s+/[ck]\s+"(.+)"')
 # A word with a redirection fused to its end, as in ``copilot.exe>nul``. The head must hold
 # a character other than a digit or ``&``, or the whole word is a redirection (``2>nul``).
 _WORD_REDIRECT = re.compile(r"^([^<>]*[^<>\d&][^<>]*)([<>].*)$", re.DOTALL)
@@ -97,7 +98,8 @@ _C_CLUSTER = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
 _SHELL_VALUE_OPTIONS = frozenset({"-o", "+o", "-O", "+O"})
 # Shells that read ``-c`` as an option cluster and take the command from the next operand.
 _GETOPT_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish"})
-# Shells, mapped to the option whose value is a command line to run.
+# Shells, mapped to the options whose value is a command line to run. The fish entry in the
+# second dict replaces the generic one from the first, so the order of the unions matters.
 _SHELLS: dict[str, frozenset[str]] = (
     {name: frozenset({"-c"}) for name in _GETOPT_SHELLS}
     | {"fish": frozenset({"-c", "--command", "-C", "--init-command"})}

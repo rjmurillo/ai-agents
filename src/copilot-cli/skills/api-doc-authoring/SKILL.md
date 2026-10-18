@@ -134,8 +134,7 @@ prose.
 | `run` | Execute examples, compare status and documented response, write evidence | `0` all pass, `1` stale, failing, or lint findings (verdict FAIL even when every HTTP comparison passed), `2` unverifiable |
 
 Stdlib only. `api_examples.py` imports the parser `doc_examples.py` beside it. `run` refuses a non-loopback host unless `--allow-remote` is passed,
-because a doc example can create or delete data. It sends only to the base URL host: a request path must start with `/`, and redirects are returned as replies, never followed. Loopback requests ignore proxy settings. Exit `2` (server unreachable, no
-example matched, a response over 2 MiB or slower than 30 s, a run past 300 s with no failed example or lint finding) means unverified. It never means pass. A run past 300 s that already has a failed example or lint finding exits `1`, and its evidence file lists the examples that never ran.
+because a doc example can create or delete data. It sends only to the base URL host: a request path must start with `/`, and redirects are returned as replies, never followed. Loopback requests ignore proxy settings. Exit `2` (no example matched, or a stop with no failed example or lint finding found first: server unreachable, a response over 2 MiB or slower than 30 s, a run past 300 s) means unverified. It never means pass. A stop that already has a failed example or lint finding exits `1`, and its evidence file lists the examples that never ran under `request_failed` or `deadline_exceeded`.
 
 ## Anti-Patterns
 

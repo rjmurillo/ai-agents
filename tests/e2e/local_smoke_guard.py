@@ -145,7 +145,7 @@ def _guarded_os(
 
     def guarded(*args: Any, **kwargs: Any) -> Any:
         values = _bind(signature, args, kwargs)
-        if argv is None and not args and "command" in kwargs:  # os.system(command=...)
+        if signature is None and argv is None and "command" in kwargs:  # os.system(command=...)
             refuse_copilot(kwargs["command"])
         if program in values:
             refuse_copilot(values[program] if argv is None else [values[program]])
