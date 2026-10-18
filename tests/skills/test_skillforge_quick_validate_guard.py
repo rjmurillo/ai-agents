@@ -160,7 +160,11 @@ def _load_module(script: Path):
     # quick_validate falls back to putting its own directory on sys.path so the
     # sibling _path_guard module resolves. That directory holds a frontmatter.py
     # that shadows the PyPI package, so restore sys.path after the import.
+    # ``_path_guard`` is cached in sys.modules after the first import, so every
+    # later copy would silently reuse the first tree's module. Evict it before
+    # and after the load so each tree resolves its own sibling copy.
     saved = list(sys.path)
+    sys.modules.pop("_path_guard", None)
     try:
         spec = importlib.util.spec_from_file_location(f"quick_validate_{script.parts[-5]}", script)
         assert spec is not None and spec.loader is not None
@@ -169,6 +173,7 @@ def _load_module(script: Path):
         return module
     finally:
         sys.path[:] = saved
+        sys.modules.pop("_path_guard", None)
 
 
 @pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
@@ -180,7 +185,14 @@ def test_is_within_handles_filesystem_root(script: Path) -> None:
     # platforms are covered deterministically on any host. Inputs are normcased
     # with the same module to mirror the production caller
     # (``os.path.normcase(os.path.realpath(...))``).
-    is_within = _load_module(script)._is_within
+    module = _load_module(script)
+    is_within = module._is_within
+    # Prove the helper came from this tree's own _path_guard.py, not a copy
+    # cached by an earlier parametrized load.
+    assert (
+        Path(is_within.__code__.co_filename).resolve()
+        == (script.parent / "_path_guard.py").resolve()
+    )
     cases = [
         # (pathmod, child, root, expected, label)
         (posixpath, "/foo", "/", True, "posix descendant of root"),

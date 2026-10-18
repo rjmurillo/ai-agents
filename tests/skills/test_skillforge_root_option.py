@@ -297,7 +297,9 @@ def test_symlink_script_inside_root_is_not_flagged(tree: str, tmp_path: Path) ->
 
 def _load_validator(script: Path):
     """Import validate-skill.py as a module; restore sys.path afterwards."""
+    # Evict the cached ``_path_guard`` so each tree imports its own sibling copy.
     saved = list(sys.path)
+    sys.modules.pop("_path_guard", None)
     try:
         spec = importlib.util.spec_from_file_location(f"validate_skill_{script.parts[-5]}", script)
         assert spec is not None and spec.loader is not None
@@ -306,6 +308,7 @@ def _load_validator(script: Path):
         return module
     finally:
         sys.path[:] = saved
+        sys.modules.pop("_path_guard", None)
 
 
 @pytest.mark.parametrize("tree", _TREES)
@@ -315,7 +318,13 @@ def test_validate_skill_root_comparison_is_case_normalized(
     # Windows paths differ only by casing (drive letter or component). Simulate a
     # case-insensitive host by pinning normcase to lower(): a root spelled with
     # different casing must still contain the skill, matching quick_validate.py.
-    module = _load_validator(_REPO_ROOT / tree / _FORGE / "validate-skill.py")
+    script = _REPO_ROOT / tree / _FORGE / "validate-skill.py"
+    module = _load_validator(script)
+    # Each tree must run its own _path_guard.py, not a copy cached by an earlier load.
+    assert (
+        Path(module.is_within.__code__.co_filename).resolve()
+        == (script.parent / "_path_guard.py").resolve()
+    )
     skill = tmp_path / "Repo" / "sample"
     _make_skill(skill)
     monkeypatch.setattr(module.os.path, "normcase", str.lower)
