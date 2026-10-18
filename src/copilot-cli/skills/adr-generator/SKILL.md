@@ -267,7 +267,8 @@ running it here would execute whatever its branch supplied. The index has not
 shipped in a consumer checkout, so nothing needs regenerating. An `origin` that is
 a mirror or proxy URL of this repository fails the check too: the index stays stale
 until the next `build_all.py` run regenerates it, so tell the user to run that. The check
-scopes by repository, not by script content: a branch checked out in this repository runs
+keeps an agent from running an unknown repository's script by accident. It scopes by
+repository, not by script content: a branch checked out in this repository runs
 its own copy of the script, as `pytest` or `build_all.py` would.
 
 ---
