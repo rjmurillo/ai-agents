@@ -84,7 +84,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--search",
         default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-        "When used, --state/--label/--author/--base/--head are ignored.",
+        "--state still applies; an is: qualifier in the query overrides it. "
+        "--label/--author/--base/--head are ignored.",
     )
     parser.add_argument(
         "--limit",
@@ -141,16 +142,16 @@ def main(argv: list[str] | None = None) -> int:
         "number,title,headRefName,baseRefName,state",
     ]
 
+    # Always forward --state. Omitting it makes gh fall back to its open-only
+    # default, which silently drops merged and closed PRs for --state all and
+    # --state merged (issue #6670). An is: qualifier inside the --search query
+    # overrides --state, so a caller's explicit is:merged still wins.
+    list_args.extend(["--state", args.state])
+
     if args.search:
-        # gh pr list --search ignores --state, --label, --author, --base,
-        # --head flags. Only pass --search to avoid misleading behavior.
+        # Pass only --search; --label, --author, --base, --head are not forwarded.
         list_args.extend(["--search", args.search])
     else:
-        if args.state == "merged":
-            list_args.extend(["--state", "closed"])
-        elif args.state != "all":
-            list_args.extend(["--state", args.state])
-
         if args.label:
             labels = [lbl.strip() for lbl in args.label.split(",") if lbl.strip()]
             for lbl in labels:
@@ -184,9 +185,6 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     prs = json.loads(result.stdout)
-
-    if args.state == "merged":
-        prs = [p for p in prs if p.get("state") == "MERGED"]
 
     pull_requests = [
         {

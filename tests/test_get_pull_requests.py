@@ -214,11 +214,28 @@ class TestMain:
         # Schema preserved inside envelope
         assert set(pull_requests[0].keys()) == {"number", "title", "head", "base", "state"}
 
-    def test_merged_filter(self, capsys):
-        prs = [
-            _pr(1, "Merged", state="MERGED"),
-            _pr(2, "Closed", state="CLOSED"),
-        ]
+    def _run_cmd(self, argv):
+        """Run main with argv and return (rc, gh argv list)."""
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ) as mock_run,
+        ):
+            rc = main([*argv, "--output-format", "json"])
+        return rc, mock_run.call_args[0][0]
+
+    def test_merged_passes_native_merged_state(self, capsys):
+        # gh supports --state merged; the old closed-plus-filter path is gone.
+        prs = [_pr(1, "Merged", state="MERGED")]
         with (
             patch(
                 "get_pull_requests.check_gh_auth",
@@ -231,15 +248,52 @@ class TestMain:
             patch(
                 "subprocess.run",
                 return_value=_completed(stdout=_prs_json(prs), rc=0),
-            ),
+            ) as mock_run,
         ):
             rc = main(["--state", "merged", "--output-format", "json"])
         assert rc == 0
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("--state") + 1] == "merged"
         envelope = _parse_envelope(capsys.readouterr().out)
         _assert_envelope_shape(envelope, success=True)
         pull_requests = envelope["Data"]["PullRequests"]
         assert len(pull_requests) == 1
         assert pull_requests[0]["state"] == "MERGED"
+
+    def test_state_all_forwards_state_flag(self):
+        # Issue #6670: omitting --state makes gh default to open-only.
+        rc, cmd = self._run_cmd(["--state", "all"])
+        assert rc == 0
+        assert cmd[cmd.index("--state") + 1] == "all"
+
+    def test_default_state_forwards_open(self):
+        rc, cmd = self._run_cmd([])
+        assert rc == 0
+        assert cmd[cmd.index("--state") + 1] == "open"
+
+    def test_closed_state_forwarded(self):
+        _, cmd = self._run_cmd(["--state", "closed"])
+        assert cmd[cmd.index("--state") + 1] == "closed"
+
+    def test_state_all_with_head_forwards_both(self):
+        # Repro from issue #6670: merged branch lookup with --state all.
+        _, cmd = self._run_cmd(["--head", "fix/x", "--state", "all"])
+        assert cmd[cmd.index("--state") + 1] == "all"
+        assert cmd[cmd.index("--head") + 1] == "fix/x"
+
+    def test_state_all_with_search_forwards_state(self):
+        _, cmd = self._run_cmd(["--search", "4793", "--state", "all"])
+        assert cmd[cmd.index("--state") + 1] == "all"
+        assert cmd[cmd.index("--search") + 1] == "4793"
+
+    def test_state_merged_with_search_forwards_state(self):
+        _, cmd = self._run_cmd(["--search", "4793", "--state", "merged"])
+        assert cmd[cmd.index("--state") + 1] == "merged"
+        assert cmd[cmd.index("--search") + 1] == "4793"
+
+    def test_state_flag_appears_once(self):
+        _, cmd = self._run_cmd(["--search", "x", "--state", "all"])
+        assert cmd.count("--state") == 1
 
     def test_api_error_returns_envelope_with_error(self, capsys):
         with (
@@ -306,8 +360,8 @@ class TestMain:
         cmd = mock_run.call_args[0][0]
         assert "--search" in cmd
         assert "fix auth" in cmd
-        # --search makes gh ignore other filter flags, so we must not pass them
-        assert "--state" not in cmd
+        # --state is forwarded under --search (issue #6670); other filters are not.
+        assert cmd[cmd.index("--state") + 1] == "open"
         assert "--label" not in cmd
         assert "--author" not in cmd
         envelope = _parse_envelope(capsys.readouterr().out)

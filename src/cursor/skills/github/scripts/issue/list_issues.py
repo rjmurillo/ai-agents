@@ -103,7 +103,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--search",
         default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-        "When used, --state/--label/--author/--assignee/--milestone are ignored.",
+        "--state still applies; an is: qualifier in the query overrides it. "
+        "--label/--author/--assignee/--milestone are ignored.",
     )
     parser.add_argument(
         "--limit",
@@ -170,17 +171,16 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
         "number,title,state,labels,assignees,author,url,createdAt,updatedAt",
     ]
 
+    # Always forward --state. Omitting it makes gh fall back to its open-only
+    # default, which silently drops closed issues when the caller asked for
+    # --state all. An is: qualifier inside the --search query overrides it.
+    list_args.extend(["--state", args.state])
+
     if args.search:
-        # gh issue list --search ignores --state, --label, --author,
-        # --assignee, --milestone. Only pass --search to avoid misleading
-        # behavior.
+        # Pass only --search; --label, --author, --assignee, --milestone are
+        # not forwarded.
         list_args.extend(["--search", args.search])
     else:
-        # Forward every state, including 'all'. Omitting --state makes
-        # gh fall back to its open-only default, which silently drops
-        # closed issues when the caller asked for --state all.
-        list_args.extend(["--state", args.state])
-
         if args.label:
             labels = [lbl.strip() for lbl in args.label.split(",") if lbl.strip()]
             for lbl in labels:

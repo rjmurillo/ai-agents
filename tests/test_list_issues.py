@@ -253,6 +253,34 @@ class TestMain:
         assert "--state" in cmd
         assert "all" in cmd
 
+    def _search_cmd(self, argv):
+        with (
+            patch("list_issues.assert_gh_authenticated"),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ) as mock_run,
+        ):
+            main(argv)
+        return mock_run.call_args_list[0][0][0]
+
+    def test_search_with_state_all_forwards_state(self):
+        cmd = self._search_cmd(["--search", "get_pull_requests", "--state", "all"])
+        assert cmd[cmd.index("--state") + 1] == "all"
+        assert cmd[cmd.index("--search") + 1] == "get_pull_requests"
+
+    def test_search_with_state_closed_forwards_state(self):
+        cmd = self._search_cmd(["--search", "x", "--state", "closed"])
+        assert cmd[cmd.index("--state") + 1] == "closed"
+
+    def test_state_flag_appears_once_under_search(self):
+        cmd = self._search_cmd(["--search", "x", "--state", "all"])
+        assert cmd.count("--state") == 1
+
     def test_search_filter_ignores_other_flags(self, capsys):
         issues = [_issue(5, "Fix auth bug")]
         with (
@@ -275,9 +303,9 @@ class TestMain:
         assert "fix auth" in cmd
         assert "--label" not in cmd
         assert "--author" not in cmd
-        # --state is implicit-default 'open' here but must not be forwarded
-        # when --search is set, since gh would ignore it anyway.
-        assert "--state" not in cmd
+        # --state is forwarded under --search (issue #6670); omitting it
+        # makes gh fall back to its open-only default.
+        assert cmd[cmd.index("--state") + 1] == "open"
         output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert len(output) == 1
 
