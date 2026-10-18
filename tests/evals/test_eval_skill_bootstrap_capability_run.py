@@ -349,6 +349,32 @@ def test_run_one_timeout_survives_killpg_oserror(monkeypatch, tmp_path):
     assert child.was_killed() is True
 
 
+def test_run_one_timeout_without_killpg_still_kills_the_child(monkeypatch, tmp_path):
+    child, _ = _patch_run(monkeypatch, subprocess.TimeoutExpired("claude", 1))
+    monkeypatch.delattr(cap.os, "killpg")
+
+    record = cap.run_one(tmp_path, "p", "m")
+
+    assert record["error_kind"] == "timeout"
+    assert child.was_killed() is True
+
+
+def test_run_one_timeout_does_not_hang_on_a_stuck_reap(monkeypatch, tmp_path):
+    child, _ = _patch_run(monkeypatch, subprocess.TimeoutExpired("claude", 1))
+    reaps: list[object] = []
+
+    def stuck(timeout=None):
+        reaps.append(timeout)
+        raise subprocess.TimeoutExpired("claude", timeout or 0)
+
+    monkeypatch.setattr(child, "communicate", stuck)
+
+    record = cap.run_one(tmp_path, "p", "m")
+
+    assert record["error_kind"] == "timeout"
+    assert reaps[-1] == cap.GIT_TIMEOUT_S
+
+
 # --- extraction, deny rules, empty tasks, score paths -------------------------
 
 
@@ -380,6 +406,15 @@ def test_eval_in_repo_flag_is_denied(monkeypatch, tmp_path):
     assert cap.DENY_EVAL_IN_REPO in denied
     assert "*--allow-in-repo*" in cap.DENY_EVAL_IN_REPO
     assert "bootstrap_eval.py" in cap.DENY_EVAL_IN_REPO
+
+
+def test_duplicate_task_id_exits_2(tmp_path, checkout, monkeypatch):
+    _head(monkeypatch, "h")
+    data = {**TASKS, "tasks": [TASKS["tasks"][0], TASKS["tasks"][0]]}
+
+    code = _run([], _write_tasks(tmp_path, data), checkout, tmp_path / "o.jsonl", "before")
+
+    assert code == 2
 
 
 def test_empty_tasks_list_exits_2(tmp_path, checkout, monkeypatch):

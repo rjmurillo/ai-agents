@@ -44,12 +44,13 @@ DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
 GIT_TIMEOUT_S = 30
 STDERR_TAIL_CHARS = 2000
-# Deny rule: bootstrap_drift.py runs repository-authored argv lists with
-# --allow-commands, so the eval agent must never pass it. The generic grant
-# below would otherwise accept it as a trailing flag.
-DENY_DRIFT_COMMANDS = (
-    "Bash(python3 .claude/skills/skill-bootstrap/scripts/bootstrap_drift.py *--allow-commands*)"
-)
+# Deny rules: drift --allow-commands runs repository-authored argv, and eval
+# --allow-in-repo writes inside the checkout; the prefix grants below would accept
+# both as trailing flags. Probed on Claude Code 2.1.302 (2026-10-17): with the drift
+# rule the call is refused; without it, it runs.
+_SCRIPT_DIR = "python3 .claude/skills/skill-bootstrap/scripts"
+DENY_DRIFT_COMMANDS = f"Bash({_SCRIPT_DIR}/bootstrap_drift.py *--allow-commands*)"
+DENY_EVAL_IN_REPO = f"Bash({_SCRIPT_DIR}/bootstrap_eval.py *--allow-in-repo*)"
 # Narrow grant, not a sandbox. Print mode denies any tool outside this list, so
 # Edit, Write, and unlisted shell commands are refused (an unlisted `touch` was).
 # A prefix grant still accepts extra flags: `git log --output=<file>` writes a file,
@@ -62,10 +63,6 @@ _SKILL_SCRIPTS = (
     "bootstrap_drift",
     "bootstrap_boundary",
 )
-# Deny rule: bootstrap_eval.py freeze writes inside the repository with --allow-in-repo.
-DENY_EVAL_IN_REPO = (
-    "Bash(python3 .claude/skills/skill-bootstrap/scripts/bootstrap_eval.py *--allow-in-repo*)"
-)
 READ_ONLY_TOOLS = (
     "Read",
     "Grep",
@@ -76,10 +73,7 @@ READ_ONLY_TOOLS = (
     "Bash(git rev-parse:*)",
     "Bash(git rev-list:*)",
     "Bash(git diff-tree:*)",
-    *(
-        f"Bash(python3 .claude/skills/skill-bootstrap/scripts/{name}.py:*)"
-        for name in _SKILL_SCRIPTS
-    ),
+    *(f"Bash({_SCRIPT_DIR}/{name}.py:*)" for name in _SKILL_SCRIPTS),
 )
 CONDITIONS = ("before", "after")
 # Each fenced block ends at the next fence without consuming it, so an unterminated
@@ -95,6 +89,7 @@ def load_tasks(path: Path) -> dict[str, Any]:
         raise ValueError(f"{path}: 'preamble' must be a non-empty string")
     if not isinstance(data.get("tasks"), list) or not data["tasks"]:
         raise ValueError(f"{path}: 'tasks' must be a non-empty list")
+    seen: set[str] = set()
     for task in data["tasks"]:
         if not isinstance(task, dict):
             raise ValueError(f"{path}: every task must be an object")
@@ -103,6 +98,9 @@ def load_tasks(path: Path) -> dict[str, Any]:
                 raise ValueError(f"{path}: task missing '{key}'")
         if not task["gold"]:
             raise ValueError(f"{path}: task {task['id']!r} has an empty gold")
+        if task["id"] in seen:
+            raise ValueError(f"{path}: duplicate task id {task['id']!r}")
+        seen.add(task["id"])
     return data
 
 
@@ -195,12 +193,16 @@ def _failure_record(
 
 def _kill_group(child: subprocess.Popen[str]) -> None:
     """Kill the child's whole process group, then reap the child."""
-    try:
-        os.killpg(child.pid, signal.SIGKILL)
-    except OSError:
-        pass  # group already gone
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except OSError:
+            pass  # group already gone
     child.kill()
-    child.communicate()
+    try:
+        child.communicate(timeout=GIT_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        pass  # a process outside the group still holds the pipes; leave it
 
 
 def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
