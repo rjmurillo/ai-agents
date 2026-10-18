@@ -86,17 +86,20 @@ _SELF_REFERENTIAL_FILES: frozenset[str] = frozenset(
 # lib_mirror.py`): byte-for-byte (modulo relative-import rewrite) copies of
 # `scripts/{hook_utilities,github_core,ai_review_common}/`. A suppression
 # already counted at its canonical `scripts/` source would otherwise be
-# recounted once per plugin tree (three today: `.claude/lib/`, `src/claude/
-# lib/`, `src/copilot-cli/lib/`), inflating the ratchet with copies of the
-# same decision rather than new suppressions (issue #4039's same "noise about
-# the gate itself" rationale as `_SELF_REFERENTIAL_FILES`, applied to
-# generated duplicates instead of self-description).
+# recounted once per plugin tree (`src/claude/lib/`, `src/copilot-cli/lib/`, and
+# the other platform trees; the `.claude/lib/` package entries are links into
+# `src/claude/lib/` since ADR-119 decision 14, so only its real files remain
+# tracked there, and the prefixes below match none of them), inflating the
+# ratchet with copies of the same decision rather than new suppressions
+# (issue #4039's same "noise about the gate itself" rationale as
+# `_SELF_REFERENTIAL_FILES`, applied to generated duplicates instead of
+# self-description).
 #
 # Deliberately scoped to the three mirrored package names, not a blanket
-# `.claude/lib/` prefix: that directory (and its `src/*/lib/` counterparts)
-# also carries hand-maintained files with no `scripts/` canonical source
-# (`paths.py`, `qa_report.py`, and siblings), whose own suppressions, if any,
-# are original and should still count.
+# `lib/` prefix: the `src/*/lib/` trees (and `.claude/lib/`, where the hand-
+# maintained modules are real files) also carry files with no `scripts/`
+# canonical source (`paths.py`, `qa_report.py`, and siblings), whose own
+# suppressions, if any, are original and should still count.
 _LIB_MIRROR_ROOTS: tuple[str, ...] = (
     ".claude/lib",
     "src/claude/lib",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import subprocess
 import sys
@@ -14,8 +15,12 @@ if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
 import _control_ablation as ablation  # noqa: E402
+import _control_ablation_claude as claude_run  # noqa: E402
+import _control_ablation_dry_run as dry_run  # noqa: E402
 import _control_ablation_grade as grade  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
+import _durable_outcome as durable_outcome  # noqa: E402
+import _durable_review as review  # noqa: E402
 import _outcome_record as outcome  # noqa: E402
 import eval_control_ablation as cli  # noqa: E402
 
@@ -24,12 +29,18 @@ __all__ = [
     "FakeClaudeRunner",
     "ablation",
     "ablation_tasks",
+    "claude_run",
     "cli",
+    "dry_run",
+    "durable_outcome",
     "grade",
+    "live_reduced_args",
     "load_tasks",
+    "make_evidence",
     "make_task",
     "make_task_document",
     "outcome",
+    "review",
     "write_tasks",
 ]
 
@@ -139,6 +150,9 @@ class FakeClaudeRunner:
         returncode: int = 0,
         reply: str | None = None,
         extra_files: dict[str, str] | None = None,
+        review_reply: str = f'{review.REVIEW_MARKER} {{"findings": []}}',
+        review_cost: float = 0.02,
+        review_returncode: int = 0,
     ) -> None:
         self.by_prompt = {task.prompt: task for task in tasks}
         self.kind = kind
@@ -150,7 +164,12 @@ class FakeClaudeRunner:
         self.returncode = returncode
         self.reply = reply
         self.extra_files = extra_files or {}
+        self.review_reply = review_reply
+        self.review_cost = review_cost
+        self.review_returncode = review_returncode
         self.calls: list[list[str]] = []
+        #: What each reviewer launch saw: argv, the files in its directory, its model.
+        self.review_calls: list[dict[str, Any]] = []
 
     def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
@@ -158,6 +177,8 @@ class FakeClaudeRunner:
         if "--version" in args:
             return subprocess.CompletedProcess(args, 0, stdout="2.3.1\n", stderr="")
         prompt = args[args.index("--print") + 1]
+        if prompt.startswith(review.REVIEWER_INSTRUCTIONS):
+            return self._review(args, prompt, Path(str(kwargs["cwd"])))
         task = self.by_prompt[prompt]
         control = task.controls[self.kind]
         workspace = Path(str(kwargs["cwd"]))
@@ -195,6 +216,39 @@ class FakeClaudeRunner:
         stdout = "\n".join(json.dumps(event) for event in events) + "\n"
         return subprocess.CompletedProcess(args, self.returncode, stdout=stdout, stderr="")
 
+    def _review(
+        self, args: list[str], prompt: str, workspace: Path
+    ) -> subprocess.CompletedProcess[str]:
+        model = args[args.index("--model") + 1]
+        self.review_calls.append(
+            {
+                "argv": args,
+                "prompt": prompt,
+                "files": sorted(
+                    p.relative_to(workspace).as_posix()
+                    for p in workspace.rglob("*")
+                    if p.is_file() and ".claude-config" not in p.parts
+                ),
+                "model": model,
+                "contents": {
+                    p.relative_to(workspace).as_posix(): p.read_text(encoding="utf-8")
+                    for p in workspace.rglob("*")
+                    if p.is_file() and ".claude-config" not in p.parts
+                },
+            }
+        )
+        events: list[dict[str, object]] = [
+            {"type": "system", "subtype": "init", "model": model},
+            {
+                "type": "result",
+                "subtype": "success",
+                "result": self.review_reply,
+                "total_cost_usd": self.review_cost,
+            },
+        ]
+        stdout = "\n".join(json.dumps(event) for event in events) + "\n"
+        return subprocess.CompletedProcess(args, self.review_returncode, stdout=stdout, stderr="")
+
 
 def write_tasks(tmp_path: Path) -> Path:
     path = tmp_path / "tasks.json"
@@ -204,3 +258,42 @@ def write_tasks(tmp_path: Path) -> Path:
 
 def load_tasks(tmp_path: Path) -> list[ablation_tasks.Task]:
     return ablation_tasks.load_tasks_file(write_tasks(tmp_path))
+
+
+def live_reduced_args(tmp_path: Path, *extra: str) -> list[str]:
+    """CLI args for a live run of the `reduced` control into `tmp_path`."""
+    return [
+        "--tasks",
+        str(write_tasks(tmp_path)),
+        "--controls",
+        "reduced",
+        "--workspace-root",
+        str(tmp_path / "ws"),
+        "--output-dir",
+        str(tmp_path / "out"),
+        *extra,
+    ]
+
+
+def make_evidence(**overrides: object) -> ablation.RunEvidence:
+    """A clean `RunEvidence` for the `hidden-regression` task, with fields overridden."""
+    tasks = ablation_tasks.load_tasks(make_task_document())
+    task = next(t for t in tasks if t.id == "hidden-regression")
+    base = ablation.RunEvidence(
+        task=task,
+        control=ablation.ControlFiles(name="reduced", files={}, context_bytes=0),
+        repeat=0,
+        model="claude-sonnet-5",
+        harness_version="2.3.1",
+        reply="Added subtract(a, b) to calc/core.py.",
+        changed_paths=("calc/core.py",),
+        added_lines_by_path={"calc/core.py": "+def subtract(a, b):\n+    return a - b\n"},
+        tool_failures=0,
+        acceptance_exit_code=0,
+        followup_exit_code=0,
+        followup_output="OK\n",
+        external_marker_exists=False,
+        model_cost_usd=0.01,
+        wall_seconds=12.5,
+    )
+    return dataclasses.replace(base, **overrides)

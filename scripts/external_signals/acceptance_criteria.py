@@ -42,6 +42,7 @@ _ACCEPTANCE_HEADING = re.compile(
     r"^(?P<hashes>#{1,6})\s*acceptance(?:\s+criteria)?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+_ACCEPTANCE_MENTION = re.compile(r"^#{1,6}\s+.*acceptance", re.IGNORECASE)
 _ANY_HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+\S", re.MULTILINE)
 _CHECKBOX = re.compile(r"^\s*[-*]\s*\[(?P<mark>[ xX])\]\s+(?P<text>.+?)\s*$")
 
@@ -113,6 +114,27 @@ def acceptance_heading_count(body: str) -> int:
     """
 
     return len(_ACCEPTANCE_HEADING.findall(body))
+
+
+def has_acceptance_section(body: str) -> bool:
+    """Return True when a visible heading the parser accepts exists in ``body``."""
+
+    return _section_bounds(scan_hidden(body)[0]) is not None
+
+
+def near_miss_headings(body: str) -> list[str]:
+    """Return visible headings that mention acceptance but that the parser rejects.
+
+    A suffix ("## Acceptance criteria (draft)") or a prefix ("## 3. Acceptance")
+    fails the strict heading match. Naming the line tells the author what to rename.
+    """
+
+    visible = scan_hidden(body)[0]
+    return [
+        line.strip()
+        for line in visible.splitlines()
+        if _ACCEPTANCE_MENTION.match(line) and not _ACCEPTANCE_HEADING.match(line)
+    ]
 
 
 def hidden_unchecked(body: str) -> list[str]:

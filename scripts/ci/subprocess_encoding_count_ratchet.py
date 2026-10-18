@@ -103,6 +103,22 @@ without registering the baseline fails.
 """
 
 
+def _is_tracked_file_link(repo_root: Path, rel: str, tracked: frozenset[str]) -> bool:
+    """Return whether ``rel`` is a link whose target is tracked and counted on its own.
+
+    A link to an untracked or out-of-tree target is not skipped: the scan then
+    fails loud on it instead of dropping it from the count.
+    """
+    path = repo_root / rel
+    if not path.is_symlink():
+        return False
+    try:
+        target = path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return False
+    return target in tracked
+
+
 def current_count(repo_root: Path) -> int | None:
     """Total subprocess encoding violations, or None if the checker failed."""
     py_files = tracked_files(repo_root, ("*.py", "**/*.py"))
@@ -110,13 +126,16 @@ def current_count(repo_root: Path) -> int | None:
         return None
 
     tracked_set = frozenset(py_files)
-    # Filter out fixture exemptions, non-existent files, and skill mirrors
-    # whose canonical src/claude/skills/ source is also tracked.
+    # Filter out fixture exemptions, non-existent files, file links (the
+    # .claude/lib/bootstrap.py and paths.py links of ADR-119 decision 14 name
+    # a tracked target counted on its own), and skill mirrors whose canonical
+    # src/claude/skills/ source is also tracked.
     py_files = [
         f
         for f in py_files
         if not f.startswith(_FIXTURE_PREFIX)
         and (repo_root / f).is_file()
+        and not _is_tracked_file_link(repo_root, f, tracked_set)
         and _skill_mirror_canonical_source(f) not in tracked_set
         and not is_verbatim_hermes_mirror(repo_root, f, tracked_set)
     ]

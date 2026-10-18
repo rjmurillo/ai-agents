@@ -123,7 +123,7 @@ rows:
   - class: lib-hook_utilities
     source: scripts/hook_utilities
     plugin_tree: src/claude/lib/hook_utilities
-    install_tree: .claude/lib/hook_utilities
+    install_tree: null
     compile: lib_mirror
   - class: lib-hook_utilities-copilot
     source: scripts/hook_utilities
@@ -143,7 +143,7 @@ rows:
   - class: lib-github_core
     source: scripts/github_core
     plugin_tree: src/claude/lib/github_core
-    install_tree: .claude/lib/github_core
+    install_tree: null
     compile: lib_mirror
   - class: lib-github_core-copilot
     source: scripts/github_core
@@ -163,7 +163,7 @@ rows:
   - class: lib-ai_review_common
     source: scripts/ai_review_common
     plugin_tree: src/claude/lib/ai_review_common
-    install_tree: .claude/lib/ai_review_common
+    install_tree: null
     compile: lib_mirror
   - class: lib-ai_review_common-copilot
     source: scripts/ai_review_common
@@ -189,7 +189,7 @@ rows:
   - class: lib-bootstrap
     source: scripts/hook_utilities/bootstrap.py
     plugin_tree: src/claude/lib/bootstrap.py
-    install_tree: .claude/lib/bootstrap.py
+    install_tree: null
     compile: lib_mirror
   - class: lib-bootstrap-copilot
     source: scripts/hook_utilities/bootstrap.py
@@ -209,11 +209,23 @@ rows:
   - class: lib-paths
     # ADR-119: the portability helper skill scripts import from their
     # plugin's lib/. It is hand-maintained here, in the plugin tree, so the
-    # shipped plugin carries it; binplace copies it onto .claude/lib/ for
-    # the hooks and scripts that load it from the install tree.
+    # shipped plugin carries it; the `lib` row below links it into
+    # .claude/lib/ for the hooks and scripts that load it from there.
     source: src/claude/lib/paths.py
     plugin_tree: src/claude/lib/paths.py
-    install_tree: .claude/lib/paths.py
+    install_tree: null
+  - class: lib
+    # ADR-119 decision 14: each top-level entry of src/claude/lib (the three
+    # packages, bootstrap.py, paths.py) is a relative link under .claude/lib/,
+    # so the hooks and verifiers that import .claude/lib read the shipped
+    # copy itself. The lib-* rows above only compile into the plugin trees:
+    # their install_tree is null, so binplace skips them.
+    # The hand-maintained siblings (claude_hook_dispatch.py and the rest, see
+    # binplace_manifest.REPO_LOCAL_LIB_NAMES) stay real files here.
+    source: src/claude/lib
+    plugin_tree: src/claude/lib
+    install_tree: .claude/lib
+    link: true
   - class: skills-sidecar
     # install_tree is null: .claude/skills/review links to the plugin
     # directory (skills row), so the rendered file is already installed.

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, run, score, and the base-commit check share one task schema.
 """Capability eval for skill-bootstrap: before/after on real repository tasks.
 
 Runs each frozen task in `evals/skill-bootstrap-capability/fixtures/tasks.json` through
@@ -14,6 +15,9 @@ Usage:
         --checkout <worktree> --condition before --reps 3 --out before.jsonl
     python3 scripts/eval/eval_skill_bootstrap_capability.py score \\
         --runs before.jsonl after.jsonl --out report.json
+
+`run` compares the checkout HEAD with the tasks file `base_commit`, where the gold
+was derived, and warns on stderr when they differ.
 
 Exit codes:
     0 ok
@@ -44,6 +48,8 @@ DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
 GIT_TIMEOUT_S = 30
 STDERR_TAIL_CHARS = 2000
+GRADER_KINDS = ("pairs_f1", "set_f1_prefix", "set_f1")
+BASE_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 # Deny flags the prefix grants accept: --allow-commands runs repo argv; the rest write
 # files. Claude Code 2.1.302 probe (2026-10-17): drift rule refuses; without it, runs.
 _SCRIPT_DIR = "python3 .claude/skills/skill-bootstrap/scripts"
@@ -80,6 +86,24 @@ CONDITIONS = ("before", "after")
 JSON_BLOCK = re.compile(r"```json[ \t]*\r?\n(.*?)(?=```)", re.DOTALL | re.IGNORECASE)
 
 
+def _check_task(path: Path, task: object, seen: set[str]) -> None:
+    if not isinstance(task, dict):
+        raise ValueError(f"{path}: every task must be an object")
+    for key in ("id", "prompt", "grader", "gold", "answer_key"):
+        if key not in task:
+            raise ValueError(f"{path}: task missing '{key}'")
+    if task["grader"] not in GRADER_KINDS:
+        raise ValueError(
+            f"{path}: task {task['id']!r} has unknown grader {task['grader']!r}; "
+            f"expected one of {', '.join(GRADER_KINDS)}"
+        )
+    if not task["gold"]:
+        raise ValueError(f"{path}: task {task['id']!r} has an empty gold")
+    if task["id"] in seen:
+        raise ValueError(f"{path}: duplicate task id {task['id']!r}")
+    seen.add(task["id"])
+
+
 def load_tasks(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -88,18 +112,12 @@ def load_tasks(path: Path) -> dict[str, Any]:
         raise ValueError(f"{path}: 'preamble' must be a non-empty string")
     if not isinstance(data.get("tasks"), list) or not data["tasks"]:
         raise ValueError(f"{path}: 'tasks' must be a non-empty list")
+    base = data.get("base_commit")
+    if base is not None and not (isinstance(base, str) and BASE_COMMIT_RE.fullmatch(base)):
+        raise ValueError(f"{path}: 'base_commit' must be a 40-character lowercase hex SHA")
     seen: set[str] = set()
     for task in data["tasks"]:
-        if not isinstance(task, dict):
-            raise ValueError(f"{path}: every task must be an object")
-        for key in ("id", "prompt", "grader", "gold", "answer_key"):
-            if key not in task:
-                raise ValueError(f"{path}: task missing '{key}'")
-        if not task["gold"]:
-            raise ValueError(f"{path}: task {task['id']!r} has an empty gold")
-        if task["id"] in seen:
-            raise ValueError(f"{path}: duplicate task id {task['id']!r}")
-        seen.add(task["id"])
+        _check_task(path, task, seen)
     return data
 
 
@@ -108,7 +126,7 @@ def extract_answer(text: str) -> dict[str, Any] | None:
     for raw in reversed(JSON_BLOCK.findall(text or "")):
         try:
             value = json.loads(raw)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):  # JSONDecodeError is a ValueError
             continue
         if isinstance(value, dict):
             return value
@@ -151,7 +169,7 @@ def grade(task: dict[str, Any], answer: dict[str, Any] | None) -> dict[str, floa
         return _f1(predicted, gold)
     if kind == "set_f1_prefix":
         predicted = {str(v).strip().lower()[:9] for v in values if len(str(v).strip()) >= 7}
-        gold = {g[:9] for g in task["gold"]}
+        gold = {str(g).strip().lower()[:9] for g in task["gold"]}
 
         def hits(a: str, b: str) -> bool:
             return a.startswith(b) or b.startswith(a)
@@ -233,6 +251,7 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        stdin=subprocess.DEVNULL,
         start_new_session=True,
     )
     try:
@@ -264,23 +283,63 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
     return record
 
 
-def _checkout_head(checkout: Path) -> str | None:
-    """Return `git rev-parse HEAD` for the checkout, or None on any failure."""
+class HeadError(Exception):
+    """git could not report the checkout's HEAD."""
+
+
+def _git_in(checkout: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=GIT_TIMEOUT_S,
+        check=False,
+    )
+
+
+def _checkout_head(checkout: Path) -> str:
+    """Return `git rev-parse HEAD` for the checkout, or raise HeadError with the cause."""
     try:
-        proc = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=checkout,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT_S,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+        proc = _git_in(checkout, "rev-parse", "HEAD")
+    except subprocess.TimeoutExpired as exc:
+        raise HeadError(f"git rev-parse HEAD timed out after {GIT_TIMEOUT_S} s") from exc
+    except OSError as exc:
+        raise HeadError(f"git could not run: {exc}") from exc
     head = proc.stdout.strip()
-    return head if proc.returncode == 0 and head else None
+    if proc.returncode != 0 or not head:
+        detail = proc.stderr.strip() or f"exit {proc.returncode}, empty output"
+        raise HeadError(f"git rev-parse HEAD failed: {detail}")
+    return head
+
+
+def _base_commit_warning(checkout: Path, head: str, base: str | None) -> str | None:
+    """Return a warning when the gold's base commit is not the checkout's HEAD, else None.
+
+    The gold was derived at `base_commit`. A checkout that has moved on may have fixed
+    or added the references the gold names, and then it scores against the wrong gold.
+    """
+    if base is None:
+        return "tasks file has no 'base_commit'; cannot tell whether the gold matches this checkout"
+    if head == base:
+        return None
+    try:
+        proc = _git_in(checkout, "merge-base", "--is-ancestor", base, head)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"could not compare HEAD {head[:9]} with base_commit {base[:9]}: {exc}"
+    if proc.returncode == 0:
+        relation = "is ahead of"
+    elif proc.returncode == 1:
+        relation = "does not descend from"
+    else:
+        detail = proc.stderr.strip() or f"exit {proc.returncode}"
+        return f"could not compare HEAD {head[:9]} with base_commit {base[:9]}: {detail}"
+    return (
+        f"checkout HEAD {head[:9]} {relation} base_commit {base[:9]}; the gold was derived at"
+        " base_commit, so edits since may make it stale"
+    )
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -300,10 +359,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
         return 2
     selected = [t for t in data["tasks"] if not args.task or t["id"] in args.task]
-    head = _checkout_head(checkout)
-    if head is None:
-        print(f"ERROR: cannot read git HEAD of {checkout}", file=sys.stderr)
+    try:
+        head = _checkout_head(checkout)
+    except HeadError as exc:
+        print(f"ERROR: cannot read git HEAD of {checkout}: {exc}", file=sys.stderr)
         return 3
+    if warning := _base_commit_warning(checkout, head, data.get("base_commit")):
+        print(f"warning: {warning}", file=sys.stderr)
     with Path(args.out).open("a", encoding="utf-8") as out:
         for rep in range(args.reps):
             for task in selected:

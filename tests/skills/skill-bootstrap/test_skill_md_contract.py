@@ -97,11 +97,20 @@ def test_context_optimizer_stage_precedes_skillopt_in_process() -> None:
     assert title.index("context-optimizer") < title.index("skillopt")
 
 
-def test_skill_md_documents_exit_two_and_exit_three() -> None:
+def test_skill_md_documents_exit_codes_in_a_table_with_one_row_per_script() -> None:
     text = _skill_md()
-    assert "Exit code 2" in text
-    assert "Exit code 3" in text
-    assert "Exit code 1" in text
+    assert "Exit code 0 means success and exit code 1 means findings" in text
+    header = "| Script | Exit 2: configuration | Exit 3: external |"
+    assert header in text
+    rows = text.split(header, 1)[1].split("\n\n", 1)[0].splitlines()[2:]
+    named = {row.split("|")[1].strip().strip("`") for row in rows}
+    assert named == {
+        "bootstrap_mine.py",
+        "bootstrap_forms.py",
+        "bootstrap_eval.py",
+        "bootstrap_drift.py",
+        "bootstrap_boundary.py",
+    }
 
 
 def test_documented_plan_help_runs_from_unrelated_directory(tmp_path: Path) -> None:
