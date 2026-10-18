@@ -1730,12 +1730,36 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     return round(treatment_avg - control_avg, 2)
 
 
-def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
-    """Mean output tokens, treatment minus control, or None when either is unmeasured.
+def _size_covers_pool(cell: dict[str, Any], count_key: str) -> bool:
+    """Whether a size mean (tokens or chars) covers every scenario in the pool.
 
-    A negative value means the rule shortened the response. Archived summaries
-    predate the field, so a missing key reads as unmeasured, not as zero.
+    Same rule as `_fully_graded`, applied to the size fields. Archived
+    summaries predate the count keys, so a missing key reads as not covered.
     """
+    count = cell.get(count_key)
+    return (
+        isinstance(count, int)
+        and not isinstance(count, bool)
+        and count > 0
+        and count == cell.get("scenario_count")
+    )
+
+
+def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """Mean output tokens, treatment minus control, or None unless both sides cover the pool.
+
+    A negative value means the rule shortened the response. Subtracting a mean
+    over 1 scenario from a mean over 2 describes neither: with baseline
+    reporting 500 and 50 tokens and full reporting 50 and none, the published
+    delta was -225.0 while the only scenario both measured differed by -450.
+    Both sides must have reported on every scenario in their pool, the same
+    rule `_delta` applies to scores. Archived summaries predate the field, so
+    a missing key reads as unmeasured, not as zero.
+    """
+    if not _size_covers_pool(treatment, "output_token_count") or not _size_covers_pool(
+        control, "output_token_count"
+    ):
+        return None
     treated = treatment.get("mean_output_tokens")
     base = control.get("mean_output_tokens")
     if treated is None or base is None:
@@ -1965,17 +1989,27 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         ),
         f"Restraint on negative cases: {restraint}",
     ]
+    base_cell = summary["per_mechanism"]["baseline"]
+    full_cell = summary["per_mechanism"]["full"]
     token_delta = summary.get("output_tokens_delta_full_vs_baseline")
     if token_delta is not None:
-        base_tokens = summary["per_mechanism"]["baseline"]["mean_output_tokens"]
-        full_tokens = summary["per_mechanism"]["full"]["mean_output_tokens"]
         rows.append(
-            f"Mean output tokens: baseline {base_tokens}, full {full_tokens} ({token_delta:+})"
+            f"Mean output tokens: baseline {base_cell['mean_output_tokens']} "
+            f"(n={base_cell['output_token_count']}), "
+            f"full {full_cell['mean_output_tokens']} "
+            f"(n={full_cell['output_token_count']}) ({token_delta:+})"
         )
-    base_chars = summary["per_mechanism"]["baseline"].get("mean_response_chars")
-    full_chars = summary["per_mechanism"]["full"].get("mean_response_chars")
-    if base_chars is not None and full_chars is not None:
-        rows.append(f"Mean response chars: baseline {base_chars}, full {full_chars}")
+    # Printed only when both arms recorded every scenario, so the two means
+    # describe the same cells.
+    if _size_covers_pool(base_cell, "response_chars_count") and _size_covers_pool(
+        full_cell, "response_chars_count"
+    ):
+        rows.append(
+            f"Mean response chars: baseline {base_cell['mean_response_chars']} "
+            f"(n={base_cell['response_chars_count']}), "
+            f"full {full_cell['mean_response_chars']} "
+            f"(n={full_cell['response_chars_count']})"
+        )
     rows += _render_caveats(summary)
     rows += [
         "",

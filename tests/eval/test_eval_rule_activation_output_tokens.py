@@ -147,32 +147,67 @@ class TestResponseChars:
         scenario["mechanisms"]["baseline"]["response_chars"] = 300
         scenario["mechanisms"]["full"]["response_chars"] = 120
         text = eval_mod.render_table("voice", eval_mod.aggregate([scenario]))
-        assert "Mean response chars: baseline 300.0, full 120.0" in text
+        assert "Mean response chars: baseline 300.0 (n=1), full 120.0 (n=1)" in text
         assert "Mean output tokens" not in text
+
+    def test_render_table_omits_chars_when_arms_cover_different_cells(self):
+        first = _make_scenario(2, 3, 4)
+        second = _make_scenario(2, 3, 4)
+        first["mechanisms"]["baseline"]["response_chars"] = 500
+        second["mechanisms"]["baseline"]["response_chars"] = 50
+        first["mechanisms"]["full"]["response_chars"] = 50
+        text = eval_mod.render_table("voice", eval_mod.aggregate([first, second]))
+        assert "Mean response chars" not in text
+
+
+def _cell(mean: Any = None, count: Any = None, scenarios: int = 2) -> dict[str, Any]:
+    return {"mean_output_tokens": mean, "output_token_count": count, "scenario_count": scenarios}
 
 
 class TestOutputTokenDelta:
     def test_negative_when_the_rule_shortens_responses(self):
-        full = {"mean_output_tokens": 60.0}
-        base = {"mean_output_tokens": 140.5}
-        assert eval_mod._output_token_delta(full, base) == -80.5
+        assert eval_mod._output_token_delta(_cell(60.0, 2), _cell(140.5, 2)) == -80.5
 
     def test_positive_when_the_rule_lengthens_responses(self):
-        assert (
-            eval_mod._output_token_delta({"mean_output_tokens": 9}, {"mean_output_tokens": 4}) == 5
-        )
+        assert eval_mod._output_token_delta(_cell(9, 2), _cell(4, 2)) == 5
 
     @pytest.mark.parametrize(
         "treated, base",
         [
-            ({"mean_output_tokens": None}, {"mean_output_tokens": 10}),
-            ({"mean_output_tokens": 10}, {"mean_output_tokens": None}),
-            ({}, {"mean_output_tokens": 10}),
-            ({"mean_output_tokens": 10}, {}),
+            (_cell(None, 0), _cell(10, 2)),
+            (_cell(10, 2), _cell(None, 0)),
+            ({}, _cell(10, 2)),
+            (_cell(10, 2), {}),
+            ({"mean_output_tokens": 10}, {"mean_output_tokens": 4}),
         ],
     )
     def test_unmeasured_side_gives_none_not_zero(self, treated, base):
         assert eval_mod._output_token_delta(treated, base) is None
+
+    @pytest.mark.parametrize(
+        "treated, base",
+        [
+            (_cell(50.0, 1), _cell(275.0, 2)),
+            (_cell(50.0, 2), _cell(275.0, 1)),
+            (_cell(50.0, 1), _cell(500.0, 1)),
+        ],
+    )
+    def test_unequal_coverage_gives_none_not_a_mixed_delta(self, treated, base):
+        """Baseline 500 and 50 against full 50 and none published -225.0 over unlike cells."""
+        assert eval_mod._output_token_delta(treated, base) is None
+
+    @pytest.mark.parametrize("count", [True, 2.0, "2", 0])
+    def test_non_integer_or_zero_counts_are_not_coverage(self, count):
+        assert eval_mod._output_token_delta(_cell(5, count), _cell(9, 2)) is None
+
+    def test_aggregate_with_partial_coverage_publishes_none(self):
+        scenarios = [
+            _with_tokens(_make_scenario(2, 3, 4), baseline=500, full=50),
+            _with_tokens(_make_scenario(2, 3, 4), baseline=50),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["output_tokens_delta_full_vs_baseline"] is None
+        assert "Mean output tokens" not in eval_mod.render_table("voice", summary)
 
     def test_aggregate_publishes_the_delta(self):
         scenarios = [
@@ -189,8 +224,9 @@ class TestOutputTokenDelta:
     def test_render_table_prints_the_line_only_when_measured(self):
         measured = eval_mod.aggregate([_with_tokens(_make_scenario(2, 3, 4), 120, 70)])
         unmeasured = eval_mod.aggregate([_make_scenario(2, 3, 4)])
-        assert "Mean output tokens: baseline 120.0, full 70.0 (-50.0)" in eval_mod.render_table(
-            "voice", measured
+        assert (
+            "Mean output tokens: baseline 120.0 (n=1), full 70.0 (n=1) (-50.0)"
+            in eval_mod.render_table("voice", measured)
         )
         assert "Mean output tokens" not in eval_mod.render_table("voice", unmeasured)
 
