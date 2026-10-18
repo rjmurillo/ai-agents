@@ -67,10 +67,11 @@ gains are its claims; this skill does not reproduce them.
    the live install path before any candidate runs. A file in an eval
    workspace is not deployed behavior.
 4. **Two isolated runners.** The candidate author and the `sel` runner must
-   be separate: a fresh subagent or another session. If the harness cannot
-   provide both, do not run skillopt. Report that the gate cannot be
-   independent. Replacement holdouts written by the same agent are still
-   exposed.
+   be separate: a fresh subagent or another session. The candidate author
+   must not write, run, or see the `sel` tasks. A fresh subagent or another
+   session owns them. If the harness cannot provide both, do not run
+   skillopt. Report that the gate cannot be independent. Replacement
+   holdouts written by the same agent are still exposed.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author until

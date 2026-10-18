@@ -301,9 +301,22 @@ def test_preconditions_require_two_isolated_runners(root: str) -> None:
     assert "do not run skillopt" in preconditions
     assert "gate cannot be independent" in preconditions
     assert "same agent are still exposed" in preconditions
+    assert "must not write, run, or see the `sel` tasks" in preconditions
 
 
-def test_eval_set_format_says_who_may_write_replacement_holdouts() -> None:
-    refs = _skill_dir(".claude") / "references" / "eval-set-format.md"
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_process_cross_reference_matches_precondition_number(root: str) -> None:
+    text = _skill_md(root)
+    pre_start = text.index("## Preconditions")
+    pre_end = text.index("## Scripts", pre_start)
+    proc_start = text.index("## Process")
+    assert "4. **Two isolated runners.**" in text[pre_start:pre_end]
+    assert "(Precondition 4)" in text[proc_start:]
+
+
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_eval_set_format_says_who_may_write_replacement_holdouts(root: str) -> None:
+    refs = _skill_dir(root) / "references" / "eval-set-format.md"
     text = " ".join(refs.read_text(encoding="utf-8").split())
     assert "Replacement holdouts must come from an author who has not seen the candidate" in text
+    assert "If the candidate author also writes them, they are exposed too" in text
