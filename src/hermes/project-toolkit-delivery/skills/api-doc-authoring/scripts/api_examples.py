@@ -26,11 +26,10 @@ Subcommands (stdlib only, output is one JSON object):
           documented response. Writes an evidence file when asked.
 
 Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
-(unreachable server, remote base URL without an explicit flag, no examples to
-lint, a response over the size cap, a request past its deadline, or a run past its
-deadline). A failed example or lint finding found before the server, size cap, or
-deadline stop is still exit 1, and the evidence file keeps it. Any such stop with
-``--evidence`` writes the file, with verdict UNVERIFIED when nothing had failed.
+(unreachable server, remote base URL without an explicit flag, no examples to lint, a
+response over the size cap, a request past its deadline, or a run past its deadline). A
+failure or lint finding found before such a stop is still exit 1, and the evidence file
+keeps it. A stop with ``--evidence`` writes the file, verdict UNVERIFIED if nothing failed.
 """
 
 from __future__ import annotations
@@ -67,10 +66,10 @@ EXIT_FINDINGS = 1
 EXIT_UNVERIFIABLE = 2
 
 TIMEOUT_SECONDS = 10
-# The socket timeout restarts on every receive, so a server that trickles header or body
-# bytes never trips it. These bound the bytes and the wall clock: 2 MiB is far above a
-# documented JSON reply, and 30 s is three socket timeouts. The run deadline is checked
-# between examples, so a run can end up to one request deadline past RUN_DEADLINE_SECONDS.
+# The socket timeout restarts on every receive, so a trickling server never trips it. These
+# bound bytes and wall clock: 2 MiB is far above a documented JSON reply, 30 s is three
+# socket timeouts. The run deadline is checked between examples, so a run can overshoot it
+# by one request deadline.
 MAX_BODY_BYTES = 2 * 1024 * 1024
 REQUEST_DEADLINE_SECONDS = 30
 RUN_DEADLINE_SECONDS = 300
@@ -121,9 +120,8 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 _OPENER = urllib.request.build_opener(_NoRedirect)
-# An empty ProxyHandler mapping turns off HTTP_PROXY and HTTPS_PROXY. Loopback traffic
-# must reach the local server itself: a proxy would send it to another host, past the
-# loopback check in `check_base_url`.
+# An empty ProxyHandler mapping turns off HTTP_PROXY and HTTPS_PROXY. Loopback traffic must
+# reach the local server itself: a proxy would send it past the loopback check in `check_base_url`.
 _DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
 
 
@@ -394,9 +392,8 @@ def _stopped(
     """Keep the finished results when a run stops early.
 
     A finished FAIL or a lint finding stays exit 1: the doc is stale or malformed whether
-    or not the rest ran. With neither, the run is unverifiable (exit 2). Either way the
-    evidence file records the finished results, the lint findings, and ``detail`` under
-    ``key``. ``message`` is the exit-2 error.
+    or not the rest ran. With neither, the run is unverifiable (exit 2, ``message``). Either
+    way the evidence file records the finished results, the lint findings, and ``detail``.
     """
     report = _report(args, base_url, results, findings)
     failed = report["verdict"] == "FAIL"
@@ -440,8 +437,7 @@ def _request_failed(
 
     ``unrun`` starts with the example that failed. Its request may have reached the server,
     so the report names it under ``example`` and lists only the examples after it as unrun.
-    Earlier results and lint findings are kept, the same way as for a run deadline, so a
-    stale doc still reports FAIL.
+    Earlier results and lint findings are kept, as for a run deadline.
     """
     detail = {"example": unrun[0].id, "error": str(error), "unrun": [e.id for e in unrun[1:]]}
     message = (

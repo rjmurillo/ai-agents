@@ -33,6 +33,19 @@ _UNPARSED = [
 ]
 
 
+def _run(command: list[str]) -> tuple[int, str]:
+    """Run ``command`` and return its exit code and stderr.
+
+    This uses the real ``Popen``: under the gate flag ``subprocess.Popen`` is the guarded one,
+    which refuses a bare ``copilot`` before the shim can run.
+    """
+    with guard._ORIGINAL_POPEN(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8"
+    ) as proc:
+        _, stderr = proc.communicate()
+    return proc.returncode, stderr
+
+
 @pytest.fixture
 def shim(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Install the shim on a copy of PATH and always remove it."""
@@ -49,12 +62,10 @@ def test_shim_is_first_on_path_and_exits_non_zero(shim: Path) -> None:
     assert os.environ["PATH"].split(os.pathsep)[0] == str(shim)
     assert shutil.which("copilot") == str(shim / "copilot")
 
-    result = subprocess.run(
-        ["copilot", "-p", "x"], capture_output=True, encoding="utf-8", check=False
-    )
+    code, stderr = _run(["copilot", "-p", "x"])
 
-    assert result.returncode == 126
-    assert "must not call Copilot" in result.stderr
+    assert code == 126
+    assert "must not call Copilot" in stderr
 
 
 @posix_only
@@ -64,10 +75,10 @@ def test_shim_stops_a_launcher_the_parser_does_not_read(shim: Path, command: lis
         pytest.skip(f"{command[0]} is not installed")
     assert "copilot" not in program_names(command), "the parser reads this form; pick another"
 
-    result = subprocess.run(command, capture_output=True, encoding="utf-8", check=False)
+    _, stderr = _run(command)
 
     # `find -exec ... ;` exits 0 when the command fails, so the shim's message is the proof.
-    assert "must not call Copilot" in result.stderr
+    assert "must not call Copilot" in stderr
 
 
 def test_shim_ships_a_windows_form_that_exits_non_zero(shim: Path) -> None:

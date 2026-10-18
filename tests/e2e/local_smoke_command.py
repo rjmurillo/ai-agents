@@ -365,15 +365,20 @@ def _programs(words: list[str]) -> list[str]:
             launcher = name
             positionals = _LEADING_POSITIONALS.get(name, 0)
             continue
-        if name in _SHELLS:
-            lines = _shell_commands(name, words[index:])
-            if not lines:
-                return [name]
-            return [program for line in lines for program in _command_programs(line)]
-        if launcher in _COMMAND_LINE_LAUNCHERS and " " in word:
-            return program_names(word)
-        return [name]
+        return _program_or_shell(name, word, words[index:], launcher)
     return []
+
+
+def _program_or_shell(name: str, word: str, rest: list[str], launcher: str) -> list[str]:
+    """Return the programs for the word that names the program: a shell's inner ones, or its own."""
+    if name in _SHELLS:
+        lines = _shell_commands(name, rest)
+        if not lines:
+            return [name]
+        return [program for line in lines for program in _command_programs(line)]
+    if launcher in _COMMAND_LINE_LAUNCHERS and " " in word:
+        return program_names(word)
+    return [name]
 
 
 def program_names(args: object) -> list[str]:
