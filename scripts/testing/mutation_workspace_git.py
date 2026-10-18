@@ -307,11 +307,15 @@ def scratch_directory(repo_root: Path) -> Path:
     recursive filesystem walk of the clone would multiply its findings. The
     default is a sibling of the checkout. A checkout nested inside another
     checkout would put that sibling inside the outer clone, so it falls back
-    to ``~/worktrees``.
+    to ``~/worktrees``. The same fallback applies when the sibling does not
+    exist and its parent is not writable, as in a container whose user cannot
+    write the checkout's parent.
     """
     root = repo_root.resolve()
     sibling = root.parent / f"{root.name}{SCRATCH_DIRECTORY_SUFFIX}"
-    if enclosing_checkout(root.parent) is None:
+    if enclosing_checkout(root.parent) is None and (
+        sibling.exists() or os.access(root.parent, os.W_OK)
+    ):
         return sibling
     digest = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:8]
     return Path.home() / "worktrees" / f"{root.name}-{digest}{SCRATCH_DIRECTORY_SUFFIX}"
