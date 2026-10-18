@@ -17,7 +17,7 @@ Usage:
 
 Exit codes:
     0 ok
-    1 logic (a scored condition has no gradable run)
+    1 logic (a CLI error in any cell; means would compare unequal samples)
     2 config (bad tasks file, missing checkout, unreadable runs file,
       or runs that do not cover every task under both before and after)
     3 external (Claude CLI missing, or git HEAD unreadable)
@@ -469,8 +469,8 @@ def cmd_score(args: argparse.Namespace) -> int:
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")
     print(text)
-    empty = any(c["runs"] == c["errors"] for t in summary.values() for c in t.values())
-    return 1 if empty else 0
+    errored = any(c["errors"] > 0 for t in summary.values() for c in t.values())
+    return 1 if errored else 0
 
 
 def main(argv: list[str] | None = None) -> int:

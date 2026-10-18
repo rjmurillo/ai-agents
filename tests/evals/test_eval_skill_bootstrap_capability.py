@@ -152,7 +152,7 @@ def test_score_ignores_error_runs_in_quality_means(tmp_path, tasks_file, capsys)
     code = cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)])
 
     cell = json.loads(capsys.readouterr().out)["S"]["after"]
-    assert code == 0
+    assert code == 1  # any errored run fails: the means would compare unequal samples
     assert cell["f1"] == 1.0
     assert cell["errors"] == 1
 

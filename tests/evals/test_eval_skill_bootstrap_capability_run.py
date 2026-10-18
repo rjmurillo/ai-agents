@@ -483,7 +483,7 @@ def test_score_writes_out_file_and_warns_on_errors(tmp_path, capsys):
     code = cap.main(["score", "--runs", str(runs), "--tasks", str(tasks), "--out", str(out)])
 
     captured = capsys.readouterr()
-    assert code == 0
+    assert code == 1
     assert json.loads(out.read_text(encoding="utf-8"))["A"]["before"]["errors"] == 1
     assert "warning" in captured.err and "A/before" in captured.err
 
