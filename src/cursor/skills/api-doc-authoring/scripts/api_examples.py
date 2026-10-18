@@ -27,7 +27,8 @@ Subcommands (stdlib only, output is one JSON object):
 
 Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
 (unreachable server, remote base URL without an explicit flag, no examples to
-lint, a response over the size cap, or a run past its deadline with no failed example).
+lint, a response over the size cap, or a run past its deadline with no failed example
+or lint finding).
 """
 
 from __future__ import annotations

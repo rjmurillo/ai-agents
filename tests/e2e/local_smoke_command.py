@@ -7,7 +7,8 @@ Known limits: a program started through ``eval``, a variable (``$CMD``), a scrip
 a launcher outside ``_LAUNCHERS``, or a shell outside ``_SHELLS`` is not seen. A shell
 option with a value other than ``-o`` or ``-O`` (``--rcfile f``) before the command line
 misreads the value as the command. A quoted Windows path with a space inside a shell's
-``/c`` value (``cmd /c "C:\\Program Files\\copilot.exe"``) is cut at the space.
+``/c`` value (``cmd /c "C:\\Program Files\\copilot.exe"``) is cut at the space. The fish
+options ``-C`` and ``--init-command`` run a command line that is not read.
 """
 
 from __future__ import annotations
@@ -204,6 +205,9 @@ def _shell_command(name: str, rest: list[str]) -> str | None:
     flags = _SHELLS[name]
     posix = name in _POSIX_SHELLS
     for index, word in enumerate(rest):
+        option, equals, value = word.partition("=")
+        if equals and option.startswith("--") and option.lower() in flags:
+            return value
         is_flag = word.lower() in flags or (posix and _C_CLUSTER.match(word) is not None)
         if not is_flag:
             continue

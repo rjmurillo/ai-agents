@@ -406,22 +406,28 @@ def test_lint_findings_are_kept_when_the_run_passes_its_deadline(
     assert json.loads(evidence.read_text(encoding="utf-8"))["lint_findings"]
 
 
+@pytest.mark.parametrize(
+    ("status", "exit_code", "verdict"),
+    [(500, 1, "FAIL"), (200, 2, "UNVERIFIED")],
+)
 def test_main_maps_a_deadline_to_the_documented_exit_codes(
     write_doc: WriteDoc,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    status: int,
+    exit_code: int,
+    verdict: str,
 ) -> None:
     """Assert the process exit code, not the helper's return: 1 with a FAIL, 2 without."""
-    for status, expected in ((500, ax.EXIT_FINDINGS), (200, ax.EXIT_UNVERIFIABLE)):
-        args, sender = _run_that_passes_its_deadline_after_one_example(
-            write_doc, monkeypatch, status, tmp_path / f"e{status}.json"
-        )
-        monkeypatch.setitem(ax._COMMANDS, "run", lambda parsed, s=sender: ax.cmd_run(parsed, s))
-        argv = ["run", *args.docs, "--base-url", args.base_url, "--evidence", args.evidence]
-        assert ax.main(argv) == expected
-        out = json.loads(capsys.readouterr().out)
-        assert out["verdict"] in {"FAIL", "UNVERIFIED"}
+    args, sender = _run_that_passes_its_deadline_after_one_example(
+        write_doc, monkeypatch, status, tmp_path / "evidence.json"
+    )
+    monkeypatch.setitem(ax._COMMANDS, "run", lambda parsed: ax.cmd_run(parsed, sender))
+    argv = ["run", *args.docs, "--base-url", args.base_url, "--evidence", args.evidence]
+
+    assert ax.main(argv) == exit_code
+    assert json.loads(capsys.readouterr().out)["verdict"] == verdict
 
 
 def test_a_run_inside_its_deadline_sends_every_example(write_doc: WriteDoc) -> None:

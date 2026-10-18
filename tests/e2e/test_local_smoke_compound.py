@@ -111,6 +111,8 @@ import local_smoke_guard as guard
         "env -vS'copilot -p x'",
         "env -i -S 'A=1' env -S 'B=2' copilot",
         "fish --command copilot",
+        "fish --command=copilot",
+        "fish --command='copilot -p x'",
         "fish -c 'true; and copilot'",
         "fish -c 'not copilot'",
         "fish -c 'echo hi; or copilot'",
@@ -176,6 +178,7 @@ def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
         "env -iS 'echo copilot'",
         "env -S nice echo copilot",
         "fish --command 'echo copilot'",
+        "fish --command='echo copilot'",
         "fish -c 'not echo copilot'",
     ],
 )
