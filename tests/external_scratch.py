@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 
@@ -26,3 +27,34 @@ def outside_every_repository(start: Path) -> Path:
         if (candidate / ".git").exists():
             outermost = candidate
     return start if outermost is None else outermost.parent
+
+
+def make_external_dir(root: Path, name: str) -> Path:
+    """Create ``root/name``, retrying when a sibling worker removes ``root``.
+
+    ``remove_external_dir`` drops ``root`` once it is empty, so under xdist a
+    sibling can delete it between creating ``root`` and creating the child.
+    A second attempt recreates it.
+    """
+    path = root / name
+    for attempt in range(3):
+        try:
+            path.mkdir(parents=True)
+            return path
+        except FileNotFoundError:
+            if attempt == 2:
+                raise
+    return path
+
+
+def remove_external_dir(path: Path) -> None:
+    """Delete *path*, then its parent root when no other worker still uses it.
+
+    Without the second step every checkout that runs the suite leaves an empty
+    ``.pytest-external-<checkout>`` directory beside it.
+    """
+    shutil.rmtree(path, ignore_errors=True)
+    try:
+        path.parent.rmdir()
+    except OSError:
+        pass

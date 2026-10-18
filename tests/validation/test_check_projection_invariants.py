@@ -22,6 +22,7 @@ so it does not agree with the generator by construction.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -271,6 +272,63 @@ class TestNegativeControls:
     def test_empty_repo_fails_closed(self, tmp_path: Path) -> None:
         assert _run(tmp_path).returncode == 1
 
+    def test_symlinked_projection_to_its_source_fails_closed(self, tmp_path: Path) -> None:
+        """A link to the source would pass both invariants without the transform (#6506)."""
+        repo = _make_repo(tmp_path)
+        projection = repo / PROJECTION / "push-pr" / "SKILL.md"
+        projection.unlink()
+        try:
+            projection.symlink_to(repo / SOURCE / "push-pr" / "SKILL.md")
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation unavailable on this platform")
+
+        result = _run(repo)
+
+        assert result.returncode == 1
+        assert "not a regular file" in result.stderr
+
+    def test_symlinked_source_fails_closed(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        source = repo / SOURCE / "security-scan" / "SKILL.md"
+        real = tmp_path / "real-source.md"
+        real.write_bytes(source.read_bytes())
+        source.unlink()
+        try:
+            source.symlink_to(real)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation unavailable on this platform")
+
+        result = _run(repo)
+
+        assert result.returncode == 1
+        assert "security-scan (invariant 8)" in result.stderr
+        assert "not a regular file" in result.stderr
+
+    def test_hard_linked_projection_is_the_same_file_as_its_source(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        projection = repo / PROJECTION / "push-pr" / "SKILL.md"
+        projection.unlink()
+        try:
+            os.link(repo / SOURCE / "push-pr" / "SKILL.md", projection)
+        except (OSError, NotImplementedError):
+            pytest.skip("hard link creation unavailable on this platform")
+
+        result = _run(repo)
+
+        assert result.returncode == 1
+        assert "same file as its source" in result.stderr
+
+    def test_directory_in_place_of_a_skill_file_fails_closed(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        projection = repo / PROJECTION / "push-pr" / "SKILL.md"
+        projection.unlink()
+        projection.mkdir()
+
+        result = _run(repo)
+
+        assert result.returncode == 1
+        assert "not a regular file" in result.stderr
+
     def test_usage_error_exits_2(self) -> None:
         result = subprocess.run(
             [sys.executable, "-I", str(_SCRIPT), "--bogus"],
@@ -310,3 +368,15 @@ class TestInProcessEntryPoints:
     ) -> None:
         assert cpi.main(["--repo-root", str(tmp_path)]) == 1
         assert "violations" in capsys.readouterr().err
+
+
+class TestDistinct:
+    def test_returns_none_for_two_different_files(self, tmp_path: Path) -> None:
+        first, second = tmp_path / "a.md", tmp_path / "b.md"
+        first.write_text("a", encoding="utf-8")
+        second.write_text("a", encoding="utf-8")
+        assert cpi._distinct(first, second) is None
+
+    def test_fails_closed_when_the_files_cannot_be_compared(self, tmp_path: Path) -> None:
+        message = cpi._distinct(tmp_path / "missing-a.md", tmp_path / "missing-b.md")
+        assert message is not None and "cannot compare" in message

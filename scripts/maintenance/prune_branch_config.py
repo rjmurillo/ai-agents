@@ -19,7 +19,17 @@ and reftable. Two sets of branches are always kept even without a ref:
 
 The default run reports only. ``--apply`` backs up the config file beside
 itself, removes each stale section with ``git config --remove-section``, and
-verifies git still parses the result, restoring the backup on failure.
+verifies git still parses the result. A prune lock file keeps two ``--apply``
+runs apart. It does not stop ``git branch --track`` or ``git config``, which
+never check it. The stale set is computed again under the lock, so a branch
+created before the lock was taken keeps its section. A branch that reuses a
+stale section's name between that second look and the removal can still lose
+its new section. On any failure, including an interrupt, only the sections this
+run removed are written back from the backup. A concurrent ``git config`` write
+to another section survives the rollback. When the live config no longer
+parses, the whole backup is copied back instead. When the restore fails on a
+config git can still read, the file is left alone and the error names the
+backup.
 
 ``--fail-on-stale`` makes a run that leaves stale sections exit 1, so a
 report-only caller such as the pre-push ``branch-config-prune-report`` job can
@@ -29,17 +39,20 @@ EXIT CODES (ADR-035):
   0 - success (including nothing to prune and a dry-run report)
   1 - stale sections remain and --fail-on-stale was passed
   2 - configuration error (not a git repository)
-  3 - external error (git failed or timed out; --apply restores the backup)
+  3 - external error (git failed or timed out, or another prune holds the lock;
+      --apply restores the sections it removed)
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable
+from collections import Counter
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -184,17 +197,72 @@ def find_stale_branches(
     return tuple(name for name in configured if name not in local and name not in checked_out)
 
 
+def _remove_own_backup(backup: Path, created: os.stat_result | None) -> None:
+    """Remove a partial backup, but only the entry this process created.
+
+    ``created`` is the ``fstat`` of the descriptor opened with ``O_EXCL``.
+    If another process swapped the pathname after the open, the entry there
+    is not ours, so it stays. Without an identity (``fstat`` failed) nothing
+    is removed, because the pathname cannot be tied to this write (#6506).
+    """
+    if created is None:
+        return
+    try:
+        current = backup.lstat()
+    except OSError:
+        return
+    if (current.st_dev, current.st_ino) == (created.st_dev, created.st_ino):
+        backup.unlink(missing_ok=True)
+
+
 def _backup_config(config_path: Path) -> Path:
+    """Copy the config to a fresh ``.before-prune[.N]`` file beside it.
+
+    The backup is created with ``O_CREAT | O_EXCL``, which fails on any
+    existing entry at the name, including a dangling symlink. ``Path.exists``
+    follows links and reports a dangling one as absent, so ``copy2`` used to
+    write through a planted link to its target (CWE-59, issue #6506).
+
+    A failed write removes the partial backup only while the pathname still
+    names the file this call created, so a concurrent swap is left alone.
+    """
     base = config_path.with_name(f"{config_path.name}.before-prune")
-    backup = base
-    suffix = 0
-    while backup.exists():
-        suffix += 1
-        if suffix >= 1000:
-            raise GitError("could not choose a config backup path")
-        backup = base.with_name(f"{base.name}.{suffix}")
-    shutil.copy2(config_path, backup)
-    return backup
+    content = config_path.read_bytes()
+    mode = config_path.stat().st_mode & 0o7777
+    for suffix in range(1000):
+        backup = base if suffix == 0 else base.with_name(f"{base.name}.{suffix}")
+        try:
+            # O_BINARY (Windows only) stops CRT text mode from turning LF into
+            # CRLF, so the backup stays a byte copy of the config.
+            fd = os.open(
+                backup,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_BINARY", 0),
+                0o600,
+            )
+        except FileExistsError:
+            continue
+        created: os.stat_result | None = None
+        try:
+            try:
+                created = os.fstat(fd)
+                handle = os.fdopen(fd, "wb")
+            except BaseException:
+                # fdopen owns the descriptor only once it returns.
+                os.close(fd)
+                raise
+            with handle:
+                handle.write(content)
+                if hasattr(os, "fchmod"):
+                    os.fchmod(handle.fileno(), mode)
+        except OSError as exc:
+            _remove_own_backup(backup, created)
+            raise GitError(f"could not write config backup {backup}: {exc}") from exc
+        return backup
+    raise GitError("could not choose a config backup path")
 
 
 def _verify_config(repo: Path) -> None:
@@ -202,31 +270,173 @@ def _verify_config(repo: Path) -> None:
     _git_ok(repo, "for-each-ref", "--format=%(refname)", _HEADS_PREFIX)
 
 
-def _remove_sections(repo: Path, names: Iterable[str]) -> int:
+def _remove_sections(repo: Path, names: Iterable[str], touched: list[str]) -> int:
+    """Remove each named section and record it in ``touched`` before the call.
+
+    The name is recorded first so an interrupt during the git call still
+    lands the in-flight section on the rollback list.
+    """
     removed = 0
     for name in names:
+        touched.append(name)
         _git_ok(repo, "config", "--local", "--remove-section", f"{_BRANCH_PREFIX}{name}")
         removed += 1
     return removed
 
 
-def prune_branch_config(repo: Path, apply: bool = False) -> PruneResult:
-    """Find stale branch sections and remove them when ``apply`` is true."""
-    config_path = resolve_config_path(repo)
+def _parse_config_entries(listing: str) -> list[tuple[str, str | None]]:
+    """Split ``git config --list -z`` output into ``(key, value)`` pairs.
+
+    Each entry is ``key NL value NUL``. A key with no value has no NL and
+    yields ``None``. That is a boolean true in git, which an empty string is not.
+    """
+    entries: list[tuple[str, str | None]] = []
+    for chunk in listing.split("\0"):
+        if not chunk:
+            continue
+        key, sep, value = chunk.partition("\n")
+        entries.append((key, value if sep else None))
+    return entries
+
+
+# Branch variables where a bare key means boolean true. Git reads ``rebase``
+# with --bool as true; any other bare key prints an empty line on --get.
+_BARE_TRUE_VARIABLES = frozenset({"rebase"})
+
+
+def _restored_value(key: str, value: str | None) -> str:
+    """Return the value to write back for a backed-up entry.
+
+    ``git config`` cannot write a key with no ``=``. A bare ``rebase`` is
+    written as ``true``, which keeps its boolean meaning. Any other bare key is
+    written as an empty value, which ``--get`` prints the same way a bare key
+    prints. The raw bytes in the file differ, the values git reads do not.
+    """
+    if value is not None:
+        return value
+    return "true" if key.rpartition(".")[2].lower() in _BARE_TRUE_VARIABLES else ""
+
+
+def _restore_sections(repo: Path, backup: Path, names: Iterable[str]) -> None:
+    """Write the named sections from ``backup`` back into the live config.
+
+    Only the sections this run touched are restored, so a concurrent writer's
+    change to another section is not overwritten the way a whole-file copy
+    would. Entries are matched one by one: an entry the live config already
+    holds (its removal never happened, or another writer recreated it) is
+    skipped, and every other backed-up entry is added back. A concurrent write
+    to the same section survives next to the restored keys. A key whose value
+    another writer changed keeps both values.
+    """
+    wanted = set(names)
+    if not wanted:
+        return
+    live = Counter(
+        _parse_config_entries(_git_ok(repo, "config", "--local", "--list", "-z")),
+    )
+    listing = _git_ok(repo, "config", "--file", str(backup), "--list", "-z")
+    for key, value in _parse_config_entries(listing):
+        if branch_name_from_key(key) not in wanted:
+            continue
+        if live[(key, value)] > 0:
+            live[(key, value)] -= 1
+            continue
+        _git_ok(repo, "config", "--local", "--add", key, _restored_value(key, value))
+
+
+def _live_config_parses(repo: Path) -> bool:
+    """Return True when git can read the live local config."""
+    return run_git(repo, "config", "--local", "--list").returncode == 0
+
+
+def _rollback(repo: Path, config_path: Path, backup: Path, touched: list[str]) -> None:
+    """Undo a failed prune, preferring a section-only restore.
+
+    The whole backup is copied back only when the live config no longer parses:
+    git cannot read it, so no concurrent write is recoverable from it. A config
+    git can read is never overwritten wholesale, because that would discard
+    other writers' changes. When the section restore fails on a readable
+    config, the error names the backup and the live file stays as it is.
+    """
+    try:
+        _restore_sections(repo, backup, touched)
+        return
+    except GitError as section_error:
+        failure = section_error
+    if _live_config_parses(repo):
+        raise GitError(
+            f"rollback incomplete; the live config was left in place and the original "
+            f"config is saved at {backup}: {failure}"
+        ) from failure
+    try:
+        shutil.copy2(backup, config_path)
+    except OSError as exc:
+        raise GitError(
+            f"rollback failed; the original config is saved at {backup}: {failure}; {exc}"
+        ) from exc
+
+
+@contextlib.contextmanager
+def _prune_lock(config_path: Path) -> Iterator[None]:
+    """Hold an exclusive lock file so two ``--apply`` runs cannot interleave.
+
+    ``O_EXCL`` creation is atomic on local filesystems and works on Windows.
+    The file is separate from git's own ``config.lock`` because the prune
+    calls ``git config``, which needs that one itself.
+    """
+    lock_path = config_path.with_name(f"{config_path.name}.prune-lock")
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError as exc:
+        raise GitError(
+            f"another prune holds {lock_path}; remove the file if no prune is running"
+        ) from exc
+    except OSError as exc:
+        raise GitError(f"could not create prune lock {lock_path}: {exc}") from exc
+    try:
+        os.write(fd, f"{os.getpid()}\n".encode())
+        os.close(fd)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            lock_path.unlink()
+
+
+def _find_stale(repo: Path) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(configured, stale)`` from the live refs and worktrees."""
     configured = list_configured_branches(repo)
     stale = find_stale_branches(
         configured, list_local_branches(repo), list_checked_out_branches(repo)
     )
-    if not apply or not stale:
+    return configured, stale
+
+
+def prune_branch_config(repo: Path, apply: bool = False) -> PruneResult:
+    """Find stale branch sections and remove them when ``apply`` is true."""
+    config_path = resolve_config_path(repo)
+    if not apply:
+        configured, stale = _find_stale(repo)
         return PruneResult(config_path=config_path, configured=configured, stale=stale)
 
-    backup = _backup_config(config_path)
-    try:
-        removed = _remove_sections(repo, stale)
-        _verify_config(repo)
-    except GitError:
-        shutil.copy2(backup, config_path)
-        raise
+    with _prune_lock(config_path):
+        # Listed again under the lock: a branch created before the lock was
+        # taken must not lose its section. The lock does not stop other git
+        # writers, so a branch created after this look can still lose one.
+        configured, stale = _find_stale(repo)
+        if not stale:
+            return PruneResult(config_path=config_path, configured=configured, stale=stale)
+        backup = _backup_config(config_path)
+        touched: list[str] = []
+        completed = False
+        try:
+            removed = _remove_sections(repo, stale, touched)
+            _verify_config(repo)
+            completed = True
+        finally:
+            # A finally block, not except GitError: an interrupt or any other
+            # error must not leave a partly pruned config.
+            if not completed:
+                _rollback(repo, config_path, backup, touched)
     return PruneResult(config_path, configured, stale, removed=removed, backup_path=backup)
 
 

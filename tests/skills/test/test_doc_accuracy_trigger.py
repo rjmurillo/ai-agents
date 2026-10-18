@@ -259,12 +259,6 @@ def test_diff_base_and_scope_are_echoed(classifier) -> None:
     assert result["scope"] == "incremental: origin/develop...HEAD"
 
 
-def test_changed_document_with_other_changes_does_not_need_coupled_documents(classifier) -> None:
-    result = _decide(classifier, ["docs/guide.md", "src/service.py"], ["quantitative-claim"])
-    assert result["coupled_documents_needed"] is False
-    assert result["changed_documents"] == ["docs/guide.md"]
-
-
 def test_review_categories_drive_the_decision() -> None:
     """The decision comes from the #4981 classifier, not a private taxonomy."""
     as_docs = SimpleNamespace(

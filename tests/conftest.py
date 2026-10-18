@@ -354,15 +354,18 @@ def external_tmp_path() -> Iterator[Path]:
     """Create a temp directory outside the checkout for path-boundary tests."""
     # Imported here rather than at module scope: the helper lives under `tests`,
     # which only becomes importable after the sys.path insert above.
-    from tests.external_scratch import outside_every_repository
+    from tests.external_scratch import (
+        make_external_dir,
+        outside_every_repository,
+        remove_external_dir,
+    )
 
     root = outside_every_repository(PROJECT_ROOT) / f".pytest-external-{PROJECT_ROOT.name}"
-    path = root / uuid.uuid4().hex
-    path.mkdir(parents=True)
+    path = make_external_dir(root, uuid.uuid4().hex)
     try:
         yield path
     finally:
-        shutil.rmtree(path, ignore_errors=True)
+        remove_external_dir(path)
 
 
 def assert_validation_result(
