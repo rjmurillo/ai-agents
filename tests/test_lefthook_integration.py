@@ -1939,11 +1939,12 @@ def test_branch_policy_allows_feature_and_detached_head(tmp_path: Path) -> None:
     assert policy.check_branch(repo) == 0
 
 
-def test_branch_policy_blocks_main(tmp_path: Path) -> None:
+def test_branch_policy_blocks_main(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="main")
 
     assert policy.check_branch(repo) == 1
+    assert "cannot commit directly to 'main'" in capsys.readouterr().err
 
 
 def _write_session_log(
