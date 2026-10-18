@@ -169,11 +169,15 @@ _COPILOT_PLUGIN_DIR = REPO_ROOT / "src" / "copilot-cli"
 # install actually resolves.
 _CLAUDE_PLUGIN_DIR = REPO_ROOT / "src" / "claude"
 _CLAUDE_MANIFEST = _CLAUDE_PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+# ADR-107 amendment 2026-10-17: `ToolSearch` loads schemas for granted deferred
+# MCP tools only. A probe on Claude Code 2.1.302 asked it for `Bash`,
+# `ctx_execute`, and a Slack send, and each returned no match.
 _CLAUDE_ANALYST_TOOLS = frozenset(
     {
         "Glob",
         "Grep",
         "Read",
+        "ToolSearch",
         "mcp__github__issue_read",
         "mcp__github__pull_request_read",
         "mcp__github__get_file_contents",
@@ -181,8 +185,6 @@ _CLAUDE_ANALYST_TOOLS = frozenset(
         "mcp__github__list_workflow_runs",
         "mcp__github__get_workflow_run",
         "mcp__github__get_job_logs",
-        "mcp__context7__get_library_docs",
-        "mcp__context7__resolve_library_id",
         "mcp__deepwiki__read_wiki_contents",
         "mcp__deepwiki__read_wiki_structure",
         "mcp__serena__find_declaration",
@@ -195,6 +197,13 @@ _CLAUDE_ANALYST_TOOLS = frozenset(
         "mcp__serena__list_memories",
         "mcp__serena__read_memory",
     }
+)
+# Context7 is granted by server wildcard under each name prefix (ADR-107
+# amendment 2026-10-17), so its tool names depend on how the install configures it.
+_CLAUDE_ANALYST_TOOL_PREFIXES = (
+    "mcp__context7__",
+    "mcp__plugin_context7_context7__",
+    "mcp__claude_ai_Context7__",
 )
 # The reviewed security-agent grant (issue #4781, PR #5356). `Bash` and `Edit`
 # are deliberately absent: the agent enumerates a review from a pinned GitHub
@@ -211,6 +220,7 @@ _CLAUDE_SECURITY_TOOLS = frozenset(
         "WebSearch",
         "WebFetch",
         "TodoWrite",
+        "ToolSearch",
         "Write",
         "mcp__github__pull_request_read",
         "mcp__github__get_commit",
@@ -1191,9 +1201,12 @@ def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> 
     implementer_tools = _claude_init_tools("implementer")
 
     assert {"Glob", "Grep", "Read"} <= analyst_tools
-    assert not analyst_tools - _CLAUDE_ANALYST_TOOLS, (
-        f"Claude exposed unreviewed analyst tools: {sorted(analyst_tools - _CLAUDE_ANALYST_TOOLS)}"
-    )
+    unreviewed = {
+        tool
+        for tool in analyst_tools - _CLAUDE_ANALYST_TOOLS
+        if not tool.startswith(_CLAUDE_ANALYST_TOOL_PREFIXES)
+    }
+    assert not unreviewed, f"Claude exposed unreviewed analyst tools: {sorted(unreviewed)}"
     assert {"Bash", "Edit", "Write"} <= implementer_tools, (
         "negative control failed: Claude did not report execution and write tools "
         "for implementer, so the analyst allowlist cannot prove inheritance is restricted"

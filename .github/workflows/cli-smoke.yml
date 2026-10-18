@@ -64,6 +64,8 @@ jobs:
             cli:
               - 'packages/ai-agents-cli/**'
               - '.claude/**'
+              - 'src/claude/agents/**'
+              - 'src/claude/skills/**'
               - '.github/workflows/cli-smoke.yml'
 
   smoke:
@@ -89,6 +91,13 @@ jobs:
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
           egress-policy: audit
+
+      - name: Check out symlinks as links on Windows
+        # .claude/agents and .claude/skills hold relative symlinks (ADR-119).
+        # Git for Windows writes them as text files unless core.symlinks is on.
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: git config --global core.symlinks true
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 

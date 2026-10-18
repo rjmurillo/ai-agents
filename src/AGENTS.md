@@ -4,9 +4,9 @@ Both marketplace plugin sources: `claude/` for Claude Code, `copilot-cli/` for C
 
 ## Matters
 
-- ADR-109 B1 to B5: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, `claude/lib/` from `scripts/`; binplace copies each byte for byte into `.claude/`, the dogfood copy with no manifest and no marketplace entry. Render map: `templates/AGENTS.md`.
+- ADR-109 B1 to B5: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, `claude/lib/` from `scripts/`; binplace places them in `.claude/` (dogfood, no manifest or marketplace entry): `agents/`, `skills/`, `rules/` as symlinks here (ADR-119), the rest as copies. Render map: `templates/AGENTS.md`.
 - `.claude-plugin/marketplace.json` lists one Claude plugin, `project-toolkit` at `./src/claude`; `claude-agents` is retired (B6).
-- `claude/skills/<name>/`: `SKILL.md` renders from its template; every other file mirrors from `.claude/skills/<name>/`, the hand-maintained source (`sync_claude_plugin_skill_support`, `merge-resolver` included).
+- `claude/skills/<name>/`: `SKILL.md` renders from its template; every other file is hand-maintained here; `.claude/skills/<name>` links here (ADR-119).
 
 ## Entry points
 
@@ -17,7 +17,7 @@ Both marketplace plugin sources: `claude/` for Claude Code, `copilot-cli/` for C
 | Path | Why |
 |---|---|
 | `claude/**` | Plugin tree for `.claude/`; see `src/claude/AGENTS.md` |
-| `copilot-cli/instructions/` | 22 of 28 `claude/rules/`, all-internal-scope dropped; no `copilot-cli/rules/` |
+| `copilot-cli/instructions/` | Every `claude/rules/` file; all-internal rules stay in `.claude/rules/` (ADR-119) |
 | `copilot-cli/hooks/` | From `claude/hooks/`; binplaced to `.github/hooks/*.json` |
 | `copilot-cli/docs/`, both `.claude-plugin/` | Hand-maintained inside generated trees |
 

@@ -266,3 +266,178 @@ class TestTheRepositoryItself:
 
         assert report.examined > 20
         assert report.unresolved == []
+
+
+DEMO_LINK = ".claude/skills/demo"
+DEMO_TARGET = "src/claude/skills/demo"
+
+
+def _link_demo_skill(base: Path) -> None:
+    """Move the demo skill under src/claude/skills and link .claude/skills/demo to it (ADR-119)."""
+    (base / "src/claude/skills").mkdir(parents=True, exist_ok=True)
+    git(base, "mv", DEMO_LINK, DEMO_TARGET)
+    (base / DEMO_LINK).symlink_to("../../src/claude/skills/demo")
+    git(base, "add", "-A")
+    git(base, "commit", "-q", "-m", "link the demo skill")
+
+
+@pytest.fixture
+def linked_trees(trees: tuple[Path, Path]) -> tuple[Path, Path]:
+    base, head = trees
+    _link_demo_skill(base)
+    git(head, "checkout", "--detach", "-q", "--force", rev(base))
+    return base, head
+
+
+class TestSymlinkedDirectoriesAtTheRef:
+    def test_a_file_under_a_linked_directory_unchanged_at_head_is_clean(
+        self, linked_trees: tuple[Path, Path]
+    ) -> None:
+        base, head = linked_trees
+
+        assert vdc._in_ref(base, "HEAD", HELPER)
+        assert vdc._classify(base, "HEAD", head, None, HELPER) is None
+        assert vdc._classify(base, "HEAD", head, rev(head), HELPER) is None
+        assert run(linked_trees).clean
+
+    def test_a_changed_file_through_the_link_is_reported_as_changed(
+        self, linked_trees: tuple[Path, Path]
+    ) -> None:
+        base, head = linked_trees
+        with (head / HELPER).open("a", encoding="utf-8") as handle:
+            handle.write("# edited through the link\n")
+
+        assert vdc._classify(base, "HEAD", head, None, HELPER) == vdc.CHANGED
+
+    def test_a_changed_file_through_the_link_is_reported_with_a_head_sha(
+        self, linked_trees: tuple[Path, Path]
+    ) -> None:
+        base, head = linked_trees
+        write(head, f"{DEMO_TARGET}/scripts/helper.py", "X = 2\n")
+        git(head, "config", "user.email", "t@example.invalid")
+        git(head, "config", "user.name", "t")
+        git(head, "add", "-A")
+        git(head, "commit", "-q", "-m", "edit")
+
+        assert vdc._classify(base, "HEAD", head, rev(head), HELPER) == vdc.CHANGED
+
+    def test_a_new_file_under_a_linked_directory_is_still_added(
+        self, linked_trees: tuple[Path, Path]
+    ) -> None:
+        base, head = linked_trees
+        write(head, f"{DEMO_TARGET}/scripts/extra.py", "Y = 1\n")
+        git(head, "config", "user.email", "t@example.invalid")
+        git(head, "config", "user.name", "t")
+        git(head, "add", "-A")
+        git(head, "commit", "-q", "-m", "add")
+
+        extra = f"{DEMO_LINK}/scripts/extra.py"
+        assert vdc._classify(base, "HEAD", head, rev(head), extra) == vdc.ADDED
+
+    def test_a_link_the_head_retargets_is_still_a_change(
+        self, linked_trees: tuple[Path, Path]
+    ) -> None:
+        base, head = linked_trees
+        git(head, "config", "user.email", "t@example.invalid")
+        git(head, "config", "user.name", "t")
+        write(head, "src/claude/skills/other/scripts/helper.py", "X = 1\n")
+        (head / DEMO_LINK).unlink()
+        (head / DEMO_LINK).symlink_to("../../src/claude/skills/other")
+        git(head, "add", "-A")
+        git(head, "commit", "-q", "-m", "retarget")
+
+        report = vdc.verify(base, head, "HEAD", head_sha=rev(head))
+
+        assert not report.clean
+
+
+class TestResolveInRef:
+    @pytest.fixture
+    def repo(self, tmp_path: Path) -> Path:
+        root = tmp_path / "repo"
+        root.mkdir()
+        git(root, "init", "-q")
+        git(root, "config", "user.email", "t@example.invalid")
+        git(root, "config", "user.name", "t")
+        write(root, "real/dir/file.txt", "payload\n")
+        return root
+
+    def _commit(self, root: Path) -> None:
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "c")
+
+    def test_a_plain_path_resolves_to_itself(self, repo: Path) -> None:
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "HEAD", "real/dir/file.txt") == "real/dir/file.txt"
+
+    def test_a_chain_of_links_resolves_to_the_final_target(self, repo: Path) -> None:
+        (repo / "a").symlink_to("real")
+        (repo / "b").symlink_to("a")
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "HEAD", "b/dir/file.txt") == "real/dir/file.txt"
+        assert vdc._base_blob(repo, "HEAD", "b/dir/file.txt") == b"payload\n"
+
+    def test_a_link_at_the_leaf_is_not_followed(self, repo: Path) -> None:
+        (repo / "leaf").symlink_to("real/dir/file.txt")
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "HEAD", "leaf") == "leaf"
+        assert vdc._base_blob(repo, "HEAD", "leaf") == b"real/dir/file.txt"
+
+    def test_a_missing_path_is_absent(self, repo: Path) -> None:
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "HEAD", "real/dir/nope.txt") is None
+        assert vdc._blob_id(repo, "HEAD", "real/dir/nope.txt") is None
+        assert not vdc._in_ref(repo, "HEAD", "real/dir/nope.txt")
+        assert vdc._base_blob(repo, "HEAD", "real/dir/nope.txt") is None
+
+    @pytest.mark.parametrize("target", ["../outside", "/etc", "real/../../outside"])
+    def test_a_link_that_escapes_the_repo_fails_closed(self, repo: Path, target: str) -> None:
+        (repo / "escape").symlink_to(target)
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "HEAD", "escape/file.txt") is None
+        assert vdc._blob_id(repo, "HEAD", "escape/file.txt") is None
+        assert vdc._base_blob(repo, "HEAD", "escape/file.txt") is None
+
+    def test_a_link_loop_fails_closed(self, repo: Path) -> None:
+        (repo / "x").symlink_to("y")
+        (repo / "y").symlink_to("x")
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "HEAD", "x/file.txt") is None
+        assert vdc._blob_id(repo, "HEAD", "x/file.txt") is None
+
+    def test_exactly_eight_hops_resolve_and_nine_fail_closed(self, repo: Path) -> None:
+        (repo / "l0").symlink_to("real")
+        for index in range(1, 9):
+            (repo / f"l{index}").symlink_to(f"l{index - 1}")
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "HEAD", "l7/dir/file.txt") == "real/dir/file.txt"
+        assert vdc._resolve_in_ref(repo, "HEAD", "l8/dir/file.txt") is None
+
+    def test_a_ref_that_does_not_exist_is_absent(self, repo: Path) -> None:
+        self._commit(repo)
+
+        assert vdc._resolve_in_ref(repo, "refs/heads/nowhere", "real/dir/file.txt") is None
+
+
+class TestLinkTargetConformance:
+    @pytest.mark.parametrize(
+        ("link_path", "text"),
+        [
+            (".claude/skills/github", "../../src/claude/skills/github"),
+            ("a/b", "c"),
+            ("a/b", "../../.."),
+            ("a/b", "/abs"),
+            ("a", "./x/./y"),
+        ],
+    )
+    def test_matches_the_validation_resolver(self, link_path: str, text: str) -> None:
+        from scripts.validation import effective_context_sources as ecs
+
+        assert vdc._REF_LINKS.link_target(link_path, text) == ecs._link_target(link_path, text)
