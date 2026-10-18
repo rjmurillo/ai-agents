@@ -6,6 +6,7 @@
 - `discover_skills.py` keeps one entry per skill name, from the lowest-priority-number source, and records hidden copies in `shadowed_paths` (#6646)
 - `discover_skills.py` prefers `SKILL.md` over sibling markdown files when a `*/*.md` source gives them the same skill name (#6646)
 - `discover_skills.py` warns when a plugin or extra root exists but holds no skill files, and names the parent directory fix when the root is itself a skill folder (#6646)
+- `discover_skills.py` falls back to the folder name when a SKILL.md has a blank or non-string `name:`, so one malformed file no longer aborts the index run (#6646)
 
 ## v4.1.0 (Current)
 

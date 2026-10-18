@@ -443,6 +443,66 @@ class TestDiscoverSkills:
 
 
 @pytest.mark.usefixtures("isolated_fixed_sources")
+class TestMalformedName:
+    """A bad `name:` in one third-party SKILL.md must not abort the whole run."""
+
+    @staticmethod
+    def _write_raw(root: Path, folder: str, frontmatter: str) -> Path:
+        path = root / folder / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"---\n{frontmatter}\ndescription: Raw {folder}.\n---\n\n# {folder}\n")
+        return path
+
+    def test_blank_and_integer_names_fall_back_to_folder_name(
+        self, fake_script: Path, tmp_path: Path
+    ) -> None:
+        extra = tmp_path / "extra"
+        self._write_raw(extra, "blank-one", "name:")
+        self._write_raw(extra, "int-one", "name: 42")
+        sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        assert result.success
+        assert not result.errors
+        names = [s["name"] for s in result.data["skills"]]
+        assert "blank-one" in names
+        assert "int-one" in names
+
+    def test_malformed_names_are_not_folded_under_one_key(
+        self, fake_script: Path, tmp_path: Path
+    ) -> None:
+        extra = tmp_path / "extra"
+        self._write_raw(extra, "first", "name:")
+        self._write_raw(extra, "second", "name:")
+        sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        assert sorted(s["name"] for s in result.data["skills"]) == ["first", "second"]
+        assert result.data["total_count"] == 2
+
+    def test_whitespace_only_and_list_names_fall_back(
+        self, fake_script: Path, tmp_path: Path
+    ) -> None:
+        extra = tmp_path / "extra"
+        self._write_raw(extra, "spaces", 'name: "   "')
+        self._write_raw(extra, "listy", "name: [a, b]")
+        sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        assert sorted(s["name"] for s in result.data["skills"]) == ["listy", "spaces"]
+
+    def test_valid_name_is_kept_over_folder_name(self, fake_script: Path, tmp_path: Path) -> None:
+        extra = tmp_path / "extra"
+        self._write_raw(extra, "folder-name", "name: declared-name")
+        sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        assert [s["name"] for s in result.data["skills"]] == ["declared-name"]
+
+    def test_parse_skill_file_does_not_raise_on_blank_name(self, tmp_path: Path) -> None:
+        path = self._write_raw(tmp_path, "solo", "name:")
+        parsed = ds.parse_skill_file(path, "extra-1", 9)
+        assert parsed is not None
+        assert parsed["name"] == "solo"
+        assert "solo" in parsed["keywords"]
+
+
 class TestMain:
     def _run(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *argv: str) -> tuple[int, Path]:
         out = tmp_path / "index.json"

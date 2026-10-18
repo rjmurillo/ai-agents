@@ -426,7 +426,11 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
 
     # Extract skill name from path or frontmatter
     frontmatter = extract_frontmatter(content)
-    name = frontmatter.get("name", path.parent.name)
+    # A blank or non-string `name:` (YAML None, int) falls back to the folder name.
+    name = frontmatter.get("name")
+    if not isinstance(name, str) or not name.strip():
+        name = path.parent.name
+    name = name.strip()
 
     # Extract metadata
     triggers = extract_triggers(content)

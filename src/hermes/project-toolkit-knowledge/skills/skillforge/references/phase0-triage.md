@@ -101,6 +101,9 @@ Sources scanned (`build_skill_sources()` in `discover_skills.py`):
 | `extra-N` | Each `--extra-root PATH` (repeatable) |
 | `env-extra-N` | Each entry of `SKILLFORGE_EXTRA_ROOTS`, split on the OS path separator |
 
+Other installed plugins under `~/.claude/plugins/cache/` are not scanned. Pass
+each one with `--extra-root` or `SKILLFORGE_EXTRA_ROOTS`.
+
 A skill reached through two roots is indexed once. A skill name found in several
 roots is indexed once too: the root with the lowest priority number wins (the
 table above lists roots in rank order), and the hidden copies are recorded in
