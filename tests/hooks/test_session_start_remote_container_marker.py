@@ -14,6 +14,8 @@ fake repo, as ``test_session_start_env_escaping.py`` does.
 from __future__ import annotations
 
 import os
+import re
+import stat
 import subprocess
 from pathlib import Path
 
@@ -29,6 +31,14 @@ from tests.hooks.test_session_start_env_escaping import (
 
 MARKER_LINE = "export AI_AGENTS_REMOTE_CONTAINER=1"
 IMAGE_FILE_NAMES = ("Dockerfile", "Containerfile")
+MARKER_NAME = "AI_AGENTS_REMOTE_CONTAINER"
+# An actual assignment, not a mention: `ENV NAME=1`, `ENV NAME 1`, `export NAME=1`,
+# `NAME=1`, or the JSON form `"NAME": "1"`. A comment line never matches.
+_ASSIGNMENT = re.compile(
+    rf"^\s*(?:(?:ENV|export)\s+)?{MARKER_NAME}(?:\s*=\s*|\s+)\S"
+    rf"|^\s*\"{MARKER_NAME}\"\s*:\s*\"[^\"]+\""
+)
+_COMMENT_PREFIXES = ("#", "//", "*", "/*")
 
 
 def _source_and_read(env_file: Path, cwd: Path, name: str) -> str:
@@ -86,6 +96,36 @@ def test_stale_zero_assignment_is_overridden_by_later_one(tmp_path: Path) -> Non
 
     assert proc.returncode == 0, proc.stderr
     assert _source_and_read(env_file, tmp_path, "AI_AGENTS_REMOTE_CONTAINER") == "1"
+
+
+@requires_bash
+def test_later_zero_after_one_is_overridden_by_new_one(tmp_path: Path) -> None:
+    """`=1` followed by a later `=0` leaves 0 in effect, so the hook re-appends `=1`."""
+    repo = _materialize_fake_repo(tmp_path, "one-then-zero")
+    env_file = tmp_path / "env.sh"
+    env_file.write_text(f"{MARKER_LINE}\nexport AI_AGENTS_REMOTE_CONTAINER=0\n", encoding="utf-8")
+
+    proc = _run_session_start(repo, env_file)
+
+    assert proc.returncode == 0, proc.stderr
+    assert _source_and_read(env_file, tmp_path, MARKER_NAME) == "1"
+
+
+@requires_bash
+def test_unwritable_env_file_does_not_skip_bootstrap(tmp_path: Path) -> None:
+    """An env file under a missing directory must not stop bootstrap-vm.sh from running."""
+    repo = _materialize_fake_repo(tmp_path, "bad-env-file")
+    bootstrap = repo / "scripts" / "bootstrap-vm.sh"
+    sentinel = tmp_path / "BOOTSTRAP_RAN"
+    bootstrap.write_text(f"#!/bin/sh\ntouch '{sentinel}'\nexit 0\n", encoding="utf-8")
+    bootstrap.chmod(bootstrap.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    env_file = tmp_path / "missing-dir" / "env.sh"
+
+    proc = _run_session_start(repo, env_file)
+
+    assert sentinel.exists(), proc.stderr
+    assert "could not write AI_AGENTS_REMOTE_CONTAINER" in proc.stderr
+    assert not env_file.exists()
 
 
 @requires_bash
@@ -159,8 +199,19 @@ def test_exported_marker_makes_is_remote_container_true(
     assert rwlt._is_remote_container() is True
 
 
+def _sets_marker(text: str) -> bool:
+    """True when a non-comment line assigns the marker."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(_COMMENT_PREFIXES):
+            continue
+        if _ASSIGNMENT.match(line):
+            return True
+    return False
+
+
 def _images_missing_marker(root: Path, tracked: list[str]) -> list[str]:
-    """Tracked managed-image files that never mention the marker."""
+    """Tracked managed-image files that never assign the marker."""
     missing = []
     for rel in tracked:
         parts = Path(rel).parts
@@ -173,7 +224,7 @@ def _images_missing_marker(root: Path, tracked: list[str]) -> list[str]:
         if not is_image:
             continue
         text = (root / rel).read_text(encoding="utf-8", errors="replace")
-        if "AI_AGENTS_REMOTE_CONTAINER" not in text:
+        if not _sets_marker(text):
             missing.append(rel)
     return missing
 
@@ -195,6 +246,24 @@ def test_image_check_flags_image_without_marker(tmp_path: Path) -> None:
         ".devcontainer/devcontainer.json",
         "Containerfile.dev",
     ]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=1\n", True),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER 1\n", True),
+        ("export AI_AGENTS_REMOTE_CONTAINER=1\n", True),
+        ('{"containerEnv": {\n  "AI_AGENTS_REMOTE_CONTAINER": "1"\n}}\n', True),
+        ("# sets AI_AGENTS_REMOTE_CONTAINER=1 someday\n", False),
+        ("// AI_AGENTS_REMOTE_CONTAINER=1\n", False),
+        ("RUN echo AI_AGENTS_REMOTE_CONTAINER\n", False),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=\n", False),
+        ("", False),
+    ],
+)
+def test_sets_marker_requires_an_assignment_not_a_mention(text: str, expected: bool) -> None:
+    assert _sets_marker(text) is expected
 
 
 def test_every_tracked_managed_image_sets_the_marker() -> None:
@@ -221,6 +290,31 @@ def test_every_tracked_managed_image_sets_the_marker() -> None:
 
 
 def test_installed_script_matches_template() -> None:
-    """The rendered hook carries the marker export (build_all.py ran)."""
-    text = INSTALLED_SCRIPT.read_text(encoding="utf-8")
-    assert MARKER_LINE in text
+    """The rendered hook copies are byte-identical to the template (build_all.py ran)."""
+    template = (REPO_ROOT / "templates" / "hooks" / "session-start.sh").read_bytes()
+    shipped = (REPO_ROOT / "src" / "claude" / "hooks" / "session-start.sh").read_bytes()
+
+    assert INSTALLED_SCRIPT.read_bytes() == template
+    assert shipped == template
+    assert MARKER_LINE.encode() in template
+
+
+def test_known_managed_environments_each_have_a_setter() -> None:
+    """Each managed environment maps to the mechanism that marks it a remote container.
+
+    Adding an environment means adding a row here, so a new managed runtime
+    cannot reach ADR-104 rule 8 unmarked. Claude web is marked by the
+    SessionStart hook; Codespaces is marked by the platform's own variable.
+    """
+    from scripts.validation import run_workflow_local_test as rwlt
+
+    template = (REPO_ROOT / "templates" / "hooks" / "session-start.sh").read_text(encoding="utf-8")
+    setters = {
+        "claude-web": any(
+            line.strip().startswith(f"echo '{MARKER_LINE}'") for line in template.splitlines()
+        ),
+        "codespaces": "CODESPACES" in rwlt._REMOTE_CONTAINER_ENV_MARKERS,
+    }
+
+    assert setters == {"claude-web": True, "codespaces": True}
+    assert MARKER_NAME in rwlt._REMOTE_CONTAINER_ENV_MARKERS

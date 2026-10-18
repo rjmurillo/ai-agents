@@ -26,11 +26,15 @@ fi
 # rule 8 was measured against, so the export cannot mark a laptop as a container.
 #
 # This runs before the bootstrap check so a missing bootstrap-vm.sh cannot skip
-# it. The guard matches the exact export line, not any assignment: a stale
-# `=0` line stays in the file, and the later `=1` line wins when it is sourced.
+# it, and the write is non-fatal so an unwritable $CLAUDE_ENV_FILE cannot stop
+# the bootstrap below. The guard reads the LAST assignment of the variable: when
+# it is not the exact export line (absent, or a later `=0`), a new line is
+# appended, because the last assignment is the one sourcing leaves in effect.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  if ! grep -qxF 'export AI_AGENTS_REMOTE_CONTAINER=1' "$CLAUDE_ENV_FILE" 2>/dev/null; then
-    echo 'export AI_AGENTS_REMOTE_CONTAINER=1' >> "$CLAUDE_ENV_FILE"
+  last_marker="$(grep -E '^(export )?AI_AGENTS_REMOTE_CONTAINER=' "$CLAUDE_ENV_FILE" 2>/dev/null | tail -n 1 || true)"
+  if [ "$last_marker" != 'export AI_AGENTS_REMOTE_CONTAINER=1' ]; then
+    echo 'export AI_AGENTS_REMOTE_CONTAINER=1' >> "$CLAUDE_ENV_FILE" ||
+      echo "[session-start] could not write AI_AGENTS_REMOTE_CONTAINER to CLAUDE_ENV_FILE" >&2
   fi
 else
   echo "[session-start] CLAUDE_ENV_FILE is unset; AI_AGENTS_REMOTE_CONTAINER was not persisted" >&2
