@@ -54,7 +54,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Trees this repository authors. Generated mirrors are excluded because their
 # source is checked here and a duplicate failure names the wrong file to edit.
+# Shipped skills live once under src/claude/skills; .claude/skills links to them
+# (ADR-119), and a directory walk does not follow a link, so both roots are named:
+# the canonical tree and the repo-local skills that stay real directories.
 _SCANNED_DIRS = (
+    "src/claude/skills",
     ".claude/skills",
     ".claude-mem/scripts",
     ".codeql/scripts",
@@ -305,7 +309,7 @@ def test_the_scan_reaches_the_files_it_claims_to_cover() -> None:
     covered = {p.relative_to(_REPO_ROOT).as_posix() for p in files}
     # One representative per scanned tree, so a mistyped prefix cannot pass.
     for expected in (
-        ".claude/skills/github/scripts/pr/new_pr.py",
+        "src/claude/skills/github/scripts/pr/new_pr.py",
         ".claude-mem/scripts/export_claude_mem_direct.py",
         ".codeql/scripts/install_codeql_integration.py",
         ".github/scripts/run_with_retry.py",

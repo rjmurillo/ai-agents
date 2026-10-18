@@ -86,17 +86,20 @@ _SELF_REFERENTIAL_FILES: frozenset[str] = frozenset(
 # lib_mirror.py`): byte-for-byte (modulo relative-import rewrite) copies of
 # `scripts/{hook_utilities,github_core,ai_review_common}/`. A suppression
 # already counted at its canonical `scripts/` source would otherwise be
-# recounted once per plugin tree (three today: `.claude/lib/`, `src/claude/
-# lib/`, `src/copilot-cli/lib/`), inflating the ratchet with copies of the
-# same decision rather than new suppressions (issue #4039's same "noise about
-# the gate itself" rationale as `_SELF_REFERENTIAL_FILES`, applied to
-# generated duplicates instead of self-description).
+# recounted once per plugin tree (`src/claude/lib/`, `src/copilot-cli/lib/`, and
+# the other platform trees; the `.claude/lib/` package entries are links into
+# `src/claude/lib/` since ADR-119 decision 14, so only its real files remain
+# tracked there, and the prefixes below match none of them), inflating the
+# ratchet with copies of the same decision rather than new suppressions
+# (issue #4039's same "noise about the gate itself" rationale as
+# `_SELF_REFERENTIAL_FILES`, applied to generated duplicates instead of
+# self-description).
 #
 # Deliberately scoped to the three mirrored package names, not a blanket
-# `.claude/lib/` prefix: that directory (and its `src/*/lib/` counterparts)
-# also carries hand-maintained files with no `scripts/` canonical source
-# (`paths.py`, `qa_report.py`, and siblings), whose own suppressions, if any,
-# are original and should still count.
+# `lib/` prefix: the `src/*/lib/` trees (and `.claude/lib/`, where the hand-
+# maintained modules are real files) also carry files with no `scripts/`
+# canonical source (`paths.py`, `qa_report.py`, and siblings), whose own
+# suppressions, if any, are original and should still count.
 _LIB_MIRROR_ROOTS: tuple[str, ...] = (
     ".claude/lib",
     "src/claude/lib",
@@ -119,23 +122,25 @@ def _is_generated_lib_mirror(path_str: str) -> bool:
     return path_str.startswith(_LIB_MIRROR_PREFIXES)
 
 
-# Same rationale, for the skills class (ADR-109 B3 and its support-file
-# follow-up, generate_skills.py): .claude/skills/ is the canonical,
-# hand-maintained source for every non-SKILL.md file; src/claude/skills/ and
-# src/copilot-cli/skills/ are byte-for-byte generated mirrors of it. Keyed on
-# the canonical source actually existing (same defense as the lib check
-# above), not on the output prefix alone.
+# Same rationale, for the skills class (ADR-109 B3, ADR-119): src/claude/skills/
+# is the one canonical copy of every shipped skill file. .claude/skills/<name> is
+# a symlink to it (a tracked link entry, not the files beneath it), and
+# src/copilot-cli/skills/ and the other platform trees are byte-for-byte
+# generated mirrors. A tree that predates ADR-119 still track .claude/skills/<file>
+# as a second copy, so a .claude/skills path is skipped whenever its canonical
+# twin is tracked. Keyed on the canonical source actually existing (same defense
+# as the lib check above), not on the output prefix alone.
+_SKILL_CANONICAL_ROOT = "src/claude/skills"
 _SKILL_MIRROR_ROOTS: tuple[str, ...] = (
-    "src/claude/skills",
+    ".claude/skills",
     "src/copilot-cli/skills",
     "src/codex/skills",
     "src/cursor/skills",
 )
-_SKILL_CANONICAL_ROOT = ".claude/skills"
 
 
 def _skill_mirror_canonical_source(path_str: str) -> str | None:
-    """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
+    """Return the src/claude/skills/ path a skill-mirror path maps to, if any."""
     for root in _SKILL_MIRROR_ROOTS:
         prefix = f"{root}/"
         if path_str.startswith(prefix):

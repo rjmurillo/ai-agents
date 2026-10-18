@@ -71,7 +71,13 @@ class TestBoundedGracefulTermination:
         assert caps, "pre-pr-validation job not found in lefthook.yml"
         timeout = caps[0]["timeout"]
         assert isinstance(timeout, str) and timeout.endswith("m")
-        cap_seconds = int(timeout[:-1]) * 60
+        timeout_seconds = int(timeout[:-1]) * 60
+
+        # Issue #6725: the job waits for host headroom before its run clock
+        # starts, so the run budget is the timeout less that wait.
+        from scripts.validation import pre_pr_headroom
+
+        cap_seconds = timeout_seconds - pre_pr_headroom.HEADROOM_WAIT_SECONDS
 
         worst_case = (
             check_generated_staleness._GATE_BUDGET_SECONDS
@@ -79,13 +85,13 @@ class TestBoundedGracefulTermination:
         )
         assert worst_case <= cap_seconds / 2, (
             f"gate worst case {worst_case}s must leave at least half of the"
-            f" {cap_seconds}s pre-pr-validation cap for the rest of the"
+            f" {cap_seconds}s pre-pr-validation run budget for the rest of the"
             f" sequence"
         )
 
-        # The job declares its own cap to the gate so the runtime clamp can
-        # key off it (review round 5). The declaration must equal the job's
-        # actual timeout, or the clamp bounds against a fiction.
+        # The job declares its run budget to the gate so the runtime clamp can
+        # key off it (review round 5). The declaration must equal the timeout
+        # less the headroom wait, or the clamp bounds against a fiction.
         declared = caps[0].get("env", {}).get(check_generated_staleness._OUTER_CAP_ENV)
         assert declared is not None, (
             f"pre-pr-validation must declare {check_generated_staleness._OUTER_CAP_ENV}"

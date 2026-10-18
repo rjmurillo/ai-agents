@@ -20,7 +20,12 @@ from typing import Any, cast
 
 # Sibling imports; loaded under the same EVAL_DIR sys.path entry every
 # caller of this module already uses to reach them by bare name.
-from _anthropic_response import MessageResponse, parse_message_response, record_provider_cap
+from _anthropic_response import (
+    MessageResponse,
+    parse_message_response,
+    record_output_tokens,
+    record_provider_cap,
+)
 from _cli_credentials import parse_dotenv
 from _eval_common import (
     call_with_temperature_fallback,
@@ -150,6 +155,7 @@ def _call_selected_provider(
     if metadata is not None and fingerprint is not None:
         metadata["system_fingerprint"] = fingerprint
     record_provider_cap(selected_provider, metadata)
+    record_output_tokens(selected_provider, metadata)
     return text
 
 
@@ -262,6 +268,9 @@ def call_api_response(
     A non-default provider carries no stop metadata: termination ``"unknown"``.
     """
     selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
+    if metadata is not None:
+        # The default path reports no count, so a reused dict must not keep one.
+        metadata.pop("output_tokens", None)
     alternate = _call_selected_provider(
         selected,
         messages,
@@ -321,7 +330,8 @@ def call_api(
         metadata["stop_reason"] = response.stop_reason
         if response.refusal_category is not None:
             metadata["refusal_category"] = response.refusal_category
-        metadata.pop("output_tokens", None)  # a reused dict keeps no stale count
+        # call_api_response cleared any stale count; a provider's own count,
+        # copied by _call_selected_provider, must survive this fill.
         if response.output_tokens is not None:
             metadata["output_tokens"] = response.output_tokens
     # Per-file mypy resolves the sibling import as Any; the field is str.

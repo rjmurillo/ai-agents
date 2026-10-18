@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -51,11 +52,24 @@ class TestCallApiMetadata:
         assert "output_tokens" not in metadata
 
     def test_reused_dict_does_not_keep_a_stale_count(self, monkeypatch):
-        response = _anthropic_api.MessageResponse("text", "end_turn", "completed", ())
-        monkeypatch.setattr(_anthropic_api, "call_api_response", lambda *a, **k: response)
+        # Default Anthropic path, response carries no usage block.
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        payload = {"content": [{"type": "text", "text": "text"}], "stop_reason": "end_turn"}
+        monkeypatch.setattr(_anthropic_api, "_read_messages_response", lambda *a, **k: payload)
         metadata: dict[str, object] = {"output_tokens": 99}
         _anthropic_api.call_api("key", [], metadata=metadata)
         assert "output_tokens" not in metadata
+
+    def test_call_api_keeps_a_provider_count_when_the_response_has_none(self, monkeypatch):
+        # A non-default provider copies its count in _call_selected_provider and the
+        # MessageResponse it returns has output_tokens None; call_api must not erase it.
+        import _providers
+
+        stub = SimpleNamespace(complete=lambda **kwargs: "routed", output_tokens=42)
+        monkeypatch.setattr(_providers, "resolve_provider", lambda name: stub)
+        metadata: dict[str, object] = {}
+        _anthropic_api.call_api("key", [], provider="claude-cli", metadata=metadata)
+        assert metadata["output_tokens"] == 42
 
     def test_zero_tokens_are_recorded_not_dropped(self, monkeypatch):
         response = _anthropic_api.MessageResponse("", "end_turn", "completed", (), None, None, 0)

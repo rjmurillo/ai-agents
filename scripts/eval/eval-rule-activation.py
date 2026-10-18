@@ -2259,7 +2259,18 @@ def _parse_args() -> argparse.Namespace:
 
 
 RULES_DIR = (REPO_ROOT / ".claude" / "rules").resolve()
+# Shipped rules are symlinks from .claude/rules/<name>.md into src/claude/rules/
+# (ADR-119); repo-only rules stay real files under .claude/rules/.
+RULES_DIRS = (RULES_DIR, (REPO_ROOT / "src" / "claude" / "rules").resolve())
 SKILLS_DIR = (REPO_ROOT / ".claude" / "skills").resolve()
+# Shipped skills are symlinks from .claude/skills/<name> into src/claude/skills/
+# (ADR-119), so a resolved shipped skill lives under the second root.
+SKILLS_DIRS = (SKILLS_DIR, (REPO_ROOT / "src" / "claude" / "skills").resolve())
+
+
+def _is_under_skills_dir(path: Path) -> bool:
+    """True when a resolved path sits under a trusted skills root."""
+    return any(path.is_relative_to(root) for root in SKILLS_DIRS)
 
 
 def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
@@ -2388,10 +2399,13 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
 
 def _resolve_rule_path(rule_path_str: str) -> Path | int:
     """Resolve and validate rule_path stays under .claude/rules/ as a .md file."""
-    rule_path = (REPO_ROOT / rule_path_str).resolve()
-    try:
-        rule_path.relative_to(RULES_DIR)
-    except ValueError:
+    joined = REPO_ROOT / rule_path_str
+    rule_path = joined.resolve()
+    # Named under .claude/rules/, resolving there or (a shipped link) into
+    # src/claude/rules/; a direct src/claude/rules/ reference is refused.
+    if joined.parent.resolve() != RULES_DIR or not any(
+        rule_path.is_relative_to(root) for root in RULES_DIRS
+    ):
         print(
             f"ERROR: rule_path must be under .claude/rules/: {rule_path_str}",
             file=sys.stderr,
@@ -2417,9 +2431,7 @@ def _resolve_skill_path(skill_path_str: str) -> Path | int:
     `full` mechanism from sending arbitrary skill-tree content to the API.
     """
     skill_path = (REPO_ROOT / skill_path_str).resolve()
-    try:
-        skill_path.relative_to(SKILLS_DIR)
-    except ValueError:
+    if not _is_under_skills_dir(skill_path):
         print(
             f"ERROR: skill_path must be under .claude/skills/: {skill_path_str}",
             file=sys.stderr,
@@ -2444,9 +2456,7 @@ def _resolve_skill_reference(
     """Resolve and validate a skill SKILL.md plus one reference file."""
     skill_path = (REPO_ROOT / skill_path_str).resolve()
     reference_path = (REPO_ROOT / reference_path_str).resolve()
-    try:
-        skill_path.relative_to(SKILLS_DIR)
-    except ValueError:
+    if not _is_under_skills_dir(skill_path):
         print(
             f"ERROR: skill_path must be under .claude/skills/: {skill_path_str}",
             file=sys.stderr,

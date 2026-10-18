@@ -48,6 +48,9 @@ AGENT_CORPUS_ROOTS: tuple[str, ...] = (".claude/agents/", "templates/agents/")
 # repository both are absent and contribute nothing.
 PIPELINE_SOURCES: tuple[tuple[str, str], ...] = (
     (".claude/skills", "SKILL.md"),
+    # ADR-119: a shipped skill is a directory link under .claude/skills, which
+    # rglob does not follow, so its SKILL.md is read at the source tree.
+    ("src/claude/skills", "SKILL.md"),
     ("templates/skills", "*.SKILL.md.tmpl"),
     (".claude/commands", "*.md"),
     ("templates/commands", "*.md"),

@@ -55,6 +55,7 @@ jobs:
             coverage:
               - '.claude/rules/**'
               - '.claude/skills/**/SKILL.md'
+              - 'src/claude/skills/**/SKILL.md'
               - 'tests/evals/rule-scenarios/**'
               - 'tests/evals/skill-scenarios/**'
               - 'scripts/validation/check_rule_activation_coverage.py'
@@ -63,6 +64,7 @@ jobs:
               - 'scripts/eval/eval_autoplan_routes.py'
               - 'tests/evals/autoplan-routes/**'
               - '.claude/skills/autoplan/scripts/**'
+              - 'src/claude/skills/autoplan/scripts/**'
               - 'scripts/validation/rule_activation_coverage_baseline.json'
               - '.github/workflows/validate-rule-activation-coverage.yml'
 

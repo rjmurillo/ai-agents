@@ -229,8 +229,8 @@ jobs:
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
         # Catches the class of drift the build-all generator cannot:
-        # the install copies under .claude/agents/ and .github/agents/
-        # are hand-maintained self-host copies and must move together
+        # the install links under .claude/agents/ and .github/agents/
+        # (ADR-119) point at src/ trees that must move together
         # with the shared template under templates/agents/ and the three
         # vendored copies under src/. PR #2087 (qa) and PR #2083
         # (orchestrator) are the regressions this gate prevents.

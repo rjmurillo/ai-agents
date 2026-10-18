@@ -105,6 +105,9 @@ jobs:
       # the workspace beside the code that reads it.
       # Full history: the script finds the merge base of this tree and the head, so
       # a file the base moved after the branch point is labelled STALE. It still fails.
+      # The head fetch is depth-limited (HEAD_FETCH_DEPTH in the script), so after the
+      # closure step this checkout may be shallow at the head's ancestor. Keep the step
+      # last, and add no step that walks history.
       - name: Check out the base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
