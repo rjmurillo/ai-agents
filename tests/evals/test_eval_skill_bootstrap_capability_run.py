@@ -408,6 +408,19 @@ def test_eval_in_repo_flag_is_denied(monkeypatch, tmp_path):
     assert "bootstrap_eval.py" in cap.DENY_EVAL_IN_REPO
 
 
+def test_git_output_and_mine_out_flags_are_denied(monkeypatch, tmp_path):
+    child, seen = _patch_run(monkeypatch, subprocess.CompletedProcess([], 0, "{}", ""))
+    commands: list[list[str]] = []
+    monkeypatch.setattr(cap.subprocess, "Popen", lambda cmd, **kw: commands.append(cmd) or child)
+
+    cap.run_one(tmp_path, "p", "m")
+
+    denied = commands[0][commands[0].index("--disallowedTools") + 1 :]
+    assert "Bash(git log *--output*)" in denied
+    assert "Bash(git diff-tree *--output*)" in denied
+    assert any("bootstrap_mine.py *--out*" in rule for rule in denied)
+
+
 def test_duplicate_task_id_exits_2(tmp_path, checkout, monkeypatch):
     _head(monkeypatch, "h")
     data = {**TASKS, "tasks": [TASKS["tasks"][0], TASKS["tasks"][0]]}

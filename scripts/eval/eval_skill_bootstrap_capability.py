@@ -44,25 +44,19 @@ DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
 GIT_TIMEOUT_S = 30
 STDERR_TAIL_CHARS = 2000
-# Deny rules: drift --allow-commands runs repository-authored argv, and eval
-# --allow-in-repo writes inside the checkout; the prefix grants below would accept
-# both as trailing flags. Probed on Claude Code 2.1.302 (2026-10-17): with the drift
-# rule the call is refused; without it, it runs.
+# Deny rules for the write flags the prefix grants below would accept: drift
+# --allow-commands runs repository argv, eval --allow-in-repo and mine --out write
+# files, and git --output writes anywhere. Probed on Claude Code 2.1.302
+# (2026-10-17): with the drift rule the call is refused; without it, it runs.
 _SCRIPT_DIR = "python3 .claude/skills/skill-bootstrap/scripts"
 DENY_DRIFT_COMMANDS = f"Bash({_SCRIPT_DIR}/bootstrap_drift.py *--allow-commands*)"
 DENY_EVAL_IN_REPO = f"Bash({_SCRIPT_DIR}/bootstrap_eval.py *--allow-in-repo*)"
-# Narrow grant, not a sandbox. Print mode denies any tool outside this list, so
-# Edit, Write, and unlisted shell commands are refused (an unlisted `touch` was).
-# A prefix grant still accepts extra flags: `git log --output=<file>` writes a file,
-# and a skill script can write where its own flags send it. Run every evaluation in
-# a disposable worktree; the recorded runs did.
-_SKILL_SCRIPTS = (
-    "bootstrap_mine",
-    "bootstrap_forms",
-    "bootstrap_eval",
-    "bootstrap_drift",
-    "bootstrap_boundary",
-)
+DENY_WRITES = ("Bash(git log *--output*)", "Bash(git diff-tree *--output*)")
+DENY_WRITES += (f"Bash({_SCRIPT_DIR}/bootstrap_mine.py *--out*)",)
+# Narrow grant, not a sandbox: print mode refuses any tool outside this list (an
+# unlisted `touch` was). Run every evaluation in a disposable worktree.
+_SKILL_SCRIPTS = ("bootstrap_mine", "bootstrap_forms", "bootstrap_eval", "bootstrap_drift")
+_SKILL_SCRIPTS += ("bootstrap_boundary",)
 READ_ONLY_TOOLS = (
     "Read",
     "Grep",
@@ -223,6 +217,7 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
         "NotebookEdit",
         DENY_DRIFT_COMMANDS,
         DENY_EVAL_IN_REPO,
+        *DENY_WRITES,
     ]
     # Own session, so a timeout can kill the CLI and every tool process it spawned.
     child = subprocess.Popen(
