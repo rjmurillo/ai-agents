@@ -640,7 +640,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         choices=("workflow", "knowledge"),
         default="workflow",
-        help="knowledge mode also fails any no_gap case: the baseline already knew it",
+        help="knowledge mode also fails a skill whose cases are all no_gap",
     )
     return parser
 

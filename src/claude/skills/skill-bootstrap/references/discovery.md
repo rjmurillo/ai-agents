@@ -101,8 +101,10 @@ for it. The 16 lenses above are the taxonomy.
    write every case the lens needs before freezing. The lens passes the
    gate only when at least one case fails at baseline. A lens whose
    cases all pass already lives in the model; it gets no skill.
-4. Record each gated lens with its `baseline_case` in the plan file. Skip
-   the rest and list them in the report as `no_gap` with the case ids.
+4. Record each gated lens with its `baseline_case` in the plan file.
+   `forms check` confirms only that the field is set; confirm by hand that
+   the id is in the frozen file and failed at baseline. Skip the rest and
+   list them in the report as `no_gap` with the case ids.
 
 No quota applies. A small repository can produce one knowledge skill or
 none.

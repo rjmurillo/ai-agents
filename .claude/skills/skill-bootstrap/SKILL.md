@@ -177,7 +177,7 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" verify --repo . --snapshot "<snapshot path>" --output-root <output-root> --name <new-skill>
    ```
 
-   Run the drift check without `--allow-commands` unless the user approved the argv list of each `command` check; a skill whose checks were all skipped reports `skipped`, which proves nothing.
+   Run the drift check without `--allow-commands` unless the user approved the argv list of each `command` check; a skill whose checks were all skipped reports `skipped`, which proves nothing, so `--require` fails it.
 
    Add `--update <skill>` for each authorized improvement and `--also-allow <path>` for each path the user authorized in Phase 1. A file grant covers that exact path; end a directory grant with `/`.
 4. Deliver the report defined in [references/authoring-and-gates.md](references/authoring-and-gates.md#bootstrap-report).

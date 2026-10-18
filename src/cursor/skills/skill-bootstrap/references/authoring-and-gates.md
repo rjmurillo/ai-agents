@@ -209,7 +209,7 @@ frozen cases. Build it in every run.
    | `no_gap` | Baseline already passes | The knowledge is not missing. In `knowledge` mode, a skill whose cases are all `no_gap` fails the gate, enforced by `score --mode knowledge` (exit 1, cases listed in `failing_cases`): drop the skill |
    | `flat` | Equal pass rates, below 1.0 | The skill does not transfer. Fix the skill or the case |
    | `regression` | The skill lowers the pass rate | Blocking finding |
-   | `incomplete` | A condition has no runs | Run it, or report it under Limits |
+   | `incomplete` | A condition has no runs, or a run is ungraded (regex timeout) | Run it, or report it under Limits |
 
 When no agent runner is available, freeze the cases anyway and report
 `capability: NOT RUN (no runner)` with the frozen file. The next run scores
