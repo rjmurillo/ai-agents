@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Iterable
 from pathlib import Path
 
 # Owner: alphanumeric + hyphens, 1-39 chars, cannot start/end with hyphen
@@ -157,10 +156,7 @@ def _candidate_git_dir_roots() -> list[str]:
     return []
 
 
-def is_allowed_body_file_path(
-    path: str,
-    extra_roots: Iterable[str | os.PathLike[str]] = (),
-) -> bool:
+def is_allowed_body_file_path(path: str) -> bool:
     """Return True when a body or comment file sits under an approved root.
 
     This is the one containment rule for every skill script that reads a body
@@ -170,9 +166,11 @@ def is_allowed_body_file_path(
 
     Approved roots, checked in this order: the repository root of the working
     directory, every temp root from :func:`_candidate_temp_roots`, the git dir
-    from :func:`_candidate_git_dir_roots`, then ``extra_roots``. Paths are
-    resolved before the prefix test, so a symlink under an approved root that
-    points elsewhere is rejected. The caller owns the existence check.
+    from :func:`_candidate_git_dir_roots`. No caller adds roots, so every script
+    accepts the same paths. A relative-path base such as ``GITHUB_WORKSPACE`` only
+    resolves the path and never widens the roots. Paths are resolved before the
+    prefix test, so a symlink under an approved root that points elsewhere is
+    rejected. The caller owns the existence check.
 
     The allocated-scratch reader behind ``new_pr.py`` and ``edit_pr_body.py``
     (``prepare_pr_body.read_prepared_pr_body``) is stricter on purpose and does
@@ -180,10 +178,6 @@ def is_allowed_body_file_path(
 
     Args:
         path: The file path to check.
-        extra_roots: Additional approved base directories. A caller whose
-            historical base differs from the working directory's repository
-            (``GITHUB_WORKSPACE``, the installed skill's checkout) passes it
-            here so paths accepted before stay accepted.
 
     Returns:
         True when the resolved path stays within an approved root.
@@ -199,7 +193,7 @@ def is_allowed_body_file_path(
         if is_safe_file_path(path, git_root):
             return True
 
-    return any(is_safe_file_path(path, str(root)) for root in extra_roots)
+    return False
 
 
 def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> None:

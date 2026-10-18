@@ -470,9 +470,7 @@ class TestIsAllowedBodyFilePath:
         (tmp_path / "sub").mkdir()
         assert is_allowed_body_file_path(str(tmp_path / "sub" / ".." / "x.md")) is False
 
-    def test_extra_root_is_accepted_when_nothing_else_matches(
-        self, external_tmp_path: Path, monkeypatch
-    ):
+    def test_path_outside_every_root_is_rejected(self, external_tmp_path: Path, monkeypatch):
         from scripts.github_core import validation as _validation
 
         monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [])
@@ -480,7 +478,10 @@ class TestIsAllowedBodyFilePath:
         body = external_tmp_path / "body.md"
         body.write_text("x")
         assert is_allowed_body_file_path(str(body)) is False
-        assert is_allowed_body_file_path(str(body), extra_roots=[external_tmp_path]) is True
+
+    def test_takes_no_extra_roots(self, tmp_path: Path):
+        with pytest.raises(TypeError):
+            is_allowed_body_file_path(str(tmp_path / "x.md"), extra_roots=[tmp_path])  # type: ignore[call-arg]
 
     def test_never_exits_for_missing_file(self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv("TMPDIR", str(tmp_path))

@@ -344,11 +344,33 @@ class TestCommentFileContainment:
         with (
             patch("reopen_issue.assert_gh_authenticated"),
             patch("reopen_issue.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
-            patch("subprocess.run", return_value=_state_closed()),
+            patch("subprocess.run", return_value=_state_closed()) as mock_run,
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "9", "--comment-file", str(link)])
             assert exc.value.code == 2
+        mock_run.assert_not_called()
+        env = _envelope(capsys)
+        assert env["Error"]["Type"] == "InvalidParams"
+        assert "Comment file must be under" in env["Error"]["Message"]
+
+    def test_workspace_root_is_not_an_approved_root(self, external_tmp_path, capsys, monkeypatch):
+        work = external_tmp_path / "work"
+        work.mkdir()
+        inside = work / "note.md"
+        inside.write_text("workspace file", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        monkeypatch.delenv("TMPDIR", raising=False)
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch("reopen_issue.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=_state_closed()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "9", "--comment-file", "note.md"])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert _envelope(capsys)["Error"]["Type"] == "InvalidParams"
 
     def test_missing_comment_file_exits_2(self, tmp_path, capsys, monkeypatch):
         monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))

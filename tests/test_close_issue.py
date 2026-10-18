@@ -339,6 +339,26 @@ class TestMain:
         mock_run.assert_not_called()
         assert _envelope(capsys)["Error"]["Type"] == "InvalidParams"
 
+    def test_workspace_root_is_not_an_approved_root(self, external_tmp_path, capsys, monkeypatch):
+        work = external_tmp_path / "work"
+        work.mkdir()
+        (work / "note.md").write_text("workspace file", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        monkeypatch.delenv("TMPDIR", raising=False)
+        with (
+            patch("close_issue.assert_gh_authenticated"),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", return_value=_state_open()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "12", "--comment-file", "note.md"])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert _envelope(capsys)["Error"]["Type"] == "InvalidParams"
+
     def test_comment_base_uses_repo_root_when_workspace_missing(self, tmp_path, monkeypatch):
         nested = tmp_path / "nested"
         nested.mkdir()

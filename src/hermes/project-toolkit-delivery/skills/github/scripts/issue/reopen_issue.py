@@ -99,10 +99,10 @@ def _find_git_root(start: Path) -> Path | None:
 
 
 def _comment_base_dir() -> Path:
-    """Return the base that relative comment paths resolve against (CWE-22 guard).
+    """Return the base that relative comment paths resolve against.
 
-    It is also an approved root. Temp directories and the git dir are approved
-    by ``is_allowed_body_file_path`` (issue #6667).
+    It only resolves relative paths. It is not an approved root: containment
+    is the shared rule in ``is_allowed_body_file_path`` (issue #6667).
     """
     workspace = os.environ.get("GITHUB_WORKSPACE", "").strip()
     if workspace:
@@ -116,7 +116,7 @@ def _resolve_comment_file(comment_file: str, fmt: str) -> Path:
     raw_path = Path(comment_file)
     path = raw_path if raw_path.is_absolute() else base_dir / raw_path
     resolved = path.resolve()
-    if not is_allowed_body_file_path(str(resolved), extra_roots=(base_dir,)):
+    if not is_allowed_body_file_path(str(resolved)):
         write_skill_error(
             "Comment file must be under the repo root, a temp directory, "
             f"or the git dir: {comment_file}",
