@@ -27,9 +27,10 @@ fi
 #
 # This runs before the bootstrap check so a missing bootstrap-vm.sh cannot skip
 # it, and the write is non-fatal so an unwritable $CLAUDE_ENV_FILE cannot stop
-# the bootstrap below. The guard reads the LAST assignment of the variable: when
-# it is not the exact export line (absent, or a later `=0`), a new line is
-# appended, because the last assignment is the one sourcing leaves in effect.
+# the bootstrap below. The guard reads the LAST statement touching the variable:
+# when it is not the exact export line (absent, a later `=0`, or a later
+# `unset`), a new line is appended, because the last statement is the one
+# sourcing leaves in effect.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   # End the file's last line first. Another SessionStart hook can leave it
   # without a trailing LF, and an append would then fuse onto that line:
@@ -39,7 +40,10 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   if [ -s "$CLAUDE_ENV_FILE" ] && [ -n "$(tail -c1 "$CLAUDE_ENV_FILE" 2>/dev/null)" ]; then
     { echo >> "$CLAUDE_ENV_FILE"; } 2>/dev/null || true
   fi
-  last_marker="$(grep -E '^(export )?AI_AGENTS_REMOTE_CONTAINER=' "$CLAUDE_ENV_FILE" 2>/dev/null | tail -n 1 || true)"
+  # Match every statement that can change the variable: an assignment, or an
+  # `unset`, `export -n`, `declare`, `typeset`, or `readonly` line. A later
+  # `unset` leaves the marker empty after sourcing, so it must trigger the append.
+  last_marker="$(grep -E '^[[:space:]]*((export|unset|declare|typeset|readonly)([[:space:]]+-[^[:space:]]*)*[[:space:]]+)?AI_AGENTS_REMOTE_CONTAINER([=[:space:]]|$)' "$CLAUDE_ENV_FILE" 2>/dev/null | tail -n 1 || true)"
   if [ "$last_marker" != 'export AI_AGENTS_REMOTE_CONTAINER=1' ]; then
     echo 'export AI_AGENTS_REMOTE_CONTAINER=1' >> "$CLAUDE_ENV_FILE" ||
       echo "[session-start] could not write AI_AGENTS_REMOTE_CONTAINER to CLAUDE_ENV_FILE" >&2

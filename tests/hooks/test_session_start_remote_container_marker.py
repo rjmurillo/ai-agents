@@ -57,6 +57,28 @@ def _source_and_read(env_file: Path, cwd: Path, name: str) -> str:
     return proc.stdout
 
 
+def _source_and_read_exported(env_file: Path, cwd: Path, name: str) -> str:
+    """Value a child process inherits after sourcing, which is what os.environ sees."""
+    proc = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1" && printf %s "$(printenv "$2" || true)"',
+            "bash",
+            str(env_file),
+            name,
+        ],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
+
+
 @requires_bash
 def test_marker_written_once_across_repeated_runs(tmp_path: Path) -> None:
     repo = _materialize_fake_repo(tmp_path, "plain-repo")
@@ -110,6 +132,51 @@ def test_later_zero_after_one_is_overridden_by_new_one(tmp_path: Path) -> None:
     proc = _run_session_start(repo, env_file)
 
     assert proc.returncode == 0, proc.stderr
+    assert _source_and_read(env_file, tmp_path, MARKER_NAME) == "1"
+
+
+@requires_bash
+@pytest.mark.parametrize(
+    "trailer",
+    [
+        "unset AI_AGENTS_REMOTE_CONTAINER",
+        "unset -v AI_AGENTS_REMOTE_CONTAINER",
+        "export -n AI_AGENTS_REMOTE_CONTAINER",
+        "declare AI_AGENTS_REMOTE_CONTAINER=0",
+        "declare -x AI_AGENTS_REMOTE_CONTAINER=0",
+        "  unset AI_AGENTS_REMOTE_CONTAINER",
+        "AI_AGENTS_REMOTE_CONTAINER=0",
+    ],
+    ids=["unset", "unset-v", "export-n", "declare", "declare-x", "indented-unset", "bare-zero"],
+)
+def test_later_unset_or_redeclare_after_marker_is_overridden(tmp_path: Path, trailer: str) -> None:
+    """`=1` followed by an `unset` or redeclare leaves the marker empty or 0, so re-append."""
+    repo = _materialize_fake_repo(tmp_path, "one-then-unset")
+    env_file = tmp_path / "env.sh"
+    env_file.write_text(f"{MARKER_LINE}\n{trailer}\n", encoding="utf-8")
+    # Precondition: the pre-hook file leaves no exported 1 for a child process.
+    assert _source_and_read_exported(env_file, tmp_path, MARKER_NAME) != "1"
+
+    proc = _run_session_start(repo, env_file)
+
+    assert proc.returncode == 0, proc.stderr
+    assert _source_and_read_exported(env_file, tmp_path, MARKER_NAME) == "1"
+
+
+@requires_bash
+def test_unrelated_unset_after_marker_does_not_reappend(tmp_path: Path) -> None:
+    """An `unset` of another variable, or of a name that merely shares the prefix, is ignored."""
+    repo = _materialize_fake_repo(tmp_path, "unrelated-unset")
+    env_file = tmp_path / "env.sh"
+    env_file.write_text(
+        f"{MARKER_LINE}\nunset FOO\nunset AI_AGENTS_REMOTE_CONTAINER_OTHER\n", encoding="utf-8"
+    )
+
+    proc = _run_session_start(repo, env_file)
+
+    assert proc.returncode == 0, proc.stderr
+    lines = env_file.read_text(encoding="utf-8").splitlines()
+    assert lines.count(MARKER_LINE) == 1
     assert _source_and_read(env_file, tmp_path, MARKER_NAME) == "1"
 
 
