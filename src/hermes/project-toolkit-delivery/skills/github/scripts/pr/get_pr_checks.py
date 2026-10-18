@@ -662,14 +662,18 @@ def derive_required_state(
     pending_required: list[str],
     missing_required: list[str] | None,
     missing_queued: bool = False,
+    merge_ref_usable: bool = True,
 ) -> str:
     """Return the rollup state over required checks only.
 
     UNKNOWN when no checks reported or pagination did not finish, FAILURE when
     a required check failed or a ruleset context never reported past the grace
     window, PENDING when a required check is still running or a ruleset context
-    is only queued (issue #6389), otherwise SUCCESS. Non-required checks never
-    move this value. Issue #6396.
+    is only queued (issue #6389). A green set is SUCCESS only when it is proven:
+    ``missing_required`` of ``None`` means the ruleset was never read, so
+    nothing shows that every required context reported, and a merge ref that
+    cannot be built means most workflows may not have run. Both read UNKNOWN
+    (issue #6506). Non-required checks never move this value. Issue #6396.
     """
     if not has_checks or checks_incomplete:
         return "UNKNOWN"
@@ -677,6 +681,8 @@ def derive_required_state(
         return "FAILURE"
     if pending_required or missing_queued:
         return "PENDING"
+    if missing_required is None or not merge_ref_usable:
+        return "UNKNOWN"
     return "SUCCESS"
 
 
@@ -832,6 +838,7 @@ def build_output(
         pending_required=pending_required,
         missing_required=missing_required,
         missing_queued=missing_queued,
+        merge_ref_usable=merge_ref_usable,
     )
     # REST has no per-row isRequired flag. Without a ruleset listing required
     # checks, no row is marked required, so a green required set is not proven.

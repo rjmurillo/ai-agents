@@ -2947,7 +2947,7 @@ class TestRequiredState:
             _check("lint", failing=True, required=False, conclusion="FAILURE"),
         ]
 
-        output = build_output(_state_data(checks), "o", "r")
+        output = build_output(_state_data(checks), "o", "r", ruleset_contexts=["build"])
 
         assert output["AllState"] == "FAILURE"
         assert output["RequiredState"] == "SUCCESS"
@@ -2961,7 +2961,7 @@ class TestRequiredState:
         ]
         data = _state_data(checks, MergeState="MERGEABLE", MergeStateStatus="UNSTABLE")
 
-        output = build_output(data, "o", "r")
+        output = build_output(data, "o", "r", ruleset_contexts=["build"])
 
         assert output["RequiredState"] == "SUCCESS"
         assert output["MergeRefUsable"] is True
@@ -3027,9 +3027,79 @@ class TestRequiredState:
     def test_only_non_required_checks_sets_required_state_success(self):
         checks = [_check("lint", failing=True, required=False, conclusion="FAILURE")]
 
-        output = build_output(_state_data(checks), "o", "r")
+        output = build_output(_state_data(checks), "o", "r", ruleset_contexts=[])
 
         assert output["RequiredState"] == "SUCCESS"
+
+    def test_unread_ruleset_sets_required_state_unknown(self):
+        """Issue #6506: a skipped ruleset fetch (None) is not an empty list."""
+        checks = [_check("build", passing=True, required=True, conclusion="SUCCESS")]
+
+        output = build_output(_state_data(checks, all_state="SUCCESS"), "o", "r")
+
+        assert output["RequiredState"] == "UNKNOWN"
+        assert output["MissingRequiredChecks"] is None
+
+    def test_empty_ruleset_list_is_a_proven_success(self):
+        checks = [_check("build", passing=True, required=True, conclusion="SUCCESS")]
+
+        output = build_output(
+            _state_data(checks, all_state="SUCCESS"), "o", "r", ruleset_contexts=[]
+        )
+
+        assert output["RequiredState"] == "SUCCESS"
+
+    def test_unread_ruleset_does_not_hide_a_required_failure(self):
+        checks = [_check("build", failing=True, required=True, conclusion="FAILURE")]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["RequiredState"] == "FAILURE"
+
+    def test_unread_ruleset_does_not_hide_a_pending_required_check(self):
+        checks = [_check("build", pending=True, required=True, state="IN_PROGRESS")]
+
+        output = build_output(_state_data(checks, all_state="PENDING"), "o", "r")
+
+        assert output["RequiredState"] == "PENDING"
+
+    @pytest.mark.parametrize(
+        ("merge_state", "merge_state_status"),
+        [("CONFLICTING", "DIRTY"), ("MERGEABLE", "DIRTY"), ("CONFLICTING", "CLEAN")],
+    )
+    def test_unusable_merge_ref_sets_required_state_unknown(self, merge_state, merge_state_status):
+        """Issue #6506: green required checks on a dead merge ref are not proof."""
+        checks = [_check("build", passing=True, required=True, conclusion="SUCCESS")]
+        data = _state_data(
+            checks,
+            all_state="SUCCESS",
+            MergeState=merge_state,
+            MergeStateStatus=merge_state_status,
+        )
+
+        output = build_output(data, "o", "r", ruleset_contexts=["build"])
+
+        assert output["MergeRefUsable"] is False
+        assert output["RequiredState"] == "UNKNOWN"
+
+    def test_unusable_merge_ref_does_not_hide_a_required_failure(self):
+        checks = [_check("build", failing=True, required=True, conclusion="FAILURE")]
+        data = _state_data(checks, MergeState="CONFLICTING", MergeStateStatus="DIRTY")
+
+        output = build_output(data, "o", "r", ruleset_contexts=["build"])
+
+        assert output["RequiredState"] == "FAILURE"
+
+    def test_derive_required_state_defaults_keep_the_merge_ref_usable(self):
+        state = _mod.derive_required_state(
+            has_checks=True,
+            checks_incomplete=False,
+            failed_required=[],
+            pending_required=[],
+            missing_required=[],
+        )
+
+        assert state == "SUCCESS"
 
     def test_all_state_defaults_to_unknown_when_absent(self):
         output = build_output({"Number": 42, "HasChecks": True, "Checks": []}, "o", "r")
