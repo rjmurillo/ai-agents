@@ -126,6 +126,14 @@ _REPORT_ROW_RE = re.compile(r"^(?P<axis>[A-Za-z0-9_-]+): (?P<verdict>[A-Z_]+)$")
 # spellings that merge into PASS and WARN.
 PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT", "WARN", "PARTIAL"})
 
+# The security axis is stricter: a WARN or PARTIAL there is an open security
+# finding, not an acknowledged style note, so it never backs a marker that lets
+# a CRITICAL-path push through (issue #6506). Mirrored by
+# detect_infrastructure.py SECURITY_PASSING_VERDICTS; test_security_review_artifact.py
+# asserts the two sets match.
+SECURITY_AXIS = "security"
+SECURITY_PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT"})
+
 # Axes that have no ``references/{stem}.md`` prompt but still appear in a marker.
 # LOCAL_AXES copies select_axes.py:55 (canonical source, review skill scripts/
 # select_axes.py) verbatim:
@@ -798,6 +806,11 @@ def check_report_digest(report: list[str], digest_values: list[str]) -> str | No
     return None
 
 
+def passing_verdicts_for(axis: str) -> frozenset[str]:
+    """Return the verdicts that let ``axis`` back a marker."""
+    return SECURITY_PASSING_VERDICTS if axis == SECURITY_AXIS else PASSING_VERDICTS
+
+
 def check_report_rows(report: list[str], parent_sha: str, axes: tuple[str, ...]) -> str | None:
     """Return why ``report`` does not back a marker over ``axes``, or ``None``.
 
@@ -815,7 +828,7 @@ def check_report_rows(report: list[str], parent_sha: str, axes: tuple[str, ...])
     verdicts = {m.group("axis"): m.group("verdict") for m in parsed if m}
     if len(verdicts) != len(rows) or set(verdicts) != set(axes):
         return f"report rows must be exactly the marker axes: {', '.join(axes)}"
-    failing = sorted(a for a, v in verdicts.items() if v not in PASSING_VERDICTS)
+    failing = sorted(a for a, v in verdicts.items() if v not in passing_verdicts_for(a))
     if failing:
         return f"report has a non-passing verdict for: {', '.join(failing)}"
     return None

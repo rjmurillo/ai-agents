@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import json
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -35,6 +36,70 @@ def test_main_reads_null_delimited_stdin(
     payload = json.loads(capsys.readouterr().out)
     assert payload["file_count"] == 2
     assert payload["highest_risk"] == "critical"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        subprocess.TimeoutExpired(["git"], 15),
+        subprocess.CompletedProcess([], 128, "", "fatal: not a git repository"),
+    ],
+)
+def test_main_exits_3_when_staged_files_are_unreadable_and_review_is_required(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: BaseException | subprocess.CompletedProcess[str],
+) -> None:
+    """A git failure must not read as "no CRITICAL files" (issue #6506)."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["detect_infrastructure.py", "--use-git-staged", "--require-security-review"],
+    )
+    run_kwargs = (
+        {"side_effect": error} if isinstance(error, BaseException) else {"return_value": error}
+    )
+
+    with patch("subprocess.run", **run_kwargs):
+        assert main() == 3
+
+    captured = capsys.readouterr()
+    assert "[BLOCKED] detect_infrastructure" in captured.err
+    assert "scope=staged files from git" in captured.err
+    assert "No infrastructure/security files detected." not in captured.out
+
+
+def test_main_stays_advisory_when_staged_files_are_unreadable_without_the_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["detect_infrastructure.py", "--use-git-staged"])
+
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["git"], 15)):
+        assert main() == 0
+
+    captured = capsys.readouterr()
+    assert "[BLOCKED] detect_infrastructure" in captured.err
+    assert "No infrastructure/security files detected." not in captured.out
+
+
+def test_main_passes_when_staged_files_are_readable_and_clean(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["detect_infrastructure.py", "--use-git-staged", "--require-security-review"],
+    )
+
+    with patch(
+        "subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, "README.md\n", ""),
+    ):
+        assert main() == 0
+
+    assert "No infrastructure/security files detected." in capsys.readouterr().out
 
 
 def test_main_reports_high_risk_findings(

@@ -101,6 +101,9 @@ REPORT_BEGIN = "--- review report ---"
 REPORT_END = "--- end review report ---"
 PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT", "WARN", "PARTIAL"})
 SECURITY_AXIS = "security"
+# Stricter than the other axes: a WARN or PARTIAL security row is an open security
+# finding and must not clear a CRITICAL-path gate (issue #6506).
+SECURITY_PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT"})
 GIT_TIMEOUT_SECONDS = 15
 DEFAULT_BASE_REF = "origin/main"
 MAX_MAIN_MERGE_HOPS = 25
@@ -239,19 +242,16 @@ def get_security_risk_level(file_path: str) -> str:
 
 
 def get_staged_files() -> list[str]:
-    """Get list of staged files from git."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode != 0:
-            return []
-        return [f for f in result.stdout.strip().splitlines() if f.strip()]
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return []
+    """Get list of staged files from git.
+
+    Raises ``GitReadError`` when git cannot answer (nonzero exit, missing binary,
+    or the ``GIT_TIMEOUT_SECONDS`` timeout). An empty list means git answered and
+    nothing is staged; it must never stand for "git failed", or
+    ``--require-security-review`` would read a failure as "no CRITICAL files" and
+    exit 0 (issue #6506).
+    """
+    stdout = _git(["diff", "--cached", "--name-only"], Path.cwd())
+    return [f for f in stdout.strip().splitlines() if f.strip()]
 
 
 def get_files_from_stdin() -> list[str]:
@@ -398,7 +398,10 @@ def _report_rows_back_axes(report: list[str], parent_sha: str, axes: tuple[str, 
     return (
         len(verdicts) == len(rows)
         and set(verdicts) == set(axes)
-        and all(v in PASSING_VERDICTS for v in verdicts.values())
+        and all(
+            v in (SECURITY_PASSING_VERDICTS if axis == SECURITY_AXIS else PASSING_VERDICTS)
+            for axis, v in verdicts.items()
+        )
     )
 
 
@@ -777,10 +780,13 @@ def main() -> int:
     args = parser.parse_args()
 
     changed_files = get_files_from_stdin() if args.files_from_stdin else args.files
-    result = detect_infrastructure(
-        changed_files=changed_files,
-        use_git_staged=args.use_git_staged,
-    )
+    try:
+        result = detect_infrastructure(
+            changed_files=changed_files,
+            use_git_staged=args.use_git_staged,
+        )
+    except GitReadError as exc:
+        return _report_unreadable_staged_files(exc, args.require_security_review)
 
     exit_code = 0
     if args.require_security_review:
@@ -821,6 +827,21 @@ def main() -> int:
     print("")
 
     return exit_code if exit_code == 0 else _report_blocked(result, exit_code)
+
+
+def _report_unreadable_staged_files(exc: GitReadError, required: bool) -> int:
+    """Report that ``--use-git-staged`` could not read the index and return the exit code.
+
+    With ``--require-security-review`` the gate cannot say whether a CRITICAL file
+    is staged, so it exits 3 (blocked). Without the flag the exit code stays 0,
+    as the flag's help promises, but the failure still prints a typed line.
+    """
+    print(
+        f"[{exc.state}] detect_infrastructure reason={exc.reason} "
+        f"scope=staged files from git detail={json.dumps(str(exc))}",
+        file=sys.stderr,
+    )
+    return 3 if required else 0
 
 
 def _report_exempt(result: dict[str, Any]) -> None:
