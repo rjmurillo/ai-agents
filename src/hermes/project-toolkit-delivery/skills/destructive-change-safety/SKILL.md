@@ -104,14 +104,15 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/destructi
 
 | Verdict | Exit | Meaning |
 |---------|------|---------|
-| `PASS` | 0 | Every sink traced, scope measured and as expected, rollback stated, checks green. Execution may proceed. |
+| `PASS` | 0 | A `--scan` report backs the sinks. Every sink traced, scope measured and as expected, rollback stated, checks green. Execution may proceed. |
 | `SKIP` | 0 | No sink declared, and a `--scan` report with `"decision": "skip"` backs it. |
 | `BLOCK` | 1 | `reasons` lists each failure. Fix the evidence, or stop. |
 
-Passing `--scan` makes the gate require an evidence entry for every scanned
-sink, so an agent cannot omit one. Evidence that declares no sink needs `--scan`
-too: without a scan report, or with one that has no known `decision`, the gate
-blocks, because "no sink" is a claim the scan must prove. Cardinality outside `expected`, a
+Every verdict needs `--scan`. The gate requires an evidence entry for every
+scanned sink, so an agent cannot omit one, and it cannot declare one sink and
+leave the rest unscanned. Without a scan report, or with one that has no known
+`decision`, the gate blocks. A `SKIP` needs `"decision": "skip"`; an `activate`
+report that lists no sink is inconsistent and blocks. Cardinality outside `expected`, a
 missing or failed preflight, no rollback, an irreversible step without human
 approval, or a failed check blocks. There is no override here; a break-glass
 path is a repository policy decision outside this skill.

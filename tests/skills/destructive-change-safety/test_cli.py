@@ -51,6 +51,11 @@ def evidence_for(measured: int, expected: int, location: str) -> dict[str, Any]:
     }
 
 
+def scan_file_for(tmp_path: Path, location: str) -> str:
+    scan = {"decision": "activate", "sinks": [{"location": location}]}
+    return write_json(tmp_path / "scan.json", scan)
+
+
 def test_direct_database_delete_with_count_preflight_passes(tmp_path: Path) -> None:
     db = tmp_path / "app.db"
     make_db(db, rows=5)
@@ -58,7 +63,7 @@ def test_direct_database_delete_with_count_preflight_passes(tmp_path: Path) -> N
     assert preview.returncode == 0
     measured = json.loads(preview.stdout)["count"]
     evidence = write_json(tmp_path / "ev.json", evidence_for(measured, 5, "store.py:3"))
-    gate = run("gate", "--evidence", evidence)
+    gate = run("gate", "--evidence", evidence, "--scan", scan_file_for(tmp_path, "store.py:3"))
     assert gate.returncode == 0
     assert json.loads(gate.stdout)["verdict"] == "PASS"
 
@@ -69,7 +74,7 @@ def test_unexpected_cardinality_blocks_the_delete(tmp_path: Path) -> None:
     preview = run("preview-sql", "--database", str(db), "--statement", "DELETE FROM users")
     measured = json.loads(preview.stdout)["count"]
     evidence = write_json(tmp_path / "ev.json", evidence_for(measured, 5, "store.py:3"))
-    gate = run("gate", "--evidence", evidence)
+    gate = run("gate", "--evidence", evidence, "--scan", scan_file_for(tmp_path, "store.py:3"))
     assert gate.returncode == 1
     assert "measured 5000, expected 5" in json.loads(gate.stdout)["reasons"][0]
 
@@ -125,6 +130,16 @@ def test_gate_without_a_scan_cannot_skip(tmp_path: Path) -> None:
     assert json.loads(gate.stdout)["verdict"] == "BLOCK"
 
 
+def test_gate_with_declared_sinks_and_no_scan_blocks(tmp_path: Path) -> None:
+    """Issue #6506 review: a declared sink does not excuse the scan that catches the rest."""
+    evidence = write_json(tmp_path / "ev.json", evidence_for(5, 5, "store.py:3"))
+    gate = run("gate", "--evidence", evidence)
+    assert gate.returncode == 1
+    payload = json.loads(gate.stdout)
+    assert payload["verdict"] == "BLOCK"
+    assert "no scan report" in payload["reasons"][0]
+
+
 def test_gate_blocks_a_scan_file_without_a_decision(tmp_path: Path) -> None:
     gate = run(
         "gate",
@@ -141,12 +156,13 @@ def test_irreversible_operation_blocks_until_a_human_approves(tmp_path: Path) ->
     evidence = evidence_for(1, 1, "revoke.py:9")
     evidence["rollback"] = {"kind": "irreversible"}
     path = write_json(tmp_path / "ev.json", evidence)
-    blocked = run("gate", "--evidence", path)
+    scan = scan_file_for(tmp_path, "revoke.py:9")
+    blocked = run("gate", "--evidence", path, "--scan", scan)
     assert blocked.returncode == 1
     assert "needs human approval" in json.loads(blocked.stdout)["reasons"][0]
     evidence["approval"] = {"human": "owner approved in issue"}
     path = write_json(tmp_path / "ev2.json", evidence)
-    assert run("gate", "--evidence", path).returncode == 0
+    assert run("gate", "--evidence", path, "--scan", scan).returncode == 0
 
 
 def test_unparsable_source_exits_one(tmp_path: Path) -> None:

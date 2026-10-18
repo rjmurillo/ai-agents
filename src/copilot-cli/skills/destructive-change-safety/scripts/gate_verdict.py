@@ -13,11 +13,13 @@ Evidence is a JSON object the agent assembles from real command output:
       "checks": [{"command": "pytest ...", "exit_code": 0}]
     }
 
-``PASS`` means every rule held. ``SKIP`` means no sink was declared and a scan
-report with ``"decision": "skip"`` proved the scan found none. A missing scan
-report, or one without a known ``decision``, blocks: the absence of sinks is a
-claim the scan must back. ``BLOCK`` carries every reason. Missing evidence
-blocks; it never defaults to pass.
+``PASS`` means every rule held and a scan report backs the declared sinks.
+``SKIP`` means no sink was declared and a scan report with ``"decision": "skip"``
+proved the scan found none. Every verdict needs a scan report: a missing one, or
+one without a known ``decision``, blocks, because the scan is what catches a sink
+the evidence leaves out. A report that says ``activate`` yet lists no sink cannot
+back a SKIP. ``BLOCK`` carries every reason. Missing evidence blocks; it never
+defaults to pass.
 
 EXIT CODES (ADR-035), through ``destructive_gate.py``:
     0 - PASS or SKIP
@@ -157,14 +159,19 @@ RULES: tuple[Rule, ...] = (
 
 
 def evaluate(evidence: Evidence, scan_report: Evidence | None = None) -> dict[str, object]:
-    """Return ``{"verdict", "reasons"}`` for the evidence and optional scan report."""
-    scanned = [str(as_dict(s).get("location")) for s in as_list((scan_report or {}).get("sinks"))]
-    if scan_report is not None and scan_report.get("decision") not in SCAN_DECISIONS:
+    """Return ``{"verdict", "reasons"}`` for the evidence and its scan report (None blocks)."""
+    if scan_report is None:
+        return {
+            "verdict": "BLOCK",
+            "reasons": ["no scan report: run `scan` and pass --scan to prove which sinks exist"],
+        }
+    scanned = [str(as_dict(s).get("location")) for s in as_list(scan_report.get("sinks"))]
+    if scan_report.get("decision") not in SCAN_DECISIONS:
         return {
             "verdict": "BLOCK",
             "reasons": ["scan report has no known `decision` (skip, activate, or unknown)"],
         }
-    if scan_report is not None and scan_report.get("decision") == "unknown":
+    if scan_report.get("decision") == "unknown":
         return {
             "verdict": "BLOCK",
             "reasons": ["scan could not parse or cover every file: scope is unknown"],
@@ -172,10 +179,10 @@ def evaluate(evidence: Evidence, scan_report: Evidence | None = None) -> dict[st
     if "sinks" in evidence and not isinstance(evidence["sinks"], list):
         return {"verdict": "BLOCK", "reasons": ["evidence `sinks` must be a list"]}
     if not as_list(evidence.get("sinks")) and not scanned:
-        if scan_report is None:
+        if scan_report.get("decision") != "skip":
             return {
                 "verdict": "BLOCK",
-                "reasons": ["no scan report: run `scan` and pass --scan to prove no sink exists"],
+                "reasons": ["scan decision `activate` lists no sink: the report is inconsistent"],
             }
         return {"verdict": "SKIP", "reasons": ["no destructive sink declared or scanned"]}
     reasons = [reason for rule in RULES for reason in rule(evidence, scanned)]

@@ -75,7 +75,10 @@ _FIELD_LINE = re.compile(r"^[-*+] \*\*(?P<key>[^*]+)\*\*:[ \t]*(?P<value>.*)$")
 _DECISION_LINE = re.compile(
     r"^(?:(?P<bullet>[-*+])|(?P<number>\d+[.)])|(?P<heading>\#{3,6}))[ \t](?P<title>.*)$"
 )
-_TOP_LEVEL_PROVENANCE = re.compile(r"^[-*+] Provenance:[ \t]*(?P<value>.*)$", re.IGNORECASE)
+# The handoff template lists these as sibling fields of a decision. Under a numbered
+# or heading decision they sit at the top level, so they belong to that decision.
+_ATTRIBUTE_KEYS = frozenset({"alternatives considered", "provenance", "superseded by"})
+_TOP_LEVEL_ATTRIBUTE = re.compile(r"^[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _SUB_BULLET = re.compile(r"^\s+[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _REMOTE_URL = re.compile(r"[:/](?P<owner>[^/:]+)/(?P<name>[^/]+?)(?:\.git)?/?$")
 
@@ -124,18 +127,25 @@ def _is_missing(value: str | None) -> bool:
 
 
 def decisions_without_provenance(text: str) -> list[str]:
-    """Return the decision titles that lack a non-empty ``Provenance:`` sub-bullet."""
+    """Return the decision titles that lack a non-empty ``Provenance:`` sub-bullet.
+
+    A heading decision is never treated as a group over bullet decisions: a heading
+    with no ``Provenance:`` of its own is reported, so no unsourced decision passes
+    by hiding under a grouping heading. Give the heading a ``Provenance:`` line.
+    """
     body = _section(_strip_comments(text), "Decisions Made")
     if not _has_heading(text, "Decisions Made"):
         return [MISSING_DECISIONS]
     decisions: list[tuple[str, bool]] = []
     block_form = False
     for line in body.splitlines():
-        top_level = _TOP_LEVEL_PROVENANCE.match(line)
-        if block_form and top_level:
-            # Under a numbered or heading decision, an unindented `- Provenance:`
-            # bullet is that decision's source, not a new bullet decision.
-            if decisions and not _is_missing(top_level.group("value")):
+        attribute = _TOP_LEVEL_ATTRIBUTE.match(line)
+        key = attribute.group("key").strip().lower() if attribute else ""
+        if block_form and attribute and key in _ATTRIBUTE_KEYS:
+            # Under a numbered or heading decision, an unindented attribute bullet
+            # (`- Provenance:`, `- Alternatives considered:`) belongs to that decision,
+            # not to a new bullet decision. Only a non-empty Provenance sources it.
+            if decisions and key == "provenance" and not _is_missing(attribute.group("value")):
                 decisions[-1] = (decisions[-1][0], True)
             continue
         decision = _DECISION_LINE.match(line)

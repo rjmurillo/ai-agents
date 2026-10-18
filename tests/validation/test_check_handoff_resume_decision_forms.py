@@ -84,6 +84,47 @@ def test_top_level_provenance_bullet_after_a_bullet_decision_is_its_own_decision
     assert _unsourced("- Use the retry\n- Provenance: x\n") == ["Use the retry", "Provenance: x"]
 
 
+@pytest.mark.parametrize(
+    "decisions",
+    [
+        "### Use X\n- Alternatives considered: Y\n- Provenance: ADR-1\n",
+        "### Use X\n- Alternatives considered: Y\n- Provenance: ADR-1\n- Superseded by: Z\n",
+        "1. Use X\n- Alternatives considered: Y\n- Provenance: ADR-1\n",
+        "### Use X\n- Provenance: ADR-1\n- Alternatives considered: Y\n",
+        "### Use X\n- ALTERNATIVES CONSIDERED: Y\n- provenance: ADR-1\n",
+    ],
+)
+def test_template_sibling_fields_belong_to_the_block_decision(decisions: str) -> None:
+    """Issue #6506 review: `Alternatives considered` is not a decision of its own."""
+    assert _unsourced(decisions) == []
+
+
+def test_sibling_fields_without_provenance_report_only_the_decision() -> None:
+    decisions = "### Use X\n- Alternatives considered: Y\n- Superseded by: Z\n"
+    assert _unsourced(decisions) == ["Use X"]
+
+
+def test_sibling_fields_do_not_source_the_next_decision() -> None:
+    decisions = "### First\n- Provenance: a\n### Second\n- Alternatives considered: b\n"
+    assert _unsourced(decisions) == ["Second"]
+
+
+def test_unknown_top_level_field_under_a_block_decision_is_still_a_bullet_decision() -> None:
+    decisions = "### Use X\n- Provenance: a\n- Owner: Dana\n"
+    assert _unsourced(decisions) == ["Owner: Dana"]
+
+
+def test_sibling_fields_after_a_bullet_decision_stay_bullet_decisions() -> None:
+    decisions = "- Use X\n- Alternatives considered: Y\n"
+    assert _unsourced(decisions) == ["Use X", "Alternatives considered: Y"]
+
+
+def test_grouping_heading_without_provenance_is_reported() -> None:
+    """A heading is a decision. Exempting group headings would let an unsourced one hide."""
+    decisions = "### Architecture\n- Use X\n  - Provenance: ADR-1\n"
+    assert _unsourced(decisions) == ["Architecture"]
+
+
 @pytest.mark.parametrize("decisions", ["- None\n", "1. None\n", "### N/A\n", "- **n/a**\n"])
 def test_none_needs_no_provenance_in_any_form(decisions: str) -> None:
     assert _unsourced(decisions) == []
