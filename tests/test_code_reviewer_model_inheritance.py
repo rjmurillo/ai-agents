@@ -109,24 +109,29 @@ def _generated_copilot_agents() -> list[Path]:
     return found
 
 
-def _kept_pin_agent_names(manifest: Path) -> set[str]:
-    """Agent names that a KEEP_PIN manifest entry justifies."""
+def _kept_pins(manifest: Path) -> dict[str, str]:
+    """Map agent name to the model id its KEEP_PIN manifest entry justifies."""
     data = json.loads(manifest.read_text(encoding="utf-8"))
-    names: set[str] = set()
+    kept: dict[str, str] = {}
     for entry in data.get("pins", []):
         if entry.get("decision") == "KEEP_PIN":
             # Unit paths look like templates/agents/<name>.shared.md.
-            names.add(Path(str(entry["unit"])).name.split(".")[0])
-    return names
+            kept[Path(str(entry["unit"])).name.split(".")[0]] = str(entry.get("model", ""))
+    return kept
 
 
-def _assert_pin_is_backed(path: Path, kept: set[str]) -> None:
-    if "model" not in _frontmatter(path):
+def _assert_pin_is_backed(path: Path, kept: dict[str, str]) -> None:
+    pinned = _frontmatter(path).get("model")
+    if pinned is None:
         return
     name = path.name.split(".")[0]
     assert name in kept, (
         f"{path} pins a model with no KEEP_PIN entry in the model-pin-evidence "
         "manifest. A host without that model rejects the agent."
+    )
+    assert pinned == kept[name], (
+        f"{path} pins model {pinned!r} but the KEEP_PIN entry justifies "
+        f"{kept[name]!r}. The sweep evidence does not cover the pinned id."
     )
 
 
@@ -146,7 +151,7 @@ def test_generated_copilot_agents_are_discovered() -> None:
     ids=lambda p: p.relative_to(REPO_ROOT).as_posix(),
 )
 def test_generated_copilot_agent_pins_no_unbacked_model(path: Path) -> None:
-    _assert_pin_is_backed(path, _kept_pin_agent_names(PIN_MANIFEST))
+    _assert_pin_is_backed(path, _kept_pins(PIN_MANIFEST))
 
 
 def test_unbacked_pin_in_generated_agent_is_rejected(tmp_path: Path) -> None:
@@ -155,7 +160,7 @@ def test_unbacked_pin_in_generated_agent_is_rejected(tmp_path: Path) -> None:
     agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.5\n---\nbody\n", encoding="utf-8")
 
     with pytest.raises(AssertionError, match="no KEEP_PIN entry"):
-        _assert_pin_is_backed(agent, set())
+        _assert_pin_is_backed(agent, {})
 
 
 def test_manifest_backed_pin_in_generated_agent_is_accepted(tmp_path: Path) -> None:
@@ -165,7 +170,11 @@ def test_manifest_backed_pin_in_generated_agent_is_accepted(tmp_path: Path) -> N
         json.dumps(
             {
                 "pins": [
-                    {"unit": "templates/agents/new-agent.shared.md", "decision": "KEEP_PIN"},
+                    {
+                        "unit": "templates/agents/new-agent.shared.md",
+                        "model": "claude-haiku-4.5",
+                        "decision": "KEEP_PIN",
+                    },
                     {"unit": "templates/agents/other.shared.md", "decision": "DROP_PIN"},
                 ]
             }
@@ -174,10 +183,33 @@ def test_manifest_backed_pin_in_generated_agent_is_accepted(tmp_path: Path) -> N
     )
     agent = tmp_path / "new-agent.agent.md"
     agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.5\n---\nbody\n", encoding="utf-8")
-    kept = _kept_pin_agent_names(manifest)
+    kept = _kept_pins(manifest)
 
-    assert kept == {"new-agent"}
+    assert kept == {"new-agent": "claude-haiku-4.5"}
     _assert_pin_is_backed(agent, kept)
+
+
+def test_pin_to_a_different_model_than_the_manifest_is_rejected(tmp_path: Path) -> None:
+    """Negative: a KEEP_PIN for one id does not back a regenerated pin to another."""
+    agent = tmp_path / "new-agent.agent.md"
+    agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.6\n---\nbody\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="does not cover the pinned id"):
+        _assert_pin_is_backed(agent, {"new-agent": "claude-haiku-4.5"})
+
+
+def test_keep_pin_entry_without_model_backs_no_pin(tmp_path: Path) -> None:
+    """Edge: a KEEP_PIN entry missing its model field cannot back any concrete pin."""
+    manifest = tmp_path / "model-pin-evidence.json"
+    manifest.write_text(
+        json.dumps({"pins": [{"unit": "templates/agents/x.shared.md", "decision": "KEEP_PIN"}]}),
+        encoding="utf-8",
+    )
+    agent = tmp_path / "x.agent.md"
+    agent.write_text("---\ndescription: x\nmodel: claude-haiku-4.5\n---\nbody\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="does not cover the pinned id"):
+        _assert_pin_is_backed(agent, _kept_pins(manifest))
 
 
 def test_non_keep_pin_manifest_entry_does_not_back_a_pin(tmp_path: Path) -> None:
@@ -188,7 +220,7 @@ def test_non_keep_pin_manifest_entry_does_not_back_a_pin(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    assert _kept_pin_agent_names(manifest) == set()
+    assert _kept_pins(manifest) == {}
 
 
 def test_empty_manifest_backs_nothing(tmp_path: Path) -> None:
@@ -196,4 +228,4 @@ def test_empty_manifest_backs_nothing(tmp_path: Path) -> None:
     manifest = tmp_path / "model-pin-evidence.json"
     manifest.write_text(json.dumps({"pins": []}), encoding="utf-8")
 
-    assert _kept_pin_agent_names(manifest) == set()
+    assert _kept_pins(manifest) == {}
