@@ -54,6 +54,28 @@ import local_smoke_guard as guard
         "! copilot",
         "{ copilot; }",
         "case x in x) copilot;; esac",
+        "sh -lc 'copilot -p x'",
+        "bash -xc copilot",
+        "bash -ec 'echo hi; copilot'",
+        ["zsh", "-ic", "copilot"],
+        "> /dev/null copilot -p x",
+        "</dev/null copilot",
+        "2>/dev/null copilot",
+        "2> /dev/null copilot",
+        ">>log.txt copilot",
+        "&>/dev/null copilot",
+        "exec 3>&1 copilot",
+        "<<< hi copilot",
+        "> /dev/null env FOO=1 copilot",
+        r"> NUL C:\npm\copilot.cmd",
+        "diff <(copilot -p x) file",
+        "diff >(copilot) file",
+        "bash -c 'diff <(copilot -p x) f'",
+        "watch copilot",
+        "watch -n 5 copilot",
+        "watch 'copilot -p x'",
+        "busybox sh -c copilot",
+        "busybox copilot",
     ],
 )
 def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
@@ -86,6 +108,18 @@ def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
         'echo "$(date)"',
         "echo 'copilot' | cat",
         "nice -n 5 codex",
+        "sh -lc 'echo hi'",
+        "bash -xc 'ls | cat'",
+        "bash --login -c 'echo hi'",
+        "bash -x script.sh",
+        "echo hi > copilot",
+        "echo hi 2>&1 | cat",
+        "ls <(date) >out",
+        "echo 'x <(copilot)'",
+        "watch -n 5 date",
+        "watch 'date -u'",
+        "busybox sh -c 'echo hi'",
+        "2>/dev/null echo copilot",
     ],
 )
 def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> None:
@@ -94,6 +128,12 @@ def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> No
 
 def test_program_names_lists_every_program_in_order() -> None:
     assert command.program_names("a; b | env X=1 c && sh -c 'd; e'") == ["a", "b", "c", "d", "e"]
+
+
+def test_program_names_sees_through_a_redirect_a_cluster_and_a_substitution() -> None:
+    assert command.program_names("2>/dev/null sh -lc 'a; b'") == ["a", "b"]
+    assert command.program_names("diff <(a) <(b)") == ["diff", "a", "b"]
+    assert command.program_names("exec 3>&1 env X=1 c") == ["c"]
 
 
 def test_program_name_keeps_returning_the_first_program() -> None:
