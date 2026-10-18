@@ -129,6 +129,29 @@ def test_general_topic_no_skill_explains_still_routes_to_create_new(
     assert data["action"] == triage.Action.CREATE_NEW
 
 
+def test_general_topic_a_low_scoring_skill_explains_does_not_create(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # phase0-triage.md documents this exemption: a match that explains at least
+    # half the content terms covers the topic, even when it scores under 50.
+    index = {
+        "skills": [
+            make_skill("merge-resolver", "Resolve merge conflicts by reading git history."),
+        ]
+    }
+    monkeypatch.setattr(triage, "load_skill_index", lambda: index)
+
+    data = run_triage("resolve merge conflicts")
+
+    top = data["top_matches"][0]
+    assert data["details"]["category"] == triage.InputCategory.GENERAL
+    assert top["name"] == "merge-resolver"
+    assert top["score"] < 50
+    assert top["names_skill"] is False
+    assert top["coverage"] >= triage.TOPIC_COVERAGE_MIN
+    assert data["action"] == triage.Action.CLARIFY
+
+
 def test_match_dicts_report_coverage_and_name_evidence() -> None:
     skills = _landing_index()["skills"]
 
