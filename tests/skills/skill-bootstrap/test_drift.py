@@ -697,7 +697,8 @@ def test_command_runs_in_its_own_session(capsys, repo, skills):
 
 @pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX only")
 def test_command_timeout_kills_the_whole_process_group(capsys, repo, skills, monkeypatch, tmp_path):
-    monkeypatch.setattr(bootstrap_drift, "COMMAND_TIMEOUT_S", 1)
+    # 3 s leaves a loaded runner time to start the child and write the grandchild pid.
+    monkeypatch.setattr(bootstrap_drift, "COMMAND_TIMEOUT_S", 3)
     pid_file = tmp_path / "grandchild.pid"
     code_text = (
         "import subprocess, sys, time\n"
@@ -742,13 +743,23 @@ def test_skill_with_every_check_skipped_reports_skipped(capsys, repo, skills):
     assert payload["skills"][0]["status"] == "skipped"
 
 
-def test_skipped_skill_still_has_provenance_under_require(capsys, repo, skills):
+def test_require_fails_a_skill_whose_checks_were_all_skipped(capsys, repo, skills):
     add_skill(skills, "s1", [{"id": "R5", "kind": "command", "argv": COMMAND_OK}])
 
     code, payload = run(capsys, repo, skills, "--require")
 
-    assert code == 0
+    assert code == 1
     assert payload["no_provenance"] == []
+    assert payload["unverified"] == ["s1"]
+
+
+def test_all_skipped_skill_passes_without_require(capsys, repo, skills):
+    add_skill(skills, "s1", [{"id": "R5", "kind": "command", "argv": COMMAND_OK}])
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 0
+    assert payload["unverified"] == ["s1"]
 
 
 @pytest.mark.parametrize("name", ["a--b", "a" * 65])

@@ -124,3 +124,23 @@ def test_kill_group_without_killpg_still_kills_the_child(monkeypatch):
     drift._kill_group(cast("subprocess.Popen[bytes]", proc))
 
     assert proc.killed and proc.waited
+
+
+@pytest.mark.parametrize("path", ["a\x00b", "a\ud800b"])
+def test_unresolvable_path_is_invalid_not_a_crash(path, repo_and_skills, capsys):
+    repo, skills = repo_and_skills
+
+    result = _check(repo, skills, {"id": "R1", "kind": "path_exists", "path": path}, capsys)
+
+    assert result["status"] == "invalid"
+
+
+def test_line_count_counts_newlines_not_form_feeds(repo_and_skills, capsys):
+    repo, skills = repo_and_skills
+    (repo / "f.txt").write_text("a\fb\fc\n", encoding="utf-8")
+    check = {"id": "R1", "kind": "line_count_at_least", "path": "f.txt", "min": 3}
+
+    result = _check(repo, skills, check, capsys)
+
+    assert result["status"] == "fail"
+    assert result["detail"].startswith("1 lines")

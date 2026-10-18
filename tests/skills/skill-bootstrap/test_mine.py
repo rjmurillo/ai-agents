@@ -1373,6 +1373,14 @@ def test_untracked_file_outside_the_skill_stays_untracked(capsys, crepo):
     assert statuses(payload) == {"scripts/loose.py": "untracked"}
 
 
+def test_disk_status_counts_newlines_not_form_feeds(crepo):
+    (crepo / "ff.txt").write_text("a\fb\fc\n", encoding="utf-8")
+    view = mine.RepoView(crepo, mine.resolve_rev(crepo, "HEAD"))
+
+    assert view.disk_status("ff.txt", 2) == "line-out-of-range"
+    assert view.disk_status("ff.txt", 1) == "ok"
+
+
 def test_disk_status_refuses_a_climbing_path(crepo):
     view = mine.RepoView(crepo, mine.resolve_rev(crepo, "HEAD"))
 

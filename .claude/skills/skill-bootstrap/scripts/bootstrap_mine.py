@@ -549,7 +549,8 @@ class RepoView:
         if not target.is_file():
             return "missing"
         if max_line is not None:
-            lines = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+            text = target.read_text(encoding="utf-8", errors="replace")
+            lines = text.count("\n") + (0 if not text or text.endswith("\n") else 1)
             if max_line > lines:
                 return "line-out-of-range"
         return "ok"

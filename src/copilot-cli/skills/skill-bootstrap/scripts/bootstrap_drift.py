@@ -28,8 +28,9 @@ author chose: pass the flag only for skills you trust.
 
 Per-check status: pass, fail, skipped, invalid. Per-skill status: `pass` when
 every non-skipped check passes, `fail` when any check fails or is invalid,
-`skipped` when every check was skipped (nothing was verified; not a failure,
-and `--require` still counts the skill as having provenance), `no-provenance` when `reverify.json` is absent, and `malformed` when the JSON
+`skipped` when every check was skipped (nothing was verified, so `--require`
+fails it; a skill with only `command` checks needs `--allow-commands` or one
+path check), `no-provenance` when `reverify.json` is absent, and `malformed` when the JSON
 or schema is bad (unknown kind, missing field, duplicate id, empty check
 list).
 
@@ -146,7 +147,10 @@ def _safe_path(repo: Path, raw: str) -> Path | None:
     if ".." in PurePosixPath(text.replace("\\", "/")).parts:
         return None
     lexical = repo / Path(*PurePosixPath(text.replace("\\", "/")).parts)
-    resolved = lexical.resolve()
+    try:
+        resolved = lexical.resolve()
+    except (OSError, ValueError):  # a NUL byte or an unencodable character
+        return None
     if resolved != repo and repo not in resolved.parents:
         return None
     # Return the unresolved path: `absent` must see a dangling symlink as present.
@@ -195,7 +199,8 @@ def _eval_line_count(check: Payload, target: Path) -> Payload:
         return _unreadable(check, exc)
     if content is None:
         return _result(check, "fail", f"{check['path']} is not a file")
-    count = len(content.splitlines())
+    # Count newlines as `wc -l` and `bootstrap_mine` do; splitlines also breaks on \f and \r.
+    count = content.count("\n") + (0 if not content or content.endswith("\n") else 1)
     status = "pass" if count >= check["min"] else "fail"
     return _result(check, status, f"{count} lines, need at least {check['min']}")
 
@@ -329,12 +334,14 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
     candidates = [s["name"] for s in skills if s["status"] in ("fail", "malformed")]
     safe = [n for n in candidates if valid_skill_name(n)]
     missing = [s["name"] for s in skills if s["status"] == "no-provenance"]
-    failed = bool(candidates) or (args.require and bool(missing))
+    unverified = [s["name"] for s in skills if s["status"] == "skipped"]
+    failed = bool(candidates) or (args.require and bool(missing or unverified))
     return (1 if failed else 0), {
         "skills": skills,
         "update_candidates": candidates,
         "update_args": _update_args(safe),
         "no_provenance": missing,
+        "unverified": unverified,
         "examined": {"skills": len(skills), "checks": sum(len(s["checks"]) for s in skills)},
     }
 
