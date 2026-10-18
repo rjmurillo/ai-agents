@@ -194,6 +194,12 @@ def test_tokenize_for_scoring_of_empty_input_is_empty() -> None:
         ("set up ci pipeline", "ci", True),
         ("stack trace", "stack trace", True),
         ("c++ (cpp)", "c++", True),
+        ("debugging a flaky failure", "debug", True),
+        ("shipped it", "ship", True),
+        ("shipping soon", "ship", True),
+        ("debugger", "debug", False),
+        ("shippers", "ship", False),
+        ("", "debug", False),
     ],
 )
 def test_contains_term_respects_word_boundaries(text: str, term: str, expected: bool) -> None:

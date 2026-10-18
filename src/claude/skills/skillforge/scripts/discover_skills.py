@@ -308,9 +308,21 @@ def extract_keywords(content: str, name: str) -> list[str]:
     return list(set(keywords))
 
 
+# Final consonants that double before "ing" and "ed" (debug -> debugging).
+_DOUBLING_CONSONANTS = frozenset("bdglmnprt")
+
+
 def _has_term(text: str, term: str) -> bool:
-    """True when term appears in text as a whole word or phrase, allowing inflection."""
-    pattern = r"(?<![a-z0-9])" + re.escape(term) + r"(?:s|es|ing|ed)?(?![a-z0-9])"
+    """
+    True when term appears in text as a whole word or phrase, allowing inflection.
+
+    Inflections are s, es, ing, and ed. A final consonant also doubles before ing
+    and ed, so "debug" matches "debugging" and "ship" matches "shipped".
+    """
+    suffixes = ["s", "es", "ing", "ed"]
+    if term and term[-1] in _DOUBLING_CONSONANTS:
+        suffixes += [re.escape(term[-1]) + "ing", re.escape(term[-1]) + "ed"]
+    pattern = r"(?<![a-z0-9])" + re.escape(term) + r"(?:" + "|".join(suffixes) + r")?(?![a-z0-9])"
     return re.search(pattern, text) is not None
 
 

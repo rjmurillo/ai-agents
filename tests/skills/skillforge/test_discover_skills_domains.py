@@ -70,3 +70,38 @@ def test_no_signal_falls_back_to_general() -> None:
 @pytest.mark.parametrize("name", ["", "-", "_"])
 def test_degenerate_names_do_not_crash(name: str) -> None:
     assert discover_skills.classify_domain(name, "", []) == ["general"]
+
+
+def test_doubled_consonant_form_in_a_name_assigns_domain() -> None:
+    domains = discover_skills.classify_domain("ai-agents-debugging-playbook", "x", [])
+
+    assert "debugging" in domains
+
+
+@pytest.mark.parametrize(
+    ("text", "term", "expected"),
+    [
+        ("debugging a crash", "debug", True),
+        ("debugged it", "debug", True),
+        ("debugs", "debug", True),
+        ("shipping the release", "ship", True),
+        ("shipped", "ship", True),
+        ("tests and testing", "test", True),
+        # Negative: other words that merely start with the term.
+        ("debugger", "debug", False),
+        ("attest the claim", "test", False),
+        ("shippers", "ship", False),
+        # Negative: a vowel never doubles, a different letter never doubles.
+        ("deployying", "deploy", False),
+        ("debugking", "debug", False),
+        # Edge: empty term and empty text.
+        ("anything", "", False),
+        ("", "debug", False),
+        # Edge: multi-word term takes the inflection on its last word.
+        ("reading a stack traces", "stack trace", True),
+    ],
+)
+def test_has_term_allows_inflection_and_doubled_consonant(
+    text: str, term: str, expected: bool
+) -> None:
+    assert discover_skills._has_term(text, term) is expected

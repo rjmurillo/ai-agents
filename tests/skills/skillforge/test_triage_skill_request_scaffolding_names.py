@@ -199,6 +199,60 @@ def test_general_input_with_a_strong_match_still_uses_the_existing_skill(
     assert data["action"] == triage.Action.USE_EXISTING
 
 
+def test_help_is_request_scaffolding() -> None:
+    assert triage.tokenize_for_scoring("help me debug this crash") == ["debug", "crash"]
+
+
+def test_general_input_naming_a_short_skill_word_asks_instead_of_creating(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # "adr" is three letters, so it earns no partial-name credit and the top
+    # score stays under 50. The request still names adr-generator.
+    index = {
+        "skills": [
+            make_skill(
+                "adr-generator",
+                "Generate architecture decision records.",
+                domains=["document"],
+            )
+        ]
+    }
+    monkeypatch.setattr(triage, "load_skill_index", lambda: index)
+
+    data = run_triage("I need help writing an ADR for the billing service")
+
+    assert data["details"]["category"] == triage.InputCategory.GENERAL
+    assert data["details"]["top_score"] < 50
+    assert data["action"] == triage.Action.CLARIFY
+
+
+def test_same_general_input_routes_to_create_new_when_no_skill_names_the_word(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index = {"skills": [make_skill("xlsx", "Edit spreadsheets.", domains=["spreadsheet"])]}
+    monkeypatch.setattr(triage, "load_skill_index", lambda: index)
+
+    data = run_triage("I need help writing an ADR for the billing service")
+
+    assert data["details"]["category"] == triage.InputCategory.GENERAL
+    assert data["action"] == triage.Action.CREATE_NEW
+
+
+def test_score_skill_applies_the_calculate_coverage_discount(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skill = make_skill(
+        "webapp-testing", "Toolkit for testing web apps.", keywords=["testing"], domains=["testing"]
+    )
+    query = "testing the checkout flow"
+    full, _, _ = triage.score_skill(query, skill)
+    monkeypatch.setattr(triage, "calculate_coverage", lambda *args, **kwargs: 0.0)
+
+    discounted, _, _ = triage.score_skill(query, skill)
+
+    assert discounted < full
+
+
 # ---------------------------------------------------------------------------
 # Issue repros against an index built from this repo's real skills
 # ---------------------------------------------------------------------------
@@ -255,3 +309,30 @@ def test_issue_repros_route_to_create_new_on_the_real_index(
     assert data["action"] == triage.Action.CREATE_NEW
     # Every listed match, not only the top one, stays under the 50 point boundary.
     assert all(m["score"] < 50 for m in data["top_matches"]), data["top_matches"]
+
+
+@pytest.mark.parametrize(
+    ("query", "skill_name"),
+    [
+        ("help me debug this crash", "ai-agents-debugging-playbook"),
+        ("debugging a flaky failure in the pre-push hook", "ai-agents-debugging-playbook"),
+    ],
+)
+def test_existing_skill_requests_route_to_use_existing_on_the_real_index(
+    query: str, skill_name: str, real_index: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(triage, "load_skill_index", lambda: real_index)
+
+    data = run_triage(query)
+
+    assert data["action"] == triage.Action.USE_EXISTING
+    assert data["top_matches"][0]["name"] == skill_name
+    assert data["top_matches"][0]["score"] >= 70
+
+
+def test_real_index_assigns_the_debugging_domain_to_the_debugging_playbook(
+    real_index: dict[str, Any],
+) -> None:
+    by_name = {s["name"]: s for s in real_index["skills"]}
+
+    assert "debugging" in by_name["ai-agents-debugging-playbook"]["domains"]

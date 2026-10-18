@@ -457,6 +457,7 @@ SCAFFOLDING_WORDS = frozenset(
         "have",
         "want",
         "need",
+        "help",
         "please",
         "can",
         "will",
@@ -482,7 +483,9 @@ SCAFFOLDING_WORDS = frozenset(
 
 # Matched terms may carry an inflection ("test" matches "tests", "testing",
 # "tested") but never extend into another word ("test" must not match "attest").
-_INFLECTION = r"(?:s|es|ing|ed)?"
+# A final consonant also doubles before "ing" and "ed" ("debug" matches
+# "debugging", "ship" matches "shipped").
+_DOUBLING_CONSONANTS = frozenset("bdglmnprt")
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -493,6 +496,8 @@ COVERAGE_FLOOR = 0.5
 # cap sits one point under the 50 point CREATE_NEW boundary.
 SINGLE_TERM_MIN_QUERY_TERMS = 3
 SINGLE_TERM_SCORE_CAP = 49
+# A query word shorter than this earns no partial-name credit ("adr", "api").
+MIN_PARTIAL_NAME_LENGTH = 4
 # Categories where the user asks for a skill by name ("do I have a skill for
 # build?", "improve the test skill"). Only these keep a scaffolding-named skill
 # matchable and exempt an exact one-word name from the single-term cap.
@@ -523,7 +528,11 @@ def is_scaffolding_phrase(phrase: str) -> bool:
 
 def contains_term(text: str, term: str) -> bool:
     """True when term appears in text as a whole word or phrase, allowing inflection."""
-    pattern = r"(?<![a-z0-9])" + re.escape(term.lower()) + _INFLECTION + r"(?![a-z0-9])"
+    term = term.lower()
+    suffixes = ["s", "es", "ing", "ed"]
+    if term and term[-1] in _DOUBLING_CONSONANTS:
+        suffixes += [re.escape(term[-1]) + "ing", re.escape(term[-1]) + "ed"]
+    pattern = r"(?<![a-z0-9])" + re.escape(term) + r"(?:" + "|".join(suffixes) + r")?(?![a-z0-9])"
     return re.search(pattern, text.lower()) is not None
 
 
@@ -761,7 +770,7 @@ def score_skill(
         # Check if significant query words appear in skill name
         name_words = set(spaced_name.split())
         name_overlap = query_words & name_words
-        if name_overlap and any(len(w) > 3 for w in name_overlap):
+        if name_overlap and any(len(w) >= MIN_PARTIAL_NAME_LENGTH for w in name_overlap):
             score += 20
             reasons.append(f"partial name: {', '.join(name_overlap)}")
 
@@ -807,7 +816,7 @@ def score_skill(
     # multi-word skill name in the query, is exempt.
     synonym_terms = domain_synonym_terms(query_domains, skill_domains)
     explained = count_explained_terms(content_tokens, skill, synonym_terms)
-    coverage = explained / len(content_tokens) if content_tokens else 1.0
+    coverage = calculate_coverage(content_tokens, skill, synonym_terms)
     if score and coverage < 1.0:
         score = round(score * (COVERAGE_FLOOR + (1 - COVERAGE_FLOOR) * coverage))
         reasons.append(f"coverage: {coverage:.0%} of query terms")
@@ -893,10 +902,20 @@ def find_matching_skills(
 
 
 def make_triage_decision(
-    category: str, signals: dict[str, Any], matches: list[dict[str, Any]], query: str
+    category: str,
+    signals: dict[str, Any],
+    matches: list[dict[str, Any]],
+    query: str,
+    indexed_name_words: frozenset[str] = frozenset(),
 ) -> tuple[str, dict[str, Any]]:
     """
     Make the final triage decision based on input analysis and skill matches.
+
+    indexed_name_words is every word in every indexed skill name. Unclear input
+    that uses a short word from that set ("adr" in adr-generator) names a skill
+    the matcher cannot credit, because partial-name credit needs a word of
+    MIN_PARTIAL_NAME_LENGTH letters. That is a recall gap, so the decision asks
+    instead of recommending a new skill.
 
     Returns:
         Tuple of (action, details_dict)
@@ -1043,8 +1062,16 @@ def make_triage_decision(
             "reason": f"Best match: {top_match['name']} ({top_score}%)",
             "recommended_skills": [m["name"] for m in matches[:3]],
         }
-    elif len(tokenize_for_scoring(query)) >= SINGLE_TERM_MIN_QUERY_TERMS and top_score < 50:
-        # A described topic with no strong match is a topic no skill covers.
+    elif (
+        len(tokenize_for_scoring(query)) >= SINGLE_TERM_MIN_QUERY_TERMS
+        and top_score < 50
+        and not any(
+            len(t) < MIN_PARTIAL_NAME_LENGTH and t in indexed_name_words
+            for t in tokenize_for_scoring(query)
+        )
+    ):
+        # A described topic with no strong match is a topic no skill covers,
+        # unless a short query word names an indexed skill (a recall gap).
         return Action.CREATE_NEW, {
             **details,
             "reason": "No good existing skill handles this topic. Consider creating one.",
@@ -1093,7 +1120,12 @@ def triage_request(query: str) -> Result:
     matches = find_matching_skills(query, skills, signals=signals, category=category)
 
     # Step 4: Make decision
-    action, details = make_triage_decision(category, signals, matches, query)
+    indexed_name_words = frozenset(
+        word
+        for skill in skills
+        for word in _TOKEN_PATTERN.findall(str(skill.get("name", "")).lower())
+    )
+    action, details = make_triage_decision(category, signals, matches, query, indexed_name_words)
 
     # Build response
     return Result(
