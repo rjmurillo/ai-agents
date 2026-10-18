@@ -1345,6 +1345,35 @@ def _check_recovered_stack(ctx: _MergeContext, failure: _MergeFailureError) -> _
     return failure
 
 
+def _emit_landed_error(
+    ctx: _MergeContext,
+    failure: _MergeFailureError,
+    readback: dict[str, Any] | None,
+    original_error: str,
+) -> NoReturn:
+    """Report a merge that landed but failed its post-merge check (exit ``failure.code``).
+
+    ``readback`` is the one the caller already holds, so the audit keeps the
+    merge commit and its rollback hint. ``original_error`` is the failure that
+    started recovery, not the head-check text.
+    """
+    _emit_error(
+        failure.message,
+        failure.code,
+        failure.error_type,
+        ctx.output_format,
+        ctx.pr,
+        audit=_build_audit(
+            ctx,
+            "merge",
+            "merged, post-merge check failed",
+            readback,
+            original_error,
+            failure.approval,
+        ),
+    )
+
+
 def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
     """After a failed merge command, let the readback decide.
 
@@ -1355,28 +1384,15 @@ def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
     """
     readback = _read_back(ctx.pr, ctx.repo_flag)
     if failure.landed:
-        _emit_error(
-            failure.message,
-            failure.code,
-            failure.error_type,
-            ctx.output_format,
-            ctx.pr,
-            audit=_build_audit(
-                ctx,
-                "merge",
-                "merged, post-merge check failed",
-                readback,
-                failure.message,
-                failure.approval,
-            ),
-        )
+        _emit_landed_error(ctx, failure, readback, failure.message)
     if readback is not None and readback.get("state") == "MERGED":
         # A merge-async that errored after the gate may still have landed the
         # stack. The post-merge head check is what the success path runs, so a
         # recovered success runs it too before it reports anything.
-        failure = _check_recovered_stack(ctx, failure)
-        if failure.landed:
-            return _recover_or_fail(ctx, failure)
+        checked = _check_recovered_stack(ctx, failure)
+        if checked.landed:
+            # Keep this readback (it shows MERGED) and the original failure.
+            _emit_landed_error(ctx, checked, readback, failure.message)
         return _emit_merge_success(ctx, readback, failure.message, failure.approval)
     if (
         readback is not None

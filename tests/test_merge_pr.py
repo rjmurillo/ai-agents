@@ -2310,6 +2310,40 @@ class TestAsyncMergeForStack:
         assert env["Data"]["audit"]["approval"] == _mod._APPROVAL_ASYNC
         assert env["Data"]["audit"]["result"] == "merged, post-merge check failed"
 
+    def test_recovered_landed_failure_keeps_the_readback_and_the_original_error(self, capsys):
+        """A moved head after a recovered merge must not re-read or lose the audit detail.
+
+        Only the first readback succeeds. The audit still needs the merge commit
+        (rollback hint) and the async failure that started recovery.
+        """
+        fake = _StackGh(
+            polls=[_completed(stdout=_async_body("pending"))],
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40), _member(50)],
+                [_member(40, "closed", salt=1), _member(50, "closed")],
+            ],
+        )
+        readbacks = {"n": 0}
+
+        def one_readback(cmd, **kwargs):
+            if _is_readback(cmd):
+                readbacks["n"] += 1
+                if readbacks["n"] > 1:
+                    return _completed(rc=1, stderr="HTTP 502")
+            return fake(cmd, **kwargs)
+
+        with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
+            code, env = _run_stack(one_readback, capsys)
+        assert code == 3
+        assert readbacks["n"] == 1
+        audit = env["Data"]["audit"]
+        assert audit["result"] == "merged, post-merge check failed"
+        assert audit["rollback"] is not None
+        assert "original_error" in audit
+        assert "unreviewed" not in audit["original_error"]
+        assert "unreviewed" in json.dumps(env)
+
     def test_recovered_success_with_unchanged_heads_stays_a_success(self, capsys):
         fake = _StackGh(
             polls=[_completed(stdout=_async_body("pending"))],
