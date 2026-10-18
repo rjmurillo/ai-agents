@@ -470,15 +470,6 @@ class TestIsAllowedBodyFilePath:
         (tmp_path / "sub").mkdir()
         assert is_allowed_body_file_path(str(tmp_path / "sub" / ".." / "x.md")) is False
 
-    def test_path_outside_every_root_is_rejected(self, external_tmp_path: Path, monkeypatch):
-        from scripts.github_core import validation as _validation
-
-        monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [])
-        monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])
-        body = external_tmp_path / "body.md"
-        body.write_text("x")
-        assert is_allowed_body_file_path(str(body)) is False
-
     def test_takes_only_the_path(self):
         import inspect
 

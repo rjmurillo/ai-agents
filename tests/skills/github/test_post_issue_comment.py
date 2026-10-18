@@ -8,7 +8,7 @@ import pytest
 from github_core.api import RepoInfo
 from test_helpers import import_skill_script, make_completed_process
 
-pytestmark = pytest.mark.usefixtures("stub_git_probes")
+pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 
 
 def _mock_repo():
@@ -340,12 +340,12 @@ class TestBodyFileContainment:
         assert "from scratchpad" in mock_run.call_args.kwargs["input"]
 
     def test_body_file_outside_every_root_exits_2(
-        self, _import_module, external_tmp_path, monkeypatch
+        self, _import_module, external_tmp_path, monkeypatch, stub_temp_roots, capsys
     ):
         mod = _import_module
         outside = external_tmp_path / "outside.md"
         outside.write_text("secret", encoding="utf-8")
-        monkeypatch.delenv("TMPDIR", raising=False)
+        stub_temp_roots()
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
@@ -355,9 +355,10 @@ class TestBodyFileContainment:
                 mod.main(["--issue", "1", "--body-file", str(outside)])
         assert exc.value.code == 2
         mock_run.assert_not_called()
+        assert "path traversal not allowed" in capsys.readouterr().err
 
     def test_symlink_in_temp_dir_pointing_outside_exits_2(
-        self, _import_module, tmp_path, external_tmp_path, monkeypatch
+        self, _import_module, tmp_path, external_tmp_path, monkeypatch, stub_temp_roots, capsys
     ):
         mod = _import_module
         target = external_tmp_path / "secret.md"
@@ -367,7 +368,7 @@ class TestBodyFileContainment:
             link.symlink_to(target)
         except OSError:
             pytest.skip("symlinks unavailable")
-        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        stub_temp_roots(tmp_path)
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
@@ -377,6 +378,7 @@ class TestBodyFileContainment:
                 mod.main(["--issue", "1", "--body-file", str(link)])
         assert exc.value.code == 2
         mock_run.assert_not_called()
+        assert "path traversal not allowed" in capsys.readouterr().err
 
     def test_missing_body_file_exits_2(self, _import_module, tmp_path):
         mod = _import_module

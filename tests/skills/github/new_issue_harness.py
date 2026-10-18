@@ -96,7 +96,7 @@ def _error(capsys) -> str:
 
 
 @pytest.fixture(autouse=True, name="resolve_repo")
-def resolve_repo_fixture(stub_git_probes):
+def resolve_repo_fixture(stub_git_probes, tmp_path_is_temp_root):
     """Resolve every run to owner/repo without touching git or gh.
 
     ``stub_git_probes`` keeps the body-file containment check from adding git

@@ -204,18 +204,18 @@ class TestBodyFileContainment:
         assert "from scratchpad" in _body_arg(gh.find("issue", "create"))
 
     def test_body_file_outside_every_root_exits_2_before_any_call(
-        self, external_tmp_path, monkeypatch, capsys
+        self, external_tmp_path, monkeypatch, capsys, stub_temp_roots
     ):
         outside = external_tmp_path / "outside.md"
         outside.write_text("secret", encoding="utf-8")
-        monkeypatch.delenv("TMPDIR", raising=False)
+        stub_temp_roots()
         rc, gh = _run(["--title", "T", "--source", "human", "--body-file", str(outside)])
         assert rc == 2
         assert gh.calls == []
         assert "Body file must be under" in _error(capsys)
 
     def test_symlink_in_temp_dir_pointing_outside_exits_2(
-        self, tmp_path, external_tmp_path, monkeypatch, capsys
+        self, tmp_path, external_tmp_path, monkeypatch, capsys, stub_temp_roots
     ):
         target = external_tmp_path / "secret.md"
         target.write_text("secret", encoding="utf-8")
@@ -224,7 +224,7 @@ class TestBodyFileContainment:
             link.symlink_to(target)
         except OSError:
             pytest.skip("symlinks unavailable")
-        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        stub_temp_roots(tmp_path)
         rc, gh = _run(["--title", "T", "--source", "human", "--body-file", str(link)])
         assert rc == 2
         assert gh.calls == []

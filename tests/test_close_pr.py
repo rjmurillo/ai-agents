@@ -34,7 +34,7 @@ def _import_script(name: str):
 _mod = _import_script("close_pr")
 main = _mod.main
 
-pytestmark = pytest.mark.usefixtures("stub_git_probes")
+pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 build_parser = _mod.build_parser
 
 
@@ -329,10 +329,12 @@ class TestMain:
         comment_call = mock_run.call_args_list[1].args[0]
         assert "Closing from scratchpad." in comment_call
 
-    def test_comment_file_outside_every_root_exits_2(self, external_tmp_path, monkeypatch):
+    def test_comment_file_outside_every_root_exits_2(
+        self, external_tmp_path, monkeypatch, stub_temp_roots, capsys
+    ):
         outside = external_tmp_path / "outside.md"
         outside.write_text("secret", encoding="utf-8")
-        monkeypatch.delenv("TMPDIR", raising=False)
+        stub_temp_roots()
         with (
             patch("close_pr.assert_gh_authenticated"),
             patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
@@ -342,9 +344,10 @@ class TestMain:
                 main(["--pull-request", "50", "--comment-file", str(outside)])
             assert exc.value.code == 2
         mock_run.assert_not_called()
+        assert "path traversal not allowed" in capsys.readouterr().err
 
     def test_symlink_in_temp_dir_pointing_outside_exits_2(
-        self, tmp_path, external_tmp_path, monkeypatch
+        self, tmp_path, external_tmp_path, monkeypatch, stub_temp_roots, capsys
     ):
         target = external_tmp_path / "secret.md"
         target.write_text("secret", encoding="utf-8")
@@ -353,7 +356,7 @@ class TestMain:
             link.symlink_to(target)
         except OSError:
             pytest.skip("symlinks unavailable")
-        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        stub_temp_roots(tmp_path)
         with (
             patch("close_pr.assert_gh_authenticated"),
             patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
@@ -363,6 +366,7 @@ class TestMain:
                 main(["--pull-request", "50", "--comment-file", str(link)])
             assert exc.value.code == 2
         mock_run.assert_not_called()
+        assert "path traversal not allowed" in capsys.readouterr().err
 
     def test_pr_view_non_not_found_error_exits_3(self):
         with (

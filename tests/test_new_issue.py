@@ -145,7 +145,7 @@ def test_api_failure(mock_run, capsys):
 
 
 @patch("subprocess.run")
-def test_body_file(mock_run, capsys, tmp_path, stub_git_probes):
+def test_body_file(mock_run, capsys, tmp_path, tmp_path_is_temp_root, stub_git_probes):
     body_file = tmp_path / "body.md"
     body_file.write_text("File-based body content")
 
