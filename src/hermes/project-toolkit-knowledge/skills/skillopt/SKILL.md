@@ -47,6 +47,11 @@ gains are its claims; this skill does not reproduce them.
 3. **Canonical owner.** Name the versioned source, its generated mirrors, and
    the live install path before any candidate runs. A file in an eval
    workspace is not deployed behavior.
+4. **Two isolated runners.** The candidate author and the `sel` runner must
+   be separate: a fresh subagent or another session. If the harness cannot
+   provide both, do not run skillopt. Report that the gate cannot be
+   independent. Replacement holdouts written by the same agent are still
+   exposed.
 
 Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author until
@@ -110,8 +115,9 @@ One optimization step:
 
 1. **Baseline.** Split the roles first. The candidate author sees only
    `train` tasks and their results. A separate runner, such as a fresh
-   subagent or another session, holds the `sel` prompts, verifiers, and
-   results until the candidate is frozen, and reports only the verdict back.
+   subagent or another session (Precondition 4), holds the `sel` prompts,
+   verifiers, and results until the candidate is frozen, and reports only
+   the verdict back.
    Each runner preflights its own tasks: prompt, verifier, inputs, fixtures,
    and permitted scope. Run the rollout under exactly the scope the task grants.
    A rollout with the wrong artifact or a scope change is invalid, not a pass

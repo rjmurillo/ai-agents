@@ -35,7 +35,9 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
   candidate author saw before the candidate was frozen. `pair-gate` exits 2
   while any of them is in the `sel` split. The check covers `sel` only, so
   `train` may hold exposed tasks and a `--split train` review still works.
-  Move exposed tasks to `train` and add untouched holdout tasks.
+  Move exposed tasks to `train` and add untouched holdout tasks. Replacement
+  holdouts must come from an author who has not seen the candidate. If the
+  candidate author also writes them, they are exposed too.
 - `tasks[id].status`: optional. `"invalid"` or `"exposed"` marks a task that
   cannot count. `pair-gate` exits 2 while such a task is in the `sel` split.
   A `status` that is present but not a string exits 2, and so does a `tasks`

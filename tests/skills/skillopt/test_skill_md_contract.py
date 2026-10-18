@@ -288,3 +288,22 @@ def test_documented_exit_codes_for_scalar_gate_and_hash(tmp_path: Path) -> None:
     mismatch = _run("skillopt.py", "hash", str(target), "--expect", "0" * 64, cwd=tmp_path)
     assert mismatch.returncode == 1
     assert "MISMATCH" in mismatch.stdout
+
+
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_preconditions_require_two_isolated_runners(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert "Two isolated runners" in preconditions
+    assert "fresh subagent or another session" in preconditions
+    assert "do not run skillopt" in preconditions
+    assert "gate cannot be independent" in preconditions
+    assert "same agent are still exposed" in preconditions
+
+
+def test_eval_set_format_says_who_may_write_replacement_holdouts() -> None:
+    refs = _skill_dir(".claude") / "references" / "eval-set-format.md"
+    text = " ".join(refs.read_text(encoding="utf-8").split())
+    assert "Replacement holdouts must come from an author who has not seen the candidate" in text
