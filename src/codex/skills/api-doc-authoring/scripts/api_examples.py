@@ -20,12 +20,14 @@ Subcommands (stdlib only, output is one JSON object):
 
 ``list``  Examples found, optionally filtered to a request path prefix.
 ``lint``  Structure findings: bad fences, unverified responses, error tables
-          with a missing cause or action.
+          with a missing cause or action. A document set with no examples is
+          unverifiable (exit 2), so a wrong path never passes vacuously.
 ``run``   Send each example to a local base URL and compare status and the
           documented response. Writes an evidence file when asked.
 
 Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
-(unreachable server, remote base URL without an explicit flag).
+(unreachable server, remote base URL without an explicit flag, no examples to
+lint, a response over the size cap, or a run past its deadline).
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ import json
 import platform
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
@@ -59,6 +62,12 @@ EXIT_FINDINGS = 1
 EXIT_UNVERIFIABLE = 2
 
 TIMEOUT_SECONDS = 10
+# A server that trickles bytes resets the socket timeout on each read, so the
+# timeout alone never ends a slow body. These bound the bytes and the wall clock.
+MAX_BODY_BYTES = 2 * 1024 * 1024
+REQUEST_DEADLINE_SECONDS = 30
+RUN_DEADLINE_SECONDS = 300
+_CHUNK_BYTES = 64 * 1024
 REDACTED_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization", "x-api-key"})
 
 _PLACEHOLDER = re.compile(r"^<[^<>]+>$")
@@ -105,16 +114,42 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 _OPENER = urllib.request.build_opener(_NoRedirect)
+# An empty ProxyHandler mapping turns off HTTP_PROXY and HTTPS_PROXY. Loopback traffic
+# must reach the local server itself: a proxy would send it to another host, past the
+# loopback check in `check_base_url`.
+_DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
+
+
+def _opener_for(url: str) -> urllib.request.OpenerDirector:
+    host = urlsplit(url).hostname
+    return _DIRECT_OPENER if host is not None and _is_loopback(host) else _OPENER
+
+
+def _read_capped(handle: Any, url: str) -> bytes:
+    """Read a body in chunks, refusing one past the byte cap or the request deadline."""
+    deadline = time.monotonic() + REQUEST_DEADLINE_SECONDS
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = handle.read(_CHUNK_BYTES)
+        if not chunk:
+            return b"".join(chunks)
+        total += len(chunk)
+        if total > MAX_BODY_BYTES:
+            raise InputError(f"response from {url} is over the {MAX_BODY_BYTES} byte cap")
+        if time.monotonic() > deadline:
+            raise InputError(f"response from {url} is slower than {REQUEST_DEADLINE_SECONDS}s")
+        chunks.append(chunk)
 
 
 def send(method: str, url: str, headers: dict[str, str], body: bytes) -> Reply:
     """Send one request and return status and body. Non-2xx is a Reply, not an error."""
     request = urllib.request.Request(url, data=body or None, headers=headers, method=method)
     try:
-        with _OPENER.open(request, timeout=TIMEOUT_SECONDS) as handle:
-            return Reply(handle.status, handle.read())
+        with _opener_for(url).open(request, timeout=TIMEOUT_SECONDS) as handle:
+            return Reply(handle.status, _read_capped(handle, url))
     except urllib.error.HTTPError as exc:
-        return Reply(exc.code, exc.read())
+        return Reply(exc.code, _read_capped(exc, url))
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
         raise InputError(f"server unreachable at {url}: {exc}") from exc
 
@@ -250,6 +285,8 @@ def cmd_list(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 def cmd_lint(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     """Report structure findings. No network."""
     examples, findings = _collect(args.docs, None)
+    if not examples and not findings:
+        raise InputError("no examples found in the given files; nothing was linted")
     verdict = "FAIL" if findings else "PASS"
     report = {"verdict": verdict, "examples": len(examples), "findings": findings}
     return report, (EXIT_FINDINGS if findings else EXIT_OK)
@@ -280,7 +317,15 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
     runnable = [e for e in examples if e.expect is not None]
     if not runnable:
         raise InputError("no executable examples matched; nothing was verified")
-    results = [run_example(e, base_url, sender) for e in runnable]
+    deadline = time.monotonic() + RUN_DEADLINE_SECONDS
+    results: list[dict[str, Any]] = []
+    for example in runnable:
+        if time.monotonic() > deadline:
+            raise InputError(
+                f"run passed its {RUN_DEADLINE_SECONDS}s deadline after {len(results)} "
+                f"of {len(runnable)} examples; nothing was verified"
+            )
+        results.append(run_example(example, base_url, sender))
     report = _evidence(args, base_url, results)
     report["lint_findings"] = findings
     if findings:
