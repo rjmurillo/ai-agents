@@ -159,6 +159,13 @@ def test_scope_note_states_the_message_only_limit_and_the_ablated_pair() -> None
     assert "outside the rule's `paths:` globs" in note
 
 
+def test_scope_note_carries_the_write_tool_caveat() -> None:
+    """On the Claude harness `write` maps to Edit (#6710), so the file_regex can fail on wiring."""
+    note = json.loads(FIXTURES_PATH.read_text(encoding="utf-8"))["_scope_note"]
+    assert "#6710" in note
+    assert "tool wiring" in note
+
+
 def test_only_the_first_occurrence_fixture_is_message_only() -> None:
     """Finding 4: every recurrence fixture writes files; only the one-off bound is report-only."""
     fixtures = _structural()

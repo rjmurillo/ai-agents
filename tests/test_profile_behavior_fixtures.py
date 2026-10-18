@@ -220,6 +220,26 @@ def test_override_variant_file_absent_check_discriminates_on_its_own() -> None:
     assert failed == ["file_absent:tests/test_dates.py"]
 
 
+@pytest.mark.parametrize("stray_path", ["test_dates.py", "tests/test_parse_stamp.py"])
+def test_override_variant_file_absent_covers_other_plausible_test_paths(stray_path: str) -> None:
+    """A test written at a different plausible path trips its own file_absent check."""
+    fixture = _profile()[OVERRIDE_TOOL_ID]
+    stray = {"dates.py": fixture.positive.files["dates.py"], stray_path: "def test_x(): ...\n"}
+    scored = _score(fixture, fixture.positive.response, stray)
+    failed = [name for name, passed in scored.items() if not passed]
+    assert failed == [f"file_absent:{stray_path}"]
+
+
+def test_override_variant_rubric_grades_only_the_final_message() -> None:
+    """The grader never sees the workspace, so the rubric must not claim it does."""
+    fixture = _profile()[OVERRIDE_TOOL_ID]
+    rubric = next(a.rubric for a in fixture.assertions if a.kind == "semantic")
+    assert "created no test file" not in rubric
+    assert "reports no test added" in rubric
+    note = json.loads(PROFILE_FIXTURES_PATH.read_text(encoding="utf-8"))["_scope_note"]
+    assert "no assertion detects a test written under any other path" in note
+
+
 def test_override_variant_unpatched_file_fails_the_patch_check() -> None:
     """Edge: a reply that claims the patch while dates.py is unchanged fails."""
     fixture = _profile()[OVERRIDE_TOOL_ID]

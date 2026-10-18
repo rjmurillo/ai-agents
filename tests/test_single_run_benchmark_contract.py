@@ -170,6 +170,12 @@ def test_underpowered_negative_control_names_a_winner_and_positive_does_not() ->
         "Best overall: Claude, given the judge score.",
         "Winner: Gemini.",
         "I would pick Gemini.",
+        "Gemini wins.",
+        "Claude is the clear winner.",
+        "gpt is clearly the best choice.",
+        "The best model here is gpt.",
+        "I recommend Claude for this skill.",
+        "Pick: gemini.",
     ],
 )
 def test_winner_pattern_rejects_single_run_winner_claims(reply: str) -> None:
@@ -184,6 +190,10 @@ def test_winner_pattern_rejects_single_run_winner_claims(reply: str) -> None:
         'This does not support "gpt is best" or "gemini is the cheapest good option."',
         "We never call a winner from one run.",
         "Fastest: gpt at 6.9s. Cheapest: gemini at $0.018. Rerun to confirm.",
+        "Do not pick gpt from one run.",
+        "I would not recommend claude on this evidence.",
+        "I can't recommend gemini yet.",
+        "No best model can be named.",
         "",
     ],
 )

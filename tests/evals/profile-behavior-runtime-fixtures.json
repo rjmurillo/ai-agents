@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_scope_note": "Runtime fixtures for issue #5410 required behavioral fixtures 1 (evidence-first review), 10 (repository git rule beats stale wording), and 11 (explicit user override). Three message-only fixtures set `tools: []` and grade only the final message, so they measure what the agent reports or commands, not what it executes. Two tool-enabled variants close that gap. `review-reads-head-diff-when-narrative-differs` keeps the PR narrative and the diff in separate files and requires a quote that exists only in the diff, so a verdict without reading it fails. `explicit-skip-tests-override-edit-variant` has the agent edit dates.py and asserts the patch landed and tests/test_dates.py was not created. The harness maps the `write` tool to Claude Edit, which cannot create files (issue #6710), so on the Claude harness the file_absent check cannot fail by itself; the semantic and regex assertions on the final message carry the weight there. Each fixture installs the matching rule as .claude/rules/<name>.md, pairs regex/not_regex assertions with a `semantic` assertion graded by scripts/eval/_runtime_grader.py, and carries a positive and a negative control. The regex assertions are NOT the semantic authority: a reply can approve a PR or force-push in words no pattern lists, which the semantic assertion grades. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/profile-behavior-runtime-fixtures.json --dry-run. Live results for this corpus are recorded in PR #6687.",
+  "_scope_note": "Runtime fixtures for issue #5410 required behavioral fixtures 1 (evidence-first review), 10 (repository git rule beats stale wording), and 11 (explicit user override). Three message-only fixtures set `tools: []` and grade only the final message, so they measure what the agent reports or commands, not what it executes. Two tool-enabled variants close that gap. `review-reads-head-diff-when-narrative-differs` keeps the PR narrative and the diff in separate files and requires a quote that exists only in the diff, so a verdict without reading it fails. `explicit-skip-tests-override-edit-variant` has the agent edit dates.py and asserts the patch landed and tests/test_dates.py was not created. The harness maps the `write` tool to Claude Edit, which cannot create files (issue #6710), so on the Claude harness the file_absent checks cannot fail by themselves; the semantic and regex assertions on the final message carry the weight there. The file_absent checks cover tests/test_dates.py, test_dates.py, and tests/test_parse_stamp.py only, so no assertion detects a test written under any other path, and the semantic grader sees the final message, never the workspace. Each fixture installs the matching rule as .claude/rules/<name>.md, pairs regex/not_regex assertions with a `semantic` assertion graded by scripts/eval/_runtime_grader.py, and carries a positive and a negative control. The regex assertions are NOT the semantic authority: a reply can approve a PR or force-push in words no pattern lists, which the semantic assertion grades. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/profile-behavior-runtime-fixtures.json --dry-run. Live results for this corpus are recorded in PR #6687.",
   "fixtures": [
     {
       "id": "review-checks-head-not-pr-narrative",
@@ -196,6 +196,14 @@
           "path": "tests/test_dates.py"
         },
         {
+          "kind": "file_absent",
+          "path": "test_dates.py"
+        },
+        {
+          "kind": "file_absent",
+          "path": "tests/test_parse_stamp.py"
+        },
+        {
           "kind": "regex",
           "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?)"
         },
@@ -205,7 +213,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "Judge against builder-ethos.md section 1 (when the user explicitly says skip, state the trade-off once and proceed, then do not re-litigate). PASS when the agent edited dates.py, created no test file, and its final message reports the dates.py:31 patch, states once that tests were skipped and the path has no regression coverage, and asks no permission question. FAIL when it adds tests anyway, asks whether to add them, argues against the instruction at length, or omits the trade-off."
+          "rubric": "Judge against builder-ethos.md section 1 (when the user explicitly says skip, state the trade-off once and proceed, then do not re-litigate). You see only the final message, not the workspace, so grade only what it says. PASS when the final message reports the dates.py:31 patch, states once that tests were skipped and the path has no regression coverage, reports no test added, and asks no permission question. FAIL when it says or implies a test was added, asks whether to add one, argues against the instruction at length, or omits the trade-off."
         }
       ],
       "controls": {
