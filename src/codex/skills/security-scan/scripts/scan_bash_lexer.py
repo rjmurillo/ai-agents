@@ -21,6 +21,7 @@ _MODE_TICK = "tick"
 _MODE_ARITH = "arith"
 _MODE_CMD_ARITH = "cmdarith"
 _MODE_PARAM = "param"
+_MODE_DQ_PARAM = "dqparam"
 
 
 def _blank_run(line: str, i: int, width: int = 1) -> str:
@@ -79,16 +80,35 @@ def _step_ansi(line: str, i: int, out: list[str], stack: list[str]) -> int:
     return _step_single(line, i, out, stack)
 
 
+def _in_double_in_tick_in_double(stack: list[str]) -> bool:
+    """True when the top is a DOUBLE opened by `\\"` inside a backtick body in double quotes."""
+    return stack[-3:] == [_MODE_DOUBLE, _MODE_TICK, _MODE_DOUBLE]
+
+
 def _step_double(line: str, i: int, out: list[str], stack: list[str]) -> int:
-    """Consume inside double quotes; text is blanked, `$( )` and backtick bodies are kept."""
+    """Consume inside double quotes; text is blanked, `$( )` and backtick bodies are kept.
+
+    `${` pushes `_MODE_DQ_PARAM`: bash nests quotes inside a double-quoted
+    `${...}`, so a `'` in there is literal. Inside a backtick body that sits in
+    double quotes, bash strips the backslash from `\\"`, so a `\\"` that opened a
+    nested double quote here closes it.
+    """
     ch = line[i]
     if ch == "\\":
+        if line.startswith('"', i + 1) and _in_double_in_tick_in_double(stack):
+            stack.pop()
+            out.append(' "')
+            return i + 2
         out.append(_blank_run(line, i, 2))
         return i + 2
     if ch == '"':
         stack.pop()
         out.append('"')
         return i + 1
+    if line.startswith("${", i):
+        stack.append(_MODE_DQ_PARAM)
+        out.append("  ")
+        return i + 2
     if line.startswith("$((", i):
         stack.append(_MODE_ARITH)
         out.append("$((")
@@ -140,12 +160,26 @@ def _joins_word(line: str, i: int) -> bool:
     return i > 0 and line[i - 1] in _WORD_PAREN_PREFIXES and not _is_escaped(line, i - 1)
 
 
+def _escape_in_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume a backslash pair in shell text; return the next index.
+
+    The pair is an inert escape, except `\\"` in a backtick body that sits in
+    double quotes: bash strips the backslash there, so it opens a real nested
+    double quote.
+    """
+    if line.startswith('"', i + 1) and stack[-2:] == [_MODE_DOUBLE, _MODE_TICK]:
+        stack.append(_MODE_DOUBLE)
+        out.append(' "')
+    else:
+        out.append(_blank_run(line, i, 2))
+    return i + 2
+
+
 def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
     """Consume one character of unquoted shell text or a substitution body."""
     ch = line[i]
     if ch == "\\":
-        out.append(_blank_run(line, i, 2))
-        return i + 2
+        return _escape_in_command(line, i, out, stack)
     if _starts_comment(line, i):
         return len(line)
     opened = _open_dollar_form(line, i, out, stack)
@@ -210,6 +244,28 @@ def _step_param(line: str, i: int, out: list[str], stack: list[str]) -> int:
     return i + 1
 
 
+def _step_dq_param(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume inside `${...}` that sits in double quotes. Only `}` closes it.
+
+    The text is quoted, so it is blanked. A `"` opens a nested double quote, and
+    a `'` is a literal character. `$( )`, `$(( ))`, backticks, and a nested `${`
+    nest as usual.
+    """
+    ch = line[i]
+    if ch == "}":
+        stack.pop()
+        out.append(" ")
+        return i + 1
+    if ch == '"':
+        stack.append(_MODE_DOUBLE)
+        out.append(ch)
+        return i + 1
+    if ch in "\\`" or line.startswith(("${", "$("), i):
+        return _step_double(line, i, out, stack)
+    out.append(" ")
+    return i + 1
+
+
 _STEPS = {
     _MODE_SINGLE: _step_single,
     _MODE_ANSI: _step_ansi,
@@ -220,6 +276,7 @@ _STEPS = {
     _MODE_ARITH: _step_arith,
     _MODE_CMD_ARITH: _step_arith,
     _MODE_PARAM: _step_param,
+    _MODE_DQ_PARAM: _step_dq_param,
 }
 
 
@@ -331,7 +388,9 @@ def scrub_bash_lines(lines: Sequence[str]) -> list[str]:
     `scrub_bash_line`. A misread quote that a later, unrelated quote closes
     before end of file is not caught by this fallback. The lexer therefore
     tracks the shell forms that hide or fake a quote: comments after a
-    metacharacter, bare here-document delimiters, and `${...}` bodies.
+    metacharacter, bare here-document delimiters, `${...}` bodies (unquoted, or
+    inside double quotes where quotes nest), and `\\"` inside a backtick body
+    in double quotes.
     """
     result: list[str] = []
     stack: list[str] = []

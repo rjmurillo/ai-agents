@@ -800,6 +800,79 @@ def test_scan_file_misparsed_quote_closed_later_no_longer_hides_code(tmp_path: P
     assert _unquoted_lines(tmp_path, body) == [2, 4]
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        # Bash nests quotes inside a double-quoted `${...}`: the inner `'` is literal.
+        'a="${x:-"it\'s"}"\necho $target\nb="${y:-"that\'s"}"\necho "$a $b"\n',
+        # Same shape with a `$(...)` default and a doubly nested expansion.
+        'a="${x:-"it\'s $(date)"}"\necho $target\nb="${y:-"${z:-"that\'s"}"}"\n',
+    ],
+)
+def test_scan_file_double_quoted_param_with_nested_quote_keeps_apostrophe_literal(
+    tmp_path: Path, body: str
+) -> None:
+    """Regression for round 3: the inner `'` must not open a fake single quote
+    that a later line closes, because that hid the unquoted `$target`."""
+    assert _unquoted_lines(tmp_path, body) == [2]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'a="${x:-"b $c"}"\n',
+        'a="${x:-$c}"\n',
+        "a=\"${x:-'it $c'}\"\n",
+        'a="${x//\\}/ $c}"\n',
+    ],
+)
+def test_scan_file_double_quoted_param_body_stays_quoted(tmp_path: Path, body: str) -> None:
+    """Expansions inside a double-quoted `${...}` default are quoted, so not flagged."""
+    assert _unquoted_lines(tmp_path, body) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        'a="${x:-"b"}" $t\n',
+        'a="${x:-"b"}"\nrm $t\n',
+        'a="${x:-"${y}"}" $t\n',
+    ],
+)
+def test_scan_file_double_quoted_param_closes_and_scanning_resumes(
+    tmp_path: Path, body: str
+) -> None:
+    flagged = _unquoted_lines(tmp_path, body)
+    assert flagged == [body.count("\n")]
+
+
+def test_scan_file_flags_command_substitution_inside_double_quoted_param(tmp_path: Path) -> None:
+    assert _unquoted_lines(tmp_path, 'a="${x:-$(rm $t)}"\n') == [1]
+
+
+def test_scan_file_escaped_quote_in_backtick_body_in_double_quotes_is_a_real_quote(
+    tmp_path: Path,
+) -> None:
+    """Regression for round 3: bash strips the backslash from `\\"` in a backtick
+    body inside double quotes, so the `'` between the two is literal."""
+    body = (
+        'msg="`echo \\"it\'s\\"`"\necho $target\nother="`echo \\"that\'s\\"`"\necho "$msg $other"\n'
+    )
+    assert _unquoted_lines(tmp_path, body) == [2]
+
+
+def test_scan_file_escaped_quote_in_backtick_body_in_double_quotes_hides_quoted_text(
+    tmp_path: Path,
+) -> None:
+    """`$a` sits inside the real double quotes of the backtick body, so it is quoted."""
+    assert _unquoted_lines(tmp_path, 'm="`echo \\"$a\\"`"\n') == []
+
+
+def test_scan_file_escaped_quote_in_plain_backtick_body_stays_inert(tmp_path: Path) -> None:
+    """Outside double quotes bash keeps `\\"` as an escaped quote, so `$a` is unquoted."""
+    assert _unquoted_lines(tmp_path, 'm=`echo \\"$a\\"`\n') == [1]
+
+
 def test_scan_file_flags_arithmetic_operand_variable(tmp_path: Path) -> None:
     """`$a` inside `$(( ))` is still scanned: arithmetic evaluates variable text."""
     assert _unquoted_lines(tmp_path, "x=$(( $a + 1 ))\n") == [1]
@@ -817,6 +890,10 @@ def test_scan_file_flags_arithmetic_operand_variable(tmp_path: Path) -> None:
         ("cat <<'EOF'\n$a\nrm $b\n", [2, 3]),
         # A parameter expansion that never closes.
         ("echo ${x\nrm $b\n", [2]),
+        # A double-quoted parameter expansion that never closes.
+        ('echo "${x\nrm $b\n', [2]),
+        # A backtick body in double quotes whose nested quote never closes.
+        ('echo "`echo \\"open\nrm $b\n', [2]),
     ],
 )
 def test_scan_file_unresolved_state_at_eof_falls_back_to_per_line_scrub(
