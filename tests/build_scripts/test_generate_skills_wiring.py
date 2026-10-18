@@ -20,7 +20,6 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 
 import generate_skills  # noqa: E402
 from _skill_template_helpers import (  # noqa: E402
-    install_target,
     minimal_platform_config,
     run_cli,
     seed_target_dir,
@@ -35,21 +34,19 @@ def test_generate_skills_runs_compile_before_copy_and_writes_rendered_target(
 ) -> None:
     write_partial(tmp_path, "greet", "hi\n")
     write_template(tmp_path, "sync", "# sync\n{{> greet}}\n")
-    skill_dir = tmp_path / ".claude" / "skills" / "sync"
-    skill_dir.mkdir(parents=True)
-    # ADR-109 B3: the install-tree SKILL.md is what a prior binplace run
-    # would have left in place from an earlier run; generate_skills' copy
-    # loop must read the just-rendered PLUGIN-tree content, not this stale one.
-    (skill_dir / "SKILL.md").write_text("stale install copy\n", encoding="utf-8")
-    config = minimal_platform_config(tmp_path)
+    # ADR-119: the real directory is the plugin tree's; it holds a stale
+    # SKILL.md from an earlier run. generate_skills' copy loop must read the
+    # just-rendered content, not this stale one.
+    stale = seed_target_dir(tmp_path, "sync")
+    stale.write_text("stale plugin copy\n", encoding="utf-8")
+    config = minimal_platform_config(tmp_path, "src/claude/skills")
 
     rc = generate_skills.generate_skills(config, tmp_path)
 
     assert rc == 0
     dst = target(tmp_path, "sync")
     assert dst.read_text(encoding="utf-8") == "# sync\nhi\n"
-    # Copy loop still ran, and read the fresh plugin-tree render, not the
-    # stale install-tree copy still sitting in .claude/skills/.
+    # Copy loop still ran and read the fresh render, not the stale copy.
     mirror = tmp_path / "out" / "skills" / "sync" / "SKILL.md"
     assert mirror.is_file()
     assert mirror.read_text(encoding="utf-8") == "# sync\nhi\n"
@@ -77,10 +74,7 @@ def test_generate_skills_validate_true_compares_without_writing_then_compares_mi
     write_template(tmp_path, "sync", "{{> greet}}\n")
     dst = seed_target_dir(tmp_path, "sync")
     dst.write_text("hi\n", encoding="utf-8")
-    # validate=True never writes, so seed the install-tree copy the same way
-    # a prior binplace run would have left it (ADR-109 B3).
-    install_target(tmp_path, "sync").write_text("hi\n", encoding="utf-8")
-    config = minimal_platform_config(tmp_path)
+    config = minimal_platform_config(tmp_path, "src/claude/skills")
     # A normal run leaves the Copilot mirror in sync; validate=True must then pass.
     assert generate_skills.generate_skills(config, tmp_path) == 0
 

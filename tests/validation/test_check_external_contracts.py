@@ -283,11 +283,16 @@ def test_shell_and_yaml_comment_blocks_are_scanned(tmp_path: Path) -> None:
 def test_projection_skill_file_and_unscanned_roots_are_skipped(tmp_path: Path) -> None:
     _write(tmp_path, ".claude/skills/x/SKILL.md", _fence())
     _write(tmp_path, ".claude/skills/x/references/ref.md", _fence())
+    _write(tmp_path, "src/claude/skills/x/SKILL.md", _fence())
     _write(tmp_path, "src/claude/skills/x/references/ref.md", _fence())
     _write(tmp_path, "scripts/.venv/lib/a.py", _py_block())
     _write(tmp_path, "scripts/data.json", _fence())
     paths = [r.path for r in gate.collect_records(tmp_path)]
-    assert paths == [".claude/skills/x/references/ref.md"]
+    # ADR-119: a shipped skill's support files are canonical at src/claude/skills.
+    assert paths == [
+        ".claude/skills/x/references/ref.md",
+        "src/claude/skills/x/references/ref.md",
+    ]
 
 
 def test_test_files_are_scanned_because_a_probe_test_is_a_consumer(tmp_path: Path) -> None:

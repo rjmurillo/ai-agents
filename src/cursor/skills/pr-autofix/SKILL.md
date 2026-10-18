@@ -1033,16 +1033,17 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 ### Post-merge cleanup
 
 Run this after every merge this skill lands, once `test_pr_merged.py` reports
-`merged: true`. The snippet reads its inputs from the merged PR, fails when any
-is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
+`merged: true`. The snippet reads its inputs from `test_pr_merged.py`
+(`head_ref`, `head_sha`, `merge_commit_sha`), fails when any is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
 A leftover worktree costs disk and slows repo-wide scans: issue #2761 counted
 113 of them at 10.6G on one machine. PR #6490 merged with its worktree and
 local branch still in place.
 
 ```bash
-# Replace <pr> with the merged PR number.
-read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA < <(gh pr view <pr> \
-    --json headRefName,headRefOid,mergeCommit -q '[.headRefName, .headRefOid, .mergeCommit.oid] | @tsv')
+# Replace <pr> with the merged PR number. SCRIPTS_DIR is set by resolve_pr_scripts_dir above.
+# jq prints nothing unless all three values exist, so the guard below fails loud.
+read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA < <(python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request <pr> --output-format json \
+    | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha) | [.head_ref, .head_sha, .merge_commit_sha] | @tsv')
 : "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}"
 git fetch origin main && git merge-base --is-ancestor "$MERGE_SHA" origin/main || { echo "merge not on main yet"; exit 1; }
 # The worktree can belong to another clone, so fall back to the path convention.

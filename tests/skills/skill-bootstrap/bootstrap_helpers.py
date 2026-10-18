@@ -26,6 +26,14 @@ def run_git(repo: Path, *args: str) -> str:
     return proc.stdout
 
 
+def symlink_or_skip(link: Path, target: Path) -> None:
+    """Create `link` -> `target`, or skip where the platform refuses symlinks."""
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+
 def run_cli(capsys: pytest.CaptureFixture[str], *argv: str) -> Result:
     """Call main() in process and return the exit code and parsed JSON payload."""
     code = bootstrap_boundary.main(list(argv))

@@ -22,7 +22,7 @@ This rule binds those claims to evidence. It exists because PR #1887 (the M4 evi
 
 ## What this rule binds
 
-This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.project-toolkit/retrospective/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`, `.agents/governance/**`, `.project-toolkit/retrospective/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
+This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.project-toolkit/retrospective/` whose contract is derived from another source in the repository. The Copilot-side mirror is one file: `.github/instructions/canonical-source-mirror.instructions.md` links to its `src/copilot-cli/` twin (ADR-119), which ships inside the plugin and narrows to the paths that travel with it (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
 
 - A pre-push hook that "mirrors" a CI validator's regex.
 - A skill helper that "matches" the exit codes of a validator script.
@@ -169,7 +169,7 @@ trees. Update the table when the supported membership changes.
        return _SCOPE_SKIPPED
    ```
 
-   This one is **destination-dependent**. `templates/platforms/copilot-cli.yaml:49-50` lists `.github/instructions` under `keepInternalGlobsFor`, which disables the filter for that tree, so the skip cannot fire there and the in-repo Copilot agent keeps rules it needs for editing `.claude/` and `.agents/`. It fires only for `src/copilot-cli/instructions`, where the generator reports `Skipped (all-internal scope)` and prunes any artifact it previously emitted.
+   This one is **destination-dependent**. It fires for `src/copilot-cli/instructions`, where the generator reports `Skipped (all-internal scope)` and prunes any artifact it previously emitted. `templates/platforms/copilot-cli.yaml` lists `.github/instructions` under `keepInternalGlobsFor` and `repoOnlyOutputDirs`, so the skipped rule lands there as a real file with its globs. Every other entry there links to the filtered shipped copy (ADR-119).
 
 Situations 3 and 4 leave no source line to grep for. Situation 4 used to fall back to `**`, which inverted intent: narrowing a rule to `.claude/**` read like a reduction in scope and silently widened it to every turn in the shipped plugin. Issue #4317 tracked that inversion and PR #4426 fixed it by skipping rather than universalizing. The generator still prints `WARNING: dropped internal-only glob from applyTo` to stderr per dropped glob. Check the generated artifact instead of relying on warnings.
 

@@ -475,3 +475,16 @@ def test_committed_readonly_agents_are_exactly_the_read_only_ones() -> None:
         if "readonly: true" in p.read_text(encoding="utf-8").split("---")[1]
     }
     assert readonly == {"analyst", "code-reviewer", "comment-analyzer"}
+
+
+@pytest.mark.parametrize("agent", ["analyst", "code-reviewer", "comment-analyzer"])
+def test_adr107_agents_render_to_cursor_readonly(agent: str) -> None:
+    """Server wildcards do not stop the ADR-107 agents shipping as `readonly: true`."""
+    text = (REPO_ROOT / "src" / "claude" / "agents" / f"{agent}.md").read_text(encoding="utf-8")
+
+    rendered = atc.render_agent(
+        text, ["name", "description"], derive_readonly_flag=True, source=agent
+    )
+
+    assert rendered is not None
+    assert "readonly: true" in rendered.split("---")[1]

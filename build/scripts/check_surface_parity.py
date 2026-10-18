@@ -180,9 +180,13 @@ def _binplace_findings(repo_root: Path, manifest: Manifest) -> list[Finding]:
             _install_hit(s, plugin) for s in _surfaces_at(manifest, install)
         ):
             findings.append(_unmanifested(source, install))
+        # A row whose source IS its plugin tree (ADR-119 lib-paths) is
+        # hand-maintained there, so an independent surface describes it.
+        accepted = {"generated", "mirrored", "translated"}
+        if row.source == row.plugin_tree:
+            accepted = accepted | {"independent"}
         if plugin is not None and not any(
-            s.relation in {"generated", "mirrored", "translated"}
-            for s in _surfaces_at(manifest, plugin)
+            s.relation in accepted for s in _surfaces_at(manifest, plugin)
         ):
             findings.append(_unmanifested(source, plugin))
     return findings
@@ -330,13 +334,33 @@ def _extra_findings(
     return findings
 
 
+def _binplaced_rels(manifest: Manifest, surface: Surface, files: Sequence[str]) -> set[str]:
+    return {
+        r
+        for r in _authority_rels(surface, files)
+        if owner_of(manifest, join(surface.path, r))[0] is surface
+    }
+
+
 def check_hand_maintained(
     repo_root: Path, manifest: Manifest, files: Sequence[str]
 ) -> list[Finding]:
-    """Byte-compare every hand-maintained copy against its authority."""
+    """Byte-compare every hand-maintained copy against its authority.
+
+    A binplaced surface is not compared (``build_all.py --check`` owns its
+    bytes) but its extras are refused, ``extras: allow`` aside.
+    """
     present = set(files)
     findings: list[Finding] = []
     for surface in manifest.surfaces:
+        if surface.relation == "binplaced" and surface.authority:
+            # Binplace owns freshness of its copies and links; this module
+            # only refuses a file under the surface that has no authority
+            # file, so a repo-only file needs its own declared surface.
+            findings.extend(
+                _extra_findings(manifest, surface, files, _binplaced_rels(manifest, surface, files))
+            )
+            continue
         if not surface.hand_maintained:
             continue
         rels = {
