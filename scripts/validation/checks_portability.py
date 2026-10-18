@@ -201,8 +201,9 @@ def stale_rule_fixtures(repo_root: Path) -> list[str]:
     """Return sorted rule names whose lossless fixture differs from the built rule.
 
     The fixture under ``tests/build_scripts/fixtures/rule_templates_b2/expected/``
-    is a hand copy of ``src/claude/rules/<name>.md``; ``build_all.py`` never
-    refreshes it. A fixture with no built rule is left to the test's own
+    is a hand copy of ``src/claude/rules/<name>.md``, or of the real file
+    ``.claude/rules/<name>.md`` for a repo-only rule (ADR-119); ``build_all.py``
+    never refreshes it. A fixture with no built rule is left to the test's own
     count and name checks. Compares bytes, as the test does.
     """
     fixture_dir = repo_root / _RULE_FIXTURE_DIR
@@ -210,10 +211,21 @@ def stale_rule_fixtures(repo_root: Path) -> list[str]:
         return []
     stale: list[str] = []
     for fixture in sorted(fixture_dir.glob("*.md")):
-        built = repo_root / "src" / "claude" / "rules" / fixture.name
-        if built.is_file() and built.read_bytes() != fixture.read_bytes():
+        built = _built_rule(repo_root, fixture.name)
+        if built is not None and built.read_bytes() != fixture.read_bytes():
             stale.append(fixture.stem)
     return stale
+
+
+def _built_rule(repo_root: Path, file_name: str) -> Path | None:
+    """The built rule: the plugin tree, else a repo-only real file (ADR-119)."""
+    shipped = repo_root / "src" / "claude" / "rules" / file_name
+    if shipped.is_file():
+        return shipped
+    repo_only = repo_root / ".claude" / "rules" / file_name
+    if repo_only.is_file() and not repo_only.is_symlink():
+        return repo_only
+    return None
 
 
 def validate_rule_lossless_fixtures(repo_root: Path) -> bool:
@@ -242,7 +254,9 @@ def validate_rule_lossless_fixtures(repo_root: Path) -> bool:
     for line in ((stdout or "") + (stderr or "")).strip().splitlines()[-40:]:
         print(line)
     for name in stale_rule_fixtures(repo_root):
-        print(f"cp src/claude/rules/{name}.md {_RULE_FIXTURE_DIR}/{name}.md")
+        built = _built_rule(repo_root, f"{name}.md")
+        source = built.relative_to(repo_root).as_posix() if built else f"src/claude/rules/{name}.md"
+        print(f"cp {source} {_RULE_FIXTURE_DIR}/{name}.md")
     return False
 
 

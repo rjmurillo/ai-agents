@@ -424,7 +424,6 @@ def generate_agents(
             allowed_output_dirs = {
                 "src/copilot-cli/agents",
                 "src/vs-code-agents",
-                ".github/agents",  # ADR-109 B1: rendered, not binplaced
             }
             if configured_output_dir not in allowed_output_dirs:
                 print(
@@ -440,12 +439,10 @@ def generate_agents(
             if prefix_match:
                 output_dir_relative = prefix_match.group(1)
 
-            # ADR-109 B1: the github platform renders the repository's own
-            # .github/agents tree, which sits beside src/, not under it.
-            if output_dir_relative.startswith(".github/"):
-                output_dir = repo_root / output_dir_relative
-            else:
-                output_dir = output_root / output_dir_relative
+            # ADR-119: .github/agents links to src/copilot-cli/agents, so no
+            # platform renders outside src/; writing there would go through
+            # the links into the shipped tree.
+            output_dir = output_root / output_dir_relative
             # Walk the LEXICAL (unresolved) ancestor chain, not the
             # resolved output_dir built from the already-dereferenced
             # output_root above: is_symlink() on a path built from a

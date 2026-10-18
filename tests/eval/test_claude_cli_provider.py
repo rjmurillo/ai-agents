@@ -207,3 +207,89 @@ def test_claude_cli_honors_an_executable_override(
     )
 
     assert recorder.argv[0] == "/opt/claude"
+
+
+# --- output tokens from the envelope usage record (#6683) ----------------
+
+
+def test_claude_cli_records_output_tokens_from_the_usage_record(
+    claude_env: pytest.MonkeyPatch,
+) -> None:
+    """Measured shape: thinking tokens ride inside `output_tokens`."""
+    usage = {
+        "input_tokens": 9,
+        "output_tokens": 49,
+        "output_tokens_details": {"thinking_tokens": 38},
+    }
+    install_runner(claude_env, Recorder(stdout=claude_payload(usage=usage)))
+    provider = _claude_cli._ClaudeCLIProvider()
+
+    provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
+
+    assert provider.output_tokens == 49
+
+
+def test_claude_cli_accepts_a_zero_token_count(claude_env: pytest.MonkeyPatch) -> None:
+    install_runner(claude_env, Recorder(stdout=claude_payload(usage={"output_tokens": 0})))
+    provider = _claude_cli._ClaudeCLIProvider()
+
+    provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
+
+    assert provider.output_tokens == 0
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        None,
+        {},
+        [],
+        "49",
+        {"input_tokens": 9},
+        {"output_tokens": None},
+        {"output_tokens": "49"},
+        {"output_tokens": 49.5},
+        {"output_tokens": True},
+        {"output_tokens": -1},
+    ],
+)
+def test_claude_cli_reports_no_token_count_when_the_usage_record_is_unusable(
+    claude_env: pytest.MonkeyPatch, usage: object
+) -> None:
+    install_runner(claude_env, Recorder(stdout=claude_payload(usage=usage)))
+    provider = _claude_cli._ClaudeCLIProvider()
+
+    provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
+
+    assert provider.output_tokens is None
+
+
+def test_claude_cli_clears_the_token_count_between_calls(
+    claude_env: pytest.MonkeyPatch,
+) -> None:
+    provider = _claude_cli._ClaudeCLIProvider()
+    install_runner(claude_env, Recorder(stdout=claude_payload(usage={"output_tokens": 7})))
+    provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
+    assert provider.output_tokens == 7
+
+    install_runner(claude_env, Recorder(returncode=2, stderr="boom"))
+    with pytest.raises(RuntimeError):
+        provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
+
+    assert provider.output_tokens is None
+
+
+def test_claude_cli_clears_the_token_count_when_the_prompt_cannot_be_built(
+    claude_env: pytest.MonkeyPatch,
+) -> None:
+    provider = _claude_cli._ClaudeCLIProvider()
+    install_runner(claude_env, Recorder(stdout=claude_payload(usage={"output_tokens": 7})))
+    provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
+    assert provider.output_tokens == 7
+
+    with pytest.raises(RuntimeError, match="message role"):
+        provider.complete(
+            messages=[{"role": "assistant", "content": "x"}], model="claude-haiku-4-5"
+        )
+
+    assert provider.output_tokens is None

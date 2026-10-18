@@ -126,6 +126,7 @@ from scripts.validation.check_doc_interpreter_portability import (  # noqa: E402
     ScanError,
     third_party_imports,
     tracked_files,
+    tracked_py_with_links,
 )
 
 _YAML_ALLOWANCES = _allowances.YAML_ALLOWANCES
@@ -429,7 +430,7 @@ def find_yaml_offenses(
 def scan(repo_root: Path, used_allowances: set[_Key] | None = None) -> list[str]:
     """Return one message per offense across the tree; record allowances used."""
     used = set() if used_allowances is None else used_allowances
-    tracked_py = set(tracked_files(repo_root, "*.py"))
+    tracked_py = tracked_py_with_links(repo_root)
     all_offenses: list[tuple[str, int, str]] = []
     for rel in tracked_files(repo_root, *_SCAN_PATTERNS):
         if not is_in_scope(rel):
