@@ -145,10 +145,15 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
     ) -> None:
         guard.install(monkeypatch.setattr)
 
+        # Popen is the one entry point under run, call, and check_output.
         with pytest.raises(guard.CopilotCallRefusedError):
-            subprocess.run(["echo hi; copilot"], shell=True, check=False)
+            guard.GuardedPopen(["echo hi; copilot"], shell=True)
         with pytest.raises(guard.CopilotCallRefusedError):
-            subprocess.run("echo hi; copilot", shell=True, check=False)
+            guard.GuardedPopen("echo hi; copilot", shell=True)
+        # Positional order after args: bufsize, executable, stdin, stdout, stderr,
+        # preexec_fn, close_fds, shell.
+        with pytest.raises(guard.CopilotCallRefusedError):
+            guard.GuardedPopen(["echo hi; copilot"], -1, None, None, None, None, None, True, True)
         assert not fake_copilot.exists()
 
     def test_other_programs_still_start_through_every_path(
