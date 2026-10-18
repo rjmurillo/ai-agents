@@ -884,6 +884,27 @@ Adding a new activation eval:
 6. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
 7. Read the `Routing:` caveat before accepting a `description` pass. One skill router fronts every sibling reference, and a sibling resolves for your target as readily as the target does. That caveat counts the positive cells whose router never opened the reference under test, so a pass reported beside a nonzero count is partly a measurement of some other reference.
 
+### Decision-graded scenarios
+
+The judge scores how much a response sounds like the rule, so a response can recite the rule's vocabulary and still decide wrong. A scenario can add a `decision` object to be graded on the call itself. The prompt asks for two final lines, `DECISION: <TOKEN>` and `EVIDENCE: <one line>`. `_decision_grade.py` reads only those lines, with no model call.
+
+```json
+"decision": {
+  "options": ["REUSE", "BUILD"],
+  "expected": ["REUSE"],
+  "evidence_all": ["check_rule_scope_keys"],
+  "known_good": ["...\nDECISION: REUSE\nEVIDENCE: ..."],
+  "known_bad": ["..."],
+  "keyword_stuffed": ["..."]
+}
+```
+
+A response passes only when every `DECISION` line carries one token, that token is in `expected`, and the `EVIDENCE` line is non-empty and matches every `evidence_all` pattern. Rule keywords in the prose never change the grade. The harness refuses a spec that cannot fail (`expected` equal to `options`) or does not parse, with exit 2. `known_good`, `known_bad`, and `keyword_stuffed` are frozen offline examples that a pytest asserts; the runner ignores them.
+
+A live run prints a `Decision check` table beside the judge table and stores it under `summary.decision_check`. A mechanism with no graded cell reads `UNMEASURED`, not 0. That includes `description` for a rule with no `description:` frontmatter, which collapses to baseline. The pass-rate gap versus baseline prints only when both arms are fully graded, and it is descriptive: one response per cell is not evidence of uplift. Tool calls and cost per cell are `UNMEASURED` because the harness is single-turn.
+
+`tests/evals/rule-scenarios/capability-first.json` is the first user (issue #6658). It freezes five decision classes (measure not guess, reuse before build, preserve judgment, verify independently, no false capability claim) plus one negative case. It targets `universal.md` today and should repoint to the capability-first rule when #6656 lands. Offline check: `uv run pytest tests/eval/test_capability_first_scenarios.py tests/eval/test_decision_grade.py`.
+
 ### Evidence states in the coverage gate
 
 `scripts/validation/report_rule_activation_states.py --output PATH` writes JSON that keeps each evidence state apart, so baseline membership is never read as efficacy:
