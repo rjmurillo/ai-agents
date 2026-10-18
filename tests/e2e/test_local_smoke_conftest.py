@@ -86,3 +86,42 @@ def test_conftest_leaves_copilot_alone_without_the_gate_flag(tmp_path: Path) -> 
     result = _run_unmarked_copilot_test(tmp_path, armed=False)
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the shim is a shell script")
+def test_a_test_that_uninstalls_the_guard_leaves_the_session_guard_armed(tmp_path: Path) -> None:
+    """A test using ``isolated_guard`` must not strip the guard from tests that run after it."""
+    e2e_dir = Path(__file__).resolve().parent
+    for name in ("conftest.py", "local_smoke_guard.py", "local_smoke_command.py"):
+        (tmp_path / name).write_text((e2e_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (tmp_path / "test_a_strips.py").write_text(
+        "import local_smoke_guard as guard\n\n"
+        "def test_strips(isolated_guard):\n"
+        "    guard.uninstall()\n"
+        "    guard.remove_path_shim()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "test_b_checks.py").write_text(
+        "import os, shutil, subprocess\n"
+        "import local_smoke_guard as guard\n\n"
+        "def test_guard_still_armed():\n"
+        "    assert subprocess.Popen is guard.GuardedPopen\n"
+        "    assert shutil.which('copilot') is not None\n"
+        "    assert os.path.dirname(shutil.which('copilot')).startswith(guard._shim_dir.name)\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, guard.LOCAL_SMOKE_ENV: "1"}
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-c", "pytest.ini", "."],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        timeout=120,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "2 passed" in result.stdout

@@ -14,6 +14,10 @@ that skips Python's ``os`` module: a C extension, ``ctypes`` calling ``system``,
 or a program the test starts that itself starts Copilot. Those stay a review
 concern.
 
+The threat is an unmarked test a contributor wrote by mistake, not an adversary. The
+parser's scope is frozen at the forms such a test is likely to use. A bypass class it
+misses goes to the PATH shim below, not to another parser case.
+
 The command parser reads a fixed set of launchers and shells, so a program started
 through any other launcher (``script -c``, ``su -c``, ``find -exec``, ``parallel``) is
 not seen. ``install_path_shim`` is the backstop that does not depend on parsing: it puts a

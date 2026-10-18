@@ -21,6 +21,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import local_smoke_guard as guard
 from local_smoke_command import program_names
 
+# Each test gets its own shim state, so none can strip the guard the gate armed for the session.
+pytestmark = pytest.mark.usefixtures("isolated_guard")
+
 posix_only = pytest.mark.skipif(sys.platform == "win32", reason="the shim is a shell script")
 
 # Launch forms the parser does not read (the review probe of 2026-10-18). Each starts
@@ -50,7 +53,6 @@ def _run(command: list[str]) -> tuple[int, str]:
 def shim(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Install the shim on a copy of PATH and always remove it."""
     monkeypatch.setenv("PATH", os.environ.get("PATH", os.defpath))
-    guard.remove_path_shim()
     try:
         yield guard.install_path_shim()
     finally:
@@ -95,7 +97,6 @@ def test_install_twice_returns_the_same_directory_and_one_path_entry(shim: Path)
 
 def test_remove_restores_path_and_deletes_the_directory(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "/a:/b".replace(":", os.pathsep))
-    guard.remove_path_shim()
     shim = guard.install_path_shim()
     assert shim.is_dir()
 
@@ -107,7 +108,6 @@ def test_remove_restores_path_and_deletes_the_directory(monkeypatch: pytest.Monk
 
 def test_remove_without_install_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "/a")
-    guard.remove_path_shim()
 
     guard.remove_path_shim()
 
@@ -117,7 +117,6 @@ def test_remove_without_install_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> N
 def test_install_with_no_path_sets_only_the_shim_and_remove_unsets_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    guard.remove_path_shim()
     monkeypatch.delenv("PATH", raising=False)
 
     shim = guard.install_path_shim()
@@ -130,7 +129,6 @@ def test_install_with_no_path_sets_only_the_shim_and_remove_unsets_it(
 def test_remove_keeps_a_path_the_test_replaced(monkeypatch: pytest.MonkeyPatch) -> None:
     """Edge: a later PATH change is not overwritten with the saved value."""
     monkeypatch.setenv("PATH", "/a")
-    guard.remove_path_shim()
     shim = guard.install_path_shim()
     os.environ["PATH"] = "/replaced"
 
@@ -142,7 +140,6 @@ def test_remove_keeps_a_path_the_test_replaced(monkeypatch: pytest.MonkeyPatch) 
 
 def test_uninstall_also_removes_the_shim(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "/a")
-    guard.remove_path_shim()
     shim = guard.install_path_shim()
 
     guard.uninstall()

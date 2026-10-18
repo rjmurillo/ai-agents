@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -27,3 +30,30 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_unconfigure(config: pytest.Config) -> None:
     """Put the real ``subprocess.Popen``, ``os`` spawns, and ``PATH`` back at session end."""
     local_smoke_guard.uninstall()
+
+
+@pytest.fixture
+def isolated_guard(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Let a test install or uninstall the guard without touching the session's own.
+
+    Under the pre-push gate this conftest armed the real guard and the PATH shim for the
+    whole session. A test that calls ``uninstall`` or ``remove_path_shim`` would strip them
+    from every test after it. This fixture gives the test empty shim state and puts back
+    ``subprocess.Popen``, the ``os`` spawn functions, and ``PATH`` when it ends.
+    """
+    popen = subprocess.Popen
+    spawns = {name: getattr(os, name) for name in local_smoke_guard._ORIGINAL_OS}
+    path = os.environ.get("PATH")
+    monkeypatch.setattr(local_smoke_guard, "_shim_dir", None)
+    monkeypatch.setattr(local_smoke_guard, "_saved_path", None)
+    try:
+        yield
+    finally:
+        local_smoke_guard.remove_path_shim()
+        setattr(subprocess, "Popen", popen)  # noqa: B010
+        for name, value in spawns.items():
+            setattr(os, name, value)
+        if path is None:
+            os.environ.pop("PATH", None)
+        else:
+            os.environ["PATH"] = path

@@ -294,20 +294,14 @@ def test_guarded_os_passes_an_unbindable_call_to_the_original() -> None:
         guard._guarded_os(execve_like, 0, 1)(path="true", nope=1)
 
 
+@pytest.mark.usefixtures("isolated_guard")
 def test_uninstall_restores_popen_and_the_os_entry_points() -> None:
-    """Leave the session as found: a run armed by the pre-push gate keeps its own guard."""
-    before_popen = subprocess.Popen
-    before_os = {name: getattr(os, name) for name in guard._ORIGINAL_OS}
-    try:
-        guard.install(lambda target, name, value: setattr(target, name, value))
-        assert subprocess.Popen is guard.GuardedPopen
-        assert os.system is not guard._ORIGINAL_OS["system"]
+    """The fixture leaves the session as found: a run armed by the pre-push gate keeps its guard."""
+    guard.install(lambda target, name, value: setattr(target, name, value))
+    assert subprocess.Popen is guard.GuardedPopen
+    assert os.system is not guard._ORIGINAL_OS["system"]
 
-        guard.uninstall()
+    guard.uninstall()
 
-        assert subprocess.Popen is guard._ORIGINAL_POPEN
-        assert all(getattr(os, name) is orig for name, orig in guard._ORIGINAL_OS.items())
-    finally:
-        setattr(subprocess, "Popen", before_popen)  # noqa: B010
-        for name, value in before_os.items():
-            setattr(os, name, value)
+    assert subprocess.Popen is guard._ORIGINAL_POPEN
+    assert all(getattr(os, name) is orig for name, orig in guard._ORIGINAL_OS.items())
