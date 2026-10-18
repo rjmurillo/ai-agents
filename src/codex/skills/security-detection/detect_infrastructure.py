@@ -189,7 +189,9 @@ CRITICAL_PATTERNS = [
     r".*/Authorization/",
     r".*/Security/",
     r".*/Identity/",
-    r".*Auth.*\.(cs|ts|js|py)$",
+    # "auth" as a name part, not as a substring of author, authoring, or authority.
+    # authoriz*/authoris* (authorize, authorization) stay in scope.
+    r".*auth(?!or(?!iz|is)|ority).*\.(cs|ts|js|py)$",
     r"\.env.*$",
     r".*\.(pem|key|p12|pfx|jks)$",
     r".*secret.*",
