@@ -1,6 +1,6 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
-Issue #4854, reshaped by issue #6239. The test job is a six-entry matrix. The
+Issue #4854, reshaped by issue #6239. The test job is a seven-entry matrix. The
 five duration-balanced split groups use xdist (`-n auto --dist worksteal`).
 Safe-push and pr-autofix stay serial. No hard-coded worker count.
 
