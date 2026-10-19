@@ -21,9 +21,11 @@ from tests.test_detect_stale_bot_review import (
 )
 from tests.test_detect_stale_bot_review import (
     _pr,
+    _stale_cr,
+)
+from tests.test_detect_stale_bot_review_main import (
     _run_main,
     _siblings,
-    _stale_cr,
 )
 
 _SCRIPTS_DIR = (
