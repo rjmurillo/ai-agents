@@ -65,7 +65,15 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 SPLIT_COUNT = 4
 DURATIONS_RESTORE_PATH = ".pytest-split/durations.json"
 LEG_DURATIONS_DIR = "artifacts"
-SPLITTING_ALGORITHM = "duration_based_chunks"
+# `least_duration` assigns each test, heaviest first, to the group with the
+# smallest running total, so a leg's share does not depend on file order. The
+# earlier `duration_based_chunks` cut the collection order into contiguous runs.
+# Issue #6751: run 39207198157 (2026-10-19) ran split-3 for 443.9 s against a
+# 319 s mean across the four legs, close to the 480 s wall-time gate. Replaying
+# three earlier cached maps against the next run's measured durations put the
+# worst leg at 1.11x to 1.54x the mean under chunks and 1.01x to 1.04x under
+# least_duration.
+SPLITTING_ALGORITHM = "least_duration"
 _SPLIT_PREFIX = "split-"
 
 _SAFE_PUSH_ARGS = [
