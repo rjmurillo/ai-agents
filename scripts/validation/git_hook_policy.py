@@ -575,6 +575,20 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
+# Issue #6708: semgrep-core's Eio_linux backend calls io_uring_queue_init, which
+# charges locked memory. Under concurrent pushes with `ulimit -l 8192` it fails
+# with "Cannot allocate memory". The posix backend does not use io_uring and
+# passed every time it was tried. Linux only: io_uring is a Linux API, and the
+# Windows semgrep-core build has the posix backend disabled, so setting it there
+# fails with "Invalid argument". Only the local semgrep-push hook runs this path;
+# the remote semgrep check is server-side and reads no local env.
+
+
+def _semgrep_env(platform: str) -> dict[str, str]:
+    return {"EIO_BACKEND": "posix"} if platform == "linux" else {}
+
+
+SEMGREP_ENV = _semgrep_env(sys.platform)
 # Issue #6609: the longest a semgrep push waits for a host-wide heavy-stage slot
 # and for load to drop. The wait spends the scan's own deadline, because the
 # security-scan cap (15m) leaves only 60s above SEMGREP_TIMEOUT_SECONDS. Half the
@@ -1314,7 +1328,7 @@ def check_branch(repo_root: Path) -> int:
     branch = result.stdout.strip()
     if branch not in {"main", "master"}:
         return 0
-    print(f"ERROR: cannot commit or push directly to '{branch}'", file=sys.stderr)
+    print(f"ERROR: cannot commit directly to '{branch}'", file=sys.stderr)
     return 1
 
 
@@ -5204,6 +5218,7 @@ def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
     result = _run_command(
         [executable, "--version"],
         repo_root,
+        extra_env=SEMGREP_ENV,
         timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
@@ -5252,6 +5267,7 @@ def _run_semgrep_tree(
             result = _run_command(
                 _semgrep_command("auto", batch, repo_root),
                 repo_root,
+                extra_env=SEMGREP_ENV,
                 timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
@@ -6896,9 +6912,6 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     active_operation_result = check_active_git_operation(repo_root)
     if active_operation_result != 0:
         return active_operation_result
-    branch_result = check_branch(repo_root)
-    if branch_result != 0:
-        return branch_result
     history_result = _check_history_integrity(repo_root)
     if history_result != 0:
         return history_result
@@ -6907,6 +6920,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     except ValueError as error:
         print(f"ERROR: malformed pre-push input, {error}", file=sys.stderr)
         return 2
+    # Guard the destination ref, not the checked-out branch, so a main checkout
+    # can still delete or update an unrelated remote branch (issue #6671).
+    # Pre-commit keeps the HEAD guard through the branch-policy job.
     protected = next(
         (branch for ref in refs if (branch := _protected_push_destination(ref))),
         None,

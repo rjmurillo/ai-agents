@@ -98,7 +98,7 @@ How forgiving the floor is depends on how many sections the agent has and on how
 | 9 | 2 | 1 for one, 2 for the other |
 | 10 | 2 | 2 |
 
-So for **22 of the 26 agents that have any compared section, one wholly rewritten section is enough to trip the check**; three more need two, and `merge-resolver` already sits below the floor. Even `architect`, the widest at 10 sections, needs only two.
+So for **22 of the 26 agents that have any compared section, one wholly rewritten section is enough to trip the check**; three more need two, and `merge-resolver` already sits at its 20.3 floor, so any further drop trips it. Even `architect`, the widest at 10 sections, needs only two.
 
 Do not compute this column from section counts alone. An earlier version of this rule did, assuming every section scores 100, and concluded `architect` needed three. It needs two, because its sections already average 92.5 rather than 100. The same idealized model produced "more than a fifth of an agent's allowlisted sections", generalized from `architect` alone, which was wrong for 25 of the 26. The real threshold depends on the actual per-section scores, so measure it.
 
@@ -118,7 +118,7 @@ Repeated identical lines are free, and free from the very first one: the line's 
 
 What survives all of this is the weaker true claim: a **contradiction that reuses the surrounding vocabulary scores high and passes**, because Jaccard sees tokens, not meaning. And note the last row: even a section scored 8.2 leaves `architect` at 83.3 overall, above the floor. On an agent with one section the same mutation would land at 8.2 overall and fail. The check's sensitivity is inversely proportional to how much of the agent it looks at.
 
-Two further exceptions. `merge-resolver` has a 20.7 baseline floor (`KNOWN_BASELINE_DRIFT`) and sits in `_ADVISORY_VENDORED_DRIFT`. Its measured 20.3% is below the floor, so a default run prints `DRIFT DETECTED (20.3% similar)` for both comparisons and exits 0 only because the advisory set absorbs it. Install-pair content drift is advisory unless `--fail-on-install-drift` is passed (`_exit_code`); `.github/workflows/drift-detection.yml` does pass it.
+Two further exceptions. `merge-resolver` has a 20.3 baseline floor (`KNOWN_BASELINE_DRIFT`) and sits in `_ADVISORY_VENDORED_DRIFT`. Its measured 20.3% meets the floor, so a default run prints `OK (baselined) (20.3% similar)` for both comparisons. A worsening below the floor prints `DRIFT DETECTED`, and the advisory set keeps that from failing the vendored comparison. Install-pair content drift is advisory unless `--fail-on-install-drift` is passed (`_exit_code`); `.github/workflows/drift-detection.yml` does pass it.
 
 That workflow is a **weekly and manual audit, not a PR merge gate**: its only triggers are `schedule` (Mondays 09:00 UTC) and `workflow_dispatch`, and it opens an issue when it finds drift. The PR-time workflow `agent-drift-detection.yml` runs `generate_agents.py --validate`, which regenerates and compares, and never invokes this detector.
 

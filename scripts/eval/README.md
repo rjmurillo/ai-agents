@@ -1286,9 +1286,48 @@ control.
 
 Measured fields come from the corpus grader and the CLI stream. Proxies are
 `unsupported_claims` and `unresolved_uncertainty` (regexes over the final
-message). `review_findings`, `rollback_events`, and `rework_minutes` are 0 by
-construction, not measured. Requested effort is never verified: the stream
-names no effort. The `_durable_live.py` docstring lists every mapping.
+message). `rework_minutes` is agent rework from correction rounds.
+`review_findings` is measured only with `--reviewer-model MODEL`, which adds one
+read-only reviewer launch per accepted task run in a fresh copy that holds no
+control file and no hidden check (`_durable_review.py`). Without that flag, for
+a run that was never accepted, or when the reviewer reply is not in the required
+shape, it is `null`. `rollback_events` is measured: an accepted change that
+fails the fresh-copy follow-up or the post-integration check is reverted to
+`initial/` and the revert is verified, which counts 1. An unverifiable revert is
+`null`. In this driver the count is derived from the follow-up result (accepted
+and follow-up failed), so it adds no evidence beyond `followup_validation`: the
+revert runs in a temp workdir that is deleted right after the record is built.
+A reviewer launch that does not complete (a bad model id, a timeout) is listed
+under `reviewer_failures` in `run-summary.json` and the run exits 3, the same as
+the ablation driver. The record stays, with `review_findings` null. A changed
+path that is a symlink, or sits under one, never reaches the reviewer copy or
+the saved patch.
+The reviewer is read-only on both harnesses: `--tools Read,Glob,Grep` for claude
+and `-s read-only` for codex. `economics.human_correction_minutes` is `null`
+in every live record, because no human is in the run and a human cannot time a
+run that has not happened. A run that was never accepted classifies `REJECTED`
+first. An accepted run with a `null` count classifies `UNVERIFIED`, so it stays
+`UNVERIFIED` until a human times a correction pass. Each run's
+change is saved as `changes/<control>/<task_id>-r<repeat>.patch` in the output
+directory, so the human has something to correct. After the run, the human
+writes a JSON array of `{"control", "task_id", "repeat", "minutes"}` rows
+(`_human_minutes.py`) and `eval_human_minutes_join.py` writes copies of the
+records with the minutes filled in:
+
+```bash
+uv run python scripts/eval/eval_human_minutes_join.py \
+  --records OUT/current.jsonl OUT/reduced.jsonl --minutes minutes.json --output-dir OUT/timed
+```
+
+`0` is a valid timed value and a cell with no row stays `null`. The tool exits 2
+and writes nothing when a row matches no record, so a typo cannot drop a timed
+run. It also exits 2 when a row would overwrite minutes a record already holds
+(an earlier join, or the constant `0.0` that older records carry), unless
+`--replace` is given. Files are written under temporary names and renamed only
+after every write succeeded. Input files are never modified. Whether to keep the human-time clause at
+all is an open owner decision on #5768. Requested effort is never
+verified: the stream names no effort. The `_durable_live.py` docstring lists
+every mapping.
 
 ## Routing Benchmark Corpus
 
@@ -1425,13 +1464,34 @@ and `*.pyc`. Control files are committed at seed, so an agent edit to one
 counts, and so does an agent edit at a follow-up path, because changed paths
 are read before follow-up files are written.
 
-Fields recorded by construction, because the run is unattended and has no
-reviewer: `durable.review_findings` (0, no reviewer), `durable.rework_minutes` (0, no
-human rework), `durable.rollback_events` (0, a single run has no integration step
-to roll back), `economics.tool_cost_usd` and `economics.human_correction_minutes`
-(0, local commands only, no human). None of these are measurements of a
-human in the loop; the report states this so a reader does not mistake a
-zero for evidence.
+Fields recorded by construction because the run is unattended:
+`durable.rework_minutes` (0, no agent correction round) and
+`economics.tool_cost_usd` (0, local commands only).
+
+Fields that are `null` when not measured, never 0:
+`durable.review_findings` is `null` unless `--reviewer-model MODEL` runs the
+independent reviewer on an accepted change (read-only tools, a copy with no
+control file, hidden follow-up file, or `.git`; each accepted run adds one launch
+and `--max-runs` counts it). `economics.human_correction_minutes` is `null` in
+every live record. A run that was never accepted classifies `REJECTED` first, and
+an accepted run classifies `UNVERIFIED` until `eval_human_minutes_join.py`
+adds a timed row after a human corrects the run's saved patch (same file format as
+`eval_durable_live.py`). The keep-or-drop decision on that clause is open on #5768.
+`durable.rollback_events` is measured: an accepted change that
+fails the hidden follow-up is reverted with `git reset --hard` to the seed commit
+SHA (recorded by the harness, so an agent cannot move it) and `git clean -fdx`, and
+the revert is verified against `git status --ignored`, which counts 1; a revert
+that cannot be verified is `null`. The revert erases the run's edits from the workspace, so every run's
+change (untracked files included) is saved as `changes/<control>/<task_id>-r<repeat>.patch`
+under `--output-dir`, and the run entry in `report.json` names it as `change_patch`.
+The patch is taken before the hidden follow-up files are written, so it holds
+only what the agent did, and the reviewer's copy is built at the same point.
+
+`--dry-run` feeds canned reviewer replies through the real parser and a fixture
+`human_correction_minutes` of 0.0 (both labeled in the report as inputs, not
+measurements). It fails when a known-good record reports findings or a rollback,
+or when a known-bad record that was accepted lacks findings, or one that
+regressed lacks a verified rollback.
 
 Exit codes: `0` ok. `1` a dry run's grader failed to discriminate a
 known-good fix from a known-bad one. `2` config: a malformed task file, an

@@ -70,7 +70,7 @@ Before designing any test or scoring any coverage report, work through these thr
 
 Do not write a test without answering all three. A test whose name reads "test_function_X" with no behavior in the name signals the first question was skipped.
 
-**Coverage tool directive (A5)**: Before asserting any coverage claim, run the coverage tool against the diff. Do not rely on memory or test counts. The canonical invocations per stack live in `.agents/governance/TESTING-RIGOR.md` (section "Verify Before Commit"). Copy the line for the stack you changed, run it, paste the output line with the coverage percentage into the report. A coverage claim without a tool-run-this-session is a guess and gets returned for rework. Do not inline the commands here, the governance file is the single source of truth.
+**Coverage tool directive (A5)**: Before asserting any coverage claim, run the coverage tool against the diff. Do not rely on memory or test counts. Canonical invocations per stack live in `.agents/governance/TESTING-RIGOR.md` (section "Verify Before Commit"). Copy the line for the stack you changed, run it, paste the coverage output line into the report. A coverage claim without a tool-run-this-session is a guess and gets returned for rework.
 
 **Thinking trigger**: New features, security-relevant changes, regression fixes, and any change that touches authentication, persistence, or external I/O require explicit step-by-step reasoning through all three questions before tests are designed. Style or trivial doc-only diffs may collapse to a one-sentence justification.
 
@@ -97,7 +97,7 @@ If you cannot independently verify what was promised (no issue, no task descript
 
 **Success definition**: You can state exactly what was promised, what was delivered, and whether they match. If you cannot, you have NOT completed validation.
 
-**Rationale**: Past incident: an agent stopped at 16 of 49 planned files and reported "Validation: PASSED" because the validation script checked format only, not count. Explicit completeness verification prevents this failure mode (false completion reporting).
+**Rationale**: Past incident: an agent stopped at 16 of 49 planned files and reported "Validation: PASSED" because the validation script checked format only, not count.
 
 ## Key Responsibilities
 
@@ -778,7 +778,7 @@ If ANY checklist item cannot be completed:
 
 1. **Do not handoff** incomplete work
 2. **Complete missing items** - run tests, document results, save report
-3. **Document blockers** - if items truly cannot be completed, explain why
+3. **Document blockers** - explain why an item cannot be completed
 
 ## Handoff Protocol
 
@@ -789,7 +789,7 @@ When QA is complete:
 1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
-   - **QA COMPLETE**: "All tests passing. Ready for user validation."
+   - **QA COMPLETE**: "Tests: [cmd], [passed]/[total] passed, [skipped] skipped. Ready for user validation." Only if [passed] equals [total] (skips not counted), [total] > 0, and no suite is `NOT RUN`/`UNAVAILABLE`; else `[BLOCKED] Cannot evaluate: <suite>` or QA FAILED.
    - **QA FAILED**: "Tests failed. Recommend orchestrator routes to implementer with these failures: [list]"
 
 ## Execution Mindset
