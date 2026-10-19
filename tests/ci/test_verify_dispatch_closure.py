@@ -18,11 +18,14 @@ import yaml
 from scripts.ci import verify_dispatch_closure as vdc
 from tests.ci.dispatch_closure_helpers import (  # noqa: F401
     CONFIG,
+    DEMO_LINK,
+    DEMO_TARGET,
     GATE,
     HELPER,
     REPO_ROOT,
     VERIFIER,
     git,
+    link_demo_skill,
     rev,
     run,
     upstream_with_pr,
@@ -268,23 +271,10 @@ class TestTheRepositoryItself:
         assert report.unresolved == []
 
 
-DEMO_LINK = ".claude/skills/demo"
-DEMO_TARGET = "src/claude/skills/demo"
-
-
-def _link_demo_skill(base: Path) -> None:
-    """Move the demo skill under src/claude/skills and link .claude/skills/demo to it (ADR-119)."""
-    (base / "src/claude/skills").mkdir(parents=True, exist_ok=True)
-    git(base, "mv", DEMO_LINK, DEMO_TARGET)
-    (base / DEMO_LINK).symlink_to("../../src/claude/skills/demo")
-    git(base, "add", "-A")
-    git(base, "commit", "-q", "-m", "link the demo skill")
-
-
 @pytest.fixture
 def linked_trees(trees: tuple[Path, Path]) -> tuple[Path, Path]:
     base, head = trees
-    _link_demo_skill(base)
+    link_demo_skill(base)
     git(head, "checkout", "--detach", "-q", "--force", rev(base))
     return base, head
 

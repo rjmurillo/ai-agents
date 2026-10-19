@@ -104,6 +104,9 @@ _base_blob = _REF_LINKS.base_blob
 _blob_id = _REF_LINKS.blob_id
 _in_ref = _REF_LINKS.in_ref
 _resolve_in_ref = _REF_LINKS.resolve_in_ref
+_head_file = _REF_LINKS.head_file
+_following = _REF_LINKS.following
+_symlinks_in_tree = _REF_LINKS.symlinks_in_tree
 
 
 class DispatchClosureError(Exception):
@@ -202,25 +205,8 @@ def _same_symlinks(tool_root: Path, ref: str | None, head_sha: str | None) -> se
     }
 
 
-def _symlinks_in_tree(root: Path) -> set[str]:
-    found: set[str] = set()
-    for directory, names, files in os.walk(root, followlinks=False):
-        for name in [*names, *files]:
-            full = Path(directory) / name
-            if full.is_symlink():
-                found.add(full.relative_to(root).as_posix())
-    return found
-
-
 def _base_symlinks(tool_root: Path, base_ref: str) -> set[str]:
-    listing = subprocess.run(
-        ["git", *_REF_LINKS.INERT_GIT, "ls-tree", "-r", "-z", base_ref],
-        cwd=tool_root,
-        capture_output=True,
-        check=False,
-    )
-    entries = listing.stdout.decode("utf-8", errors="replace").split("\0")
-    return {e.split("\t", 1)[1] for e in entries if e.startswith("120000 ") and "\t" in e}
+    return set(_REF_LINKS.link_table(tool_root, base_ref) or {})
 
 
 def _merge_bases(tool_root: Path, base_ref: str, head_sha: str | None) -> list[str]:
@@ -268,7 +254,8 @@ def _classify(
     if head_sha is None:
         if base_id is None:
             return ADDED
-        same = _base_blob(tool_root, base_ref, path) == (head_root / path).read_bytes()
+        head = _head_file(head_root, path)
+        same = head is not None and _base_blob(tool_root, base_ref, path) == head.read_bytes()
         return None if same else CHANGED
     head_id = _blob_id(tool_root, head_sha, path)
     if head_id is not None and head_id == base_id:
@@ -285,18 +272,23 @@ def _missing_roots(
     missing = [
         path
         for path in roots
-        if not (head_root / path).is_file() and _in_ref(tool_root, base_ref, path)
+        if _head_file(head_root, path) is None and _in_ref(tool_root, base_ref, path)
     ]
     stale = [p for p in missing if forks and not any(_in_ref(tool_root, f, p) for f in forks)]
     return [path for path in missing if path not in stale], stale
 
 
 def _new_symlinks(
-    tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None, forks: list[str]
+    tool_root: Path,
+    head_root: Path,
+    base_ref: str,
+    head_sha: str | None,
+    forks: list[str],
+    links: dict[str, str],
 ) -> tuple[list[str], list[str]]:
-    """Head symlinks the base tip lacks (by target with a head SHA), split into added and stale."""
+    """Head symlinks the base tip lacks with the same target, split into added and stale."""
     if head_sha is None:
-        known = _base_symlinks(tool_root, base_ref)
+        known = {p for p, text in links.items() if _REF_LINKS.head_link_text(head_root, p) == text}
     else:
         known = _same_symlinks(tool_root, base_ref, head_sha)
     found = _symlinks_in_tree(head_root) - known
@@ -316,11 +308,18 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
     """
     gate = _load_gate(tool_root)
     config = _base_config(tool_root)
-    base_named = _named_files(gate, config, tool_root)
-    roots = list(dict.fromkeys([GATE, CONFIG, *base_named, *_named_files(gate, config, head_root)]))
-    closure = gate._expand_import_closure(
-        [path for path in roots if (head_root / path).is_file()], head_root
-    )
+    links = _REF_LINKS.link_table(tool_root, base_ref)
+    if links is None:
+        raise DispatchClosureError(f"a symlink at {base_ref} cannot be read")
+    with _following(gate, tool_root, links):
+        base_named = _named_files(gate, config, tool_root)
+    with _following(gate, head_root, links):
+        head_named = _named_files(gate, config, head_root)
+        roots = list(dict.fromkeys([GATE, CONFIG, *base_named, *head_named]))
+        closure = gate._expand_import_closure(
+            [path for path in roots if _head_file(head_root, path) is not None], head_root
+        )
+        unresolved = gate._unresolvable_dynamic_sites(closure, head_root)
     forks = _merge_bases(tool_root, base_ref, head_sha)
     if not forks and head_sha is not None:
         print("note: no merge base for the head, so STALE reads as CHANGED", file=sys.stderr)
@@ -333,10 +332,10 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
         kind = _classify(tool_root, base_ref, head_root, head_sha, path, forks)
         if kind is not None:
             buckets[kind].append(path)
-    symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, forks)
+    symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, forks, links)
     report.symlinks.extend(symlinks)
     report.stale.extend(stale_links)
-    report.unresolved.extend(gate._unresolvable_dynamic_sites(closure, head_root))
+    report.unresolved.extend(unresolved)
     return report
 
 
