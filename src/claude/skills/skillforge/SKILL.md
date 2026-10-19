@@ -238,7 +238,26 @@ FORGE="$ROOT/skills/skillforge/scripts"
 cd "$HOME/.claude"
 python "$FORGE/quick_validate.py" skills/my-skill/     # required before packaging
 python "$FORGE/validate-skill.py" skills/my-skill/     # full structural validation
+python "$FORGE/check_docs_safety.py" skills/my-skill/  # unsafe hook command examples in docs
+python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci  # size and progressive disclosure
 python "$FORGE/package_skill.py" skills/my-skill/ ./dist   # package for distribution
+```
+
+Every validator takes the skill directory and answers `--help`. `skill_modularity_audit.py`
+exits `0` without `--ci` even for an oversized skill; with `--ci` it exits `1`. In either mode it
+exits `2` when it audited nothing (wrong path, or every `SKILL.md` unreadable). With `--ci`, any
+unreadable `SKILL.md` also exits `2`. An exit `2` is never a pass.
+
+To validate a skill in another checkout without `cd` or copying, pass
+`--root DIR` to `quick_validate.py` or `validate-skill.py`. The skill must
+resolve inside `DIR`. A symlinked skill directory, `SKILL.md`, or
+script file that escapes it is rejected. The default root stays the
+current directory, and an absolute path outside it is still rejected without
+`--root`. A relative skill path resolves against the current directory, not
+against `DIR`, so pass an absolute path with `--root`:
+
+```bash
+python "$FORGE/quick_validate.py" /other/repo/skills/my-skill --root /other/repo
 ```
 
 See [references/output-structure.md](references/output-structure.md) for allowed
@@ -273,8 +292,10 @@ After creation:
 - [ ] Description <=1024 chars, with no `<` or `>`
 - [ ] 3-5 trigger phrases defined
 - [ ] Timelessness score >=7
-- [ ] `python scripts/quick_validate.py` passes
-- [ ] `python scripts/check_docs_safety.py` passes
+- [ ] `python "$FORGE/quick_validate.py" skills/my-skill/` passes
+- [ ] `python "$FORGE/validate-skill.py" skills/my-skill/` passes
+- [ ] `python "$FORGE/check_docs_safety.py" skills/my-skill/` passes
+- [ ] `python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci` exits `0` (`1` means oversized, `2` means it audited nothing)
 - [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
 - [ ] Scripts self-verify when scripts are present

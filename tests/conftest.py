@@ -20,6 +20,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.validation.models import ValidationResult  # noqa: E402
+from tests.containment_fixtures import (  # noqa: E402, F401
+    stub_git_probes,
+    stub_temp_roots,
+    tmp_path_is_temp_root,
+)
 from tests.gc_real_git import GitSandbox, git, write_and_commit  # noqa: E402
 from tests.git_config_isolation import (  # noqa: E402
     restore_git_config_env,
@@ -354,15 +359,18 @@ def external_tmp_path() -> Iterator[Path]:
     """Create a temp directory outside the checkout for path-boundary tests."""
     # Imported here rather than at module scope: the helper lives under `tests`,
     # which only becomes importable after the sys.path insert above.
-    from tests.external_scratch import outside_every_repository
+    from tests.external_scratch import (
+        make_external_dir,
+        outside_every_repository,
+        remove_external_dir,
+    )
 
     root = outside_every_repository(PROJECT_ROOT) / f".pytest-external-{PROJECT_ROOT.name}"
-    path = root / uuid.uuid4().hex
-    path.mkdir(parents=True)
+    path = make_external_dir(root, uuid.uuid4().hex)
     try:
         yield path
     finally:
-        shutil.rmtree(path, ignore_errors=True)
+        remove_external_dir(path)
 
 
 def assert_validation_result(

@@ -101,6 +101,13 @@ for it. The 16 lenses above are the taxonomy.
    write every case the lens needs before freezing. The lens passes the
    gate only when at least one case fails at baseline. A lens whose
    cases all pass already lives in the model; it gets no skill.
+   Each case names its skill, and the frozen hash covers that name. Check
+   every name with `bootstrap_boundary.py plan` before freezing, so Phase 3
+   has no reason to rename. If Phase 3 renames a skill anyway, the old file
+   rejects the edit. Freeze a second file under a new path with the new name,
+   reuse the baseline results (they key on case id), and note in the report
+   that the second freeze followed the baseline run and changed only skill
+   names.
 4. Record each gated lens with its `baseline_case` in the plan file.
    `forms check` confirms only that the field is set; confirm by hand that
    the id is in the frozen file and failed at baseline. Skip the rest and

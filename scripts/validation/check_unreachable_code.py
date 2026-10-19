@@ -67,7 +67,18 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
     files = [repo_root / entry for entry in result.stdout.split("\0") if entry]
     if not files:
         raise ScanError("git reported zero tracked Python files")
-    return files
+    # A tracked file link (ADR-119 decision 14: .claude/lib/paths.py) is scanned
+    # through its tracked target. A link to anything else stays in the list and
+    # fails the regular-file check in _scan.
+    tracked = {path.resolve() for path in files if not path.is_symlink()}
+    return [
+        path for path in files if not (path.is_symlink() and _link_target_is_tracked(path, tracked))
+    ]
+
+
+def _link_target_is_tracked(link: Path, tracked: set[Path]) -> bool:
+    """Return whether ``link`` resolves to one of the tracked real files."""
+    return link.resolve() in tracked
 
 
 def _nested_statement_blocks(statement: ast.stmt) -> Iterator[list[ast.stmt]]:

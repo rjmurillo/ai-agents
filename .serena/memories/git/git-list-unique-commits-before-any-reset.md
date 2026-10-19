@@ -71,3 +71,6 @@ set: another agent may have pushed nothing yet and left work only on disk.
 
 Related: `git/git-empty-hook-run-means-an-empty-push.md` (the mirror-image
 failure, where the local report says work moved and the remote disagrees).
+Related: `git/git-prove-content-reachable-before-any-force-checkout.md` (the
+working tree side of this same moment; a reset that is safe for every commit can
+still be unrecoverable for uncommitted file content).

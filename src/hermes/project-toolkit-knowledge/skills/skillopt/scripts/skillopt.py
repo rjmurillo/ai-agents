@@ -256,7 +256,12 @@ def _add_buffer_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]
     p.add_argument("--score", type=float, required=True)
     p.add_argument("--incumbent", type=float, required=True)
     p.add_argument("--note", default="")
-    p.add_argument("--step", type=int, default=0)
+    p.add_argument(
+        "--step",
+        type=int,
+        default=0,
+        help="0-based step index of the rejected edit (the same T passed to budget)",
+    )
     p.set_defaults(func=_cmd_buffer_add)
 
 
@@ -265,8 +270,18 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("budget", help="cosine-decayed edit budget for a step")
-    p.add_argument("--step", type=int, required=True)
-    p.add_argument("--total", type=int, required=True)
+    p.add_argument(
+        "--step",
+        type=int,
+        required=True,
+        help="0-based step index, from 0 to N-1 where N is --total",
+    )
+    p.add_argument(
+        "--total",
+        type=int,
+        required=True,
+        help="total number of steps N; --step must be less than N",
+    )
     p.add_argument("--max", type=int, default=5)
     p.add_argument("--min", type=int, default=1)
     p.set_defaults(func=_cmd_budget)

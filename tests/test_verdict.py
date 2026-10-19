@@ -397,7 +397,16 @@ def _scored(value: float = 8.0, confidence: float = 0.9) -> dict:
     return {"value": value, "confidence": confidence, "reasons": []}
 
 
-def cq_file(path: str = "a.py", category: str = "authored", *, scored: bool = True) -> dict:
+_OMIT = object()
+
+
+def cq_file(
+    path: str = "a.py",
+    category: str = "authored",
+    *,
+    scored: bool = True,
+    scoring_failed: object = _OMIT,
+) -> dict:
     """One assess.py `files` entry, carrying the five quality metrics.
 
     The identity key is `file_path`, the dataclass field `asdict` serializes.
@@ -407,9 +416,16 @@ def cq_file(path: str = "a.py", category: str = "authored", *, scored: bool = Tr
     `_unreadable_assessment` keeps the real category while zeroing every
     confidence, so a test payload without the metrics cannot tell a scored file
     from one the scanner gave up on.
+
+    `scoring_failed` mirrors the `FileAssessment` field. It is omitted by
+    default, the shape an assess.py that predates the field emits. Pass False
+    for an unsupported-language file and True for a read, decode, or
+    assessment failure.
     """
     quality = _scored() if scored else _scored(10.0, 0.0)
     entry: dict[str, object] = {"file_path": path, "category": category}
+    if scoring_failed is not _OMIT:
+        entry["scoring_failed"] = scoring_failed
     for field in ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy"):
         entry[field] = dict(quality)
     return entry
@@ -513,13 +529,66 @@ class TestAdaptLocalAxisVerdict:
         payload = cq_payload([cq_file(scored=False)])
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
-    def test_one_unscored_eligible_file_blocks_the_pass(self):
+    def test_one_failed_eligible_file_blocks_the_pass(self):
         """A hole in the evidence is not covered by a scored sibling.
 
-        assess.py records a file that raised as all-unscored, so a partly
-        failed run reaches here as a scored entry beside an unscored one.
+        assess.py records a file that raised as all-unscored with
+        `scoring_failed` true, so a partly failed run reaches here as a scored
+        entry beside a failed one.
         """
+        payload = cq_payload([cq_file("a.py"), cq_file("b.py", scored=False, scoring_failed=True)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_unmarked_unscored_file_beside_a_scored_one_blocks_the_pass(self):
+        """An assess.py that predates the marker cannot prove a file was out of scope."""
         payload = cq_payload([cq_file("a.py"), cq_file("b.py", scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("marker", ["no", 0, 1, None, "false", []])
+    def test_non_boolean_marker_on_unscored_file_blocks_the_pass(self, marker):
+        payload = cq_payload(
+            [cq_file("a.py"), cq_file("b.py", scored=False, scoring_failed=marker)]
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_failed_marker_on_a_scored_looking_entry_blocks_the_pass(self):
+        """Contradictory output is not evidence: failed wins over a metric."""
+        payload = cq_payload([cq_file("a.py", scoring_failed=True)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("name", ["docs/x.md", "cfg.json", "log.jsonl", "t.tmpl"])
+    def test_unsupported_language_file_beside_a_scored_one_still_passes(self, name):
+        """Issue 6664: a doc next to code must not hide the code's verdict."""
+        payload = cq_payload([cq_file("a.py"), cq_file(name, scored=False, scoring_failed=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_unsupported_language_file_beside_a_scored_test_file_passes(self):
+        payload = cq_payload(
+            [
+                cq_file("tests/test_a.py", "test"),
+                cq_file("README.md", scored=False, scoring_failed=False),
+            ]
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_only_unsupported_language_files_is_not_a_pass(self):
+        """No scored eligible entry means nothing was reviewed."""
+        payload = cq_payload(
+            [
+                cq_file("a.md", scored=False, scoring_failed=False),
+                cq_file("b.json", scored=False, scoring_failed=False),
+            ]
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_unsupported_plus_failed_plus_scored_blocks_the_pass(self):
+        payload = cq_payload(
+            [
+                cq_file("a.py"),
+                cq_file("b.md", scored=False, scoring_failed=False),
+                cq_file("c.py", scored=False, scoring_failed=True),
+            ]
+        )
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
     def test_unscored_generated_file_does_not_block_a_pass(self):

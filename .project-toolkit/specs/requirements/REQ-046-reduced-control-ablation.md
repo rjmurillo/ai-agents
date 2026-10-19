@@ -170,9 +170,16 @@ this works is the dry run: 5 of 5 `known_good` accepted durable, 0 of 5
 
 - Copilot and Codex harnesses (user decision D2).
 - The #5424 six-arm routing runner and the #5422 routing verdict.
-- A model judge. Every field is deterministic or recorded as zero by
-  construction (see DESIGN-044, "Fields recorded by construction").
-- An independent reviewer stage.
+- A model judge. Every field is deterministic, recorded as zero by
+  construction, or `null` when unmeasured (see DESIGN-044, "Fields recorded by
+  construction" and "Fields that are null when unmeasured").
+
+## Reviewer arm
+
+The ablation runner has an opt-in independent reviewer stage (`--reviewer-model`).
+It is read-only, runs once per accepted change, and is counted by `--max-runs`.
+A change that passes acceptance and fails the follow-up is reverted and the
+revert is verified (`rollback_events`). See DESIGN-044.
 
 ## Deferred
 

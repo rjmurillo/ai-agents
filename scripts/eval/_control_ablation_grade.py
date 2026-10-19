@@ -14,8 +14,9 @@ never `shell=True`.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 
 from _control_ablation_tasks import ControlAblationConfigError, Task
@@ -31,7 +32,11 @@ _SEED_COMMIT_MESSAGE = "control-ablation: seed"
 SEED_REF = "refs/control-ablation/seed"
 #: Harness-owned directories. Excluded from the workspace's own git so an
 #: agent's `git add -A` cannot stage the isolated profile or its credentials.
-_EXCLUDED_FROM_GIT = (".parity-profile/", ".runtime/", "__pycache__/", "*.pyc")
+_HARNESS_OWNED = (".parity-profile/", ".runtime/")
+_EXCLUDED_FROM_GIT = (*_HARNESS_OWNED, "__pycache__/", "*.pyc")
+#: Seed commit SHA per workspace, recorded at seed time. The agent runs `git`
+#: in the workspace and can move `SEED_REF`; this copy lives in the harness.
+_SEED_COMMITS: dict[str, str] = {}
 
 
 class WorkspaceError(RuntimeError):
@@ -82,6 +87,15 @@ def _run_git(args: Sequence[str], workspace: Path) -> subprocess.CompletedProces
     )
 
 
+def _workspace_key(workspace: Path) -> str:
+    return str(workspace.resolve())
+
+
+def _seed_commit(workspace: Path) -> str:
+    """The commit grading diffs against: the SHA recorded at seed time, else `SEED_REF`."""
+    return _SEED_COMMITS.get(_workspace_key(workspace), SEED_REF)
+
+
 def _write_files(workspace: Path, files: Mapping[str, str]) -> None:
     for relative, content in files.items():
         path = _safe_file(workspace, relative)
@@ -126,6 +140,11 @@ def seed_workspace(workspace: Path, task: Task, control_files: Mapping[str, str]
     pin = _run_git(["update-ref", SEED_REF, "HEAD"], workspace)
     if pin.returncode != 0:
         raise WorkspaceError(f"git update-ref failed in {workspace}: {pin.stderr.strip()}")
+    head = _run_git(["rev-parse", "--verify", "HEAD"], workspace)
+    sha = head.stdout.strip()
+    if head.returncode != 0 or not sha:
+        raise WorkspaceError(f"git rev-parse failed in {workspace}: {head.stderr.strip()}")
+    _SEED_COMMITS[_workspace_key(workspace)] = sha
 
 
 def _exclude_harness_paths(workspace: Path) -> None:
@@ -157,28 +176,113 @@ def changed_paths(workspace: Path) -> tuple[str, ...]:
 
     Stages with `git add -A` first so a newly created (untracked) file is
     included; `git diff --name-only` alone only reports tracked changes.
-    Diffs against `SEED_REF`, not `HEAD`, so work the agent committed counts.
+    Diffs against the seed commit, not `HEAD`, so work the agent committed counts.
     """
     add = _run_git(["add", "-A"], workspace)
     if add.returncode != 0:
         raise WorkspaceError(f"git add failed in {workspace}: {add.stderr.strip()}")
-    diff = _run_git(["diff", "--cached", "--name-only", "-z", SEED_REF], workspace)
+    diff = _run_git(["diff", "--cached", "--name-only", "-z", _seed_commit(workspace)], workspace)
     if diff.returncode != 0:
         raise WorkspaceError(f"git diff failed in {workspace}: {diff.stderr.strip()}")
     return tuple(path for path in diff.stdout.split("\0") if path)
+
+
+def snapshot_diff(workspace: Path) -> str:
+    """The workspace's full change against the seed, untracked files included, as a patch.
+
+    Taken before `rollback_to_seed` erases it: a regressed run is the one most
+    worth inspecting. Returns "" when git cannot produce it, so a failed
+    snapshot never blocks the revert.
+    """
+    try:
+        changed_paths(workspace)  # stages new files so the diff includes them
+    except WorkspaceError:
+        return ""
+    diff = _run_git(["diff", "--cached", _seed_commit(workspace)], workspace)
+    return diff.stdout if diff.returncode == 0 else ""
+
+
+def _leftover_paths(workspace: Path) -> list[str]:
+    """Paths `git status` still reports, ignored ones included, minus harness-owned paths."""
+    status = _run_git(["status", "--porcelain", "--ignored", "-z"], workspace)
+    if status.returncode != 0:
+        raise WorkspaceError(f"git status failed in {workspace}: {status.stderr.strip()}")
+    leftover = []
+    for entry in status.stdout.split("\0"):
+        path = entry[3:]
+        if path and not path.startswith(_HARNESS_OWNED):
+            leftover.append(path)
+    return leftover
+
+
+def rollback_to_seed(workspace: Path) -> bool:
+    """Revert the workspace to the seed commit and verify the revert (recovery path).
+
+    `git reset --hard` to the seed SHA restores tracked files and
+    `git clean -fdx` removes every untracked file, ignored ones too, so an
+    agent file matched by a `.gitignore`, `.git/info/exclude`, or the
+    operator's global excludes cannot survive. The two harness-owned
+    directories are kept. The revert counts only when `git status --ignored`
+    lists nothing but those directories and no path differs from the seed, so
+    a failed or partial revert is `False`.
+    """
+    clean = ["clean", "-fdxq", *(f"--exclude={path}" for path in _HARNESS_OWNED)]
+    for args in (["reset", "--hard", "--quiet", _seed_commit(workspace)], clean):
+        done = _run_git(args, workspace)
+        if done.returncode != 0:
+            return False
+    try:
+        return not _leftover_paths(workspace) and not changed_paths(workspace)
+    except WorkspaceError:
+        return False
+
+
+def review_copy(
+    workspace: Path,
+    destination: Path,
+    task: Task,
+    changed: Sequence[str],
+    excluded: Collection[str],
+) -> None:
+    """Build the reviewer's directory: the task's setup files plus the agent's changes.
+
+    No control file, no hidden follow-up file, and no `.git` directory, so
+    the reviewer sees the same project under every control. A changed path
+    the agent deleted is deleted here too. `excluded` names control-owned
+    paths that stay out even when the agent edited them. A changed path that is
+    a symlink stays out: it may point outside the workspace. A `destination`
+    left by an earlier run is replaced, so no stale file reaches the reviewer.
+    """
+    if destination.is_symlink() or destination.is_file():
+        destination.unlink()
+    elif destination.exists():
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True)
+    _write_files(destination, task.setup_files)
+    for relative in excluded:
+        _safe_file(destination, relative).unlink(missing_ok=True)
+    for relative in changed:
+        if relative in excluded or (workspace / relative).is_symlink():
+            continue
+        source, target = _safe_file(workspace, relative), _safe_file(destination, relative)
+        if source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source.read_bytes())
+        else:
+            target.unlink(missing_ok=True)
 
 
 def added_lines_by_python_path(workspace: Path, paths: Sequence[str]) -> dict[str, str]:
     """Return, per changed `.py` path, the concatenated `+`-prefixed diff lines.
 
     Requires `changed_paths` to have already staged the working tree (`git
-    add -A`); `git diff --cached` reads that staged state against `SEED_REF`.
+    add -A`); `git diff --cached` reads that staged state against the seed commit.
     """
     added: dict[str, str] = {}
     for path in paths:
         if not path.endswith(".py"):
             continue
-        diff = _run_git(["diff", "--cached", SEED_REF, "--", path], workspace)
+        diff = _run_git(["diff", "--cached", _seed_commit(workspace), "--", path], workspace)
         if diff.returncode != 0:
             continue
         lines = [

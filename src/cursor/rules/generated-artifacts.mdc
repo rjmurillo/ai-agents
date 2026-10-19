@@ -193,9 +193,9 @@ Before you merge a change to a generator or customer-facing artifact:
 - Did you read the settled contract before changing the artifact?
 - If the change touches a mirrored library (`hook_utilities`,
   `github_core`, `ai_review_common`), did you run
-  `build_all.py`, and confirm all three lib trees (`src/claude/lib/`,
-  `src/copilot-cli/lib/`, `.claude/lib/`) match rather than trusting the
-  exit code alone?
+  `build_all.py`, and confirm the lib trees (`src/claude/lib/`,
+  `src/copilot-cli/lib/`) match rather than trusting the exit code alone?
+  (`.claude/lib/` links into `src/claude/lib/`.)
 - If you re-probed, did a refresh condition require it, and did you record the
   version, official source, and negative control?
 - Is there a runtime-contract test that executes the artifact under that contract,
