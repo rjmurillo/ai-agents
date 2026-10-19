@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -245,9 +246,7 @@ def test_recover_clears_a_half_created_worktree_whose_directory_is_gone(
     repo, target = _create_repository(tmp_path / "repo")
     scratch, admin = _add_half_created_worktree(repo, "gone")
     marker = _write_marker_for(repo, target, scratch, "gone")
-    for child in sorted(scratch.rglob("*"), reverse=True):
-        child.unlink() if not child.is_dir() or child.is_symlink() else child.rmdir()
-    scratch.rmdir()
+    shutil.rmtree(scratch)
 
     assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_OK
 
