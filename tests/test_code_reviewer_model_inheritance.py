@@ -12,8 +12,9 @@ top-level Copilot CLI 1.0.98 Linux run is recorded on the pull request. The
 seen, is unverified.
 
 The last section guards every generated Copilot-side agent, not only
-code-reviewer. `scripts/validation/check_model_pins.py` skips the generated
-mirrors, and the generator turns `model_tier: haiku` into a versioned id, so a
+code-reviewer. `scripts/validation/check_model_pins.py` reads `src/copilot-cli`
+only through the `.github/agents` symlinks and never reads `src/vs-code-agents`,
+and the generator turns `model_tier: haiku` into a versioned id, so a
 new haiku-tier template would bring the bug back unseen.
 """
 
@@ -122,14 +123,14 @@ def _kept_pins(manifest: Path) -> dict[str, str]:
 # Each generated tree maps to the platform YAML that renders its `model:` value.
 # The generator rewrites a KEEP_PIN manifest id into the platform's own spelling
 # (format_model_id_for_platform), so the check must do the same before comparing.
-# GitHub rejects `model:` in .github/agents (templates/platforms/github.yaml), so
-# that tree has no tier map and no pin can be backed there.
+# .github/agents has no entry: every file there is a symlink into
+# src/copilot-cli/agents (ADR-119), so path.resolve() classifies it as
+# src/copilot-cli and the copilot-cli tier map applies.
 COPILOT_CLI_YAML = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 VSCODE_YAML = REPO_ROOT / "templates" / "platforms" / "vscode.yaml"
-PLATFORM_YAML_BY_TREE: dict[str, Path | None] = {
+PLATFORM_YAML_BY_TREE: dict[str, Path] = {
     "src/copilot-cli": COPILOT_CLI_YAML,
     "src/vs-code-agents": VSCODE_YAML,
-    ".github/agents": None,
 }
 
 
@@ -141,18 +142,20 @@ def _tiers_from_yaml(yaml_path: Path) -> dict[str, object]:
     return tiers
 
 
-def _platform_tiers(path: Path) -> dict[str, object] | None:
-    """Return the model_tiers map of the platform that rendered `path`."""
+def _platform_tiers(path: Path) -> dict[str, object]:
+    """Return the model_tiers map of the platform that rendered `path`.
+
+    Symlinks are followed on purpose: a `.github/agents` file is the
+    `src/copilot-cli` render, so it takes the copilot-cli map.
+    """
     relative = path.resolve().relative_to(REPO_ROOT).as_posix()
     for tree, yaml_path in PLATFORM_YAML_BY_TREE.items():
         if relative.startswith(tree + "/"):
-            return None if yaml_path is None else _tiers_from_yaml(yaml_path)
+            return _tiers_from_yaml(yaml_path)
     raise AssertionError(f"{path} is not under a known generated Copilot tree")
 
 
-def _assert_pin_is_backed(
-    path: Path, kept: dict[str, str], tiers: dict[str, object] | None
-) -> None:
+def _assert_pin_is_backed(path: Path, kept: dict[str, str], tiers: dict[str, object]) -> None:
     pinned = _frontmatter(path).get("model")
     if pinned is None:
         return
@@ -161,7 +164,7 @@ def _assert_pin_is_backed(
         f"{path} pins a model with no KEEP_PIN entry in the model-pin-evidence "
         "manifest. A host without that model rejects the agent."
     )
-    expected = format_model_id_for_platform(kept[name], tiers) if tiers is not None else None
+    expected = format_model_id_for_platform(kept[name], tiers)
     assert pinned == expected, (
         f"{path} pins model {pinned!r} but the KEEP_PIN entry justifies "
         f"{expected!r} on this platform (manifest id {kept[name]!r}). "
@@ -200,7 +203,8 @@ def test_every_tracked_agent_file_is_in_a_guarded_tree() -> None:
     unguarded = _unguarded_agents(tracked, guarded)
     assert not unguarded, (
         f"{unguarded} sit outside GENERATED_COPILOT_AGENT_GLOBS, so the #6638 pin "
-        "guard never reads them. Add the tree to the globs and PLATFORM_YAML_BY_TREE."
+        "guard never reads them. Add the tree to the globs and PLATFORM_YAML_BY_TREE "
+        "(a symlinked mirror needs no map entry)."
     )
 
 
@@ -323,26 +327,35 @@ def test_manifest_id_the_formatter_cannot_render_backs_no_pin(tmp_path: Path) ->
         _assert_pin_is_backed(agent, {"new-agent": "claude-opus-4-20250514"}, COPILOT_CLI_TIERS)
 
 
-def test_github_tree_has_no_tier_map_so_no_pin_is_backed(tmp_path: Path) -> None:
-    """Edge: GitHub rejects `model:` in .github/agents, so even a KEEP_PIN cannot back one."""
-    agent = _write_agent(tmp_path, "claude-haiku-4.5")
-
-    with pytest.raises(AssertionError, match="does not cover the pinned id"):
-        _assert_pin_is_backed(agent, {"new-agent": "claude-haiku-4.5"}, None)
-
-
 @pytest.mark.parametrize(
     ("relative", "expected"),
     [
         ("src/copilot-cli/agents/x.agent.md", COPILOT_CLI_TIERS),
         ("src/vs-code-agents/x.agent.md", VSCODE_TIERS),
-        (".github/agents/x.agent.md", None),
+        # A real tracked file: a symlink into src/copilot-cli, so copilot-cli tiers.
+        (".github/agents/code-reviewer.agent.md", COPILOT_CLI_TIERS),
     ],
 )
 def test_platform_tiers_maps_each_generated_tree(
-    relative: str, expected: dict[str, object] | None
+    relative: str, expected: dict[str, object]
 ) -> None:
     assert _platform_tiers(REPO_ROOT / relative) == expected
+
+
+def test_github_agents_are_symlinks_into_the_copilot_cli_tree() -> None:
+    """Invariant behind the missing .github map entry: every file mirrors src/copilot-cli."""
+    github_agents = sorted((REPO_ROOT / ".github" / "agents").glob("*.agent.md"))
+    assert github_agents, "no .github/agents files found"
+    cli_root = (REPO_ROOT / "src" / "copilot-cli" / "agents").resolve()
+    for agent in github_agents:
+        assert agent.is_symlink(), f"{agent} is a real file, so it needs its own tier map"
+        assert agent.resolve().parent == cli_root, f"{agent} does not mirror src/copilot-cli"
+
+
+def test_non_symlink_github_agent_is_rejected_as_an_unknown_tree() -> None:
+    """Negative: a real .github/agents file has no tier map, so the guard fails closed."""
+    with pytest.raises(AssertionError, match="not under a known generated Copilot tree"):
+        _platform_tiers(REPO_ROOT / ".github" / "agents" / "not-a-link.agent.md")
 
 
 def test_platform_tiers_rejects_an_unknown_tree() -> None:
