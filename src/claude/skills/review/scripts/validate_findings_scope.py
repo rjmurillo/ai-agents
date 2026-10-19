@@ -16,7 +16,9 @@ script exits 0 and the orchestrator records the axis output unmodified.
 
 With ``--frozen`` (review rounds after the first), a verdict whose every cited
 location is outside the PR diff becomes PASS instead of WARN. Those findings
-are flagged notes: they stay visible but never count toward the verdict.
+are flagged notes: they stay visible but never count toward the verdict. A
+finding tagged ``[diff-caused]`` (a regression the diff causes in a file it did
+not touch) keeps the verdict.
 
 EXIT CODES (ADR-035):
     0 - All locations are in scope, or the diff list is empty or unavailable.
@@ -62,6 +64,8 @@ _VERDICT_RE = re.compile(
 _FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"})
 _COUNTING_VERDICTS = _FAIL_VERDICTS | frozenset({"WARN", "PARTIAL"})
 _PRE_EXISTING_MARKER = "[pre-existing - not in this PR diff]"
+# An axis tags a regression the diff causes in a file it did not touch.
+_DIFF_CAUSED_MARKER = "[diff-caused]"
 
 # A location value is a file path when it contains a path separator or a
 # known extension.  Values like ``line 42`` or ``N/A`` are not file paths.
@@ -192,13 +196,17 @@ def scope_adjusted_verdict(text: str, diff_files: list[str], *, frozen: bool = F
 
     With *frozen* (review rounds after the first), the same all-out-of-scope
     output becomes PASS for any counting verdict (a blocking verdict, WARN, or
-    PARTIAL): the findings are flagged notes and carry no weight.
+    PARTIAL): the findings are flagged notes and carry no weight. Output that
+    carries ``[diff-caused]`` keeps its verdict: the diff broke code it did not
+    touch, so the finding counts even though its file is outside the diff.
     """
     verdict = extract_verdict(text)
     if verdict is None:
         return None
     in_scope, out_of_scope = validate_scope(text, diff_files)
     if not out_of_scope or in_scope:
+        return verdict
+    if frozen and _DIFF_CAUSED_MARKER in text:
         return verdict
     if frozen and verdict in _COUNTING_VERDICTS:
         return "PASS"
@@ -234,7 +242,11 @@ def _annotate_out_of_scope_lines(text: str, out_of_scope: list[str]) -> str:
         if location is None:
             lines.append(line)
             continue
-        if location in out_of_scope_set and _PRE_EXISTING_MARKER not in line:
+        if (
+            location in out_of_scope_set
+            and _PRE_EXISTING_MARKER not in line
+            and _DIFF_CAUSED_MARKER not in line
+        ):
             newline = "\n" if line.endswith("\n") else ""
             body = line[:-1] if newline else line
             lines.append(f"{body} {_PRE_EXISTING_MARKER}{newline}")

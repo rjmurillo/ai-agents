@@ -100,6 +100,29 @@ class TestFrozenVerdict:
         assert mod.scope_adjusted_verdict(_PRE_EXISTING_ONLY, [], frozen=True) == "CRITICAL_FAIL"
 
 
+class TestDiffCausedRegression:
+    """A regression the diff causes in an untouched file still counts."""
+
+    _TAGGED = _PRE_EXISTING_ONLY.replace(
+        "location: legacy/old_module.py:12", "location: legacy/old_module.py:12 [diff-caused]"
+    )
+
+    def test_tagged_regression_keeps_its_verdict_when_frozen(self) -> None:
+        assert mod.scope_adjusted_verdict(self._TAGGED, _DIFF_FILES, frozen=True) == "CRITICAL_FAIL"
+
+    def test_untagged_twin_is_demoted_when_frozen(self) -> None:
+        """Negative control: the tag is the only difference."""
+        assert mod.scope_adjusted_verdict(_PRE_EXISTING_ONLY, _DIFF_FILES, frozen=True) == "PASS"
+
+    def test_tag_is_ignored_in_round_one(self) -> None:
+        assert mod.scope_adjusted_verdict(self._TAGGED, _DIFF_FILES) == "WARN"
+
+    def test_tagged_line_is_not_marked_pre_existing(self) -> None:
+        out = mod.format_scope_checked_text(self._TAGGED, _DIFF_FILES, frozen=True)
+        assert "[pre-existing - not in this PR diff]" not in out
+        assert "Verdict: CRITICAL_FAIL" in out
+
+
 class TestFrozenText:
     def test_text_marks_location_and_says_flagged(self) -> None:
         out = mod.format_scope_checked_text(_PRE_EXISTING_ONLY, _DIFF_FILES, frozen=True)
@@ -188,6 +211,12 @@ class TestLaterRoundDoesNotBlockOnPreExistingDefect:
         result = _run_cli(pr_repo, _PRE_EXISTING_ONLY)
         assert merge_verdicts([_verdict_of(result.stdout), "PASS", "PASS"]) == "WARN"
 
+    def test_round_two_regression_in_untouched_file_still_blocks(self, pr_repo: Path) -> None:
+        text = _PRE_EXISTING_ONLY.replace("old_module.py:12", "old_module.py:12 [diff-caused]")
+        result = _run_cli(pr_repo, text, "--frozen")
+        assert "[pre-existing - not in this PR diff]" not in result.stdout
+        assert merge_verdicts([_verdict_of(result.stdout), "PASS"]) == "CRITICAL_FAIL"
+
     def test_round_two_defect_in_the_diff_still_blocks(self, pr_repo: Path) -> None:
         result = _run_cli(pr_repo, _DIFF_INTRODUCED, "--frozen")
         assert result.returncode == 0
@@ -260,6 +289,11 @@ class TestReviewSkillStatesTheContract:
         assert "3 rounds for this skill" in text
         assert "default 5 for `check_pr_round_cap.py`" in text
         assert "MUST NOT exceed 3 rounds" in skill
+
+    def test_resource_tells_axes_to_tag_diff_caused_regressions(self) -> None:
+        text = _CONTRACT.read_text(encoding="utf-8")
+        assert "`[diff-caused]`" in text
+        assert "a file it did not touch" in text
 
     def test_resource_has_no_dashes(self) -> None:
         text = _CONTRACT.read_text(encoding="utf-8")

@@ -44,7 +44,7 @@ Modeled on `.claude/skills/github/scripts/pr/check_pr_round_cap.py` (issue #5056
 
 ## Frozen finding contract (rounds after the first)
 
-`--round N` marks round 2 or 3. Only a defect the diff introduced (fix commits included) and an unmet acceptance criterion the PR claims count. The rest are flagged notes: listed in Output, never merged, never a reason for another round. Run step 4a with `--frozen`. Read `resources/frozen-finding-contract.md`. The caps stay.
+The caller supplies `ROUND: N` context. In round 2 or 3 only a defect the diff introduced (fix commits included) and an unmet acceptance criterion the PR claims count. The rest are flagged notes: listed in Output, never merged, never a reason for another round. Append `--frozen` to the step 4a arguments. Read `resources/frozen-finding-contract.md`. The caps stay.
 
 ## Path resolution (harness-agnostic)
 
