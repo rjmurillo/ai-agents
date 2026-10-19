@@ -359,6 +359,9 @@ jobs:
           - partition: split-4
             coverage_file: artifacts/.coverage.split-4
             junit_file: artifacts/pytest-results-split-4.xml
+          - partition: split-5
+            coverage_file: artifacts/.coverage.split-5
+            junit_file: artifacts/pytest-results-split-5.xml
           - partition: safe-push
             coverage_file: artifacts/.coverage.safe-push
             junit_file: artifacts/pytest-results-safe-push.xml
@@ -594,6 +597,7 @@ jobs:
             --main-data artifacts/.coverage.split-2 \
             --main-data artifacts/.coverage.split-3 \
             --main-data artifacts/.coverage.split-4 \
+            --main-data artifacts/.coverage.split-5 \
             --main-data artifacts/.coverage.safe-push \
             --main-data artifacts/.coverage.pr-autofix \
             --pin-data artifacts/.coverage.pin-verdict \
@@ -613,7 +617,7 @@ jobs:
       # Issue #5382. pytest-split cuts a file across split groups, so no single
       # leg's JUnit report holds a whole budgeted suite. Every leg's report is
       # downloaded here, and slow_test_budget.py sums the seconds per module
-      # across them, so a split file cannot slip under its budget. The six
+      # across them, so a split file cannot slip under its budget. The seven
       # reports are named, not globbed: a missing leg report makes the script
       # exit 3 instead of undercounting. They mirror the matrix junit_file
       # values (a test pins that). It runs
@@ -630,6 +634,7 @@ jobs:
           artifacts/pytest-results-split-2.xml
           artifacts/pytest-results-split-3.xml
           artifacts/pytest-results-split-4.xml
+          artifacts/pytest-results-split-5.xml
           artifacts/pytest-results-safe-push.xml
           artifacts/pytest-results-pr-autofix.xml
           --budget pyproject.toml
@@ -642,6 +647,8 @@ jobs:
       # only and leaves out job setup. Setup plus split-1's primary steps took
       # about 95 s on PR #6241's run, so 480 s leaves room under the 600 s job
       # limit. A split imbalance above 1.5x is only a ::warning annotation.
+      # "Re-run failed jobs" re-reads the same leg artifacts and so repeats the
+      # same wall time; only a full re-run measures the legs again (issue #6751).
       - name: Gate pytest leg wall time
         run: >-
           uv run --frozen python scripts/testing/duration_gate_check.py
@@ -649,6 +656,7 @@ jobs:
           artifacts/pytest-results-split-2.xml
           artifacts/pytest-results-split-3.xml
           artifacts/pytest-results-split-4.xml
+          artifacts/pytest-results-split-5.xml
           artifacts/pytest-results-safe-push.xml
           artifacts/pytest-results-pr-autofix.xml
 
@@ -711,7 +719,7 @@ jobs:
           restore-keys: test-duration-history-
 
       # pytest-split durations for the next run. Each split leg wrote only its own
-      # tests to artifacts/durations-split-N.json, so the four files union into
+      # tests to artifacts/durations-split-N.json, so the five files union into
       # the full map. The merge runs on every event so a wiring break shows on a
       # pull request. The save runs only on a push to main. Actions scopes a
       # cache to the ref that wrote it and a pull request can read the base
@@ -726,6 +734,7 @@ jobs:
           artifacts/durations-split-2.json
           artifacts/durations-split-3.json
           artifacts/durations-split-4.json
+          artifacts/durations-split-5.json
           --output .pytest-split/durations.json
 
       - name: Save pytest-split durations

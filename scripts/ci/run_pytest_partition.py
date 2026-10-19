@@ -2,7 +2,7 @@
 """Run one CI pytest partition in full.
 
 Each leg in `.github/workflows/pytest.yml` calls this with its partition name
-(`split-1` through `split-4`, `safe-push`, `pr-autofix`).
+(`split-1` through `split-5`, `safe-push`, `pr-autofix`).
 The partition's argument list lives here (Python, not YAML) per ADR-006. Every
 leg runs its whole share on every event, so coverage combine always receives
 data from every partition.
@@ -47,7 +47,7 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # this runner copies the restored map to a per-leg file (_leg_durations_path)
 # and points pytest-split at the copy. The leg then reads the restored timings,
 # and `--store-durations --clean-durations` rewrites the copy with only the tests
-# that leg ran. The four legs run disjoint groups, so their files union into the
+# that leg ran. The split legs run disjoint groups, so their files union into the
 # full map (scripts/testing/duration_split_merge.py) and a deleted test drops out
 # of the cache on the next main run. The restored file is never written.
 #
@@ -62,7 +62,7 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # Both paths stay relative on purpose: run_pytest_non_tmp starts pytest with
 # cwd=PROJECT_ROOT, so pytest-split resolves them against the repo root whatever
 # directory this script is launched from (a test pins that).
-SPLIT_COUNT = 4
+SPLIT_COUNT = 5
 DURATIONS_RESTORE_PATH = ".pytest-split/durations.json"
 LEG_DURATIONS_DIR = "artifacts"
 SPLITTING_ALGORITHM = "duration_based_chunks"
