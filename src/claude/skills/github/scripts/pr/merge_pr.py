@@ -180,6 +180,21 @@ _READBACK_FIELDS = "state,mergeCommit,mergedBy,autoMergeRequest,headRefOid"
 
 _APPROVAL = "repository branch protection (server-enforced)"
 
+# merge-async runs no branch protection at request time (issue #5473), so the
+# approval on that path is this script's own readiness gate, not GitHub's.
+_APPROVAL_ASYNC = (
+    "script readiness gate (test_pr_merge_ready.py) on the target and each unmerged "
+    "downstack PR at pinned heads; merge-async evaluates no branch protection"
+)
+
+# The readiness gate or the pin recheck refused, so no merge-async request went
+# out. A MERGED readback after that means another actor merged the PR, and the
+# script's gate approved nothing.
+_APPROVAL_GATE_REFUSED = (
+    "none: the script readiness gate refused before any merge request was sent; "
+    "any merge happened outside this run"
+)
+
 _RESIDUAL_RISK = (
     "deny rules match command text only; branch protection is the enforcement (ADR-112)"
 )
@@ -188,11 +203,29 @@ _RESIDUAL_RISK = (
 class _MergeFailureError(Exception):
     """A merge attempt failed in a way the readback must adjudicate."""
 
-    def __init__(self, message: str, code: int, error_type: str, *, landed: bool = False) -> None:
+    def __init__(
+        self,
+        message: str,
+        code: int,
+        error_type: str,
+        *,
+        landed: bool = False,
+        approval: str = _APPROVAL,
+        stack: int | None = None,
+        pins: dict[int, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.code = code
         self.error_type = error_type
+        # Who approved the merge this failure belongs to: branch protection for
+        # the GraphQL and REST paths, the script's readiness gate for merge-async.
+        self.approval = approval
+        # Set when the failure came out of the merge-async path after the gate
+        # pinned the downstack heads. A readback that then shows MERGED must
+        # re-check those pins before it reports a recovered success.
+        self.stack = stack
+        self.pins = pins
         # True when the merge landed but a post-merge check found a problem; the
         # readback must then report the failure instead of recovering to success.
         self.landed = landed
@@ -205,6 +238,7 @@ class _StackMember:
     number: int
     state: str
     head_sha: str
+    merged: bool = False
 
 
 @dataclass(frozen=True)
@@ -628,7 +662,10 @@ def _parse_member(stack: int, index: int, raw: Any) -> _StackMember:
         raise _unreadable_member(stack, index, f"a missing or non-string state ({state!r})")
     head = raw.get("head")
     sha = head.get("sha") if isinstance(head, dict) else None
-    return _StackMember(number, state, sha if isinstance(sha, str) else "")
+    merged_at = raw.get("merged_at")
+    if merged_at is not None and not isinstance(merged_at, str):
+        raise _unreadable_member(stack, index, f"a non-string merged_at ({merged_at!r})")
+    return _StackMember(number, state, sha if isinstance(sha, str) else "", bool(merged_at))
 
 
 def _stack_members(stack: int, repo_flag: str) -> list[_StackMember]:
@@ -662,15 +699,26 @@ def _downstack_pins(landing: list[_StackMember], pr: int) -> dict[int, str]:
     """Map each unmerged downstack member to its head SHA.
 
     Issue #5473: merge-async lands every PR in the stack up to and including the
-    requested one. Only a state of exactly ``closed`` (a merged member stays
-    listed that way) skips the gate; any other value is gated, so an unexpected
-    spelling fails closed. An unmerged member with no valid head SHA raises,
-    because without a pin a later push to it could not be detected.
+    requested one. A merged member stays listed with state ``closed`` and a
+    ``merged_at``, and only that pair skips the gate. A ``closed`` member with
+    no ``merged_at`` was closed without merging: it can neither pass a gate nor
+    be pinned, so it raises. Any other state is gated, so an unexpected spelling
+    fails closed. An unmerged member with no valid head SHA raises, because
+    without a pin a later push to it could not be detected.
     """
     pins: dict[int, str] = {}
     for member in landing:
-        if member.number == pr or member.state == "closed":
+        if member.number == pr:
             continue
+        if member.state == "closed":
+            if member.merged:
+                continue
+            raise _MergeFailureError(
+                f"downstack PR #{member.number} is closed without being merged, so what a "
+                "merge of the stack would land is unknown; no merge attempted",
+                _EXIT_NOT_MERGEABLE,
+                "General",
+            )
         if not _SHA_PATTERN.match(member.head_sha):
             raise _MergeFailureError(
                 f"downstack PR #{member.number} has no readable head SHA in the stack "
@@ -687,8 +735,13 @@ def _read_landing(pr: int, repo_flag: str, stack: int) -> list[_StackMember]:
     return _members_through(_stack_members(stack, repo_flag), pr, stack)
 
 
-def _member_not_ready_reason(member: int, repo_flag: str) -> str | None:
-    """Run the completion gate on one member; return why it failed, or None if ready."""
+def _member_not_ready_reason(member: int, repo_flag: str, pinned_head: str) -> str | None:
+    """Run the completion gate on one member; return why it failed, or None if ready.
+
+    The gate is told the head it must see. Comparing pinned heads before and
+    after the gate cannot catch a head that moved to a second commit during the
+    gate and then back, because both reads show the first commit.
+    """
     owner, _, repo = repo_flag.partition("/")
     cmd = [
         sys.executable,
@@ -699,6 +752,8 @@ def _member_not_ready_reason(member: int, repo_flag: str) -> str | None:
         repo,
         "--pull-request",
         str(member),
+        "--expected-head-sha",
+        pinned_head,
     ]
     try:
         result = subprocess.run(
@@ -730,8 +785,8 @@ def _assert_stack_ready(ctx: _MergeContext, stack: int) -> dict[int, str]:
     landing = _read_landing(ctx.pr, ctx.repo_flag, stack)
     pins = _downstack_pins(landing, ctx.pr)
     failures = []
-    for member in [*pins, ctx.pr]:
-        reason = _member_not_ready_reason(member, ctx.repo_flag)
+    for member, pinned_head in [*pins.items(), (ctx.pr, ctx.head_sha)]:
+        reason = _member_not_ready_reason(member, ctx.repo_flag, pinned_head)
         if reason:
             failures.append(f"#{member} ({reason})")
     if failures:
@@ -779,6 +834,7 @@ def _assert_heads_landed_as_gated(ctx: _MergeContext, stack: int, pins: dict[int
             3,
             "ApiError",
             landed=True,
+            approval=_APPROVAL_ASYNC,
         ) from failure
     heads = {m.number: m.head_sha.lower() for m in landing}
     moved = sorted(n for n, sha in pins.items() if heads.get(n) != sha)
@@ -791,6 +847,7 @@ def _assert_heads_landed_as_gated(ctx: _MergeContext, stack: int, pins: dict[int
             3,
             "ApiError",
             landed=True,
+            approval=_APPROVAL_ASYNC,
         )
 
 
@@ -967,10 +1024,15 @@ def _merge_stack_async(
     carrying the original GraphQL refusal, so the caller's readback can still
     adjudicate, except a post-merge head mismatch, which no readback may recover.
     """
+    stack: int | None = None
+    pins: dict[int, str] | None = None
+    request_sent = False
     try:
         stack = _stack_number(ctx.pr, ctx.repo_flag)
         pins = _assert_stack_ready(ctx, stack)
         _assert_pins_unchanged(ctx, stack, pins)
+        # Set before the call: a timed-out request may still have landed.
+        request_sent = True
         accepted = _request_async_merge(ctx, subject, body)
         _wait_for_async_merge(ctx, accepted)
     except _MergeFailureError as failure:
@@ -979,6 +1041,10 @@ def _merge_stack_async(
             f"complete it: {failure.message}\nGraphQL said: {graphql_output}",
             failure.code,
             failure.error_type,
+            approval=_APPROVAL_ASYNC if request_sent else _APPROVAL_GATE_REFUSED,
+            # No request went out, so there is no merge of ours to head-check.
+            stack=stack if request_sent else None,
+            pins=pins if request_sent else None,
         ) from failure
     _assert_heads_landed_as_gated(ctx, stack, pins)
 
@@ -988,7 +1054,7 @@ def _handle_merge_failure(
     ctx: _MergeContext,
     subject: str,
     body: str,
-) -> None:
+) -> str:
     """Translate a non-zero gh-pr-merge return into an envelope or a failure.
 
     Conflicts and head-moved refusals emit their envelope and exit 100 directly.
@@ -998,8 +1064,10 @@ def _handle_merge_failure(
     ``merged: true`` confirms the ruleset was satisfied and the GraphQL refusal
     was spurious.  A stack refusal skips that endpoint, which answers 403 for a
     stack, and goes to the asynchronous merge instead (issue #5473).  Returns
-    None when REST or the asynchronous merge merged the PR.  Any other failure
-    raises _MergeFailureError so the caller can read the PR back before reporting.
+    the approval authority when REST or the asynchronous merge merged the PR:
+    branch protection for REST, the script's own readiness gate for merge-async,
+    which evaluates no branch protection.  Any other failure raises
+    _MergeFailureError so the caller can read the PR back before reporting.
     """
     pr = ctx.pr
     output = merge_result.stderr or merge_result.stdout
@@ -1009,18 +1077,20 @@ def _handle_merge_failure(
     if any(kw in lowered for kw in _HEAD_MOVED_KEYWORDS):
         raise _MergeFailureError(
             f"PR #{pr} head moved after review; refusing the stale target "
-            f"(pinned {ctx.head_sha or 'none'}): {output}",
+            f"(pinned {ctx.head_sha or 'none'}): {sanitize_failure_detail(output)}",
             _EXIT_NOT_MERGEABLE,
             "General",
         )
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
         raise _MergeFailureError(
-            f"PR #{pr} is not mergeable: {output}", _EXIT_NOT_MERGEABLE, "General"
+            f"PR #{pr} is not mergeable: {sanitize_failure_detail(output)}",
+            _EXIT_NOT_MERGEABLE,
+            "General",
         )
     if not ctx.auto and any(kw in output for kw in _STACK_KEYWORDS):
         # The synchronous REST endpoint refuses a stack, so go asynchronous.
         _merge_stack_async(ctx, subject, body, output)
-        return
+        return _APPROVAL_ASYNC
     if not ctx.auto and any(kw in output for kw in _BLOCKED_KEYWORDS):
         # GraphQL refused with a BLOCKED policy error; retry via REST once.
         rest_result = _rest_merge(
@@ -1037,10 +1107,10 @@ def _handle_merge_failure(
             except json.JSONDecodeError:
                 rest_data = {}
             if rest_data.get("merged") or _pr_is_merged(pr, ctx.repo_flag):
-                return
+                return _APPROVAL
         # REST also failed; surface the original GraphQL error.
         raise _MergeFailureError(
-            f"PR #{pr} is blocked by branch protection policy: {output}\n"
+            f"PR #{pr} is blocked by branch protection policy: {sanitize_failure_detail(output)}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",
             _EXIT_NOT_MERGEABLE,
             "General",
@@ -1145,8 +1215,13 @@ def _build_audit(
     result: str,
     readback: dict[str, Any] | None = None,
     original_error: str | None = None,
+    approval: str = _APPROVAL,
 ) -> dict[str, Any]:
-    """Build the REQ-043 audit record for one merge attempt."""
+    """Build the REQ-043 audit record for one merge attempt.
+
+    ``approval`` names who approved the merge: branch protection unless the
+    merge went through merge-async, which evaluates none.
+    """
     merge_commit = _merge_commit_oid(readback)
     merged = (readback or {}).get("state") == "MERGED"
     audit: dict[str, Any] = {
@@ -1157,7 +1232,7 @@ def _build_audit(
             "head_sha": ctx.head_sha or None,
         },
         "action": action,
-        "approval": _APPROVAL,
+        "approval": approval,
         "result": result,
         "rollback": _rollback_hint(ctx.strategy, merge_commit) if merged else None,
         "residual_risk": _RESIDUAL_RISK,
@@ -1171,6 +1246,7 @@ def _emit_merge_success(
     ctx: _MergeContext,
     readback: dict[str, Any],
     original_error: str | None,
+    approval: str = _APPROVAL,
 ) -> int:
     """Emit the success envelope for a readback that shows MERGED or queued.
 
@@ -1194,6 +1270,7 @@ def _emit_merge_success(
                 "unverified: readback head differs",
                 readback,
                 original_error,
+                approval,
             ),
         )
     merged = readback.get("state") == "MERGED"
@@ -1207,7 +1284,7 @@ def _emit_merge_success(
         action, state = "auto-merge-enabled", "PENDING"
         message = "Auto-merge enabled; PR is NOT merged yet"
         result = "queued, not merged"
-    audit = _build_audit(ctx, action, result, readback, original_error)
+    audit = _build_audit(ctx, action, result, readback, original_error, approval)
     write_skill_output(
         {
             "pull_request": pr,
@@ -1234,7 +1311,7 @@ def _emit_merge_success(
     return 0
 
 
-def _finalize_after_success(ctx: _MergeContext) -> int:
+def _finalize_after_success(ctx: _MergeContext, approval: str = _APPROVAL) -> int:
     """Read back after a zero-exit merge command; never report unverified success."""
     readback = _read_back(ctx.pr, ctx.repo_flag)
     if readback is None:
@@ -1245,13 +1322,13 @@ def _finalize_after_success(ctx: _MergeContext) -> int:
             "ApiError",
             ctx.output_format,
             ctx.pr,
-            audit=_build_audit(ctx, "merge", "unverified: readback failed"),
+            audit=_build_audit(ctx, "merge", "unverified: readback failed", approval=approval),
         )
     state = readback.get("state")
     if state == "MERGED":
-        return _emit_merge_success(ctx, readback, None)
+        return _emit_merge_success(ctx, readback, None, approval)
     if state == "OPEN" and readback.get("autoMergeRequest"):
-        return _emit_merge_success(ctx, readback, None)
+        return _emit_merge_success(ctx, readback, None, approval)
     _emit_error(
         f"merge command reported success but readback shows state={state} "
         "with no auto-merge request; PR #"
@@ -1260,7 +1337,54 @@ def _finalize_after_success(ctx: _MergeContext) -> int:
         "ApiError",
         ctx.output_format,
         ctx.pr,
-        audit=_build_audit(ctx, "merge", f"not merged: readback state={state}", readback),
+        audit=_build_audit(
+            ctx, "merge", f"not merged: readback state={state}", readback, approval=approval
+        ),
+    )
+
+
+def _check_recovered_stack(ctx: _MergeContext, failure: _MergeFailureError) -> _MergeFailureError:
+    """Run the post-merge head check for a merge-async failure the readback recovers.
+
+    Returns ``failure`` unchanged when the failure did not come out of a gated
+    merge-async (no pins), or when every gated head still matches its pin.
+    Otherwise returns the landed failure the check raised.
+    """
+    if failure.stack is None or failure.pins is None:
+        return failure
+    try:
+        _assert_heads_landed_as_gated(ctx, failure.stack, failure.pins)
+    except _MergeFailureError as landed:
+        return landed
+    return failure
+
+
+def _emit_landed_error(
+    ctx: _MergeContext,
+    failure: _MergeFailureError,
+    readback: dict[str, Any] | None,
+    original_error: str,
+) -> NoReturn:
+    """Report a merge that landed but failed its post-merge check (exit ``failure.code``).
+
+    ``readback`` is the one the caller already holds, so the audit keeps the
+    merge commit and its rollback hint. ``original_error`` is the failure that
+    started recovery, not the head-check text.
+    """
+    _emit_error(
+        failure.message,
+        failure.code,
+        failure.error_type,
+        ctx.output_format,
+        ctx.pr,
+        audit=_build_audit(
+            ctx,
+            "merge",
+            "merged, post-merge check failed",
+            readback,
+            original_error,
+            failure.approval,
+        ),
     )
 
 
@@ -1274,18 +1398,16 @@ def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
     """
     readback = _read_back(ctx.pr, ctx.repo_flag)
     if failure.landed:
-        _emit_error(
-            failure.message,
-            failure.code,
-            failure.error_type,
-            ctx.output_format,
-            ctx.pr,
-            audit=_build_audit(
-                ctx, "merge", "merged, post-merge check failed", readback, failure.message
-            ),
-        )
+        _emit_landed_error(ctx, failure, readback, failure.message)
     if readback is not None and readback.get("state") == "MERGED":
-        return _emit_merge_success(ctx, readback, failure.message)
+        # A merge-async that errored after the gate may still have landed the
+        # stack. The post-merge head check is what the success path runs, so a
+        # recovered success runs it too before it reports anything.
+        checked = _check_recovered_stack(ctx, failure)
+        if checked.landed:
+            # Keep this readback (it shows MERGED) and the original failure.
+            _emit_landed_error(ctx, checked, readback, failure.message)
+        return _emit_merge_success(ctx, readback, failure.message, failure.approval)
     if (
         readback is not None
         and ctx.auto
@@ -1294,7 +1416,7 @@ def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
     ):
         # The auto-merge request is armed despite the error; report it as
         # queued so a caller does not retry into a duplicate request.
-        return _emit_merge_success(ctx, readback, failure.message)
+        return _emit_merge_success(ctx, readback, failure.message, failure.approval)
     note = ""
     if readback is None:
         note = " (readback query also failed; merge state unverified)"
@@ -1310,6 +1432,7 @@ def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
             "failed" if readback is not None else "failed, state unverified",
             readback,
             failure.message,
+            failure.approval,
         ),
     )
 
@@ -1460,14 +1583,15 @@ def main(argv: list[str] | None = None) -> int:
     if not args.auto:
         _reject_unknown_merge_state(pr_data, pr, output_format)
 
+    approval = _APPROVAL
     try:
         merge_result = _run_merge(_build_merge_args(args, pr, repo_flag, head_sha), pr)
         if merge_result.returncode != 0:
             sanitized_body = filter_coauthor_trailers(args.body) if args.body else ""
-            _handle_merge_failure(merge_result, ctx, args.subject, sanitized_body)
+            approval = _handle_merge_failure(merge_result, ctx, args.subject, sanitized_body)
     except _MergeFailureError as failure:
         return _recover_or_fail(ctx, failure)
-    return _finalize_after_success(ctx)
+    return _finalize_after_success(ctx, approval)
 
 
 if __name__ == "__main__":

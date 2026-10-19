@@ -709,7 +709,7 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
-1. Branch up to date with `main` (`mergeStateStatus` not `BEHIND`).
+1. No merge conflict with `main` (`mergeStateStatus` not `DIRTY`). Being behind `main` is not a condition. The `main` ruleset sets `strict_required_status_checks_policy: false`, so GitHub reports a behind branch as `CLEAN`, `UNSTABLE`, or `BLOCKED`, never `BEHIND`. The repository's merge-tree ratchet gate in CI already measures the merged result. Do not update a branch only because it is behind. Each update re-runs that PR's CI, and each merge to `main` puts every other open PR behind again, so refreshing after every merge costs one CI run per open PR per merge. Update a branch only when it is `DIRTY`, or when a check this skill treats as blocking fails (a required check, or a non-required failure with no recorded disposition) and a commit on `main` since the fork point fixes that failure.
 2. All required checks pass.
 3. All conversations addressed: READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, RESOLVED.
 4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
@@ -811,7 +811,7 @@ here would re-assert the thing issue #4899 fixed.
 
 | State | Criteria | Action |
 |-------|----------|--------|
-| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BEHIND | `MergeStateStatus == "BEHIND"`. GitHub reports it only while the ruleset requires up-to-date branches, which it does not today | Update branch against main, then reclassify |
 | BLOCKED | `MergeStateStatus == "BLOCKED"` with no CI failure and no unresolved thread (branch protection, pending reviews) | Run `detect_stale_bot_review.py` ("Stale bot `CHANGES_REQUESTED` review" below), then wait for the external gate (review approval, etc.). `BLOCKED` with a failure or thread is T2, T3, T4, or T5 instead |
 | DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
 | SKIP | Draft, merged, or closed | No action |
@@ -839,7 +839,7 @@ posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: ne
 | `Data.verdict` | Meaning | Action |
 |----------------|---------|--------|
 | `NO_BOT_CHANGES_REQUESTED` | No bot holds an active `CHANGES_REQUESTED` review | The block is another outside gate: stop |
-| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`, an incomplete thread count, or an unknown head SHA) | Finish open work. An incomplete count or unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
+| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, a required check not passing (or any check, when the repo marks none required), `BEHIND`, `DIRTY`, an `UNKNOWN` or missing merge state, an incomplete thread count, an unknown CI state, or an unknown head SHA) | Finish open work. An unknown merge state, an incomplete count, an unknown CI state, or an unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
 | `FRESH_CHANGES_REQUESTED` | The review is on the current head | Address its findings through the thread lifecycle |
 | `REQUEST_REREVIEW` | Stale review, PR ready, no bot review at head yet | For each `Data.bots[]` entry whose `action` is `REQUEST_REREVIEW`, post its `rereview_trigger` as a PR comment once per head SHA. First read the PR comments: if that trigger was already posted since the last push, wait instead. Then run the detector again. `Data.handoff` stays null on this verdict even when another bot is handoff-ready; the next run produces it |
 | `DISMISSAL_HANDOFF` | Stale review, PR ready, and the bot already reviewed head (or has no known trigger) | Give `Data.handoff` to the human verbatim and stop |
@@ -847,7 +847,7 @@ posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: ne
 An `APPROVED` bot review at head supersedes the stale one, so the detector reports
 `NO_BOT_CHANGES_REQUESTED`. The handoff carries the review id, the reviewed commit,
 the `PUT .../reviews/{id}/dismissals` command, and what the detector checked (every
-thread resolved, CI green, review older than head). It does not check that later
+thread resolved, required CI checks green, review older than head). It does not check that later
 commits fixed each finding, so the human confirms that before dismissing. A bot with no verified re-review trigger goes straight to the
 handoff; the script never guesses one.
 
@@ -1029,7 +1029,7 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 | `CLEAN` | Auto-merge when waiting is useful; direct merge if GitHub returns the already-clean rejection | Guard `set_pr_auto_merge.py --enable`, then guard the `merge_pr.py --strategy squash` fallback |
 | `HAS_HOOKS` | Same path as `CLEAN`. GitHub defines it as "Mergeable with passing commit status and pre-receive hooks" | Guard `set_pr_auto_merge.py --enable`, then guard the `merge_pr.py --strategy squash` fallback |
 | `UNSTABLE` with documented non-required failures | Direct merge (immediate) | Guard `merge_pr.py --strategy squash` |
-| `BEHIND` | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
+| `BEHIND` (only while the ruleset requires up-to-date branches) | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
 | `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver agent if real conflict |
 | Base is not the default branch (`STACKED`) | A squash merge lands on the parent branch and collapses the stack. `test_pr_merge_ready.py` keeps `CanMerge=true` and reports tier `STACKED` | Disarm auto-merge, then hand to a human. No script in this table is run |
 | Anything else (`UNKNOWN`, missing, future) | No verified merge path in this document. `test_pr_merge_ready.py` reports `CanMerge=false` and tier `UNSUPPORTED` | Disarm auto-merge, then hand to a human. Refusing is deliberately conservative: GitHub may well accept the merge, but nothing here has been verified against that state |
@@ -1186,7 +1186,7 @@ Per PR processed:
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
-- [ ] Branch is up to date with `main` (`mergeStateStatus` not `BEHIND`).
+- [ ] No branch update ran only because the branch was behind `main` (behind is not a merge condition; `DIRTY`, or a blocking red check that `main` fixed, is).
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
 - [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN` and for `HAS_HOOKS`, which takes the `CLEAN` path unchanged, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
 - [ ] All four Ready-to-Merge conditions hold before the merge command runs (CanMerge=True is insufficient alone).

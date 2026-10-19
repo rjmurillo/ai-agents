@@ -19,7 +19,7 @@
 
 - DEFERRED agents (no `templates/agents/<name>.shared.md`): the harness cannot load the variant, so it cannot eval them. context-retrieval, quality-auditor, spec-generator are DEFERRED. To eval them you must first author the `.shared.md` template + a spike.
 - Two skill eval systems exist: knowledge-integration (`scripts/eval/eval-knowledge-integration.py`, prompts in `tests/evals/skills/*.json`) and agent-vs-baseline. A true skill ROUTER/trigger eval (does query X load skill Y?) does NOT exist; author one if needed (`eval_skill_router.py` was a first attempt that compares before/after skill descriptions on disambiguation queries).
-- `validate-skill.py` (SkillForge) has a CWE-22 cwd path guard: it rejects targets outside cwd; `cd` into a worktree to validate its copy. See `mem:ci-infrastructure-observations` for the build/parity/drift model.
+- `validate-skill.py` (SkillForge) has a CWE-22 cwd path guard: it rejects targets outside cwd. Pass `--root DIR` to `quick_validate.py` or `validate-skill.py` to validate a worktree copy; without `--root` the cwd guard still applies. See `mem:ci-infrastructure-observations` for the build/parity/drift model.
 
 ## Skill prompt edit boundary (2026-08-11)
 

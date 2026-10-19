@@ -78,7 +78,10 @@ def preview_sql(database: Path, statement: str) -> dict[str, object]:
         raise PreviewError("only a single DELETE or UPDATE statement can be previewed")
     if not database.is_file():
         raise PreviewError(f"database file not found: {database}")
-    source = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)
+    # as_uri() percent-encodes the path, so a ``?``, ``#`` or ``%`` in a file name
+    # cannot end the path early or add a query parameter to the SQLite URI.
+    uri = f"{database.resolve().as_uri()}?mode=ro"
+    source = sqlite3.connect(uri, uri=True)
     copy = sqlite3.connect(":memory:")
     try:
         source.backup(copy)

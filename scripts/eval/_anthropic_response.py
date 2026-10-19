@@ -135,3 +135,19 @@ def parse_message_response(payload: dict[str, Any]) -> MessageResponse:
         refusal_category=refusal_category,
         refusal_explanation=refusal_explanation,
     )
+
+
+def record_output_tokens(provider: object, metadata: dict[str, object] | None) -> None:
+    """Copy a provider's reported `output_tokens` into `metadata` (#6683).
+
+    `output_tokens` is an optional provider attribute: a transport that can
+    read a usage record sets it, one that cannot leaves it absent or None.
+    Anything but a non-negative integer is dropped, and a reused dict keeps no
+    stale count, so a missing count is never read as a measured one.
+    """
+    if metadata is None:
+        return
+    metadata.pop("output_tokens", None)
+    tokens = getattr(provider, "output_tokens", None)
+    if isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0:
+        metadata["output_tokens"] = tokens

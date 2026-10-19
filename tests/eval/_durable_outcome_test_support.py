@@ -14,7 +14,16 @@ import _durable_outcome as durable  # noqa: E402
 import _outcome_record as outcome  # noqa: E402
 import eval_durable_outcome as cli  # noqa: E402
 
-__all__ = ["EVAL_DIR", "cli", "durable", "make_config", "make_record", "outcome", "durable_record"]
+__all__ = [
+    "EVAL_DIR",
+    "classify_record",
+    "cli",
+    "durable",
+    "durable_record",
+    "make_config",
+    "make_record",
+    "outcome",
+]
 
 
 def make_config(**overrides: object) -> dict[str, Any]:
@@ -75,3 +84,10 @@ def durable_record(task_id: str, control: str, cost: float = 1.0) -> dict[str, A
     data = make_record(task_id=task_id, repeat=0, config=make_config(control=control))
     data["economics"] = {**data["economics"], "model_cost_usd": cost}
     return data
+
+
+def classify_record(**section_overrides: dict[str, Any]) -> durable.Verdict:
+    data = make_record()
+    for section, fields in section_overrides.items():
+        data[section] = {**data[section], **fields}
+    return durable.classify(outcome.parse_record(data))

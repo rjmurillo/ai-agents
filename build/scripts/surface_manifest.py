@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -90,11 +90,16 @@ class Manifest:
 
     roots: tuple[str, ...]
     surfaces: tuple[Surface, ...]
+    # Sorted once here. ``owner_of`` asks for this order once per file, and
+    # sorting the rows by path depth each time put the specificity key on the hot
+    # path of the classification check (issue #5382). ``dataclasses.replace``
+    # rebuilds it, so a manifest with rows removed gets its own order.
+    ordered: tuple[Surface, ...] = field(init=False, repr=False, compare=False)
 
-    @property
-    def ordered(self) -> tuple[Surface, ...]:
-        """Surfaces from most to least specific."""
-        return tuple(sorted(self.surfaces, key=lambda s: s.specificity, reverse=True))
+    def __post_init__(self) -> None:
+        """Order the rows from most to least specific."""
+        ordered = tuple(sorted(self.surfaces, key=lambda s: s.specificity, reverse=True))
+        object.__setattr__(self, "ordered", ordered)
 
 
 @dataclass(frozen=True, slots=True)
