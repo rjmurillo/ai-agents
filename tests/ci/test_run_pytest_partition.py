@@ -14,7 +14,15 @@ import pytest
 from scripts.ci import run_pytest_partition as mod
 from tests.ci.run_pytest_partition_helpers import capture_runner
 
-_EXPECTED_PARTITIONS = {"split-1", "split-2", "split-3", "split-4", "safe-push", "pr-autofix"}
+_EXPECTED_PARTITIONS = {
+    "split-1",
+    "split-2",
+    "split-3",
+    "split-4",
+    "split-5",
+    "safe-push",
+    "pr-autofix",
+}
 
 
 @pytest.fixture(autouse=True)

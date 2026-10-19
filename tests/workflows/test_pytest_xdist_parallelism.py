@@ -1,7 +1,7 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
 Issue #4854, reshaped by issue #6239. The test job is a six-entry matrix. The
-four duration-balanced split groups use xdist (`-n auto --dist worksteal`).
+five duration-balanced split groups use xdist (`-n auto --dist worksteal`).
 Safe-push and pr-autofix stay serial. No hard-coded worker count.
 
 The coverage combine job downloads artifacts from all matrix legs and merges
@@ -36,7 +36,7 @@ _POOL_IGNORES = {
     "tests/test_mutation_workspace_signals.py",
     "tests/test_pr_autofix_late_live_state_gate.py",
 }
-_SPLIT_LEGS = ["split-1", "split-2", "split-3", "split-4"]
+_SPLIT_LEGS = ["split-1", "split-2", "split-3", "split-4", "split-5"]
 
 # Any argv spelling that starts workers or picks a distribution mode.
 _PARALLEL_TOKEN = re.compile(r"(?<!\S)(-n|--numprocesses|--dist)(?:[=\s]|$)")
@@ -126,8 +126,8 @@ class TestMatrixStructure:
         for entry in _matrix():
             assert "coverage_file" in entry, f"{entry['partition']} missing coverage_file"
             assert "junit_file" in entry, f"{entry['partition']} missing junit_file"
-        assert len({entry["coverage_file"] for entry in _matrix()}) == 6
-        assert len({entry["junit_file"] for entry in _matrix()}) == 6
+        assert len({entry["coverage_file"] for entry in _matrix()}) == 7
+        assert len({entry["junit_file"] for entry in _matrix()}) == 7
 
     def test_every_partition_has_runner_args(self) -> None:
         matrix_partitions = {entry["partition"] for entry in _matrix()}
@@ -148,7 +148,7 @@ class TestMatrixStructure:
             _partition_args(name)[_partition_args(name).index("--group") + 1]
             for name in _SPLIT_LEGS
         ]
-        assert groups == ["1", "2", "3", "4"]
+        assert groups == ["1", "2", "3", "4", "5"]
         splits = {_partition_args(n)[_partition_args(n).index("--splits") + 1] for n in _SPLIT_LEGS}
         assert splits == {str(len(_SPLIT_LEGS))}
 
