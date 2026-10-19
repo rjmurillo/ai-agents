@@ -575,6 +575,20 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
+# Issue #6708: semgrep-core's Eio_linux backend calls io_uring_queue_init, which
+# charges locked memory. Under concurrent pushes with `ulimit -l 8192` it fails
+# with "Cannot allocate memory". The posix backend does not use io_uring and
+# passed every time it was tried. Linux only: io_uring is a Linux API, and the
+# Windows semgrep-core build has the posix backend disabled, so setting it there
+# fails with "Invalid argument". Only the local semgrep-push hook runs this path;
+# the remote semgrep check is server-side and reads no local env.
+
+
+def _semgrep_env(platform: str) -> dict[str, str]:
+    return {"EIO_BACKEND": "posix"} if platform == "linux" else {}
+
+
+SEMGREP_ENV = _semgrep_env(sys.platform)
 # Issue #6609: the longest a semgrep push waits for a host-wide heavy-stage slot
 # and for load to drop. The wait spends the scan's own deadline, because the
 # security-scan cap (15m) leaves only 60s above SEMGREP_TIMEOUT_SECONDS. Half the
@@ -1314,7 +1328,7 @@ def check_branch(repo_root: Path) -> int:
     branch = result.stdout.strip()
     if branch not in {"main", "master"}:
         return 0
-    print(f"ERROR: cannot commit or push directly to '{branch}'", file=sys.stderr)
+    print(f"ERROR: cannot commit directly to '{branch}'", file=sys.stderr)
     return 1
 
 
@@ -3280,12 +3294,68 @@ def stage_generated(kind: str, repo_root: Path) -> int:
         relative_paths.append(relative_path)
     if not relative_paths:
         return 0
+    snapshot = _index_snapshot(repo_root)
     for chunk in _chunk_paths(relative_paths):
         result = _run_git(repo_root, ["add", "--", *chunk])
         if result.returncode != 0:
             _print_process_output(result)
+            _restore_staged_paths(repo_root, snapshot, relative_paths)
             return result.returncode
     return 0
+
+
+_UNSTAGE_FAILED = "WARNING: could not unstage the generated paths after a staging failure."
+
+
+def _index_snapshot(repo_root: Path) -> str | None:
+    """Return a tree object id for the current index, or None when it cannot be written.
+
+    ``git write-tree`` refuses an index with unmerged entries. A None snapshot
+    means the staging loop cannot be rolled back.
+    """
+    result = _run_git(repo_root, ["write-tree"])
+    tree = result.stdout.strip() if result.returncode == 0 else ""
+    return tree or None
+
+
+def _restore_staged_paths(repo_root: Path, snapshot: str | None, paths: Sequence[str]) -> None:
+    """Put the index entries for ``paths`` back to ``snapshot`` after a failed staging loop.
+
+    A failed chunk leaves the earlier chunks staged (and ``git add`` can stage
+    part of the failing chunk), so the commit would carry a partly staged
+    generated set. Restoring from the snapshot, not from HEAD, keeps any change
+    the user staged to these paths before the hook ran. The worktree is not
+    touched. A restore that fails is reported and never changes the exit code.
+    """
+    if snapshot is None:
+        print(
+            "WARNING: could not snapshot the index, so a partly staged generated set "
+            "was left staged; run `git restore --staged` on the generated paths.",
+            file=sys.stderr,
+        )
+        return
+    for chunk in _chunk_paths(paths):
+        # Only paths whose index entry differs from the snapshot: restore errors
+        # on a path that is in neither the index nor the snapshot.
+        # Bytes, then fsdecode: text mode replaces invalid UTF-8 in a name, and
+        # the restore would then miss the file that was staged.
+        drift = _run_git_bytes(
+            repo_root, ["diff-index", "--cached", "--name-only", "-z", snapshot, "--", *chunk]
+        )
+        if drift.returncode != 0:
+            print(drift.stdout.decode("utf-8", errors="replace"), end="")
+            print(drift.stderr.decode("utf-8", errors="replace"), end="", file=sys.stderr)
+            print(_UNSTAGE_FAILED, file=sys.stderr)
+            return
+        changed_names = [os.fsdecode(name) for name in drift.stdout.split(b"\0") if name]
+        for changed in _chunk_paths(changed_names):
+            result = _run_git(
+                repo_root, ["restore", "--staged", f"--source={snapshot}", "--", *changed]
+            )
+            if result.returncode != 0:
+                _print_process_output(result)
+                print(_UNSTAGE_FAILED, file=sys.stderr)
+                return
 
 
 def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
@@ -4703,6 +4773,25 @@ def _scan_updates(
         scan_paths = [
             path for path in paths if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
         ]
+        # A tracked file link (ADR-119 decision 14: .claude/lib/paths.py) holds
+        # a target path, not source. Scan the target in its place, even when
+        # the push only retargets the link, so the new content is never skipped.
+        links = _commit_link_paths(update.head, scan_paths, repo_root)
+        if links is None:
+            return 2
+        tree_set = set(tree_paths)
+        dangling = sorted(path for path, target in links.items() if target not in tree_set)
+        if dangling:
+            print(f"ERROR: pushed link target is not in the tree: {dangling}", file=sys.stderr)
+            return 2
+        targets = [
+            links[path]
+            for path in scan_paths
+            if path in links and PurePosixPath(links[path]).suffix.lower() in SEMGREP_SUFFIXES
+        ]
+        scan_paths = list(
+            dict.fromkeys([path for path in scan_paths if path not in links] + targets)
+        )
         if not scan_paths:
             continue
         root_moves = _pushed_root_moves(update, repo_root)
@@ -4994,6 +5083,41 @@ def _validate_materialization_paths(paths: Sequence[str]) -> list[str] | None:
     return validated_paths
 
 
+def _commit_link_paths(head: str, paths: Sequence[str], repo_root: Path) -> dict[str, str] | None:
+    """Return each of ``paths`` that is a symlink entry (mode 120000) in ``head``, with its target.
+
+    The target is the link text resolved against the link's directory, as a
+    repository-relative path. A link whose text is absolute or leaves the
+    repository fails the whole lookup (``None``), so it cannot hide a file.
+    """
+    if not paths:
+        return {}
+    result = _run_git_bytes(repo_root, ["ls-tree", "-z", head, "--", *paths])
+    if result.returncode != 0:
+        print(result.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+        return None
+    links: dict[str, str] = {}
+    for record in result.stdout.split(b"\0"):
+        if not record:
+            continue
+        metadata, _, raw_name = record.partition(b"\t")
+        fields = metadata.split(b" ")
+        if fields[0] != b"120000":
+            continue
+        name = os.fsdecode(raw_name)
+        blob = _run_git_bytes(repo_root, ["cat-file", "blob", fields[2].decode("ascii")])
+        if blob.returncode != 0:
+            print(blob.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+            return None
+        text = os.fsdecode(blob.stdout)
+        target = posixpath.normpath(posixpath.join(posixpath.dirname(name), text))
+        if posixpath.isabs(text) or target == ".." or target.startswith("../"):
+            print(f"ERROR: pushed link {name} leaves the repository: {text}", file=sys.stderr)
+            return None
+        links[name] = target
+    return links
+
+
 def _commit_blob_id(head: str, path: str, repo_root: Path) -> str | None:
     result = _run_git_bytes(
         repo_root,
@@ -5094,6 +5218,7 @@ def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
     result = _run_command(
         [executable, "--version"],
         repo_root,
+        extra_env=SEMGREP_ENV,
         timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
@@ -5142,6 +5267,7 @@ def _run_semgrep_tree(
             result = _run_command(
                 _semgrep_command("auto", batch, repo_root),
                 repo_root,
+                extra_env=SEMGREP_ENV,
                 timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
@@ -6786,9 +6912,6 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     active_operation_result = check_active_git_operation(repo_root)
     if active_operation_result != 0:
         return active_operation_result
-    branch_result = check_branch(repo_root)
-    if branch_result != 0:
-        return branch_result
     history_result = _check_history_integrity(repo_root)
     if history_result != 0:
         return history_result
@@ -6797,6 +6920,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     except ValueError as error:
         print(f"ERROR: malformed pre-push input, {error}", file=sys.stderr)
         return 2
+    # Guard the destination ref, not the checked-out branch, so a main checkout
+    # can still delete or update an unrelated remote branch (issue #6671).
+    # Pre-commit keeps the HEAD guard through the branch-policy job.
     protected = next(
         (branch for ref in refs if (branch := _protected_push_destination(ref))),
         None,

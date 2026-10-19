@@ -32,10 +32,17 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
 - `splits.sel`: the held-out split. The gate scores only this split. Never
   reflect on `sel` tasks; that is training on the test set.
 - `exposed`: optional list of task ids whose prompt, verifier, or outcome the
-  candidate author saw before the candidate was frozen. `pair-gate` exits 2
+  candidate author saw at any point in the run. `pair-gate` exits 2
   while any of them is in the `sel` split. The check covers `sel` only, so
   `train` may hold exposed tasks and a `--split train` review still works.
   Move exposed tasks to `train` and add untouched holdout tasks.
+  Deterministic tasks taken from a written spec before any candidate exists
+  are frozen once their list and verifiers stop changing, but freezing is not
+  isolation. When one agent writes those tasks and the candidate, list them
+  here and keep them in `train`. They count as `sel` only when a different
+  author or session wrote them and kept them from the candidate author.
+  Replacement holdouts must come from an author who has not seen the
+  candidate. If the candidate author also writes them, they are exposed too.
 - `tasks[id].status`: optional. `"invalid"` or `"exposed"` marks a task that
   cannot count. `pair-gate` exits 2 while such a task is in the `sel` split.
   A `status` that is present but not a string exits 2, and so does a `tasks`
@@ -124,16 +131,27 @@ The report is JSON on stdout:
 
 | Key | Meaning |
 |-----|---------|
-| `verdict` | `ACCEPT_PARETO`, `REJECT`, `REJECT_UNVERIFIED`, or `REJECT_NULL_CONTROL` |
+| `verdict` | `ACCEPT_PARETO`, `REJECT`, `REJECT_UNVERIFIED`, `REJECT_NULL_CONTROL`, or `REJECT_CEILING` |
 | `gains` | Tasks the candidate passes and the incumbent does not |
 | `regressions` | Tasks the incumbent passes and the candidate does not |
 | `unverified` | Tasks with a missing or non-boolean result in any file |
 | `null_gains`, `null_regressions` | Flips a byte-identical rerun of the incumbent produced |
 | `genuine_gains` | `gains` minus `null_gains` |
+| `hint` | Present only with `REJECT_CEILING`: the next step |
 
 Exit 0 only for `ACCEPT_PARETO`. It needs a gain, zero regressions, no
 unverified task, and, with a null control, at least one genuine gain. Exit 1
 for every reject. Exit 2 for an invalid manifest or input file.
+
+`REJECT_CEILING` means the incumbent passes every task in the `sel` split and
+the candidate regresses none. No gain is possible, so the gate cannot accept
+any candidate, even one with real training gains. It outranks `REJECT` and
+ranks below `REJECT_UNVERIFIED` and `REJECT_NULL_CONTROL`. It applies to the
+`sel` split only. Freeze a new `sel` set of harder tasks that sample the
+failure mode, re-score the incumbent on it, then author a fresh candidate.
+Never re-gate this candidate on tasks written after it: its author already
+knew the failure mode, so those tasks are not held out. For a first draft
+whose `sel` tasks came from its own requirements, hand back to `skillforge`.
 
 `score` prints the held-out pass rate. Scalar `gate` compares two numbers and
 rejects ties. Neither is the default promotion decision.

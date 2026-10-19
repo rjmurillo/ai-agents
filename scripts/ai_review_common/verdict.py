@@ -221,7 +221,11 @@ _KNOWN_CATEGORIES = _ASSESSED_CATEGORIES | {"generated"}
 
 # `_unreadable_assessment` keeps the file's real category while setting every
 # one of these to confidence 0.0, "so ``check_thresholds`` skips the file",
-# so category alone never proves the scanner scored anything.
+# so category alone never proves the scanner scored anything. A file in a
+# language assess.py does not support (Markdown, JSON) is also all 0.0 under
+# the `authored` label, which is the same shape. `_unreadable_assessment`
+# alone sets `scoring_failed` true, which is the only field that separates a
+# hole in the evidence from a file that was never in scope for scoring.
 _QUALITY_FIELDS = ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy")
 
 
@@ -237,6 +241,16 @@ def _is_scored(entry: dict[str, object]) -> bool:
     return False
 
 
+def _is_unscorable_by_design(entry: dict[str, object]) -> bool:
+    """Return True when *entry* is unscored and assess.py says it did not fail.
+
+    Requires ``scoring_failed`` to be present and exactly ``False``. A missing
+    field (an older assess.py) or a non-boolean value is not evidence that the
+    file was out of scope, so it stays a hole and the axis fails closed.
+    """
+    return not _is_scored(entry) and entry.get("scoring_failed") is False
+
+
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
     """Return True when the assessment actually evaluated at least one file.
 
@@ -244,10 +258,13 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
     ``files``. A disagreement means the two halves of the payload describe
     different runs, which is not evidence of a pass.
 
-    Requires at least one eligible entry, and every eligible entry to carry a
-    scored metric. Generated-only output is a file list, not a review, and an
-    eligible file that failed to score is a hole in the evidence. Generated
-    entries are exempt; the scanner never scores them.
+    Requires at least one eligible entry that carries a scored metric. An
+    eligible entry that failed to score is a hole in the evidence and blocks
+    the pass, even beside scored siblings: ``scoring_failed`` true, a missing
+    marker, or a non-boolean marker. An eligible entry that is unscored with
+    ``scoring_failed`` exactly false is a file in a language the scanner does
+    not support (Markdown, JSON), so it is ignored like a generated entry.
+    Generated-only or unsupported-only output is a file list, not a review.
     """
     file_count = summary.get("file_count")
     if isinstance(file_count, bool) or not isinstance(file_count, int):
@@ -273,7 +290,15 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
     if len(set(paths)) != len(paths):
         return False
     eligible = [entry for entry in entries if entry.get("category") in _ASSESSED_CATEGORIES]
-    return bool(eligible) and all(_is_scored(entry) for entry in eligible)
+    # An entry flagged failed is a hole even if a metric looks scored. An
+    # unscored entry is a hole unless it is marked as not failed. A scored
+    # sibling never covers for either.
+    for entry in eligible:
+        if entry.get("scoring_failed") is True:
+            return False
+        if not _is_scored(entry) and not _is_unscorable_by_design(entry):
+            return False
+    return any(_is_scored(entry) for entry in eligible)
 
 
 def _has_linted_category(payload: dict[str, object]) -> bool:

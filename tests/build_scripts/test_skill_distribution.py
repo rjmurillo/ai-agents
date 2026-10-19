@@ -118,6 +118,31 @@ class TestDistributionOfText:
         with pytest.raises(skill_distribution.SkillDistributionError, match="unparseable"):
             skill_distribution.distribution_of_text("---\nname: [unclosed\n---\n", "x.tmpl")
 
+    def test_unparseable_error_names_the_position_not_the_source_line(self) -> None:
+        secret = "SECRET-LINE-FROM-ANOTHER-FILE"
+        text = f"---\nname: {secret}: [unclosed\n---\n"
+
+        with pytest.raises(skill_distribution.SkillDistributionError) as caught:
+            skill_distribution.distribution_of_text(text, "x.tmpl")
+
+        message = str(caught.value)
+        assert "frontmatter line 1" in message
+        assert secret not in message
+
+    def test_unparseable_error_bounds_the_parser_problem_text(self) -> None:
+        text = "---\nname: !!" + "t" * 500 + " value\n---\n"
+
+        with pytest.raises(skill_distribution.SkillDistributionError) as caught:
+            skill_distribution.distribution_of_text(text, "x.tmpl")
+
+        assert len(str(caught.value)) < 300
+
+
+class TestRegularSources:
+    def test_regular_files_still_resolve(self, repo: Path) -> None:
+        assert skill_distribution.is_repo_local(repo, "local-skill") is True
+        assert skill_distribution.is_repo_local(repo, "shipped-skill") is False
+
 
 class TestResolution:
     def test_template_flag_wins_over_installed_skill_md(self, repo: Path) -> None:

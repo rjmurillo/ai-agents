@@ -371,3 +371,102 @@ def test_github_hooks_json_links_to_the_shipped_file_and_registers_nothing() -> 
         "ADR-119 decision 11: Copilot loading a linked .github/hooks/hooks.json is "
         "unverified; record a link-loading probe before registering a hook"
     )
+
+
+def test_live_manifest_links_claude_lib_and_compiles_without_installing() -> None:
+    rows = {row.class_name: row for row in binplace_manifest.load(_REPO_ROOT)}
+
+    assert rows["lib"].link is True
+    assert rows["lib"].plugin_tree == _REPO_ROOT / "src" / "claude" / "lib"
+    assert rows["lib"].install_tree == _REPO_ROOT / ".claude" / "lib"
+    for name in (
+        "lib-hook_utilities",
+        "lib-github_core",
+        "lib-ai_review_common",
+        "lib-bootstrap",
+        "lib-paths",
+    ):
+        assert rows[name].install_tree is None, name
+    assert binplace_manifest._repo_local_names(_REPO_ROOT, rows["lib"]) == (
+        binplace_manifest.REPO_LOCAL_LIB_NAMES
+    )
+
+
+def test_claude_lib_links_every_plugin_entry_and_keeps_repo_local_modules_real() -> None:
+    plugin, install = _REPO_ROOT / "src/claude/lib", _REPO_ROOT / ".claude/lib"
+
+    for entry in plugin.iterdir():
+        if entry.name == "__pycache__":
+            continue
+        assert os.readlink(install / entry.name) == f"../../src/claude/lib/{entry.name}", entry.name
+        assert (install / entry.name).resolve() == entry.resolve(), entry.name
+        assert entry.resolve().is_relative_to(plugin.resolve()), entry.name
+    real = {entry.name for entry in install.iterdir() if not entry.is_symlink()}
+    assert real - {"__pycache__"} == binplace_manifest.REPO_LOCAL_LIB_NAMES
+    for name in binplace_manifest.REPO_LOCAL_LIB_NAMES:
+        assert not (plugin / name).exists(), f"{name} now ships; drop it from REPO_LOCAL_LIB_NAMES"
+
+
+def test_a_hand_edited_real_lib_package_is_refused_not_replaced(tmp_path: Path) -> None:
+    plugin, install = _plugin(tmp_path), _install(tmp_path)
+    (plugin / "pkg").mkdir()
+    (plugin / "pkg" / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    (install / "pkg").mkdir(parents=True)
+    (install / "pkg" / "mod.py").write_text("x = 2\n", encoding="utf-8")
+
+    outcome = binplace_links.link_row(plugin, install, check=False)
+
+    assert outcome.exit_code == 2
+    assert (install / "pkg" / "mod.py").read_text(encoding="utf-8") == "x = 2\n"
+
+
+def test_plugin_lib_tree_holds_no_symlinks() -> None:
+    """A nested link under src/claude/lib would redirect code the hooks load (CWE-59).
+
+    binplace_links.py checks only top-level plugin entries, so this pins the rest.
+    """
+    plugin = _REPO_ROOT / "src" / "claude" / "lib"
+
+    nested = [str(path.relative_to(plugin)) for path in plugin.rglob("*") if path.is_symlink()]
+
+    assert nested == []
+
+
+def test_real_file_at_a_lib_file_link_path_is_replaced_in_write_mode(tmp_path: Path) -> None:
+    plugin = tmp_path / "src" / "claude" / "lib"
+    plugin.mkdir(parents=True)
+    (plugin / "paths.py").write_text("x = 1\n", encoding="utf-8")
+    install = tmp_path / ".claude" / "lib"
+    install.mkdir(parents=True)
+    (install / "paths.py").write_text("x = 1\n", encoding="utf-8")
+
+    outcome = binplace_links.link_row(plugin, install, check=False)
+
+    assert outcome.exit_code == 0
+    assert os.readlink(install / "paths.py") == "../../src/claude/lib/paths.py"
+
+
+def test_dropping_link_true_turns_lib_file_links_back_into_copies(tmp_path: Path) -> None:
+    # ADR-119 decision 14 rollback for the file links (bootstrap.py, paths.py).
+    plugin = tmp_path / "src" / "claude" / "lib"
+    plugin.mkdir(parents=True)
+    (plugin / "paths.py").write_text("x = 1\n", encoding="utf-8")
+    platforms = tmp_path / "templates" / "platforms"
+    platforms.mkdir(parents=True)
+    (tmp_path / ".git").mkdir()
+    row = (
+        'schemaVersion: "1.0"\nrows:\n  - class: lib\n    source: src/claude/lib\n'
+        "    plugin_tree: src/claude/lib\n    install_tree: .claude/lib\n"
+    )
+    (platforms / "binplace.yaml").write_text(row + "    link: true\n", encoding="utf-8")
+    assert binplace_manifest.binplace(tmp_path, check=False).exit_code == 0
+    installed = tmp_path / ".claude" / "lib" / "paths.py"
+    assert installed.is_symlink()
+    (platforms / "binplace.yaml").write_text(row, encoding="utf-8")
+
+    written = binplace_manifest.binplace(tmp_path, check=False)
+
+    assert written.exit_code == 0
+    assert installed.is_file() and not installed.is_symlink()
+    assert installed.read_text(encoding="utf-8") == "x = 1\n"
+    assert (plugin / "paths.py").read_text(encoding="utf-8") == "x = 1\n"

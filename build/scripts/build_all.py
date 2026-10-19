@@ -1207,7 +1207,6 @@ def _is_platform_config(path: Path) -> bool:
 # different prefix, add it here so both behaviors keep covering it.
 OWNED_PREFIXES: tuple[str, ...] = (
     "src/",
-    ".claude/lib/",
     ".claude/hooks/",
     ".claude/settings.json",
     "docs/agent-catalog.md",

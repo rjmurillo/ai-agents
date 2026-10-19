@@ -130,12 +130,22 @@ prose.
 | Subcommand | Purpose | Exit codes |
 |------------|---------|------------|
 | `list` | Examples in the docs, filtered by `--touching <path prefix>` | `0` listed, `2` bad input |
-| `lint` | Missing ids or status, unverified responses, error rows without cause or action | `0` clean, `1` findings, `2` bad input |
+| `lint` | Missing ids or status, unverified responses, error rows without cause or action | `0` clean, `1` findings, `2` bad input or no examples found |
 | `run` | Execute examples, compare status and documented response, write evidence | `0` all pass, `1` stale, failing, or lint findings (verdict FAIL even when every HTTP comparison passed), `2` unverifiable |
 
 Stdlib only. `api_examples.py` imports the parser `doc_examples.py` beside it. `run` refuses a non-loopback host unless `--allow-remote` is passed,
-because a doc example can create or delete data. It sends only to the base URL host: a request path must start with `/`, and redirects are returned as replies, never followed. Exit `2` (server unreachable, no
-example matched) means unverified. It never means pass.
+because a doc example can create or delete data. It sends only to the base URL host: a request path must start with `/`, and redirects are returned as replies, never followed. Loopback requests ignore proxy settings.
+
+Exit `2` means unverified, never pass. It covers:
+
+- no example matched, or `lint` found no example to check;
+- the server was unreachable;
+- a response was over 2 MiB, cut short of its `Content-Length`, or slower than 30 s;
+- the run passed 300 s.
+
+A stop with `--evidence` writes the file either way. The verdict is `UNVERIFIED` when nothing had failed.
+
+A stop that already has a failed example or lint finding exits `1`. Its evidence file lists the examples that never ran under `deadline_exceeded`. Under `request_failed` it names the example that could not finish and the examples after it. A request that missed its 30 s deadline may still reach the server, so check a mutating example by hand.
 
 ## Anti-Patterns
 

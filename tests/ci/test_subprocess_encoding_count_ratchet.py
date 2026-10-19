@@ -251,6 +251,8 @@ class TestTheSubstringProbeChangesNothingButCost:
             check=True,
         )
         files = [repo_root / rel for rel in listing.stdout.split("\0") if rel]
+        # A tracked file link (ADR-119 decision 14) names a target listed on its own.
+        files = [path for path in files if not path.is_symlink()]
         assert len(files) > 1000, "corpus lookup returned too few files to be a real check"
 
         unprobed: set[tuple[str, int]] = set()
@@ -272,3 +274,19 @@ class TestTheSubstringProbeChangesNothingButCost:
         }
 
         assert probed == unprobed
+
+
+def test_ratchet_skips_only_file_links_whose_target_is_tracked(tmp_path: Path) -> None:
+    """ADR-119 decision 14: .claude/lib/paths.py links to a tracked target counted once."""
+    (tmp_path / "real.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "ok.py").symlink_to("real.py")
+    (tmp_path / "dangling.py").symlink_to("missing.py")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.py"
+    outside.write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "escape.py").symlink_to(outside)
+    tracked = frozenset({"real.py", "ok.py", "dangling.py", "escape.py"})
+
+    assert ratchet._is_tracked_file_link(tmp_path, "ok.py", tracked) is True
+    assert ratchet._is_tracked_file_link(tmp_path, "real.py", tracked) is False
+    assert ratchet._is_tracked_file_link(tmp_path, "dangling.py", tracked) is False
+    assert ratchet._is_tracked_file_link(tmp_path, "escape.py", tracked) is False
