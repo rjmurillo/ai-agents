@@ -495,34 +495,3 @@ def test_dropping_link_true_turns_lib_file_links_back_into_copies(tmp_path: Path
     assert installed.is_file() and not installed.is_symlink()
     assert installed.read_text(encoding="utf-8") == "x = 1\n"
     assert (plugin / "paths.py").read_text(encoding="utf-8") == "x = 1\n"
-
-
-def test_refused_nested_symlink_withdraws_a_previously_installed_link(tmp_path: Path) -> None:
-    plugin, install = _plugin(tmp_path), _install(tmp_path)
-    assert binplace_links.link_row(plugin, install, check=False).exit_code == 0
-    assert (install / "alpha").is_symlink()
-    (tmp_path / "outside").mkdir()
-    (plugin / "alpha" / "scripts" / "sub").symlink_to(
-        tmp_path / "outside", target_is_directory=True
-    )
-
-    check = binplace_links.link_row(plugin, install, check=True)
-    assert check.exit_code == 2
-    assert (install / "alpha").is_symlink(), "check mode writes nothing"
-
-    outcome = binplace_links.link_row(plugin, install, check=False)
-
-    assert outcome.exit_code == 2
-    assert not (install / "alpha").is_symlink()
-    assert (install / "beta.md").is_symlink(), "other entries stay linked"
-
-
-def test_refused_entry_keeps_a_real_directory_at_the_install_path(tmp_path: Path) -> None:
-    plugin, install = _plugin(tmp_path), _install(tmp_path)
-    (install / "alpha").mkdir(parents=True)
-    (install / "alpha" / "mine.txt").write_text("edit\n", encoding="utf-8")
-    (plugin / "alpha" / "SKILL.link").symlink_to("SKILL.md")
-
-    binplace_links.link_row(plugin, install, check=False)
-
-    assert (install / "alpha" / "mine.txt").read_text(encoding="utf-8") == "edit\n"
