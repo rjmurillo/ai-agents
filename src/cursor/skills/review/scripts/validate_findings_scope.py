@@ -14,6 +14,10 @@ downgraded to WARN when every cited location is outside the PR diff.
 When all locations are in scope (or the diff is empty/unavailable), the
 script exits 0 and the orchestrator records the axis output unmodified.
 
+With ``--frozen`` (review rounds after the first), a verdict whose every cited
+location is outside the PR diff becomes PASS instead of WARN. Those findings
+are flagged notes: they stay visible but never count toward the verdict.
+
 EXIT CODES (ADR-035):
     0 - All locations are in scope, or the diff list is empty or unavailable.
     1 - One or more locations are out of scope.
@@ -56,6 +60,7 @@ _VERDICT_RE = re.compile(
     r"(?P<suffix>\]?.*)$"
 )
 _FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"})
+_COUNTING_VERDICTS = _FAIL_VERDICTS | frozenset({"WARN", "PARTIAL"})
 _PRE_EXISTING_MARKER = "[pre-existing - not in this PR diff]"
 
 # A location value is a file path when it contains a path separator or a
@@ -176,7 +181,7 @@ def extract_verdict(text: str) -> str | None:
     return match.group("token") if match else None
 
 
-def scope_adjusted_verdict(text: str, diff_files: list[str]) -> str | None:
+def scope_adjusted_verdict(text: str, diff_files: list[str], *, frozen: bool = False) -> str | None:
     """Return the verdict after removing out-of-scope blocking weight.
 
     If all cited file locations are outside the PR diff, a blocking verdict
@@ -184,12 +189,20 @@ def scope_adjusted_verdict(text: str, diff_files: list[str]) -> str | None:
     visible without blocking the PR. Mixed in-scope and out-of-scope outputs
     keep their original verdict because at least one cited finding belongs to
     the reviewed diff.
+
+    With *frozen* (review rounds after the first), the same all-out-of-scope
+    output becomes PASS for any counting verdict (a blocking verdict, WARN, or
+    PARTIAL): the findings are flagged notes and carry no weight.
     """
     verdict = extract_verdict(text)
     if verdict is None:
         return None
     in_scope, out_of_scope = validate_scope(text, diff_files)
-    if out_of_scope and not in_scope and verdict in _FAIL_VERDICTS:
+    if not out_of_scope or in_scope:
+        return verdict
+    if frozen and verdict in _COUNTING_VERDICTS:
+        return "PASS"
+    if verdict in _FAIL_VERDICTS:
         return "WARN"
     return verdict
 
@@ -230,7 +243,7 @@ def _annotate_out_of_scope_lines(text: str, out_of_scope: list[str]) -> str:
     return "".join(lines)
 
 
-def format_scope_checked_text(text: str, diff_files: list[str]) -> str:
+def format_scope_checked_text(text: str, diff_files: list[str], *, frozen: bool = False) -> str:
     """Return axis text with out-of-scope findings marked and verdict adjusted."""
     in_scope, out_of_scope = validate_scope(text, diff_files)
     if not out_of_scope:
@@ -238,17 +251,22 @@ def format_scope_checked_text(text: str, diff_files: list[str]) -> str:
 
     adjusted_text = _annotate_out_of_scope_lines(text, out_of_scope)
     original_verdict = extract_verdict(text)
-    adjusted_verdict = scope_adjusted_verdict(text, diff_files)
+    adjusted_verdict = scope_adjusted_verdict(text, diff_files, frozen=frozen)
     if (
         original_verdict is not None
         and adjusted_verdict is not None
         and adjusted_verdict != original_verdict
     ):
         adjusted_text = _replace_verdict(adjusted_text, adjusted_verdict)
+        outcome = (
+            "moved to flagged notes (they do not count toward the verdict)"
+            if adjusted_verdict == "PASS"
+            else f"downgraded to {adjusted_verdict}"
+        )
         adjusted_text = (
             adjusted_text.rstrip()
             + "\n\nScope adjustment: original verdict "
-            + f"{original_verdict} downgraded to {adjusted_verdict} because "
+            + f"{original_verdict} {outcome} because "
             + "every cited location is outside the PR diff.\n"
         )
     return adjusted_text
@@ -280,6 +298,15 @@ def main(argv: list[str] | None = None) -> int:
             "all-out-of-scope blocking verdict downgraded to WARN."
         ),
     )
+    parser.add_argument(
+        "--frozen",
+        action="store_true",
+        help=(
+            "Review round 2 or later: a verdict whose every cited location is "
+            "outside the PR diff becomes PASS, and those findings are flagged "
+            "notes that do not count."
+        ),
+    )
     args = parser.parse_args(argv)
 
     text = args.text if args.text is not None else sys.stdin.read()
@@ -299,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
 
     in_scope, out_of_scope = validate_scope(text, diff_files)
     if args.emit_adjusted_text:
-        print(format_scope_checked_text(text, diff_files), end="")
+        print(format_scope_checked_text(text, diff_files, frozen=args.frozen), end="")
 
     if out_of_scope:
         unique_oos = sorted(set(out_of_scope))
