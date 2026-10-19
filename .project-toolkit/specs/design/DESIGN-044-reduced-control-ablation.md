@@ -118,7 +118,7 @@ Dry run replaces step 2 with writing the control's `files` and taking its
 | `config.harness` / `harness_version` | `claude` / `probe_version` output (`dry-run` in a dry run) |
 | `config.context_bytes` | byte total of the control's files |
 | `config.retry_budget` | 0 |
-| `config.reviewer` | `none` |
+| `config.reviewer` | `none`, or `claude:<model>:default` when `--reviewer-model` is set |
 | `config.control` | control name |
 | `capability.attempted` | reply is non-empty |
 | `capability.produced_artifact` | at least one changed path inside `allowed_paths` |
@@ -139,16 +139,33 @@ Dry run replaces step 2 with writing the control's `files` and taking its
 
 ### Fields recorded by construction
 
-These are zero because the run is unattended and has no reviewer. The report
-states this so a reader does not take them for measurements of a human.
+`durable.rework_minutes` and `economics.tool_cost_usd` are 0 because the run is
+unattended and runs local commands only. The report states this so a reader does
+not take them for measurements of a human.
 
 | Field | Value | Why |
 |---|---|---|
-| `durable.review_findings` | 0 | `reviewer` is `none` |
 | `durable.rework_minutes` | 0 | no human rework happens in an unattended run |
-| `durable.rollback_events` | 0 | a single run has no integration step to roll back; an agent reverting its own trial edit is not a durable rollback |
 | `economics.tool_cost_usd` | 0 | local commands only |
-| `economics.human_correction_minutes` | 0 | no human intervened |
+
+### Fields that are null when unmeasured
+
+A signal nobody measured is `null`, never 0. A `null` classifies `UNVERIFIED`,
+so an unmeasured signal cannot read as a clean result.
+
+| Field | Measured by | `null` when |
+|---|---|---|
+| `durable.review_findings` | the independent reviewer arm (`--reviewer-model`): one read-only launch on a copy of an accepted change, with no control file, no hidden follow-up file, and no `.git` | the arm is off, the run was not accepted, or the reply is not in the `REVIEW_RESULT` shape |
+| `durable.rollback_events` | an accepted change that fails the hidden follow-up is reverted with `git reset --hard` to the seed commit SHA (held by the harness, not the movable ref) and `git clean -fdx`, and the revert is verified against `git status --ignored`: 1 | the revert cannot be verified. A run that needed no revert is 0 |
+| `economics.human_correction_minutes` | `eval_human_minutes_join.py`, one timed row per (control, task_id, repeat) cell, joined after the run | every live record. A human cannot time a run that has not happened, so the driver never sets it. The open owner decision on #5768 is whether to keep this clause |
+
+The revert erases the run's edits, so every run's change is saved as
+`changes/<control>/<task_id>-r<repeat>.patch` under `--output-dir` and the run
+entry names it as `change_patch`. The patch and the reviewer's copy are taken
+before step 3 writes the hidden follow-up files, so neither holds a hidden file
+and an agent edit at a follow-up path is not overwritten. `--dry-run` feeds canned reviewer replies
+through the real parser and a fixture `human_correction_minutes`, both labeled in
+the report as inputs.
 
 ## Comparison change
 

@@ -2,17 +2,19 @@
 # taste-lint: ignore file-size, both subcommands share the ref-reading git helpers.
 """Mine a repository for skill-bootstrap candidates and check authored skill text.
 
-Both subcommands are read-only. They read the repository from one named ref
+Neither subcommand writes into the repository. The only write is the optional
+`--out` JSON file, which must sit outside it. They read the repository from one named ref
 (`--rev`, default HEAD) with `git ls-tree -r -z --name-only`, `git log -z`,
 `git grep`, and `git cat-file`. They never use `git log --all` and never walk
 the working tree to learn what the repository contains. `claims` reads the
 disk only for authored skills: it opens the markdown files you name, and checks
-paths and counts lines under those skills' directories in the working tree.
+paths and counts lines under those skills' directories in the working tree. A
+file read for a line count is capped at 5 MiB.
 
 Subcommands:
 
-    candidates  Rank candidate cases from git history: reverts, the files
-                touched by the most recent commits (churn), files with the most
+    candidates  List the reverts in git history, and rank the files touched
+                by the most recent commits (churn), the files with the most
                 TODO/FIXME/XXX/HACK lines, and, when `--prs-json` is given, the
                 pull requests with the most review rounds. Findings are
                 candidates for a human or model to judge, not violations.
@@ -34,10 +36,13 @@ Exit codes:
        has context `current`.
     1  `claims` found a non-ok reference whose context is `current`.
     2  Configuration error: bad arguments, not a git repository, a bad rev, a
-       missing or unreadable TARGET or `--prs-json` file, or an `--out` path
-       inside the repository, already present, or without a `.json` suffix.
-    3  External error: git is missing or a git command failed, or the `--out`
-       file could not be written.
+       missing or unreadable TARGET or `--prs-json` file, an `--out` path
+       inside the repository, already present, or without a `.json` suffix, or
+       an authored file over the 5 MiB read cap when `claims` must count its
+       lines.
+    3  External error: git is missing, a git command failed or timed out, or
+       the `--out` file could not be written (also when it appears between the
+       check and the write; `bootstrap_eval.py` exits 2 for that race).
 
 Every run prints one JSON document on stdout. A successful run carries an
 `examined` object whose counts are printed even when they are zero, so a caller
@@ -68,14 +73,25 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 Payload = dict[str, Any]
+
+
+class Outcome(NamedTuple):
+    """What a subcommand hands to `main`: the exit code, the JSON, and where to write it."""
+
+    code: int
+    payload: Payload
+    out: Path | None
+    root: Path
+
 
 RECORD_SEP = "\x1e"
 FIELD_SEP = "\x1f"
 SHORT_SHA = 9
 GIT_TIMEOUT_S = 30
+MAX_READ_BYTES = 5 * 1024 * 1024
 SHA_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 # `Revert ...`, with a word boundary so `Reverted` and `Reverts` do not match.
@@ -343,9 +359,9 @@ def _review_row(item: object, index: int, path: str) -> Payload:
     return {"number": number, "review_rounds": rounds}
 
 
-def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
+def candidates(args: argparse.Namespace) -> Outcome:
     root = repo_root(Path(args.repo))
-    args.out_path, args.root = _out_outside_repo(root, args.out), root
+    out = _out_outside_repo(root, args.out)
     max_commits = _positive(args.max_commits, "--max-commits")
     window = _positive(args.churn_window, "--churn-window")
     top = _positive(args.top, "--top")
@@ -384,7 +400,7 @@ def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
     if prs is not None:
         payload["review_rounds"] = prs[0]
         payload["examined"]["prs"] = prs[1]
-    return 0, payload
+    return Outcome(0, payload, out, root)
 
 
 # ---------------------------------------------------------------- claims
@@ -549,6 +565,12 @@ class RepoView:
         if not target.is_file():
             return "missing"
         if max_line is not None:
+            size = target.stat().st_size
+            if size > MAX_READ_BYTES:
+                raise ConfigError(
+                    f"{path} is {size} bytes, over the {MAX_READ_BYTES} byte read cap;"
+                    " cannot count its lines"
+                )
             text = target.read_text(encoding="utf-8", errors="replace")
             lines = text.count("\n") + (0 if not text or text.endswith("\n") else 1)
             if max_line > lines:
@@ -572,6 +594,19 @@ def _skill_base(display: str, view: RepoView) -> str | None:
     return None
 
 
+def _extended_on_disk(
+    view: RepoView, base: str, path: str, max_line: int | None, tracked: str
+) -> str:
+    """Re-check a tracked file inside an authored skill against its working-tree copy.
+
+    An update run can grow a tracked file without committing it. A path outside the
+    skill directory keeps its tracked status, so a stale root reference stays stale.
+    """
+    if not path.startswith(f"{base}/"):
+        return tracked
+    return "ok" if view.disk_status(path, max_line) == "ok" else tracked
+
+
 def _resolve(
     view: RepoView, base: str | None, path: str, max_line: int | None, authored: bool
 ) -> str:
@@ -581,14 +616,24 @@ def _resolve(
     tracked, so an untracked or ignored file in an existing skill is still reported.
     """
     status = view.status(path, max_line)
-    if status == "ok" or base is None:
+    # A root file that is tracked but too short is the answer: a same-named skill file
+    # must not mark that stale root reference ok. A path absent from the ref, whether
+    # missing or only untracked on disk, falls back to the skill's tracked files.
+    if status == "line-out-of-range" and authored and base is not None:
+        # The one exception: the tracked file is itself inside the authored skill, so
+        # the run may have extended it on disk. Only that same path is consulted.
+        return _extended_on_disk(view, base, path, max_line, status)
+    if base is None or status not in ("missing", "untracked"):
         return status
     relative = view.status(f"{base}/{path}", max_line)
+    if relative == "line-out-of-range" and authored:
+        return _extended_on_disk(view, base, f"{base}/{path}", max_line, relative)
     if relative in ("ok", "line-out-of-range"):
         return relative
     if not authored:
         # Name the real state: the file exists under this skill, it is just not committed.
-        relative_disk = view.disk_status(f"{base}/{path}", max_line)
+        # Only presence matters here, so no line count is read and the size cap cannot fire.
+        relative_disk = view.disk_status(f"{base}/{path}", None)
         if status == "missing" and relative_disk != "missing":
             return "untracked"
         return status
@@ -636,9 +681,9 @@ def _read_target(path: Path) -> str:
         raise ConfigError(f"cannot read TARGET {path}: {exc}") from exc
 
 
-def claims(args: argparse.Namespace) -> tuple[int, Payload]:
+def claims(args: argparse.Namespace) -> Outcome:
     root = repo_root(Path(args.repo))
-    args.out_path, args.root = _out_outside_repo(root, args.out), root
+    out = _out_outside_repo(root, args.out)
     sha = resolve_rev(root, args.rev)
     targets = _expand_targets(args.targets)
     finder = PathFinder(*top_level_entries(root, sha))
@@ -655,7 +700,7 @@ def claims(args: argparse.Namespace) -> tuple[int, Payload]:
         for key in ("status", "context"):
             summary[key][finding[key]] = summary[key].get(finding[key], 0) + 1
     blocking = any(f["context"] == "current" for f in findings)
-    return (1 if blocking else 0), {
+    payload: Payload = {
         "repo": root.as_posix(),
         "rev": args.rev,
         "sha": sha,
@@ -663,6 +708,7 @@ def claims(args: argparse.Namespace) -> tuple[int, Payload]:
         "examined": {"files": len(targets), "references": len(references)},
         "summary": summary,
     }
+    return Outcome(1 if blocking else 0, payload, out, root)
 
 
 # ---------------------------------------------------------------- CLI
@@ -700,7 +746,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--out", help="also write the JSON to FILE, outside the repository")
 
     p_cand = sub.add_parser(
-        "candidates", allow_abbrev=False, help="rank candidate cases from git history"
+        "candidates", allow_abbrev=False, help="list reverts and rank hotspots from git history"
     )
     common(p_cand)
     p_cand.add_argument("--max-commits", type=int, default=3000)
@@ -729,7 +775,8 @@ def _emit(payload: Payload, out: Path | None, root: Path) -> None:
     if out is not None:
         _check_out_target(root, out)  # re-check just before writing
         out.parent.mkdir(parents=True, exist_ok=True)
-        # Mode "x" fails with FileExistsError (an OSError, exit 3) if --out appeared since.
+        # Mode "x" fails with FileExistsError (an OSError, exit 3 here) if --out appeared since;
+        # bootstrap_eval.py exits 2 for the same race.
         with open(out, "x", encoding="utf-8") as handle:
             handle.write(text + "\n")
     print(text)
@@ -739,8 +786,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     handlers = {"candidates": candidates, "claims": claims}
     try:
-        code, payload = handlers[args.command](args)
-        _emit(payload, args.out_path, args.root)
+        outcome = handlers[args.command](args)
+        _emit(outcome.payload, outcome.out, outcome.root)
     except ConfigError as exc:
         print(json.dumps({"error": "config", "message": str(exc)}))
         return 2
@@ -750,7 +797,7 @@ def main(argv: list[str] | None = None) -> int:
     except OSError as exc:
         print(json.dumps({"error": "io", "message": str(exc)}))
         return 3
-    return code
+    return outcome.code
 
 
 if __name__ == "__main__":

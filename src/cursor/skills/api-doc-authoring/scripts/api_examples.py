@@ -20,23 +20,29 @@ Subcommands (stdlib only, output is one JSON object):
 
 ``list``  Examples found, optionally filtered to a request path prefix.
 ``lint``  Structure findings: bad fences, unverified responses, error tables
-          with a missing cause or action.
+          with a missing cause or action. A document set with no examples is
+          unverifiable (exit 2), so a wrong path never passes vacuously.
 ``run``   Send each example to a local base URL and compare status and the
           documented response. Writes an evidence file when asked.
 
-Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
-(unreachable server, remote base URL without an explicit flag).
+Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable (unreachable
+server, remote base URL without an explicit flag, no examples to lint, a response over the size
+cap or cut short, a request or run past its deadline). A failure or lint finding found before
+such a stop is still exit 1. A stop with ``--evidence`` writes the file (UNVERIFIED if none failed).
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import ipaddress
 import json
 import platform
 import re
 import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
@@ -59,6 +65,13 @@ EXIT_FINDINGS = 1
 EXIT_UNVERIFIABLE = 2
 
 TIMEOUT_SECONDS = 10
+# The socket timeout restarts on every receive, so a trickling server never trips it. These
+# bound bytes and wall clock: 2 MiB is far above a documented JSON reply, 30 s is three socket
+# timeouts. A run can overshoot its deadline by one request deadline (checked between examples).
+MAX_BODY_BYTES = 2 * 1024 * 1024
+REQUEST_DEADLINE_SECONDS = 30
+RUN_DEADLINE_SECONDS = 300
+_CHUNK_BYTES = 64 * 1024
 REDACTED_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization", "x-api-key"})
 
 _PLACEHOLDER = re.compile(r"^<[^<>]+>$")
@@ -105,17 +118,67 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 _OPENER = urllib.request.build_opener(_NoRedirect)
+# An empty ProxyHandler turns off HTTP_PROXY and HTTPS_PROXY: loopback must reach the local server.
+_DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
+
+
+def _opener_for(url: str) -> urllib.request.OpenerDirector:
+    host = urlsplit(url).hostname
+    return _DIRECT_OPENER if host is not None and _is_loopback(host) else _OPENER
+
+
+def _read_capped(handle: Any, url: str) -> bytes:
+    """Read a body in chunks. Refuse one past the byte cap or cut short of its Content-Length."""
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := handle.read(_CHUNK_BYTES):
+        total += len(chunk)
+        if total > MAX_BODY_BYTES:
+            raise InputError(f"response from {url} is over the {MAX_BODY_BYTES} byte cap")
+        chunks.append(chunk)
+    if getattr(handle, "length", None):  # bytes still owed under Content-Length (0 for HEAD, 304)
+        raise InputError(f"response from {url} was cut off with {handle.length} bytes missing")
+    return b"".join(chunks)
+
+
+def _fetch(request: urllib.request.Request, url: str) -> Reply:
+    try:
+        with _opener_for(url).open(request, timeout=TIMEOUT_SECONDS) as handle:
+            return Reply(handle.status, _read_capped(handle, url))
+    except urllib.error.HTTPError as exc:
+        return Reply(exc.code, _read_capped(exc, url))
+
+
+def _within_deadline(call: Callable[[], Reply], url: str) -> Reply:
+    """Run `call` on a daemon thread and give up after REQUEST_DEADLINE_SECONDS.
+
+    The deadline covers connect, headers, and body together. A late thread is left to
+    end on its own socket timeout or when the process exits, and its result is dropped.
+    """
+    outcome: list[Reply | Exception] = []
+
+    def work() -> None:
+        try:
+            outcome.append(call())
+        except Exception as exc:  # re-raised on the caller's thread
+            outcome.append(exc)
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(REQUEST_DEADLINE_SECONDS)
+    if not outcome:
+        raise InputError(f"response from {url} is slower than {REQUEST_DEADLINE_SECONDS}s")
+    if isinstance(outcome[0], Exception):
+        raise outcome[0]
+    return outcome[0]
 
 
 def send(method: str, url: str, headers: dict[str, str], body: bytes) -> Reply:
     """Send one request and return status and body. Non-2xx is a Reply, not an error."""
     request = urllib.request.Request(url, data=body or None, headers=headers, method=method)
     try:
-        with _OPENER.open(request, timeout=TIMEOUT_SECONDS) as handle:
-            return Reply(handle.status, handle.read())
-    except urllib.error.HTTPError as exc:
-        return Reply(exc.code, exc.read())
-    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+        return _within_deadline(lambda: _fetch(request, url), url)
+    except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
         raise InputError(f"server unreachable at {url}: {exc}") from exc
 
 
@@ -250,6 +313,8 @@ def cmd_list(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 def cmd_lint(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     """Report structure findings. No network."""
     examples, findings = _collect(args.docs, None)
+    if not examples and not findings:
+        raise InputError("no examples found in the given files; nothing was linted")
     verdict = "FAIL" if findings else "PASS"
     report = {"verdict": verdict, "examples": len(examples), "findings": findings}
     return report, (EXIT_FINDINGS if findings else EXIT_OK)
@@ -280,14 +345,108 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
     runnable = [e for e in examples if e.expect is not None]
     if not runnable:
         raise InputError("no executable examples matched; nothing was verified")
-    results = [run_example(e, base_url, sender) for e in runnable]
+    deadline = time.monotonic() + RUN_DEADLINE_SECONDS
+    results: list[dict[str, Any]] = []
+    for example in runnable:
+        if time.monotonic() > deadline:
+            return _past_deadline(args, base_url, results, runnable[len(results) :], findings)
+        try:
+            results.append(run_example(example, base_url, sender))
+        except InputError as exc:
+            return _request_failed(args, base_url, results, runnable[len(results) :], findings, exc)
+    report = _report(args, base_url, results, findings)
+    _write_evidence(args, report)
+    return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
+
+
+def _report(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the run report; a lint finding makes the verdict FAIL."""
     report = _evidence(args, base_url, results)
     report["lint_findings"] = findings
     if findings:
         report["verdict"] = "FAIL"
+    return report
+
+
+def _write_evidence(args: argparse.Namespace, report: dict[str, Any]) -> None:
     if args.evidence:
         Path(args.evidence).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
+
+
+def _stopped(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+    *,
+    key: str,
+    detail: dict[str, Any],
+    message: str,
+) -> tuple[dict[str, Any], int]:
+    """Keep the finished results when a run stops early.
+
+    A finished FAIL or a lint finding stays exit 1: the doc is stale or malformed whether
+    or not the rest ran. With neither, the run is unverifiable (exit 2, ``message``). Either
+    way the evidence file records the finished results, the lint findings, and ``detail``.
+    """
+    report = _report(args, base_url, results, findings)
+    failed = report["verdict"] == "FAIL"
+    if not failed:
+        report["verdict"] = "UNVERIFIED"
+    report[key] = detail
+    _write_evidence(args, report)
+    if failed:
+        return report, EXIT_FINDINGS
+    raise InputError(message)
+
+
+def _past_deadline(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    unrun: list[Example],
+    findings: list[dict[str, Any]],
+) -> tuple[dict[str, Any], int]:
+    """Stop a run that passed its deadline; the examples that never ran are listed."""
+    detail = {"seconds": RUN_DEADLINE_SECONDS, "unrun": [e.id for e in unrun]}
+    message = (
+        f"run passed its {RUN_DEADLINE_SECONDS}s deadline after {len(results)} of "
+        f"{len(results) + len(unrun)} examples, before `{unrun[0].id}`; "
+        "the run is unverified and the finished results are not a verdict"
+    )
+    return _stopped(
+        args, base_url, results, findings, key="deadline_exceeded", detail=detail, message=message
+    )
+
+
+def _request_failed(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    unrun: list[Example],
+    findings: list[dict[str, Any]],
+    error: InputError,
+) -> tuple[dict[str, Any], int]:
+    """Stop a run whose request could not finish (deadline, byte cap, unreachable server).
+
+    ``unrun`` starts with the example that failed. Its request may have reached the server,
+    so the report names it under ``example`` and lists only the examples after it as unrun.
+    Earlier results and lint findings are kept, as for a run deadline.
+    """
+    detail = {"example": unrun[0].id, "error": str(error), "unrun": [e.id for e in unrun[1:]]}
+    message = (
+        f"example `{unrun[0].id}` could not finish after {len(results)} of "
+        f"{len(results) + len(unrun)} examples: {error}; "
+        "the run is unverified and the finished results are not a verdict"
+    )
+    return _stopped(
+        args, base_url, results, findings, key="request_failed", detail=detail, message=message
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -42,6 +42,7 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.not_found import is_pr_not_found
+from github_core.validation import assert_valid_body_file
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.comment_file:
         if not os.path.isfile(args.comment_file):
             error_and_exit(f"Comment file not found: {args.comment_file}", 2)
+        assert_valid_body_file(args.comment_file)
         with open(args.comment_file, encoding="utf-8") as fh:
             comment = fh.read()
 

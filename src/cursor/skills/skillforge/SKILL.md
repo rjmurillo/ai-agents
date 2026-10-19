@@ -233,6 +233,18 @@ python "$FORGE/validate-skill.py" skills/my-skill/     # full structural validat
 python "$FORGE/package_skill.py" skills/my-skill/ ./dist   # package for distribution
 ```
 
+To validate a skill in another checkout without `cd` or copying, pass
+`--root DIR` to `quick_validate.py` or `validate-skill.py`. The skill must
+resolve inside `DIR`. A symlinked skill directory, `SKILL.md`, or
+script file that escapes it is rejected. The default root stays the
+current directory, and an absolute path outside it is still rejected without
+`--root`. A relative skill path resolves against the current directory, not
+against `DIR`, so pass an absolute path with `--root`:
+
+```bash
+python "$FORGE/quick_validate.py" /other/repo/skills/my-skill --root /other/repo
+```
+
 See [references/output-structure.md](references/output-structure.md) for allowed
 frontmatter fields, directory layout, script categories, hook configuration, and
 output requirements.
