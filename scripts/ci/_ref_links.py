@@ -222,9 +222,9 @@ def following(gate: ModuleType, tree: Path, links: dict[str, str]) -> Iterator[N
     head link that is new, retargeted or leaves the tree is still refused here
     and is reported as a symlink by the verifier.
     """
-    saved = gate._PINNED_LINKS
-    gate._PINNED_LINKS = (tree, links)
+    saved = getattr(gate, "_PINNED_LINKS")  # noqa: B009 - the gate is loaded by path, untyped
+    setattr(gate, "_PINNED_LINKS", (tree, links))  # noqa: B010
     try:
         yield
     finally:
-        gate._PINNED_LINKS = saved
+        setattr(gate, "_PINNED_LINKS", saved)  # noqa: B010
