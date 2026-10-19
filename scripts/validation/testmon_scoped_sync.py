@@ -76,6 +76,21 @@ class _Selection(Protocol):
     testmon_data: object
 
 
+class _PluginManager(Protocol):
+    def get_plugin(self, name: str) -> object | None: ...
+
+    def has_plugin(self, name: str) -> bool: ...
+
+    def register(self, plugin: object, name: str) -> object: ...
+
+
+class _Config(Protocol):
+    """The slice of ``pytest.Config`` that this module reads."""
+
+    @property
+    def pluginmanager(self) -> _PluginManager: ...
+
+
 class _Node(Protocol):
     """The slice of an xdist worker controller that the controller hook writes to."""
 
@@ -207,7 +222,7 @@ def adopt_payload(select: _Selection, payload: object) -> bool:
 class _SelectionBroadcast:
     """Send the controller's deselection to each worker and adopt it there."""
 
-    def __init__(self, config: pytest.Config) -> None:
+    def __init__(self, config: _Config) -> None:
         self._config = config
 
     @pytest.hookimpl(optionalhook=True)
@@ -221,7 +236,7 @@ class _SelectionBroadcast:
             select.deselected_files, select.deselected_tests
         )
 
-    def pytest_sessionstart(self, session: pytest.Session) -> None:
+    def pytest_sessionstart(self, session: object) -> None:
         """Worker side, before collection: adopt the controller's deselection."""
         workerinput = getattr(self._config, "workerinput", None)
         select = cast(_Selection | None, self._config.pluginmanager.get_plugin(_SELECT_PLUGIN))
@@ -230,7 +245,7 @@ class _SelectionBroadcast:
         adopt_payload(select, workerinput.get(WORKERINPUT_KEY))
 
 
-def pytest_configure(config: pytest.Config) -> None:
+def pytest_configure(config: _Config) -> None:
     """Install the wrapper as pytest starts; a missing testmon is not an error."""
     install()
     manager = getattr(config, "pluginmanager", None)

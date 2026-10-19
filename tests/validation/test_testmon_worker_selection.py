@@ -20,6 +20,7 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -42,6 +43,10 @@ class _Data:
 
 class _Select:
     """Stands in for testmon's TestmonSelect plugin."""
+
+    deselected_files: Any
+    deselected_tests: Any
+    testmon_data: Any
 
     def __init__(self, files: list[str], tests: list[str]) -> None:
         self.deselected_files = files
