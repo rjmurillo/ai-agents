@@ -93,8 +93,6 @@ Apply SOLID where change is likely. Premature abstraction is its own smell.
 
 ## Test Readability
 
-Tests are first-class code. They document behavior. Treat them with the same care.
-
 - Use the Arrange/Act/Assert structure. One blank line between sections.
 - One behavior per test. A failing test should localize the bug.
 - Names describe the behavior, not the method. `creditsAccountWhenBalanceIsPositive` beats `testCredit1`.
@@ -127,12 +125,8 @@ When branching grows past three or four cases, replace conditional code with a t
 
 - Map known inputs to outputs in a dictionary or array.
 - Add a default case for unknown inputs. Decide explicitly: raise, log, or fall back.
-- Tables make changes localized. Adding a new case is a one-line edit, not a new branch.
-- Tables make tests parametrize cleanly. Each row becomes one test case.
 
 Use table-driven logic for command dispatch, status transitions, validation rules, and feature flags. Avoid it when the cases differ in structure, not just data; polymorphism fits better there.
-
-A table replaces five `if`/`elif` branches with one lookup and one default.
 
 ## Fix Completeness
 
@@ -141,6 +135,7 @@ Bot review rounds fail to converge because the fix for round N creates round N+1
 - **One value, one role at a contract boundary.** A value that serves Git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print). Distinct names make a mix-up visible in review; use distinct types where you need the checker to enforce it.
 - **List sibling call paths.** A sibling call path is any route that reaches the function you changed: direct callers, indirect calls, re-exports, and generated code. Search the repo for each. In the PR body, list the paths you found and the ones you verified.
 - **Optional unwire-and-fail check.** Where practical, unwire the fix at each call site and confirm a test fails. Per-fix, non-blocking, no repository-wide gate.
+- **A defect class that returns gets a guard, not another patch.** Find why the earlier fix did not hold, then add a deterministic check that fails on recurrence (a test, validator, or type) in the same diff when it stays inside the request's correctness blast radius; otherwise name the recurrence in the report and stop. A warning or doc note is not a guard. A first occurrence takes the targeted fix and its regression test, nothing broader.
 
 ## Variable Scope and Lifetime
 
@@ -149,7 +144,6 @@ Minimize the distance between a variable's declaration and its last use.
 - Declare variables at the smallest scope that satisfies their use.
 - Initialize at the point of declaration. Avoid declared-then-assigned-later patterns.
 - Prefer immutability. Reassignment is a smell unless the loop variable is the point.
-- Reduce live variables: a function with twelve locals is harder to read than three small functions with three locals each.
 - Avoid global mutable state. Where you cannot, document the invariants and guard the writers.
 - Pull constants out of methods only when they are reused. A constant used in one method belongs in that method.
 
@@ -162,8 +156,6 @@ Code explains _what_. Comments explain _why_.
 - Do not date-stamp or sign comments. Git already records that.
 - Reference issues and ADRs when the rationale lives elsewhere: `# See ADR-007 (memory-first architecture)`.
 - Update or delete comments when the code under them changes. A wrong comment is worse than no comment.
-
-If you must comment to explain a function, the function probably wants a better name or a smaller body.
 
 ## Error Handling
 

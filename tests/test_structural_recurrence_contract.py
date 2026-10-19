@@ -5,7 +5,9 @@ owners. Two behaviors had no effective owner. One lands at two sites, so three
 clauses changed:
 
 1. Recurring defect: a defect class that returns gets a deterministic guard,
-   not another one-off patch. Owner: SHOULD 18 of the testing rule.
+   not another one-off patch. Owner: the recurring-defect bullet under Fix Completeness in the
+   code-quality rule, which loads on source files (review thread
+   PRRT_kwDOQoWRls6tpCo9 moved it out of the tests-only testing rule).
 2. Grading eval results: an underpowered comparison is inconclusive, not a
    preference. Owners: step 4 of the ai-agents-research-methodology skill and
    Step 4 of the benchmark-models skill, the shipped skill that emits model
@@ -38,13 +40,19 @@ import pytest
 from tests.eval._runtime_parity_test_support import runtime_parity
 from tests.structural_recurrence_support import REPO_ROOT, flat, missing
 
+RECURRENCE_SURFACES = (
+    Path("templates/rules/code-quality.md"),
+    Path(".claude/rules/code-quality.md"),
+    Path("src/claude/rules/code-quality.md"),
+    Path(".github/instructions/code-quality.instructions.md"),
+    Path("src/copilot-cli/instructions/code-quality.instructions.md"),
+    Path("src/cursor/rules/code-quality.mdc"),
+)
+
 TESTING_SURFACES = (
     Path("templates/rules/testing.md"),
     Path(".claude/rules/testing.md"),
     Path("src/claude/rules/testing.md"),
-    Path(".github/instructions/testing.instructions.md"),
-    Path("src/copilot-cli/instructions/testing.instructions.md"),
-    Path("tests/build_scripts/fixtures/rule_templates_b2/expected/testing.md"),
     Path("src/cursor/rules/testing.mdc"),
 )
 
@@ -57,7 +65,7 @@ RECURRENCE_CLAUSES: dict[str, str] = {
     "returning-class-gets-a-guard": (
         "**A defect class that returns gets a guard, not another patch.**"
     ),
-    "find-why-earlier-fix-failed": "find why the earlier fix did not hold",
+    "find-why-earlier-fix-failed": "Find why the earlier fix did not hold",
     "deterministic-check-on-recurrence": (
         "add a deterministic check that fails on recurrence (a test, validator, or type)"
     ),
@@ -102,8 +110,8 @@ ACTIVATION_FIXTURE_IDS = (
 )
 
 
-@pytest.mark.parametrize("path", TESTING_SURFACES, ids=str)
-def test_testing_surface_carries_every_recurrence_clause(path: Path) -> None:
+@pytest.mark.parametrize("path", RECURRENCE_SURFACES, ids=str)
+def test_code_quality_surface_carries_every_recurrence_clause(path: Path) -> None:
     assert missing(flat(path), RECURRENCE_CLAUSES) == []
 
 
@@ -115,7 +123,7 @@ def test_methodology_surface_carries_every_grading_clause(path: Path) -> None:
 @pytest.mark.parametrize("clause_id", sorted(RECURRENCE_CLAUSES))
 def test_removing_a_recurrence_clause_is_detected(clause_id: str) -> None:
     """Negative control: the checker fails once the clause is gone."""
-    source = flat(TESTING_SURFACES[0])
+    source = flat(RECURRENCE_SURFACES[0])
     mutated = source.replace(" ".join(RECURRENCE_CLAUSES[clause_id].split()), "")
     assert missing(mutated, RECURRENCE_CLAUSES) == [clause_id]
 
@@ -135,9 +143,9 @@ def test_checker_reports_every_clause_for_unrelated_text() -> None:
     assert sorted(missing("", GRADING_CLAUSES)) == sorted(GRADING_CLAUSES)
 
 
-def test_recurrence_clause_appears_once_per_testing_surface() -> None:
+def test_recurrence_clause_appears_once_per_surface() -> None:
     """No duplicated normative block: the clause is authored once per surface."""
-    for path in TESTING_SURFACES:
+    for path in RECURRENCE_SURFACES:
         assert (
             flat(path).count("**A defect class that returns gets a guard, not another patch.**")
             == 1
@@ -158,7 +166,7 @@ def test_scope_note_states_the_message_only_limit_and_the_ablated_pair() -> None
     note = json.loads(FIXTURES_PATH.read_text(encoding="utf-8"))["_scope_note"]
     assert "REPORTS" in note
     assert "ablated control" in note
-    assert "outside the rule's `paths:` globs" in note
+    assert "matches the rule's `**/*.py` `paths:` glob" in note
 
 
 def test_scope_note_carries_the_write_tool_caveat() -> None:
@@ -301,7 +309,7 @@ def test_activation_pair_differs_only_in_the_installed_rule() -> None:
     """The ablated control must share the prompt, files, and assertions of the rule fixture."""
     fixtures = _structural()
     with_rule, ablated = (fixtures[i] for i in ACTIVATION_FIXTURE_IDS)
-    assert with_rule.instructions == (".claude/rules/testing.md",)
+    assert with_rule.instructions == (".claude/rules/code-quality.md",)
     assert ablated.instructions == ()
     assert with_rule.prompt == ablated.prompt
     assert with_rule.setup_files == ablated.setup_files
@@ -310,7 +318,7 @@ def test_activation_pair_differs_only_in_the_installed_rule() -> None:
 
 @pytest.mark.parametrize("fixture_id", ACTIVATION_FIXTURE_IDS)
 def test_activation_fixture_edits_a_source_path_with_tools_enabled(fixture_id: str) -> None:
-    """The edit starts in scripts/, outside the testing rule's `paths:` globs."""
+    """The edit starts in a source file at the repo root, not under tests/."""
     fixture = _structural()[fixture_id]
     assert set(fixture.tools) == {"read", "write"}
     assert "dates.py" in fixture.setup_files
@@ -329,12 +337,21 @@ def test_activation_negative_control_writes_no_test_file(fixture_id: str) -> Non
     assert {a.path for a in file_specs} == {"dates.py", "tests/test_dates.py"}
 
 
-def test_activation_fixtures_ablate_the_rule_path_not_the_assertions() -> None:
-    """The with-rule fixture's rule must still scope to tests, so source edits do not load it."""
-    frontmatter = (REPO_ROOT / "templates/rules/testing.md").read_text(encoding="utf-8")
-    head = frontmatter.split("---")[1]
-    assert "tests/**" in head
-    assert not any(glob in head for glob in ('"**/*.py"', '"scripts/**"'))
+def test_recurrence_clause_loads_on_source_paths_and_not_only_on_tests() -> None:
+    """Review thread PRRT_kwDOQoWRls6tpCo9: the owner rule must match a source-only edit."""
+    head = (REPO_ROOT / "templates/rules/code-quality.md").read_text(encoding="utf-8")
+    head = head.split("---")[1]
+    assert '"**/*.py"' in head
+    assert not any(glob in head for glob in ('"tests/**"', "Tests.ps1"))
+    assert "defect class that returns" not in flat(Path("templates/rules/testing.md"))
+    for fixture_id in ACTIVATION_FIXTURE_IDS:
+        assert "dates.py" in _structural()[fixture_id].setup_files
+
+
+def test_testing_rule_no_longer_carries_the_recurrence_clause() -> None:
+    """The clause moved to the source-scoped owner; no surface keeps a second copy."""
+    for path in TESTING_SURFACES:
+        assert "defect class that returns" not in flat(path), path
 
 
 def test_blast_radius_clause_is_in_every_rubric_that_accepts_a_flag() -> None:

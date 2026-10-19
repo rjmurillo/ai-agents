@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_scope_note": "Runtime fixtures for SHOULD 18 of templates/rules/testing.md (a defect class that returns gets a guard, when the guard stays inside the request's correctness blast radius), issue #5410 (required behavioral fixture 7, structural recurrence). recurring-defect-adds-guard and recurring-defect-explanation-is-not-a-guard enable read and write tools, start the edit in source (dates.py, outside the rule's `paths:` globs), and assert the files the agent writes (a fix in dates.py and a tests/test_dates.py). recurring-defect-ablated-no-rule is the ablated control of recurring-defect-adds-guard: the same prompt, files, and assertions with the rule not installed. The harness maps the `write` tool to Claude Edit, which cannot create files (issue #6710), so on the Claude harness the tests/test_dates.py file_regex reflects tool wiring as much as behavior until #6710 lands. Comparing the two live shows whether the rule changes behavior only once that is fixed. In a dry run the controls only prove each assertion can pass and fail. first-occurrence-targeted-fix-only sets `tools: []` and grades only the final message, so it measures what the agent REPORTS, not what it writes. Each fixture pairs regex/not_regex/file assertions with a `semantic` assertion graded by scripts/eval/_runtime_grader.py. The regex assertions are NOT the semantic authority: a response can name a guard in words no pattern lists, which the semantic assertion grades. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/structural-recurrence-runtime-fixtures.json --dry-run. Live results for this corpus are recorded in PR #6687.",
+  "_scope_note": "Runtime fixtures for the recurring-defect bullet under Fix Completeness in templates/rules/code-quality.md (a defect class that returns gets a guard, when the guard stays inside the request's correctness blast radius), issue #5410 (required behavioral fixture 7, structural recurrence). recurring-defect-adds-guard and recurring-defect-explanation-is-not-a-guard enable read and write tools, start the edit in source (dates.py, which matches the rule's `**/*.py` `paths:` glob, so a source-only repair loads the rule), and assert the files the agent writes (a fix in dates.py and a tests/test_dates.py). recurring-defect-ablated-no-rule is the ablated control of recurring-defect-adds-guard: the same prompt, files, and assertions with the rule not installed. The harness maps the `write` tool to Claude Edit, which cannot create files (issue #6710), so on the Claude harness the tests/test_dates.py file_regex reflects tool wiring as much as behavior until #6710 lands. Comparing the two live shows whether the rule changes behavior only once that is fixed. In a dry run the controls only prove each assertion can pass and fail. first-occurrence-targeted-fix-only sets `tools: []` and grades only the final message, so it measures what the agent REPORTS, not what it writes. Each fixture pairs regex/not_regex/file assertions with a `semantic` assertion graded by scripts/eval/_runtime_grader.py. The regex assertions are NOT the semantic authority: a response can name a guard in words no pattern lists, which the semantic assertion grades. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/structural-recurrence-runtime-fixtures.json --dry-run. Live results for this corpus are recorded in PR #6687.",
   "fixtures": [
     {
       "id": "recurring-defect-adds-guard",
@@ -9,7 +9,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/testing.md"
+        ".claude/rules/code-quality.md"
       ],
       "prompt": "The user said: 'Fix the crash in dates.py:31.' It is a ValueError from int() on a timestamp that ends in 'Z'. Git history shows the same trailing-'Z' crash was already patched at feeds.py:12 and at ingest.py:88, each by a one-off fix. Repo convention: tests live in tests/test_<module>.py. Edit files in the working directory, then reply with a short summary.",
       "tools": [
@@ -37,7 +37,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "Judge against testing.md SHOULD 18 (a defect class that returns gets a guard, not another patch, when the guard stays inside the request's correctness blast radius). PASS when the response reports the dates.py:31 fix and either (a) adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs, or (b) adds a regression test for dates.py:31 and flags the recurrence declaratively, naming feeds.py:12 and ingest.py:88 and stating the class-wide guard was not built because it is outside the request. FAIL when it only patches dates.py:31 again with no recurrence flag, when it only explains why the earlier fixes did not hold without adding any check, or when the only protection it offers is a warning, comment, or documentation note. A declarative flag with a scoped regression test is not a FAIL."
+          "rubric": "Judge against code-quality.md Fix Completeness (recurring-defect bullet) (a defect class that returns gets a guard, not another patch, when the guard stays inside the request's correctness blast radius). PASS when the response reports the dates.py:31 fix and either (a) adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs, or (b) adds a regression test for dates.py:31 and flags the recurrence declaratively, naming feeds.py:12 and ingest.py:88 and stating the class-wide guard was not built because it is outside the request. FAIL when it only patches dates.py:31 again with no recurrence flag, when it only explains why the earlier fixes did not hold without adding any check, or when the only protection it offers is a warning, comment, or documentation note. A declarative flag with a scoped regression test is not a FAIL."
         }
       ],
       "controls": {
@@ -68,7 +68,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/testing.md"
+        ".claude/rules/code-quality.md"
       ],
       "prompt": "The user said: 'Fix the crash in dates.py:31 and tell me why this keeps coming back.' It is a ValueError from int() on a timestamp that ends in 'Z'. Git history shows the same trailing-'Z' crash was already patched at feeds.py:12 and at ingest.py:88, each by a one-off fix. Repo convention: tests live in tests/test_<module>.py. Edit files in the working directory, then reply with a short summary.",
       "tools": [
@@ -96,7 +96,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "Judge against testing.md SHOULD 18 (a defect class that returns gets a guard, not another patch). PASS when the response reports the dates.py:31 fix and also adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs. FAIL when it only patches dates.py:31 again, when it only explains why the earlier fixes did not hold without adding the check, or when the only protection it offers is a warning, comment, or documentation note."
+          "rubric": "Judge against code-quality.md Fix Completeness (recurring-defect bullet) (a defect class that returns gets a guard, not another patch). PASS when the response reports the dates.py:31 fix and also adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs. FAIL when it only patches dates.py:31 again, when it only explains why the earlier fixes did not hold without adding the check, or when the only protection it offers is a warning, comment, or documentation note."
         }
       ],
       "controls": {
@@ -127,7 +127,7 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/testing.md"
+        ".claude/rules/code-quality.md"
       ],
       "prompt": "The user said: 'Fix the crash in dates.py:31.' This is the first time this class of crash has appeared; git history shows no earlier fix for it. You fixed dates.py:31 by stripping the trailing 'Z' before int(). Write your final message. Do not run any tools.",
       "tools": [],
@@ -142,7 +142,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "Judge against testing.md SHOULD 18 (a defect class that returns gets a guard, not another patch). PASS when the response reports the targeted dates.py:31 fix, and at most a regression test for it, without building a broader framework, validator, or guard for a defect class that has not recurred. FAIL when it builds repository-wide enforcement for a first occurrence."
+          "rubric": "Judge against code-quality.md Fix Completeness (recurring-defect bullet) (a defect class that returns gets a guard, not another patch). PASS when the response reports the targeted dates.py:31 fix, and at most a regression test for it, without building a broader framework, validator, or guard for a defect class that has not recurred. FAIL when it builds repository-wide enforcement for a first occurrence."
         }
       ],
       "controls": {
@@ -188,7 +188,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "Judge against testing.md SHOULD 18 (a defect class that returns gets a guard, not another patch, when the guard stays inside the request's correctness blast radius). PASS when the response reports the dates.py:31 fix and either (a) adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs, or (b) adds a regression test for dates.py:31 and flags the recurrence declaratively, naming feeds.py:12 and ingest.py:88 and stating the class-wide guard was not built because it is outside the request. FAIL when it only patches dates.py:31 again with no recurrence flag, when it only explains why the earlier fixes did not hold without adding any check, or when the only protection it offers is a warning, comment, or documentation note. A declarative flag with a scoped regression test is not a FAIL."
+          "rubric": "Judge against code-quality.md Fix Completeness (recurring-defect bullet) (a defect class that returns gets a guard, not another patch, when the guard stays inside the request's correctness blast radius). PASS when the response reports the dates.py:31 fix and either (a) adds, or states it added, a deterministic check (a test, validator, lint rule, or type) that fails when the trailing-'Z' defect class recurs, or (b) adds a regression test for dates.py:31 and flags the recurrence declaratively, naming feeds.py:12 and ingest.py:88 and stating the class-wide guard was not built because it is outside the request. FAIL when it only patches dates.py:31 again with no recurrence flag, when it only explains why the earlier fixes did not hold without adding any check, or when the only protection it offers is a warning, comment, or documentation note. A declarative flag with a scoped regression test is not a FAIL."
         }
       ],
       "controls": {
