@@ -100,7 +100,7 @@ class TestMain:
         def fake(script, args):
             return {
                 "get_pr_context.py": lambda: (0, contexts.pop(0)),
-                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_checks.py": lambda: (0, _checks()),
                 "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
             }[script]()
 
@@ -116,7 +116,7 @@ class TestMain:
         def fake(script, args):
             return {
                 "get_pr_context.py": lambda: (0, contexts.pop(0)),
-                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_checks.py": lambda: (0, _checks()),
                 "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
             }[script]()
 
@@ -124,6 +124,7 @@ class TestMain:
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["verdict"] == "NOT_READY"
         assert data["handoff"] is None
+        assert data["reasons"] == ["1 review thread(s) unresolved"]
 
     def test_merge_state_lost_during_fetch_blocks_the_handoff(self, capsys):
         contexts = [_pr(), _pr(merge_state_status="UNKNOWN")]
@@ -131,12 +132,14 @@ class TestMain:
         def fake(script, args):
             return {
                 "get_pr_context.py": lambda: (0, contexts.pop(0)),
-                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_checks.py": lambda: (0, _checks()),
                 "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
             }[script]()
 
         assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["verdict"] == "NOT_READY"
+        assert data["reasons"] == ["merge state is UNKNOWN"]
 
     def test_head_recheck_failure_exits_3(self, capsys):
         contexts = [(0, _pr()), (3, None)]
@@ -145,7 +148,7 @@ class TestMain:
             if script == "get_pr_context.py":
                 return contexts.pop(0)
             return {
-                "get_pr_checks.py": (0, {"AllPassing": True}),
+                "get_pr_checks.py": (0, _checks()),
                 "get_pr_reviews.py": (0, {"reviews": [_stale_cr()]}),
             }[script]
 
