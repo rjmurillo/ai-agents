@@ -159,16 +159,26 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # template (templates/agents/merge-resolver.shared.md), and therefore the
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
 # agent prompt and change agent behavior (architect review, out of scope for a
-# baseline-green fix). Floor is set to the measured 20.7% so the existing
-# structure is accepted but any worsening still blocks. Re-measured for issue
-# #5074: the add/add rename-never-content-merge rule was added with identical
-# wording to both sides, which shifted the Jaccard section scores from the
-# prior 20.9% because the two shapes carry different surrounding prose.
+# baseline-green fix). Floor is the latest measured value (see the re-measure
+# notes below) so the existing structure is accepted. A similarity drop below
+# the floor prints DRIFT DETECTED. It fails only the install comparison, and only
+# with --fail-on-install-drift (the weekly workflow passes it). The vendored
+# comparison stays advisory through _ADVISORY_VENDORED_DRIFT.
+# Re-measured for issue #5074: the add/add rename-never-content-merge rule was
+# added with identical wording to both sides, which shifted the Jaccard section
+# scores from the prior 20.9% because the two shapes carry different
+# surrounding prose.
 # Re-measured for issue #5130 after the tier hierarchy was removed from the
 # governance docs and ``tier:`` frontmatter became ``role:``: both comparisons
 # still measure 20.7%. The enrichment PR #1426 added is section structure, not
 # tier prose, and neither merge-resolver body ever carried the tier text, so
 # removing it moved nothing. The floors stay where they are.
+# Re-measured for issue #5642 on 2026-10-17 (main 44fd46a46): PR #5470 (merged
+# 2026-09-02 UTC, merge commit 12bea5f59) deleted the "HANDOFF.md is read-only"
+# constraint line from both merge-resolver bodies when it retired HANDOFF.md.
+# Both sides lost the same shared words, so the Jaccard overlap fell from 20.7%
+# (measured at 3d304d4e2, the parent of #5470) to 20.3% in both comparisons.
+# The change was intended, so the floors are lowered to the measured 20.3%.
 #
 # merge-resolver install copy (Issue #2715): the same enrichment
 # lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
@@ -177,12 +187,13 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # reconciled by resyncing .github from the generated src/copilot-cli output, but
 # merge-resolver cannot be: its richness is on the .claude side by design, so a
 # resync would delete substantive Claude-only instructions. Floor is the measured
-# 20.7% (identical to the vendored floor because both compare the same enriched
-# .claude body against the same leaner template-derived body). Any worsening still
-# blocks.
+# 20.3% (identical to the vendored floor because both compare the same enriched
+# .claude body against the same leaner template-derived body). A similarity drop
+# below the floor prints DRIFT DETECTED and fails this comparison with
+# --fail-on-install-drift.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
-    ("merge-resolver", "src-claude vs src-vscode"): 20.7,
-    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.7,
+    ("merge-resolver", "src-claude vs src-vscode"): 20.3,
+    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.3,
 }
 
 # Pre-existing missing sections at the time section inventory was added
