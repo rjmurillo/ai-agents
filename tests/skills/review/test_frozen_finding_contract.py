@@ -114,6 +114,21 @@ class TestDiffCausedRegression:
         """Negative control: the tag is the only difference."""
         assert mod.scope_adjusted_verdict(_PRE_EXISTING_ONLY, _DIFF_FILES, frozen=True) == "PASS"
 
+    def test_unmet_criterion_tag_keeps_the_verdict_when_frozen(self) -> None:
+        text = _PRE_EXISTING_ONLY.replace(
+            "location: legacy/old_module.py:12",
+            "location: legacy/old_module.py:12 [unmet-criterion]",
+        )
+        assert mod.scope_adjusted_verdict(text, _DIFF_FILES, frozen=True) == "CRITICAL_FAIL"
+
+    def test_tagged_output_tells_the_caller_to_re_derive(self) -> None:
+        out = mod.format_scope_checked_text(self._TAGGED, _DIFF_FILES, frozen=True)
+        assert "Re-derive this axis verdict from counted findings only" in out
+
+    def test_tagged_output_in_round_one_has_no_note(self) -> None:
+        out = mod.format_scope_checked_text(self._TAGGED, _DIFF_FILES)
+        assert "Re-derive" not in out
+
     def test_tag_is_ignored_in_round_one(self) -> None:
         assert mod.scope_adjusted_verdict(self._TAGGED, _DIFF_FILES) == "WARN"
 
@@ -293,6 +308,8 @@ class TestReviewSkillStatesTheContract:
     def test_resource_tells_axes_to_tag_diff_caused_regressions(self) -> None:
         text = _CONTRACT.read_text(encoding="utf-8")
         assert "`[diff-caused]`" in text
+        assert "`[unmet-criterion]`" in text
+        assert "tagged findings included" in text
         assert "a file it did not touch" in text
 
     def test_resource_has_no_dashes(self) -> None:

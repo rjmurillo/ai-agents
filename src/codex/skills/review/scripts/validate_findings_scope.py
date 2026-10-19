@@ -18,7 +18,9 @@ With ``--frozen`` (review rounds after the first), a verdict whose every cited
 location is outside the PR diff becomes PASS instead of WARN. Those findings
 are flagged notes: they stay visible but never count toward the verdict. A
 finding tagged ``[diff-caused]`` (a regression the diff causes in a file it did
-not touch) keeps the verdict.
+not touch) or ``[unmet-criterion]`` (an unmet acceptance criterion that points at
+a file the PR did not touch) counts, so the output keeps its verdict and the
+orchestrator re-derives it from the counted findings.
 
 EXIT CODES (ADR-035):
     0 - All locations are in scope, or the diff list is empty or unavailable.
@@ -64,8 +66,10 @@ _VERDICT_RE = re.compile(
 _FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"})
 _COUNTING_VERDICTS = _FAIL_VERDICTS | frozenset({"WARN", "PARTIAL"})
 _PRE_EXISTING_MARKER = "[pre-existing - not in this PR diff]"
-# An axis tags a regression the diff causes in a file it did not touch.
-_DIFF_CAUSED_MARKER = "[diff-caused]"
+# An axis tags a finding that counts although its file is outside the diff:
+# a regression the diff causes in an untouched file, or an unmet acceptance
+# criterion that points at an untouched file.
+_COUNTING_TAGS = ("[diff-caused]", "[unmet-criterion]")
 
 # A location value is a file path when it contains a path separator or a
 # known extension.  Values like ``line 42`` or ``N/A`` are not file paths.
@@ -185,6 +189,10 @@ def extract_verdict(text: str) -> str | None:
     return match.group("token") if match else None
 
 
+def _has_counting_tag(text: str) -> bool:
+    return any(tag in text for tag in _COUNTING_TAGS)
+
+
 def scope_adjusted_verdict(text: str, diff_files: list[str], *, frozen: bool = False) -> str | None:
     """Return the verdict after removing out-of-scope blocking weight.
 
@@ -197,8 +205,9 @@ def scope_adjusted_verdict(text: str, diff_files: list[str], *, frozen: bool = F
     With *frozen* (review rounds after the first), the same all-out-of-scope
     output becomes PASS for any counting verdict (a blocking verdict, WARN, or
     PARTIAL): the findings are flagged notes and carry no weight. Output that
-    carries ``[diff-caused]`` keeps its verdict: the diff broke code it did not
-    touch, so the finding counts even though its file is outside the diff.
+    carries a counting tag keeps its verdict: such a finding counts although its
+    file is outside the diff. The verdict is then file-level, so the caller
+    re-derives it from the counted findings.
     """
     verdict = extract_verdict(text)
     if verdict is None:
@@ -206,7 +215,7 @@ def scope_adjusted_verdict(text: str, diff_files: list[str], *, frozen: bool = F
     in_scope, out_of_scope = validate_scope(text, diff_files)
     if not out_of_scope or in_scope:
         return verdict
-    if frozen and _DIFF_CAUSED_MARKER in text:
+    if frozen and _has_counting_tag(text):
         return verdict
     if frozen and verdict in _COUNTING_VERDICTS:
         return "PASS"
@@ -245,7 +254,7 @@ def _annotate_out_of_scope_lines(text: str, out_of_scope: list[str]) -> str:
         if (
             location in out_of_scope_set
             and _PRE_EXISTING_MARKER not in line
-            and _DIFF_CAUSED_MARKER not in line
+            and not _has_counting_tag(line)
         ):
             newline = "\n" if line.endswith("\n") else ""
             body = line[:-1] if newline else line
@@ -280,6 +289,13 @@ def format_scope_checked_text(text: str, diff_files: list[str], *, frozen: bool 
             + "\n\nScope adjustment: original verdict "
             + f"{original_verdict} {outcome} because "
             + "every cited location is outside the PR diff.\n"
+        )
+    if frozen and _has_counting_tag(text) and adjusted_verdict == original_verdict:
+        adjusted_text = (
+            adjusted_text.rstrip()
+            + "\n\nScope note: tagged findings count, so the verdict is unchanged. "
+            + "Re-derive this axis verdict from counted findings only; "
+            + "locations marked pre-existing are flagged notes.\n"
         )
     return adjusted_text
 
