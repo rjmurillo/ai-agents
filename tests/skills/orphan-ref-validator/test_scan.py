@@ -1953,6 +1953,9 @@ def _filters_module():
     return module
 
 
+PLANTED_PROBE_NAME = "zz-orphan-ref-probe.md"
+
+
 def _skill_names(result) -> set[str]:
     return {f.referenced_entity for f in result.findings if f.kind == "skill_name"}
 
@@ -2405,20 +2408,27 @@ class TestTheMemoryCorpusIsGateable:
         assert _skill_names(result) == set()
 
     def test_a_planted_reference_to_a_deleted_skill_is_still_caught(self, tmp_path):
-        """The other half of the acceptance bar."""
-        repo_root = _repo_root()
-        if not _catalog().is_dir():
+        """The other half of the acceptance bar.
+
+        The probe lives under a throwaway root, never the real checkout. A
+        probe written into the shared ``.serena/memories`` tree races any other
+        test that lists that folder (issue #6720). The throwaway root links the
+        real skills catalog so the detector still judges the reference against
+        the real set of living skills.
+        """
+        real_catalog = _repo_root() / ".claude" / "skills"
+        if not real_catalog.is_dir():
             pytest.skip("no skills catalog in this checkout")
-        planted = repo_root / ".serena" / "memories"
-        if not planted.is_dir():
-            pytest.skip("no .serena/memories in this checkout")
-        probe = planted / "zz-orphan-ref-probe.md"
-        probe.write_text("See the `doc-coverage` skill.\n", encoding="utf-8")
-        try:
-            result = scan([probe], repo_root)
-        finally:
-            probe.unlink()
+        root = tmp_path / "repo"
+        (root / ".git").mkdir(parents=True)
+        (root / ".claude").mkdir()
+        (root / ".claude" / "skills").symlink_to(real_catalog, target_is_directory=True)
+        probe = root / ".serena" / "memories" / PLANTED_PROBE_NAME
+        write(probe, "See the `doc-coverage` skill.\n")
+        result = scan([probe], root)
         assert _skill_names(result) == {"doc-coverage"}
+        shared = _repo_root() / ".serena" / "memories" / PLANTED_PROBE_NAME
+        assert not shared.exists(), "the probe leaked into the shared checkout"
 
 
 class TestDocumentationMayQuoteARouteWithoutBecomingOne:
