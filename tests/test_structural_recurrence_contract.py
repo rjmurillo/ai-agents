@@ -169,11 +169,12 @@ def test_scope_note_states_the_message_only_limit_and_the_ablated_pair() -> None
     assert "matches the rule's `**/*.py` `paths:` glob" in note
 
 
-def test_scope_note_carries_the_write_tool_caveat() -> None:
-    """On the Claude harness `write` maps to Edit (#6710), so the file_regex can fail on wiring."""
+def test_scope_note_records_the_write_tool_mapping() -> None:
+    """The note names the #6710 mapping that lets the agent create tests/test_dates.py."""
     note = json.loads(FIXTURES_PATH.read_text(encoding="utf-8"))["_scope_note"]
     assert "#6710" in note
-    assert "tool wiring" in note
+    assert "Claude Write and Edit" in note
+    assert "until #6710 lands" not in note
 
 
 def test_only_the_first_occurrence_fixture_is_message_only() -> None:

@@ -605,8 +605,9 @@ through an `env:` value, never interpolated directly in a `run:` line), and
 `generated-instructions-edit` (a rule change must land in
 `templates/rules/testing.md`, the canonical source, not
 `.github/instructions/testing.instructions.md`, its generated mirror). Each fixture
-grants the `read` and `write` tools (Claude `Read` and `Edit`, Copilot `view`
-and `edit`), because Claude's Edit refuses a file the session has not read. Every
+grants the `read` and `write` tools (Claude `Read`, `Write`, and `Edit`, Copilot
+`view`, `edit`, and `create`), because Claude's Edit refuses a file the session has
+not read. Every
 prompt stays neutral about which rule is under test. `--dry-run` validates
 each fixture's positive control passes and its negative control fails.
 
