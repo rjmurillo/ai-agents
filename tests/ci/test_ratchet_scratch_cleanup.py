@@ -10,6 +10,7 @@ the real ``/tmp``.
 
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import signal
@@ -340,11 +341,11 @@ def test_sweep_skips_a_live_scratch_tree_and_its_siblings(
     assert not sibling.exists()
 
 
-def test_create_scratch_reports_an_unavailable_lock(
+def test_create_scratch_skips_the_lock_where_the_filesystem_has_no_flock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     def refuse(_path: Path, _operation: int) -> int:
-        raise OSError("no locks here")
+        raise OSError(errno.ENOLCK, "no locks here")
 
     monkeypatch.setattr(mtm.tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(mtm.sys, "platform", "linux")
@@ -356,6 +357,77 @@ def test_create_scratch_reports_an_unavailable_lock(
     assert "scratch lock skipped" in capsys.readouterr().err
     assert mtm.remove_scratch(scratch, "test scratch") is None
     assert not scratch.exists()
+
+
+@pytest.mark.parametrize("code", [errno.EMFILE, errno.EACCES, None])
+def test_create_scratch_aborts_and_removes_the_tree_when_the_lock_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int | None
+) -> None:
+    """A tree with no lock is sweepable once it passes the age floor."""
+
+    def refuse(_path: Path, _operation: int) -> int:
+        raise OSError(code, "lock failed") if code is not None else OSError("lock failed")
+
+    monkeypatch.setattr(mtm.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(mtm.sys, "platform", "linux")
+    monkeypatch.setattr(mtm, "_open_locked", refuse)
+
+    with pytest.raises(OSError, match="lock failed"):
+        mtm.create_scratch("base-derived-ratchet-")
+
+    assert list(tmp_path.iterdir()) == []
+    # The registry is process-global and other tests on this worker may leave
+    # entries, so check only the keys this test could have created.
+    assert not any(held.parent == tmp_path for held in mtm._HELD_SCRATCH_LOCKS)
+
+
+@POSIX_ONLY
+def test_planted_foreign_lock_does_not_block_cleanup_of_our_sibling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another user plants the owner directory and holds its lock in a shared temp dir."""
+    planted = tmp_path / "merge-tree-ratchet-abc"
+    planted.mkdir()
+    sibling = _stale_dir(tmp_path, ".merge-tree-ratchet-abc-git-home")
+    real_uid = os.getuid()
+    holder = mtm._open_locked(planted, mtm.fcntl.LOCK_EX)
+    try:
+        monkeypatch.setattr(os, "getuid", lambda: real_uid)
+        monkeypatch.setattr(mtm, "_owned_by_current_user", lambda _path: False)
+
+        removed = mtm.sweep_stale_scratch(temp_root=tmp_path, max_age_seconds=3600)
+    finally:
+        os.close(holder)
+
+    assert removed == 1
+    assert not sibling.exists()
+
+
+@POSIX_ONLY
+def test_our_own_locked_owner_still_protects_its_sibling(tmp_path: Path) -> None:
+    owner = tmp_path / "merge-tree-ratchet-abc"
+    owner.mkdir()
+    sibling = _stale_dir(tmp_path, ".merge-tree-ratchet-abc-git-home")
+    holder = mtm._open_locked(owner, mtm.fcntl.LOCK_SH)
+    try:
+        removed = mtm.sweep_stale_scratch(temp_root=tmp_path, max_age_seconds=3600)
+    finally:
+        os.close(holder)
+
+    assert removed == 0
+    assert sibling.exists()
+
+
+def test_owned_by_current_user_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    here = tmp_path / "here"
+    here.mkdir()
+    assert mtm._owned_by_current_user(here)
+    assert mtm._owned_by_current_user(tmp_path / "missing")
+    if hasattr(os, "getuid"):
+        monkeypatch.setattr(os, "getuid", lambda: here.lstat().st_uid + 1)
+        assert not mtm._owned_by_current_user(here)
+        monkeypatch.delattr(os, "getuid")
+    assert mtm._owned_by_current_user(here)
 
 
 def test_without_flock_the_age_floor_alone_decides(

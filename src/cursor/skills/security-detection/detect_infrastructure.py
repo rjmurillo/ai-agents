@@ -192,7 +192,11 @@ CRITICAL_PATTERNS = [
     r".*/Authorization/",
     r".*/Security/",
     r".*/Identity/",
-    r".*Auth.*\.(cs|ts|js|py)$",
+    # "auth" as a name part, not as a substring of the word author (author, authors,
+    # authored, authoring, authorship, authorial). The lookahead needs a lowercase
+    # "or", then a non-letter or an uppercase letter, so AuthOrchestrator, authOrg,
+    # OAuthOrigin, authorize, and authority all stay in scope.
+    r".*auth(?!(?-i:or)(?:s|ed|ing|ship|ial)?(?:(?![a-z])|(?-i:[A-Z]))).*\.(cs|ts|js|py)$",
     r"\.env.*$",
     r".*\.(pem|key|p12|pfx|jks)$",
     r".*secret.*",

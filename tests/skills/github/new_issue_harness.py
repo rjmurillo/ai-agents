@@ -96,8 +96,12 @@ def _error(capsys) -> str:
 
 
 @pytest.fixture(autouse=True, name="resolve_repo")
-def resolve_repo_fixture():
-    """Resolve every run to owner/repo without touching git or gh."""
+def resolve_repo_fixture(stub_git_probes, tmp_path_is_temp_root):
+    """Resolve every run to owner/repo without touching git or gh.
+
+    ``stub_git_probes`` keeps the body-file containment check from adding git
+    subprocess calls to ``FakeGh.calls`` (issue #6667).
+    """
     with patch.object(mod, "resolve_repo_params") as mock_resolve:
         info = MagicMock()
         info.owner = "owner"

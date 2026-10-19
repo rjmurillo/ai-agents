@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.external_scratch import outside_every_repository
+import pytest
+
+from tests.external_scratch import (
+    make_external_dir,
+    outside_every_repository,
+    remove_external_dir,
+)
 
 
 def test_returns_parent_of_a_single_enclosing_repository(tmp_path: Path) -> None:
@@ -80,3 +86,72 @@ def test_result_has_no_repository_at_or_above_it(tmp_path: Path) -> None:
 
     assert result == tmp_path
     assert not any((c / ".git").exists() for c in (result, *result.parents))
+
+
+def test_remove_drops_the_root_once_it_is_empty(tmp_path: Path) -> None:
+    """The last worker out removes the shared root, so no empty dir is left."""
+    root = tmp_path / ".pytest-external-checkout"
+    path = make_external_dir(root, "a")
+    (path / "file.txt").write_text("x")
+
+    remove_external_dir(path)
+
+    assert not path.exists()
+    assert not root.exists()
+
+
+def test_remove_keeps_a_root_a_sibling_still_uses(tmp_path: Path) -> None:
+    """A root holding another worker's directory survives the first removal."""
+    root = tmp_path / ".pytest-external-checkout"
+    mine = make_external_dir(root, "mine")
+    theirs = make_external_dir(root, "theirs")
+
+    remove_external_dir(mine)
+
+    assert not mine.exists()
+    assert theirs.is_dir()
+
+
+def test_remove_tolerates_a_root_already_gone(tmp_path: Path) -> None:
+    """Removing a directory whose root vanished raises nothing."""
+    remove_external_dir(tmp_path / "gone-root" / "child")
+
+    assert not (tmp_path / "gone-root").exists()
+
+
+def test_make_retries_when_a_sibling_removes_the_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A root deleted mid-create is recreated on the next attempt."""
+    root = tmp_path / ".pytest-external-checkout"
+    real_mkdir = Path.mkdir
+    calls = {"n": 0}
+
+    def flaky_mkdir(
+        self: Path, mode: int = 0o777, parents: bool = False, exist_ok: bool = False
+    ) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise FileNotFoundError(str(self))
+        real_mkdir(self, mode, parents, exist_ok)
+
+    monkeypatch.setattr(Path, "mkdir", flaky_mkdir)
+
+    path = make_external_dir(root, "child")
+
+    assert path.is_dir()
+    assert calls["n"] >= 2
+
+
+def test_make_gives_up_after_three_missing_root_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A root that never stays put surfaces the error instead of looping."""
+
+    def always_missing(self: Path, *args: object, **kwargs: object) -> None:
+        raise FileNotFoundError(str(self))
+
+    monkeypatch.setattr(Path, "mkdir", always_missing)
+
+    with pytest.raises(FileNotFoundError):
+        make_external_dir(tmp_path / "root", "child")

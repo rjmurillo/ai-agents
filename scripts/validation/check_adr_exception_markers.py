@@ -17,6 +17,12 @@ each cited number against `.project-toolkit/architecture/ADR-NNN-*.md`:
     unread    the ADR's frontmatter `status` cannot be read (unparseable, absent,
               or not a scalar), so the marker cannot be shown to name a live ADR
 
+A comment that looks like a marker but would not match is a near miss and also
+fails the gate: `# ADR 055 Exception:`, `# ADR-055 Exception` (no colon),
+`# ADR-055: Exception`, or a misspelled word such as `Exeption`. A marker no gate
+can read is an audit trail nobody checks. Only a comment that starts with
+`# ADR` is examined, so prose such as `(ADR-055 exception)` is left alone.
+
 A marker can be written as a whole-line comment or trailing a YAML key. An ADR
 with no readable status fails the marker (issue #6506): passing on existence
 alone would let a retired record with broken frontmatter stand as live. The
@@ -30,7 +36,8 @@ fails is a new violation.
 
 Exit codes (per ADR-035):
     0 - every marker names a live ADR (or the tree holds no marker)
-    1 - one or more markers name a missing, retired, or unreadable-status ADR
+    1 - one or more markers name a missing, retired, or unreadable-status ADR,
+        or are misspelled
     2 - config error (a directory is missing, or a workflow cannot be read)
 """
 
@@ -40,6 +47,7 @@ import argparse
 import re
 import sys
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -57,6 +65,17 @@ WORKFLOW_DIR = Path(".github") / "workflows"
 # `# ADR-055 Exception:`, case-insensitive, any spacing around the words.
 MARKER_RE = re.compile(r"#\s*ADR-(?P<number>\d+)\s+Exception\s*:", re.IGNORECASE)
 
+# A comment that starts like a marker: `#` at the start of a line or after whitespace,
+# `ADR`, a number, an optional separator, then the next word. The word is compared with
+# "exception" to catch a misspelling. The `(?<!\S)` guard keeps a URL fragment such as
+# `https://h/p#adr-7-exception` from reading as a comment.
+CANDIDATE_RE = re.compile(
+    r"(?<!\S)#\s*ADR[\s_-]*(?P<number>\d+)\s*[:,-]?\s*(?P<word>[A-Za-z]+)", re.IGNORECASE
+)
+NEAR_MISS_WORD = "exception"
+# "Exeption" and "Exceptions" score 0.94; "except" scores 0.80 and stays unflagged.
+NEAR_MISS_RATIO = 0.85
+
 # Statuses that retire a record. `proposed` and `accepted` are live.
 RETIRED_STATUSES: frozenset[str] = frozenset({"superseded", "deprecated", "rejected"})
 
@@ -68,6 +87,15 @@ class Marker:
     path: str
     line: int
     number: int
+
+
+@dataclass(frozen=True, slots=True)
+class NearMiss:
+    """A comment that looks like a marker but does not match `MARKER_RE`."""
+
+    path: str
+    line: int
+    text: str
 
 
 class ConfigError(Exception):
@@ -102,9 +130,21 @@ def _workflow_files(workflow_dir: Path) -> list[Path]:
     return sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")])
 
 
-def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], int]:
-    """Return every marker plus the count of workflow files examined."""
+def find_near_miss(line: str) -> str | None:
+    """Return the comment text when ``line`` holds a marker-like comment `MARKER_RE` misses."""
+    for match in CANDIDATE_RE.finditer(line):
+        if MARKER_RE.match(line, match.start()):
+            continue
+        ratio = SequenceMatcher(None, match.group("word").lower(), NEAR_MISS_WORD).ratio()
+        if ratio >= NEAR_MISS_RATIO:
+            return line[match.start() :].strip()
+    return None
+
+
+def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], list[NearMiss], int]:
+    """Return every marker, every near miss, and the count of workflow files examined."""
     markers: list[Marker] = []
+    near_misses: list[NearMiss] = []
     files = _workflow_files(workflow_dir)
     for wf in files:
         rel = wf.relative_to(repo_root).as_posix()
@@ -116,7 +156,9 @@ def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], int
             match = MARKER_RE.search(line)
             if match:
                 markers.append(Marker(rel, number, int(match.group("number"))))
-    return markers, len(files)
+            if (miss := find_near_miss(line)) is not None:
+                near_misses.append(NearMiss(rel, number, miss))
+    return markers, near_misses, len(files)
 
 
 def judge(marker: Marker, statuses: dict[int, str]) -> str | None:
@@ -147,15 +189,23 @@ def run(repo_root: Path) -> int:
             print(f"[CONFIG] {label} directory not found: {directory}", file=sys.stderr)
             return EXIT_CONFIG
     try:
-        markers, examined = scan_markers(repo_root, workflow_dir)
+        markers, near_misses, examined = scan_markers(repo_root, workflow_dir)
     except ConfigError as exc:
         print(f"[CONFIG] {exc}", file=sys.stderr)
         return EXIT_CONFIG
     statuses = collect_adr_statuses(adr_dir)
     problems = [text for m in markers if (text := judge(m, statuses)) is not None]
+    problems += [
+        f"{n.path}:{n.line}: near-miss marker {n.text!r}; write it as `# ADR-NNN Exception:`"
+        for n in near_misses
+    ]
     summary = f"{len(markers)} marker(s) in {examined} workflow file(s)"
     if problems:
-        print(f"[FAIL] Markers cite a missing, retired, or unreadable-status ADR ({summary}):")
+        header = (
+            "[FAIL] Runner-exception markers cite a missing, retired, or unreadable-status ADR,"
+            " or are misspelled"
+        )
+        print(f"{header} ({summary}):")
         for text in problems:
             print(f"  - {text}")
         return EXIT_VIOLATION
