@@ -6,7 +6,7 @@
 
 For non-trivial tasks, delegate to specialized agents via Task tool:
 
-- `Task(subagent_type="orchestrator")` for multi-step coordination
+- `Task(subagent_type="orchestrator")` by default for non-trivial work
 - `Task(subagent_type="Explore")` for codebase exploration
 - Specialized agents (implementer, architect, analyst, etc.) for focused work
 
@@ -19,10 +19,6 @@ For non-trivial tasks, delegate to specialized agents via Task tool:
 
 ADR-064 retired `.claude/commands/`. Skills are the single user-invocable
 surface, and a blocking validator refuses a command file under any plugin root.
-
-### Default Behavior
-
-For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
 
 ## Path-scoped instructions
 

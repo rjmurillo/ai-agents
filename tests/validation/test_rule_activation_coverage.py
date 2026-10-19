@@ -410,3 +410,85 @@ def test_empty_scenario_dir_is_config_error(tmp_path: Path) -> None:
         path.unlink()
     baseline = _write_baseline(tmp_path, ["bare-rule", "covered-rule"], ["bare-skill"])
     assert _run(tmp_path, baseline) == gate.EXIT_CONFIG
+
+
+@pytest.mark.skipif(__import__("sys").platform == "win32", reason="symlinks need Developer Mode")
+def test_linked_skill_resolves_into_the_plugin_tree(tmp_path: Path) -> None:
+    # ADR-119: .claude/skills/<name> links to src/claude/skills/<name>.
+    plugin = tmp_path / "src" / "claude" / "skills" / "alpha"
+    plugin.mkdir(parents=True)
+    (plugin / "SKILL.md").write_text("---\nname: alpha\n---\n", encoding="utf-8")
+    (tmp_path / ".claude" / "skills").mkdir(parents=True)
+    (tmp_path / ".claude" / "skills" / "alpha").symlink_to("../../src/claude/skills/alpha")
+
+    artifact = gate._resolve_target(
+        tmp_path, ".claude/skills/alpha/SKILL.md", Path(".claude/skills"), "skill"
+    )
+
+    assert artifact == "alpha"
+
+
+@pytest.mark.skipif(__import__("sys").platform == "win32", reason="symlinks need Developer Mode")
+def test_linked_skill_escaping_both_roots_is_refused(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere" / "alpha"
+    elsewhere.mkdir(parents=True)
+    (elsewhere / "SKILL.md").write_text("x", encoding="utf-8")
+    (tmp_path / ".claude" / "skills").mkdir(parents=True)
+    (tmp_path / ".claude" / "skills" / "alpha").symlink_to("../../elsewhere/alpha")
+
+    with pytest.raises(gate.CoverageConfigError, match="must be spelled under"):
+        gate._resolve_target(
+            tmp_path, ".claude/skills/alpha/SKILL.md", Path(".claude/skills"), "skill"
+        )
+
+
+@pytest.mark.skipif(__import__("sys").platform == "win32", reason="symlinks need Developer Mode")
+def test_linked_rule_resolves_into_the_plugin_tree(tmp_path: Path) -> None:
+    # ADR-119: a shipped .claude/rules/<name>.md links to src/claude/rules/<name>.md.
+    plugin = tmp_path / "src" / "claude" / "rules"
+    plugin.mkdir(parents=True)
+    (plugin / "alpha.md").write_text("# alpha\n", encoding="utf-8")
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "alpha.md").symlink_to("../../src/claude/rules/alpha.md")
+
+    artifact = gate._resolve_target(
+        tmp_path, ".claude/rules/alpha.md", Path(".claude/rules"), "rule"
+    )
+
+    assert artifact == "alpha"
+
+
+@pytest.mark.skipif(__import__("sys").platform == "win32", reason="symlinks need Developer Mode")
+def test_linked_rule_escaping_both_roots_is_refused(tmp_path: Path) -> None:
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "alpha.md").write_text("x", encoding="utf-8")
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / ".claude" / "rules" / "alpha.md").symlink_to("../../elsewhere/alpha.md")
+
+    with pytest.raises(gate.CoverageConfigError, match="must be spelled under"):
+        gate._resolve_target(tmp_path, ".claude/rules/alpha.md", Path(".claude/rules"), "rule")
+
+
+@pytest.mark.parametrize(
+    ("kind", "target", "shipped"),
+    [
+        ("rule", "src/claude/rules/alpha.md", "src/claude/rules/alpha.md"),
+        ("skill", "src/claude/skills/alpha/SKILL.md", "src/claude/skills/alpha/SKILL.md"),
+    ],
+)
+def test_direct_src_claude_spelling_is_refused(
+    tmp_path: Path, kind: str, target: str, shipped: str
+) -> None:
+    (tmp_path / shipped).parent.mkdir(parents=True)
+    (tmp_path / shipped).write_text("x", encoding="utf-8")
+    with pytest.raises(gate.CoverageConfigError, match=f"direct src/claude/{kind}s/ path"):
+        gate._resolve_target(tmp_path, target, Path(f".claude/{kind}s"), kind)
+
+
+def test_traversal_out_of_the_named_root_is_refused(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / "other.md").write_text("x", encoding="utf-8")
+    with pytest.raises(gate.CoverageConfigError, match="must be spelled under .claude/rules/"):
+        gate._resolve_target(
+            tmp_path, ".claude/rules/../../other.md", Path(".claude/rules"), "rule"
+        )

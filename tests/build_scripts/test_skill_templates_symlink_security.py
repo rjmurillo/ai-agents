@@ -37,7 +37,7 @@ from _skill_template_helpers import write_template  # noqa: E402
 def test_discover_excludes_a_symlinked_skill_md_in_the_plugin_tree(
     tmp_path: Path,
 ) -> None:
-    """A real ``.claude/skills/<name>/`` dir with a symlinked plugin-tree
+    """A real ``src/claude/skills/<name>/`` dir with a symlinked
     ``SKILL.md`` is exit 2, never template-owned, and ``compile_all`` never
     writes through the link.
 
@@ -48,8 +48,6 @@ def test_discover_excludes_a_symlinked_skill_md_in_the_plugin_tree(
     PLUGIN path now, so that is where a symlink could redirect the write.
     """
     write_template(tmp_path, "sync", "hello\n")
-    skill_dir = tmp_path / ".claude" / "skills" / "sync"
-    skill_dir.mkdir(parents=True)
     plugin_dir = tmp_path / "src" / "claude" / "skills" / "sync"
     plugin_dir.mkdir(parents=True)
     outside = tmp_path / "outside-skill-md"
@@ -74,14 +72,72 @@ def test_discover_excludes_a_symlinked_skill_md_in_the_plugin_tree(
     assert result.exit_code == 2
 
 
-def test_discover_excludes_every_skill_when_the_skills_root_is_a_symlink_outside_the_repo(
+def test_discover_excludes_every_skill_when_the_plugin_tree_resolves_outside_the_repo(
     tmp_path: Path,
 ) -> None:
-    """An intermediate ``.claude/skills`` symlink to an external tree makes
-    every template a config error, and ``compile_all`` never writes there.
+    """An intermediate ``src/claude`` symlink to an external tree makes every
+    shipped template a config error, and ``compile_all`` never writes there.
     """
     write_template(tmp_path, "sync", "hello\n")
+    external = tmp_path.parent / f"{tmp_path.name}-external-claude"
+    (external / "skills" / "sync").mkdir(parents=True)
+    target = external / "skills" / "sync" / "SKILL.md"
+    target.write_text("do not overwrite me\n", encoding="utf-8")
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    try:
+        (src_dir / "claude").symlink_to(external, target_is_directory=True)
+    except OSError:
+        pytest.skip("cannot create a symlink on this platform/permission set")
+
+    assert skill_templates.discover(tmp_path) == {}
+    errors = skill_templates.discover_errors(tmp_path)
+    assert len(errors) == 1
+    assert "outside the repository root" in errors[0]
+    assert skill_templates.owned_targets(tmp_path) == set()
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert target.read_text(encoding="utf-8") == "do not overwrite me\n"
+    assert result.exit_code == 2
+
+
+def test_discover_excludes_a_shipped_skill_when_the_plugin_skills_root_is_a_symlink(
+    tmp_path: Path,
+) -> None:
+    write_template(tmp_path, "sync", "hello\n")
     external = tmp_path.parent / f"{tmp_path.name}-external-skills"
+    (external / "sync").mkdir(parents=True)
+    target = external / "sync" / "SKILL.md"
+    target.write_text("do not overwrite me\n", encoding="utf-8")
+    claude_dir = tmp_path / "src" / "claude"
+    claude_dir.mkdir(parents=True)
+    try:
+        (claude_dir / "skills").symlink_to(external, target_is_directory=True)
+    except OSError:
+        pytest.skip("cannot create a symlink on this platform/permission set")
+
+    assert skill_templates.discover(tmp_path) == {}
+    errors = skill_templates.discover_errors(tmp_path)
+    assert len(errors) == 1
+    assert "src/claude/skills/ is a symlink" in errors[0]
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert target.read_text(encoding="utf-8") == "do not overwrite me\n"
+    assert result.exit_code == 2
+
+
+def test_discover_excludes_every_repo_local_skill_when_the_install_root_is_a_symlink(
+    tmp_path: Path,
+) -> None:
+    """A repo-local skill renders under ``.claude/skills/``; a symlinked root
+    pointing outside the repository is a config error and is never written.
+    """
+    write_template(
+        tmp_path, "sync", "---\nname: sync\nmetadata:\n  distribution: repo-local\n---\nhello\n"
+    )
+    external = tmp_path.parent / f"{tmp_path.name}-external-install"
     (external / "sync").mkdir(parents=True)
     target = external / "sync" / "SKILL.md"
     target.write_text("do not overwrite me\n", encoding="utf-8")

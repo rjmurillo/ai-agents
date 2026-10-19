@@ -29,6 +29,7 @@ from __future__ import annotations
 import importlib
 import sys
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -99,6 +100,20 @@ class TestNoSingleChildOutlivesAContainer:
     These assertions are about the second case only.
     """
 
+    @staticmethod
+    def _container_cost(job: dict[str, Any], clamp: float) -> float:
+        """A job's worst case inside a container.
+
+        pre-pr-validation (issue #6725) adds a host-headroom wait to its
+        lefthook timeout, but `pre_pr_headroom.wait_seconds` is zero in a
+        container, so its container worst case is the run budget it declares in
+        PRE_PR_OUTER_CAP_SECONDS, not the timeout.
+        """
+        budget = (job.get("env") or {}).get("PRE_PR_OUTER_CAP_SECONDS")
+        if budget is not None:
+            return min(job_cost(job, clamp), float(budget))
+        return job_cost(job, clamp)
+
     def _per_job_container_bounds(self) -> list[tuple[float, str]]:
         import sys
 
@@ -107,7 +122,7 @@ class TestNoSingleChildOutlivesAContainer:
 
         clamp = git_hook_policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
         bounds = [
-            (job_cost(job, clamp), str(job.get("name", "<unnamed>")))
+            (self._container_cost(job, clamp), str(job.get("name", "<unnamed>")))
             for entry in load_config()["pre-push"]["jobs"]
             if isinstance(entry, dict)
             for job in flatten(entry)

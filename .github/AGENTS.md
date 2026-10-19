@@ -4,7 +4,7 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 
 ## Matters
 
-- Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/` (except hand-authored `hooks/memory-recall.json`), all in `build/scripts/build_all.py`'s `OWNED_PREFIXES`. `prompts/pr-quality-gate-*.md` regenerates only with `build/scripts/generate_pr_quality_prompts.py`, which `build_all.py` does not run.
+- Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/hooks.json`: links into `src/copilot-cli/`, plus repo-only real instructions (ADR-119). `prompts/pr-quality-gate-*.md` regenerates only with `build/scripts/generate_pr_quality_prompts.py`, which `build_all.py` does not run.
 - `copilot-instructions.md`: Copilot's always-on entry point (every Copilot CLI session). Byte ratchet 6351 (4707 today) in `scripts/validate_workspace_budget.py`, enforced by `tests/test_workspace_limits.py::test_per_file_limit` inside the required `Run Python Tests`; the pytest matrix runs on every event, so every edit here meets it.
 - Cross-harness work: read `agent-harness-reference` first, route it through `ai-agents-portability-campaign`.
 
@@ -18,10 +18,10 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 | Path | Why |
 |---|---|
 | `workflows/*.yml` (56) | Hand-edited; schema and SHA pins by `validate_workflows.py` |
-| `agents/*.agent.md` (31) | Generated; do not hand-edit |
+| `agents/*.agent.md` (30) | Links to the shipped `src/copilot-cli/agents/` |
 | `agents/security/references/*.md` | Hand copy of `src/claude/security/references/`; edit both |
-| `instructions/*.instructions.md` | `generate_rules.py` from `src/claude/rules/` |
-| `hooks/` | Binplaced from `src/copilot-cli/hooks/`; `hooks.json` registers nothing. `memory-recall.json` is hand-authored: Copilot memory recall on `userPromptTransformed` (issue #4727) |
+| `instructions/*.instructions.md` | Links, plus repo-only files from `generate_rules.py` |
+| `hooks/` | `hooks.json` links to `src/copilot-cli/hooks/` and registers nothing. `memory-recall.json` is hand-authored: Copilot memory recall on `userPromptTransformed` (issue #4727) |
 | `prompts/` (33) | 12 `pr-quality-gate-*.md` generated; 7 `pr-quality.*.prompt.md` hand-written, dot not hyphen |
 | `agents/pr-comment-responder.prompt.md` | Only `.prompt.md` under `agents/`; hand-maintained |
 
@@ -51,7 +51,7 @@ CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON for 
 
 ## Architecture
 
-- `generate_rules.py` writes both mirrors in one run, renaming `paths:` to `applyTo:` and dropping `priority:`/`alwaysApply:`: `instructions/` keeps every rule (28), `src/copilot-cli/instructions/` drops rules whose globs are all internal-only (22, issue #4317). Counts are not meant to match.
+- `generate_rules.py` renames `paths:` to `applyTo:`, drops `priority:`/`alwaysApply:`, skips all-internal rules from `src/copilot-cli/instructions/` (issue #4317) and writes them to `instructions/`.
 - `prompts/pr-quality-gate-*.md`: one-way edge from `.claude/skills/review/references/`, outside `build_all.py --check`. Stale output blocks at lefthook `review-axis-drift` and the `Review-axes drift check` step.
 
 ## Commands

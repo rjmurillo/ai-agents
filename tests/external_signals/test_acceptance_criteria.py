@@ -363,3 +363,25 @@ def test_acceptance_headings_are_counted_in_the_raw_body() -> None:
     body = "```\n## Acceptance\n- [ ] x\n```\n## Acceptance criteria\n- [x] y\n"
     assert ac.acceptance_heading_count(body) == 2
     assert ac.acceptance_heading_count("## Acceptance\n- [x] y\n") == 1
+
+
+def test_has_acceptance_section_true_for_accepted_heading() -> None:
+    assert ac.has_acceptance_section("## Acceptance criteria\n\n1. one\n")
+
+
+def test_has_acceptance_section_false_for_suffixed_heading() -> None:
+    assert not ac.has_acceptance_section("## Acceptance criteria (draft)\n\n- [x] one\n")
+
+
+def test_has_acceptance_section_false_when_absent() -> None:
+    assert not ac.has_acceptance_section("prose only")
+
+
+def test_near_miss_headings_lists_rejected_headings_only() -> None:
+    body = "## Acceptance criteria\n\n## Acceptance criteria (draft)\n\n### 2. Acceptance\n"
+    assert ac.near_miss_headings(body) == ["## Acceptance criteria (draft)", "### 2. Acceptance"]
+
+
+def test_near_miss_headings_ignores_hidden_and_non_heading_lines() -> None:
+    body = "see acceptance below\n<!--\n## Acceptance (old)\n-->\n```\n## Acceptance (x)\n```\n"
+    assert ac.near_miss_headings(body) == []

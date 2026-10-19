@@ -1,6 +1,6 @@
 """Generated-mirror false positives in the security-suppression gate.
 
-ADR-109 B3's follow-up (generate_skills.sync_claude_plugin_skill_support)
+ADR-109 B3's follow-up (generate_skills.prune_stale_claude_skill_support)
 mirrors .claude/skills/ into src/claude/skills/ byte for byte. Git's rename
 detector (-M) only pairs an ADDED path with a DELETED one; a mirror added
 alongside its unchanged source has no deletion to pair with, so an

@@ -33,10 +33,18 @@ Reused by reference, not reimplemented: the always-on byte ratchet
 (`check_rule_activation_coverage.py`). Change amplification per owner uses the
 capability graph survey from `check_capability_graph.py`.
 
+With ``--base-ref`` the ceiling is the baseline recorded at the fork point of
+HEAD and that ref, not the one in the working tree. A branch that hand-edits the
+baseline to cover its own new debt still fails, because the working-tree baseline
+can only tighten the ceiling, never loosen it (issue #6506). In CI on a pull
+request the checkout is the merge commit, so the fork point is the base tip.
+
 Exit codes (ADR-035):
     0 - Success (debt is at or below the baseline, or the baseline was updated)
     1 - Logic error (debt grew, a baseline entry is stale, or growth was refused)
-    2 - Config error (invalid root, an empty scan, or a missing/invalid baseline)
+    2 - Config error (invalid root, an empty scan, or a missing/invalid baseline,
+        including an invalid baseline at the base ref)
+    3 - External error (git cannot name a fork point or read the base ref)
 """
 
 from __future__ import annotations
@@ -57,7 +65,15 @@ for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
 
 from check_capability_graph import TreeError, survey  # noqa: E402
 from nl_cardinality import Fence, derived_count_claims, fence_step  # noqa: E402
-from nl_cohesion import MIN_SPREAD, path_spread  # noqa: E402
+from nl_cohesion import MIN_SPREAD, FrontmatterError, path_spread  # noqa: E402
+from nl_debt_ceiling import (  # noqa: E402
+    SECTIONS,
+    BaseRefError,
+    ceiling_baseline,
+    compare,
+    default_base_ref,
+    remediation,
+)
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
@@ -68,6 +84,10 @@ SKILL_ROOT = ".claude/skills"
 # authored comes from `instruction_bytes_corpus.canonical_paths`, the one source of truth.
 EXTRA_AUTHORED_GLOBS: tuple[tuple[str, str], ...] = ((".github/prompts", "*.md"),)
 NL_SUFFIXES = (".md", ".tmpl", ".mustache")
+# A template is a fragment: templates/agents/*.claude.md.tmpl opens `---` and takes its
+# closing fence from a shared include, so its frontmatter is not parseable alone. The
+# rendered rule is what carries `paths:`, so only non-template files fail on bad frontmatter.
+FRAGMENT_SUFFIXES = (".tmpl", ".mustache")
 # `.github/prompts/pr-quality-gate-*.md` is generated from the review skill's
 # references (templates/platforms/binplace.yaml), so it is a projection.
 GENERATED_PROMPT_PREFIX = "pr-quality-gate-"
@@ -191,7 +211,14 @@ def stale_counts(files: dict[str, str]) -> dict[str, str]:
 
 def spreads(files: dict[str, str]) -> dict[str, int]:
     """Map each rule path to its root spread when the spread reaches the cohesion floor."""
-    found = {rel: path_spread(text) for rel, text in files.items()}
+    found: dict[str, int] = {}
+    for rel, text in files.items():
+        try:
+            found[rel] = path_spread(text)
+        except FrontmatterError as exc:
+            if rel.endswith(FRAGMENT_SUFFIXES):
+                continue
+            raise ScanError(f"{rel}: {exc}; the cohesion ratchet cannot measure it") from exc
     return {rel: n for rel, n in sorted(found.items()) if n >= MIN_SPREAD}
 
 
@@ -219,60 +246,34 @@ def measure(repo_root: Path) -> dict[str, dict[str, Any]]:
     }
 
 
+def _parse_baseline(text: str, label: str) -> dict[str, dict[str, Any]]:
+    """Validate one baseline document. ``label`` names its source in every error."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ScanError(f"{label} is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict) or not {"duplicate_blocks", "cardinality"} <= set(data):
+        raise ScanError(f"{label} must hold `duplicate_blocks` and `cardinality`")
+    if set(data) - set(SECTIONS):
+        raise ScanError(f"{label} holds an unknown section")
+    data.setdefault("cohesion", {})
+    if not all(isinstance(data[k], dict) for k in data):
+        raise ScanError(f"{label} sections must be objects")
+    counts = data["duplicate_blocks"].values()
+    if not all(type(v) is int and v > 0 for v in counts):
+        raise ScanError(f"{label} `duplicate_blocks` values must be positive integers")
+    if not all(isinstance(v, str) for v in data["cardinality"].values()):
+        raise ScanError(f"{label} `cardinality` values must be strings")
+    if not all(type(v) is int and v > 0 for v in data["cohesion"].values()):
+        raise ScanError(f"{label} `cohesion` values must be positive integers")
+    return data
+
+
 def _load_baseline(repo_root: Path) -> dict[str, dict[str, Any]]:
     path = repo_root / BASELINE_PATH
     if not path.is_file():
         raise ScanError(f"baseline missing: {BASELINE_PATH}; run with --update-baseline")
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise ScanError(f"baseline is not valid JSON: {exc}") from exc
-    if not isinstance(data, dict) or not {"duplicate_blocks", "cardinality"} <= set(data):
-        raise ScanError("baseline must hold `duplicate_blocks` and `cardinality`")
-    if set(data) - {"duplicate_blocks", "cardinality", "cohesion"}:
-        raise ScanError("baseline holds an unknown section")
-    data.setdefault("cohesion", {})
-    if not all(isinstance(data[k], dict) for k in data):
-        raise ScanError("baseline sections must be objects")
-    counts = data["duplicate_blocks"].values()
-    if not all(type(v) is int and v > 0 for v in counts):
-        raise ScanError("baseline `duplicate_blocks` values must be positive integers")
-    if not all(isinstance(v, str) for v in data["cardinality"].values()):
-        raise ScanError("baseline `cardinality` values must be strings")
-    if not all(type(v) is int and v > 0 for v in data["cohesion"].values()):
-        raise ScanError("baseline `cohesion` values must be positive integers")
-    return data
-
-
-def compare(
-    current: dict[str, dict[str, Any]], baseline: dict[str, dict[str, Any]]
-) -> tuple[list[str], list[str]]:
-    """Return (growth, shrink) findings; growth always fails, shrink demands a baseline update."""
-    growth: list[str] = []
-    shrink: list[str] = []
-    for key, count in current["duplicate_blocks"].items():
-        allowed = baseline["duplicate_blocks"].get(key, 0)
-        if count > allowed:
-            growth.append(f"duplicate block {key}: {count} shared windows, baseline {allowed}")
-    for key in current["cardinality"]:
-        if key not in baseline["cardinality"]:
-            growth.append(f"stale count {key}: write `{current['cardinality'][key]}` instead")
-    for key, spread in current["cohesion"].items():
-        allowed = baseline["cohesion"].get(key, 0)
-        if spread > allowed:
-            growth.append(f"low cohesion {key}: {spread} unrelated roots, baseline {allowed}")
-    for key, allowed in baseline["cohesion"].items():
-        if current["cohesion"].get(key, 0) < allowed:
-            shrink.append(f"low cohesion {key} shrank below baseline {allowed}")
-    for key, allowed in baseline["duplicate_blocks"].items():
-        if current["duplicate_blocks"].get(key, 0) < allowed:
-            shrink.append(f"duplicate block {key} shrank below baseline {allowed}")
-    shrink.extend(
-        f"stale count {key} is gone"
-        for key in baseline["cardinality"]
-        if key not in current["cardinality"]
-    )
-    return sorted(growth), sorted(shrink)
+    return _parse_baseline(path.read_text(encoding="utf-8"), "baseline")
 
 
 def amplification(repo_root: Path, duplicates: dict[str, int]) -> dict[str, dict[str, int]]:
@@ -294,19 +295,9 @@ def amplification(repo_root: Path, duplicates: dict[str, int]) -> dict[str, dict
     return report
 
 
-def _remediation() -> str:
-    return (
-        "Fix, in order of preference: delete the repeated text; keep one owner and "
-        "depend on it; drop the derived count; split a rule that claims unrelated roots by "
-        "responsibility. Do not resync copies, because a "
-        "synchronized copy keeps the obligation. To lock in a burn-down, run "
-        "`uv run python scripts/validation/check_nl_structural_debt.py --update-baseline`."
-    )
-
-
 def validate_nl_structural_debt(repo_root: Path) -> bool:
     """Return True when debt is at or below the baseline. Entry point for pre_pr_sequence."""
-    return run(repo_root, update=False) == 0
+    return run(repo_root, update=False, base_ref=default_base_ref(repo_root)) == 0
 
 
 def _refuses_write_from_outside(repo_root: Path) -> bool:
@@ -328,22 +319,29 @@ def _refuses_write_from_outside(repo_root: Path) -> bool:
     return True
 
 
-def run(repo_root: Path, update: bool, report: bool = False) -> int:
-    """Measure, compare, and return an ADR-035 exit code."""
+def run(repo_root: Path, update: bool, report: bool = False, base_ref: str | None = None) -> int:
+    """Measure, compare, and return an ADR-035 exit code.
+
+    ``base_ref`` makes the baseline recorded at its fork point the ceiling (issue #6506).
+    """
     if update and _refuses_write_from_outside(repo_root):
         return 2
     try:
         current = measure(repo_root)
         path = repo_root / BASELINE_PATH
         baseline = current if update and not path.is_file() else _load_baseline(repo_root)
+        ceiling = ceiling_baseline(repo_root, base_ref, BASELINE_PATH, _parse_baseline)
         fanout = amplification(repo_root, current["duplicate_blocks"]) if report else {}
     except GraphViolationError as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return 1
+    except BaseRefError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return 3
     except (ScanError, TreeError) as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return 2
-    growth, shrink = compare(current, baseline)
+    growth, shrink = compare(current, baseline, ceiling)
     examined = len(authored_files(repo_root))
     if report:
         payload = {**current, "amplification": fanout, "examined": examined}
@@ -351,12 +349,12 @@ def run(repo_root: Path, update: bool, report: bool = False) -> int:
     if growth:
         print(f"[FAIL] {len(growth)} structural debt increase(s):", file=sys.stderr)
         print("\n".join(f"  {g}" for g in growth), file=sys.stderr)
-        print(_remediation(), file=sys.stderr)
+        print(remediation(capped=ceiling is not None), file=sys.stderr)
         return 1
     if shrink and not update:
         print(f"[FAIL] {len(shrink)} baseline entr(ies) are stale; debt shrank:", file=sys.stderr)
         print("\n".join(f"  {s}" for s in shrink), file=sys.stderr)
-        print(_remediation(), file=sys.stderr)
+        print(remediation(), file=sys.stderr)
         return 1
     if update:
         path.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -371,12 +369,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("repo_root", nargs="?", default=None)
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--report", action="store_true")
+    parser.add_argument(
+        "--base-ref",
+        default=None,
+        help=(
+            "Git ref whose fork point with HEAD supplies the trusted baseline "
+            "(issue #6506). Omit to trust the working-tree baseline."
+        ),
+    )
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
     root = Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parents[2]
     if not root.is_dir():
         print(f"[FAIL] Invalid repository root: {root}", file=sys.stderr)
         return 2
-    return run(root, args.update_baseline, args.report)
+    return run(root, args.update_baseline, args.report, args.base_ref)
 
 
 if __name__ == "__main__":

@@ -551,7 +551,95 @@ Respond in JSON only, no other text:
     fingerprint = require_str_or_none(metadata.get("system_fingerprint"), "system_fingerprint")
     if fingerprint is not None:
         result["judge_system_fingerprint"] = fingerprint
+    if not is_negative:
+        _apply_forbidden_claims(scenario, response, result)
     return result
+
+
+# A response that makes a claim its scenario forbids is not a 5, however well
+# the judge liked the rest of it. The cap sits below the "present" half of the
+# 1 to 5 rubric so the cell cannot read as grounded.
+FORBIDDEN_CLAIM_SCORE_CAP = 2
+
+
+# A clause that hedges ("cannot say", "whether", "if") reports the absence of
+# evidence, not a claim. A forbidden pattern that matches after a hedge in the
+# same clause is a correct answer, so it is not a hit. A hedge governs only its
+# own clause: a comma, a colon, or a contrast or consequence word ("but", "so")
+# ends it, so "I can't confirm much, but threads 4 and 5 are still open" is a
+# hit. "and" and "or" do not end a clause, and neither does a comma inside a
+# list of numbers ("whether threads 4, 5 are still open"), because the canonical
+# hedged answer is "I cannot say whether threads 4 and 5 are still open".
+_CLAUSE_BREAK = re.compile(
+    r"[.;:!?\n]|(?<!\d),|,(?!\s*\d)"
+    r"|\b(?:but|so|yet|however|although|though|whereas)\b",
+    re.IGNORECASE,
+)
+_CLAIM_HEDGE = re.compile(
+    r"\b(?:cannot|can't|can\s+not|unable\s+to|do(?:es)?\s+not\s+know|don't\s+know"
+    r"|whether|if|unless)\b",
+    re.IGNORECASE,
+)
+# A match that "not" or "never" directly negates ("unread, not NOT RUN") names
+# the forbidden state in order to deny it. The voice rule's own wording does
+# this, so a response that follows the rule must not be capped for it.
+_NEGATED_PREFIX = re.compile(r"\b(?:not|never)\s+[`'\"]?$", re.IGNORECASE)
+
+
+def _is_hedged(response: str, match_start: int) -> bool:
+    """True when a hedge precedes `match_start` inside the same clause."""
+    breaks = [m.end() for m in _CLAUSE_BREAK.finditer(response, 0, match_start)]
+    clause_start = breaks[-1] if breaks else 0
+    return _CLAIM_HEDGE.search(response, clause_start, match_start) is not None
+
+
+def _is_negated(response: str, match_start: int) -> bool:
+    """True when `not` or `never` directly precedes `match_start`."""
+    return _NEGATED_PREFIX.search(response[max(0, match_start - 12) : match_start]) is not None
+
+
+def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
+    """Return the scenario's `forbidden_response_patterns` that match `response`.
+
+    The judge reads the signals as vocabulary and can pass a response that
+    names the wrong state: V9 ran the command, so "NOT RUN" misreports it, and
+    V12 never read threads 4 and 5 back, so "still open" asserts a state no
+    evidence supports (#5405). A regex over the response catches that without
+    a second model call. Patterns match case-insensitively; a pattern can opt
+    out with an inline `(?-i:...)` group. A match that follows a hedge in its
+    own clause (`_CLAIM_HEDGE`) is a correct "I cannot say" answer and is not
+    a hit, and neither is a match that `not` or `never` directly negates. A
+    pattern that does not compile is a scenario bug and raises, so the run
+    stops instead of silently grading with no check.
+    """
+    patterns = scenario.get("forbidden_response_patterns", [])
+    if not isinstance(patterns, list):
+        raise ValueError(f"{scenario.get('id', '?')}: forbidden_response_patterns must be a list")
+    hits: list[str] = []
+    for pattern in patterns:
+        if not isinstance(pattern, str):
+            raise ValueError(
+                f"{scenario.get('id', '?')}: forbidden_response_patterns holds a non-string"
+            )
+        compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+        if any(
+            not _is_hedged(response, m.start()) and not _is_negated(response, m.start())
+            for m in compiled.finditer(response)
+        ):
+            hits.append(pattern)
+    return hits
+
+
+def _apply_forbidden_claims(
+    scenario: dict[str, Any], response: str, result: dict[str, Any]
+) -> None:
+    """Cap the three scores and record the hits when a forbidden claim matched."""
+    hits = _forbidden_claim_hits(scenario, response)
+    if not hits:
+        return
+    for key in ("activation_score", "citation_score", "behavior_score"):
+        result[key] = min(result[key], FORBIDDEN_CLAIM_SCORE_CAP)
+    result["forbidden_claim_hits"] = hits
 
 
 def _clamp_score(value: object) -> int:
@@ -1214,8 +1302,51 @@ def eval_one_scenario(
                 # prose cannot move it. The judge scores above are unchanged.
                 mechanism_result["decision"] = grade_decision(decision_spec, response).to_dict()
         _add_mechanism_metadata(mechanism_result, routing, fingerprint)
+        # A response cut at the token cap, refused, or otherwise unfinished is
+        # shorter than the full answer, so its size says nothing about the rule.
+        # Record why, and leave the size fields off: `_size_covers_pool` then
+        # reads the pool as unmeasured and publishes no delta (#5405).
+        # `_size_is_unclipped` also covers a provider that reports no
+        # termination but applies the cap.
+        termination = metadata.get("termination")
+        if isinstance(termination, str):
+            mechanism_result["termination"] = termination
+        finish_reason = metadata.get("finish_reason")
+        if isinstance(finish_reason, str):
+            mechanism_result["finish_reason"] = finish_reason
+        if _size_is_unclipped(metadata):
+            mechanism_result["response_chars"] = len(response)
+            output_tokens = metadata.get("output_tokens")
+            if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
+                mechanism_result["output_tokens"] = output_tokens
         result["mechanisms"][mechanism] = mechanism_result
     return result
+
+
+# Provider finish reasons that mean the model stopped on its own: the OpenAI
+# `stop` and the Anthropic `end_turn` and `stop_sequence`.
+_COMPLETED_FINISH_REASONS: frozenset[str] = frozenset({"stop", "end_turn", "stop_sequence"})
+
+
+def _size_is_unclipped(metadata: dict[str, object]) -> bool:
+    """True when the response size can be compared across arms (#5405).
+
+    A termination in `NON_SCOREABLE_TERMINATIONS` is clipped or refused. The
+    default Anthropic path reports `completed`. Every alternate provider
+    reports `unknown`, which does not separate two cases: a CLI provider
+    ignores `max_tokens`, so its answer is never cut, while an HTTP provider
+    sends the cap and can cut at it. `max_tokens_applied` names the second
+    group. For it, only a completed finish reason proves the answer is whole;
+    a cut, an unknown reason, or no reason leaves the size unproven.
+    """
+    termination = metadata.get("termination")
+    if termination in NON_SCOREABLE_TERMINATIONS:
+        return False
+    if termination == "completed":
+        return True
+    if metadata.get("max_tokens_applied") is not True:
+        return True
+    return metadata.get("finish_reason") in _COMPLETED_FINISH_REASONS
 
 
 def _is_valid_score(value: object) -> bool:
@@ -1338,6 +1469,31 @@ def _incomplete_mechanisms(
     return sorted(m for m in mechs if _graded_count(per_mech[m]) < pool_size)
 
 
+def _mean_int_field(pool: list[dict[str, Any]], mech: str, field: str) -> tuple[float | None, int]:
+    """Unrounded mean of an integer field over the cells that recorded it, and how many did.
+
+    Callers round for display and keep this value for any subtraction, the same
+    split `avg_score` and `avg_score_exact` make.
+
+    `bool` is refused by name because it is an `int` subclass. None, not 0.0,
+    when no cell recorded the field: an unmeasured size is not a size of zero.
+    """
+    values = [
+        v
+        for s in pool
+        if isinstance(v := s.get("mechanisms", {}).get(mech, {}).get(field), int)
+        and not isinstance(v, bool)
+    ]
+    if not values:
+        return None, 0
+    return sum(values) / len(values), len(values)
+
+
+def _round_mean(value: float | None) -> float | None:
+    """The published one-decimal form of a mean, or None when nothing was measured."""
+    return None if value is None else round(value, 1)
+
+
 def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
@@ -1363,6 +1519,8 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     # observation supports. An absent number has to be handled; a zero does
     # not, so it travels silently into the table.
     avg = round(sum(scores) / len(scores), 2) if scores else None
+    output_token_exact, output_token_count = _mean_int_field(pool, mech, "output_tokens")
+    response_chars_exact, response_chars_count = _mean_int_field(pool, mech, "response_chars")
     return {
         "avg_score": avg,
         # The published average is rounded, and archived runs recorded it that
@@ -1379,6 +1537,17 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
         "judge_failure_samples": failure_samples,
         "legacy_reduced_count": legacy,
         "route_mismatch_count": route_missed,
+        # Output tokens the API reported for the response under test (#5405),
+        # not the judge's. None when no cell reported usage, so a provider
+        # that sends none is never read as a zero-token response.
+        "mean_output_tokens": _round_mean(output_token_exact),
+        "mean_output_tokens_exact": output_token_exact,
+        "output_token_count": output_token_count,
+        # Length of the response text. A subscription CLI provider returns
+        # text with no usage block, so this is the only size signal there.
+        "mean_response_chars": _round_mean(response_chars_exact),
+        "mean_response_chars_exact": response_chars_exact,
+        "response_chars_count": response_chars_count,
     }
 
 
@@ -1513,6 +1682,23 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary[f"delta_{mech_name}_vs_baseline_measured"] = _delta_measured(
             pos_cells[mech_name], pos_cells["baseline"]
         )
+    summary["output_tokens_delta_full_vs_baseline"] = _output_token_delta(
+        pos_cells["full"], pos_cells["baseline"]
+    )
+    summary["response_chars_delta_full_vs_baseline"] = _response_chars_delta(
+        pos_cells["full"], pos_cells["baseline"]
+    )
+    # The negative pool holds the cases where the rule must stay out of the
+    # way (requested detail, long-form deliverables). A shrink there means the
+    # rule compressed output it exempts, and a judge that cannot see length
+    # scores it the same as no shrink. The positive pool's delta alone hides it.
+    neg_cells = summary["negative_case_per_mechanism"]
+    summary["negative_output_tokens_delta_full_vs_baseline"] = _output_token_delta(
+        neg_cells["full"], neg_cells["baseline"]
+    )
+    summary["negative_response_chars_delta_full_vs_baseline"] = _response_chars_delta(
+        neg_cells["full"], neg_cells["baseline"]
+    )
     summary["delta_rounding_disagrees"] = any(
         summary[f"delta_{mech_name}_vs_baseline"]
         != summary[f"delta_{mech_name}_vs_baseline_measured"]
@@ -1718,6 +1904,55 @@ def _delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     return round(treatment_avg - control_avg, 2)
 
 
+def _size_covers_pool(cell: dict[str, Any], count_key: str) -> bool:
+    """Whether a size mean (tokens or chars) covers every scenario in the pool.
+
+    Same rule as `_fully_graded`, applied to the size fields. Archived
+    summaries predate the count keys, so a missing key reads as not covered.
+    """
+    count = cell.get(count_key)
+    return (
+        isinstance(count, int)
+        and not isinstance(count, bool)
+        and count > 0
+        and count == cell.get("scenario_count")
+    )
+
+
+def _size_delta(
+    treatment: dict[str, Any], control: dict[str, Any], count_key: str, mean_key: str
+) -> float | None:
+    """Mean size, treatment minus control, or None unless both sides cover the pool.
+
+    A negative value means the rule shortened the response. Subtracting a mean
+    over 1 scenario from a mean over 2 describes neither: with baseline
+    reporting 500 and 50 tokens and full reporting 50 and none, the published
+    delta was -225.0 while the only scenario both measured differed by -450.
+    Both sides must have reported on every scenario in their pool, the same
+    rule `_delta` applies to scores. Archived summaries predate the field, so
+    a missing key reads as unmeasured, not as zero.
+    """
+    if not _size_covers_pool(treatment, count_key) or not _size_covers_pool(control, count_key):
+        return None
+    # Subtract the exact means and round only the result. Archived summaries
+    # predate the exact keys, so they fall back to the published mean.
+    treated = treatment.get(f"{mean_key}_exact", treatment.get(mean_key))
+    base = control.get(f"{mean_key}_exact", control.get(mean_key))
+    if treated is None or base is None:
+        return None
+    return float(round(treated - base, 1))
+
+
+def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """Mean output tokens, treatment minus control. See `_size_delta`."""
+    return _size_delta(treatment, control, "output_token_count", "mean_output_tokens")
+
+
+def _response_chars_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """Mean response characters, treatment minus control. See `_size_delta`."""
+    return _size_delta(treatment, control, "response_chars_count", "mean_response_chars")
+
+
 def _delta_measured(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
     """The same gap taken between the measured averages.
 
@@ -1883,6 +2118,37 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_size_rows(
+    summary: dict[str, Any], pool_key: str, label: str, delta_prefix: str
+) -> list[str]:
+    """Output-token and response-char lines for one pool, each printed only when measured.
+
+    Tokens print when both arms reported on every scenario (the delta is then
+    not None). Chars print under the same coverage rule, so the two means
+    describe the same cells.
+    """
+    base_cell = summary[pool_key]["baseline"]
+    full_cell = summary[pool_key]["full"]
+    rows: list[str] = []
+    token_delta = summary.get(f"{delta_prefix}output_tokens_delta_full_vs_baseline")
+    if token_delta is not None:
+        rows.append(
+            f"{label} output tokens: baseline {base_cell['mean_output_tokens']} "
+            f"(n={base_cell['output_token_count']}), "
+            f"full {full_cell['mean_output_tokens']} "
+            f"(n={full_cell['output_token_count']}) ({token_delta:+})"
+        )
+    chars_delta = summary.get(f"{delta_prefix}response_chars_delta_full_vs_baseline")
+    if chars_delta is not None:
+        rows.append(
+            f"{label} response chars: baseline {base_cell['mean_response_chars']} "
+            f"(n={base_cell['response_chars_count']}), "
+            f"full {full_cell['mean_response_chars']} "
+            f"(n={full_cell['response_chars_count']}) ({chars_delta:+})"
+        )
+    return rows
+
+
 def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     worst_neg = summary.get("worst_negative_avg")
     if worst_neg is None:
@@ -1940,6 +2206,10 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         ),
         f"Restraint on negative cases: {restraint}",
     ]
+    rows += _render_size_rows(summary, "per_mechanism", "Mean", "")
+    rows += _render_size_rows(
+        summary, "negative_case_per_mechanism", "Negative-pool mean", "negative_"
+    )
     rows += _render_caveats(summary)
     rows += [
         "",
@@ -2012,7 +2282,28 @@ def _parse_args() -> argparse.Namespace:
 
 
 RULES_DIR = (REPO_ROOT / ".claude" / "rules").resolve()
+# Shipped rules are symlinks from .claude/rules/<name>.md into src/claude/rules/
+# (ADR-119); repo-only rules stay real files under .claude/rules/.
+RULES_DIRS = (RULES_DIR, (REPO_ROOT / "src" / "claude" / "rules").resolve())
 SKILLS_DIR = (REPO_ROOT / ".claude" / "skills").resolve()
+# Shipped skills are symlinks from .claude/skills/<name> into src/claude/skills/
+# (ADR-119), so a resolved shipped skill lives under the second root.
+SKILLS_DIRS = (SKILLS_DIR, (REPO_ROOT / "src" / "claude" / "skills").resolve())
+
+
+def _is_under_skills_dir(path: Path) -> bool:
+    """True when a resolved path sits under a trusted skills root."""
+    return any(path.is_relative_to(root) for root in SKILLS_DIRS)
+
+
+def _is_named_under(path_str: str, root_name: str) -> bool:
+    """True when the spelled path, before symlink resolution, sits under .claude/<root_name>/.
+
+    A scenario names the .claude/ spelling. A direct src/claude/ spelling is
+    refused even though a shipped link resolves there.
+    """
+    named = Path(os.path.normpath(REPO_ROOT / path_str))
+    return named.is_relative_to(REPO_ROOT / ".claude" / root_name)
 
 
 def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
@@ -2146,12 +2437,19 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
 
 def _resolve_rule_path(rule_path_str: str) -> Path | int:
     """Resolve and validate rule_path stays under .claude/rules/ as a .md file."""
-    rule_path = (REPO_ROOT / rule_path_str).resolve()
-    try:
-        rule_path.relative_to(RULES_DIR)
-    except ValueError:
+    joined = REPO_ROOT / rule_path_str
+    rule_path = joined.resolve()
+    # Named under .claude/rules/, resolving there or (a shipped link) into
+    # src/claude/rules/; a direct src/claude/rules/ reference is refused.
+    if (
+        not _is_named_under(rule_path_str, "rules")
+        or joined.parent.resolve() != RULES_DIR
+        or not any(rule_path.is_relative_to(root) for root in RULES_DIRS)
+    ):
         print(
-            f"ERROR: rule_path must be under .claude/rules/: {rule_path_str}",
+            "ERROR: rule_path must be spelled under .claude/rules/ (it may resolve into "
+            f"src/claude/rules/ through a link; a direct src/claude/rules/ path "
+            f"is refused): {rule_path_str}",
             file=sys.stderr,
         )
         return 2
@@ -2175,11 +2473,11 @@ def _resolve_skill_path(skill_path_str: str) -> Path | int:
     `full` mechanism from sending arbitrary skill-tree content to the API.
     """
     skill_path = (REPO_ROOT / skill_path_str).resolve()
-    try:
-        skill_path.relative_to(SKILLS_DIR)
-    except ValueError:
+    if not _is_named_under(skill_path_str, "skills") or not _is_under_skills_dir(skill_path):
         print(
-            f"ERROR: skill_path must be under .claude/skills/: {skill_path_str}",
+            "ERROR: skill_path must be spelled under .claude/skills/ (it may resolve into "
+            f"src/claude/skills/ through a link; a direct src/claude/skills/ path "
+            f"is refused): {skill_path_str}",
             file=sys.stderr,
         )
         return 2
@@ -2202,11 +2500,11 @@ def _resolve_skill_reference(
     """Resolve and validate a skill SKILL.md plus one reference file."""
     skill_path = (REPO_ROOT / skill_path_str).resolve()
     reference_path = (REPO_ROOT / reference_path_str).resolve()
-    try:
-        skill_path.relative_to(SKILLS_DIR)
-    except ValueError:
+    if not _is_named_under(skill_path_str, "skills") or not _is_under_skills_dir(skill_path):
         print(
-            f"ERROR: skill_path must be under .claude/skills/: {skill_path_str}",
+            "ERROR: skill_path must be spelled under .claude/skills/ (it may resolve into "
+            f"src/claude/skills/ through a link; a direct src/claude/skills/ path "
+            f"is refused): {skill_path_str}",
             file=sys.stderr,
         )
         return 2

@@ -1,8 +1,8 @@
 # Script Integration Framework
 
-<!-- vendor-portability-exec: example invocations only; scripts referenced here are illustrative and do not exist in this repository -->
+<!-- vendor-portability-exec: example invocations only; scripts referenced here are mostly illustrative; the one real script is get_unresolved_review_threads.py in the github skill -->
 
-Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and self-verifying.
+Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and independently verifiable.
 
 ---
 
@@ -13,12 +13,12 @@ Scripts transform skills from documentation-only guides into executable, verifia
 | Without Scripts | With Scripts |
 |----------------|--------------|
 | Manual execution | Automated, repeatable |
-| Human verification | Self-verification |
+| Human verification | Independent verification |
 | Session-bound state | Persistent state |
 | Error-prone | Deterministic |
 | Hard to compose | Easily orchestrated |
 
-**Principle:** A skill with well-designed scripts can run autonomously, verify its own success, and recover from errors without human intervention.
+**Principle:** A skill with well-designed scripts can run unattended for scoped, user-approved operations, hand its outcome to an independent check, and recover from errors.
 
 ---
 
@@ -38,8 +38,8 @@ Does this operation require...?
 ├─► State persistence across sessions?
 │   └── YES → Script required (JSON/YAML state files)
 │
-├─► Autonomous verification (skill verifies itself)?
-│   └── YES → Script required (exit codes, ValidationResult)
+├─► Autonomous verification (outcome must be checked without the agent's opinion)?
+│   └── YES → Script or existing instrument required (executor script plus an independent postcondition check)
 │
 ├─► Complex calculations or transformations?
 │   └── YES → Script recommended
@@ -64,7 +64,49 @@ Does this operation require...?
 | "Read this file and understand it" | No | Cognitive task, not automatable |
 | "Transform JSON to YAML" | Yes | Deterministic transformation |
 | "Decide which approach to use" | No | Requires human judgment |
-| "Check if all tests pass" | Yes | Verification with clear exit code |
+| "Check if all tests pass" | Yes | Counts as verification through its reported results (count, names), not exit 0 alone |
+| "Count the unresolved threads on a PR" | Existing instrument | Exact computable fact; an existing tool already answers it |
+| "Choose between two designs with different costs" | No (map) | Ambiguous tradeoff; the agent decides from observations |
+| "Collect CI evidence, pick a fix, apply and re-check" | Partial (hybrid) | Scripts gather and validate; the agent decides in between |
+
+### Design Selection: Map, GPS, or Hybrid
+
+The tree above answers "script or prose". Before choosing, name who decides. This is a design choice, not a section every skill carries. Record it in a generated skill only where it changes the workflow.
+
+Ask these five questions about the operation:
+
+| Question | Points toward |
+|----------|---------------|
+| Is the input ambiguous, or do branch criteria need judgment? | Map |
+| Can a program check the postcondition without the agent's opinion? | GPS or hybrid |
+| Can the action be undone cheaply? | GPS is safer when yes; keep a review step when no |
+| What does a wrong action cost? | High cost keeps a reviewed decision in the path |
+| Does an instrument already perform the operation? | Reuse it; do not write a script |
+
+| Design | Use when | Shape |
+|--------|----------|-------|
+| **Map** | The case is ambiguous and judgment decides | Give observations, instruments, branch criteria, and accepted outcomes. The agent decides. |
+| **GPS** | Inputs and postconditions are deterministic | A program runs the specified operation. The agent makes no decision that a program could make. |
+| **Hybrid** | Facts are measurable, the choice needs judgment, and the action is checkable | Deterministic evidence collection, then an agent decision, then deterministic validation or execution. |
+
+Routing examples:
+
+| Task | Design | Why |
+|------|--------|-----|
+| Report the number of unresolved review threads on a PR | GPS, through the existing instrument | Exact computable fact. `get_unresolved_review_threads.py` returns `unresolved_count`. Read it, and accept it only when `fetched_pages_complete` is true. Exit 0 can accompany an incomplete snapshot. |
+| Pick between two architectures with different maintenance costs | Map | Ambiguous tradeoff. No program can score it. Give criteria and let the agent decide. |
+| Gather failing-check logs, decide the fix, apply it, re-run the checks | Hybrid | Measured facts, then judgment, then a validated action. |
+
+Counter-examples:
+
+| Anti-pattern | Correct design |
+|--------------|----------------|
+| Replace an ambiguous, consequential decision with unreviewed deterministic automation (for example, a script that auto-merges on a heuristic score) | Map or hybrid: keep a reviewed decision before the action |
+| Write a new script for an operation an existing tool already performs | Reuse the tool. Add a script only after you verify the capability gap. |
+
+### Executor Success Is Not Verified Success
+
+Separate execution authority from verification authority. The step that runs an operation reports that it ran. A separate check confirms the postcondition. Exit code 0 shows the executor finished. It does not show the task outcome holds when a check can read that outcome directly (file exists with expected content, API state changed, test count matches).
 
 ---
 
@@ -149,24 +191,24 @@ Python is the default language for skill scripts because:
 
 These patterns make scripts capable of autonomous operation.
 
-### Pattern 1: Self-Verification
+### Pattern 1: Fast-Fail Output Check
 
-Scripts should verify their own outputs:
+Scripts should check their own outputs and fail fast. This guard is not verification authority. An independent postcondition check still runs after the script:
 
 ```python
-def execute_and_verify(input_data):
-    """Execute operation and verify the result."""
+def execute_and_check(input_data):
+    """Execute operation and fail fast on a bad result."""
     result = perform_operation(input_data)
 
-    # Self-verification - the script checks itself
+    # Fast-fail guard - the script checks itself; an independent postcondition check still runs after it
     is_valid, reason = verify_output(result)
     if not is_valid:
-        return Result(success=False, message=f"Verification failed: {reason}", errors=[reason])
+        return Result(success=False, message=f"Fast-fail check failed: {reason}", errors=[reason])
 
-    return Result(success=True, message="Operation verified", data=result)
+    return Result(success=True, message="Operation completed", data=result)
 ```
 
-**Why:** Enables autonomous operation - Claude can trust the script's exit code.
+**Why:** Stops a bad result early. The exit code reports executor success only. Where a postcondition can be checked independently, run a separate check and treat that result as the evidence, not exit 0.
 
 ### Pattern 2: Error Recovery
 
@@ -178,8 +220,10 @@ def resilient_operation(max_retries=3):
     for attempt in range(max_retries):
         try:
             result = perform_operation()
-            if verify_result(result):
+            is_valid, reason = fast_fail_check(result)
+            if is_valid:
                 return result
+            log(f"Attempt {attempt + 1} rejected: {reason}, retrying...")
         except RecoverableError as e:
             if attempt == max_retries - 1:
                 raise  # Final attempt, propagate error
@@ -287,8 +331,9 @@ During Deep Analysis, apply the **Automation Lens** (Lens 12) to identify script
 | "What operations will be repeated identically?" | Identify determinism needs |
 | "What outputs require validation before proceeding?" | Identify verification scripts |
 | "What state needs to persist between skill invocations?" | Identify state management |
-| "How will the skill verify its own success?" | Enable autonomous verification |
+| "How will an independent check confirm the skill's outcome?" | Enable independent verification |
 | "What existing scripts in the ecosystem could be reused?" | Avoid reinventing |
+| "Is this map, GPS, or hybrid (see Design Selection)?" | Decide who judges and who verifies |
 | "Can this skill run overnight without human intervention?" | Assess agentic capability |
 | "What would break if executed manually vs scripted?" | Identify fragile operations |
 | "How would another Claude instance recover from failure?" | Design error handling |
@@ -426,7 +471,7 @@ Every script must be documented in SKILL.md:
 Before finalizing a skill with scripts, verify:
 
 - [ ] **Autonomous Execution:** Can the skill run without user intervention?
-- [ ] **Self-Verification:** Can scripts verify their own outputs?
+- [ ] **Fast-Fail and Independent Check:** Do scripts fail fast, and, where the outcome can be checked independently, does a separate postcondition check confirm it?
 - [ ] **Error Recovery:** Do scripts attempt recovery before failing?
 - [ ] **State Persistence:** Is progress saved across sessions?
 - [ ] **Structured Output:** Do scripts output machine-readable data?
@@ -557,7 +602,7 @@ WITH HOOKS:
 | No exit codes | Can't detect failure | Use `sys.exit(0)` / `sys.exit(1)` |
 | Print-only errors | Errors lost in noise | Use `sys.stderr` |
 | Required external deps | Reduces portability | Use stdlib or graceful fallback |
-| No self-verification | Can't trust output | Add verification step |
+| No independent postcondition check | Exit 0 is trusted as success | Add a separate check of the outcome |
 | Monolithic scripts | Hard to reuse | Break into focused scripts |
 | No state management | Lose progress | Use JSON state files |
 | Hardcoded tool versions | Breaks with updates | Abstract tool invocations |

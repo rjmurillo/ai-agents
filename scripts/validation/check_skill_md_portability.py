@@ -92,6 +92,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -389,6 +390,16 @@ def has_portability_marker(text: str) -> bool:
     return _MARKER_PATTERN.search(_strip_inline_code(_strip_code(text))) is not None
 
 
+# One scanned file reaches ``_strip_code`` several times with the same text:
+# ``count_file_refs`` and ``count_marker_suppressed_refs`` each call
+# ``has_portability_marker``, which strips, ``count_file_refs`` then strips
+# again itself, and the drift check strips again. A CommonMark parse costs
+# milliseconds, so an unmarked file was parsed several times where once is
+# enough (issue #5382). A marked file still takes a second parse, because
+# ``count_marker_suppressed_refs`` strips the text with its marker removed.
+# The result is a pure function of an immutable string, so it is cached. 128
+# entries hold one file's working set. A failed parse raises and is not cached.
+@functools.lru_cache(maxsize=128)
 def _strip_code(text: str) -> str:
     """Remove fenced and indented code blocks, leaving prose and inline code.
 
@@ -859,22 +870,25 @@ def _is_skill_markdown(rel_path: str) -> bool:
     )
 
 
-# src/claude/skills/ and src/copilot-cli/skills/ mirror .claude/skills/ byte
-# for byte (build/scripts/generate_skills.py). A skill .md's upstream-path
-# ref count at one of these mirror paths is not new drift when the file's
-# content, right now, matches its .claude/skills/ source verbatim: it is the
-# SAME already-baselined count appearing at a path the branch is populating
-# for the first time (ADR-109 B3's support-file follow-up mirrored 525 files
-# in one PR, each carrying whatever refs its already-reviewed source already
-# had). Without this, the semantic-baseline-conflict guard (issue #4195)
+# src/copilot-cli/skills/ mirrors src/claude/skills/ byte for byte
+# (build/scripts/generate_skills.py). ADR-119 made src/claude/skills/ the
+# canonical copy and .claude/skills/<name> a directory link to it, so
+# src/claude/skills/ is no longer a mirror of anything: treating it as one
+# compares a file with itself and always reports it verbatim. A skill .md's
+# upstream-path ref count at the Copilot mirror path is not new drift when the
+# file's content, right now, matches its src/claude/skills/ source verbatim: it
+# is the SAME already-baselined count appearing at a path the branch is
+# populating for the first time (ADR-109 B3's support-file follow-up mirrored 525
+# files in one PR, each carrying whatever refs its already-reviewed source
+# already had). Without this, the semantic-baseline-conflict guard (issue #4195)
 # cannot tell a verbatim mirror apart from genuinely new prose, because the
 # path itself is new even though its content is not.
-_SKILL_MIRROR_PREFIXES: tuple[str, ...] = ("src/claude/skills/", "src/copilot-cli/skills/")
-_SKILL_CANONICAL_PREFIX = ".claude/skills/"
+_SKILL_MIRROR_PREFIXES: tuple[str, ...] = ("src/copilot-cli/skills/",)
+_SKILL_CANONICAL_PREFIX = "src/claude/skills/"
 
 
 def _skill_mirror_source(rel_path: str) -> str | None:
-    """Return the canonical .claude/skills/ path a mirror path maps to, if any."""
+    """Return the canonical src/claude/skills/ path a mirror path maps to, if any."""
     for prefix in _SKILL_MIRROR_PREFIXES:
         if rel_path.startswith(prefix):
             return _SKILL_CANONICAL_PREFIX + rel_path[len(prefix) :]
@@ -1128,8 +1142,8 @@ def _semantic_conflict_is_fatal(
     if ref_counts is None:
         _report_semantic_conflict(baseline_path, root, conflicting_inputs)
         return True
-    # A verbatim generated-mirror path (src/claude/skills/, src/copilot-cli/
-    # skills/) is excluded here too, not only from conflicting_inputs above:
+    # A verbatim generated-mirror path (src/copilot-cli/skills/) is excluded here
+    # too, not only from conflicting_inputs above:
     # this comparison runs against the FULL current-count map regardless of
     # which paths triggered the guard, so a real regression elsewhere (for
     # example an instructions mirror) would otherwise still drag in every

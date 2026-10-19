@@ -37,7 +37,7 @@ human approves it.
 
 Every comparison is against the base ref tip, never the merge base: a head
 behind the base runs the old copy of a file the base moved. With `--head-sha`, a
-finding where the head equals the merge base is labelled STALE, which still
+finding where the head equals every merge base is labelled STALE, which still
 fails and tells the author to merge the base ref (issue #6472).
 
 EXIT CODES (ADR-035):
@@ -70,16 +70,43 @@ EXIT_OK = 0
 EXIT_DIFFERS = 1
 EXIT_CONFIG = 2
 
-GATE = ".claude/skills/github/scripts/pr/run_completion_gate.py"
-CONFIG = ".claude/skills/pr-review/pr-review-config.yaml"
+# ADR-119: .claude/skills/<name> links into src/claude/skills, and git cannot
+# read a blob through a link, so the closure names the plugin-tree paths.
+GATE = "src/claude/skills/github/scripts/pr/run_completion_gate.py"
+CONFIG = "src/claude/skills/pr-review/pr-review-config.yaml"
 CHANGED = "changed"
 ADDED = "added"
 STALE = "stale"
 STALE_REMEDY = (
-    "dispatch-closure: STALE files match the merge base but not the base ref: "
+    "dispatch-closure: STALE files match every merge base but not the base ref: "
     "merge the base ref into the branch and push"
 )
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
+
+
+def _load_ref_links() -> ModuleType:
+    """Load ``_ref_links.py`` from this file's own directory, the trusted tool root.
+
+    Loaded by path, never by name, so neither ``sys.path`` nor the head work tree
+    can substitute it; it works the same run as a script and imported as a package.
+    """
+    path = Path(__file__).resolve().parent / "_ref_links.py"
+    spec = importlib.util.spec_from_file_location("verify_dispatch_closure_ref_links", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_REF_LINKS = _load_ref_links()
+_base_blob = _REF_LINKS.base_blob
+_blob_id = _REF_LINKS.blob_id
+_in_ref = _REF_LINKS.in_ref
+_resolve_in_ref = _REF_LINKS.resolve_in_ref
+_head_file = _REF_LINKS.head_file
+_following = _REF_LINKS.following
+_symlinks_in_tree = _REF_LINKS.symlinks_in_tree
 
 
 class DispatchClosureError(Exception):
@@ -145,17 +172,6 @@ def _criteria(gate: ModuleType, config: dict[str, Any]) -> list[Any]:
     return [*listed, *gate._scripts_map_criteria(config)]
 
 
-def _base_blob(tool_root: Path, base_ref: str, path: str) -> bytes | None:
-    """The bytes of ``path`` at ``base_ref`` in the base checkout, or None if absent."""
-    result = subprocess.run(
-        ["git", "cat-file", "blob", f"{base_ref}:{path}"],
-        cwd=tool_root,
-        capture_output=True,
-        check=False,
-    )
-    return result.stdout if result.returncode == 0 else None
-
-
 def _named_files(gate: ModuleType, config: dict[str, Any], tree: Path) -> list[str]:
     """Files the config's commands name, classified from inside ``tree``.
 
@@ -174,24 +190,6 @@ def _named_files(gate: ModuleType, config: dict[str, Any], tree: Path) -> list[s
     return [*named, *escaping]
 
 
-def _blob_id(tool_root: Path, ref: str, path: str) -> str | None:
-    """The object id of ``path`` at ``ref`` in the base checkout, or None if absent."""
-    result = subprocess.run(
-        ["git", *_INERT_GIT, "rev-parse", "--verify", "--quiet", f"{ref}:{path}"],
-        cwd=tool_root,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
-
-
-def _in_ref(tool_root: Path, ref: str, path: str) -> bool:
-    """True when ``path`` exists at ``ref`` in the base checkout."""
-    return _blob_id(tool_root, ref, path) is not None
-
-
 def _same_symlinks(tool_root: Path, ref: str | None, head_sha: str | None) -> set[str]:
     """Symlinks of ``ref`` that the head carries with the same target.
 
@@ -207,45 +205,30 @@ def _same_symlinks(tool_root: Path, ref: str | None, head_sha: str | None) -> se
     }
 
 
-def _symlinks_in_tree(root: Path) -> set[str]:
-    found: set[str] = set()
-    for directory, names, files in os.walk(root, followlinks=False):
-        for name in [*names, *files]:
-            full = Path(directory) / name
-            if full.is_symlink():
-                found.add(full.relative_to(root).as_posix())
-    return found
-
-
 def _base_symlinks(tool_root: Path, base_ref: str) -> set[str]:
-    listing = subprocess.run(
-        ["git", *_INERT_GIT, "ls-tree", "-r", "-z", base_ref],
-        cwd=tool_root,
-        capture_output=True,
-        check=False,
-    )
-    entries = listing.stdout.decode("utf-8", errors="replace").split("\0")
-    return {e.split("\t", 1)[1] for e in entries if e.startswith("120000 ") and "\t" in e}
+    return set(_REF_LINKS.link_table(tool_root, base_ref) or {})
 
 
-def _merge_base(tool_root: Path, base_ref: str, head_sha: str | None) -> str | None:
-    """The commit where the head branched from the base ref, or None when unknown.
+def _merge_bases(tool_root: Path, base_ref: str, head_sha: str | None) -> list[str]:
+    """Every commit where the head branched from the base ref, or [] when unknown.
 
-    None covers a head given as a work tree (no commit to compare), a shallow
-    history that does not reach the fork point, and an unrelated history. The
-    merge base only picks the STALE label; it never clears a finding.
+    [] covers a work-tree head, a shallow history that misses the fork point, and
+    an unrelated history. ``--all`` matters after a criss-cross merge: plain
+    ``merge-base`` prints one of several ancestors, and the head shapes which.
+    They only pick STALE, which needs a match at every one; they never clear.
     """
     if head_sha is None:
-        return None
+        return []
     result = subprocess.run(
-        ["git", *_INERT_GIT, "merge-base", base_ref, head_sha],
+        ["git", *_REF_LINKS.INERT_GIT, "merge-base", "--all", base_ref, head_sha],
         cwd=tool_root,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else None
+    found = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return found if result.returncode == 0 else []
 
 
 def _classify(
@@ -254,7 +237,7 @@ def _classify(
     head_root: Path,
     head_sha: str | None,
     path: str,
-    fork: str | None = None,
+    forks: list[str] | None = None,
 ) -> str | None:
     """How the head's ``path`` compares with the base ref tip, or None when equal.
 
@@ -263,46 +246,54 @@ def _classify(
     scratch tree equal the base's while the committed blob differs.
 
     Only equality with the base ref tip clears a file. A head blob that differs
-    from the tip but equals the merge-base blob is STALE: the base moved or
-    deleted the file after the branch point, and the head still runs the old copy.
+    from the tip but equals the blob at every merge base is STALE: the base moved
+    or deleted the file after the branch point, and the head still runs the old
+    copy.
     """
     base_id = _blob_id(tool_root, base_ref, path)
     if head_sha is None:
         if base_id is None:
             return ADDED
-        same = _base_blob(tool_root, base_ref, path) == (head_root / path).read_bytes()
+        head = _head_file(head_root, path)
+        same = head is not None and _base_blob(tool_root, base_ref, path) == head.read_bytes()
         return None if same else CHANGED
     head_id = _blob_id(tool_root, head_sha, path)
     if head_id is not None and head_id == base_id:
         return None
-    if fork is not None and head_id is not None and head_id == _blob_id(tool_root, fork, path):
+    if head_id is not None and forks and {_blob_id(tool_root, f, path) for f in forks} == {head_id}:
         return STALE
     return ADDED if base_id is None else CHANGED
 
 
 def _missing_roots(
-    tool_root: Path, head_root: Path, base_ref: str, roots: list[str], fork: str | None
+    tool_root: Path, head_root: Path, base_ref: str, roots: list[str], forks: list[str]
 ) -> tuple[list[str], list[str]]:
-    """Roots the base tip has and the head lacks; stale when the merge base lacks them too."""
+    """Roots the base tip has and the head lacks; stale when every merge base lacks them too."""
     missing = [
         path
         for path in roots
-        if not (head_root / path).is_file() and _in_ref(tool_root, base_ref, path)
+        if _head_file(head_root, path) is None and _in_ref(tool_root, base_ref, path)
     ]
-    stale = [path for path in missing if fork is not None and not _in_ref(tool_root, fork, path)]
+    stale = [p for p in missing if forks and not any(_in_ref(tool_root, f, p) for f in forks)]
     return [path for path in missing if path not in stale], stale
 
 
 def _new_symlinks(
-    tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None, fork: str | None
+    tool_root: Path,
+    head_root: Path,
+    base_ref: str,
+    head_sha: str | None,
+    forks: list[str],
+    links: dict[str, str],
 ) -> tuple[list[str], list[str]]:
-    """Head symlinks the base tip lacks (by target with a head SHA), split into added and stale."""
+    """Head symlinks the base tip lacks with the same target, split into added and stale."""
     if head_sha is None:
-        known = _base_symlinks(tool_root, base_ref)
+        known = {p for p, text in links.items() if _REF_LINKS.head_link_text(head_root, p) == text}
     else:
         known = _same_symlinks(tool_root, base_ref, head_sha)
     found = _symlinks_in_tree(head_root) - known
-    stale = found & _same_symlinks(tool_root, fork, head_sha)
+    shared = [_same_symlinks(tool_root, fork, head_sha) for fork in forks]
+    stale = found.intersection(*shared) if shared else set()
     return sorted(found - stale), sorted(stale)
 
 
@@ -317,44 +308,48 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
     """
     gate = _load_gate(tool_root)
     config = _base_config(tool_root)
-    base_named = _named_files(gate, config, tool_root)
-    roots = list(dict.fromkeys([GATE, CONFIG, *base_named, *_named_files(gate, config, head_root)]))
-    closure = gate._expand_import_closure(
-        [path for path in roots if (head_root / path).is_file()], head_root
-    )
-    fork = _merge_base(tool_root, base_ref, head_sha)
+    links = _REF_LINKS.link_table(tool_root, base_ref)
+    if links is None:
+        raise DispatchClosureError(f"a symlink at {base_ref} cannot be read")
+    with _following(gate, tool_root, links):
+        base_named = _named_files(gate, config, tool_root)
+    with _following(gate, head_root, links):
+        head_named = _named_files(gate, config, head_root)
+        roots = list(dict.fromkeys([GATE, CONFIG, *base_named, *head_named]))
+        closure = gate._expand_import_closure(
+            [path for path in roots if _head_file(head_root, path) is not None], head_root
+        )
+        unresolved = gate._unresolvable_dynamic_sites(closure, head_root)
+    forks = _merge_bases(tool_root, base_ref, head_sha)
+    if not forks and head_sha is not None:
+        print("note: no merge base for the head, so STALE reads as CHANGED", file=sys.stderr)
     report = Report(examined=len(closure))
-    removed, stale_roots = _missing_roots(tool_root, head_root, base_ref, roots, fork)
+    removed, stale_roots = _missing_roots(tool_root, head_root, base_ref, roots, forks)
     report.removed.extend(removed)
     report.stale.extend(stale_roots)
     buckets = {CHANGED: report.changed, ADDED: report.added, STALE: report.stale}
     for path in closure:
-        kind = _classify(tool_root, base_ref, head_root, head_sha, path, fork)
+        kind = _classify(tool_root, base_ref, head_root, head_sha, path, forks)
         if kind is not None:
             buckets[kind].append(path)
-    symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, fork)
+    symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, forks, links)
     report.symlinks.extend(symlinks)
     report.stale.extend(stale_links)
-    report.unresolved.extend(gate._unresolvable_dynamic_sites(closure, head_root))
+    report.unresolved.extend(unresolved)
     return report
 
 
-# Git configuration that makes reading untrusted objects inert. No hook can run
-# and no filesystem monitor is started. A `.gitattributes` in the head tree cannot
-# name a filter driver, because a driver is defined in configuration and none is
-# configured. It can still select the built-in conversions (`text`, `eol`,
-# `ident`), which change the bytes written to the scratch tree, so a head SHA is
-# compared by blob id and never by those written bytes.
-_INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 # A system or global gitconfig can register a filter driver (git-lfs) that
 # `checkout-index` would run on head blobs when the head's .gitattributes names it.
 _NO_SYSTEM_CONFIG = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
 _HEAD_MARKER = "refs/pull/{number}/head"
+# 200 commits clear the largest of 50 merged PRs (66, 2026-10-18); a longer head has no merge base.
+HEAD_FETCH_DEPTH = 200
 
 
 def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
     result = subprocess.run(
-        ["git", *_INERT_GIT, *args],
+        ["git", *_REF_LINKS.INERT_GIT, *args],
         cwd=cwd,
         capture_output=True,
         encoding="utf-8",
@@ -387,6 +382,7 @@ def materialize_head(
         "fetch",
         "--no-tags",
         "--no-recurse-submodules",
+        f"--depth={HEAD_FETCH_DEPTH}",
         remote,
         _HEAD_MARKER.format(number=pull_number),
     )
@@ -414,7 +410,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--head-root", type=Path, help="Pull request head work tree.")
     parser.add_argument(
-        "--head-sha", help="Head commit to fetch and read as data; needs --pull-number."
+        "--head-sha", help="Head commit to read as data; needs --pull-number. Shallows the base."
     )
     parser.add_argument("--pull-number", type=int, help="Pull request number for --head-sha.")
     parser.add_argument(

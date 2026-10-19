@@ -141,9 +141,13 @@ do not have a staged diff.
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success (warning shown if matches found, non-blocking) |
+| 0 | Detection finished. Matches print a warning that does not block. With `--require-security-review`, also: no CRITICAL file, or every CRITICAL file has a valid security review marker. |
+| 1 | `--require-security-review` is set and a CRITICAL file has no valid marker on the ref (BLOCKED). |
+| 3 | `--require-security-review` is set and git could not answer while reading the staged index or the review marker (git missing, timed out, exited non-zero, returned undecodable output, or rejected the ref) (BLOCKED). An unanswered check never counts as a marker. |
 
-The scripts are designed to be non-blocking warnings. They always exit 0 to avoid blocking commits or CI. The warning is informational only.
+Without `--require-security-review` the scripts always exit 0, so advisory use
+in commits and CI stays non-blocking. The warning is informational only. Only
+the flag turns a CRITICAL finding or a failed git read into a blocking exit.
 
 ## Customization
 
@@ -175,7 +179,7 @@ Edit the pattern lists in either script to add or modify detection patterns:
 
 After running security detection:
 
-- [ ] Script exited with code 0 (non-blocking)
+- [ ] Script exited with code 0, or with 1 or 3 only under `--require-security-review` (blocked)
 - [ ] All CRITICAL matches reviewed
 - [ ] Security agent routed for CRITICAL findings
 - [ ] HIGH matches evaluated for review need

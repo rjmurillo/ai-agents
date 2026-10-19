@@ -105,7 +105,7 @@ Production-Ready Agentic Skill
 - Every decision includes WHY
 - Zero tolerance for errors
 - Autonomous execution at maximum depth
-- Scripts enable self-verification and agentic operation
+- Scripts enable fast-fail checks, independent postcondition checks, and agentic operation
 
 ### Tool Escalation Policy
 

@@ -76,6 +76,31 @@ _RETIRED_LINES: tuple[tuple[str, str, str], ...] = (
         "| `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/` |",
     ),
     (
+        "skill support files edited in the install tree",
+        "templates/rules/generated-artifacts.md",
+        '"edit the template": they stay hand-maintained at `.claude/skills/<name>/`,',
+    ),
+    (
+        "skill support files edited in the install tree",
+        "src/AGENTS.md",
+        "every other file mirrors from `.claude/skills/<name>/`, the hand-maintained source",
+    ),
+    (
+        "skill support files edited in the install tree",
+        "templates/rules/claude-agents.md",
+        "stays hand-maintained: edit it at `.claude/skills/<name>/`, never at `src/`",
+    ),
+    (
+        "skill support files edited in the install tree",
+        "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl",
+        "A skill's other files stay hand-maintained under `.claude/skills/<name>/`.",
+    ),
+    (
+        "skill support files edited in the install tree",
+        "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl",
+        "| Skills | `a.tmpl` for SKILL.md; `.claude/skills/<name>/` for other skill files | x |",
+    ),
+    (
         "drift allowlist size as a count",
         "templates/rules/templates.md",
         "It scores two pairs over an 18-section allowlist.",
@@ -161,6 +186,40 @@ class TestFindRetiredClaims:
 
         assert find_retired_claims(repo) == []
 
+    def test_the_current_skill_support_wording_is_not_the_claim(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path)
+        _add(
+            repo,
+            "templates/skills/x.SKILL.md.tmpl",
+            "Support files are hand-maintained under `src/claude/skills/<name>/`.\n",
+        )
+
+        assert find_retired_claims(repo) == []
+
+    def test_a_repo_local_skill_qualification_is_not_the_claim(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path)
+        _add(
+            repo,
+            "templates/skills/x.SKILL.md.tmpl",
+            "Repo-local skill support files are hand-maintained under `.claude/skills/<name>/`.\n",
+        )
+
+        assert find_retired_claims(repo) == []
+
+    def test_an_unqualified_install_tree_claim_is_still_found(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path)
+        _add(
+            repo,
+            "templates/skills/x.SKILL.md.tmpl",
+            "Support files are hand-maintained under `.claude/skills/<name>/`.\n",
+        )
+
+        findings = find_retired_claims(repo)
+
+        assert [f.claim.name for f in findings] == [
+            "skill support files edited in the install tree"
+        ]
+
     def test_a_hand_maintained_reference_copy_under_the_agent_dir_is_not_the_claim(
         self, tmp_path: Path
     ) -> None:
@@ -176,12 +235,12 @@ class TestFindRetiredClaims:
         assert find_retired_claims(repo) == []
 
     def test_hand_maintained_without_an_agent_tree_is_not_the_claim(self, tmp_path: Path) -> None:
-        """Skill scripts and references are still hand-maintained (ADR-108)."""
+        """Skill scripts and references are still hand-maintained (ADR-108, ADR-119)."""
         repo = _git_repo(tmp_path)
         _add(
             repo,
             "templates/rules/claude-agents.md",
-            "Scripts stay hand-maintained at `.claude/skills/<name>/`.\n",
+            "Scripts stay hand-maintained at `src/claude/skills/<name>/`.\n",
         )
 
         assert find_retired_claims(repo) == []

@@ -20,7 +20,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
-SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+# Shipped skills are directory links under .claude/skills (ADR-119) and a walk does not
+# follow a link, so scan the canonical tree. Repo-local skills hold no Python.
+SKILLS_DIR = REPO_ROOT / "src" / "claude" / "skills"
 
 # Patterns that indicate lib imports requiring plugin path resolution
 LIB_IMPORT_MARKERS = (

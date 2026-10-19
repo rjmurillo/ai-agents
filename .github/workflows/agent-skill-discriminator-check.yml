@@ -60,6 +60,7 @@ jobs:
           filters: |
             agents:
               - '.claude/agents/**.md'
+              - 'src/claude/agents/**.md'
               - 'templates/agents/**.shared.md'
               - 'scripts/validation/check_agent_skill_discriminator.py'
               - 'scripts/validation/agent_skill_discriminator_baseline.py'

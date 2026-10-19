@@ -4,19 +4,19 @@ Canonical source for five ADR-109 artifact classes: agents, rules, skills, hooks
 
 ## Matters
 
-Per-class render map. Compilers run inside `build_all.py` except `prompts`; binplace copies the plugin tree onto the install tree byte for byte.
+Per-class render map. Compilers run inside `build_all.py` except `prompts`; binplace copies the plugin tree onto the install tree, or symlinks it (`link: true`: `agents`, `skills`, `rules`; ADR-119).
 
 | Class | Source here | Compiler | Plugin tree -> install tree |
 |---|---|---|---|
 | agents | `agents/<stem>.claude.md.tmpl`, `.copilot.md.tmpl`, `agents/partials/` | `agent_templates.py` | `src/claude/agents/` -> `.claude/agents/` |
-| rules | `rules/<name>.md` | `rule_templates.py` | `src/claude/rules/` -> `.claude/rules/` |
-| skills | `skills/<name>.SKILL.md.tmpl`, `skills/partials/` | `skill_templates.py` | `src/claude/skills/<name>/SKILL.md` -> `.claude/skills/<name>/SKILL.md` |
+| rules | `rules/<name>.md` | `rule_templates.py` | `src/claude/rules/` -> `.claude/rules/` (link; repo-only: real) |
+| skills | `skills/<name>.SKILL.md.tmpl`, `skills/partials/` | `skill_templates.py` | `src/claude/skills/<name>/` -> `.claude/skills/<name>` (link) |
 | hooks | `hooks/` minus `settings.tmpl`: 14 executables plus 2 data files | `hook_templates.py` | `src/claude/hooks/`, `src/claude/hooks.json` -> `.claude/hooks/` |
 | settings | `hooks/settings.tmpl` | `hook_templates.py` | none -> `.claude/settings.json` |
 | prompts | `.claude/skills/review/references` | `generate_pr_quality_prompts.py` | none -> `.github/prompts/` |
 
-- `generate_agents.py` renders `src/copilot-cli/agents/`, `src/vs-code-agents/`, and via `platforms/github.yaml` `.github/agents/` (no `model:`; GitHub rejects it, issue #4938).
-- `generate_rules.py` mirrors `src/claude/rules/` to `.github/instructions/` and `src/copilot-cli/instructions/`.
+- `generate_agents.py` renders `src/copilot-cli/agents/`, `src/vs-code-agents/`; `.github/agents/*.agent.md` link to the former (inherit-only, no `model:`).
+- `generate_rules.py` mirrors `src/claude/rules/` to `src/copilot-cli/instructions/` (linked into `.github/instructions/`).
 - `generate_hooks.py` with `generate_dispatcher.py` reads `src/claude/hooks/` and `hooks.json`, writes `src/copilot-cli/hooks/`, binplaced to `.github/hooks/`.
 - `agents/<stem>.shared.md` feeds `src/vs-code-agents/` and `docs/agent-catalog.md`; it is also `generate_agents.py`'s stem list: no `.shared.md`, no copilot-cli, vs-code or github file for that stem.
 - A literal `{{` in a rule template is written `\{{`.
@@ -30,24 +30,23 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 
 | Path | Why |
 |---|---|
-| `platforms/*.yaml` | Per-platform output config; only `github.yaml` lacks `model_tiers` |
-| `platforms/binplace.yaml` | Copy manifest; source of the `.claude/` write allowlist |
+| `platforms/*.yaml` | Per-platform output config |
+| `platforms/binplace.yaml` | Binplace manifest; feeds the `.claude/` write allowlist |
 | `README.md` | Predates ADR-109; names retired hand-edit paths |
 
 ## Skip
 
-- Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib`, `.claude/lib/<pkg>` from `scripts/`, and `src/claude/skills`, `src/copilot-cli/skills` non-SKILL.md from `.claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/agents|rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
-- Hand-maintained inside those trees: the seven docs under `.claude/hooks/`, `.github/agents/security/references/`, `.github/agents/pr-comment-responder.prompt.md`, `src/vs-code-agents/copilot-instructions.md`, under `.claude/skills/<name>/`, everything but `SKILL.md` (the `src/claude/skills` and `src/copilot-cli/skills` copies are generated).
+- Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib` from `scripts/`, and `src/copilot-cli/skills`, `src/codex/skills` non-SKILL.md from `src/claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
+- Hand-maintained inside those trees: the seven docs under `.claude/hooks/`, `.github/agents/security/references/`, `.github/agents/pr-comment-responder.prompt.md`, `src/vs-code-agents/copilot-instructions.md`, under `src/claude/skills/<name>/` (repo-local: `.claude/skills/<name>/`), everything but `SKILL.md`.
 
 ## Constraints
 
-- `validate_templates_schema.py` validates only a `platforms/*.yaml` carrying a top-level `provider:`, skipping `binplace.yaml`. `binplace_manifest.py` validates that one, requiring every `install_tree` under `.claude/` or `.github/` (`BinplaceConfigError`, exit 2).
+- `validate_templates_schema.py` validates only a `platforms/*.yaml` carrying a top-level `provider:`, skipping `binplace.yaml`. `binplace_manifest.py` validates that one, requiring every `install_tree` under `.claude/` or `.github/`, or exactly Codex's repository skill root (ADR-119) (`BinplaceConfigError`, exit 2).
 - Cross-harness hook, event, or generated-Copilot change: read the `agent-harness-reference` skill, route through `ai-agents-portability-campaign`.
 
 ## Dangerous assumptions
 
-- `.claude/rules/templates.md` renders from `rules/templates.md` and is stale: MUST-2, SHOULD-3 and MUST NOT-1 still call `src/claude/`, `.claude/agents/` and `.github/agents/` hand-maintained, MUST-4 denies that any agent template defines `name` while all 30 `.claude.md.tmpl` do, MUST-1 omits `hooks/`. Fix at the template.
-- `uv run python build/generate_agents.py` alone never populates `copilot_sources` and never writes `src/claude/agents/`: it falls back to `.shared.md` for copilot-cli and github.
+- `uv run python build/generate_agents.py` alone never populates `copilot_sources` and never writes `src/claude/agents/`: it falls back to `.shared.md` for copilot-cli. No `github` platform file exists, so `.github/agents` is only a link to `src/copilot-cli/agents`.
 - Lefthook auto-regen globs `agents/*.shared.md` and `platforms/**` only; a `.tmpl`, partial, rule, skill or hook edit triggers nothing. Run `build_all.py` yourself.
 - `$toolset:` never reaches Claude Code: expansion lives in `generate_agents_common.py`, called only by `generate_agents.py`, and no `.claude.md.tmpl` or partial uses it. `analyst` and `security` carry a literal `tools:` list no gate compares against `toolsets.yaml`.
 - The `Skill Markdown Portability` ratchet is per file and scans `.md` only, so a repo-internal path added to a skill or rule template raises the count on generated output you cannot edit (`.claude/skills/<name>/SKILL.md`, `src/copilot-cli/instructions/<name>.instructions.md`). `agents/*.shared.md` is scanned; `.tmpl` files and partials are not.

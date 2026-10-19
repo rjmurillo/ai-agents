@@ -17,11 +17,14 @@ against its baseline.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+from typing import Any, NamedTuple
 
 import pytest
 
@@ -57,6 +60,81 @@ def _is_under_extra_scan_root(key: str, prefix: str) -> bool:
     key_parts = PurePosixPath(key).parts
     prefix_parts = PurePosixPath(prefix).parts
     return key_parts[: len(prefix_parts)] == prefix_parts
+
+
+class _RealRepoScan(NamedTuple):
+    """One CLI run over the checked-in tree, plus the scans it made."""
+
+    exit_code: int
+    scans: list[Any]
+    output: str
+
+
+def _scan_real_repo() -> _RealRepoScan:
+    """Run the CLI on the real tree once for every test that reads it (issue #5382).
+
+    Three tests each walked and parsed the whole checked-in tree, which cost
+    about 30 seconds apiece. The tree does not change during a run, so one
+    ``main`` call serves all three. The recorded ``scan_all`` result gives the
+    drift test its counts without a second walk. pytest attaches a module-scoped
+    fixture's captured output to the first test that requests it, so ``main``'s
+    stdout and stderr are kept in ``output`` and repeated in each assertion
+    message; every failing test then shows the diagnostics.
+    """
+    root = Path(__file__).resolve().parents[2]
+    scans: list[Any] = []
+    real_scan_all = cmp.scan_all
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        result = real_scan_all(*args, **kwargs)
+        scans.append(result)
+        return result
+
+    stdout, stderr = io.StringIO(), io.StringIO()
+    patch = pytest.MonkeyPatch()
+    patch.setattr(cmp, "scan_all", recording)
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            exit_code = cmp.main(["--repo-root", str(root)])
+    finally:
+        patch.undo()
+    return _RealRepoScan(exit_code, scans, stdout.getvalue() + stderr.getvalue())
+
+
+@pytest.fixture(scope="module")
+def real_repo_scan() -> _RealRepoScan:
+    """One CLI run over the checked-in tree, shared by every test that reads it."""
+    return _scan_real_repo()
+
+
+def test_scan_real_repo_keeps_the_cli_output_and_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failing run must carry its diagnostics, so each dependent test can show them."""
+
+    def failing_main(_argv: list[str]) -> int:
+        print("regression: src/claude/rules/x.md")
+        print("bad baseline", file=sys.stderr)
+        return 1
+
+    monkeypatch.setattr(cmp, "main", failing_main)
+
+    scan = _scan_real_repo()
+
+    assert scan.exit_code == 1
+    assert "regression: src/claude/rules/x.md" in scan.output
+    assert "bad baseline" in scan.output
+    assert scan.scans == []
+
+
+def test_scan_real_repo_restores_scan_all(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The recording wrapper must not outlive the run, or later tests scan through it."""
+    before = cmp.scan_all
+    monkeypatch.setattr(cmp, "main", lambda _argv: 0)
+
+    _scan_real_repo()
+
+    assert cmp.scan_all is before
 
 
 class TestCountUpstreamRefs:
@@ -1301,10 +1379,11 @@ class TestRulesScanRoot:
         assert self._run(tmp_path) == 0
         assert "src/claude/rules (2)" in capsys.readouterr().out
 
-    def test_real_rules_tree_is_baselined(self) -> None:
+    def test_real_rules_tree_is_baselined(self, real_repo_scan: _RealRepoScan) -> None:
         """The checked-in rules tree passes against the checked-in baseline."""
-        root = Path(__file__).resolve().parents[2]
-        assert cmp.main(["--repo-root", str(root)]) == 0
+        assert real_repo_scan.exit_code == 0, (
+            f"CLI on the real tree failed:\n{real_repo_scan.output}"
+        )
 
 
 class TestAgentOutputScanRoots:
@@ -1493,10 +1572,11 @@ class TestAgentOutputScanRoots:
         )
         assert rc == 1
 
-    def test_real_agent_trees_are_baselined(self) -> None:
+    def test_real_agent_trees_are_baselined(self, real_repo_scan: _RealRepoScan) -> None:
         """The checked-in agent trees pass against the checked-in baseline."""
-        root = Path(__file__).resolve().parents[2]
-        assert cmp.main(["--repo-root", str(root)]) == 0
+        assert real_repo_scan.exit_code == 0, (
+            f"CLI on the real tree failed:\n{real_repo_scan.output}"
+        )
 
 
 class TestReport:
@@ -1823,12 +1903,16 @@ class TestUnexpectedScanException:
 class TestCommittedRepoHasNoDrift:
     """The CI ratchet: the committed baseline must match the committed tree."""
 
-    def test_repo_markdown_matches_baseline(self) -> None:
+    def test_repo_markdown_matches_baseline(self, real_repo_scan: _RealRepoScan) -> None:
         root = Path(__file__).resolve().parents[2]
         if not cmp.skills_dirs(root):
             pytest.skip("no plugin root has a skills dir in this checkout")
         baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
-        current = cmp.scan_plugin_roots(root)
+        assert len(real_repo_scan.scans) == 1, (
+            f"the CLI run must have scanned the tree once:\n{real_repo_scan.output}"
+        )
+        current = real_repo_scan.scans[0][0]
+        assert current, "an empty scan cannot show the baseline matches the tree"
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
         assert regressions == [], "\n".join(regressions)
@@ -2214,7 +2298,7 @@ class TestBaselineSemanticConflictGuard:
     ) -> None:
         """ADR-109 B3 follow-up: a byte-identical mirror is not new drift.
 
-        generate_skills.sync_claude_plugin_skill_support mirrors a skill's
+        generate_skills.prune_stale_claude_skill_support mirrors a skill's
         support files from .claude/skills/ into src/claude/skills/ byte for
         byte. The mirror's ref count is not new against base_ref just
         because the mirror PATH is new there: the content, and its baseline

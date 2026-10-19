@@ -200,17 +200,20 @@ artifacts:
     outputSuffix: ".agent.md"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
   skills:
-    sourceDir: ".claude/skills"
+    sourceDir: "src/claude/skills"   # ADR-119: the real directory each .claude/skills/<name> links to
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
     frontmatterDrop: ["model", "model-rationale"]   # ADR-111: Copilot skills have no per-skill model field
   rules:
-    sourceDir: "src/claude/rules"   # ADR-109 B2: the plugin tree the compile renders; .claude/rules is its binplace
+    sourceDir: "src/claude/rules"   # ADR-109 B2: the plugin tree the compile renders; .claude/rules links to it
+    repoOnlySourceDir: ".claude/rules"   # ADR-119 decision 13: repo-only rules live here as real files
     outputDirs:
       - ".github/instructions"
       - "src/copilot-cli/instructions"
     keepInternalGlobsFor:
+      - ".github/instructions"   # ADR-119: reaches only the repo-only real files there
+    repoOnlyOutputDirs:
       - ".github/instructions"
     sourceSuffix: ".md"
     outputSuffix: ".instructions.md"
@@ -301,6 +304,13 @@ Rationale (Round 3 amendment): rules are universal across providers; there is no
 
 Verification: round-trip a fixture rule with `paths:` → output frontmatter has `applyTo:`; round-trip a fixture without scope → output has `applyTo: "**"`; existing rules generate without errors.
 
+> [!NOTE]
+> **Amended by ADR-119 decisions 12 and 13, 2026-10-17.** "Every rule ships" no longer holds.
+> Since issue #4317 a rule whose scope is internal end to end skips each shipped tree. ADR-119
+> makes such a rule repo-only (`build/scripts/rule_distribution.py`): it renders to
+> `.claude/rules/<name>.md` and `.github/instructions/<name>.instructions.md` as real files. Each
+> shipped rule reaches `.claude/rules/` and `.github/instructions/` as a link into its plugin tree.
+
 ### State-driven
 
 **REQ-003-007 : Hook generation is native and complete (D5, D10, D11)**
@@ -371,6 +381,13 @@ Verification: `git diff` after running `python3 build/scripts/build_all.py` show
 > `assert_no_claude_writes`'s `allowed_paths` still equals `skill_templates.owned_targets`
 > (`build/scripts/build_all.py:2227`) until B1 lands; it grows to the full manifest one class at
 > a time, not on this acceptance alone.
+
+> [!NOTE]
+> **Amended by ADR-119 decision 13, 2026-10-17.** `rule_templates.compile_all` writes each
+> repo-only rule to `.claude/rules/<name>.md` as a real file, outside binplace. The allowed set
+> is the repo-only members of `rule_templates.owned_targets`, which
+> `binplace_manifest.claude_allowlist` adds to `assert_no_claude_writes`. Verification also
+> accepts those files.
 
 **REQ-003-011 : Generation audit log: bounded content + same-process CI parse**
 The generator's NOTICE/WARN audit shall be written to `build/audit/GENERATION-AUDIT.md` (NOT inside `src/copilot-cli/` : keeps internal build metadata out of customer plugin install) and shall ALSO be emitted to stdout during `build_all.py` so CI can parse from the same process invocation.

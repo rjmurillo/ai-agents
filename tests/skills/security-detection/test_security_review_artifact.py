@@ -47,6 +47,11 @@ def _load_validator():
     return module
 
 
+scope_mod = import_skill_script(
+    ".claude/skills/review/scripts/validate_findings_scope.py",
+    module_name="validate_findings_scope_for_security_artifact",
+)
+
 vrm = _load_validator()
 SHA = "a" * 40
 OTHER = "b" * 40
@@ -63,7 +68,15 @@ def _case(axes: tuple[str, ...], rows: list[str], digest: str | None = None):
 GOOD = report_lines("analyst,security", SHA)
 CASES = {
     "valid": _case(("analyst", "security"), GOOD),
-    "valid-warn": _case(("analyst", "security"), [GOOD[0], "analyst: WARN", "security: PARTIAL"]),
+    "partial-on-security-axis": _case(
+        ("analyst", "security"), [GOOD[0], "analyst: WARN", "security: PARTIAL"]
+    ),
+    "security-warn": _case(("security",), [GOOD[0], "security: WARN"]),
+    "security-partial": _case(("security",), [GOOD[0], "security: PARTIAL"]),
+    "security-compliant": _case(("security",), [GOOD[0], "security: COMPLIANT"]),
+    "analyst-warn-security-pass": _case(
+        ("analyst", "security"), [GOOD[0], "analyst: WARN", "security: PASS"]
+    ),
     "no-block": ("subject", [digest_of(GOOD)], SHA, ("analyst", "security")),
     "no-digest": (_block(GOOD), [], SHA, ("analyst", "security")),
     "bad-digest-format": (_block(GOOD), ["sha256:xyz"], SHA, ("analyst", "security")),
@@ -101,6 +114,31 @@ def test_constants_match_the_validator() -> None:
     assert mod.REPORT_END == vrm.REPORT_END
     assert mod.ARTIFACT_TRAILER_KEY == vrm.ARTIFACT_TRAILER_KEY
     assert mod.PASSING_VERDICTS == vrm.PASSING_VERDICTS
+    assert mod.SECURITY_PASSING_VERDICTS == vrm.SECURITY_PASSING_VERDICTS
+    assert mod.SECURITY_AXIS == vrm.SECURITY_AXIS
+
+
+@pytest.mark.parametrize("verdict", ["WARN", "PARTIAL"])
+def test_a_security_row_with_an_open_finding_does_not_back_a_marker(verdict: str) -> None:
+    """Issue #6506: WARN and PARTIAL pass other axes but never the security axis."""
+    message, digests, parent, axes = _case(("security",), [GOOD[0], f"security: {verdict}"])
+    assert mod.check_review_artifact(message, digests, parent, axes) is False
+    failure = vrm.check_review_artifact(message, digests, parent, axes)
+    assert failure is not None
+    assert "security" in failure
+
+
+@pytest.mark.parametrize("verdict", ["PASS", "COMPLIANT"])
+def test_a_clean_security_row_backs_a_marker(verdict: str) -> None:
+    message, digests, parent, axes = _case(("security",), [GOOD[0], f"security: {verdict}"])
+    assert mod.check_review_artifact(message, digests, parent, axes) is True
+    assert vrm.check_review_artifact(message, digests, parent, axes) is None
+
+
+def test_a_warn_on_a_non_security_axis_still_backs_a_marker() -> None:
+    message, digests, parent, axes = CASES["analyst-warn-security-pass"]
+    assert mod.check_review_artifact(message, digests, parent, axes) is True
+    assert vrm.check_review_artifact(message, digests, parent, axes) is None
 
 
 # find_security_review_marker (real git) ---------------------------------------
@@ -170,3 +208,33 @@ def test_security_marker_with_altered_report_is_rejected(repo: Path) -> None:
     ok, detail = mod.find_security_review_marker("HEAD", repo)
     assert ok is False
     assert "no valid review report" in detail
+
+
+def test_an_all_out_of_scope_security_finding_still_blocks_the_marker() -> None:
+    """Review step 4a downgrades CRITICAL_FAIL to WARN for a finding outside the diff.
+
+    The security row then reads WARN, which never backs a marker (issue #6506),
+    so the downgrade cannot let an out-of-diff security finding through.
+    """
+    text = (
+        "VERDICT: CRITICAL_FAIL\n"
+        "- severity: CRITICAL\n"
+        "  location: scripts/unrelated.py:5\n"
+        "  recommendation: fix it elsewhere\n"
+    )
+    verdict = scope_mod.scope_adjusted_verdict(text, ["scripts/foo.py"])
+    assert verdict == "WARN"
+
+    message, digests, parent, axes = _case(("security",), [GOOD[0], f"security: {verdict}"])
+    assert mod.check_review_artifact(message, digests, parent, axes) is False
+    failure = vrm.check_review_artifact(message, digests, parent, axes)
+    assert failure is not None
+    assert "security" in failure
+
+
+def test_an_all_out_of_scope_non_security_finding_still_backs_a_marker() -> None:
+    """The step 4a downgrade keeps working for every axis except security."""
+    row = "analyst: WARN"
+    message, digests, parent, axes = _case(("analyst",), [GOOD[0], row])
+    assert mod.check_review_artifact(message, digests, parent, axes) is True
+    assert vrm.check_review_artifact(message, digests, parent, axes) is None

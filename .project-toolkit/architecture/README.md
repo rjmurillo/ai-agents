@@ -137,7 +137,7 @@ These bind today.
 | [ADR-074](ADR-074-security-review-quick-pass-mode.md) | Bounded Security-Review Quick-Pass Mode | 2026-06-17 | Add a bounded quick-pass mode to security review, governed by a diff-scope classifier, a caller-enforced deadline, and an extended verdict taxonomy. |
 | [ADR-081](ADR-081-confidence-elicitation-experiment.md) | Confidence Elicitation Is a Shadow Study, Not a Shipped Gate | 2026-07-11 | Do not ship confidence elicitation as a blocking PreToolUse hook. |
 | [ADR-082](ADR-082-claude-hook-group-dispatch.md) | Claude-Side Consolidated Hook Group Dispatch | 2026-07-16 | One process per (event, matcher) group on the Claude side. |
-| [ADR-083](ADR-083-copilot-dogfood-surface-separation.md) | Dogfood the Shipped Copilot Base and Separate Ship-vs-Internal Surface | 2026-07-20 | Adopt a per-item surface tag, split the Copilot form-factor into a shipped base plus a local-only internal overlay, and dogfood both by installing them the way a customer installs the base. |
+| [ADR-083](ADR-083-copilot-dogfood-surface-separation.md) | Dogfood the Shipped Copilot Base and Separate Ship-vs-Internal Surface | 2026-07-20 | Dogfood the shipped Copilot base by installing it the way a customer installs it, and prove in CI that the base alone loads. |
 | [ADR-084](ADR-084-vendored-hook-roi-bar.md) | Vendored-Hook ROI Bar | 2026-07-20 | A hook may ship in a vendored plugin surface only if it delivers value in a consumer's own repository. |
 | [ADR-085](ADR-085-cross-harness-permission-surface-asymmetry.md) | Cross-Harness Permission-Surface Asymmetry and Hook Survivor Disposition | 2026-07-31 | A vendored guard hook may be replaced by host-native permissions only when all three hold: |
 | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) | Lefthook for Local Git Hook Orchestration | 2026-07-20 | Use Lefthook 2.1.10 as the only local Git hook orchestrator. |
@@ -195,6 +195,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-10-13 | Propose a class named Unchecked In-Context Rule Violation, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for... | review by 2027-04-13; The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then. |
 | [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. | review by 2027-04-13 |
 | [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. | review by 2027-04-13 |
+| [ADR-119](ADR-119-symlinked-dogfood-agents-and-skills.md) | Symlink the Agent and Skill Dogfood Trees to the Plugin Tree | 2026-10-17 | A binplace manifest row may set `link: true` (`templates/platforms/binplace.yaml`). | review by 2027-04-17; This record amends ADR-109 and ADR-108; see Related Decisions. |
 
 ## Retired
 
