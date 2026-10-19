@@ -5650,6 +5650,24 @@ class TestImportResolutionOrderAndShadows:
         assert self._run(config_path) == 0
         assert marker.exists()
 
+    def test_verified_shadow_appears_in_the_trust_report(self, git_repo, tmp_path, capsys):
+        # A tracked shadow the gate compared must be listed, so the report
+        # names every file behind a trusted verdict.
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        (tmp_path / "lib" / "mod.so").write_bytes(b"\x00")
+        _git(git_repo, "add", "lib/mod.so")
+        _git(git_repo, "commit", "-q", "-m", "trusted shadow")
+        _git(git_repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert "lib/mod.so" in payload["command_trust"]["checked_files"]
+
     def test_pr_edit_to_a_trusted_shadow_halts(self, git_repo, tmp_path):
         marker = tmp_path / "ran.txt"
         config_path = self._trusted_module(git_repo, tmp_path, marker)

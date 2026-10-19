@@ -2983,7 +2983,7 @@ def _verify_command_trust(
     if errors:
         return CommandTrustCheck(
             COMMAND_TRUST_GIT_ERROR,
-            checked,
+            [*checked, *shadows],
             untrusted,
             external,
             untracked,
@@ -2992,7 +2992,7 @@ def _verify_command_trust(
     if untrusted:
         return CommandTrustCheck(
             COMMAND_TRUST_UNTRUSTED,
-            checked,
+            [*checked, *shadows],
             untrusted,
             external,
             untracked,
@@ -3000,7 +3000,8 @@ def _verify_command_trust(
         )
     return CommandTrustCheck(
         COMMAND_TRUST_TRUSTED,
-        checked,
+        # The report lists every file compared, shadow binaries included.
+        [*checked, *shadows],
         [],
         external,
         untracked,
