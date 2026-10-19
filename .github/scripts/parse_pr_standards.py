@@ -29,7 +29,8 @@ def main() -> int:
         print("PR_TITLE environment variable is required", file=sys.stderr)
         return 2
 
-    # Write body to unique temp file to avoid concurrent run collisions
+    # Write body to unique temp file to avoid concurrent run collisions.
+    # No dir= so tempfile honors TMPDIR.
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
     with tempfile.NamedTemporaryFile(
@@ -37,7 +38,6 @@ def main() -> int:
         prefix=f"pr-body-{run_id}-{attempt}-",
         suffix=".txt",
         delete=False,
-        dir="/tmp",
     ) as tmp:
         tmp.write(body)
         body_file = tmp.name

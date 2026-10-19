@@ -249,6 +249,19 @@ def test_compile_all_renders_every_package_into_both_plugin_roots(tmp_path: Path
         assert (tmp_path / sidecar).is_file(), sidecar
 
 
+def test_cursor_tree_is_a_lib_root_and_gets_the_review_sidecar(tmp_path: Path) -> None:
+    """ADR-115 Decision 1: the Cursor tree gets lib/ and the sidecar like the other trees."""
+    assert "src/cursor/lib" in lib_mirror.PLUGIN_ROOTS
+    assert lib_mirror.SKILLS_SIDECAR_CURSOR_TREE in lib_mirror.SKILLS_SIDECAR_PLUGIN_TREES
+    _write_full_sources(tmp_path)
+
+    lib_mirror.compile_all(tmp_path)
+
+    assert (tmp_path / "src/cursor/lib/github_core/__init__.py").is_file()
+    assert (tmp_path / "src/cursor/lib/bootstrap.py").is_file()
+    assert (tmp_path / lib_mirror.SKILLS_SIDECAR_CURSOR_TREE).read_text() == '"""Marker."""\n'
+
+
 def test_compile_all_check_mode_writes_nothing(tmp_path: Path) -> None:
     _write_full_sources(tmp_path)
 

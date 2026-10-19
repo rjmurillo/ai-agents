@@ -164,7 +164,8 @@ class TestPremiseDispositionRouting:
         phase3 = _workflow_phase_section(workflow, "3")
         check_pos = phase3.find("grep -n -F")
         # `\s*` tolerates ruff format wrapping the call onto one argument per line.
-        delegate_match = re.search(r"Task\(\s*subagent_type=", phase3)
+        # The Copilot mirror rewrites the call to `task(agent_type=` (issue #5657).
+        delegate_match = re.search(r"[Tt]ask\(\s*(?:subagent_type|agent_type)=", phase3)
         delegate_pos = delegate_match.start() if delegate_match else -1
         assert check_pos != -1, (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} Phase 3 "
@@ -172,7 +173,7 @@ class TestPremiseDispositionRouting:
         )
         assert delegate_pos != -1, (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} Phase 3 "
-            f"no longer delegates via Task(subagent_type=...)"
+            f"no longer delegates via Task(subagent_type=...) or task(agent_type=...)"
         )
         assert check_pos < delegate_pos, (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} Phase 3 "

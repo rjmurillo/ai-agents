@@ -25,16 +25,23 @@ jobs:
   validate-portability:
     name: Validate Vendor Portability
     runs-on: ubuntu-26.04-arm
-    timeout-minutes: 3
+    # Raised from 3 when the checkout went full-depth (issue #6506). Checkout
+    # time was not measured on the runner; lower it if runs stay well under.
+    timeout-minutes: 5
     permissions:
       contents: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The prose ratchet reads its ceiling from origin/<base>, which needs
+          # the fork point of HEAD and the base (issue #6506). A depth-1 clone
+          # has neither the ref nor a merge base to name.
+          fetch-depth: 0
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Check for new vendor-portability offenders
         run: python3 scripts/validation/check_vendor_portability.py
@@ -45,8 +52,21 @@ jobs:
       - name: "Check for new bare-exec skill-path offenders (issue #2838)"
         run: uv run --frozen python scripts/validation/check_skill_md_exec_portability.py
 
+      # Issue #6506: without --base-ref the baseline in the PR head is the only
+      # ceiling, so a PR could raise it in the commit that adds the references.
+      # With it, a count above what the base branch recorded fails. The
+      # full-depth checkout above holds every ref the comparison needs.
+      # A pull request compares with origin/<base>. A push to main compares with
+      # the tip before the push (github.event.before), because origin/main
+      # already holds the pushed commit and the diff would be empty. A dispatch
+      # carries neither, so origin/main backs it. An unreadable ref, such as the
+      # all-zero SHA or a commit lost to a force push, fails the step instead of
+      # falling back to the current tip. default_branch would resolve to master
+      # under local act, so it is not used.
       - name: Check skill prose portability ratchet
-        run: uv run --frozen python scripts/validation/check_skill_md_portability.py
+        env:
+          BASE_REF: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before || 'origin/main' }}
+        run: uv run --frozen python scripts/validation/check_skill_md_portability.py --base-ref "$BASE_REF"
 
       - name: Check skill resolver anchoring
         run: python3 scripts/validation/check_skill_resolver_anchoring.py
@@ -140,7 +160,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Check .agents write targets
         run: uv run --frozen python scripts/validation/check_agents_write_targets.py

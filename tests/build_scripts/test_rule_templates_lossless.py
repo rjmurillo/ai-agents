@@ -19,6 +19,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
     if str(_extra_path) not in sys.path:
         sys.path.insert(0, str(_extra_path))
 
+from rule_distribution import render_target  # noqa: E402
 from skill_template_grammar import render  # noqa: E402
 
 # Independent pin on the corpus size (issue CodeRabbit raised on this file):
@@ -28,8 +29,9 @@ from skill_template_grammar import render  # noqa: E402
 # disappear and every test in this class would report a vacuous pass. This
 # frozenset is the fixed, independently-typed expectation those directory
 # listings are checked against, not derived from any of them. Count and
-# names from `ls templates/rules/*.md` at HEAD (2026-09-27; issue #5951 removed
-# pragmatic-programmer, 27 rules templated; was 28 at 2026-09-14, ADR-109 B2,
+# names from `ls templates/rules/*.md` at HEAD (2026-10-13; issue #5752 added
+# efficiency, 28 rules templated; was 27 at 2026-09-27 after issue #5951 removed
+# pragmatic-programmer; was 28 at 2026-09-14, ADR-109 B2,
 # TASK-032 Acceptance Criteria 1).
 EXPECTED_RULES = frozenset(
     {
@@ -40,9 +42,11 @@ EXPECTED_RULES = frozenset(
         "claude-agents",
         "code-quality",
         "csharp",
+        "efficiency",
         "generated-artifacts",
         "governance",
         "knowledge-persistence",
+        "lossless-queue-reads",
         "lsp-first",
         "plugin-self-containment",
         "plugin-version-bump",
@@ -104,9 +108,10 @@ class TestLosslessRendering:
 
     @pytest.mark.parametrize("name", _discover_fixture_names())
     def test_committed_claude_plugin_file_equals_fixture(self, name: str) -> None:
-        """Committed src/claude/rules/<name>.md equals fixture."""
+        """Committed rule equals fixture: src/claude/rules, or .claude/rules if repo-only."""
         fixture_path = _fixture_dir() / f"{name}.md"
-        committed_path = _REPO_ROOT / "src" / "claude" / "rules" / f"{name}.md"
+        template_path = _REPO_ROOT / "templates" / "rules" / f"{name}.md"
+        committed_path = render_target(_REPO_ROOT, name, template_path)
 
         fixture_bytes = fixture_path.read_bytes()
         assert committed_path.is_file(), f"compiled rule missing: {committed_path}"

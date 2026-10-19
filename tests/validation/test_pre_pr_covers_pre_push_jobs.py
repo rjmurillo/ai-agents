@@ -92,7 +92,7 @@ EXEMPT: dict[str, str] = {
     ),
     "security-scan": (
         "Semgrep over each pushed head. The job owns a 15 minute cap and reads the "
-        "ref payload, while pre-pr-validation runs under a 4 minute cap "
+        "ref payload, while pre-pr-validation runs under a 4 minute run budget "
         "(PRE_PR_OUTER_CAP_SECONDS), so a semgrep run cannot fit inside pre_pr."
     ),
     "pre-pr-validation": (
@@ -104,13 +104,15 @@ EXEMPT: dict[str, str] = {
     ),
     "python-tests": (
         "Runs the pytest suite with testmon selection under a 15 minute cap. pre_pr "
-        "deliberately skips the suite because CI's pytest legs run it. Structural "
-        "tests such as test_rule_templates_lossless.py fail here after a green "
-        "pre_pr, so run the tests that cover the files you changed before pushing."
+        "deliberately skips the suite because CI's pytest legs run it, apart from "
+        "the Rule Lossless Fixtures gate, which runs test_rule_templates_lossless.py. "
+        "Other structural tests can still fail in this python-tests hook after a "
+        "green pre_pr, so run the tests that cover the files you changed before "
+        "pushing."
     ),
     "zero-collection-tests": (
         "One pytest collection over testpaths, about 38 seconds measured. "
-        "pre-pr-validation has a four minute timeout against a 192 second baseline."
+        "pre-pr-validation has a four minute run budget against a 192 second baseline."
     ),
     "python-lint-advisory": (
         "Advisory ruff report over pushed files. Findings do not block the push. "

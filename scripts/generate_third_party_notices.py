@@ -45,6 +45,27 @@ class ShippedComponent:
     category: str = "forked"
 
 
+# The MIT permission notice shared verbatim by every MIT component below.
+_MIT_PERMISSION_TEXT = (
+    "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
+    'of this software and associated documentation files (the "Software"), to deal\n'
+    "in the Software without restriction, including without limitation the rights\n"
+    "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+    "copies of the Software, and to permit persons to whom the Software is\n"
+    "furnished to do so, subject to the following conditions:\n"
+    "\n"
+    "The above copyright notice and this permission notice shall be included in all\n"
+    "copies or substantial portions of the Software.\n"
+    "\n"
+    'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
+    "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+    "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
+    "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+    "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
+    "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
+    "SOFTWARE.\n"
+)
+
 # Forked or vendored components shipped in plugin source paths.
 # Each entry must include the license text or a path to a LICENSE file.
 FORKED_COMPONENTS: dict[str, dict[str, str]] = {
@@ -53,58 +74,22 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "url": "https://github.com/tripleyak/SkillForge",
         "author": "tripleyak",
         "local_path": "src/claude/skills/skillforge",
-        "license_text": (
-            "MIT License\n"
-            "\n"
-            "Copyright (c) 2025\n"
-            "\n"
-            "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-            'of this software and associated documentation files (the "Software"), to deal\n'
-            "in the Software without restriction, including without limitation the rights\n"
-            "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-            "copies of the Software, and to permit persons to whom the Software is\n"
-            "furnished to do so, subject to the following conditions:\n"
-            "\n"
-            "The above copyright notice and this permission notice shall be included in all\n"
-            "copies or substantial portions of the Software.\n"
-            "\n"
-            'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
-            "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-            "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
-            "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-            "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
-            "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
-            "SOFTWARE.\n"
-        ),
+        "license_text": ("MIT License\n\nCopyright (c) 2025\n\n" + _MIT_PERMISSION_TEXT),
+    },
+    "openai-agents-python maintainer-review": {
+        "license": "MIT",
+        "url": "https://github.com/openai/openai-agents-python",
+        "author": "OpenAI",
+        "local_path": "src/claude/skills/maintainer-review",
+        "license_text": ("MIT License\n\nCopyright (c) 2025 OpenAI\n\n" + _MIT_PERMISSION_TEXT),
+        "license_blank_line_prefix": "",
     },
     "gstack": {
         "license": "MIT",
         "url": "https://github.com/garrytan/gstack",
         "author": "Garry Tan",
         "local_path": "src/claude/skills/dx-review",
-        "license_text": (
-            "MIT License\n"
-            "\n"
-            "Copyright (c) 2026 Garry Tan\n"
-            "\n"
-            "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-            'of this software and associated documentation files (the "Software"), to deal\n'
-            "in the Software without restriction, including without limitation the rights\n"
-            "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-            "copies of the Software, and to permit persons to whom the Software is\n"
-            "furnished to do so, subject to the following conditions:\n"
-            "\n"
-            "The above copyright notice and this permission notice shall be included in all\n"
-            "copies or substantial portions of the Software.\n"
-            "\n"
-            'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
-            "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-            "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
-            "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-            "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
-            "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
-            "SOFTWARE.\n"
-        ),
+        "license_text": ("MIT License\n\nCopyright (c) 2026 Garry Tan\n\n" + _MIT_PERMISSION_TEXT),
         "license_blank_line_prefix": "",
     },
 }
@@ -119,27 +104,7 @@ RUNTIME_DEPENDENCIES: dict[str, dict[str, str]] = {
         "author": "Anthropic",
         "declared_in": ".claude/hooks/requirements.txt",
         "license_text": (
-            "MIT License\n"
-            "\n"
-            "Copyright (c) 2023 Anthropic, PBC\n"
-            "\n"
-            "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-            'of this software and associated documentation files (the "Software"), to deal\n'
-            "in the Software without restriction, including without limitation the rights\n"
-            "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-            "copies of the Software, and to permit persons to whom the Software is\n"
-            "furnished to do so, subject to the following conditions:\n"
-            "\n"
-            "The above copyright notice and this permission notice shall be included in all\n"
-            "copies or substantial portions of the Software.\n"
-            "\n"
-            'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
-            "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-            "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
-            "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-            "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
-            "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
-            "SOFTWARE.\n"
+            "MIT License\n\nCopyright (c) 2023 Anthropic, PBC\n\n" + _MIT_PERMISSION_TEXT
         ),
     },
 }

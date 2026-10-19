@@ -121,3 +121,5 @@ None identified this session.
 ## Failure Mode Classification
 
 Finding 1 (read-but-underapplied environment fix) maps loosely to FM #1 (Context Reading Failure) per `.agents/governance/FAILURE-MODES.md`, with the caveat noted above that this instance involved reading the content and still not cross-applying it, which is narrower than FM #1's usual "did not read at all" shape. Finding 2 (self-authored rule violation) does not cleanly fit an existing class; it is recorded here as evidence rather than as a new class, per the retrospective rule that a new class requires a linked ADR, which a single instance does not yet warrant.
+
+**Correction (2026-10-13, issue #5307 finding 5): a second instance now exists.** Finding 2 above said no class was proposed for a single instance. The 2026-08-25 retrospective, Finding 1, records the same dash-rule violation in another session. [ADR-116](../architecture/ADR-116-unchecked-in-context-rule-violation-failure-mode.md) proposes the Unchecked In-Context Rule Violation class for both instances, per `.claude/rules/retros.md` MUST 2. It stays `proposed` until the owner decides.

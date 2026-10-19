@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ def _append_output(output_path: Path, name: str, value: str) -> None:
 def _status_inputs() -> dict[str, str]:
     return {
         "description": os.environ.get("DESCRIPTION_RESULT") or "ERROR",
+        "finding": os.environ.get("DESCRIPTION_FINDING", ""),
         "bypass_used": os.environ.get("BYPASS_USED", ""),
         "bypass_label": os.environ.get("BYPASS_LABEL", ""),
         "bypass_count": os.environ.get("BYPASS_COUNT", ""),
@@ -37,6 +39,35 @@ def _status_inputs() -> dict[str, str]:
     }
 
 
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+# A backtick would end the code span the finding sits in. Angle brackets would
+# open HTML or a comment if the span ever broke.
+_BREAKOUT_CHARS = re.compile(r"[`<>]")
+# `@name` at the start of a word notifies a user or team. An address such as
+# `a@b.example` has a word character before the `@` and is left alone.
+_MENTION = re.compile(r"(?<!\w)@(?=[\w-])")
+
+
+def _neutralize(finding: str) -> str:
+    """Return ``finding`` as one inert line for the bot comment.
+
+    The producer (``map_pr_description_result._clean``) already cleans the value,
+    but this report is the last step before the text is published, so it does
+    not rely on that. Control characters and newlines collapse to single spaces.
+    Backticks and angle brackets are removed, and ``@`` is dropped from a mention.
+    Other punctuation stays: inside the code span it is inert, and removing it
+    would rewrite file names such as ``pages/[id].tsx``.
+    """
+    stripped = _BREAKOUT_CHARS.sub("", _CONTROL_CHARS.sub(" ", finding))
+    return _MENTION.sub("", " ".join(stripped.split()))
+
+
+def _with_finding(message: str, finding: str) -> str:
+    """Name the first failing finding so the failed step is actionable."""
+    clean = _neutralize(finding)
+    return f"{message}: `{clean}`" if clean else message
+
+
 def _overall_status(inputs: dict[str, str]) -> tuple[str, list[str], list[str]]:
     status = "PASS"
     blocking: list[str] = []
@@ -44,10 +75,12 @@ def _overall_status(inputs: dict[str, str]) -> tuple[str, list[str], list[str]]:
     bypass_used = inputs["bypass_used"].casefold() == "true"
     if inputs["description"] == "FAIL":
         status = "FAIL"
-        blocking.append("PR description does not match actual changes")
+        blocking.append(
+            _with_finding("PR description does not match actual changes", inputs["finding"])
+        )
     elif inputs["description"] == "ERROR":
         status = "ERROR"
-        blocking.append("Description validation error")
+        blocking.append(_with_finding("Description validation error", inputs["finding"]))
     elif bypass_used:
         status = "BYPASSED"
         warnings.append(
@@ -123,6 +156,11 @@ def build_report(inputs: dict[str, str]) -> tuple[str, str]:
     return overall_status, "\n".join(lines) + "\n"
 
 
+def blocking_summary(inputs: dict[str, str]) -> str:
+    """One line naming each blocking issue, for the enforce step's error."""
+    return " ".join("; ".join(_overall_status(inputs)[1]).split())
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv:
         print("::error::unexpected command line arguments", file=sys.stderr)
@@ -132,9 +170,11 @@ def main(argv: list[str] | None = None) -> int:
     output_path = _resolve_output_path()
     if output_path is None:
         return CONFIG_ERROR
-    status, report = build_report(_status_inputs())
+    inputs = _status_inputs()
+    status, report = build_report(inputs)
     REPORT_PATH.write_text(report, encoding="utf-8")
     _append_output(output_path, "overall_status", status)
+    _append_output(output_path, "blocking_summary", blocking_summary(inputs))
     return 0
 
 

@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Setup uv
         if: steps.should-run.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Setup PowerShell
         if: steps.should-run.outputs.skip != 'true'
@@ -128,6 +128,7 @@ jobs:
         id: report
         env:
           DESCRIPTION_RESULT: ${{ steps.validate-description.outputs.validation_result }}
+          DESCRIPTION_FINDING: ${{ steps.validate-description.outputs.validation_finding }}
           BYPASS_USED: ${{ steps.validate-description.outputs.bypass_used }}
           BYPASS_LABEL: ${{ steps.validate-description.outputs.bypass_label }}
           BYPASS_COUNT: ${{ steps.validate-description.outputs.bypass_count }}
@@ -174,6 +175,7 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+          BLOCKING_SUMMARY: ${{ steps.report.outputs.blocking_summary }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 scripts/ci/enforce_pr_validation.py
 
@@ -204,7 +206,7 @@ jobs:
       # PRs (action SHA bumps), so exempting them would defeat the purpose of
       # this gate.
       - name: Setup uv for workflow validation
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
@@ -238,8 +240,16 @@ jobs:
       # and stale derived counts in authored rules, skills, and agents). Hosted
       # here because pre_pr.py is not invoked by any workflow, so the pre-push
       # job alone would leave a push from the web editor or the API unchecked.
+      #
+      # Issue #6506: --base-ref makes the baseline at the fork point the ceiling,
+      # so a PR cannot raise its own allowance in the commit that adds the debt.
       - name: Check NL structural debt ratchet
-        run: uv run --frozen python3 scripts/validation/check_nl_structural_debt.py
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+        run: |
+          # Keep this fetch full-depth; see the taste-lint ratchet step below.
+          git fetch origin "$BASE_REF"
+          uv run --frozen python3 scripts/validation/check_nl_structural_debt.py --base-ref FETCH_HEAD
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count started at 93 at audit time and reached zero. The

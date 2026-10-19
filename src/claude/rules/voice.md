@@ -9,11 +9,9 @@ Product and engineering judgment, compressed for runtime. Applies to every assis
 
 ## Definitions
 
-Terms used throughout this file.
-
 - **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool; elsewhere it is the equivalent confirmation prompt (Copilot CLI's question UI, a CLI menu). Ask only when a user decision is required and the user has not delegated it; build the brief with the `decision-question` skill. When the answer is open-ended, use plain prose.
-- **Skill invocation**: one execution of one skill from `.claude/skills/<name>/SKILL.md` (or the harness equivalent). A skill invocation starts when the harness loads the SKILL.md and ends when control returns to the orchestrator. "Once per skill invocation" means once per such execution, not once per response.
-- **Caveman mode**: a terseness mode set explicitly by the user via `/caveman` (full | lite | ultra) or "stop caveman" to exit. In effect: drop articles, drop pleasantries, drop hedging, drop glosses, allow fragments. Code, commits, security warnings, and irreversible-action confirmations still use normal grammar. Caveman mode survives across turns until the user revokes it.
+- **Skill invocation**: one execution of one skill from `.claude/skills/<name>/SKILL.md` (or the harness equivalent). "Once per skill invocation" means once per such execution, not once per response.
+- **Caveman mode**: a terseness mode set explicitly by the user via `/caveman` (full | lite | ultra) or "stop caveman" to exit. In effect: drop articles, drop pleasantries, drop hedging, drop glosses, allow fragments. Code, commits, security warnings, and irreversible-action confirmations still use normal grammar.
 - **Sticky override**: an instruction from the user that applies to more than the current turn ("for the rest of this session, no glosses", caveman mode, "skip the self-review checklist on every response"). Sticky overrides win over the rules in this file for the scope the user set, until the user explicitly revokes them.
 
 ## Tier And Tension
@@ -22,7 +20,7 @@ The rules in this file are layered. When two appear to disagree, apply this orde
 
 1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
 2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. These are the rules you follow unless tier 3 overrides them.
-3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use em dashes in this PR because the audience expects them"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
+3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use first person in this PR because readers expect it"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
 
 The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). A terse-and-complete response is the target. A long response with no filler is fine when the scope demands it.
 
@@ -83,7 +81,6 @@ When the user asks for an opinion, give one. "It depends" without naming the dim
 
 - **Prose and explanations**: full rule applies.
 - **Code, commit messages, PR titles and bodies, security warnings, multi-step destructive sequences**: write normal grammar. Voice (concrete, outcome-oriented, no banned vocabulary, no em dashes) still binds.
-- **Test fixtures designed to carry banned bytes**: exempt, same carve-out as universal.md.
 
 ## Unattended Runs
 
@@ -105,12 +102,6 @@ Rules:
   - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
   - **Separate, or found once terminal**: name it in the PR body (or the per-issue handoff or run report when no PR exists) and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Outside this task because Y; recorded here for the user's decision.`
-
-Flag format, one sentence each, declarative rather than an opt-in question (see Completion-Tail Audit below):
-
-- `auth.ts:47: null check missing; users hit a white screen on expired sessions. One line, on a path already touched; fixing inline.`
-- `config/legacy-flags.yaml has an unused 'legacy' block from M3, marked for removal but never deleted. Out of scope for this change; needs a follow-up.` (example)
-- `Three skills under .claude/skills/ have SKILL.md missing the 'version' field, violating claude-agents.md MUST-2. Out of scope here; needs its own PR.`
 
 What this is not:
 
@@ -144,18 +135,13 @@ A gate is any check whose failure would falsify your conclusion. Only a current 
 
 Use the cheapest check that settles the risk; re-run a passed one only on new evidence.
 
-**Reporting is telemetry, not an essay.** Spend the minimum tokens that carry the facts. Fragments are fine. Drop articles, subjects, helper verbs, transitions, restatement, and process recap; state each fact once unless repeating it prevents ambiguity; keep blockers, evidence, decisions, and qualifiers. Prose overhead costs the reader latency, costs the run its output-token budget, and buries the finding it surrounds. Compression must never upgrade a claim: an attempted action is not a completed one, an unread tool result is not a success, a check you did not run is `NOT RUN` and never `passed`, a mutation that failed or was refused is `FAILED` and never `updated`, and `all` or `every` needs evidence covering the whole scope. When verification was unavailable, say so in three words instead of filling the gap with confidence language. Mark an inference as `INFERRED` when the difference from an observation would change what the reader does next. Requested detail and substantive deliverables (specs, ADRs, analysis, code, documentation) are exempt; terseness governs the report, not the artifact.
+**Reporting is telemetry, not an essay.** Spend the minimum tokens that carry the facts. Fragments are fine. Drop articles, subjects, helper verbs, transitions, restatement, and process recap; state each fact once unless repeating it prevents ambiguity; keep blockers, evidence, decisions, and qualifiers. Compression must never upgrade a claim: an attempted action is not a completed one, an unread tool result is not a success, a check you did not run is `NOT RUN` and never `passed`, a mutation that failed or was refused is `FAILED` and never `updated`, and `all` or `every` needs evidence covering the whole scope. Name check states as the `evidence-provenance` skill does (`VERIFIED`, `NOT RUN`, `UNAVAILABLE`, `FAILED`). A started check you have not read is unread, not `NOT RUN` or passed. Never fill a gap with confidence language. Mark an inference as `INFERRED` when the difference from an observation would change what the reader does next. Requested detail and substantive deliverables (specs, ADRs, analysis, code, documentation) are exempt; terseness governs the report, not the artifact.
 
 ## Quick Self-Review
 
 Before sending a response, walk this list. The spec, plan, review, and autoplan skills carry the glossing and completeness-scoring mechanics; the Confusion Protocol lives in spec, plan, and autoplan only.
 
-- Does the first sentence answer the question, or does it warm up to it?
 - Can the reader act on the response without asking a follow-up?
-- Are file paths, line numbers, commands, or real numbers present where the claim depends on them?
-- Does any technical claim land on a user, operator, or maintainer outcome?
-- Did you use any banned word? Any em dash or en dash?
-- Did you hedge where you have evidence, or claim certainty where you do not?
 - Did you gloss jargon on first use, or skip the gloss per the user-turn override?
 - Do questions to the user frame trade-offs as outcomes, not just options?
 - Did you boil the lake (cover the full scope you can see) or flag the ocean (name what is out of scope)?

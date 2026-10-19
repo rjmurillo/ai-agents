@@ -18,7 +18,7 @@ Coverage:
   non-empty ``removed`` set, proving the gate goes red on real regressions.
 
 The corpus-gate tests below used to call ``scan_corpus`` against
-``.claude/skills`` themselves, four full traversals in all, each one reading and
+``src/claude/skills`` themselves, four full traversals in all, each one reading and
 parsing every ``.py`` file under that root. The scan is invariant for the
 duration of a session, so ``corpus_scan`` performs it once per pytest process
 and the tests assert against the cached result. Per-file violation diagnostics
@@ -42,7 +42,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GUARD_PATH = REPO_ROOT / "tests" / "test_subprocess_text_encoding.py"
 BASELINE_PATH = REPO_ROOT / "tests" / "fixtures" / "guard_corpus_baseline.json"
-CORPUS_ROOT = REPO_ROOT / ".claude" / "skills"
+CORPUS_ROOT = REPO_ROOT / "src" / "claude" / "skills"
 
 
 def _load_module_attr(path: Path, attr: str) -> object:
@@ -115,7 +115,7 @@ class CorpusScan:
 
 @pytest.fixture(scope="session")
 def corpus_scan(_count_corpus_scans: None) -> CorpusScan:
-    """Scan ``.claude/skills`` with the real guard once per pytest worker.
+    """Scan ``src/claude/skills`` with the real guard once per pytest worker.
 
     ``scan_corpus`` reads and parses every ``.py`` file under the root, so a
     per-test call multiplies the cost by the number of gate tests. The corpus
@@ -339,7 +339,7 @@ def test_scan_corpus_empty_dir_returns_empty(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(
     not CORPUS_ROOT.exists(),
-    reason=".claude/skills not present",
+    reason="src/claude/skills not present",
 )
 def test_corpus_gate_current_guard_finds_all_baseline_findings(
     corpus_scan: CorpusScan,
@@ -364,7 +364,7 @@ def test_corpus_gate_current_guard_finds_all_baseline_findings(
 
 @pytest.mark.skipif(
     not CORPUS_ROOT.exists(),
-    reason=".claude/skills not present",
+    reason="src/claude/skills not present",
 )
 def test_corpus_gate_reports_no_finding_the_baseline_does_not_carry(
     corpus_scan: CorpusScan,
@@ -393,7 +393,7 @@ def test_corpus_gate_reports_no_finding_the_baseline_does_not_carry(
 
 @pytest.mark.skipif(
     not CORPUS_ROOT.exists(),
-    reason=".claude/skills not present",
+    reason="src/claude/skills not present",
 )
 def test_corpus_gate_survives_line_insertion_in_flagged_file(
     tmp_path: Path,
@@ -444,7 +444,7 @@ def test_corpus_gate_survives_line_insertion_in_flagged_file(
 
 @pytest.mark.skipif(
     not CORPUS_ROOT.exists(),
-    reason=".claude/skills not present",
+    reason="src/claude/skills not present",
 )
 def test_corpus_gate_catches_weakened_guard(corpus_scan: CorpusScan) -> None:
     """Negative control: a guard that drops one file's findings trips the gate.
@@ -485,13 +485,13 @@ def test_corpus_gate_catches_weakened_guard(corpus_scan: CorpusScan) -> None:
 
 @pytest.mark.skipif(
     not CORPUS_ROOT.exists(),
-    reason=".claude/skills not present",
+    reason="src/claude/skills not present",
 )
 def test_corpus_is_scanned_once_per_worker(corpus_scan: CorpusScan) -> None:
     """The gate tests share one traversal, not one traversal each.
 
     Before issue #5382 the three gate tests above ran four ``scan_corpus`` passes
-    over ``.claude/skills`` between them. Session scope collapses that to one per
+    over ``src/claude/skills`` between them. Session scope collapses that to one per
     pytest process, which is also what an xdist worker gets. The counter comes
     from a wrapper around ``scan_corpus`` itself, so a gate test that goes back
     to scanning the corpus directly fails here even though it never touches the

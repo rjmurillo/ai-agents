@@ -268,7 +268,7 @@ Durable tests:
 - `tests/hooks/test_dispatch_groups_parity.py`
 
 The guard's own test files went with it in #5154. The name recorded here
-before that, `tests/hooks/test_push_pr_script_identity_guard.py`, had already
+before that, `tests/hooks/test_push_pr_script_identity_guard.py`, had already <!-- orphan-ref-ignore -->
 been split into per-area files and did not exist under that name.
 
 ### 7a. Relevance before policy on the plugin-wide Bash matcher
@@ -361,7 +361,7 @@ Minimum evidence:
 8. Update this file, the contract skill, ADRs, tests, mirrors, and Serena memory
    in the same change.
 
-## 10. Skill `allowed-tools` under Copilot CLI (issue #5691)
+## 10. Skill `allowed-tools` under Copilot CLI (issue #5691) <!-- orphan-ref-ignore -->
 
 Date: 2026-10-12.
 

@@ -13,13 +13,21 @@ body. Never shell-expand the paths.
 
 `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/scripts/doc_accuracy_trigger.py" --diff-base "origin/<base-branch>" --changed-path <path> --effect <name>`
 
+If `/build` handed over a doc-impact record (see "Build handoff"), add
+`--build-record <doc-impact-path>`. The record's `effects` join yours, and a
+record whose `decision` was `activate` keeps this decision at `activate`, so a
+signal raised at build time is never skipped here. The output echoes both in
+`effects` and `build_record`. Exit `2` also covers an unreadable or malformed
+record: report `VERDICT: ERROR`. No record handed over: omit the option.
+
 Effects: `public-api`, `cli-surface`, `config-or-defaults`,
 `quantitative-claim`, `behavioral-claim`, `support-or-limit`, `example-change`,
 `generated-input`, `agent-behavior`. A code, build, or CI path activates the
 check only through an effect, so read the diff for each one before you run the
 trigger. A path the classifier cannot place, an unknown effect, and an empty
-path list all activate it. Exit `2` means the classifier could not load or the
-diff base was blank: report `VERDICT: ERROR`.
+path list all activate it. Exit `2` means the classifier could not load, the
+diff base was blank, or the build record was unreadable or malformed: report
+`VERDICT: ERROR`.
 
 ## 2. Skip
 
@@ -41,14 +49,24 @@ returns PASS, FAIL, or UNKNOWN.
 ## 4. Verify claims the scan cannot see
 
 Run the behavioral and cross-document phases `doc-accuracy` defines when
-`behavioral_escalation` is `required`, or is `on-findings` and step 3 reported a
-finding on a changed line. Scope them to `changed_documents`.
+`behavioral_escalation` is `required`, or is `on-findings` and step 3 or the
+coupled-document scan below reported a finding (on a changed line in step 3, on
+any line of a coupled document below). Scope them to `changed_documents` plus
+any coupled document found below.
 
-When `coupled_documents_needed` is true no document changed, so the scan in
-step 3 has nothing to inventory. Run
+When `coupled_documents_needed` is true a cause other than a changed document
+is present (a verified effect, an agent artifact, a public API, an unreadable or
+unclassified path). Documents the diff never touched can be stale, and the scan
+in step 3 covers only the changed ones. Run
 `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts/doc_accuracy.py" --target . --phases 1 --output-dir <dir>`
 and take the documents in `<dir>/assessment.json` whose `mapped_source_files`
-include a changed path. When none map, record
+include a changed path. `--diff-base` inventories only changed documents, so it
+cannot scan an unchanged one. Scan the coupled documents with a full run instead:
+the step 3 command with `--phases 1,2,3` and no `--diff-base`. A full run reports
+every line and downgrades none. Keep only findings whose claim file is a mapped
+coupled document. A blocking one (severity at or above the scan threshold) is a
+FAIL for step 5. Findings in other documents are outside this gate. When none map
+and `changed_documents` is empty, record
 `DOC ACCURACY: SKIPPED - no document maps to the changed source`.
 
 ## 5. Verdict
@@ -57,10 +75,23 @@ A FAIL is `CRITICAL_FAIL`. An UNKNOWN, a `DID_NOT_RUN`, a missing report, or an
 escalation you were required to run and did not is `ERROR`; none of them is ever
 a PASS. A finding in a `historical_paths` entry is dated evidence: report it as
 info and leave it out of the verdict. Name each `unreadable_documents` entry as
-unverified, because `doc-accuracy` cannot read it. Classify each finding's
-remediation by the artifact-neutral rules in the `code-qualities-assessment`
-skill's `references/executable-nl-artifacts.md`; a generated copy is corrected
-at its canonical source.
+unverified, because `doc-accuracy` cannot read it. Give each finding one remediation class
+from the Report block below, chosen by the artifact-neutral rules in the
+`code-qualities-assessment` skill's `references/executable-nl-artifacts.md`; a
+generated copy is corrected at its canonical source.
+
+## Build handoff
+
+`/build` runs the same trigger once, without `--build-record`, so it does not
+audit after every edit. It passes the changed paths planned or verified so far
+and each effect it verified in the diff body, then saves the JSON output as the
+doc-impact record in the plan or issue handoff, at `<doc-impact-path>`. Re-run
+and overwrite the record when later slices change the paths or effects. On
+`"decision": "skip"` the handoff quotes the `reason` field as
+`DOC ACCURACY: SKIPPED`. On `"decision": "activate"` `/build` runs the
+incremental scan from step 3 on the changed documents and stops there; the
+behavioral phases in step 4 stay with this gate. A missing record is not a
+skip: `/build` runs the trigger first.
 
 ## Report
 

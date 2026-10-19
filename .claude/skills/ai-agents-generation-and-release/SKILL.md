@@ -55,7 +55,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `src/copilot-cli/agents/` | generated | templates/agents | `build/generate_agents.py` |
 | `docs/agent-catalog.md` | generated | templates/agents | `build_all.py` (agent-catalog) |
 | `.claude/` | MIXED per subtree, see Facts below | mixed | binplace, template-owned parts only |
-| `templates/skills/*.SKILL.md.tmpl` | CANONICAL for all 111 skills' SKILL.md (ADR-108, ADR-109 B3) | itself | renders `src/claude/skills/`, binplaces `.claude/skills/`, mirrors `src/copilot-cli/skills/` |
+| `templates/skills/*.SKILL.md.tmpl` | CANONICAL for all 111 skills' SKILL.md (ADR-108, ADR-109 B3) | itself | renders `src/claude/skills/`, links `.claude/skills/<name>`, mirrors `src/copilot-cli/skills/` |
 | `src/copilot-cli/{skills,instructions,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
@@ -63,7 +63,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | binplaced from `src/claude/lib/` | `src/claude/lib/` | `build_all.py` binplace |
 | `src/claude/{agents,rules,hooks,hooks.json,settings.json}` | generated (ADR-109 B1, B2, B4; supersedes the pre-ADR-109 hand-synced model) | `templates/{agents,rules,hooks}/` | `build_all.py`, then binplaced to `.claude/` |
 
-All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`; it renders `src/claude/skills/<name>/SKILL.md` first, binplace copies that to `.claude/skills/<name>/SKILL.md`, then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`.
+All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`. A shipped skill renders `src/claude/skills/<name>/SKILL.md` first, `.claude/skills/<name>` links to that directory (ADR-119), then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`. A repo-local skill renders only to `.claude/skills/<name>/`; its support files are hand-maintained there.
 
 Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it; seven since ADR-064 retired `commands`):
 
@@ -178,17 +178,19 @@ Practical consequences:
 
 The npm surface is `packages/ai-agents-cli` (package
 `@rjmurillo/ai-agents`; read `package.json` for the current version). It vendors
-the Claude kit into consumer repos. Release procedure (source: `RELEASING.md`,
-repo root):
+the Claude kit into consumer repos.
 
-1. Bump `packages/ai-agents-cli/package.json` version. Tag/version mismatch is a listed failure mode.
-2. Local sanity: `cd packages/ai-agents-cli && bun run build` (runs `bun build src/cli.ts --outdir dist --target node`), `bun test`, `tsc --noEmit` via `bun run typecheck`. As of 2026-07-29 `bun run typecheck` exits 1 on this package with 38 errors (36 `TS2591`, 2 `TS2503`). `@types/node` 26.0.0 is installed, but the package `tsconfig.json` sets no `types` field, and TypeScript 7.0.2 no longer auto-includes it the way 5.9.3 does, so Node builtins are absent from the compilation. Issue #3865 tracks the fix: add `"types": ["node"]` and a CI job that runs typecheck and `bun test`. Before blaming your change for a red typecheck, check whether that fix landed: `grep -q '"types"' packages/ai-agents-cli/tsconfig.json`.
-3. Commit to main via normal PR flow (branch discipline still applies; see `ai-agents-change-control`).
-4. `git tag vX.Y.Z` then `git push origin main --tags`.
-5. `.github/workflows/publish.yml` fires on `v*` tags: validates package metadata, publishes with OIDC provenance (`id-token: write`; `NPM_TOKEN` is fallback only). `workflow_dispatch` offers a dry-run input defaulting to `true`.
-6. Verify: registry version, provenance badge on npmjs.com, clean-environment install (commands in RELEASING.md Verification section).
+`RELEASING.md` (repo root) owns the release procedure: setup, publish, dry run,
+verification, rollback, and troubleshooting. Follow it step by step and do not
+copy its steps here, because they change with the publish gate.
 
-Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (RELEASING.md Rollback procedures).
+Durable distinctions to keep in mind:
+
+- The only live CI publish route is a manual `workflow_dispatch` run of `.github/workflows/publish.yml` on the default branch. That dispatch run applies the ADR-113 promotion gate, enforcing for a real publish and advisory for a dry run (`dry-run` defaults to `true`). The one-time First publish in RELEASING.md runs locally, outside CI, and runs no promotion gate.
+- The `v*` tag trigger is dormant. A tag push runs, then the first job refuses it, so pushing a tag does not publish. A `v*` tag ruleset is the owner action that would revive it (ADR-113 Resolved Question 2).
+- The candidate is the head of the default branch, so the version bump in `packages/ai-agents-cli/package.json` must merge first, through the normal PR flow (branch discipline and review per `ai-agents-change-control`).
+- Rollback is roll-forward: npm unpublish is restricted, so fix, bump the patch version, merge, and dispatch again (RELEASING.md Rollback procedures).
+- Local sanity: `bun run build`, `bun test`, and `bun run typecheck` in `packages/ai-agents-cli`; all three should pass.
 
 ## Anti-Patterns
 
@@ -214,11 +216,11 @@ Run this checklist before pushing any change that touched a canonical or generat
 - [ ] `python3 build/scripts/check_plugin_manifest_parity.py` exits 0
 - [ ] `python3 build/scripts/validate_plugin_version_bump.py` exits 0 (no manifest or marketplace entry carries a `version`)
 - [ ] Canonical edit and regenerated output are staged in the same commit set
-- [ ] For an npm release: tag matches `packages/ai-agents-cli/package.json` version exactly
+- [ ] For an npm release: any `release-tag` input matches the `packages/ai-agents-cli/package.json` version exactly
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
+Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). A row that names a later date was re-verified on that date. Volatile facts and how to re-check them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
@@ -235,7 +237,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml; the drift script's own argparse default (command below) | `grep -n "cron" .github/workflows/drift-detection.yml && grep -n "default=80" build/scripts/detect_agent_drift.py` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Ruff exemption for generated Python | `pyproject.toml [tool.ruff.lint.per-file-ignores]` | `grep -n "src/copilot-cli" pyproject.toml` |
-| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md; .github/workflows/publish.yml:13-16 | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "Rollback" RELEASING.md && grep -n "tags" .github/workflows/publish.yml` |
+| npm package, bun build, dispatch-only publish route (re-verified 2026-10-14 for issue #6590) | packages/ai-agents-cli/package.json; RELEASING.md; the header comment of .github/workflows/publish.yml | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "dormant" RELEASING.md .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.project-toolkit/retrospective').glob('*drift*')])"` |

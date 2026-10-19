@@ -340,6 +340,12 @@ class FileAssessment:
     encapsulation: QualityScore
     testability: QualityScore
     non_redundancy: QualityScore
+    # True only when the scanner tried to score the file and could not (read,
+    # decode, or assessment failure). A file in a language the scanner does
+    # not support is also unscored, but it is not a failure, so it stays
+    # False. Consumers use this to tell a hole in the evidence from a file
+    # that was never in scope for scoring.
+    scoring_failed: bool = False
 
     @property
     def overall(self) -> float:
@@ -1237,6 +1243,8 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     Every quality is confidence 0.0 so ``check_thresholds`` skips the file
     rather than passing it on meaningless scores derived from empty content.
     The reason is carried so the report explains why the file was not scored.
+    ``scoring_failed`` is set so a consumer can tell this failure from a file
+    whose language the scanner does not support.
     """
 
     def _unscored() -> QualityScore:
@@ -1256,6 +1264,7 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
         encapsulation=_unscored(),
         testability=_unscored(),
         non_redundancy=_unscored(),
+        scoring_failed=True,
     )
 
 

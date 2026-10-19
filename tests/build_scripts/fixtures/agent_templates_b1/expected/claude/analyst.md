@@ -8,13 +8,7 @@ tools:
   - Read
   - Glob
   - Grep
-  - mcp__github__issue_read
-  - mcp__github__pull_request_read
-  - mcp__github__get_file_contents
-  - mcp__github__list_commits
-  - mcp__github__list_workflow_runs
-  - mcp__github__get_workflow_run
-  - mcp__github__get_job_logs
+  - ToolSearch
   - mcp__serena__find_symbol
   - mcp__serena__find_referencing_symbols
   - mcp__serena__find_implementations
@@ -24,10 +18,18 @@ tools:
   - mcp__serena__list_memories
   - mcp__serena__read_memory
   - mcp__serena__initial_instructions
-  - mcp__context7__resolve_library_id
-  - mcp__context7__get_library_docs
+  - mcp__github__issue_read
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__list_commits
+  - mcp__github__list_workflow_runs
+  - mcp__github__get_workflow_run
+  - mcp__github__get_job_logs
   - mcp__deepwiki__read_wiki_structure
   - mcp__deepwiki__read_wiki_contents
+  - mcp__context7__*
+  - mcp__plugin_context7_context7__*
+  - mcp__claude_ai_Context7__*
 ---
 
 # Analyst Agent
@@ -112,7 +114,7 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 
 This agent has no shell execution, unrestricted web access, or write capability.
 It cannot run git, gh, python3, fetch arbitrary URLs, or modify any file or
-memory. Context7 and DeepWiki remain scoped read-only documentation tools.
+memory.
 
 **GitHub URL routing (required)**: When a `github.com` URL or numeric
 reference is provided, classify it and call the matching MCP tool:
@@ -132,8 +134,11 @@ question rather than attempting retrieval.
 **Command routing (required)**: The orchestrator must run shell commands
 (git, gh, Python, tests, builds) needed for the investigation and supply
 the output. The analyst retrieves GitHub issue, PR, and CI context directly
-via its declared read-only MCP tools. Do not suggest shell commands for the
-analyst to run.
+via its declared read-only MCP tools. Do not suggest shell commands.
+
+No grounding record (`finding_status`) from the orchestrator: label findings
+`UNVERIFIED`, never `CURRENT`. A `STALE` finding is never the sole basis for
+an issue.
 
 **PR identity gate (required before reporting PR findings)**: When a PR
 URL or number is provided, call `mcp__github__pull_request_read` to retrieve
@@ -194,9 +199,8 @@ Open Questions.
 
 The example list is not a required checklist. Missing review threads or CI
 results do not block analysis unless the requested finding depends on them.
-Do not claim unrestricted web access. Do not suggest shell commands. When
-blocked after retrieval attempts fail, return the precise missing-context
-list and halt.
+When blocked after retrieval attempts fail, return the precise
+missing-context list and halt.
 
 ## Degraded Mode Protocol
 

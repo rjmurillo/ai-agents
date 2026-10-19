@@ -30,10 +30,16 @@ Path kinds, in the order they are tested:
 
 An empty path list, an unknown effect, and an unclassified path also activate.
 
+``/build`` runs this script once and saves the JSON as its documentation-impact
+record. ``/test`` Gate 5 passes that file back through ``--build-record``. The
+record's effects join the verified effects, and a record that activated keeps
+the decision at activate, so a signal raised at build time cannot be dropped
+before the principal gate runs.
+
 EXIT CODES (ADR-035):
     0 - A decision was emitted on stdout as JSON.
-    2 - Config error: the review-axis classifier could not be loaded, or the
-        diff base is blank.
+    2 - Config error: the review-axis classifier could not be loaded, the
+        diff base is blank, or the build record cannot be read.
 """
 
 from __future__ import annotations
@@ -46,6 +52,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 # Diff effects the caller verified in the diff body. Each one is a way a change
 # can invalidate a documented claim when no changed path shows it.
@@ -85,6 +92,8 @@ _HISTORICAL_NAMES = frozenset({"changelog.md", "history.md"})
 _DATED_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}")
 _TEST_DIRECTORIES = frozenset({"tests", "fixtures"})
 
+_DECISIONS = ("activate", "skip")
+
 _CLASSIFIER_RELATIVE = Path("review") / "scripts" / "select_axes.py"
 
 _INTERNAL_WHY = {
@@ -113,6 +122,26 @@ def load_classifier(path: Path | None = None) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def load_build_record(path: Path) -> dict[str, Any]:
+    """Read the documentation-impact record ``/build`` saved from this script.
+
+    The record is this script's own JSON output, so only the two fields the
+    merge reads are required. Anything else raises ``ValueError``, because a
+    record that cannot be read must never look like a record that said skip.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"cannot read build record {path}: {exc}") from exc
+    effects = data.get("effects") if isinstance(data, dict) else None
+    decision = data.get("decision") if isinstance(data, dict) else None
+    if decision not in _DECISIONS or not isinstance(effects, list):
+        raise ValueError(f"build record {path} needs a decision and an effects list")
+    if not all(isinstance(effect, str) for effect in effects):
+        raise ValueError(f"build record {path} holds a non-string effect")
+    return {"decision": decision, "effects": effects}
 
 
 def _is_test_only(segments: list[str], categories: Sequence[str]) -> bool:
@@ -165,8 +194,15 @@ def _classify_all(changed_paths: Sequence[str], classifier: ModuleType) -> dict[
     return by_kind
 
 
-def _causes(by_kind: dict[str, list[str]], effects: list[str], unknown: list[str]) -> list[str]:
+def _causes(
+    by_kind: dict[str, list[str]],
+    effects: list[str],
+    unknown: list[str],
+    build_activated: bool = False,
+) -> list[str]:
     causes: list[str] = []
+    if build_activated:
+        causes.append("build record: /build recorded documentation impact")
     if unknown:
         causes.append("fail-closed: unknown effect " + ", ".join(unknown))
     if not by_kind:
@@ -184,6 +220,23 @@ def _causes(by_kind: dict[str, list[str]], effects: list[str], unknown: list[str
             causes.append(f"{label}: " + ", ".join(by_kind[kind]))
     causes.extend(f"effect: {effect}" for effect in effects)
     return causes
+
+
+def _needs_coupled_lookup(
+    by_kind: dict[str, list[str]], effects: list[str], unknown: list[str]
+) -> bool:
+    """True when a cause other than a scannable changed document is present.
+
+    A changed document is scanned directly. Any other cause (a verified effect,
+    an unknown effect, an unreadable or unclassified path, an agent artifact, a
+    public API, or no paths) can leave a document stale that the diff never
+    touched, so the coupled-document lookup must run beside the changed ones.
+    """
+    if effects or unknown or not by_kind:
+        return True
+    return any(
+        by_kind.get(kind) for kind in ("unclassified", "unreadable", "agent-artifact", "api")
+    )
 
 
 def _escalation(activate: bool, by_kind: dict[str, list[str]], effects: list[str]) -> str:
@@ -204,13 +257,16 @@ def decide(
     effects: Sequence[str],
     diff_base: str,
     classifier: ModuleType,
+    build_record: dict[str, Any] | None = None,
 ) -> dict[str, object]:
     """Return the Gate 5 documentation-accuracy decision for one change."""
     by_kind = _classify_all(changed_paths, classifier)
-    normalized = [effect.strip().lower() for effect in effects]
+    recorded: list[str] = list(build_record["effects"]) if build_record else []
+    normalized = [effect.strip().lower() for effect in [*effects, *recorded]]
     known = [effect for effect in dict.fromkeys(normalized) if effect in EFFECTS]
     unknown = [effect for effect in dict.fromkeys(normalized) if effect not in EFFECTS]
-    causes = _causes(by_kind, known, unknown)
+    build_activated = build_record is not None and build_record["decision"] == "activate"
+    causes = _causes(by_kind, known, unknown, build_activated)
     activate = bool(causes)
     documents = by_kind.get("document", [])
     return {
@@ -219,12 +275,16 @@ def decide(
         "reason": "activate - " + "; ".join(causes) if activate else _skip_reason(by_kind),
         "activation_causes": causes,
         "diff_base": diff_base,
+        "effects": known,
+        "build_record": (
+            {"decision": build_record["decision"], "effects": recorded} if build_record else None
+        ),
         "scope": f"incremental: {diff_base}...HEAD",
         "changed_documents": documents,
         "unreadable_documents": by_kind.get("unreadable", []),
         "historical_paths": by_kind.get("historical", []),
         "unknown_effects": unknown,
-        "coupled_documents_needed": activate and not documents,
+        "coupled_documents_needed": _needs_coupled_lookup(by_kind, known, unknown),
         "behavioral_escalation": _escalation(activate, by_kind, known),
     }
 
@@ -254,6 +314,13 @@ def _build_parser() -> argparse.ArgumentParser:
         + ". An unknown value fails closed.",
     )
     parser.add_argument(
+        "--build-record",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="The JSON this script printed for /build. Its effects join --effect values.",
+    )
+    parser.add_argument(
         "--classifier",
         type=Path,
         default=None,
@@ -272,7 +339,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, ImportError) as exc:
         print(f"doc_accuracy_trigger: {exc}", file=sys.stderr)
         return 2
-    result = decide(args.changed_path, args.effect, args.diff_base.strip(), classifier)
+    try:
+        record = load_build_record(args.build_record) if args.build_record else None
+    except ValueError as exc:
+        print(f"doc_accuracy_trigger: {exc}", file=sys.stderr)
+        return 2
+    result = decide(args.changed_path, args.effect, args.diff_base.strip(), classifier, record)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

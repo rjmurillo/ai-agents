@@ -2,7 +2,9 @@
 """Hook: user_prompt_submit - Auto-recall relevant memories.
 
 Searches .serena/memories/ for content matching the user's prompt,
-ranks by confidence score, and injects top results via stdout.
+keeps only results whose relevance to the prompt reaches
+``_MIN_RELEVANCE``, and injects the top ones via stdout. A prompt with no
+relevant memory injects nothing.
 
 Hook Type: UserPromptSubmit (Claude Code). Copilot CLI drops config-file
 UserPromptSubmit output, so it gets recall through
@@ -28,6 +30,7 @@ if TYPE_CHECKING:
 _STOP_WORDS = frozenset(
     {
         "a",
+        "about",
         "an",
         "and",
         "are",
@@ -35,12 +38,18 @@ _STOP_WORDS = frozenset(
         "at",
         "be",
         "by",
+        "can",
+        "could",
+        "did",
         "do",
+        "does",
+        "explain",
         "for",
         "from",
         "has",
         "have",
         "he",
+        "how",
         "i",
         "in",
         "is",
@@ -53,7 +62,11 @@ _STOP_WORDS = frozenset(
         "of",
         "on",
         "or",
+        "please",
+        "should",
+        "show",
         "so",
+        "tell",
         "that",
         "the",
         "they",
@@ -67,8 +80,10 @@ _STOP_WORDS = frozenset(
         "when",
         "which",
         "who",
+        "why",
         "will",
         "with",
+        "would",
         "you",
         "your",
     }
@@ -76,6 +91,17 @@ _STOP_WORDS = frozenset(
 
 _MAX_RECALL_RESULTS = 3
 _MIN_QUERY_TERMS = 1
+
+# Minimum fraction of query terms that must name a memory (id or title) for it
+# to be injected. The file search matches any one term anywhere in a file, so
+# without this floor every prompt recalls its three highest-confidence
+# candidates. The floor is inclusive: a score of exactly 0.50 is injected, so
+# a two term prompt needs only one term to name the memory. In a sample on
+# .serena/memories, 5 of 5 prompts that named a memory were recalled, and 3 of
+# 8 unrelated prompts still injected one weak match. Short unrelated prompts
+# reach 0.50 on a single stem hit. Those figures come from that sample, not a
+# bound.
+_MIN_RELEVANCE = 0.5
 
 
 def main() -> int:
@@ -169,6 +195,7 @@ def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
         memories_dir=memories_dir,
         max_results=_MAX_RECALL_RESULTS,
         repo_root=repo_root,
+        min_relevance=_MIN_RELEVANCE,
     )
 
     if not results:
@@ -194,7 +221,8 @@ def _format_memory_context(results: list[SearchResult]) -> str:
 
     for result in results:
         lines.append(
-            f"### {result.title} (confidence: {result.confidence:.0%}, {result.citation_status})"
+            f"### {result.title} (relevance: {result.relevance:.0%}, "
+            f"confidence: {result.confidence:.0%}, {result.citation_status})"
         )
         lines.append(result.snippet)
         relative_path = result.file_path

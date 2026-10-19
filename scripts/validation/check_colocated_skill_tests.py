@@ -24,29 +24,33 @@ SHIPPED_SKILL_ROOTS: tuple[str, ...] = (
     ".claude/skills",
     "src/copilot-cli/skills",
     "src/claude/skills",
+    "src/codex/skills",
 )
 
-# Generated mirror roots (build/scripts/generate_skills.py copies
-# .claude/skills/ into both, byte for byte) mapped back onto the canonical
-# source root. A test file already tolerated as legacy at .claude/skills/
-# is the same file, not a new one, when it first appears at its mirror path
-# (a brand-new skill's test file, or ADR-109 B3's support-file follow-up
-# populating src/claude/skills/ for the first time): the mirror step, not a
-# contributor, is what put it there.
-_MIRROR_SOURCE_ROOTS: tuple[str, ...] = (
-    "src/copilot-cli/skills",
+# A test file already tolerated as legacy at one shipped path is the same file,
+# not a new one, when it first appears at another (a brand-new skill's test
+# file, or ADR-109 B3's support-file follow-up populating src/claude/skills/
+# for the first time): the mirror step, not a contributor, is what put it there.
+# ADR-119 made src/claude/skills/ the canonical copy and .claude/skills/<name> a
+# directory link to it, so a legacy ref may hold the file under .claude/skills/
+# (before the link) or under src/claude/skills/ (after it). The Copilot and Codex
+# trees are generated mirrors of the same files.
+_LEGACY_EQUIVALENT_ROOTS: tuple[str, ...] = (
     "src/claude/skills",
+    ".claude/skills",
+    "src/copilot-cli/skills",
+    "src/codex/skills",
 )
-_CANONICAL_SKILL_ROOT = ".claude/skills"
 
 
-def _mirror_source_path(path: str) -> str | None:
-    """Return the canonical .claude/skills/ path a mirror path maps to, if any."""
-    for root in _MIRROR_SOURCE_ROOTS:
+def _legacy_equivalent_paths(path: str) -> list[str]:
+    """Return the other shipped-tree paths that name the same skill file."""
+    for root in _LEGACY_EQUIVALENT_ROOTS:
         prefix = f"{root}/"
         if path.startswith(prefix):
-            return f"{_CANONICAL_SKILL_ROOT}/{path[len(prefix) :]}"
-    return None
+            tail = path[len(prefix) :]
+            return [f"{other}/{tail}" for other in _LEGACY_EQUIVALENT_ROOTS if other != root]
+    return []
 
 
 def is_colocated_skill_test(path: str) -> bool:
@@ -118,8 +122,7 @@ def check_paths(
             continue
         if path in legacy:
             continue
-        source_path = _mirror_source_path(path) if allow_existing else None
-        if source_path is not None and source_path in legacy:
+        if allow_existing and any(twin in legacy for twin in _legacy_equivalent_paths(path)):
             continue
         violations.append(path)
     return violations
@@ -204,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nSee issue #4838. Existing legacy tests are tolerated until migrated.")
         return 1
 
+    print(f"No new colocated skill tests in {len(paths)} added path(s) examined.")
     return 0
 
 

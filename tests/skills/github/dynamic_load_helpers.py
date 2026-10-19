@@ -49,7 +49,8 @@ def closure(tmp_path: Path, *named: str) -> list[str]:
     return gate._expand_import_closure(list(named), tmp_path)
 
 
-SHIPPED_CONFIG = REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
+SHIPPED_PLUGIN_ROOT = "src/claude"
+SHIPPED_CONFIG = REPO_ROOT / SHIPPED_PLUGIN_ROOT / "skills" / "pr-review" / "pr-review-config.yaml"
 
 
 def shipped_verifier_closure() -> tuple[list[str], list[str]]:
@@ -64,15 +65,24 @@ def shipped_verifier_closure() -> tuple[list[str], list[str]]:
     """
     import yaml
 
-    config = yaml.safe_load(SHIPPED_CONFIG.read_text(encoding="utf-8"))
+    # `.claude/skills/<name>` is a symlink into `src/claude/skills/<name>` (ADR-119) and the
+    # gate refuses any symlinked component (CWE-59), so measure the closure where the bytes
+    # live: the shipped plugin tree. The literal `.claude/skills/` command prefixes in the
+    # config's scripts map are rewritten to that tree for the same reason.
+    text = SHIPPED_CONFIG.read_text(encoding="utf-8")
+    config = yaml.safe_load(text.replace(".claude/skills/", f"{SHIPPED_PLUGIN_ROOT}/skills/"))
     criteria = gate._extract_criteria(config) + gate._scripts_map_criteria(config)
     # The config's `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}` forms expand from
     # the environment. The pre-push hook exports CLAUDE_PLUGIN_ROOT=src/copilot-cli, which
-    # would move the closure to the Copilot mirror. Pin the self-hosted `.claude` shape so
-    # the scanned set does not depend on the caller.
+    # would move the closure to the Copilot mirror. Pin the Claude plugin tree so the
+    # scanned set does not depend on the caller.
     with mock.patch.dict(os.environ):
         for var in gate._PLUGIN_ROOT_ENV_VARS:
             os.environ.pop(var, None)
+        os.environ["CLAUDE_PLUGIN_ROOT"] = SHIPPED_PLUGIN_ROOT
         named, _external, escaping = gate._collect_command_paths(criteria, 1, REPO_ROOT)
+        # The import roots also read these variables (``_environment_libs``), so the
+        # closure is built under the same pinned environment.
+        closure = gate._expand_import_closure(named, REPO_ROOT)
     assert escaping == [], f"config commands escape the work tree: {escaping}"
-    return named, gate._expand_import_closure(named, REPO_ROOT)
+    return named, closure

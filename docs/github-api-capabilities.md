@@ -204,6 +204,7 @@ directly instead of raw `gh`.
 | `get_pull_requests.py` | `.claude/skills/github/scripts/pr/` | List pull requests |
 | `new_pr.py` | `.claude/skills/github/scripts/pr/` | Create pull request |
 | `close_pr.py` | `.claude/skills/github/scripts/pr/` | Close pull request |
+| `reopen_pr.py` | `.claude/skills/github/scripts/pr/` | Reopen pull request |
 | `merge_pr.py` | `.claude/skills/github/scripts/pr/` | Merge pull request |
 | `get_pr_checks.py` | `.claude/skills/github/scripts/pr/` | Get PR check status |
 | `get_pr_check_logs.py` | `.claude/skills/github/scripts/pr/` | Get PR check logs |

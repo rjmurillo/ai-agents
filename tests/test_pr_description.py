@@ -180,6 +180,36 @@ class TestTemplateCompliance:
         r = run_validator("--title", "feat: X", "--body", "Just a description")
         assert r["Validations"]["TemplateCompliance"]["Status"] == "WARN"
 
+    def test_message_names_every_missing_section_and_its_expected_syntax(self):
+        r = run_validator("--title", "feat: X", "--body", "Just a description")
+        message = r["Validations"]["TemplateCompliance"]["Message"]
+        assert message.startswith("Template compliance: 0/4 sections complete. Missing: ")
+        assert "Summary (a `## Summary` heading" in message
+        assert "SpecificationReferences (a table row starting `| **Issue** |`" in message
+        assert "TypeOfChange (at least one checked `[x]` box)" in message
+        assert "Changes (a `## Changes` heading" in message
+
+    def test_message_omits_sections_that_passed(self):
+        body = "## Summary\n\nAdded auth.\n\n## Type of Change\n\n- [x] Feature\n"
+        r = run_validator("--title", "feat: X", "--body", body)
+        message = r["Validations"]["TemplateCompliance"]["Message"]
+        assert "2/4 sections complete" in message
+        assert "Summary (" not in message
+        assert "TypeOfChange (" not in message
+        assert "SpecificationReferences (" in message
+        assert "Changes (" in message
+
+    def test_message_has_no_missing_list_when_complete(self):
+        body = (
+            "## Summary\n\nAdded auth.\n\n"
+            "| Type | Reference |\n|------|--------|\n| **Issue** | Closes #1 |\n\n"
+            "## Type of Change\n\n- [x] New feature\n\n"
+            "## Changes\n\n- Added OAuth2\n"
+        )
+        r = run_validator("--title", "feat: Auth", "--body", body)
+        message = r["Validations"]["TemplateCompliance"]["Message"]
+        assert message == "Template compliance: 4/4 sections complete"
+
 
 class TestOverall:
     def test_success_with_warnings(self):
@@ -529,6 +559,29 @@ class TestInlineCitationStripping:
         extract = self._import_extract()
         body = "## Changes\nThe proper `scripts/config.py` file is part of this change."
         assert "scripts/config.py" in extract(body)
+
+    @pytest.mark.parametrize(
+        "suffix",
+        ["", ":71", ":71:9"],
+        ids=["no-location", "line", "line-and-column"],
+    )
+    @pytest.mark.parametrize(
+        "cue",
+        ["see", "per", "e.g.", "for example", "defined in", "introduced in"],
+    )
+    def test_citation_cue_strips_path_with_location_suffix(self, cue, suffix):
+        """#5550: a cited path with a line or line:column suffix is stripped like a bare path."""
+        extract = self._import_extract()
+        path = f"scripts/validation/checks_ratchet.py{suffix}"
+        body = f"## Changes\nThe anchor is valid, {cue} `{path}`, which holds it."
+        assert "scripts/validation/checks_ratchet.py" not in extract(body)
+
+    @pytest.mark.parametrize("suffix", [":71", ":71:9"], ids=["line", "line-and-column"])
+    def test_uncited_path_with_location_suffix_still_collected(self, suffix):
+        """#5550 negative control: no cue means the CRITICAL path still fires."""
+        extract = self._import_extract()
+        body = f"## Changes\nThe anchor `scripts/validation/checks_ratchet.py{suffix}` moved."
+        assert "scripts/validation/checks_ratchet.py" in extract(body)
 
     def test_citation_cue_does_not_cross_line_boundary(self):
         """A cue on one line must not suppress a claim on the next line."""

@@ -32,6 +32,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,7 +54,7 @@ try:
         EXIT_VULNERABILITIES,
     )
     from scan_format import format_console_output
-    from scan_patterns import CWE78_PATTERNS
+    from scan_patterns import CWE78_PATTERNS, scrub_bash_line, scrub_bash_lines
 finally:
     if _added_to_path:
         sys.path.remove(_SCRIPT_DIR)
@@ -74,6 +75,8 @@ __all__ = [
     "is_line_suppressed",
     "main",
     "scan_file",
+    "scrub_bash_line",
+    "scrub_bash_lines",
 ]
 
 # Suppression comment pattern
@@ -239,12 +242,23 @@ def scan_file(
     # on every PR); see this module's docstring for the buy-vs-build rationale.
     cwe78_patterns = CWE78_PATTERNS.get(language, [])
 
+    # A pattern with a "scrub_lines" hook matches against the file scrubbed once,
+    # so quote and here-document state carries across lines (issue #6624).
+    scrubbed: dict[int, list[str]] = {}
+    for pattern_info in cwe78_patterns if cwe_filter is None or 78 in cwe_filter else []:
+        scrub_lines = cast(
+            Callable[[Sequence[str]], list[str]] | None, pattern_info.get("scrub_lines")
+        )
+        if scrub_lines is not None:
+            scrubbed[id(pattern_info)] = scrub_lines(lines)
+
     for line_num, line in enumerate(lines, 1):
         # Check CWE-78 patterns
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
                 pattern = cast(re.Pattern[str], pattern_info["pattern"])
-                if pattern.search(line):
+                prepared = scrubbed.get(id(pattern_info))
+                if pattern.search(prepared[line_num - 1] if prepared else line):
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:

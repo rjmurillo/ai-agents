@@ -8,7 +8,8 @@ artifacts:
     outputSuffix: ".agent.md"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
   skills:
-    sourceDir: ".claude/skills"
+    # ADR-119: read the plugin tree, the real directory .claude/skills links to.
+    sourceDir: "src/claude/skills"
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
     # merge-resolver is hard-wired to this repo's layout (gh, .project-toolkit/sessions,
@@ -25,21 +26,24 @@ artifacts:
   rules:
     # ADR-109 B2: rules render from templates/rules/ into src/claude/rules/
     # (the plugin tree); the instruction mirrors read that tree, and the
-    # binplace step copies it to .claude/rules/ for the repository itself.
+    # binplace step links each rule into .claude/rules/ (ADR-119).
     sourceDir: "src/claude/rules"
+    # ADR-119 decision 13: repo-only rules render to .claude/rules, not the
+    # plugin tree; read the real files there too.
+    repoOnlySourceDir: ".claude/rules"
     # Dual-target: ships rules to the canonical Copilot instructions
     # tree AND to the project-toolkit plugin tree so vendor installs
     # via marketplace pick them up alongside agents, skills, and hooks.
     outputDirs:
       - ".github/instructions"
       - "src/copilot-cli/instructions"
-    # issue #2892: `.github/instructions` lives in this repo alongside
-    # `.claude/`, so keep `.claude/**`-scoped globs here; the in-repo Copilot
-    # agent edits `.claude/` sources and must auto-load those rules. The
-    # distributed `src/copilot-cli/instructions` tree (installed where
-    # `.claude/` does not exist) is intentionally omitted, so it keeps
-    # filtering internal-only globs to avoid dead references.
+    # ADR-119: .github/instructions gets the shipped rules as binplace links
+    # into src/copilot-cli/instructions, so this repository runs exactly what
+    # ships, internal globs filtered (issue #4317). The repo-only rules (scope
+    # internal end to end) land there as real files with their globs (#2892).
     keepInternalGlobsFor:
+      - ".github/instructions"
+    repoOnlyOutputDirs:
       - ".github/instructions"
     sourceSuffix: ".md"
     outputSuffix: ".instructions.md"

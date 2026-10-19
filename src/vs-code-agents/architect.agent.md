@@ -10,6 +10,7 @@ tools:
   - serena/*
   - memory
 role: strategic
+isolation_required: true
 ---
 # Architect Agent
 

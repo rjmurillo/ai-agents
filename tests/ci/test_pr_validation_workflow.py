@@ -47,10 +47,10 @@ def test_description_result_maps_exit_codes(
     _set_output(monkeypatch, output)
     monkeypatch.setenv("PR_NUMBER", "42")
 
-    def fake_run(args: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
-        assert check is False
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs["check"] is False
         calls.append(args)
-        return subprocess.CompletedProcess(args, exit_code)
+        return subprocess.CompletedProcess(args, exit_code, stdout="")
 
     monkeypatch.setattr(description_mod.subprocess, "run", fake_run)
 
@@ -64,7 +64,9 @@ def test_description_result_maps_exit_codes(
             "--ci",
         ]
     ]
-    assert output.read_text(encoding="utf-8") == f"validation_result={expected}\n"
+    assert output.read_text(encoding="utf-8") == (
+        f"validation_result={expected}\nvalidation_finding=\n"
+    )
 
 
 def test_description_result_missing_output_is_config_error(
@@ -75,7 +77,7 @@ def test_description_result_missing_output_is_config_error(
     monkeypatch.setattr(
         description_mod.subprocess,
         "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0),
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stdout=""),
     )
 
     assert description_mod.main() == 2
@@ -97,7 +99,9 @@ def test_report_builds_fail_status_and_outputs_status(
     monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
 
     assert report_mod.main() == 0
-    assert output.read_text(encoding="utf-8") == "overall_status=FAIL\n"
+    assert output.read_text(encoding="utf-8") == (
+        "overall_status=FAIL\nblocking_summary=PR description does not match actual changes\n"
+    )
     text = report.read_text(encoding="utf-8")
     assert "> ❌ **Status: FAIL**" in text
     assert "- PR description does not match actual changes" in text
@@ -139,7 +143,9 @@ def test_report_empty_description_becomes_error(
     monkeypatch.delenv("DESCRIPTION_RESULT", raising=False)
 
     assert report_mod.main() == 0
-    assert output.read_text(encoding="utf-8") == "overall_status=ERROR\n"
+    assert output.read_text(encoding="utf-8") == (
+        "overall_status=ERROR\nblocking_summary=Description validation error\n"
+    )
     assert "> ❌ **Status: ERROR**" in report.read_text(encoding="utf-8")
 
 
@@ -158,7 +164,7 @@ def test_report_surfaces_bypass_status(
 
     assert report_mod.main() == 0
     text = report.read_text(encoding="utf-8")
-    assert output.read_text(encoding="utf-8") == "overall_status=BYPASSED\n"
+    assert output.read_text(encoding="utf-8") == "overall_status=BYPASSED\nblocking_summary=\n"
     assert "BYPASSED (label override)" in text
     assert "validation-bypass" in text
 
@@ -178,7 +184,7 @@ def test_report_reads_powershell_boolean_output_case_insensitively(
 
     assert report_mod.main() == 0
     text = report.read_text(encoding="utf-8")
-    assert output.read_text(encoding="utf-8") == "overall_status=BYPASSED\n"
+    assert output.read_text(encoding="utf-8") == "overall_status=BYPASSED\nblocking_summary=\n"
     assert "BYPASSED (label override)" in text
 
 
@@ -235,6 +241,220 @@ def test_argv_rejection_still_precedes_every_write(
     assert output.read_text(encoding="utf-8") == ""
 
 
+_CRITICAL_OUTPUT = (
+    "Fetching PR #7 data...\n"
+    "\nFound 2 issue(s):\n  CRITICAL: 1\n  WARNING: 1\n\n"
+    "[WARNING] Significant file not mentioned\n  File: docs/a.md\n  Not mentioned.\n\n"
+    "[CRITICAL] File mentioned but not in diff\n  File: src/gone.py\n"
+    "  Mentioned in the description but absent from the diff.\n\n"
+    "[CRITICAL] Closing keyword not linked by GitHub\n  File: n/a\n  Second finding.\n"
+)
+
+
+def test_first_finding_names_the_first_critical_not_the_first_warning() -> None:
+    finding = description_mod.extract_first_finding(_CRITICAL_OUTPUT)
+
+    assert finding == (
+        "File mentioned but not in diff File: src/gone.py "
+        "Mentioned in the description but absent from the diff."
+    )
+    assert "Closing keyword not linked by GitHub" not in finding
+    assert "Significant file not mentioned" not in finding
+
+
+@pytest.mark.parametrize(
+    "issue_type",
+    [
+        "Em/en-dash in PR title",
+        "Closing keyword on non-default base branch",
+        "Closing keyword not linked by GitHub",
+    ],
+)
+def test_first_finding_keeps_the_full_multi_word_issue_type(issue_type: str) -> None:
+    output = f"[CRITICAL] {issue_type}\n  File: (title)\n  Title has a dash.\n"
+
+    assert description_mod.extract_first_finding(output) == (
+        f"{issue_type} File: (title) Title has a dash."
+    )
+
+
+def test_first_finding_falls_back_to_the_first_error_line() -> None:
+    output = "Fetching PR #7 data...\nError: gh api failed\nError: second\n"
+
+    assert description_mod.extract_first_finding(output) == "Error: gh api failed"
+
+
+@pytest.mark.parametrize("output", ["", "PR description matches diff\n", "only warnings\n"])
+def test_first_finding_is_empty_when_nothing_failed(output: str) -> None:
+    assert description_mod.extract_first_finding(output) == ""
+
+
+def test_first_finding_is_one_safe_line_with_a_length_cap() -> None:
+    hostile = "[CRITICAL] t\n  File: a`b\x00c\r\n  " + "x" * 600
+
+    finding = description_mod.extract_first_finding(hostile)
+
+    assert "\n" not in finding
+    assert "`" not in finding
+    assert "\x00" not in finding
+    assert len(finding) == description_mod.FINDING_LIMIT
+    assert finding.endswith("...")
+
+
+def test_description_step_echoes_output_and_records_the_finding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("PR_NUMBER", "7")
+    monkeypatch.setattr(
+        description_mod.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(args, 1, stdout=_CRITICAL_OUTPUT),
+    )
+
+    assert description_mod.main() == 0
+    assert "[CRITICAL] File mentioned but not in diff" in capsys.readouterr().out
+    lines = output.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "validation_result=FAIL"
+    assert lines[1].startswith(
+        "validation_finding=File mentioned but not in diff File: src/gone.py"
+    )
+    assert len(lines) == 2
+
+
+def test_description_step_records_no_finding_on_a_clean_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(
+        description_mod.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(
+            args, 0, stdout="[CRITICAL] bypassed\n  File: x\n  m\n"
+        ),
+    )
+
+    assert description_mod.main() == 0
+    assert output.read_text(encoding="utf-8") == "validation_result=PASS\nvalidation_finding=\n"
+
+
+def test_report_names_the_failing_finding_in_the_blocking_section(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
+    monkeypatch.setenv("DESCRIPTION_FINDING", "File mentioned but not in diff File: src/gone.py")
+
+    assert report_mod.main() == 0
+    expected = (
+        "PR description does not match actual changes: "
+        "`File mentioned but not in diff File: src/gone.py`"
+    )
+    assert f"- {expected}" in report.read_text(encoding="utf-8")
+    assert output.read_text(encoding="utf-8") == (
+        f"overall_status=FAIL\nblocking_summary={expected}\n"
+    )
+
+
+def test_report_blocking_summary_stays_one_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", tmp_path / "report.md")
+    monkeypatch.setenv("DESCRIPTION_RESULT", "ERROR")
+    monkeypatch.setenv("DESCRIPTION_FINDING", "Error: boom\nforged_output=1")
+
+    assert report_mod.main() == 0
+    assert len(output.read_text(encoding="utf-8").splitlines()) == 2
+
+
+@pytest.mark.parametrize(
+    ("finding", "expected"),
+    [
+        ("plain finding", "plain finding"),
+        ("File: src/gone.py", "File: src/gone.py"),
+        ("File: pages/[id].tsx", "File: pages/[id].tsx"),
+        ("a`b", "ab"),
+        ("`` ``` `", ""),
+        ("x`; **bold** @octocat please", "x; **bold** octocat please"),
+        ("ping @org/team and @user-name", "ping org/team and user-name"),
+        ("mail me@example.com", "mail me@example.com"),
+        ("<!-- PR-VALIDATION --> <b>x</b>", "!-- PR-VALIDATION -- bx/b"),
+        ("line one\nline two\r\nline three", "line one line two line three"),
+        ("tab\there\x00nul\x1b[31mred", "tab here nul [31mred"),
+        ("sep\u2028one\u2029two", "sep one two"),
+        ("   padded   ", "padded"),
+    ],
+)
+def test_neutralize_keeps_the_finding_one_inert_line(finding: str, expected: str) -> None:
+    assert report_mod._neutralize(finding) == expected
+
+
+def test_report_cannot_be_broken_out_of_its_code_span_by_a_hostile_finding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
+    monkeypatch.setenv(
+        "DESCRIPTION_FINDING",
+        "x`\n\n@octocat <script>alert(1)</script> [click](http://evil.example)",
+    )
+
+    assert report_mod.main() == 0
+
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if ln.startswith("- PR description does not match"))
+    assert line.count("`") == 2
+    assert "@octocat" not in text
+    assert "<script>" not in text
+    assert text.count("<!-- PR-VALIDATION -->") == 1
+    assert len(output.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_report_without_a_finding_keeps_the_bare_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
+    monkeypatch.setenv("DESCRIPTION_FINDING", "`` <> ``")
+
+    assert report_mod.main() == 0
+    assert "- PR description does not match actual changes\n" in report.read_text(encoding="utf-8")
+
+
+def test_report_blocking_summary_is_empty_when_nothing_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", tmp_path / "report.md")
+    monkeypatch.setenv("DESCRIPTION_RESULT", "PASS")
+    monkeypatch.setenv("DESCRIPTION_FINDING", "stale finding")
+
+    assert report_mod.main() == 0
+    assert output.read_text(encoding="utf-8") == "overall_status=PASS\nblocking_summary=\n"
+
+
 def test_workflow_delegates_first_pr_validation_blocks():
     steps = _pr_validation_steps()
     steps_by_name = {step.get("name"): step for step in steps}
@@ -269,6 +489,70 @@ def test_enforce_fails_on_validation_error(
     assert "::error::PR validation failed: ERROR" in capsys.readouterr().err
 
 
+def test_enforce_error_names_the_failing_sub_step(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", "FAIL")
+    monkeypatch.setenv(
+        "BLOCKING_SUMMARY",
+        "PR description does not match actual changes: `File mentioned but not in diff File: a.py`",
+    )
+
+    assert enforce_mod.main() == 1
+    assert capsys.readouterr().err.strip() == (
+        "::error::PR validation failed: FAIL "
+        "(PR description does not match actual changes: "
+        "`File mentioned but not in diff File: a.py`)"
+    )
+
+
+def test_enforce_error_escapes_workflow_command_data(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", "FAIL")
+    monkeypatch.setenv("BLOCKING_SUMMARY", "100%\n::error::forged\rtail")
+
+    assert enforce_mod.main() == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1
+    assert "100%25%0A::error::forged%0Dtail" in err
+
+
+def test_enforce_error_without_a_summary_keeps_the_bare_message(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", "FAIL")
+    monkeypatch.setenv("BLOCKING_SUMMARY", "  ")
+
+    assert enforce_mod.main() == 1
+    assert capsys.readouterr().err.strip() == "::error::PR validation failed: FAIL"
+
+
+def test_enforce_ignores_the_summary_when_validation_passed(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", "PASS")
+    monkeypatch.setenv("BLOCKING_SUMMARY", "stale")
+
+    assert enforce_mod.main() == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_workflow_threads_the_finding_into_report_and_enforce() -> None:
+    steps_by_name = {step.get("name"): step for step in _pr_validation_steps()}
+
+    report_env = steps_by_name["Generate Validation Report"]["env"]
+    assert report_env["DESCRIPTION_FINDING"] == (
+        "${{ steps.validate-description.outputs.validation_finding }}"
+    )
+    enforce_env = steps_by_name["Enforce Blocking Issues"]["env"]
+    assert enforce_env["BLOCKING_SUMMARY"] == "${{ steps.report.outputs.blocking_summary }}"
+
+
 def test_enforce_passes_when_no_blocking_inputs(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -277,6 +561,55 @@ def test_enforce_passes_when_no_blocking_inputs(
 
     assert enforce_mod.main() == 0
     assert "✓ PR validation passed" in capsys.readouterr().out
+
+
+def test_enforce_passes_on_bypassed_status(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """BYPASSED is the label override from build_pr_validation_report.py."""
+    monkeypatch.setenv("OVERALL_STATUS", "BYPASSED")
+
+    assert enforce_mod.main() == 0
+    assert "✓ PR validation passed" in capsys.readouterr().out
+
+
+def test_enforce_fails_closed_when_status_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("OVERALL_STATUS", raising=False)
+
+    assert enforce_mod.main() == 1
+    captured = capsys.readouterr()
+    assert "::error::PR validation failed: UNKNOWN (empty)" in captured.err
+    assert "passed" not in captured.out
+
+
+@pytest.mark.parametrize("status", ["", "UNKNOWN", "pass", "WARN", "SKIPPED", "PASS "])
+def test_enforce_fails_closed_on_any_value_outside_the_allow_list(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    status: str,
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", status)
+
+    assert enforce_mod.main() == 1
+    captured = capsys.readouterr()
+    assert "::error::PR validation failed:" in captured.err
+    assert captured.out == ""
+
+
+def test_enforce_escapes_an_unknown_status_value(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", "X\n::error::forged")
+
+    assert enforce_mod.main() == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1
+    assert "X%0A::error::forged" in err
 
 
 def test_enforce_ignores_the_commit_status_env_var(

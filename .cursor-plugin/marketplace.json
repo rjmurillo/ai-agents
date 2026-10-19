@@ -1,0 +1,14 @@
+{
+  "name": "ai-agents",
+  "owner": {
+    "name": "rjmurillo",
+    "email": "rjmurillo@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "project-toolkit",
+      "source": "./src/cursor",
+      "description": "Complete project development toolkit: agents, reusable skills, and path-scoped rules for Cursor workflows"
+    }
+  ]
+}

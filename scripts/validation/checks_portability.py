@@ -22,6 +22,7 @@ and fails until one exists for it, wherever it is defined.
 
 from __future__ import annotations
 
+import shlex
 import sys
 from pathlib import Path
 
@@ -191,6 +192,76 @@ def validate_rule_template_drift(repo_root: Path) -> bool:
     return _run_portability_validator(
         repo_root, "build/scripts/rule_templates.py", "", "--validate"
     )
+
+
+_RULE_FIXTURE_DIR = "tests/build_scripts/fixtures/rule_templates_b2/expected"
+_RULE_LOSSLESS_TEST = "tests/build_scripts/test_rule_templates_lossless.py"
+
+
+def stale_rule_fixtures(repo_root: Path) -> list[str]:
+    """Return sorted rule names whose lossless fixture differs from the built rule.
+
+    The fixture under ``tests/build_scripts/fixtures/rule_templates_b2/expected/``
+    is a hand copy of ``src/claude/rules/<name>.md``, or of the real file
+    ``.claude/rules/<name>.md`` for a repo-only rule (ADR-119); ``build_all.py``
+    never refreshes it. A fixture with no built rule is left to the test's own
+    count and name checks. Compares bytes, as the test does.
+    """
+    fixture_dir = repo_root / _RULE_FIXTURE_DIR
+    if not fixture_dir.is_dir():
+        return []
+    stale: list[str] = []
+    for fixture in sorted(fixture_dir.glob("*.md")):
+        built = _built_rule(repo_root, fixture.name)
+        if built is not None and built.read_bytes() != fixture.read_bytes():
+            stale.append(fixture.stem)
+    return stale
+
+
+def _built_rule(repo_root: Path, file_name: str) -> Path | None:
+    """The built rule: the plugin tree, else a repo-only real file (ADR-119)."""
+    shipped = repo_root / "src" / "claude" / "rules" / file_name
+    if shipped.is_file():
+        return shipped
+    repo_only = repo_root / ".claude" / "rules" / file_name
+    if repo_only.is_file() and not repo_only.is_symlink():
+        return repo_only
+    return None
+
+
+def validate_rule_lossless_fixtures(repo_root: Path) -> bool:
+    """Fail when ``test_rule_templates_lossless.py`` fails (issue #6440).
+
+    Runs the test through pytest, the same file CI runs. ``build_all.py``
+    leaves the hand-copied fixtures alone. Before this gate, no other gate read
+    them, so a rule edit passed every local gate and failed only in CI. On failure the
+    gate prints one ``cp`` per stale fixture, the repair the test cannot name.
+    """
+    if not (repo_root / _RULE_LOSSLESS_TEST).is_file():
+        # Fail closed: deleting the test must not turn this gate into a SKIP that
+        # leaves the exit code unchanged (issue #6506).
+        print(
+            f"[ERROR] {_RULE_LOSSLESS_TEST} absent; the rule lossless gate cannot run. "
+            "Hard failure: the gate is the point of registering this validator.",
+            file=sys.stderr,
+        )
+        return False
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, "-m", "pytest", _RULE_LOSSLESS_TEST, "-q", "-p", "no:cacheprovider"],
+        cwd=repo_root,
+    )
+    if exit_code == 0:
+        return True
+    for line in ((stdout or "") + (stderr or "")).strip().splitlines()[-40:]:
+        print(line)
+    for name in stale_rule_fixtures(repo_root):
+        built = _built_rule(repo_root, f"{name}.md")
+        source = shlex.quote(
+            built.relative_to(repo_root).as_posix() if built else f"src/claude/rules/{name}.md"
+        )
+        target = shlex.quote(f"{_RULE_FIXTURE_DIR}/{name}.md")
+        print(f"cp {source} {target}")
+    return False
 
 
 def validate_hook_template_drift(repo_root: Path) -> bool:

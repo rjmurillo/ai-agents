@@ -2,7 +2,10 @@
 schemaVersion: "1.0"
 # Each row maps a template class to its plugin tree and its install tree.
 # The build renders templates into plugin_tree, then binplace copies
-# plugin_tree into install_tree byte for byte. A row with plugin_tree null
+# plugin_tree into install_tree byte for byte. A row with `link: true`
+# instead makes each top-level plugin entry a relative symlink under
+# install_tree (build/scripts/binplace_links.py), so the dogfood copy reads
+# the plugin tree itself and cannot go stale. A row with plugin_tree null
 # has no plugin stage. assert_no_claude_writes derives its .claude/
 # allowlist from the rows whose install_tree starts with .claude/.
 rows:
@@ -10,21 +13,54 @@ rows:
     source: templates/agents
     plugin_tree: src/claude/agents
     install_tree: .claude/agents
+    link: true
   - class: skills
+    # Each shipped skill directory is linked whole, so its support files
+    # (scripts/, references/, tests/) are edited in src/claude/skills/<name>/.
     # A template with `metadata.distribution: repo-local` skips this plugin
     # hop: skill_templates.compile_all renders it straight to install_tree,
-    # and binplace neither copies, drift-checks, nor reports it as unowned.
-    # The skills mirror step (not binplace) deletes a stale vendor copy under
-    # src/claude/skills and src/copilot-cli/skills. Absent means shipped.
+    # it stays a real directory there, and binplace neither links,
+    # drift-checks, nor reports it as unowned. The skills step (not binplace)
+    # deletes a stale vendor copy under src/claude/skills and
+    # src/copilot-cli/skills. Absent means shipped.
     # See build/scripts/skill_distribution.py.
     source: templates/skills
     plugin_tree: src/claude/skills
     install_tree: .claude/skills
     compile: skill_templates
+    link: true
+  - class: agents-github
+    # ADR-119: .github/agents/<name>.agent.md links to the shipped Copilot
+    # render, so the repository's own Copilot agents are the shipped ones.
+    # pr-comment-responder.prompt.md and security/ stay hand-maintained.
+    source: templates/agents
+    plugin_tree: src/copilot-cli/agents
+    install_tree: .github/agents
+    link: true
+  - class: instructions-github
+    # ADR-119: each shipped Copilot instruction links into the shipped tree;
+    # repo-only rules (scope internal end to end) stay real files here,
+    # rendered by generate_rules.py's repoOnlyOutputDirs.
+    source: templates/rules
+    plugin_tree: src/copilot-cli/instructions
+    install_tree: .github/instructions
+    link: true
+  - class: skills-codex
+    # ADR-119: Codex loads repository skills from .agents/skills. Each
+    # shipped Codex skill links to its rendered directory, so Codex in this
+    # repository runs what src/codex ships. No compile: generate_skills.py
+    # renders src/codex/skills before binplace runs.
+    source: src/codex/skills
+    plugin_tree: src/codex/skills
+    install_tree: .agents/skills
+    link: true
   - class: rules
     source: templates/rules
     plugin_tree: src/claude/rules
     install_tree: .claude/rules
+    # ADR-119 decision 13: each shipped rule links into src/claude/rules; a
+    # repo-only rule (scope internal end to end) stays a real file here.
+    link: true
   - class: hooks
     # ADR-109 B4: the 14 executables and dispatch_groups.json (15 of the
     # 16 hooks-class files; hooks.json is the hooks-json row below).
@@ -43,6 +79,9 @@ rows:
     source: templates/hooks
     plugin_tree: src/copilot-cli/hooks
     install_tree: .github/hooks
+    # ADR-119: .github/hooks/hooks.json links to the shipped Copilot file;
+    # the hand-authored memory-recall.json stays a real file.
+    link: true
   - class: hooks-json
     # hooks.json renders to src/claude/hooks.json (plugin root, ADR-109
     # section 2: "agents/, skills/, rules/, hooks/ plus hooks.json"), not
@@ -67,7 +106,7 @@ rows:
     # .github/prompts/ files are unmanifested and hand-maintained (REQ-026
     # Deferred), so this row's source is the review skill's references
     # directory, not .github/prompts/ itself.
-    source: .claude/skills/review/references
+    source: src/claude/skills/review/references
     plugin_tree: null
     install_tree: .github/prompts
     compile: generate_pr_quality_prompts
@@ -84,31 +123,61 @@ rows:
   - class: lib-hook_utilities
     source: scripts/hook_utilities
     plugin_tree: src/claude/lib/hook_utilities
-    install_tree: .claude/lib/hook_utilities
+    install_tree: null
     compile: lib_mirror
   - class: lib-hook_utilities-copilot
     source: scripts/hook_utilities
     plugin_tree: src/copilot-cli/lib/hook_utilities
     install_tree: null
     compile: lib_mirror
+  - class: lib-hook_utilities-cursor
+    source: scripts/hook_utilities
+    plugin_tree: src/cursor/lib/hook_utilities
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-hook_utilities-codex
+    source: scripts/hook_utilities
+    plugin_tree: src/codex/lib/hook_utilities
+    install_tree: null
+    compile: lib_mirror
   - class: lib-github_core
     source: scripts/github_core
     plugin_tree: src/claude/lib/github_core
-    install_tree: .claude/lib/github_core
+    install_tree: null
     compile: lib_mirror
   - class: lib-github_core-copilot
     source: scripts/github_core
     plugin_tree: src/copilot-cli/lib/github_core
     install_tree: null
     compile: lib_mirror
+  - class: lib-github_core-cursor
+    source: scripts/github_core
+    plugin_tree: src/cursor/lib/github_core
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-github_core-codex
+    source: scripts/github_core
+    plugin_tree: src/codex/lib/github_core
+    install_tree: null
+    compile: lib_mirror
   - class: lib-ai_review_common
     source: scripts/ai_review_common
     plugin_tree: src/claude/lib/ai_review_common
-    install_tree: .claude/lib/ai_review_common
+    install_tree: null
     compile: lib_mirror
   - class: lib-ai_review_common-copilot
     source: scripts/ai_review_common
     plugin_tree: src/copilot-cli/lib/ai_review_common
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-ai_review_common-cursor
+    source: scripts/ai_review_common
+    plugin_tree: src/cursor/lib/ai_review_common
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-ai_review_common-codex
+    source: scripts/ai_review_common
+    plugin_tree: src/codex/lib/ai_review_common
     install_tree: null
     compile: lib_mirror
   # File-shaped rows (single registered file, not a package directory):
@@ -120,20 +189,62 @@ rows:
   - class: lib-bootstrap
     source: scripts/hook_utilities/bootstrap.py
     plugin_tree: src/claude/lib/bootstrap.py
-    install_tree: .claude/lib/bootstrap.py
+    install_tree: null
     compile: lib_mirror
   - class: lib-bootstrap-copilot
     source: scripts/hook_utilities/bootstrap.py
     plugin_tree: src/copilot-cli/lib/bootstrap.py
     install_tree: null
     compile: lib_mirror
+  - class: lib-bootstrap-cursor
+    source: scripts/hook_utilities/bootstrap.py
+    plugin_tree: src/cursor/lib/bootstrap.py
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-bootstrap-codex
+    source: scripts/hook_utilities/bootstrap.py
+    plugin_tree: src/codex/lib/bootstrap.py
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-paths
+    # ADR-119: the portability helper skill scripts import from their
+    # plugin's lib/. It is hand-maintained here, in the plugin tree, so the
+    # shipped plugin carries it; the `lib` row below links it into
+    # .claude/lib/ for the hooks and scripts that load it from there.
+    source: src/claude/lib/paths.py
+    plugin_tree: src/claude/lib/paths.py
+    install_tree: null
+  - class: lib
+    # ADR-119 decision 14: each top-level entry of src/claude/lib (the three
+    # packages, bootstrap.py, paths.py) is a relative link under .claude/lib/,
+    # so the hooks and verifiers that import .claude/lib read the shipped
+    # copy itself. The lib-* rows above only compile into the plugin trees:
+    # their install_tree is null, so binplace skips them.
+    # The hand-maintained siblings (claude_hook_dispatch.py and the rest, see
+    # binplace_manifest.REPO_LOCAL_LIB_NAMES) stay real files here.
+    source: src/claude/lib
+    plugin_tree: src/claude/lib
+    install_tree: .claude/lib
+    link: true
   - class: skills-sidecar
+    # install_tree is null: .claude/skills/review links to the plugin
+    # directory (skills row), so the rendered file is already installed.
     source: scripts/validation/validate_review_marker.py
     plugin_tree: src/claude/skills/review/scripts/validate_review_marker.py
-    install_tree: .claude/skills/review/scripts/validate_review_marker.py
+    install_tree: null
     compile: lib_mirror
   - class: skills-sidecar-copilot
     source: scripts/validation/validate_review_marker.py
     plugin_tree: src/copilot-cli/skills/review/scripts/validate_review_marker.py
+    install_tree: null
+    compile: lib_mirror
+  - class: skills-sidecar-cursor
+    source: scripts/validation/validate_review_marker.py
+    plugin_tree: src/cursor/skills/review/scripts/validate_review_marker.py
+    install_tree: null
+    compile: lib_mirror
+  - class: skills-sidecar-codex
+    source: scripts/validation/validate_review_marker.py
+    plugin_tree: src/codex/skills/review/scripts/validate_review_marker.py
     install_tree: null
     compile: lib_mirror

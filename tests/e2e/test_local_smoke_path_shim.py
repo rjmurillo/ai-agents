@@ -1,0 +1,187 @@
+"""The PATH shim backstop of the local Copilot smoke guard (issue #6506).
+
+The command parser reads a fixed set of launchers. The shim catches a launch by bare name
+through a launcher that keeps PATH, so these tests start Copilot through forms the parser
+misses. A form whose launcher is not installed is skipped.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+
+# tests/e2e is not on sys.path under --import-mode=importlib (no __init__.py).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import local_smoke_guard as guard
+import local_smoke_shim as shim_module
+from local_smoke_command import program_names
+from local_smoke_fixtures import isolated_guard  # noqa: F401
+
+# Each test gets its own shim state, so none can strip the guard the gate armed for the session.
+pytestmark = pytest.mark.usefixtures("isolated_guard")
+
+_TIMEOUT_SECONDS = 30
+posix_only = pytest.mark.skipif(sys.platform == "win32", reason="the shim is a shell script")
+
+# Launch forms the parser does not read (the review probe of 2026-10-18). Each starts
+# only the launcher name, so the argument-level guard cannot refuse them.
+_UNPARSED = [
+    ["find", ".", "-maxdepth", "0", "-exec", "copilot", ";"],
+    ["bash", "-c", "builtin exec copilot"],
+    ["flock", "/dev/null", "copilot"],
+    ["taskset", "1", "copilot"],
+]
+
+
+def _run(command: list[str]) -> tuple[int, str]:
+    """Run ``command`` and return its exit code and stderr.
+
+    This uses the real ``Popen``: under the gate flag ``subprocess.Popen`` is the guarded one,
+    which refuses a bare ``copilot`` before the shim can run.
+    """
+    with guard._ORIGINAL_POPEN(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
+    ) as proc:
+        try:
+            _, stderr = proc.communicate(timeout=_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            pytest.fail(
+                f"{command!r} did not exit in {_TIMEOUT_SECONDS}s; the shim did not stop it"
+            )
+    return proc.returncode, stderr
+
+
+@pytest.fixture
+def shim(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Install the shim on a copy of PATH and always remove it."""
+    monkeypatch.setenv("PATH", os.environ.get("PATH", os.defpath))
+    try:
+        yield shim_module.install_path_shim()
+    finally:
+        shim_module.remove_path_shim()
+
+
+@posix_only
+def test_shim_is_first_on_path_and_exits_non_zero(shim: Path) -> None:
+    assert os.environ["PATH"].split(os.pathsep)[0] == str(shim)
+    assert shutil.which("copilot") == str(shim / "copilot")
+
+    code, stderr = _run(["copilot", "-p", "x"])
+
+    assert code == 126
+    assert "must not call Copilot" in stderr
+
+
+@posix_only
+@pytest.mark.parametrize("command", _UNPARSED, ids=lambda c: c[0])
+def test_shim_stops_a_launcher_the_parser_does_not_read(shim: Path, command: list[str]) -> None:
+    if shutil.which(command[0]) is None:
+        pytest.skip(f"{command[0]} is not installed")
+    assert "copilot" not in program_names(command), "the parser reads this form; pick another"
+
+    _, stderr = _run(command)
+
+    # `find -exec ... ;` exits 0 when the command fails, so the shim's message is the proof.
+    assert "must not call Copilot" in stderr
+
+
+def test_shim_ships_a_windows_form_that_exits_non_zero(shim: Path) -> None:
+    for name in ("copilot.cmd", "copilot.bat"):
+        text = (shim / name).read_bytes().decode("utf-8")
+        assert "exit /b 126" in text
+        assert "\r\n" in text
+
+
+def test_install_twice_returns_the_same_directory_and_one_path_entry(shim: Path) -> None:
+    assert shim_module.install_path_shim() == shim
+    assert os.environ["PATH"].split(os.pathsep).count(str(shim)) == 1
+
+
+def test_remove_restores_path_and_deletes_the_directory(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PATH", "/a:/b".replace(":", os.pathsep))
+    shim = shim_module.install_path_shim()
+    assert shim.is_dir()
+
+    shim_module.remove_path_shim()
+
+    assert os.environ["PATH"] == "/a:/b".replace(":", os.pathsep)
+    assert not shim.exists()
+
+
+def test_remove_without_install_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PATH", "/a")
+
+    shim_module.remove_path_shim()
+
+    assert os.environ["PATH"] == "/a"
+
+
+def test_install_with_no_path_sets_only_the_shim_and_remove_unsets_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PATH", raising=False)
+
+    shim = shim_module.install_path_shim()
+    assert os.environ["PATH"] == str(shim)
+
+    shim_module.remove_path_shim()
+    assert "PATH" not in os.environ
+
+
+def test_remove_keeps_a_path_the_test_replaced(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Edge: a later PATH change is not overwritten with the saved value."""
+    monkeypatch.setenv("PATH", "/a")
+    shim = shim_module.install_path_shim()
+    os.environ["PATH"] = "/replaced"
+
+    shim_module.remove_path_shim()
+
+    assert os.environ["PATH"] == "/replaced"
+    assert not shim.exists()
+
+
+def test_uninstall_also_removes_the_shim(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PATH", "/a")
+    shim = shim_module.install_path_shim()
+
+    guard.uninstall()
+
+    assert not shim.exists()
+    assert os.environ["PATH"] == "/a"
+
+
+def test_an_empty_path_before_install_is_restored_as_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Edge: PATH set to an empty string is not left pointing at the deleted shim."""
+    monkeypatch.setenv("PATH", "")
+    shim = shim_module.install_path_shim()
+    assert os.environ["PATH"] == str(shim)
+
+    shim_module.remove_path_shim()
+
+    assert os.environ["PATH"] == ""
+
+
+def test_snapshot_and_restore_put_back_popen_the_os_spawns_and_path() -> None:
+    state = guard.snapshot()
+    guard.install(lambda target, name, value: setattr(target, name, value))
+    os.environ["PATH"] = "/changed"
+
+    guard.restore(state)
+
+    assert subprocess.Popen is state["popen"]
+    assert all(getattr(os, name) is value for name, value in state["os"].items())
+    assert os.environ.get("PATH") == state["path"]

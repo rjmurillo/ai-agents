@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 
 workspace = os.environ.get(
@@ -41,6 +42,11 @@ from scripts.ai_review_common import (  # noqa: E402
     spec_validation_failed,
     write_output,
 )
+
+_CELL_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+# `@name` at the start of a word notifies a user or team. An address such as
+# `a@b.example` has a word character before the `@` and is left alone.
+_CELL_MENTION = re.compile(r"(?<!\w)@(?=[\w-])")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--issue-refs",
         default=os.environ.get("ISSUE_REFS", ""),
         help="Space-separated issue references",
+    )
+    parser.add_argument(
+        "--azure-refs",
+        default=os.environ.get("AZURE_REFS", ""),
+        help="Space-separated Azure Boards references (AB#<n>)",
     )
     parser.add_argument(
         "--trace-verdict",
@@ -219,6 +230,25 @@ See PR template for full guidance.
 <sub>Powered by [AI Spec Validator](https://github.com/{repository}) workflow</sub>"""
 
 
+def _cell(value: str) -> str:
+    """Return ``value`` as one markdown table cell that opens no HTML, link, or mention.
+
+    The reference lists come from PR text through ``spec_extract_refs.py``, whose
+    regexes keep them to plain tokens today. This report does not rely on that:
+    whitespace and control characters collapse to single spaces, ``|`` and ``\\``
+    are escaped so the row keeps its columns, ``[`` and ``]`` are escaped so no
+    link or image forms, ``<`` and ``>`` become entities so no HTML opens, and the
+    ``@`` of a mention is dropped so no user or team is notified. A bare URL still
+    renders as an autolink. Emphasis markers stay, because the empty-list
+    placeholder ``*None*`` is meant to render in italics.
+    """
+    flat = " ".join(_CELL_CONTROL.sub(" ", value).split())
+    flat = _CELL_MENTION.sub("", flat)
+    escaped = flat.replace("\\", "\\\\").replace("|", "\\|")
+    escaped = escaped.replace("[", "\\[").replace("]", "\\]")
+    return escaped.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _build_full_report(
     final_verdict: str,
     trace_verdict: str,
@@ -227,6 +257,7 @@ def _build_full_report(
     completeness_infra: bool,
     spec_refs: str,
     issue_refs: str,
+    azure_refs: str,
     trace_findings: str,
     completeness_findings: str,
     repository: str,
@@ -244,6 +275,7 @@ def _build_full_report(
     (`_findings_section`), so the failure path keeps its observability, but
     labeled so it reads as unevaluated output, not a verdict (issue #5738).
     """
+    spec_refs, issue_refs, azure_refs = _cell(spec_refs), _cell(issue_refs), _cell(azure_refs)
     if final_verdict == "INFRA_FAILURE":
         alert_type = "WARNING"
         final_emoji = "⚠️"
@@ -319,7 +351,8 @@ This validation ensures your implementation matches the specifications:
 | Type | References |
 |:-----|:-----------|
 | **Specs** | {spec_refs} |
-| **Issues** | {issue_refs} |
+| **GitHub issues** | {issue_refs} |
+| **Azure Boards** | {azure_refs} |
 
 <details>
 <summary>Requirements Traceability Details</summary>
@@ -392,6 +425,7 @@ def main(argv: list[str] | None = None) -> int:
 
         spec_refs: str = args.spec_refs or "*None*"
         issue_refs: str = args.issue_refs or "*None*"
+        azure_refs: str = args.azure_refs or "*None*"
         trace_findings: str = args.trace_findings or "No traceability output"
         completeness_findings: str = args.completeness_findings or "No completeness output"
 
@@ -408,6 +442,7 @@ def main(argv: list[str] | None = None) -> int:
             completeness_infra=completeness_infra,
             spec_refs=spec_refs,
             issue_refs=issue_refs,
+            azure_refs=azure_refs,
             trace_findings=trace_findings,
             completeness_findings=completeness_findings,
             repository=repository,

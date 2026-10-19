@@ -1,0 +1,1 @@
+../../src/copilot-cli/instructions/lossless-queue-reads.instructions.md

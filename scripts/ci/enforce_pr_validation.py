@@ -26,14 +26,27 @@ import sys
 
 LOGIC_ERROR = 1
 
+# build_pr_validation_report.py emits PASS, FAIL, ERROR, or BYPASSED. BYPASSED is
+# the label override and is non-blocking. Anything else (empty, unset, a new
+# value) is unknown and must fail closed (issue #6506).
+_PASSING_STATUSES = frozenset({"PASS", "BYPASSED"})
+
+
+def _escape_command_data(text: str) -> str:
+    """Escape text for a workflow command so it stays on one annotation line."""
+    return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
 
 def main(argv: list[str] | None = None) -> int:
     if argv:
         print("::error::unexpected command line arguments", file=sys.stderr)
         return 2
     overall_status = os.environ.get("OVERALL_STATUS", "")
-    if overall_status in {"FAIL", "ERROR"}:
-        print(f"::error::PR validation failed: {overall_status}", file=sys.stderr)
+    if overall_status not in _PASSING_STATUSES:
+        summary = os.environ.get("BLOCKING_SUMMARY", "").strip()
+        detail = f" ({_escape_command_data(summary)})" if summary else ""
+        shown = _escape_command_data(overall_status) if overall_status else "UNKNOWN (empty)"
+        print(f"::error::PR validation failed: {shown}{detail}", file=sys.stderr)
         return LOGIC_ERROR
     print("✓ PR validation passed")
     return 0

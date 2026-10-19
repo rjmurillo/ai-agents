@@ -6,7 +6,7 @@ decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-018: Cache Invalidation Strategy for GitHub Data
@@ -192,3 +192,7 @@ mcp__cloudmcp-manager__memory-create_entities(entities=[{
 ## Notes
 
 This ADR explicitly rejects storing ephemeral cache data in `.serena/memories/` to preserve merge velocity. The memory system is for durable knowledge (skills, patterns, decisions), not transient state (current open PRs).
+
+## Implementation Notes
+
+The primary decision is implemented by absence. Session-local caching lives in the agent's working memory, and the ADR bans git-tracked cache files. No such file exists under `.serena/memories/`, and the `github` skill scripts and `scripts/github_core` hold no cache of PR or issue lists. The secondary cloudmcp path was conditional and was never exercised. The Phase 2 backfill derived `implemented` from artifacts, so it reported false for a decision whose correct implementation is no artifact. The value is `true` because the decision was carried out as written.

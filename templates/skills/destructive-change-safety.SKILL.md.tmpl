@@ -68,8 +68,9 @@ callers and adapters are in the graph. Pass each edited function to
 | `callers_unknown` | True means the entry point lies outside the scan. Widen the scan or read the real callers by hand; the trace is not done. |
 
 Decision `unknown` (exit 1) means a file did not parse (`unparsed`) or a source
-file in a language the scan cannot read, such as PowerShell, JavaScript, C#, or
-Go, went unscanned (`unscanned`). Scope is unknown; do not treat it as `skip`.
+file the scan cannot read went unscanned (`unscanned`): a language such as
+PowerShell, JavaScript, C#, or Go, a CI or build definition (YAML, Makefile,
+Dockerfile), or any file that starts with a shebang. Scope is unknown; do not treat it as `skip`.
 Read each listed file by hand and record what you checked. A scope with no
 readable file at all exits 2. The call graph matches by simple name and over-reports
 on purpose. For callers outside the scanned set, follow the caller-reading
@@ -81,7 +82,7 @@ call sites checked.
 | Sink | Preflight |
 |------|-----------|
 | SQLite DELETE or UPDATE | `preview-sql --database <file> --statement "<sql>"` runs it on an in-memory copy. `count` is rows hit, `total_changes` includes cascades and triggers. |
-| Files | `preview-files --root <dir> --pattern "<glob>"` lists what the glob selects, refuses patterns that leave the root, and ignores symlinks that do. |
+| Files | `preview-files --root <dir> --pattern "<glob>"` lists what the glob selects (a matched directory counts every file beneath it), refuses patterns that leave the root, and ignores symlinks that do. |
 | Other engine, remote resource | Use the system's own dry run, plan, or `SELECT COUNT`. Record the command and its real output. |
 
 A preview that cannot run exits 1 with `scope unknown`. If the platform has no
@@ -122,12 +123,15 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/destructi
 
 | Verdict | Exit | Meaning |
 |---------|------|---------|
-| `PASS` | 0 | Every sink traced, scope measured and as expected, rollback stated, checks green. Execution may proceed. |
-| `SKIP` | 0 | No sink declared or scanned. |
+| `PASS` | 0 | A `--scan` report covers every sink it found; evidence may declare more, and each declared sink is held to the same rules. Every sink traced, scope measured and as expected, rollback stated, checks green. Execution may proceed. |
+| `SKIP` | 0 | No sink declared, and a `--scan` report with `"decision": "skip"` backs it. |
 | `BLOCK` | 1 | `reasons` lists each failure. Fix the evidence, or stop. |
 
-Passing `--scan` makes the gate require an evidence entry for every scanned
-sink, so an agent cannot omit one. Cardinality outside `expected`, a
+Every verdict needs `--scan`. The gate requires an evidence entry for every
+scanned sink, so an agent cannot omit one, and it cannot declare one sink and
+leave the rest unscanned. Without a scan report, or with one that has no known
+`decision`, the gate blocks. A `SKIP` needs `"decision": "skip"`; an `activate`
+report that lists no sink is inconsistent and blocks. Cardinality outside `expected`, a
 missing or failed preflight, no rollback, an irreversible step without human
 approval, or a failed check blocks. There is no override here; a break-glass
 path is a repository policy decision outside this skill.

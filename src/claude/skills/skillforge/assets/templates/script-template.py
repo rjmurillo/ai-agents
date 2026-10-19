@@ -22,7 +22,7 @@ Exit Codes:
     2  - Invalid arguments
     3  - File not found
     10 - Validation failure
-    11 - Verification failure
+    11 - Fast-fail check failure
 """
 
 import argparse
@@ -188,21 +188,24 @@ def process(input_path: Path, options: dict) -> Result:
     )
 
 
-def verify_result(result: Result) -> tuple[bool, str]:
+def fast_fail_check(result: Result) -> tuple[bool, str]:
     """
-    Self-verification of the result.
+    Fast-fail check of the result shape. This is not verification authority.
+
+    An independent postcondition check still runs after the script where the
+    outcome can be checked independently.
 
     Args:
-        result: The Result object to verify
+        result: The Result object to check
 
     Returns:
-        Tuple of (is_valid, verification_message)
+        Tuple of (is_valid, check_message)
     """
     if not result.success:
         return False, f"Processing failed: {result.message}"
 
-    # ----- Add verification logic specific to this script -----
-    # TODO: Implement verification
+    # ----- Add fast-fail logic specific to this script -----
+    # TODO: Implement the fast-fail check
     #
     # Example:
     # if "required_field" not in result.data:
@@ -211,7 +214,7 @@ def verify_result(result: Result) -> tuple[bool, str]:
     # if result.data.get("count", 0) == 0:
     #     return False, "No items were processed"
 
-    return True, "Verification passed"
+    return True, "Fast-fail check passed"
 
 
 # ===========================================================================
@@ -241,7 +244,7 @@ Examples:
 
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
 
-    parser.add_argument("--no-verify", action="store_true", help="Skip self-verification step")
+    parser.add_argument("--no-fast-fail", action="store_true", help="Skip the fast-fail check")
 
     args = parser.parse_args()
 
@@ -255,15 +258,17 @@ Examples:
 
     result = process(args.input, options)
 
-    # ----- Self-Verify -----
-    if not args.no_verify and result.success:
-        is_valid, verify_msg = verify_result(result)
+    # ----- Fast-Fail Check -----
+    if not args.no_fast_fail and result.success:
+        is_valid, check_msg = fast_fail_check(result)
         if not is_valid:
             if args.json:
-                print(json.dumps({"success": False, "error": f"Verification failed: {verify_msg}"}))
+                print(
+                    json.dumps({"success": False, "error": f"Fast-fail check failed: {check_msg}"})
+                )
             else:
-                print(f"Verification failed: {verify_msg}", file=sys.stderr)
-            sys.exit(11)  # Verification failure
+                print(f"Fast-fail check failed: {check_msg}", file=sys.stderr)
+            sys.exit(11)  # Fast-fail check failure
 
     # ----- Output -----
     if args.json:

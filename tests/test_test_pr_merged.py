@@ -274,6 +274,91 @@ class TestMain:
 
 
 # ---------------------------------------------------------------------------
+# Tests: --output-format
+# ---------------------------------------------------------------------------
+
+
+def _graphql_payload(merged: bool) -> dict:
+    return {
+        "repository": {
+            "pullRequest": {
+                "state": "MERGED" if merged else "OPEN",
+                "merged": merged,
+                "mergedAt": "2026-01-01T00:00:00Z" if merged else None,
+                "mergedBy": {"login": "octocat"} if merged else None,
+                "headRefName": "feat/x",
+                "headRefOid": "a" * 40,
+                "mergeCommit": {"oid": "b" * 40} if merged else None,
+            },
+        },
+    }
+
+
+def _run_main(argv: list[str], merged: bool) -> int:
+    with (
+        patch("test_pr_merged.assert_gh_authenticated"),
+        patch(
+            "test_pr_merged.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        _patch_graphql(return_value=_graphql_payload(merged)),
+    ):
+        return main(argv)
+
+
+class TestOutputFormat:
+    @pytest.mark.parametrize("fmt", ["json", "human", "auto"])
+    def test_parser_accepts_each_format(self, fmt):
+        args = build_parser().parse_args(["--pull-request", "1", "--output-format", fmt])
+        assert args.output_format == fmt
+
+    def test_parser_defaults_to_auto(self):
+        assert build_parser().parse_args(["--pull-request", "1"]).output_format == "auto"
+
+    def test_parser_rejects_unknown_format(self):
+        with pytest.raises(SystemExit) as exc:
+            build_parser().parse_args(["--pull-request", "1", "--output-format", "xml"])
+        assert exc.value.code == 2
+
+    @pytest.mark.parametrize("fmt", ["json", "auto"])
+    @pytest.mark.parametrize("merged", [True, False])
+    def test_json_keeps_the_flat_merged_field(self, fmt, merged, capsys):
+        rc = _run_main(["--pull-request", "7", "--output-format", fmt], merged)
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["merged"] is merged
+        assert output["pull_request"] == 7
+
+    @pytest.mark.parametrize("merged", [True, False])
+    def test_json_carries_branch_head_and_merge_commit(self, merged, capsys):
+        rc = _run_main(["--pull-request", "7", "--output-format", "json"], merged)
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["head_ref"] == "feat/x"
+        assert output["head_sha"] == "a" * 40
+        assert output["merge_commit_sha"] == ("b" * 40 if merged else None)
+
+    def test_human_reports_merged_in_one_line(self, capsys):
+        rc = _run_main(["--pull-request", "7", "--output-format", "human"], True)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert out.strip() == "PR #7 in o/r: merged"
+
+    def test_human_reports_not_merged_in_one_line(self, capsys):
+        rc = _run_main(["--pull-request", "7", "--output-format", "human"], False)
+        assert rc == 0
+        assert capsys.readouterr().out.strip() == "PR #7 in o/r: not merged"
+
+    def test_human_still_honors_the_exit_100_sentinel(self, capsys):
+        rc = _run_main(
+            ["--pull-request", "7", "--output-format", "human", "--exit-100-on-merged"],
+            True,
+        )
+        assert rc == 100
+        assert "merged" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
 # Tests: probe failures are not merge answers (issue #4951)
 # ---------------------------------------------------------------------------
 

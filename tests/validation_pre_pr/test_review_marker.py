@@ -7,6 +7,7 @@ from typing import Any
 
 from scripts.validation.evidence import pre_pr_policy
 from scripts.validation.pre_pr import validate_review_marker
+from tests.validation._review_artifact import commit_marker
 
 
 class TestValidateReviewMarker:
@@ -19,7 +20,8 @@ class TestValidateReviewMarker:
     - Script missing, ``REVIEW_MARKER_ENFORCED=1``: returns ``False``.
     - Script present, HEAD has a binding marker: returns ``True`` regardless
       of enforcement.
-    - Script present, HEAD has no marker, advisory: returns ``True``.
+    - Script present, HEAD has no marker, advisory: returns ``True`` (a
+      policy-exempt ``SKIP``, since advisory mode requires no marker).
     - Script present, HEAD has no marker, enforced: returns ``False``.
     """
 
@@ -71,16 +73,7 @@ class TestValidateReviewMarker:
     def _add_marker(self, repo: Path) -> None:
         """Add an empty /review marker commit binding the current tip."""
         tip = self._git(repo, "rev-parse", "HEAD")
-        self._git(
-            repo,
-            "commit",
-            "-q",
-            "--allow-empty",
-            "-m",
-            "review: marker",
-            "--trailer",
-            f"Reviewed-By: /review@analyst,security on {tip}",
-        )
+        commit_marker(repo, "analyst,security", tip)
 
     def test_missing_script_advisory_returns_true(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=False)

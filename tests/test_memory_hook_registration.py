@@ -238,7 +238,7 @@ class TestInvokerExitCodes:
         result = _run(
             "UserPromptSubmit",
             "UserPromptSubmit/invoke_memory_recall.py",
-            {"prompt": "how does dispatch group registration work"},
+            {"prompt": "how does claude hook group dispatch work"},
             _fake_repo(tmp_path),
         )
 
@@ -253,7 +253,7 @@ class TestInvokerExitCodes:
         result = _run(
             "UserPromptSubmit",
             "UserPromptSubmit/invoke_memory_recall.py",
-            {"prompt": "how does dispatch group registration work"},
+            {"prompt": "how does claude hook group dispatch work"},
             _fake_repo(tmp_path),
         )
 
@@ -270,7 +270,7 @@ class TestInvokerExitCodes:
 
         result = _run_command(
             unanchored.strip(),
-            {"prompt": "how does dispatch group registration work"},
+            {"prompt": "how does claude hook group dispatch work"},
             tmp_path,
         )
 

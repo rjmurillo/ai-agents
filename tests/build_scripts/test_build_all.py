@@ -100,7 +100,11 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
 
 
 def _write_platform_with_skills(
-    repo_root: Path, *, provider: str, blocklist: list[str] | None = None
+    repo_root: Path,
+    *,
+    provider: str,
+    blocklist: list[str] | None = None,
+    source_dir: str = ".claude/skills",
 ) -> Path:
     """Create a minimal platform yaml with skills stanza only."""
     _write_minimal_lib_sources(repo_root)
@@ -117,7 +121,7 @@ schemaVersion: "1.0"
 provider: "{provider}"
 artifacts:
   skills:
-    sourceDir: ".claude/skills"
+    sourceDir: "{source_dir}"
     outputDir: "src/{provider}/skills"
     mode: "directory-copy"
 {blockyaml}"""
@@ -496,10 +500,8 @@ def test_build_skills_check_mode_reports_drift_as_staleness_without_writing(
     assert not (tmp_path / "out" / "skills").exists()
 
 
-def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
-    tmp_path: Path,
-) -> None:
-    """--check with a clean (matching) template still exercises the copy loop."""
+def _seed_clean_skill_tree(tmp_path: Path) -> Path:
+    """Write a template plus matching install and plugin targets; return the install target."""
     partials_dir = tmp_path / "templates" / "skills" / "partials"
     partials_dir.mkdir(parents=True)
     (partials_dir / "greet.mustache").write_text("hi\n", encoding="utf-8")
@@ -517,13 +519,38 @@ def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
     plugin_target = tmp_path / "src" / "claude" / "skills" / "sync" / "SKILL.md"
     plugin_target.parent.mkdir(parents=True)
     plugin_target.write_text("hi\n", encoding="utf-8")
+    return target
+
+
+def test_build_skills_check_mode_in_sync_mirror_passes_without_writing(
+    tmp_path: Path,
+) -> None:
+    """--check with a clean template and an in-sync mirror exits 0 and writes nothing."""
+    target = _seed_clean_skill_tree(tmp_path)
+    mirror = tmp_path / "out" / "skills" / "sync" / "SKILL.md"
+    mirror.parent.mkdir(parents=True)
+    mirror.write_text("hi\n", encoding="utf-8")
     cfg = _skills_platform_config(tmp_path)
 
     result = build_all._build_skills(tmp_path, cfg, "p", check=True)
 
     assert result.exit_code == 0
     assert target.read_text(encoding="utf-8") == "hi\n"
-    assert (tmp_path / "out" / "skills" / "sync" / "SKILL.md").is_file()
+    assert mirror.read_text(encoding="utf-8") == "hi\n"
+
+
+def test_build_skills_check_mode_missing_mirror_reports_drift_without_writing(
+    tmp_path: Path,
+) -> None:
+    """--check with a clean template but no mirror file exits 2 and creates nothing."""
+    target = _seed_clean_skill_tree(tmp_path)
+    cfg = _skills_platform_config(tmp_path)
+
+    result = build_all._build_skills(tmp_path, cfg, "p", check=True)
+
+    assert result.exit_code == 2
+    assert target.read_text(encoding="utf-8") == "hi\n"
+    assert not (tmp_path / "out" / "skills" / "sync" / "SKILL.md").exists()
 
 
 # _build_lib (ADR-109 B5) ----------------------------------------------------
@@ -1720,9 +1747,9 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
     (repo / ".claude" / "skills").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
-    # Pre-commit a tracked file under .github/instructions/ that is committed
+    # Pre-commit a tracked file under src/copilot-cli/instructions/ that is committed
     # at content A, and arrange for the run to (hypothetically) write content B.
-    inst_dir = repo / ".github" / "instructions"
+    inst_dir = repo / "src" / "copilot-cli" / "instructions"
     inst_dir.mkdir(parents=True)
     tracked = inst_dir / "rule-x.md"
     tracked.write_text("committed A\n")
@@ -1734,7 +1761,9 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
 
     def _overwriting_agent(repo_root, cfg, platform, **_kw):
         # Simulate what generate_rules does: write under owned prefix.
-        (repo_root / ".github" / "instructions" / "rule-x.md").write_text("regenerated B\n")
+        (repo_root / "src" / "copilot-cli" / "instructions" / "rule-x.md").write_text(
+            "regenerated B\n"
+        )
         return build_all.GeneratorResult(artifact="agents", platform="*", exit_code=0)
 
     monkeypatch.setattr(build_all, "_build_agents", _overwriting_agent)
@@ -1876,11 +1905,11 @@ def test_restore_preserves_preexisting_bytecode_under_owned_prefixes(
     the same race issue #3856 closes.
     """
     repo = tmp_path / "repo"
-    cache = repo / ".github" / "instructions" / "pkg" / "__pycache__"
+    cache = repo / "src" / "copilot-cli" / "instructions" / "pkg" / "__pycache__"
     cache.mkdir(parents=True)
     pyc = cache / "mod.cpython-314.pyc"
     pyc.write_bytes(b"PREEXISTING")
-    sibling = repo / ".github" / "instructions" / "rule-x.md"
+    sibling = repo / "src" / "copilot-cli" / "instructions" / "rule-x.md"
     sibling.write_text("committed A\n")
 
     snapshot = build_all._snapshot_owned_prefixes(repo, build_all.OWNED_PREFIXES)
@@ -1914,7 +1943,7 @@ def test_guard_snapshot_still_excludes_bytecode(tmp_path: Path) -> None:
 def test_restore_replaces_directory_conflicting_with_snapshot_file(tmp_path: Path) -> None:
     """#2440: restore handles file-to-directory conflicts."""
     repo = tmp_path / "repo"
-    tracked = repo / ".github" / "instructions" / "rule-x.md"
+    tracked = repo / "src" / "copilot-cli" / "instructions" / "rule-x.md"
     tracked.parent.mkdir(parents=True)
     tracked.write_text("committed A\n")
     snapshot = build_all._snapshot_owned_prefixes(repo, build_all.OWNED_PREFIXES)
@@ -2125,40 +2154,27 @@ def test_run_check_returns_2_when_skill_mirror_is_stale(
     )
 
 
-# Regression: ADR-109 B3 follow-up, --check must cover skill support files -
+# ADR-119: shipped skill support files are hand-maintained in the plugin tree -
 #
-# The B3 template migration only rendered SKILL.md into
-# src/claude/skills/<name>/; scripts/, references/, and tests/ were never
-# mirrored there at all (a real Claude plugin install would tell the agent
-# to run a script that does not exist on disk). These tests pin the new
-# generate_skills.sync_claude_plugin_skill_support coverage end to end with
-# the REAL generator and REAL git: a clean committed mirror exits 0, and a
-# hand edit made DIRECTLY to the src/claude/skills mirror (bypassing the
-# canonical .claude/skills/ source) is both caught (exit 2) and reverted by
-# --check's read-only restore, since src/ is already an OWNED_PREFIXES entry.
+# ADR-109 B3 mirrored scripts/, references/, and tests/ from .claude/skills/
+# into src/claude/skills/<name>/. ADR-119 retired that mirror: .claude/skills/
+# <name> is a symlink to the plugin directory, so the plugin tree holds the
+# only copy and is edited in place. These tests drive the REAL generator and
+# REAL git. A shipped skill's support file is never reported as drift, and the
+# one thing the sync still owns, the stale plugin copy of a repo-local skill,
+# is reported by --check without being deleted and removed by a normal run.
+
+_LOCAL_SKILL = "---\nname: alpha\nmetadata:\n  distribution: repo-local\n---\n# alpha\n"
 
 
-def _seed_repo_with_committed_claude_support_mirror(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> Path:
-    """Init a git repo, generate the Claude support-file mirror, and commit it.
-
-    Returns the committed mirror path
-    (src/claude/skills/alpha/scripts/run.py). Stubs _build_agents for the
-    same reason _seed_repo_with_committed_skill_mirror does.
-    """
+def _commit_all(repo: Path, message: str) -> None:
     import subprocess
 
-    _init_git_repo(repo)
-    (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
-    skill_dir = repo / ".claude" / "skills" / "alpha"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("# alpha\n", encoding="utf-8")
-    scripts_dir = skill_dir / "scripts"
-    scripts_dir.mkdir()
-    (scripts_dir / "run.py").write_text("print('hi')\n", encoding="utf-8")
-    _write_platform_with_skills(repo, provider="copilot-cli")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", message], check=True)
+
+
+def _stub_agents(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         build_all,
         "_build_agents",
@@ -2166,138 +2182,142 @@ def _seed_repo_with_committed_claude_support_mirror(
             artifact="agents", platform="*", exit_code=0
         ),
     )
+
+
+def _seed_repo_with_committed_plugin_support_file(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Init a git repo holding a shipped skill whose support file lives in the plugin tree.
+
+    Returns the committed support file (src/claude/skills/alpha/scripts/run.py).
+    """
+    _init_git_repo(repo)
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
+    skill_dir = repo / "src" / "claude" / "skills" / "alpha"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# alpha\n", encoding="utf-8")
+    support = skill_dir / "scripts" / "run.py"
+    support.write_text("print('hi')\n", encoding="utf-8")
+    _write_platform_with_skills(repo, provider="copilot-cli", source_dir="src/claude/skills")
+    _stub_agents(monkeypatch)
     build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
-    mirror = repo / "src" / "claude" / "skills" / "alpha" / "scripts" / "run.py"
-    assert mirror.is_file(), "fixture failed to generate the Claude support-file mirror"
-    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed clean support-file mirror"],
-        check=True,
-    )
+    _commit_all(repo, "seed plugin-tree support file")
     assert _git_porcelain(repo) == "", "fixture left the tree dirty"
-    return mirror
+    return support
 
 
-def test_run_check_returns_0_when_claude_skill_support_mirror_is_clean(
+def _seed_repo_with_stale_plugin_copy_of_repo_local_skill(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Init a git repo whose repo-local skill still has a committed plugin-tree copy."""
+    _init_git_repo(repo)
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
+    local_dir = repo / ".claude" / "skills" / "alpha"
+    local_dir.mkdir(parents=True)
+    (local_dir / "SKILL.md").write_text(_LOCAL_SKILL, encoding="utf-8")
+    (local_dir / "run.py").write_text("print('hi')\n", encoding="utf-8")
+    shipped_dir = repo / "src" / "claude" / "skills" / "beta"
+    shipped_dir.mkdir(parents=True)
+    (shipped_dir / "SKILL.md").write_text("# beta\n", encoding="utf-8")
+    stale = repo / "src" / "claude" / "skills" / "alpha" / "scripts" / "run.py"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("print('stale')\n", encoding="utf-8")
+    _write_platform_with_skills(repo, provider="copilot-cli", source_dir="src/claude/skills")
+    _stub_agents(monkeypatch)
+    _commit_all(repo, "seed stale plugin copy")
+    assert _git_porcelain(repo) == "", "fixture left the tree dirty"
+    return stale
+
+
+def test_run_check_returns_0_when_plugin_tree_support_file_is_clean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo = tmp_path / "repo"
-    _seed_repo_with_committed_claude_support_mirror(repo, monkeypatch)
+    _seed_repo_with_committed_plugin_support_file(repo, monkeypatch)
 
     rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
-    assert rc == 0, f"clean support-file mirror should pass --check, got {rc}"
+    assert rc == 0, f"clean plugin-tree support file should pass --check, got {rc}"
 
 
-def test_run_check_returns_2_and_restores_a_hand_edited_support_file(
+def test_run_check_accepts_an_in_place_edit_once_the_build_has_propagated_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A hand edit COMMITTED straight to src/claude/skills/ (bypassing
-    .claude/skills/, the canonical source) diverges the two trees. --check
-    regenerates the mirror for real (correcting it back to match
-    .claude/skills/), so the working tree now differs from the (wrong)
-    committed HEAD; that diff is what the staleness gate reports. Per the
-    #2440 read-only contract, --check then restores the working tree back
-    to the committed (still-wrong) state rather than leaving the fix in
-    place -- the fix must be re-run for real (a plain, non-check build) to
-    land.
+    """The edit-in-place workflow ADR-119 introduced is not drift.
 
-    An UNCOMMITTED hand edit is a different scenario, covered by
-    ``test_run_check_returns_2_for_an_uncommitted_hand_edit_to_a_support_file``
-    below: the sync's ``check=True`` mode compares directly against
-    ``.claude/skills/`` rather than relying on git diff, so it is caught
-    the same way regardless of whether the drift was ever committed.
-    """
-    import subprocess
-
-    repo = tmp_path / "repo"
-    mirror = _seed_repo_with_committed_claude_support_mirror(repo, monkeypatch)
-
-    mirror.write_text("print('hand-edited, bypassing .claude/skills/')\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "bad direct edit to plugin tree"],
-        check=True,
-    )
-    assert _git_porcelain(repo) == "", "fixture's own commit must leave the tree clean"
-
-    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
-    assert rc == 2, (
-        f"a support file hand-edited (and committed) directly under "
-        f"src/claude/skills/ should fail --check, got {rc}"
-    )
-    assert _git_porcelain(repo) == "", (
-        "--check must restore src/claude/skills/ (an OWNED_PREFIXES path) "
-        "to its committed state, leaving the tree clean"
-    )
-    assert mirror.read_text() == "print('hand-edited, bypassing .claude/skills/')\n"
-
-
-def test_run_check_returns_2_for_an_uncommitted_hand_edit_to_a_support_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Live-probe regression: an UNCOMMITTED hand edit under src/claude/skills/.
-
-    Reproduces the exact finding on bf4d0117f: append a line to a tracked
-    mirror file (never committed) and run --check. The old code had no
-    check=True comparison mode; it wrote for real during generation, so the
-    edit was silently corrected back to canonical content before the
-    git-diff staleness check ever ran, and --check reported exit 0.
-
-    check=True (this fix) compares directly against .claude/skills/,
-    finds the mismatch, and --check exits 2. Per the same read-only
-    contract as every other --check path in this module (see
-    test_run_check_returns_2_and_restores_a_hand_edited_support_file
-    above), --check never writes: the hand edit is reported, not
-    corrected, and the working tree is exactly as the caller left it
-    (still dirty against HEAD) when the run returns.
+    Before, a support file edited under src/claude/skills/ diverged from the
+    canonical .claude/skills/ copy and --check exited 2. Now the plugin copy is
+    the canonical one: edit it, run the build to refresh the Copilot mirror,
+    commit, and --check passes with the edit left as committed.
     """
     repo = tmp_path / "repo"
-    mirror = _seed_repo_with_committed_claude_support_mirror(repo, monkeypatch)
-    before = _git_porcelain(repo)
-    assert before == "", "fixture must start clean"
-
-    mirror.write_text("hand-edited, never committed\n", encoding="utf-8")
+    support = _seed_repo_with_committed_plugin_support_file(repo, monkeypatch)
+    support.write_text("print('edited in place')\n", encoding="utf-8")
+    build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
+    _commit_all(repo, "edit support file in the plugin tree")
 
     rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
-    assert rc == 2, f"an uncommitted hand edit to a support file should fail --check, got {rc}"
-    assert mirror.read_text() == "hand-edited, never committed\n", (
-        "--check must never write; the file the caller edited is unchanged"
-    )
-    assert _git_porcelain(repo) == " M src/claude/skills/alpha/scripts/run.py\n", (
-        "--check is read-only: it must not silently correct (or hide) an "
-        "uncommitted edit the caller made outside the build"
-    )
+    assert rc == 0, f"an in-place edit of the only copy should pass --check, got {rc}"
+    assert support.read_text() == "print('edited in place')\n"
+    assert _git_porcelain(repo) == ""
 
 
-def test_run_check_returns_2_for_an_uncommitted_extra_support_file(
+def test_run_check_returns_2_when_an_in_place_edit_is_not_propagated_to_the_copilot_mirror(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Live-probe regression: an extra, untracked file under src/claude/skills/.
-
-    Reproduces the coordinator's second probe: add a new file with no
-    canonical source under a mirrored skill directory (never committed) and
-    run --check. The old code always pruned real stale extras during
-    generation, before the git-diff staleness check ran, so the extra was
-    deleted and --check reported exit 0 with the evidence already gone.
-
-    check=True never deletes: the extra is reported as drift and left on
-    disk, matching the read-only contract of every other --check path.
-    """
+    """Negative control: the plugin copy is canonical, so its derived mirror goes stale."""
     repo = tmp_path / "repo"
-    mirror = _seed_repo_with_committed_claude_support_mirror(repo, monkeypatch)
-    assert _git_porcelain(repo) == "", "fixture must start clean"
-    extra = mirror.parent / "probe_extra.py"
+    support = _seed_repo_with_committed_plugin_support_file(repo, monkeypatch)
+    support.write_text("print('edited in place')\n", encoding="utf-8")
+    _commit_all(repo, "edit without rebuilding")
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+
+    assert rc == 2
+    assert support.read_text() == "print('edited in place')\n"
+
+
+def test_run_check_returns_2_for_a_stale_plugin_copy_of_a_repo_local_skill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """check=True reports the stale copy as drift and never deletes it (#2440)."""
+    repo = tmp_path / "repo"
+    stale = _seed_repo_with_stale_plugin_copy_of_repo_local_skill(repo, monkeypatch)
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+
+    assert rc == 2, f"a stale plugin copy of a repo-local skill should fail --check, got {rc}"
+    assert stale.read_text() == "print('stale')\n", "--check must never delete"
+    assert _git_porcelain(repo) == ""
+
+
+def test_run_removes_the_stale_plugin_copy_of_a_repo_local_skill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    stale = _seed_repo_with_stale_plugin_copy_of_repo_local_skill(repo, monkeypatch)
+
+    build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
+
+    assert not stale.exists()
+    assert not stale.parent.parent.exists()
+    assert (repo / "src" / "claude" / "skills" / "beta" / "SKILL.md").is_file()
+    assert (repo / ".claude" / "skills" / "alpha" / "run.py").is_file()
+
+
+def test_run_check_returns_2_for_an_untracked_file_in_a_repo_local_stale_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An extra, untracked file under the stale copy is drift too, and survives --check."""
+    repo = tmp_path / "repo"
+    stale = _seed_repo_with_stale_plugin_copy_of_repo_local_skill(repo, monkeypatch)
+    extra = stale.parent / "probe_extra.py"
     extra.write_text("# probe\n", encoding="utf-8")
 
     rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
-    assert rc == 2, f"an uncommitted extra support file should fail --check, got {rc}"
+    assert rc == 2
     assert extra.is_file(), "--check must never delete; the caller decides what to do with it"
-    assert _git_porcelain(repo) == "?? src/claude/skills/alpha/scripts/probe_extra.py\n", (
-        "--check is read-only: it must not silently remove an untracked "
-        "file the caller added outside the build"
-    )
 
 
 # _ignored_paths + exclude_ignored guard filtering (issue #2992) -------------
@@ -2867,7 +2887,7 @@ def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
     ``__pycache__`` directory matches, because tools other than CPython
     write there too.
     """
-    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is True
+    assert build_all._is_bytecode_artifact(Path(relative)) is True
 
 
 @pytest.mark.parametrize(
@@ -2888,7 +2908,7 @@ def test_is_bytecode_artifact_rejects_real_files(relative: str) -> None:
     end in ``.pyc``/``.pyo``. Being a data file is not itself
     disqualifying: see the ``__pycache__/data.json`` case above.
     """
-    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is False
+    assert build_all._is_bytecode_artifact(Path(relative)) is False
 
 
 def _write_bytecode(pkg: Path) -> Path:
@@ -4955,7 +4975,12 @@ def test_binplace_rejects_install_tree_outside_repo(tmp_path: Path) -> None:
 # OWNED_PREFIXES verification ------------------------------------------------
 
 
-def test_owned_prefixes_contains_claude_agents_and_github_agents() -> None:
-    """OWNED_PREFIXES must include .claude/agents/ and .github/agents/."""
-    assert ".claude/agents/" in build_all.OWNED_PREFIXES
-    assert ".github/agents/" in build_all.OWNED_PREFIXES
+def test_owned_prefixes_hold_neither_linked_agent_tree() -> None:
+    """ADR-119: .claude/agents/ and .github/agents/ hold symlinks, which --check refuses.
+
+    The plugin trees under ``src/`` are the owned, drift-checked copies of every
+    agent; the install links are checked by binplace's link rows.
+    """
+    assert ".github/agents/" not in build_all.OWNED_PREFIXES
+    assert ".claude/agents/" not in build_all.OWNED_PREFIXES
+    assert "src/" in build_all.OWNED_PREFIXES

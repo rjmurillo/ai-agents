@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -161,20 +162,38 @@ def _validate_scenarios_measure(data: Mapping[str, Any], path: Path) -> None:
         )
 
 
+_SHIPPED_SKILLS_DIR = Path("src") / "claude" / "skills"
+_SHIPPED_RULES_DIR = Path("src") / "claude" / "rules"
+
+
+def _check_spelling(repo_root: Path, target_str: str, artifact_dir: Path, kind: str) -> Path:
+    """Require the .claude/ spelling and return the resolved path.
+
+    A scenario names the .claude/ spelling. It may resolve into src/claude/
+    through a link (ADR-119); a direct src/claude/ spelling is refused.
+    """
+    named = Path(os.path.normpath(repo_root / target_str))
+    resolved = (repo_root / target_str).resolve()
+    shipped_dir = _SHIPPED_SKILLS_DIR if kind == "skill" else _SHIPPED_RULES_DIR
+    allowed_roots = [(repo_root / artifact_dir).resolve(), (repo_root / shipped_dir).resolve()]
+    if not named.is_relative_to(repo_root / artifact_dir) or not any(
+        resolved.is_relative_to(root) for root in allowed_roots
+    ):
+        raise CoverageConfigError(
+            f"{kind}_path must be spelled under {artifact_dir.as_posix()}/ (it may resolve into "
+            f"{shipped_dir.as_posix()}/ through a link; a direct {shipped_dir.as_posix()}/ "
+            f"path is refused): {target_str}"
+        )
+    return resolved
+
+
 def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: str) -> str:
     """Resolve a scenario target under its artifact dir, returning the artifact id.
 
     Raises CoverageConfigError on traversal escape, a missing target (orphan),
     or the wrong file shape for the kind.
     """
-    resolved = (repo_root / target_str).resolve()
-    allowed_root = (repo_root / artifact_dir).resolve()
-    try:
-        resolved.relative_to(allowed_root)
-    except ValueError as exc:
-        raise CoverageConfigError(
-            f"{kind}_path must stay under {artifact_dir}: {target_str}"
-        ) from exc
+    resolved = _check_spelling(repo_root, target_str, artifact_dir, kind)
     if kind == "rule":
         if resolved.suffix != ".md":
             raise CoverageConfigError(f"rule_path must be a .md file: {target_str}")
@@ -207,6 +226,7 @@ def _is_reference_scenario(repo_root: Path, data: Mapping[str, Any], path: Path)
     assert isinstance(skill, str)
     reference_path = reference.strip()
     skill_path = skill.strip()
+    _check_spelling(repo_root, skill_path, SKILLS_SUBDIR, "skill")
     for ref in (reference_path, skill_path):
         target = (repo_root / ref).resolve()
         try:

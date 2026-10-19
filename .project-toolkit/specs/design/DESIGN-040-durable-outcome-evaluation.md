@@ -149,6 +149,9 @@ classifies `ACCEPTED_NOT_DURABLE`. The correction prompt never names the
 integration check.
 
 `rework_minutes` is the wall time of correction rounds (agent rework, no human
-time). `review_findings` and `rollback_events` stay 0 by construction, and
-`unsupported_claims` and `unresolved_uncertainty` stay regex proxies.
+time). `review_findings` is measured by the reviewer arm and `rollback_events` by
+a verified revert; each is `null` when unmeasured, as is
+`human_correction_minutes` until `eval_human_minutes_join.py` adds a timed row
+after the run (see DESIGN-044, "Fields that are null when unmeasured"). `unsupported_claims` and
+`unresolved_uncertainty` stay regex proxies.
 `eval_durable_repetitions.py` reports per-repeat counts and their spread.

@@ -563,11 +563,12 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
     else
         echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
     fi
-    # No --output-format here. set_pr_auto_merge.py registers no such option,
-    # so argparse exited 2 before the mutation ran and this gate took its
-    # failure branch on every armed non-T1 PR, leaving auto-merge armed (issue
-    # #5551). The script already prints the AutoMergeEnabled object the
-    # verification checklist asks for, with no flag needed.
+    # No --output-format needed here. set_pr_auto_merge.py once registered no
+    # such option, so argparse exited 2 before the mutation ran and this gate
+    # took its failure branch on every armed non-T1 PR, leaving auto-merge
+    # armed (issue #5551). The script now accepts the flag, and the default
+    # already prints the AutoMergeEnabled object the verification checklist
+    # asks for.
     if run_pr_mutation_if_live \
         python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
         --pull-request "$PR" --disable; then
@@ -619,9 +620,31 @@ if [ "$TIER" = "T5" ]; then
     continue
 fi
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
-    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
-        --pull-request "$PR" --output-format json)
+    # Issue #5447: this loop runs from the shared checkout, whose HEAD is not
+    # the PR's. The orphaned-commit scan compares the live PR head with a local
+    # HEAD, so point it at the worktree that holds the PR branch. Without it the
+    # ancestry check exits 1 or 128, the scan reports `unverified`, and the
+    # warning never names the commits. No matching worktree passes no flag, and
+    # the script falls back to the current directory.
+    PR_HEAD_REF=$(printf '%s' "${LIVE:-}" | jq -r '.Data.head_ref // empty' 2>/dev/null)
+    PR_WORKTREE=""
+    if [ -n "$PR_HEAD_REF" ]; then
+        PR_WORKTREE=$(git worktree list --porcelain 2>/dev/null | awk -v ref="refs/heads/$PR_HEAD_REF" \
+            '/^worktree /{path=substr($0, 10)} $1 == "branch" && $2 == ref {print path; exit}')
+    fi
+    ROUND_CAP_ARGS=(--pull-request "$PR" --output-format json)
+    if [ -n "$PR_WORKTREE" ]; then
+        ROUND_CAP_ARGS+=(--worktree "$PR_WORKTREE")
+    fi
+    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" "${ROUND_CAP_ARGS[@]}")
     ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
+    # The scan result is set when the record is escalated, including an ACT
+    # verdict right after a reset. Print it on every arm: it names the local
+    # commits the live head lacks, and the reader should not run git log by hand.
+    ROUND_ORPHANS=$(echo "$ROUND_CAP" | jq -r '.Data.orphaned_warning // empty')
+    if [ -n "$ROUND_ORPHANS" ]; then
+        echo "$ROUND_ORPHANS"
+    fi
     if [ "$ROUND_ACTION" != "ACT" ]; then
         ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
         echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
@@ -681,11 +704,12 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
    pin `--force-with-lease` to that observed SHA so a competing session's commit
    rejects the push instead of being overwritten (issues #3653, #3413).
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to. The wall-clock budget restarts when the PR head SHA advances or a maintainer with write access reopens the PR (issue #5477), so calendar idle time does not retire a PR; the round cap still bounds a loop that keeps pushing. A maintainer restarts both the clock and the round counter with a `/pr-autofix continue` comment (OWNER or COLLABORATOR) or by running the script with `--reset`. A repeat blocked call posts no further comments.
+   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`; issue #5447). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`. Only `ahead` fills `.commits`; `clean` and `not_checked` leave it empty. The dispatch block finds the worktree that holds the PR branch and passes it as `--worktree <path>`, so the scan compares the live head with the PR's `HEAD` and not the shared checkout's; run the script by hand the same way. The block prints `Data.orphaned_warning` (a flat copy of `.warning`) on every arm, escalated or not, so the commit names reach the log. A session that hit the cap can leave unpushed commits behind, and PR #5344 carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not answer, so read `git log <live head>..HEAD` by hand.
 6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
-1. Branch up to date with `main` (`mergeStateStatus` not `BEHIND`).
+1. No merge conflict with `main` (`mergeStateStatus` not `DIRTY`). Being behind `main` is not a condition. The `main` ruleset sets `strict_required_status_checks_policy: false`, so GitHub reports a behind branch as `CLEAN`, `UNSTABLE`, or `BLOCKED`, never `BEHIND`. The repository's merge-tree ratchet gate in CI already measures the merged result. Do not update a branch only because it is behind. Each update re-runs that PR's CI, and each merge to `main` puts every other open PR behind again, so refreshing after every merge costs one CI run per open PR per merge. Update a branch only when it is `DIRTY`, or when a check this skill treats as blocking fails (a required check, or a non-required failure with no recorded disposition) and a commit on `main` since the fork point fixes that failure.
 2. All required checks pass.
 3. All conversations addressed: READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, RESOLVED.
 4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
@@ -787,7 +811,7 @@ here would re-assert the thing issue #4899 fixed.
 
 | State | Criteria | Action |
 |-------|----------|--------|
-| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BEHIND | `MergeStateStatus == "BEHIND"`. GitHub reports it only while the ruleset requires up-to-date branches, which it does not today | Update branch against main, then reclassify |
 | BLOCKED | `MergeStateStatus == "BLOCKED"` with no CI failure and no unresolved thread (branch protection, pending reviews) | Run `detect_stale_bot_review.py` ("Stale bot `CHANGES_REQUESTED` review" below), then wait for the external gate (review approval, etc.). `BLOCKED` with a failure or thread is T2, T3, T4, or T5 instead |
 | DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
 | SKIP | Draft, merged, or closed | No action |
@@ -815,7 +839,7 @@ posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: ne
 | `Data.verdict` | Meaning | Action |
 |----------------|---------|--------|
 | `NO_BOT_CHANGES_REQUESTED` | No bot holds an active `CHANGES_REQUESTED` review | The block is another outside gate: stop |
-| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`, an incomplete thread count, or an unknown head SHA) | Finish open work. An incomplete count or unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
+| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, a required check not passing (or any check, when the repo marks none required), `BEHIND`, `DIRTY`, an `UNKNOWN` or missing merge state, an incomplete thread count, an unknown CI state, or an unknown head SHA) | Finish open work. An unknown merge state, an incomplete count, an unknown CI state, or an unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
 | `FRESH_CHANGES_REQUESTED` | The review is on the current head | Address its findings through the thread lifecycle |
 | `REQUEST_REREVIEW` | Stale review, PR ready, no bot review at head yet | For each `Data.bots[]` entry whose `action` is `REQUEST_REREVIEW`, post its `rereview_trigger` as a PR comment once per head SHA. First read the PR comments: if that trigger was already posted since the last push, wait instead. Then run the detector again. `Data.handoff` stays null on this verdict even when another bot is handoff-ready; the next run produces it |
 | `DISMISSAL_HANDOFF` | Stale review, PR ready, and the bot already reviewed head (or has no known trigger) | Give `Data.handoff` to the human verbatim and stop |
@@ -823,7 +847,7 @@ posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: ne
 An `APPROVED` bot review at head supersedes the stale one, so the detector reports
 `NO_BOT_CHANGES_REQUESTED`. The handoff carries the review id, the reviewed commit,
 the `PUT .../reviews/{id}/dismissals` command, and what the detector checked (every
-thread resolved, CI green, review older than head). It does not check that later
+thread resolved, required CI checks green, review older than head). It does not check that later
 commits fixed each finding, so the human confirms that before dismissing. A bot with no verified re-review trigger goes straight to the
 handoff; the script never guesses one.
 
@@ -834,7 +858,7 @@ returns `ESCALATE`, stop and hand off instead of requesting another review.
 
 ## Fix Patterns
 
-- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
+- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `PR_ONLY` (exit 3) means the check never reports on main (a pull_request-only job), so it cannot be inherited: read the PR run with `gh run view <run-id> --log-failed`, and widen `--history-depth` only for path-filtered or scheduled workflows. `CANCELLED_ON_MAIN` (exit 3) means main holds only cancelled or stale runs for the name, so there is no completed evidence: rerun the `EvidenceRunId` run with `gh run rerun <run-id>` and probe again. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
 - **Branch behind main**: Run each base refresh command through the late live-state wrapper:
 
@@ -858,7 +882,7 @@ returns `ESCALATE`, stop and hand off instead of requesting another review.
       --expected-base-sha "$EXPECTED_BASE_SHA"
   ```
 
-- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate. If the PR is no longer open or its head SHA, base ref, or base SHA differs from the expected identity, the script makes no mutation (exit 1 before the reply) or leaves the thread unresolved and auto-merge untouched (exit 1 or 3 after the reply), so a stale session cannot disarm auto-merge.
+- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate. If the PR is no longer open or its head SHA, base ref, or base SHA differs from the expected identity, the script makes no mutation (exit 1 before the reply) or leaves the thread unresolved and auto-merge untouched (exit 1 or 3 after the reply), so a stale session cannot disarm auto-merge. Every envelope after the reply carries `reply_posted` (true) and `thread_resolved` (false) as separate fields. When `reply_posted` is true, do not run the script again for that thread: a retry posts a second reply. Never resolve that thread outside this script: `resolve_pr_review_thread.py` has no auto-merge guard or identity check. On any non-zero exit after the reply, report the exit code and `reply_posted`, leave the thread unresolved, and hand off to a human.
 - **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
 
 ## Force-Push Safety
@@ -969,8 +993,11 @@ python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format
 # starting any local investigation, ask whether the same check is red on
 # origin/main. Exit 0 = green on main (the PR introduced it; investigate the
 # PR). Exit 1 = red on main (inherited; cite Data.EvidenceUrl and fix or wait
-# out main instead of debugging the PR). Exit 3 = cannot determine (probe
-# failure is not absence; never treat UNKNOWN as green).
+# out main instead of debugging the PR). Exit 3 = cannot determine; read
+# Data.Verdict. PR_ONLY: the check never reports on main, so read the PR run
+# with `gh run view <run-id> --log-failed`. CANCELLED_ON_MAIN: main has only
+# cancelled or stale runs, so `gh run rerun <run-id>` the Data.EvidenceRunId
+# run. UNKNOWN: probe failure is not absence; never treat it as green.
 python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
 
 # Stale bot CHANGES_REQUESTED review (issue #5950). Read-only classifier: exit 0
@@ -1002,12 +1029,52 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 | `CLEAN` | Auto-merge when waiting is useful; direct merge if GitHub returns the already-clean rejection | Guard `set_pr_auto_merge.py --enable`, then guard the `merge_pr.py --strategy squash` fallback |
 | `HAS_HOOKS` | Same path as `CLEAN`. GitHub defines it as "Mergeable with passing commit status and pre-receive hooks" | Guard `set_pr_auto_merge.py --enable`, then guard the `merge_pr.py --strategy squash` fallback |
 | `UNSTABLE` with documented non-required failures | Direct merge (immediate) | Guard `merge_pr.py --strategy squash` |
-| `BEHIND` | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
+| `BEHIND` (only while the ruleset requires up-to-date branches) | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
 | `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver agent if real conflict |
 | Base is not the default branch (`STACKED`) | A squash merge lands on the parent branch and collapses the stack. `test_pr_merge_ready.py` keeps `CanMerge=true` and reports tier `STACKED` | Disarm auto-merge, then hand to a human. No script in this table is run |
 | Anything else (`UNKNOWN`, missing, future) | No verified merge path in this document. `test_pr_merge_ready.py` reports `CanMerge=false` and tier `UNSUPPORTED` | Disarm auto-merge, then hand to a human. Refusing is deliberately conservative: GitHub may well accept the merge, but nothing here has been verified against that state |
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
+
+### Post-merge cleanup
+
+Run this after every merge this skill lands, once `test_pr_merged.py` reports
+`merged: true`. The snippet reads its inputs from `test_pr_merged.py`
+(`head_ref`, `head_sha`, `merge_commit_sha`), fails when any is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
+A leftover worktree costs disk and slows repo-wide scans: issue #2761 counted
+113 of them at 10.6G on one machine. PR #6490 merged with its worktree and
+local branch still in place.
+
+```bash
+# Replace <pr> with the merged PR number. SCRIPTS_DIR is set by resolve_pr_scripts_dir above.
+# jq prints nothing unless all three values exist, so the guard below fails loud.
+read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA < <(python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request <pr> --output-format json \
+    | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha) | [.head_ref, .head_sha, .merge_commit_sha] | @tsv')
+: "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}"
+git fetch origin main && git merge-base --is-ancestor "$MERGE_SHA" origin/main || { echo "merge not on main yet"; exit 1; }
+# The worktree can belong to another clone, so fall back to the path convention.
+WT=$(git worktree list --porcelain | awk -v ref="refs/heads/$PR_HEAD_REF" \
+    '/^worktree /{p=substr($0, 10)} $1 == "branch" && $2 == ref {print p; exit}')
+WT=${WT:-"$HOME/worktrees/<repo>/$PR_HEAD_REF"}
+# Keep the worktree when it has local edits or a head other than the merged one.
+[ -z "$(git -C "$WT" status --porcelain)" ] && \
+  [ "$(git -C "$WT" rev-parse HEAD)" = "$MERGED_HEAD_SHA" ] || { echo "keep $WT"; exit 1; }
+COMMON=$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)
+# -C, not --git-dir: after a self-removal the cwd is gone and git cannot start there.
+git -C "$COMMON" worktree remove "$WT"
+# -D, not -d: a squash merge leaves the tip outside main's history. The SHA check above makes it safe.
+git -C "$COMMON" branch -D "$PR_HEAD_REF"
+# Empty output means the remote branch is gone.
+git -C "$COMMON" ls-remote origin "refs/heads/$PR_HEAD_REF"
+```
+
+- Never pass `--force` to `git worktree remove`. A dirty or moved worktree is
+  kept and reported with the reason.
+- Run removal through the owning clone's `--git-common-dir`. `git worktree list`
+  in a sibling clone does not see the worktree.
+- The remote branch goes away when the repository sets `delete_branch_on_merge`.
+  Otherwise pass `--delete-branch` to `merge_pr.py`. Set `git config fetch.prune
+  true` so the next fetch drops the stale remote-tracking ref.
 
 ### Merge-check exit codes: `test_pr_merged.py`
 
@@ -1119,10 +1186,11 @@ Per PR processed:
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with documented non-required failures).
-- [ ] Branch is up to date with `main` (`mergeStateStatus` not `BEHIND`).
+- [ ] No branch update ran only because the branch was behind `main` (behind is not a merge condition; `DIRTY`, or a blocking red check that `main` fixed, is).
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
 - [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN` and for `HAS_HOOKS`, which takes the `CLEAN` path unchanged, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
 - [ ] All four Ready-to-Merge conditions hold before the merge command runs (CanMerge=True is insufficient alone).
+- [ ] After the merge: the PR worktree is removed and the local branch deleted, or kept with a stated reason (see "Post-merge cleanup").
 
 ## Anti-Patterns
 
@@ -1133,6 +1201,7 @@ Per PR processed:
 | Swapping the disarm gate and the round cap back | The breaker's ESCALATE hands the PR to a human with auto-merge possibly still armed, which is the CWE-284 case the ordering closes | Keep disarm first, then the cap, as the tier-dispatch block states |
 | Reading CI logs before triaging the failing check | A check red on main is not this PR's failure, and investigating it on the PR spends a round on someone else's bug | Run `triage_red_check.py` first and attribute RED_ON_MAIN with its EvidenceUrl |
 | Letting a T3/T4 PR iterate without a cap | PR #1887 ran 11+ bot rounds over 46 hours and PRs #1965 and #1979 ran 18 each; prose caps have been ignored every time | Call `check_pr_round_cap.py` once per pass and honor ESCALATE |
+| Pushing local commits found ahead of an escalated PR on the strength of their messages | PR #5344: a commit titled "drop duplicate gate" deleted the lefthook job and the one test that guarded it; the suite passed 37/37 with or without it | Check `Data.orphaned_commits.status`, `.commits[].risks`, and `.warning`, preserve the tip, and re-run the covering tests with and without each listed commit before reuse |
 | Dismissing a stale bot `CHANGES_REQUESTED` review, or re-requesting bot reviews until one passes | Dismissal is a self-approval action, and each push restarts the bot's round on the same lines | Run `detect_stale_bot_review.py` and hand `Data.handoff` to a human |
 | Trusting `CanMerge=True` as the merge decision | It is one input, not the gate; all four Ready-to-Merge conditions have to hold | Evaluate the four conditions and pick the merge path from `mergeStateStatus` |
 | Force-pushing without re-reading the ref | A ref you read at triage is not where the branch is now, and a bare `--force-with-lease` reads a tracking ref any fetch can advance | Match `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA, then pin the lease to that SHA |

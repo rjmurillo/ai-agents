@@ -12,6 +12,7 @@ gate it covers.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -71,3 +72,76 @@ class TestAssessFilesReportsFailures:
             results = assess._assess_files([f], "production", False)
         assert len(results) == 1
         assert results[0].cohesion.confidence == 0.0
+
+
+class TestScoringFailedMarker:
+    """`scoring_failed` separates a failed file from an unsupported one.
+
+    Both are all-unscored with the `authored` label. The verdict adapter reads
+    this field so a Markdown file beside code no longer forces UNKNOWN (issue
+    6664) while a file that raised still does.
+    """
+
+    def test_assessment_failure_sets_the_marker(self, tmp_path):
+        f = tmp_path / "a.py"
+        f.write_text("def f():\n    return 1\n", encoding="utf-8")
+        with patch.object(assess, "assess_file", side_effect=RuntimeError("boom")):
+            results = assess._assess_files([f], "production", False)
+        assert results[0].scoring_failed is True
+
+    def test_read_failure_sets_the_marker(self, tmp_path):
+        missing = tmp_path / "gone.py"
+        assert assess.assess_file(missing, "production", False).scoring_failed is True
+
+    def test_decode_failure_sets_the_marker(self, tmp_path):
+        f = tmp_path / "bad.py"
+        f.write_bytes(b"\xff\xfe\x00\x80 not utf-8")
+        assert assess.assess_file(f, "production", False).scoring_failed is True
+
+    def test_unreadable_helper_keeps_category_and_sets_the_marker(self):
+        result = assess._unreadable_assessment(Path("docs/x.md"), "read failed: boom")
+        assert result.scoring_failed is True
+        assert result.category == "authored"
+        assert result.cohesion.confidence == 0.0
+
+    def test_scored_python_file_is_not_marked_failed(self, tmp_path):
+        f = tmp_path / "ok.py"
+        f.write_text("def f():\n    return 1\n", encoding="utf-8")
+        result = assess.assess_file(f, "production", False)
+        assert result.cohesion.confidence > 0.0
+        assert result.scoring_failed is False
+
+    def test_markdown_file_is_unscored_but_not_failed(self, tmp_path):
+        f = tmp_path / "x.md"
+        f.write_text("# Title\n\nBody.\n", encoding="utf-8")
+        result = assess.assess_file(f, "production", False)
+        assert result.cohesion.confidence == 0.0
+        assert result.scoring_failed is False
+
+    def test_json_file_is_unscored_but_not_failed(self, tmp_path):
+        f = tmp_path / "cfg.json"
+        f.write_text("{}\n", encoding="utf-8")
+        result = assess.assess_file(f, "production", False)
+        assert result.cohesion.confidence == 0.0
+        assert result.scoring_failed is False
+
+    def test_generated_entry_is_not_marked_failed(self):
+        result = assess._unscored_generated_assessment(Path("gen.ts"))
+        assert result.category == "generated"
+        assert result.scoring_failed is False
+
+    def test_json_report_carries_the_marker_per_file(self, tmp_path):
+        ok = tmp_path / "ok.py"
+        ok.write_text("def f():\n    return 1\n", encoding="utf-8")
+        doc = tmp_path / "x.md"
+        doc.write_text("# Title\n", encoding="utf-8")
+        with patch.object(assess, "assess_file", side_effect=RuntimeError("boom")):
+            failed = assess._assess_files([tmp_path / "boom.py"], "production", False)
+        assessments = [
+            assess.assess_file(ok, "production", False),
+            assess.assess_file(doc, "production", False),
+            *failed,
+        ]
+        payload = json.loads(assess.generate_json_report(assessments))
+        markers = {Path(e["file_path"]).name: e["scoring_failed"] for e in payload["files"]}
+        assert markers == {"ok.py": False, "x.md": False, "boom.py": True}
