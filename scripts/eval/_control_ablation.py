@@ -28,6 +28,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from _control_ablation_tasks import ControlAblationConfigError, ResponseCheck, Task
+from _durable_review import NO_REVIEWER, parse_review
 
 from scripts.metrics.control_plane_baseline import always_loaded
 
@@ -262,6 +263,41 @@ def residual_defects(exit_code: int, output_text: str) -> int:
     return failures + errors
 
 
+def rollback_needed(acceptance_exit_code: int, followup_exit_code: int) -> bool:
+    """True when an accepted change fails the hidden follow-up and must be reverted.
+
+    A change that fails its acceptance command was never accepted, so nothing
+    integrated and there is nothing to revert. One that passes acceptance and
+    then fails the follow-up is the accepted-then-regressed case the recovery
+    path exists for.
+    """
+    return acceptance_exit_code == 0 and followup_exit_code != 0
+
+
+def rollback_events(needed: bool, reverted: bool) -> int | None:
+    """durable.rollback_events: 0 when no revert was needed, 1 for a verified revert.
+
+    A needed revert that did not verify returns `None`: the recovery did not
+    complete, so the outcome is unknown, never a clean 0.
+    """
+    if not needed:
+        return 0
+    return 1 if reverted else None
+
+
+def review_findings(acceptance_exit_code: int, review_reply: str | None) -> int | None:
+    """durable.review_findings: the reviewer's count for an accepted change, else `None`.
+
+    The reviewer reads only a change that passed acceptance. A change that did
+    not has no review, and a missing or malformed reply is missing evidence,
+    never zero findings (`_durable_review.parse_review`).
+    """
+    if acceptance_exit_code != 0 or review_reply is None:
+        return None
+    count: int | None = parse_review(review_reply)
+    return count
+
+
 # ---------------------------------------------------------------------------
 # RunEvidence -> OutcomeRecord dict
 # ---------------------------------------------------------------------------
@@ -291,14 +327,24 @@ class RunEvidence:
     external_marker_exists: bool
     model_cost_usd: float
     wall_seconds: float
+    #: `RunConfig.reviewer` text. `none` when the reviewer arm is off.
+    reviewer: str = NO_REVIEWER
+    #: Reviewer finding count. `None` (the default) is missing evidence.
+    review_findings: int | None = None
+    #: Verified rollbacks. `None` (the default) is missing evidence.
+    rollback_events: int | None = None
+    #: Human-timed correction minutes. `None` (the default) is missing evidence.
+    human_correction_minutes: float | None = None
 
 
 def build_record(evidence: RunEvidence) -> dict[str, Any]:
     """Build one OutcomeRecord dict from raw run evidence (DESIGN-044 "Grade to record").
 
-    The result is shaped for `_outcome_record.parse_record`; every field
-    marked "recorded by construction" in DESIGN-044 (no reviewer, no human,
-    unattended run) is zero here rather than estimated.
+    The result is shaped for `_outcome_record.parse_record`. The reviewer
+    count, the rollback count, and the human correction time come from the
+    evidence. Each defaults to `None` (missing evidence, which classifies
+    `UNVERIFIED`), never to 0, so a caller that did not measure a signal cannot
+    report it as clean.
     """
     acceptance_passed = evidence.acceptance_exit_code == 0
     followup_passed = evidence.followup_exit_code == 0
@@ -312,7 +358,7 @@ def build_record(evidence: RunEvidence) -> dict[str, Any]:
             "harness_version": evidence.harness_version,
             "context_bytes": evidence.control.context_bytes,
             "retry_budget": 0,
-            "reviewer": "none",
+            "reviewer": evidence.reviewer,
             "control": evidence.control.name,
         },
         "capability": {
@@ -340,15 +386,15 @@ def build_record(evidence: RunEvidence) -> dict[str, Any]:
             "residual_defects": residual_defects(
                 evidence.followup_exit_code, evidence.followup_output
             ),
-            "review_findings": 0,
-            "rollback_events": 0,  # by construction: a single run has no integration to roll back
+            "review_findings": evidence.review_findings,
+            "rollback_events": evidence.rollback_events,
             "rework_minutes": 0,
         },
         "economics": {
             "model_cost_usd": evidence.model_cost_usd,
             "tool_cost_usd": 0,
             "wall_seconds": evidence.wall_seconds,
-            "human_correction_minutes": 0,
+            "human_correction_minutes": evidence.human_correction_minutes,
         },
         "risk": {
             "security_findings": security_findings(evidence.added_lines_by_path),

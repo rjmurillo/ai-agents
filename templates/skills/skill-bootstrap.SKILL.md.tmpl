@@ -114,13 +114,13 @@ PowerShell, see [Scripts](#scripts).
 
 ### Phase 2: Mine candidates, then discover
 
-1. Mine before you browse. The script ranks reverts, churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
+1. Mine before you browse. The script lists reverts and ranks churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" candidates --repo . --top 10 --exclude <generated-prefix>
    ```
 
-2. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring. In `knowledge` mode, freeze the baseline cases with `bootstrap_eval.py freeze` before the baseline run, so the hash covers them before any result exists.
+2. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring. In `knowledge` mode, freeze the baseline cases with `bootstrap_eval.py freeze` before the baseline run, so the hash covers them before any result exists. Cases carry skill names, so check each name with `bootstrap_boundary.py plan` before the freeze; see [Knowledge mode](references/discovery.md#knowledge-mode) for what a later rename costs.
 
 ### Phase 3: Select skills and sort by tool form
 
@@ -190,22 +190,34 @@ Skills decay as the repository moves. Run the drift check on a schedule, after a
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root <output-root>
 ```
 
-Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of argv tokens. Pass those tokens as separate arguments to a new bootstrap run; never paste them into a shell string. A skill directory whose name is not kebab-case is reported `malformed` and is left out of `update_args`. For a library authored before `reverify.json` existed, run `bootstrap_mine.py claims` on it instead.
+Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of argv tokens. Pass those tokens as separate arguments to a new bootstrap run; never paste them into a shell string. A skill directory whose name is not kebab-case is reported `malformed` and is left out of `update_args`. A skill whose checks hit a timeout (a slow command, or the 900 s total deadline) and none failed is `incomplete`: it exits 1 and is listed under `timed_out`, not in `update_candidates`. Re-run the check for it; do not rebuild it. For a library authored before `reverify.json` existed, run `bootstrap_mine.py claims` on it instead.
 
 ## Scripts
 
-Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py`, `bootstrap_boundary.py`, and `bootstrap_eval.py`, means git is missing or failed, or a working-tree read or `--out` write failed; `bootstrap_eval.py` also uses it when the regex grader child fails. `bootstrap_mine.py` and `bootstrap_eval.py` report an unreadable input file as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
+Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
+
+Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
+
+| Script | Exit 2: configuration | Exit 3: external |
+|---|---|---|
+| `bootstrap_mine.py` | Bad arguments; not a repository; bad rev; unreadable `TARGET` or `--prs-json`; refused `--out`; an authored file over the 5 MiB read cap | Git missing, failed, or timed out; a working-tree read failed; `--out` write failed, including a write race |
+| `bootstrap_forms.py` | Bad arguments; unreadable or malformed plan | None |
+| `bootstrap_eval.py` | Bad arguments; unreadable or malformed cases, results, or frozen file; edited frozen file; refused `--out`, including a write race | Git missing, failed, or timed out; the regex grader child failed; `--out` write failed; any other I/O error |
+| `bootstrap_drift.py` | Bad arguments; repo or skills root not a directory; unknown `--name` | None; an unreadable `reverify.json` is `malformed` (exit 1) |
+| `bootstrap_boundary.py` | See the detail below | Git missing, failed, or timed out; an unreadable working-tree file |
+
+The payload `error` names the cause: `config` for exit 2, `git` or `io` for exit 3.
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|
-| `bootstrap_mine.py candidates` | 2 | Ranked reverts, churn, TODO hotspots, review rounds |
+| `bootstrap_mine.py candidates` | 2 | Reverts; ranked churn, TODO hotspots, review rounds |
 | `bootstrap_mine.py claims` | 4, 6, drift | Repository paths and line references in skill text that are missing, untracked, or out of range, each labeled `current` or `historical` |
 | `bootstrap_forms.py check` | 3, 4 | Plan violations: computable item without an instrument, script missing, scaffold without a reason |
 | `bootstrap_eval.py freeze`, `score` | 5 | Hash-frozen cases; pass rate per condition, capability delta, `gain`, `no_gap`, `flat`, `regression`, `incomplete` |
-| `bootstrap_drift.py check` | 6, drift | Each skill's `reverify.json` checks; `update_candidates` |
+| `bootstrap_drift.py check` | 6, drift | Each skill's `reverify.json` checks; `update_candidates`; `timed_out`; `--require` also fails a skill with no `reverify.json` or only skipped checks |
 | `bootstrap_boundary.py plan`, `snapshot`, `verify` | 1, 3, 6 | Names and conflicts; the write boundary |
 
-`bootstrap_boundary.py` detail: `plan` exits 1 on a conflict or an invalid name. `verify` exits 1 on a path outside the boundary, an existing skill changed without `--update`, an ignored file written in a skill (it would not ship), HEAD or branch moved, or index flags or `info/exclude` changed. Exit code 2 also covers an output root outside the allowed set; an output root, skill directory, or `--also-allow` path that git ignores; an `--also-allow` path outside the repository, under `.git`, or overlapping a skills root; a symlink in any of those paths; or a snapshot that already exists, is inside the repository, is unreadable, or is from another repository or output root. `verify` does not see gitignored files outside the output root, empty directories, other writes inside `.git/`, or tag, config, and push operations. It catches accidental writes by a cooperating run; it is not a sandbox. Only the Phase 1 snapshot counts, so `snapshot` refuses to overwrite an existing file. An unreadable file in the working tree stops `snapshot` with exit code 3 before any write.
+`bootstrap_boundary.py` detail: `plan` exits 1 on a conflict or an invalid name. `verify` exits 1 on a path outside the boundary, an existing skill changed without `--update`, an ignored file written in a skill (it would not ship), HEAD or branch moved, or index flags or `info/exclude` changed. Exit code 2 covers bad arguments; an output root outside the allowed set; an output root, skill directory, or `--also-allow` path that git ignores; an `--also-allow` path outside the repository, under `.git`, or overlapping a skills root; a symlink in any of those paths; or a snapshot that already exists, is inside the repository, is unreadable, or is from another repository or output root. `verify` does not see gitignored files outside the output root, empty directories, other writes inside `.git/`, or tag, config, and push operations. It catches accidental writes by a cooperating run; it is not a sandbox. Only the Phase 1 snapshot counts, so `snapshot` refuses to overwrite an existing file. An unreadable file in the working tree stops `snapshot` with exit code 3 before any write.
 
 `bootstrap_drift.py` runs a `command` check only with `--allow-commands`; review the argv first, because it executes repository code. The command gets no stdin, discarded output, and only `PATH`, `HOME`, and locale variables from the environment. Never pass `--allow-commands` in a job that holds secrets or runs on untrusted pull request content.
 

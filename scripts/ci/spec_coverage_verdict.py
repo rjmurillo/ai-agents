@@ -52,7 +52,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from scripts.external_signals.acceptance_criteria import (
     acceptance_heading_count,
+    has_acceptance_section,
     hidden_unchecked,
+    near_miss_headings,
     parse_criteria,
 )
 from scripts.external_signals.markdown_visibility import unclosed_construct
@@ -104,6 +106,36 @@ _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _MAX_ITEM_ANNOTATIONS = 8
 
 
+_ITEM_SYNTAX = "`- [ ] text` or `- [x] text`"
+_UNCHECKED_HINT = (
+    " Check each box once the work is done. For a criterion the owner deferred, "
+    "move it under a separate heading at the same or a higher level than your "
+    "acceptance heading (a lower-level heading stays inside the section and its "
+    "boxes still count), such as `## Deferred` under `## Acceptance criteria`, "
+    "and link the follow-up."
+)
+
+
+def _no_criteria_reason(body: str) -> str:
+    """Say what the parser needs and what it found instead, for a body with no boxes."""
+    reason = (
+        "The pull request links a spec but its body has no acceptance checkbox "
+        f"section. The check needs a heading that reads exactly `{ACCEPTANCE_HEADING}` "
+        f"(any `#` level, nothing else on the line) followed by items written as "
+        f"{_ITEM_SYNTAX}."
+    )
+    if has_acceptance_section(body):
+        reason += (
+            " The heading is present but has no checkbox items under it. Numbered "
+            "lists (`1. text`) and bullets without brackets do not count."
+        )
+    else:
+        near = near_miss_headings(body)
+        if near:
+            reason += f" Found `{near[0]}`, which the check does not accept. Rename it."
+    return reason
+
+
 @dataclass(frozen=True)
 class Verdict:
     """Outcome of the check: pass or fail, a reason, and any unchecked items."""
@@ -137,17 +169,13 @@ def decide(has_specs: bool, body: str) -> Verdict:
         )
     criteria = parse_criteria(body)
     if not criteria:
-        return Verdict(
-            False,
-            "The pull request links a spec but its body has no acceptance "
-            f"checkbox section. Add a `{ACCEPTANCE_HEADING}` heading with "
-            "`- [ ]` or `- [x]` items.",
-        )
+        return Verdict(False, _no_criteria_reason(body))
     unchecked = [c.text for c in criteria if not c.checked]
     if unchecked:
         return Verdict(
             False,
-            f"{len(unchecked)} of {len(criteria)} acceptance criteria are unchecked.",
+            f"{len(unchecked)} of {len(criteria)} acceptance criteria are unchecked."
+            + _UNCHECKED_HINT,
             unchecked,
         )
     return Verdict(True, f"All {len(criteria)} acceptance criteria are checked.")

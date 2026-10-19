@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shutil
 import subprocess
@@ -19,17 +20,34 @@ import _claude_stream as stream_mod  # noqa: E402
 import _durable_codex as codex_mod  # noqa: E402
 import _durable_live as live_mod  # noqa: E402
 import _durable_live_record as record_mod  # noqa: E402
+import _durable_review as review_mod  # noqa: E402
+import _human_minutes as human_mod  # noqa: E402
 import _routing_grader as grader_mod  # noqa: E402
 import _routing_scenario as scenario_mod  # noqa: E402
 import eval_durable_live as cli  # noqa: E402
 from _durable_outcome import Verdict, classify, compare  # noqa: E402
-from _outcome_record import parse_record  # noqa: E402
+from _outcome_record import OutcomeRecord, parse_record  # noqa: E402
 
 CORPUS = cli.DEFAULT_CORPUS
 GOOD_TASK = "RB-01-bounded-implementation"
 PLAUSIBLE_TASK = "RB-05-plausible-but-wrong"
 
+CLEAN_REVIEW = f'{review_mod.REVIEW_MARKER} {{"findings": []}}'
+FOUND_REVIEW = f'{review_mod.REVIEW_MARKER} {{"findings": ["wrong edge case", "missing check"]}}'
+
+BASE = {
+    "harness": "claude",
+    "context_bytes": 0,
+    "retry_budget": 1,
+    "reviewer": "none",
+    "control": "current",
+}
+SETTINGS = live_mod.RunSettings("haiku", "low", retry_budget=1)
+
 __all__ = [
+    "BASE",
+    "CLEAN_REVIEW",
+    "FOUND_REVIEW",
     "CORPUS",
     "EVAL_DIR",
     "Verdict",
@@ -42,12 +60,36 @@ __all__ = [
     "codex_mod",
     "fake_runner",
     "grader_mod",
+    "human_mod",
     "live_mod",
     "load",
     "record_mod",
+    "review_mod",
+    "reviewer_settings",
+    "reviewed_case",
+    "run_case",
+    "SETTINGS",
     "stream_mod",
     "stream_text",
+    "timed",
 ]
+
+
+def reviewer_settings(**overrides: Any) -> Any:
+    """Run settings with the reviewer arm on, for a claude run."""
+    spec = review_mod.ReviewerSpec("claude", "haiku", "low")
+    return live_mod.RunSettings("haiku", "low", retry_budget=1, reviewer=spec, **overrides)
+
+
+def timed(record: OutcomeRecord, minutes: float = 0.0) -> OutcomeRecord:
+    """The record as if a human had timed its correction pass.
+
+    An unattended run has no human, so its `human_correction_minutes` is null
+    and it classifies UNVERIFIED. A test that checks the other classifier
+    gates supplies the missing human time explicitly with this helper.
+    """
+    economics = dataclasses.replace(record.economics, human_correction_minutes=minutes)
+    return dataclasses.replace(record, economics=economics)
 
 
 def load(task_id: str) -> Any:
@@ -146,3 +188,33 @@ def fake_runner(
     returncodes: Sequence[int] | None = None,
 ) -> FakeRunner:
     return FakeRunner(scenario, overlays, stdout, returncodes)
+
+
+def run_case(
+    task: str,
+    overlays: list[str | None],
+    tmp_path: Path,
+    settings: Any = SETTINGS,
+    **kwargs: Any,
+) -> Any:
+    """Run one corpus task under the fake runner. Returns (TaskRun, runner, budget)."""
+    scenario = load(task)
+    control_file = tmp_path / "control.md"
+    control_file.write_text("rules", encoding="utf-8")
+    runner = fake_runner(scenario, overlays, **kwargs)
+    budget = live_mod.InvocationBudget(10)
+    run = live_mod.run_task(
+        scenario, "current", control_file, BASE, settings, budget, runner=runner
+    )
+    return run, runner, budget
+
+
+def reviewed_case(task: str, overlays: list[str | None], tmp_path: Path, reply: str) -> Any:
+    """`run_case` with the reviewer arm on. Every fake process replies with `reply`."""
+    return run_case(
+        task,
+        overlays,
+        tmp_path,
+        reviewer_settings(),
+        stdout=lambda _i: stream_text(text=f"Done.\n{reply}"),
+    )

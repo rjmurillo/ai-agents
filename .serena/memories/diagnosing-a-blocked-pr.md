@@ -27,14 +27,18 @@ Measured 2026-08-01, that returns: `deletion`, `non_fast_forward`,
 
 | Parameter | Value | Consequence |
 | --- | --- | --- |
-| `strict_required_status_checks_policy` | `false` (measured 2026-08-14; reverted 2026-08-10) | Being behind main does NOT block merge. Do not merge main into a branch solely to unblock it. |
+| `strict_required_status_checks_policy` | `false` (re-measured 2026-10-18; reverted 2026-08-10) | Being behind main does NOT block merge. Do not merge main into a branch solely to unblock it. |
 | `required_review_thread_resolution` | `true` | Any unresolved review thread blocks. This is the dominant real cause. |
 | `required_approving_review_count` | `0` | No human approval needed. |
-| `required_status_checks` | 17 contexts | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
+| `required_status_checks` | 9 contexts (measured 2026-10-18) | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
 
 Branch freshness is not a merge gate (strict is off). When a PR is behind
 main, diagnose missing contexts or unresolved threads directly; do not refresh
-the branch as a first step.
+the branch as a first step. GitHub never reports `BEHIND` while strict is off.
+A behind branch shows `CLEAN`, `UNSTABLE`, or `BLOCKED`. The UI's "out-of-date"
+banner and "Update branch" button are a suggestion, not a gate. PR #6687 on
+2026-10-18 was 3 commits behind with all 9 required checks green; one
+unresolved thread was the only blocker.
 
 ## The diagnosis that works
 

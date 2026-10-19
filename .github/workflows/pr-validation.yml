@@ -240,8 +240,16 @@ jobs:
       # and stale derived counts in authored rules, skills, and agents). Hosted
       # here because pre_pr.py is not invoked by any workflow, so the pre-push
       # job alone would leave a push from the web editor or the API unchecked.
+      #
+      # Issue #6506: --base-ref makes the baseline at the fork point the ceiling,
+      # so a PR cannot raise its own allowance in the commit that adds the debt.
       - name: Check NL structural debt ratchet
-        run: uv run --frozen python3 scripts/validation/check_nl_structural_debt.py
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+        run: |
+          # Keep this fetch full-depth; see the taste-lint ratchet step below.
+          git fetch origin "$BASE_REF"
+          uv run --frozen python3 scripts/validation/check_nl_structural_debt.py --base-ref FETCH_HEAD
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count started at 93 at audit time and reached zero. The
