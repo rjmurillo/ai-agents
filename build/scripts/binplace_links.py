@@ -114,6 +114,7 @@ def link_row(
             print(f"Error: plugin entry {entry} is a symlink; refusing to link it", file=sys.stderr)
             outcome.drifted.append(str(entry))
             outcome.exit_code = 2
+            _withdraw_link(install_tree / entry.name, check)
             continue
         nested = _first_symlink(entry)
         if nested is not None:
@@ -125,6 +126,7 @@ def link_row(
             )
             outcome.drifted.append(str(nested))
             outcome.exit_code = 2
+            _withdraw_link(install_tree / entry.name, check)
             continue
         try:
             _link_one(entry, install_tree / entry.name, check=check, outcome=outcome)
@@ -138,6 +140,16 @@ def link_row(
             outcome.exit_code = 2
     _sweep_install_tree(plugin_tree, install_tree, entries, skip_names, check, outcome)
     return outcome
+
+
+def _withdraw_link(link_path: Path, check: bool) -> None:
+    """Unlink an install link left by an earlier run to an entry now refused.
+
+    CWE-59: the link would keep exposing the unsafe target. Only a symlink is
+    removed; a real file or directory at the path is never touched.
+    """
+    if not check and link_path.is_symlink():
+        link_path.unlink()
 
 
 def _link_one(source: Path, link_path: Path, *, check: bool, outcome: LinkOutcome) -> None:
