@@ -80,5 +80,11 @@ Stop at two to three skills. Four or more lost about half the gain.
 
 ```bash
 ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" [--json] [--ci]
+python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" --path "$ROOT/skills" [--json] [--ci]   # every skill under $ROOT/skills
+python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" skills/my-skill/ --ci   # one skill, gate form
 ```
+
+Without `--ci` the audit exits `0` even for an oversized skill. With `--ci` it
+exits `1` for an oversized skill. It exits `2` when it audited nothing: the path
+holds no skill, or every `SKILL.md` was unreadable (any unreadable one in `--ci`
+mode). A wrong path fails a gate instead of passing it.

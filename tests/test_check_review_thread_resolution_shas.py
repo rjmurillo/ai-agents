@@ -59,7 +59,8 @@ def _check_ancestor_run(
             arg.startswith("--disambiguate=") for arg in git_args[1:]
         ):
             return _completed_process(command, 0, stdout=disambiguate_stdout)
-        raise AssertionError(f"unexpected subprocess call: {command}")
+        assert git_args[:1] == ["for-each-ref"], f"unexpected subprocess call: {command}"
+        return _completed_process(command, 0)
 
     return _run
 

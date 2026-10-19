@@ -69,8 +69,17 @@ def _toml_string(text: str) -> str:
     return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
-def codex_argv(model: str, effort: str, control_text: str, prompt: str) -> list[str]:
-    """Shell-free argv for one `codex exec` run. The control text is a TOML string."""
+def codex_argv(
+    model: str,
+    effort: str,
+    control_text: str,
+    prompt: str,
+    sandbox: str = "workspace-write",
+) -> list[str]:
+    """Shell-free argv for one `codex exec` run. The control text is a TOML string.
+
+    `sandbox` is `workspace-write` for a producer and `read-only` for the reviewer.
+    """
     return [
         "codex",
         "exec",
@@ -80,7 +89,7 @@ def codex_argv(model: str, effort: str, control_text: str, prompt: str) -> list[
         "--ignore-rules",
         "--ephemeral",
         "-s",
-        "workspace-write",
+        sandbox,
         "-m",
         model,
         "-c",
