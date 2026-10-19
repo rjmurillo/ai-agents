@@ -629,8 +629,9 @@ if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     PR_HEAD_REF=$(printf '%s' "${LIVE:-}" | jq -r '.Data.head_ref // empty' 2>/dev/null)
     PR_WORKTREE=""
     if [ -n "$PR_HEAD_REF" ]; then
+        # awk fields are written $(N), not $N: the skill loader rewrites a bare $<digit> as an argument.
         PR_WORKTREE=$(git worktree list --porcelain 2>/dev/null | awk -v ref="refs/heads/$PR_HEAD_REF" \
-            '/^worktree /{path=substr($0, 10)} $1 == "branch" && $2 == ref {print path; exit}')
+            '/^worktree /{path=substr($(0), 10)} $(1) == "branch" && $(2) == ref {print path; exit}')
     fi
     ROUND_CAP_ARGS=(--pull-request "$PR" --output-format json)
     if [ -n "$PR_WORKTREE" ]; then
@@ -1052,9 +1053,10 @@ read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA < <(python3 "$SCRIPTS_DIR/test_pr_
     | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha) | [.head_ref, .head_sha, .merge_commit_sha] | @tsv')
 : "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}"
 git fetch origin main && git merge-base --is-ancestor "$MERGE_SHA" origin/main || { echo "merge not on main yet"; exit 1; }
+# awk fields are written $(N), not $N: the skill loader rewrites a bare $<digit> as an argument.
 # The worktree can belong to another clone, so fall back to the path convention.
 WT=$(git worktree list --porcelain | awk -v ref="refs/heads/$PR_HEAD_REF" \
-    '/^worktree /{p=substr($0, 10)} $1 == "branch" && $2 == ref {print p; exit}')
+    '/^worktree /{p=substr($(0), 10)} $(1) == "branch" && $(2) == ref {print p; exit}')
 WT=${WT:-"$HOME/worktrees/<repo>/$PR_HEAD_REF"}
 # Keep the worktree when it has local edits or a head other than the merged one.
 [ -z "$(git -C "$WT" status --porcelain)" ] && \
