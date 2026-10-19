@@ -92,7 +92,7 @@ EXEMPT: dict[str, str] = {
     ),
     "security-scan": (
         "Semgrep over each pushed head. The job owns a 15 minute cap and reads the "
-        "ref payload, while pre-pr-validation runs under a 4 minute cap "
+        "ref payload, while pre-pr-validation runs under a 4 minute run budget "
         "(PRE_PR_OUTER_CAP_SECONDS), so a semgrep run cannot fit inside pre_pr."
     ),
     "pre-pr-validation": (
@@ -112,7 +112,7 @@ EXEMPT: dict[str, str] = {
     ),
     "zero-collection-tests": (
         "One pytest collection over testpaths, about 38 seconds measured. "
-        "pre-pr-validation has a four minute timeout against a 192 second baseline."
+        "pre-pr-validation has a four minute run budget against a 192 second baseline."
     ),
     "python-lint-advisory": (
         "Advisory ruff report over pushed files. Findings do not block the push. "

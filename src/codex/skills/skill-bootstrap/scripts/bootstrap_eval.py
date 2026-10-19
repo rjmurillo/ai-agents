@@ -53,8 +53,10 @@ Case status in the score payload:
                 measurable for this case.
     regression  with_skill pass rate is below baseline. This wins over no_gap:
                 a baseline of 1.0 with a lower with_skill rate is a regression.
-    flat        Equal pass rates and baseline below 1.0.
-    incomplete  A condition has no results.
+    flat        Equal pass rates and baseline below 1.0. This does not fail
+                `score`, even when every case of a skill is flat.
+    incomplete  A condition has no results, or a result could not be graded
+                (a regex grader timed out).
 
 Skill and overall means cover complete cases only, and include no_gap cases.
 
@@ -68,10 +70,15 @@ Exit codes:
        fails. The payload lists every failing case id under `failing_cases`.
     2  Configuration error: bad arguments, malformed or unreadable cases,
        results, or frozen file, a frozen file edited after freezing, an
-       existing `--out`, or an `--out` inside a git work tree without
-       `--allow-in-repo`.
+       existing `--out` (also one that appears after the check; the sibling
+       `bootstrap_mine.py` exits 3 for that race), an `--out` named `.` or
+       `..`, an `--out` whose parent path runs through a file, or an `--out`
+       inside a git work tree without `--allow-in-repo`.
     3  External error: git is missing, fails, or times out when it must be
        asked, the regex grader child fails, or the `--out` write fails.
+       Any other stray I/O error also exits 3. The payload `error` is `git`
+       for a git failure and `io` otherwise, as in `bootstrap_mine.py` and
+       `bootstrap_boundary.py`.
 
 Limits: freeze refuses to overwrite, so frozen means immutable on disk, and
 the hash detects an edit to the cases at score time. It does not stop someone
@@ -130,7 +137,14 @@ class ConfigError(Exception):
 
 
 class ExternalError(Exception):
-    """git, the regex grader child, or a file write failed: exit 3."""
+    """git, the regex grader child, or a file write failed: exit 3.
+
+    `kind` is the `error` name in the payload: `git` or `io`.
+    """
+
+    def __init__(self, message: str, kind: str = "io") -> None:
+        super().__init__(message)
+        self.kind = kind
 
 
 # --- graders ---------------------------------------------------------------
@@ -292,7 +306,7 @@ def extract_last_json_object(output: str) -> Payload | None:
     for block in JSON_FENCE.findall(output):
         try:
             parsed = json.loads(block)
-        except ValueError:
+        except (ValueError, RecursionError):
             continue
         if isinstance(parsed, dict):
             found = parsed
@@ -359,7 +373,7 @@ def compile_grader(grader: Any) -> Grade:
 def _read_json(path: str, what: str) -> Any:
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         raise ConfigError(f"cannot read {what} {path}: {exc}") from exc
 
 
@@ -427,43 +441,57 @@ def enclosing_repo(directory: Path) -> Path | None:
             env={**os.environ, "LC_ALL": "C"},  # the "not a git repository" test needs English
         )
     except FileNotFoundError as exc:
-        raise ExternalError("git is not on PATH, so the in-repo check cannot run") from exc
+        raise ExternalError("git is not on PATH, so the in-repo check cannot run", "git") from exc
     except subprocess.TimeoutExpired as exc:
-        raise ExternalError(f"git rev-parse timed out after {GIT_TIMEOUT_S} s for {probe}") from exc
+        raise ExternalError(
+            f"git rev-parse timed out after {GIT_TIMEOUT_S} s for {probe}", "git"
+        ) from exc
     except OSError as exc:
-        raise ExternalError(f"git could not run for {probe}: {exc}") from exc
+        raise ExternalError(f"git could not run for {probe}: {exc}", "git") from exc
     if proc.returncode == 0:
         return Path(proc.stdout.strip()).resolve()
     if NOT_A_REPO in proc.stderr.lower():
         return None
-    raise ExternalError(f"git rev-parse failed for {probe}: {proc.stderr.strip()}")
+    raise ExternalError(f"git rev-parse failed for {probe}: {proc.stderr.strip()}", "git")
 
 
-def _occupied(out: Path) -> ConfigError | None:
-    """A refusal when `out` exists, counting a dangling symlink as present."""
-    if out.is_symlink() or out.exists():
-        return ConfigError(f"{out} already exists; a frozen file is immutable, pick a new path")
-    return None
+def _is_occupied(out: Path) -> bool:
+    """True when `out` exists, counting a dangling symlink as present."""
+    return out.is_symlink() or out.exists()
 
 
-def _check_out_path(out: Path, allow_in_repo: bool) -> None:
-    refusal = _occupied(out)
-    if refusal is not None:
-        raise refusal
+def _already_exists(out: Path) -> ConfigError:
+    return ConfigError(f"{out} already exists; a frozen file is immutable, pick a new path")
+
+
+def _check_out_path(requested: Path, allow_in_repo: bool) -> Path:
+    """Return the path to write, or raise ConfigError when `requested` is not allowed.
+
+    One owner for the --out policy. The parent is resolved and the final
+    component is not, so a symlink at --out is refused, not followed.
+    """
+    if requested.name in ("", ".", ".."):
+        raise ConfigError(f"--out {str(requested)!r} must end in a file name")
+    out = requested.parent.resolve() / requested.name
+    if _is_occupied(out):
+        raise _already_exists(out)
+    ancestor = out.parent
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    if not ancestor.is_dir():
+        raise ConfigError(f"{out} cannot be created: {ancestor} is a file, not a directory")
     repo = None if allow_in_repo else enclosing_repo(out.parent)
     if repo is not None:
         raise ConfigError(
             f"{out} is inside the git work tree {repo}; write outside it, or pass"
             " --allow-in-repo to commit the eval cases on purpose"
         )
+    return out
 
 
 def freeze(args: argparse.Namespace) -> tuple[int, Payload]:
     cases = validate_cases(_read_json(args.cases, "cases file"))
-    requested = Path(args.out)
-    # Resolve the parent only, so a symlink at --out is refused, not followed.
-    out = requested.parent.resolve() / requested.name
-    _check_out_path(out, args.allow_in_repo)
+    out = _check_out_path(Path(args.out), args.allow_in_repo)
     record = {
         "schema": FROZEN_SCHEMA,
         "frozen_at": datetime.now(timezone.utc)
@@ -478,9 +506,8 @@ def freeze(args: argparse.Namespace) -> tuple[int, Payload]:
         with out.open("x", encoding="utf-8") as handle:
             handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
     except FileExistsError as exc:
-        refusal = _occupied(out)
-        if refusal is not None:
-            raise refusal from exc
+        if _is_occupied(out):
+            raise _already_exists(out) from exc
         raise ExternalError(f"cannot write {out}: {exc}") from exc
     except OSError as exc:
         raise ExternalError(f"cannot write {out}: {exc}") from exc
@@ -511,7 +538,7 @@ def _parse_result(
 ) -> tuple[str, str, bool | None]:
     try:
         row = json.loads(line)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ConfigError(f"results line {number} is not JSON: {exc}") from exc
     if not isinstance(row, dict):
         raise ConfigError(f"results line {number} is not an object")
@@ -531,7 +558,9 @@ def grade_results(
     """Grade every result line. Return pass flags per (case, condition) and the line count."""
     graders = {case["id"]: compile_grader(case["grader"]) for case in cases}
     try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
+        # Split on "\n" only: str.splitlines also splits on U+2028 and U+0085, which JSON
+        # allows raw inside a string.
+        lines = Path(path).read_text(encoding="utf-8").split("\n")
     except (OSError, ValueError) as exc:
         raise ConfigError(f"cannot read results {path}: {exc}") from exc
     tally: dict[tuple[str, str], list[bool | None]] = {}
@@ -686,11 +715,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"error": "config", "message": str(exc)}))
         return 2
     except ExternalError as exc:
-        print(json.dumps({"error": "external", "message": str(exc)}))
+        print(json.dumps({"error": exc.kind, "message": str(exc)}))
         return 3
     except OSError as exc:
         print(json.dumps({"error": "io", "message": str(exc)}))
-        return 2
+        return 3
     print(json.dumps(payload, indent=2))
     return code
 

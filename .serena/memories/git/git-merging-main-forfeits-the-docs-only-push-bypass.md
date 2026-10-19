@@ -63,8 +63,10 @@ lesson; it is declared first. Parallel-group completion is the mechanism.
 
 ## What to do instead
 
-GitHub reports `mergeable_state: behind` when main has moved. That is the state
-that tempts the local merge. Take it server side:
+The GitHub UI shows an "out-of-date" banner when main has moved. That banner
+tempts the local merge. While strict is off, the API does not report `behind`:
+PR #6698, 3 commits behind on 2026-10-18, read `mergeable_state: unstable`.
+If a refresh is truly needed, take it server side:
 
 ```bash
 gh pr update-branch
@@ -144,9 +146,11 @@ deterministic property of the push range.
 
 Do not merge main into a docs branch just because GitHub says `behind`. Here
 it does not block: `main` carries a **ruleset** with
-`strict_required_status_checks_policy: false` (measured 2026-08-14; reverted 2026-08-10), so an out-of-date head can still
-merge. Use `gh pr update-branch` only if a status check itself requires fresh
-content (e.g. count ratchets comparing against the current baseline).
+`strict_required_status_checks_policy: false` (re-measured 2026-10-18; reverted 2026-08-10), so an out-of-date head can still
+merge. Use `gh pr update-branch` only if a required check fails and a commit on
+main fixes it. The registered count ratchets no longer need it (issue #5065);
+only the subprocess-encoding and canonical-citations ratchets still block a
+branch behind a moved baseline.
 Do not read a 404 from `gh api repos/{owner}/{repo}/branches/main/protection` as
 "main is unprotected". This repository governs `main` with rulesets, not classic
 branch protection, and the classic endpoint 404s regardless. Ask

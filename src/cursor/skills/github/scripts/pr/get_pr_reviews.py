@@ -2,8 +2,9 @@
 """Fetch submitted reviews for a GitHub Pull Request.
 
 Returns each review's `id`, `node_id`, legacy `author`, `aliases`, additive
-canonical identity fields, verdict state, body, submitted timestamp, URL, and
-commit ID. Paginates via REST so large review histories do not truncate.
+canonical identity fields, the account `author_type` (`User` or `Bot`), verdict
+state, body, submitted timestamp, URL, and commit ID. Paginates via REST so
+large review histories do not truncate.
 
 Issue #4378: ``get_pr_reviewers.py`` discards review state and body, so an
 agent cannot read APPROVED/REQUEST_CHANGES verdicts or their accompanying
@@ -200,6 +201,9 @@ def _normalize(item: dict[str, Any]) -> dict[str, Any]:
     author_id = user.get("id") if isinstance(user, dict) else None
     if not isinstance(author_id, int):
         author_id = None
+    author_type = user.get("type") if isinstance(user, dict) else None
+    if not isinstance(author_type, str):
+        author_type = None
     author, aliases = _canonicalize_login(observed or "")
     author_canonical = canonicalize_login(observed, author_id) if observed else None
     return {
@@ -208,6 +212,7 @@ def _normalize(item: dict[str, Any]) -> dict[str, Any]:
         "author": author,
         "aliases": aliases,
         "author_id": author_id,
+        "author_type": author_type,
         "author_observed": observed,
         "author_canonical": author_canonical,
         "state": item.get("state"),

@@ -85,6 +85,45 @@ def test_sql_preview_refuses_what_it_cannot_measure(tmp_path: Path, statement: s
     assert row_count(db, "parent") == 3
 
 
+@pytest.mark.parametrize(
+    "name", ["app?mode=rw.db", "app#frag.db", "app%41.db", "app b.db", "app?.db"]
+)
+def test_sql_preview_reads_the_named_file_when_the_path_holds_uri_characters(
+    tmp_path: Path, name: str
+) -> None:
+    """A ``?``, ``#`` or ``%`` in the path must not retarget the SQLite URI."""
+    decoy = make_db(tmp_path / "app.db")
+    decoy_alt = make_db(tmp_path / "appA.db")
+    target = make_db(tmp_path / name)
+    conn = sqlite3.connect(target)
+    conn.execute("INSERT INTO parent VALUES (4), (5)")
+    conn.commit()
+    conn.close()
+    decoy_before, alt_before, target_before = (
+        decoy.read_bytes(),
+        decoy_alt.read_bytes(),
+        target.read_bytes(),
+    )
+
+    result = scope_preflight.preview_sql(target, "DELETE FROM parent")
+
+    assert result["count"] == 5
+    assert (decoy.read_bytes(), decoy_alt.read_bytes(), target.read_bytes()) == (
+        decoy_before,
+        alt_before,
+        target_before,
+    )
+
+
+def test_sql_preview_accepts_a_relative_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    make_db(tmp_path / "rel.db")
+    monkeypatch.chdir(tmp_path)
+
+    assert scope_preflight.preview_sql(Path("rel.db"), "DELETE FROM parent")["count"] == 3
+
+
 def test_sql_preview_refuses_a_missing_database(tmp_path: Path) -> None:
     with pytest.raises(scope_preflight.PreviewError, match="not found"):
         scope_preflight.preview_sql(tmp_path / "nope.db", "DELETE FROM parent")

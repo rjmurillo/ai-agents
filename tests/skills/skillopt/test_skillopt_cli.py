@@ -46,6 +46,32 @@ class TestCli:
         assert skillopt.main(["budget", "--step", "10", "--total", "10"]) == 2
         assert "skillopt:" in capsys.readouterr().err
 
+    def test_budget_last_valid_step_is_total_minus_one(self, capsys: Capture) -> None:
+        assert skillopt.main(["budget", "--step", "2", "--total", "3"]) == 0
+        assert capsys.readouterr().out.strip() == "1"
+
+    def test_budget_step_equal_to_total_names_zero_based_range(self, capsys: Capture) -> None:
+        assert skillopt.main(["budget", "--step", "3", "--total", "3"]) == 2
+        assert "out of range [0, 3)" in capsys.readouterr().err
+
+    def test_budget_negative_step_exit_two(self, capsys: Capture) -> None:
+        assert skillopt.main(["budget", "--step", "-1", "--total", "3"]) == 2
+        assert "out of range [0, 3)" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("command", ["budget", "buffer-add"])
+    def test_step_help_states_zero_based(self, command: str, capsys: Capture) -> None:
+        with pytest.raises(SystemExit) as exc:
+            skillopt.main([command, "--help"])
+        assert exc.value.code == 0
+        out = " ".join(capsys.readouterr().out.split())
+        assert "0-based step index" in out
+
+    def test_budget_total_help_states_step_bound(self, capsys: Capture) -> None:
+        with pytest.raises(SystemExit):
+            skillopt.main(["budget", "--help"])
+        out = " ".join(capsys.readouterr().out.split())
+        assert "--step must be less than N" in out
+
     def test_gate_accept_exit_zero(self, capsys: Capture) -> None:
         assert skillopt.main(["gate", "--candidate", "0.9", "--incumbent", "0.8"]) == 0
         assert "ACCEPT" in capsys.readouterr().out
@@ -73,6 +99,34 @@ class TestCli:
         )
         assert skillopt.main(files.argv()) == 1
         assert json.loads(capsys.readouterr().out)["verdict"] == "REJECT"
+
+    def test_pair_gate_ceiling_exit_one_with_hint(self, tmp_path: Path, capsys: Capture) -> None:
+        files = PairGateFiles(
+            tmp_path,
+            {"splits": {"sel": ["a", "b"]}},
+            {"a": True, "b": True},
+            {"a": True, "b": True},
+        )
+        assert skillopt.main(files.argv()) == 1
+        report = json.loads(capsys.readouterr().out)
+        assert report["verdict"] == "REJECT_CEILING"
+        assert report["accepted"] is False
+        assert "Freeze a new sel set" in report["hint"]
+        assert "Never re-gate this candidate" in report["hint"]
+
+    def test_pair_gate_ceiling_on_train_split_is_plain_reject(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        files = PairGateFiles(
+            tmp_path,
+            {"splits": {"sel": ["a"], "train": ["t"]}},
+            {"t": True},
+            {"t": True},
+        )
+        assert skillopt.main(files.argv("--split", "train")) == 1
+        report = json.loads(capsys.readouterr().out)
+        assert report["verdict"] == "REJECT"
+        assert "hint" not in report
 
     def test_pair_gate_unverified_exit_one(self, tmp_path: Path, capsys: Capture) -> None:
         files = PairGateFiles(
