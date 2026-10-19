@@ -171,8 +171,10 @@ def selection_payload(
 ) -> dict[str, list[str]]:
     """Return the controller's deselection as plain sorted lists for ``workerinput``.
 
-    A deselected file is never collected, so a test inside one carries no
-    information and is left out to keep the message to each worker small.
+    When testmon selects, a deselected file is never collected, so a test inside
+    one carries no information and is left out to keep the message to each
+    worker small. When testmon only collects, such a test runs in the first
+    group instead of the last. The set that runs is the same.
     """
     files = sorted(set(deselected_files))
     skipped = set(files)
