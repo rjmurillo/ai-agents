@@ -610,7 +610,6 @@ grep -r "designs:" .project-toolkit/specs/ | wc -l
 ├── README.md              # Steering system overview
 ├── csharp-patterns.md     # → **/*.cs
 ├── agent-prompts.md       # → src/claude/**/*.md
-├── testing-approach.md    # → **/*.test.*, **/*.spec.*
 ├── security-practices.md  # → **/Auth/**, *.env*
 └── documentation.md       # → **/*.md (non-agent)
 ```
