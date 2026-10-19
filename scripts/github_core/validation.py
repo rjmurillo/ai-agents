@@ -156,6 +156,46 @@ def _candidate_git_dir_roots() -> list[str]:
     return []
 
 
+def is_allowed_body_file_path(path: str) -> bool:
+    """Return True when a body or comment file sits under an approved root.
+
+    This is the one containment rule for every skill script that reads a body
+    or comment file and sends it to GitHub (issue #6667). It never exits, so
+    a caller that owns an output envelope can report the failure in its own
+    shape. :func:`assert_valid_body_file` is the exiting wrapper.
+
+    Approved roots, checked in this order: the repository root of the working
+    directory, every temp root from :func:`_candidate_temp_roots`, the git dir
+    from :func:`_candidate_git_dir_roots`. No caller adds roots, so every script
+    accepts the same paths. A relative-path base such as ``GITHUB_WORKSPACE`` only
+    resolves the path and never widens the roots. Paths are resolved before the
+    prefix test, so a symlink under an approved root that points elsewhere is
+    rejected. The caller owns the existence check.
+
+    The allocated-scratch reader behind ``new_pr.py`` and ``edit_pr_body.py``
+    (``prepare_pr_body.read_prepared_pr_body``) is stricter on purpose and does
+    not use this rule.
+
+    Args:
+        path: The file path to check.
+
+    Returns:
+        True when the resolved path stays within an approved root.
+    """
+    if is_safe_file_path(path, None):
+        return True
+
+    for temp_root in _candidate_temp_roots():
+        if is_safe_file_path(path, temp_root):
+            return True
+
+    for git_root in _candidate_git_dir_roots():
+        if is_safe_file_path(path, git_root):
+            return True
+
+    return False
+
+
 def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> None:
     """Validate a body file parameter for safe file access.
 
@@ -165,7 +205,8 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
     any plausible system temp directory (TMPDIR, tempfile.gettempdir(), /tmp,
     or /private/tmp) or the repository git dir. The git-dir path supports
     transient reply bodies in linked worktrees where /tmp is unavailable and
-    untracked files in the working tree are undesirable.
+    untracked files in the working tree are undesirable. The rule itself lives
+    in :func:`is_allowed_body_file_path`.
 
     Args:
         body_file: The file path to validate.
@@ -181,18 +222,8 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
             error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
         return
 
-    if is_safe_file_path(body_file, None):
-        return
-
-    for temp_root in _candidate_temp_roots():
-        if is_safe_file_path(body_file, temp_root):
-            return
-
-    for git_root in _candidate_git_dir_roots():
-        if is_safe_file_path(body_file, git_root):
-            return
-
-    error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
+    if not is_allowed_body_file_path(body_file):
+        error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
 
 
 def escaped_newline_body_error(body: str | None) -> str | None:

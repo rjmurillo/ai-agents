@@ -32,7 +32,7 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
 - `splits.sel`: the held-out split. The gate scores only this split. Never
   reflect on `sel` tasks; that is training on the test set.
 - `exposed`: optional list of task ids whose prompt, verifier, or outcome the
-  candidate author saw before the candidate was frozen. `pair-gate` exits 2
+  candidate author saw at any point in the run. `pair-gate` exits 2
   while any of them is in the `sel` split. The check covers `sel` only, so
   `train` may hold exposed tasks and a `--split train` review still works.
   Move exposed tasks to `train` and add untouched holdout tasks.
@@ -41,6 +41,8 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
   isolation. When one agent writes those tasks and the candidate, list them
   here and keep them in `train`. They count as `sel` only when a different
   author or session wrote them and kept them from the candidate author.
+  Replacement holdouts must come from an author who has not seen the
+  candidate. If the candidate author also writes them, they are exposed too.
 - `tasks[id].status`: optional. `"invalid"` or `"exposed"` marks a task that
   cannot count. `pair-gate` exits 2 while such a task is in the `sel` split.
   A `status` that is present but not a string exits 2, and so does a `tasks`

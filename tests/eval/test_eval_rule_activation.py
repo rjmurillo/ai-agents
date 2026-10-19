@@ -4672,3 +4672,51 @@ class TestRawJudgeResponseNoTruncation:
         assert result["raw_judge_response"] == payload_with_ws
         assert result["raw_judge_response"].startswith(" ")
         assert result["raw_judge_response"].endswith(" ")
+
+
+# --- ADR-119 spelling rule: scenarios name .claude/, never src/claude/ ---
+
+
+def test_resolve_rule_path_accepts_claude_spelling_of_a_linked_rule():
+    resolved = eval_mod._resolve_rule_path(".claude/rules/builder-ethos.md")
+
+    assert resolved == (REPO_ROOT / "src" / "claude" / "rules" / "builder-ethos.md").resolve()
+
+
+def test_resolve_rule_path_refuses_direct_src_claude_spelling(capsys):
+    result = eval_mod._resolve_rule_path("src/claude/rules/builder-ethos.md")
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert ".claude/rules/" in err
+    assert "direct src/claude/rules/ path is refused" in err
+
+
+def test_resolve_skill_path_accepts_claude_spelling_of_a_linked_skill():
+    resolved = eval_mod._resolve_skill_path(".claude/skills/autoplan/SKILL.md")
+
+    assert resolved == (REPO_ROOT / "src" / "claude" / "skills" / "autoplan" / "SKILL.md").resolve()
+
+
+def test_resolve_skill_path_refuses_direct_src_claude_spelling(capsys):
+    result = eval_mod._resolve_skill_path("src/claude/skills/autoplan/SKILL.md")
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert ".claude/skills/" in err
+    assert "direct src/claude/skills/ path is refused" in err
+
+
+def test_resolve_skill_reference_refuses_direct_src_claude_spelling(capsys):
+    result = eval_mod._resolve_skill_reference(
+        "src/claude/skills/software-engineering-library/SKILL.md",
+        ".claude/skills/software-engineering-library/references/refactoring.md",
+    )
+
+    assert result == 2
+    assert "direct src/claude/skills/ path is refused" in capsys.readouterr().err
+
+
+def test_resolve_rule_path_refuses_traversal_out_of_the_named_root(capsys):
+    assert eval_mod._resolve_rule_path(".claude/rules/../../README.md") == 2
+    assert "must be spelled under .claude/rules/" in capsys.readouterr().err

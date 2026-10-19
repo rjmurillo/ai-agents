@@ -63,7 +63,7 @@ If ANY checklist item cannot be completed:
 
 1. **Do not handoff** incomplete work
 2. **Complete missing items** - run tests, document results, save report
-3. **Document blockers** - if items truly cannot be completed, explain why
+3. **Document blockers** - explain why an item cannot be completed
 
 ## Handoff Protocol
 
@@ -74,7 +74,7 @@ When QA is complete:
 1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
-   - **QA COMPLETE**: "All tests passing. Ready for user validation."
+   - **QA COMPLETE**: "Tests: [cmd], [passed]/[total] passed, [skipped] skipped. Ready for user validation." Only if [passed] equals [total] (skips not counted), [total] > 0, and no suite is `NOT RUN`/`UNAVAILABLE`; else `[BLOCKED] Cannot evaluate: <suite>` or QA FAILED.
    - **QA FAILED**: "Tests failed. Recommend orchestrator routes to implementer with these failures: [list]"
 
 ## Execution Mindset

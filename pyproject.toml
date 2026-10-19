@@ -350,6 +350,12 @@ dev = [
 # back to rediscovering the whole repository per test, or to re-sorting the
 # surface manifest once per file, and lands several times over.
 #
+# The portability budget is about 2.4 times its 16.6s sum, not four. That suite
+# cost about 84s before the strip-once cache and the shared fixture, so a 4x
+# budget (65s) would pass a full revert on any runner about 1.3x faster than the
+# dev box (taking 0.76x the time). At 40s a revert fails unless the runner is
+# 2.1x faster, and 2.4x still absorbs ordinary runner load.
+#
 # The surface parity budget is set against the CI report, which runs with
 # coverage, not against the local serial sum. In CI the suite summed 60.3s on
 # main before the sort-once change (run 39161326676, 2026-10-18) and 32.7s with
@@ -359,4 +365,5 @@ dev = [
 [tool.slow-test-budget]
 "tests/test_validate_session_json.py" = 120.0
 "tests/test_guard_diff.py" = 35.0
+"tests/validation/test_check_skill_md_portability.py" = 40.0
 "tests/build_scripts/test_surface_parity_repo.py" = 45.0

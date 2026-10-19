@@ -71,6 +71,10 @@ SIGNAL_RE = re.compile(
 )
 HUNK_RE = re.compile(r"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@")
 DIGITS_RE = re.compile(r"\d+")
+# Every control character except tab, plus the Unicode line and paragraph
+# separators. ESC starts an ANSI sequence, a lone CR rewrites a terminal line,
+# and a newline in a source name would start a new digest line.
+CONTROL_RE = re.compile(r"[\x00-\x08\x0a-\x1f\x7f-\x9f\u2028\u2029]")
 
 
 @dataclass
@@ -91,9 +95,42 @@ class DiffScan:
     hunk_headers: list[tuple[int, str]] = field(default_factory=list)
 
 
+def _visible(match: re.Match[str]) -> str:
+    code = ord(match.group())
+    return f"\\x{code:02x}" if code <= 0xFF else f"\\u{code:04x}"
+
+
+def neutralize(text: str) -> str:
+    """Replace each control character with a visible escape such as ``\\x1b``.
+
+    The digest quotes artifact lines and source names that an attacker can
+    choose. A raw ESC, CR, or newline would reach whatever prints or parses the
+    digest. A line that already holds a literal ``\\x1b`` reads the same after
+    this step, which costs a little fidelity and keeps the digest inert.
+    """
+    return CONTROL_RE.sub(_visible, text)
+
+
 def clip(line: str) -> str:
-    """Truncate a quoted line to LINE_CAP characters."""
-    return line if len(line) <= LINE_CAP else line[:LINE_CAP]
+    """Neutralize control characters, then truncate a quoted line to LINE_CAP characters."""
+    safe = neutralize(line)
+    return safe if len(safe) <= LINE_CAP else safe[:LINE_CAP]
+
+
+def cell(text: str) -> str:
+    """Return ``text`` clipped and safe inside one markdown table cell.
+
+    A ``|`` would end the cell and add a column, so it is escaped. A backslash
+    in the text would consume that escape (``\\|`` reads as a literal backslash
+    and a bare pipe), so each backslash is doubled before the control-character
+    escapes are added; those keep their single backslash. A cut at ``LINE_CAP``
+    can leave an odd run of trailing backslashes, which would escape whatever
+    follows the cell, so the last one is dropped.
+    """
+    safe = clip(text.replace("\\", "\\\\"))
+    if (len(safe) - len(safe.rstrip("\\"))) % 2:
+        safe = safe[:-1]
+    return safe.replace("|", "\\|")
 
 
 def detect_kind(lines: list[str]) -> str:
@@ -170,7 +207,7 @@ def render_diff(lines: list[str], max_matches: int) -> list[str]:
     scan = scan_diff(lines)
     out = ["", "## Files", "", "| path | added | removed | hunks |", "|---|---|---|---|"]
     for stat in scan.files:
-        out.append(f"| {clip(stat.path)} | {stat.added} | {stat.removed} | {stat.hunks} |")
+        out.append(f"| {cell(stat.path)} | {stat.added} | {stat.removed} | {stat.hunks} |")
     out += ["", "## Hunk headers", ""]
     for number, header in scan.hunk_headers[:max_matches]:
         out.append(f"- L{number}: {clip(header)}")
@@ -186,7 +223,9 @@ def collect_signals(lines: list[str]) -> dict[str, list[int]]:
     for number, line in enumerate(lines, start=1):
         if not SIGNAL_RE.search(line):
             continue
-        key = DIGITS_RE.sub("#", clip(line))
+        # Collapse digits on the raw line first: clip() writes control characters
+        # as \x1b-style escapes, and collapsing after that would erase their digits.
+        key = clip(DIGITS_RE.sub("#", line))
         if key in groups:
             groups[key][1] += 1
         else:
