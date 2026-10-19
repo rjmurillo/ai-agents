@@ -7,7 +7,7 @@ Posts replies using the correct endpoint for thread preservation:
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Config/usage error (invalid parameters, file not found)
+    2 - Config/usage error (invalid parameters, file not found, comment or PR not found)
     3 - External error (API failure)
     4 - Auth error
 """
@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -70,6 +71,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_NOT_FOUND_PATTERN = re.compile(r'HTTP 404|"status"\s*:\s*"404"')
+
+
+def _is_not_found(result: subprocess.CompletedProcess[str]) -> bool:
+    """Return True when gh reported HTTP 404 on stderr or in the JSON body."""
+    combined = f"{result.stderr or ''}\n{result.stdout or ''}"
+    return _NOT_FOUND_PATTERN.search(combined) is not None
+
+
+def _not_found_message(owner: str, repo: str, pr: int, comment_id: int) -> str:
+    if comment_id:
+        return f"Comment {comment_id} not found on {owner}/{repo}#{pr}"
+    return f"Pull request {owner}/{repo}#{pr} not found"
+
+
 def _resolve_body(args: argparse.Namespace) -> str:
     if args.body_file:
         from github_core.validation import assert_valid_body_file
@@ -107,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if result.returncode != 0:
+        if _is_not_found(result):
+            error_and_exit(_not_found_message(owner, repo, pr, args.comment_id), 2)
         error_and_exit(f"Failed to post comment: {result.stderr or result.stdout}", 3)
 
     response = json.loads(result.stdout)

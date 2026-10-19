@@ -74,7 +74,7 @@ def run_preview_sql(args: argparse.Namespace) -> int:
 
 def run_gate(args: argparse.Namespace) -> int:
     evidence = load_json(args.evidence)
-    scan_report = load_json(args.scan) if args.scan else None
+    scan_report = load_json(args.scan)
     result = gate_verdict.evaluate(evidence, scan_report)
     emit(result)
     return 1 if result["verdict"] == "BLOCK" else 0
@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     sql.set_defaults(run=run_preview_sql)
     gate = sub.add_parser("gate")
     gate.add_argument("--evidence", required=True)
-    gate.add_argument("--scan")
+    gate.add_argument("--scan", required=True)
     gate.set_defaults(run=run_gate)
     return parser
 

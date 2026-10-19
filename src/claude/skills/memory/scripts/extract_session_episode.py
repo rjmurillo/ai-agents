@@ -633,7 +633,7 @@ def _commit_datetime(sha: str) -> datetime | None:
 
 
 @lru_cache(maxsize=256)
-def _sha_is_reachable(sha: str) -> bool:
+def _sha_is_reachable(sha: str) -> bool | None:
     """Return True when ``sha`` is reachable from at least one named ref.
 
     A commit that resolves (``git cat-file -t`` succeeds) but is reachable from
@@ -649,12 +649,15 @@ def _sha_is_reachable(sha: str) -> bool:
     is found; on large repositories the optional ``--format=%(refname)`` and a
     short-circuit via ``head -1`` make it faster, but the default is safe here.
 
-    Returns ``False`` on any subprocess error, missing git binary, or timeout.
-    A ``False`` is treated as unknown, matching the ``None`` contract of
-    ``_commit_datetime``.
+    Tri-state, matching the ``None`` contract of ``_commit_datetime``:
+    ``True`` when a ref reaches the commit, ``False`` when git answered and no
+    ref does, ``None`` when git could not answer (empty ``sha``, missing git
+    binary, timeout, or a non-zero exit). Only ``False`` is evidence of a
+    dangling object; a caller that removes data MUST act on ``False`` alone
+    (issue #6565).
     """
     if not sha:
-        return False
+        return None
     env = os.environ.copy()
     for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
         env.pop(var, None)
@@ -670,7 +673,9 @@ def _sha_is_reachable(sha: str) -> bool:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
+        return None
+    if result.returncode != 0:
+        return None
     return bool(result.stdout.strip())
 
 
@@ -1520,7 +1525,7 @@ def _count_commit_events(events: list) -> int:
     return sum(1 for evt in events if _as_dict(evt).get("type") == "commit")
 
 
-def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
+def _drop_dangling_commit_events(events: list[dict], *, files_changed: int = 0) -> list[dict]:
     """Remove commit events whose SHA resolves locally but no ref reaches.
 
     A dangling object is clone residue (a rebase onto a concurrent push, a
@@ -1532,18 +1537,38 @@ def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
 
     A SHA that does not resolve at all is kept: absence from this clone is not
     evidence the commit is unreachable elsewhere, and a shallow or fresh clone
-    would otherwise erase real history. Ids are renumbered so they stay
-    contiguous; the caller's relink pass rebuilds the causal edges.
+    would otherwise erase real history. The same holds when git cannot answer
+    (timeout, non-zero exit): ``_sha_is_reachable`` returns ``None`` and the
+    event is kept, because only ``False`` proves the commit dangling (issue
+    #6565). Ids are renumbered so they stay contiguous; the caller's relink
+    pass rebuilds the causal edges.
+
+    A drop that would remove every commit event while ``files_changed`` is
+    positive is refused. A squash-merged and pruned branch leaves every one of
+    its commits dangling, and writing ``commits == 0`` beside file changes is
+    the shape ``validate_metrics_consistency`` rejects as failed commit
+    collection (issue #3873). The dangling events stay as the only record that
+    the session made commits.
     """
     kept: list[dict] = []
     for evt in events:
         sha = _commit_sha(evt) if evt.get("type") == "commit" else None
-        if sha and _commit_datetime(sha) is not None and not _sha_is_reachable(sha):
+        if sha and _commit_datetime(sha) is not None and _sha_is_reachable(sha) is False:
             continue
         kept.append(evt)
+    if files_changed > 0 and _count_commit_events(kept) == 0:
+        return events
     if len(kept) != len(events):
         _renumber_events(kept)
     return kept
+
+
+def _files_changed(metrics: dict) -> int:
+    """``metrics.files_changed`` as a non-negative int, 0 when absent or malformed."""
+    try:
+        return max(int(metrics.get("files_changed") or 0), 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _merge_metrics(new: dict, existing: dict) -> dict:
@@ -1564,7 +1589,13 @@ def _merge_metrics(new: dict, existing: dict) -> dict:
     return out
 
 
-def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict:
+def merge_preserving(
+    new: dict,
+    existing: dict,
+    *,
+    session_id: str = "",
+    measured_files_changed: int | None = None,
+) -> dict:
     """Merge a freshly extracted episode over an existing one without data loss.
 
     Read-modify-write semantics for regeneration: fresh extraction is the base,
@@ -1576,8 +1607,11 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     is already deterministic from the SHA and is the only ordering evidence the
     causal graph has against a same-day milestone (issue #4071). Commit events
     whose SHA resolves locally but is reachable from no ref are dropped, and
-    ``metrics.commits`` is recomputed from the surviving events (issue #5213).
-    Applying twice is a no-op.
+    ``metrics.commits`` is recomputed from the surviving events (issue #5213),
+    unless the drop would leave zero commits beside positive ``files_changed``.
+    A caller-measured ``measured_files_changed`` (even zero) replaces the merged
+    file count before that guard, so a stale preserved count cannot keep
+    dangling commits alive. Applying twice is a no-op.
     """
     existing = _as_dict(existing)
     date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
@@ -1601,9 +1635,13 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         midnight,
         session_id=session_id,
     )
-    merged["events"] = _drop_dangling_commit_events(merged["events"])
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
+    )
+    if measured_files_changed is not None:
+        merged["metrics"]["files_changed"] = measured_files_changed
+    merged["events"] = _drop_dangling_commit_events(
+        merged["events"], files_changed=_files_changed(merged["metrics"])
     )
     # metrics.commits must equal the distinct commit-event count so preserve
     # accumulation never drifts from the event stream (issue #3123). The event
@@ -2379,7 +2417,7 @@ def _commit_event_dates(events: list) -> dict[str, datetime]:
         if entry.get("type") != "commit" or not isinstance(identifier, str):
             continue
         sha = _commit_sha(entry)
-        if not sha or not _sha_is_reachable(sha):
+        if not sha or _sha_is_reachable(sha) is not True:
             continue
         moment = _commit_datetime(sha)
         if moment is not None:
@@ -2863,9 +2901,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 1
             prior_edges = _total_causal_edges(existing_raw.get("events"))
-            episode = merge_preserving(episode, existing_raw, session_id=session_id)
-            if measured_files_changed is not None:
-                episode["metrics"]["files_changed"] = measured_files_changed
+            episode = merge_preserving(
+                episode,
+                existing_raw,
+                session_id=session_id,
+                measured_files_changed=measured_files_changed,
+            )
             decisions = episode["decisions"]
             events = episode["events"]
             lessons = episode["lessons"]

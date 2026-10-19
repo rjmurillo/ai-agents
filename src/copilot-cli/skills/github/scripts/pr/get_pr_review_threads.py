@@ -51,6 +51,7 @@ from github_core.api import (
     resolve_repo_params,
     transform_review_thread,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -358,7 +359,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     except RuntimeError as exc:
         msg = str(exc)
-        if "Could not resolve" in msg:
+        if is_pr_not_found(msg):
             write_skill_error(
                 f"PR #{pr} not found in {owner}/{repo}",
                 2,

@@ -491,3 +491,9 @@ contract gaps versus intentional either-or assertions.
 - `.claude/rules/canonical-source-mirror.md`
 - `.agents/governance/TESTING-RIGOR.md`
 - `.claude/rules/knowledge-persistence.md`
+
+## Correction 2026-10-13 (issue #5461)
+
+ADR-118 widens FM-11 to cover hand-authored cross-harness instructions. The correct classification is FM-11 with no divergence, so read the Phase 2 divergence paragraph as resolved.
+ADR-118 (`.project-toolkit/architecture/ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md`) is the linked ADR that `retros.md` MUST 2 asks for, and it closes the Unresolved rule conflict section.
+The vacuous-assertion hypothesis is now a Detection line in FM-11. A taste-lint for it stays a separate change.

@@ -48,7 +48,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
           egress-policy: audit
 
@@ -64,6 +64,8 @@ jobs:
             cli:
               - 'packages/ai-agents-cli/**'
               - '.claude/**'
+              - 'src/claude/agents/**'
+              - 'src/claude/skills/**'
               - '.github/workflows/cli-smoke.yml'
 
   smoke:
@@ -86,9 +88,16 @@ jobs:
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
           egress-policy: audit
+
+      - name: Check out symlinks as links on Windows
+        # .claude/agents and .claude/skills hold relative symlinks (ADR-119).
+        # Git for Windows writes them as text files unless core.symlinks is on.
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: git config --global core.symlinks true
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -96,11 +105,11 @@ jobs:
         # yamllint disable-line rule:line-length
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
 
       - name: Setup Node
         # yamllint disable-line rule:line-length
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ matrix.node }}
 
@@ -157,7 +166,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
           egress-policy: audit
 
@@ -167,7 +176,7 @@ jobs:
         # yamllint disable-line rule:line-length
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

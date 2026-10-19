@@ -25,6 +25,7 @@ The wrappers live in their own module because ``checks_spec.py`` is at the
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -69,16 +70,119 @@ def _run_workflow_validator(repo_root: Path, relative: str, *args: str, module: 
     return bool(exit_code == 0)
 
 
-def _base_ref_or_skip(repo_root: Path, label: str) -> str:
+class BaseRefUnavailable(Exception):  # noqa: N818 - names the missing input, not an error class
+    """The base ref a diff gate needs could not be resolved or refreshed.
+
+    ``pre_pr.run_validation`` records any exception a gate raises as a FAIL, so
+    this fails the gate instead of skipping it (issue #6506).
+    """
+
+
+_REMOTE_HEAD = "refs/remotes/origin/HEAD"
+
+
+def _is_ci() -> bool:
+    """True under a CI runner, which fetches the base before the gates run."""
+    return any(os.environ.get(var, "").lower() in ("true", "1") for var in ("CI", "GITHUB_ACTIONS"))
+
+
+def _origin_branch(repo_root: Path, label: str) -> str:
+    """Resolve ``refs/remotes/origin/HEAD`` to ``origin/<branch>`` so it can be fetched.
+
+    ``_refresh_remote_base`` fetches only ``origin/<branch>`` refs. The remote
+    HEAD symref is what ``_resolve_default_base_ref`` returns when no PR is
+    open, the usual time to run ``pre_pr.py``, and it would otherwise pass
+    through unfetched and judge a stale cache.
+
+    ``checks_ratchet._normalize_remote_head`` repeats this resolution and reports a
+    failure by printing, not raising. Keep the two in step. They share no home because
+    ``checks_common.py`` sits at the 500-line taste ceiling.
+    """
+    exit_code, stdout, stderr = _run_subprocess(
+        ["git", "-C", str(repo_root), "symbolic-ref", "--short", _REMOTE_HEAD],
+        timeout=10,
+    )
+    resolved = str(stdout).strip()
+    if exit_code == 0 and resolved.startswith("origin/"):
+        return resolved
+    detail = str(stderr).strip() or f"git symbolic-ref exit {exit_code}"
+    raise BaseRefUnavailable(f"{label} could not resolve {_REMOTE_HEAD} to a branch ({detail})")
+
+
+def _stale_against_remote(base_ref: str, repo_root: Path) -> str:
+    """Return why the cached ``base_ref`` is not the remote tip, or "" when it is.
+
+    Asks the remote for the branch tip with ``git ls-remote`` and compares it
+    with the local ref, so a base the refresh helper never fetches is still
+    verified rather than trusted. Any git failure counts as stale: an
+    unverified base is not a fresh base.
+    """
+    branch = base_ref.removeprefix("origin/")
+    remote_code, remote_out, remote_err = _run_subprocess(
+        ["git", "-C", str(repo_root), "ls-remote", "origin", f"refs/heads/{branch}"],
+        timeout=15,
+    )
+    remote_sha = str(remote_out).split()[0] if str(remote_out).split() else ""
+    if remote_code != 0 or not remote_sha:
+        detail = str(remote_err).strip() or f"git ls-remote exit {remote_code}"
+        return f"cannot read the remote tip: {detail}"
+    local_code, local_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "--verify", f"{base_ref}^{{commit}}"],
+        timeout=10,
+    )
+    local_sha = str(local_out).strip()
+    if local_code != 0 or local_sha != remote_sha:
+        return f"local {local_sha[:12] or 'missing'} differs from remote {remote_sha[:12]}"
+    return ""
+
+
+def _require_base_ref(repo_root: Path, label: str) -> str:
+    """Return the freshly fetched base ref, or raise :class:`BaseRefUnavailable`.
+
+    A gate that diffs against a missing or stale base judges the wrong file set
+    and can read clean while the required check fails. So an unresolved base ref
+    and a failed refresh are both failures, not skips or warnings.
+
+    The remote HEAD symref is normalized to ``origin/<branch>`` first, so the
+    no-open-PR case is fetched like any other. A base that is not an
+    ``origin/<branch>`` ref (the local ``main`` last resort) is never fetched,
+    so outside CI it fails too.
+    A slash-containing base such as ``origin/release/1.0`` is never fetched:
+    ``_refresh_remote_base`` returns ``None``, which means no fetch was
+    attempted. Outside CI the cached ref is compared with ``git ls-remote`` and
+    fails unless it equals the remote tip.
+    """
     base_ref = _resolve_default_base_ref(repo_root)
     if base_ref is None:
-        raise MissingScriptSkip(f"{label} needs a base ref and none resolved")
+        raise BaseRefUnavailable(f"{label} needs a base ref and none resolved")
+    if base_ref == _REMOTE_HEAD:
+        base_ref = _origin_branch(repo_root, label)
+    if not base_ref.startswith("origin/") and not _is_ci():
+        raise BaseRefUnavailable(
+            f"{label} resolved {base_ref}, a local ref that is never fetched; "
+            "a stale base can hide new findings, so fetch origin and re-run"
+        )
     # CI fetches the current base before it diffs. A stale local origin/<branch>
-    # changes which files and suppressions count as new, so refresh it here. A
-    # failed fetch warns and proceeds, as check_adr_lifecycle does offline.
+    # changes which files and suppressions count as new, so refresh it here.
     refresh_error = _refresh_remote_base(base_ref, repo_root)
     if refresh_error:
-        print(f"[WARNING] {label}: could not refresh {base_ref} ({refresh_error}); using cache")
+        raise BaseRefUnavailable(
+            f"{label} could not refresh {base_ref} ({refresh_error}); "
+            "a stale base can hide new findings, so fetch the base and re-run"
+        )
+    if refresh_error is None and not _is_ci():
+        # None means no fetch was attempted. Under CI the runner already fetched.
+        # Outside CI the helper also returns None for a slash-containing branch
+        # such as origin/release/1.0, which it never fetches. Compare the cached
+        # ref with the remote tip instead of trusting it.
+        stale_detail = _stale_against_remote(base_ref, repo_root)
+        if stale_detail:
+            branch = base_ref.removeprefix("origin/")
+            raise BaseRefUnavailable(
+                f"{label} did not refresh {base_ref}: the refresh skips a branch name "
+                f"that contains a slash, and the cached ref is stale ({stale_detail}). "
+                f"Run `git fetch origin {branch}` and re-run."
+            )
     return base_ref
 
 
@@ -150,7 +254,7 @@ def validate_sha_pinning(repo_root: Path) -> bool:
 
 def validate_placeholder_identity(repo_root: Path) -> bool:
     """Fail when a commit on this branch carries a placeholder identity."""
-    base_ref = _base_ref_or_skip(repo_root, "placeholder identity check")
+    base_ref = _require_base_ref(repo_root, "placeholder identity check")
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/check_placeholder_identity.py",
@@ -170,7 +274,7 @@ def validate_tracked_conflict_markers(repo_root: Path) -> bool:
 
 def validate_security_suppressions_diff(repo_root: Path) -> bool:
     """Fail when the branch adds a security-scanner suppression."""
-    base_ref = _base_ref_or_skip(repo_root, "security suppression diff")
+    base_ref = _require_base_ref(repo_root, "security suppression diff")
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/git_hook_policy.py",
@@ -188,12 +292,28 @@ def validate_memory_placement(repo_root: Path) -> bool:
     commit first, because an uncommitted edit to a memory is not judged here.
     The pre-commit ``memory-placement`` job covers staged files. Issue #5828.
     """
-    base_ref = _base_ref_or_skip(repo_root, "memory placement check")
+    base_ref = _require_base_ref(repo_root, "memory placement check")
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/check_memory_placement.py",
         "--ci",
         "--changed-since",
+        base_ref,
+    )
+
+
+def validate_route_scenario_coverage(repo_root: Path) -> bool:
+    """Fail when a new or changed autoplan route has no edited scenario.
+
+    Runs the command the ``Require a scenario for each new or changed autoplan
+    route`` step of ``Rule Activation Coverage`` runs, against the same base.
+    It diffs the committed range from the merge base, as CI does. Issue #6291.
+    """
+    base_ref = _require_base_ref(repo_root, "route scenario coverage")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_route_scenario_coverage.py",
+        "--base-ref",
         base_ref,
     )
 

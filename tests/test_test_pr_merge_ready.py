@@ -210,6 +210,11 @@ class TestBuildParser:
         args = build_parser().parse_args(["--pull-request", "42"])
         assert args.pull_request == 42
 
+    def test_expected_head_sha_defaults_to_empty_and_is_parsed(self):
+        assert build_parser().parse_args(["--pull-request", "1"]).expected_head_sha == ""
+        args = build_parser().parse_args(["--pull-request", "1", "--expected-head-sha", "ab" * 20])
+        assert args.expected_head_sha == "ab" * 20
+
     def test_ignore_flags(self):
         args = build_parser().parse_args(
             [
@@ -234,6 +239,46 @@ class TestCheckMergeReadiness:
             result = check_merge_readiness("o", "r", 42)
         assert result["CanMerge"] is True
         assert result["Reasons"] == []
+
+    def test_matching_expected_head_sha_is_ready(self):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["headRefOid"] = "ab" * 20
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42, expected_head_sha="ab" * 20)
+        assert result["CanMerge"] is True
+        assert result["HeadSha"] == "ab" * 20
+
+    def test_expected_head_sha_comparison_ignores_case(self):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["headRefOid"] = "ab" * 20
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42, expected_head_sha=("AB" * 20))
+        assert result["CanMerge"] is True
+
+    def test_moved_head_is_not_ready_even_when_everything_else_passes(self):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["headRefOid"] = "cd" * 20
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42, expected_head_sha="ab" * 20)
+        assert result["CanMerge"] is False
+        assert result["Reasons"] == [f"head SHA {'cd' * 20} differs from the pinned {'ab' * 20}"]
+
+    def test_missing_head_in_the_payload_is_not_ready_when_a_pin_is_given(self):
+        with patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR):
+            result = check_merge_readiness("o", "r", 42, expected_head_sha="ab" * 20)
+        assert result["CanMerge"] is False
+        assert "head SHA unknown differs" in result["Reasons"][0]
+        assert result["HeadSha"] == ""
+
+    def test_no_pin_means_no_head_check(self):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["headRefOid"] = "cd" * 20
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is True
+
+    def test_query_asks_for_the_head_commit(self):
+        assert "headRefOid" in _mod._MERGE_READY_QUERY
 
     def test_draft_pr_not_ready(self):
         pr_data = json.loads(json.dumps(_OPEN_PR))
@@ -405,6 +450,16 @@ class TestCheckMergeReadiness:
             "op=merge_ready_failed" in r.message and "reason=pr_not_found" in r.message
             for r in caplog.records
         )
+
+    def test_transport_fault_exits_3(self):
+        """'Could not resolve host' is a network fault, not a missing PR."""
+        with patch(
+            "test_pr_merge_ready.gh_graphql",
+            side_effect=RuntimeError("Could not resolve host: api.github.com"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                check_merge_readiness("o", "r", 42)
+        assert exc.value.code == 3
 
     def test_graphql_error_exits_3_with_log(self, caplog):
         """A non-'Could not resolve' RuntimeError exits 3 and logs reason=graphql_error."""
@@ -678,6 +733,21 @@ class TestMain:
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 1
+
+    @pytest.mark.parametrize(("live", "expected_rc"), [("ab" * 20, 0), ("cd" * 20, 1)])
+    def test_expected_head_sha_flag_decides_the_exit_code(self, live, expected_rc, capsys):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["headRefOid"] = live
+        with (
+            patch("test_pr_merge_ready.assert_gh_authenticated"),
+            patch(
+                "test_pr_merge_ready.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
+        ):
+            rc = main(["--pull-request", "42", "--expected-head-sha", "ab" * 20])
+        assert rc == expected_rc
 
 
 # ---------------------------------------------------------------------------

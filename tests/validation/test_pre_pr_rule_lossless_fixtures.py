@@ -17,6 +17,9 @@ Coverage:
 from __future__ import annotations
 
 import argparse
+import shlex
+import shutil
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -32,7 +35,6 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import checks_portability
 import pre_pr_sequence
-from checks_common import MissingScriptSkip
 
 GATE = "Rule Lossless Fixtures"
 LOSSLESS_TEST = Path("tests") / "build_scripts" / "test_rule_templates_lossless.py"
@@ -124,6 +126,41 @@ class TestValidateRuleLosslessFixtures:
         assert "tests/build_scripts/fixtures/rule_templates_b2/expected/alpha.md" in out
         assert "beta" not in out
 
+    @pytest.mark.parametrize(
+        "name",
+        ["a b", "a;touch pwned", "a$(id)", "a'b", "a`id`", "a&b"],
+    )
+    def test_copy_hint_quotes_each_path_for_the_shell(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        name: str,
+    ) -> None:
+        _tree(tmp_path, {name: ("new\n", "old\n")})
+        _fake_runner(monkeypatch, 1)
+
+        assert checks_portability.validate_rule_lossless_fixtures(tmp_path) is False
+
+        hint = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("cp "))
+        expected = [
+            f"src/claude/rules/{name}.md",
+            f"tests/build_scripts/fixtures/rule_templates_b2/expected/{name}.md",
+        ]
+        assert shlex.split(hint) == ["cp", *expected]
+        # A real shell must see the same two words: no expansion, no second command.
+        shell = shutil.which("sh")
+        if shell is not None:
+            shown = subprocess.run(
+                [shell, "-c", "printf '%s\\n' " + hint.removeprefix("cp ")],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=tmp_path,
+            )
+            assert shown.stdout.splitlines() == expected
+            assert not (tmp_path / "pwned").exists()
+
     def test_fails_without_a_copy_command_when_no_fixture_is_stale(
         self,
         tmp_path: Path,
@@ -139,14 +176,18 @@ class TestValidateRuleLosslessFixtures:
         assert "cp " not in out
         assert "pytest output" in out
 
-    def test_skips_when_the_lossless_test_is_absent(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    def test_fails_closed_when_the_lossless_test_is_absent(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
-        calls = _fake_runner(monkeypatch, 1)
+        """Issue #6506: a deleted test file must not become a SKIP."""
+        calls = _fake_runner(monkeypatch, 0)
 
-        with pytest.raises(MissingScriptSkip):
-            checks_portability.validate_rule_lossless_fixtures(tmp_path)
+        assert checks_portability.validate_rule_lossless_fixtures(tmp_path) is False
         assert calls == []
+        assert "test_rule_templates_lossless.py absent" in capsys.readouterr().err
 
 
 def _run_sequence(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:

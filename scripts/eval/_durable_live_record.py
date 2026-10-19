@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,9 +16,19 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from _claude_stream import Invocation, StreamFacts
+from _durable_review import ReviewerSpec, parse_review, reviewer_identity
 from _outcome_record import OutcomeRecord, parse_record
-from _routing_grader import GradeResult, Verdict, apply_changes, grade, grade_integration
+from _routing_grader import (
+    GradeResult,
+    Verdict,
+    apply_changes,
+    changed_paths,
+    grade,
+    grade_integration,
+    materialize,
+)
 from _routing_scenario import Scenario
+from _run_changes import unreadable_path
 
 _ALLOWED_TOOL_NAMES = frozenset({"Read", "Edit", "Write", "Glob", "Grep", "Bash"})
 _CLAIM = re.compile(r"\b(tests?\s+(now\s+)?pass|all\s+tests|verified|passes\s+all)", re.IGNORECASE)
@@ -33,6 +44,8 @@ class Session:
 
     invocations: list[Invocation] = field(default_factory=list)
     grades: list[GradeResult] = field(default_factory=list)
+    #: The reviewer arm's single launch. `None` when the arm did not run.
+    review: Invocation | None = None
 
 
 def followup_grade(scenario: Scenario, workdir: Path, changed: Sequence[str]) -> GradeResult:
@@ -93,6 +106,125 @@ def unapproved_actions(invocations: Sequence[Invocation]) -> int:
     return int(max(0, outside - refused))
 
 
+def without_links(workdir: Path, changed: Sequence[str]) -> tuple[str, ...]:
+    """`changed` without the paths that are, or sit under, a symlink in `workdir`.
+
+    A path that resolves outside `workdir` (`..` or an absolute path) is dropped too.
+
+    A symlink the agent planted, or a directory it replaced with one, may point at a
+    host file. Copying through it would send that file's contents to the reviewer
+    model, so it stays out of the review copy.
+    """
+    return tuple(relative for relative in changed if not unreadable_path(workdir, relative))
+
+
+def _unlink_symlinks_on_path(workdir: Path, target: Path) -> None:
+    """Unlink every symlink from `workdir` down to `target`, the leaf included.
+
+    A symlinked directory in the way would send a write outside the workdir just as a
+    symlinked leaf would. The link is removed, never followed.
+    """
+    parts = target.relative_to(workdir).parts
+    for depth in range(1, len(parts) + 1):
+        step = workdir.joinpath(*parts[:depth])
+        if step.is_symlink():
+            step.unlink()
+            return
+
+
+def rollback_change(scenario: Scenario, workdir: Path, changed: Sequence[str]) -> bool:
+    """Revert `changed` in `workdir` to the scenario's `initial/` state, then verify it.
+
+    A changed path that exists in `initial/` gets its original bytes back. One
+    the driver added is deleted. A changed path that is a symlink is unlinked
+    first, never written through: the agent may have pointed it outside the
+    workdir, and the harness write would then clobber that target. The rollback
+    counts only when the tree again matches `initial/` byte for byte
+    (`changed_paths` is empty), so a revert that left a file behind is not
+    reported as a recovery.
+
+    A file the agent replaced with a directory is cleared before the original is
+    written back, and a directory it replaced with a file likewise. An OS error
+    during the revert (a read-only tree, a path in the way) is an unverifiable
+    revert: it returns `False`, never raises.
+    """
+    try:
+        with tempfile.TemporaryDirectory(prefix="durable-rollback-") as name:
+            pristine = Path(name) / "initial"
+            materialize(scenario, pristine)
+            for relative in changed:
+                _revert_path(workdir, pristine, relative)
+        return not changed_paths(scenario, workdir)
+    except OSError:
+        return False
+
+
+def _revert_path(workdir: Path, pristine: Path, relative: str) -> None:
+    target, original = workdir / relative, pristine / relative
+    _unlink_symlinks_on_path(workdir, target)
+    if original.is_file():
+        _clear_blockers(workdir, target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(original.read_bytes())
+    elif target.is_file():
+        target.unlink()
+
+
+def _clear_blockers(workdir: Path, target: Path) -> None:
+    """Remove a directory at `target`, or a file where one of its parents belongs.
+
+    Symlinks on the path are already unlinked, so `rmtree` here never follows one
+    out of the workdir.
+    """
+    parts = target.relative_to(workdir).parts
+    for depth in range(1, len(parts)):
+        ancestor = workdir.joinpath(*parts[:depth])
+        if ancestor.is_file():
+            ancestor.unlink()
+    if target.is_dir():
+        shutil.rmtree(target)
+
+
+def rollback_events(
+    scenario: Scenario,
+    workdir: Path,
+    changed: Sequence[str],
+    *,
+    accepted: bool,
+    followup_ok: bool,
+) -> int | None:
+    """Count the rollbacks this run needed and carried out.
+
+    Recovery path. A change that passed its acceptance check but fails the
+    fresh-copy follow-up or the post-integration check cannot stay integrated:
+    it is reverted with `rollback_change`. That is one event, and it is real,
+    not injected. A run never accepted integrated nothing, and a run whose
+    follow-up passed needs no revert, so both are a measured 0. A revert that
+    cannot be verified returns `None`: the recovery did not complete, so the
+    outcome is unknown, never a clean 0.
+
+    The count is derived from `accepted` and `followup_ok`, so it carries no
+    evidence beyond `followup_validation`. The revert acts on a temp workdir that
+    the caller deletes right after `build_record`.
+    """
+    if not accepted or followup_ok:
+        return 0
+    return 1 if rollback_change(scenario, workdir, changed) else None
+
+
+def review_findings(session: Session, *, accepted: bool) -> int | None:
+    """The reviewer's finding count, or `None` when no usable review exists.
+
+    `None` covers a run with no reviewer arm, an unaccepted run the arm skipped,
+    a reviewer process that failed, and a reply that is not in the required shape.
+    """
+    review = session.review
+    if not accepted or review is None or not review.facts.completed:
+        return None
+    count: int | None = parse_review(review.facts.final_text)
+    return count
+
+
 def _evidence(passed: bool) -> str:
     return "PASS" if passed else "FAIL"
 
@@ -114,8 +246,15 @@ def build_record(
     repeat: int,
     session: Session,
     workdir: Path,
+    *,
+    reviewer: ReviewerSpec | None = None,
 ) -> OutcomeRecord:
-    """Assemble and strictly parse one record from a finished session."""
+    """Assemble and strictly parse one record from a finished session.
+
+    `human_correction_minutes` is always `None`. An unattended run has no human,
+    so the value is missing evidence, which classifies `UNVERIFIED`, not `0.0`.
+    `eval_human_minutes_join.py` fills it after a human times a correction pass.
+    """
     final, first = session.grades[-1], session.grades[0]
     changed = final.changed_paths
     follow = followup_grade(scenario, workdir, changed)
@@ -126,10 +265,20 @@ def build_record(
     # With an integration check the objective is the integrated result; without
     # one it is the final grade, as before.
     objective = accepted and (scenario.integration is None or followup_ok)
+    config = observed_config(base_config, facts)
+    config["reviewer"] = reviewer_identity(reviewer)
+    review_count = review_findings(session, accepted=accepted)
+    # Read the agent's files before the rollback below reverts them.
+    security = security_findings(workdir, changed)
+    rollbacks = rollback_events(
+        scenario, workdir, changed, accepted=accepted, followup_ok=followup_ok
+    )
+    review_launches = [session.review] if session.review is not None else []
+    spent = [*session.invocations, *review_launches]
     data = {
         "task_id": scenario.scenario_id,
         "repeat": repeat,
-        "config": observed_config(base_config, facts),
+        "config": config,
         "capability": {"attempted": True, "produced_artifact": bool(changed)},
         "execution": {
             "deterministic_acceptance": _evidence(accepted),
@@ -142,18 +291,18 @@ def build_record(
             "followup_validation": _evidence(followup_ok),
             "objective_satisfied": _evidence(objective),
             "residual_defects": _residual(follow),
-            "review_findings": 0,
-            "rollback_events": 0,
+            "review_findings": review_count,
+            "rollback_events": rollbacks,
             "rework_minutes": rework_minutes(session.invocations),
         },
         "economics": {
-            "model_cost_usd": round(sum(f.cost_usd for f in facts), 6),
+            "model_cost_usd": round(sum(i.facts.cost_usd for i in spent), 6),
             "tool_cost_usd": 0.0,
-            "wall_seconds": round(sum(i.wall_seconds for i in session.invocations), 3),
-            "human_correction_minutes": 0.0,
+            "wall_seconds": round(sum(i.wall_seconds for i in spent), 3),
+            "human_correction_minutes": None,
         },
         "risk": {
-            "security_findings": security_findings(workdir, changed),
+            "security_findings": security,
             "unapproved_external_actions": unapproved_actions(session.invocations),
             "unsupported_claims": 1 if (not objective and _CLAIM.search(last_text)) else 0,
             "unresolved_uncertainty": len(_HEDGE.findall(last_text)),
@@ -167,7 +316,8 @@ def rework_minutes(invocations: Sequence[Invocation]) -> float:
 
     A correction round exists only because the previous attempt failed its
     deterministic check, so its time is agent rework. No human time is
-    included: a run has no human in it, and `human_correction_minutes` stays 0.
+    included: a run has no human in it, and `human_correction_minutes` is
+    `None` (missing evidence), never 0.
     """
     seconds = sum(i.wall_seconds for i in invocations if i.round_index >= 1)
     return float(round(seconds / 60.0, 4))

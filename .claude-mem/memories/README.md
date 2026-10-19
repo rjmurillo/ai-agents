@@ -31,21 +31,19 @@ All memory exports are stored in this single directory. Auto-import on session s
 When ending a session, export memories created during that session:
 
 ```bash
-# Export by topic/session
-npx tsx scripts/export-memories.ts "session 229" .claude-mem/memories/2026-01-03-session-229.json
+# Export by topic/session (writes .claude-mem/memories/<today>-session-229-<topic>.json)
+uv run python .claude-mem/scripts/export_claude_mem_memories.py "session 229" --session-number 229 --topic testing
 
-# Export by date range (using jq to filter)
-npx tsx scripts/export-memories.ts "" all.json
-cat all.json | jq '.observations | map(select(.created_at_epoch >= 1735862400))' > .claude-mem/memories/2026-01-03-filtered.json
-rm all.json
+# Export to an explicit file inside .claude-mem/memories/
+uv run python .claude-mem/scripts/export_claude_mem_memories.py "session 229" --output-file .claude-mem/memories/2026-01-03-session-229.json
 
-# Export project-specific memories
-npx tsx scripts/export-memories.ts "" .claude-mem/memories/2026-01-03-project.json --project=ai-agents
+# Export project-specific memories (complete backup straight from the SQLite database)
+uv run python .claude-mem/scripts/export_claude_mem_direct.py --project ai-agents
 ```
 
 **Naming Convention**: `YYYY-MM-DD-session-NNN-topic.json`
 
-**Note**: The `export-memories.ts` and `import-memories.ts` scripts are wrapper scripts located in the project's `scripts/` directory. They forward to the installed claude-mem plugin scripts at `~/.claude/plugins/marketplaces/thedotmack/scripts/`.
+**Note**: The four Python wrappers under `.claude-mem/scripts/` (`export_claude_mem_memories.py`, `export_claude_mem_full_backup.py`, `export_claude_mem_direct.py`, `import_claude_mem_memories.py`) are the tracked entry points. The export and import wrappers forward to the installed claude-mem plugin scripts at `~/.claude/plugins/marketplaces/thedotmack/scripts/`.
 
 ## Import Workflow (Session Start or Onboarding)
 
@@ -55,21 +53,17 @@ The auto-import script runs idempotently on session start:
 
 ```bash
 # Automatically imports all .json files from .claude-mem/memories/
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+uv run python .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
-**Session Protocol Integration**: Can be added to SessionStart hook for automatic execution.
+**Session Protocol Integration**: Can be added to a SessionStart hook for automatic execution.
 
 ### Manual Import
 
-Import specific files or new memories from teammates:
+Import new memories from teammates by saving the file under `.claude-mem/memories/` and running the importer, which loads every file in that directory:
 
 ```bash
-# Import a specific file
-npx tsx scripts/import-memories.ts .claude-mem/memories/shared-memories.json
-
-# Import all files (same as auto-import script)
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+uv run python .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
 ## Duplicate Prevention
@@ -122,16 +116,16 @@ Claude-Mem automatically prevents duplicate imports using composite keys:
 
 ```bash
 # Auto-import all memories (idempotent)
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+uv run python .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
-Can be added to `.claude/hooks/SessionStart.ps1` for automatic execution.
+Can be added to a SessionStart hook for automatic execution.
 
 **Session End (Required for memory-heavy sessions)**:
 
 ```bash
 # Export session memories
-npx tsx scripts/export-memories.ts "[topic]" .claude-mem/memories/YYYY-MM-DD-session-NNN-[topic].json
+uv run python .claude-mem/scripts/export_claude_mem_memories.py "[topic]" --session-number NNN --topic "[topic]"
 ```
 
 ## Example Workflows
@@ -140,8 +134,8 @@ npx tsx scripts/export-memories.ts "[topic]" .claude-mem/memories/YYYY-MM-DD-ses
 
 ```bash
 # Export frustration pattern memories created in session 229
-npx tsx scripts/export-memories.ts "frustration pattern" \
-  .claude-mem/memories/2026-01-03-session-229-frustrations.json
+uv run python .claude-mem/scripts/export_claude_mem_memories.py "frustration pattern" \
+  --output-file .claude-mem/memories/2026-01-03-session-229-frustrations.json
 
 # Commit to git
 git add .claude-mem/memories/2026-01-03-session-229-frustrations.json
@@ -156,10 +150,9 @@ git clone https://github.com/user/ai-agents.git
 cd ai-agents
 
 # Auto-import all memories (idempotent)
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+uv run python .claude-mem/scripts/import_claude_mem_memories.py
 
-# Verify import
-npx tsx scripts/search-memories.ts "frustration pattern"
+# Verify import: search "frustration pattern" with the claude-mem MCP search tool
 ```
 
 ### Importing Shared Knowledge from Teammate
@@ -170,10 +163,7 @@ npx tsx scripts/search-memories.ts "frustration pattern"
 mv ~/Downloads/teammate-learnings.json .claude-mem/memories/
 
 # Auto-import (idempotent, will import the new file)
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
-
-# Or import manually
-npx tsx scripts/import-memories.ts .claude-mem/memories/teammate-learnings.json
+uv run python .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
 ## Quality Guidelines
@@ -230,13 +220,12 @@ ls ~/.claude-mem/
 Check query syntax and memory creation timestamps:
 
 ```bash
-# List recent observations
-npx tsx scripts/search-memories.ts "" | head -20
-
-# Try broader query
-npx tsx scripts/export-memories.ts "" all.json
-cat all.json | jq '.totalObservations'
+# Try a broader query
+uv run python .claude-mem/scripts/export_claude_mem_memories.py "" --output-file .claude-mem/memories/all.json
+jq '.totalObservations' .claude-mem/memories/all.json
 ```
+
+Delete `all.json` afterward; it is a scratch export, not a shareable snapshot.
 
 ### Duplicate Memories After Import
 

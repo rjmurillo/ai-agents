@@ -1,0 +1,73 @@
+schemaVersion: "1.0"
+provider: "hermes"
+# ADR-115 Decision 6: Hermes refuses a plugin over 400 files or 10 MB, so the
+# shipped skills go out as several portable Agent Plugins v1 packs. Each pack
+# carries its own copy of lib/. build/scripts/hermes_packs.py renders the tree
+# and fails the build when this table and the skills on disk disagree.
+artifacts:
+  skills:
+    mode: "hermes-packs"
+    sourceDir: "src/claude/skills"
+    outputDir: "src/hermes"
+    # Budget under the Hermes cap of 400 files, counting lib/ and plugin.json.
+    packMaxFiles: 380
+    # hermes-agent commit whose plugin_guard and install limits this table was
+    # measured against. The guard test and the smoke test install this commit.
+    hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"
+    # The portable validator needs `metadata` to be a flat string map, and
+    # `allowed-tools` to be a string. Every shipped skill nests `metadata`, and 8
+    # skills write `allowed-tools` as a list, which Hermes skips at load time
+    # (measured at the pinned commit). Hermes only validates `allowed-tools` and
+    # never enforces it, so the key goes. The model keys have no Hermes meaning.
+    frontmatterDrop:
+      - allowed-tools
+      - metadata
+      - model
+      - model-rationale
+    # A skill appears in exactly one pack or under `excluded`. A new skill
+    # fails the build until it is added here, so no pack ever moves an old one.
+    packs:
+      delivery:
+        description: "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations."
+        skills:
+          [agent-harness-reference, ai-agents-external-claims, analyze, api-doc-authoring,
+           benchmark-models, build,
+           chaos-experiment, code-qualities-assessment, codeql-scan, destructive-change-safety,
+           doc-accuracy, dx-review, execution-plans, fix-markdown-fences, git-advanced-workflows,
+           github, github-url-intercept, golden-principles, maintainer-review, merge-resolver,
+           metrics, observability, orphan-ref-validator, pipeline-validator, plan, pr-autofix,
+           pr-comment-responder, pr-quality-all, pr-quality-analyst, pr-quality-architect,
+           pr-quality-devops, pr-quality-qa, pr-quality-roadmap, pr-quality-security, pr-review,
+           push-pr, quality-grades, research, reviewer-findings, security-review, slo-designer,
+           steering-matcher, style-enforcement, sync, taste-lints, test, threat-modeling,
+           validate-pr-description, validation-authority, windows-image-updater]
+      knowledge:
+        description: "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation."
+        skills:
+          [adr-generator, analysis-provenance, autoplan, avoiding-manufactured-work,
+           business-strategy, buy-vs-build-framework, checkpoint, chestertons-fence,
+           codebase-documenter, context-gather, context-hub-setup, context-optimizer,
+           curating-memories, cynefin-classifier, decision-critic, decision-question, domain-design,
+           evidence-provenance, memory, memory-consolidate, memory-documentary, memory-enhancement, negotiation,
+           panning-for-gold, pre-mortem, programming-advisor, prompt-engineer, prose-self-check,
+           reflect, requirements-interview, retro, retrospective, skill-bootstrap, skillforge,
+           skillify, skillopt,
+           software-engineering-library, spec, using-serena-symbols, work-operating-model,
+           world-model-diagnostic]
+    # Hermes runs plugin_guard on every install and blocks a dangerous verdict.
+    # Exclusion is transitive: a skill that refers to an excluded skill is
+    # excluded too, because its reference would point at nothing.
+    excluded:
+      adr-review: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
+      cva-analysis: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
+      memory-maintenance: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
+      memory-search: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
+      planner: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
+      security-scan: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
+      stuck-detection: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
+      memory-gate: "Refers to excluded skill(s): memory-search."
+      memory-reflexion: "Refers to excluded skill(s): memory-maintenance and memory-search."
+      review: "Refers to excluded skill(s): security-scan."
+      security-detection: "Refers to excluded skill(s): review."
+      spec-generator: "Refers to excluded skill(s): review."
+      ship: "Refers to excluded skill(s): review."

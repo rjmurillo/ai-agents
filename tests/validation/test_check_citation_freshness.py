@@ -38,6 +38,23 @@ def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
 @pytest.mark.parametrize(
     ("path", "exempt"),
     (
+        ("src/hermes/project-toolkit-delivery/skills/github/fix-ci.md", True),
+        ("src/hermes/project-toolkit-delivery/lib/github_core/output.py", True),
+        ("src/hermes/README.md", True),
+        ("src/hermesx/notes.md", False),
+        ("docs/src/hermes/notes.md", False),
+    ),
+)
+def test_generated_hermes_packs_are_exempt_like_the_other_skill_mirrors(
+    path: str, exempt: bool
+) -> None:
+    """ADR-115: a pack copies skills and lib, so its citations are policed at the source."""
+    assert checker._is_exempt_citing_file(path) is exempt
+
+
+@pytest.mark.parametrize(
+    ("path", "exempt"),
+    (
         ("evals/ponytail-incumbent/runs/2026-09-23/base.jsonl", True),
         ("evals/security-spike/runs/20260503T182553Z-eaa08f8d/runs.jsonl", True),
         ("evals/ponytail-incumbent/README.md", False),
@@ -49,6 +66,22 @@ def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
 )
 def test_only_recorded_eval_runs_are_exempt(path: str, exempt: bool) -> None:
     """Raw eval replies are records; authored eval docs stay policed."""
+    assert checker._is_exempt_citing_file(path) is exempt
+
+
+@pytest.mark.parametrize(
+    ("path", "exempt"),
+    (
+        ("src/cursor/skills/review/SKILL.md", True),
+        ("src/cursor/rules/voice.mdc", True),
+        ("src/cursor/lib/github_core/output.py", True),
+        ("src/cursor/agents/analyst.md", False),
+        ("src/cursor/.cursor-plugin/plugin.json", False),
+        ("src/cursor-extras/skills/x.md", False),
+    ),
+)
+def test_cursor_generated_mirrors_are_exempt(path: str, exempt: bool) -> None:
+    """The Cursor tree's generated copies are policed once, at their source (ADR-115)."""
     assert checker._is_exempt_citing_file(path) is exempt
 
 

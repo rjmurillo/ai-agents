@@ -21,6 +21,7 @@ QA_SURFACES = [
     REPO_ROOT / "src" / "claude" / "agents" / "qa.md",
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "qa.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "qa.agent.md",
+    REPO_ROOT / "src" / "cursor" / "agents" / "qa.md",
 ]
 PARTIAL_DELIVERY_FIXTURE = REPO_ROOT / "evals" / "qa-spike" / "fixtures" / "Q011.json"
 
@@ -151,3 +152,52 @@ def test_qa_partial_delivery_fixture_static_contract(surface: Path) -> None:
     assert "Delivered:" in completeness
     assert "Gap:" in completeness
     assert "Cannot verify completeness without requirements" in completeness
+
+
+QA_DEGRADED_PARTIAL = (
+    REPO_ROOT / "templates" / "agents" / "partials" / "qa-degraded-mode-protocol.mustache"
+)
+READY_PHRASE = "Ready for user validation"
+
+
+def _complete_lines(surface: Path) -> list[str]:
+    return [
+        ln for ln in _read(surface).splitlines() if ln.lstrip().startswith("- **QA COMPLETE**:")
+    ]
+
+
+@pytest.mark.parametrize("surface", [*QA_SURFACES, QA_DEGRADED_PARTIAL])
+def test_qa_ready_claim_requires_no_unrun_suite(surface: Path) -> None:
+    """Issue #5405: a NOT RUN, UNAVAILABLE, or all-skipped suite blocks the ready claim."""
+    complete = _complete_lines(surface)
+
+    assert len(complete) == 1
+    line = complete[0]
+    assert READY_PHRASE in line
+    assert "Only if [passed] equals [total]" in line
+    assert "(skips not counted), [total] > 0, and no suite is `NOT RUN`/`UNAVAILABLE`" in line
+    # A green run with skips is neither QA FAILED nor an unrun suite, so the
+    # line has to count the skips out of [total] and report them.
+    assert "[skipped] skipped" in line
+    assert "(skips not counted)" in line
+    assert "or QA FAILED" in line
+    assert "`[BLOCKED] Cannot evaluate: <suite>`" in line
+    # The readiness phrase must precede the condition, never follow the BLOCKED branch.
+    assert line.index(READY_PHRASE) < line.index("Only if")
+
+
+@pytest.mark.parametrize("surface", [*QA_SURFACES, QA_DEGRADED_PARTIAL])
+def test_qa_ready_claim_appears_once_per_surface(surface: Path) -> None:
+    ready_lines = [ln for ln in _read(surface).splitlines() if READY_PHRASE in ln]
+
+    assert len(ready_lines) == 1
+    assert ready_lines[0].lstrip().startswith("- **QA COMPLETE**:")
+
+
+@pytest.mark.parametrize("surface", QA_SURFACES)
+def test_qa_coverage_directive_keeps_the_no_memory_guardrail(surface: Path) -> None:
+    """Issue #5405: trimming QA prose for the F1 byte budget must not drop this guardrail."""
+    directive = [ln for ln in _read(surface).splitlines() if "Coverage tool directive (A5)" in ln]
+
+    assert len(directive) == 1
+    assert "Do not rely on memory or test counts." in directive[0]

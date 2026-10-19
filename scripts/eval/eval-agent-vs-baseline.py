@@ -71,7 +71,12 @@ from _run_persistence import (
     RunPersistence,
     RunSeedMismatchError,
 )
-from _scoring_engine import ScoringEngine, build_default_engine
+from _scoring_engine import (
+    VERDICT_TOKENS,
+    ScoringEngine,
+    build_default_engine,
+    expected_verdicts,
+)
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -323,6 +328,15 @@ class FixtureValidator:
                 f"{path.name} ({fixture_id}): assertions[{index}].expected_value "
                 f"must be a non-empty string for verdict assertions"
             )
+        if kind is AssertionKind.VERDICT and normalized_expected:
+            alternatives = expected_verdicts(normalized_expected)
+            unknown = [alt for alt in alternatives if alt not in VERDICT_TOKENS]
+            if unknown:
+                raise FixtureValidationError(
+                    f"{path.name} ({fixture_id}): assertions[{index}].expected_value "
+                    f"{normalized_expected!r} has alternatives {unknown!r} outside "
+                    f"{sorted(VERDICT_TOKENS)}; such an assertion can never pass"
+                )
 
         try:
             return Assertion(

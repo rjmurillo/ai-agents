@@ -2,7 +2,7 @@
 # Agent Failure Modes
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-09-03
+> **Last Updated**: 2026-10-13
 > **RFC 2119**: This document uses RFC 2119 key words.
 > **Reference**: Issue #1690
 
@@ -26,8 +26,9 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 8 | Security drift | Critical | `2026-01-04-pr760-security-suppression-failure.md` |
 | 9 | Confident-incorrectness recurrence | High | `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
 | 10 | Silent defaults and guard-clause suppression | High | PR #1965 round-9/round-11 fixes; daniel.haxx.se 2026-05-11 |
-| 11 | Customer-facing generated artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071 |
+| 11 | Customer-facing artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071; ADR-118 |
 | 12 | Post-completion continuation | High | Issue #5404 |
+| 13 | State conflation in a boolean guard | Medium | Issues #1168, #5097, #5104; PR #5103 |
 
 ---
 
@@ -392,6 +393,10 @@ The principle: **there is no neutral default for a missing signal.** Either the 
 
 FM-4 (False Completion Markers) describes the *output*: an agent claims a task is done when it isn't. FM-10 describes one of the *mechanisms* that produces FM-4 outputs: the code itself returns success when something was suppressed. FM-4 lives at the agent-narration layer; FM-10 lives at the code-execution layer. A green CI gate built on a verdict parser that silently defaults to PASS is FM-10 producing FM-4. The fix is at the FM-10 layer (harden the parser), not the FM-4 layer (lecture the agent about honesty).
 
+### Not this class: loud conflation
+
+If the wrong outcome is visible (a red check, a blocked merge, an error message) and the defect is that one guard maps two non-equivalent states to it, the class is FM-13, not FM-10. FM-10 requires that nothing tells the reader the operation did not do what its name claims.
+
 ### References
 
 - `.project-toolkit/retrospective/2026-05-10-pr-1965-review-axes-convergence.md` (round 9-11 fixes)
@@ -403,13 +408,16 @@ FM-4 (False Completion Markers) describes the *output*: an agent claims a task i
 
 ---
 
-## 11. Customer-Facing Generated Artifact Shipped Without Runtime Verification
+## 11. Customer-Facing Artifact Shipped Without Runtime Verification
 
 ### Description
 
-A generator produces an artifact that is installed into a customer's environment
-(plugin `hooks.json`, copied hook scripts, agent or skill files a CLI loads, MCP
-config). Tests validate the artifact's structure only. No gate ever executes the
+An artifact is installed into a customer's environment or into another harness's
+session. Either a generator produces it (plugin `hooks.json`, copied hook scripts,
+agent or skill files a CLI loads, MCP config), or a person writes it and the
+repository's own documentation publishes it as a cross-harness instruction (a
+governance doc that tells every harness to run a script, a rule that names a
+command). Tests validate the artifact's structure only. No gate ever executes the
 artifact under the runtime contract of its target host (the working directory the
 host sets, the environment variables it exports, the process model). The artifact
 ships structurally valid and behaviorally broken. The most damaging variant wedges
@@ -426,10 +434,26 @@ structural tests pass honestly AND no false completion claim was narrated, the
 incident is FM #11 even when FM #9 (author overconfidence) is absent. A careful,
 honest author still ships a wedge when the release path has no runtime gate.
 
+The hand-authored variant has no generator and no plugin manifest to gate. The
+delivery path is the documentation: the doc installs the command into the other
+harness's session. The mechanism is unchanged, so the Detection lines and the
+runtime-contract rows of the Enforcement Pattern apply. The committed-artifact
+gate and the hook smoke are specific to generated hooks. Issue #4780 is the
+worked case:
+`.agents/governance/MEMORY-MANAGEMENT.md` recommended
+`.claude-mem/scripts/import_claude_mem_memories.py` with no harness
+qualification, the script hardcoded a Claude Code plugin path, and the one test
+covering `main` asserted `result in (0, 1)`. No gate ever ran the script on a
+host without that directory, so a Copilot CLI session reported a failure for an
+optional dependency that was only not installed.
+
 ### Trigger
 
 - A generator emits a customer-facing artifact whose correctness depends on a
   runtime contract that is undocumented or assumed by analogy.
+- A hand-authored script, command, or rule is published as a cross-harness
+  instruction, and its correctness depends on one harness's runtime contract
+  (a plugin path, an environment variable, a working directory).
 - The test suite asserts the artifact's shape (valid JSON, fields present) or
   asserts the generator's own output (self-referential), but never runs the
   artifact under the host's real cwd and environment.
@@ -446,6 +470,12 @@ honest author still ships a wedge when the release path has no runtime gate.
   recover. The first fix (PR #2205) repeated the pattern: an assumed env var name
   and a self-referential string-match test that passed while the artifact was
   broken.
+- `2026-09-01-issue-4780-importer-path-resolution.md`: the hand-authored
+  Claude-Mem importer hardcoded `~/.claude/plugins/marketplaces/thedotmack/scripts/`
+  and exited 1 under Copilot CLI. The only test of `main` asserted
+  `assert result in (0, 1)`, which passes for every possible implementation.
+  PR #5459 fixed it and pinned each exit code in
+  `tests/claude_mem/test_importer_cli_contract.py`.
 
 ### Detection
 
@@ -455,6 +485,11 @@ honest author still ships a wedge when the release path has no runtime gate.
 - The committed artifact (not just the generator on a fixture) is ungated.
 - Blast-radius question unanswered: "if this artifact is wrong, does the customer
   get a degraded feature or a wedged environment?"
+- A command that governance docs recommend with no harness qualification, with no
+  test that runs it where the recommending harness's files are absent.
+- An assertion that accepts the function's entire documented return range, such
+  as `assert result in (0, 1)` for a function that returns 0 or 1. It reads like
+  coverage and cannot fail.
 
 ### Enforcement Pattern
 
@@ -464,9 +499,10 @@ honest author still ships a wedge when the release path has no runtime gate.
 | Runtime-contract test | `tests/build_scripts/test_generate_hooks_runtime_contract.py` executes the command under the real cwd/env with a negative control | CI (pytest) |
 | Committed-artifact gate | `scripts/validation/validate_hook_anchoring.py` in `pre_pr.py`; derives expected shape from the generator | Pre-PR |
 | Real-CLI smoke | Lefthook `hook-anchoring-e2e` runs `tests/e2e/test_cli_hook_e2e.py` on matching changes; skips loudly without a CLI | Pre-push (local) |
+| Exit-code contract test (hand-authored variant) | `tests/claude_mem/test_importer_cli_contract.py` asserts each documented exit code with `==`, never a set of accepted codes | CI (pytest) |
 
-The principle: **a customer-facing generated artifact MUST be executed in its
-target runtime before release.** Structural validity is not behavioral evidence.
+The principle: **a customer-facing artifact, generated or hand-authored, MUST be
+executed in its target runtime before release.** Structural validity is not behavioral evidence.
 Self-referential tests do not count. Where the runtime needs auth that bare CI
 lacks, force the smoke locally and document a release or nightly smoke; a skipped
 smoke MUST be loud.
@@ -475,9 +511,11 @@ smoke MUST be loud.
 
 - `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`
 - ADR-071 (plugin hook runtime-contract verification)
+- ADR-118 (widens this class to hand-authored cross-harness instructions)
+- `.project-toolkit/retrospective/2026-09-01-issue-4780-importer-path-resolution.md`
 - `.claude/rules/generated-artifacts.md`
 - `.claude/rules/canonical-source-mirror.md` (self-referential test anti-pattern)
-- Issues #2205 (fix), #2223 (follow-up debt)
+- Issues #2205 (fix), #2223 (follow-up debt), #4780 (hand-authored case), #5461 (this widening)
 
 ---
 
@@ -520,6 +558,69 @@ The principle: **completion is a terminal state, not an invitation to search for
 - `.claude/rules/builder-ethos.md`, section 4 (Task Completion Contract).
 - `.claude/rules/voice.md`, Completion-Tail Audit.
 - `.claude/skills/avoiding-manufactured-work/SKILL.md` (finding-disposition procedure this pattern reuses rather than duplicates).
+
+---
+
+## 13. State Conflation in a Boolean Guard
+
+### Description
+
+A single boolean condition decides an outcome from an input that holds two or more non-equivalent states, so at least one state is reported as another. The guard runs, the outcome is surfaced, and nothing is hidden. The defect is in the guard's input domain, not in what the guard reveals. Common shapes:
+
+- A job gate written as `result == 'success'` or `result != 'success'`, which folds `failure`, `cancelled`, and `skipped` into one outcome
+- An `always()` aggregator that grades a run that was superseded, so `cancelled` is published as `failure`
+- A required check that counts `skipped` as not passing, so an intentional path-filter skip blocks a merge
+- A gate that scores a downloaded artifact and reads "the artifact never uploaded" as "the scan found problems"
+- A truthiness test on a field that can be `false`, `0`, or absent, where each state needs a different outcome
+
+The unifying property: **the guard has one branch where the input has several meanings.** Every state the guard maps to the wrong outcome was a real signal that the guard could not tell apart from its neighbor.
+
+### Trigger
+
+- A gate is written against the state its author was thinking about (the dependency failed) and the other states reach it later (the run was cancelled, the job was skipped, the upload never ran).
+- The gate's tests cover success and failure only. Nobody enumerates the full set of values the input can take.
+- The wrong outcome looks like a legitimate one, so a reader treats it as noise or as a real failure and does not look for a second state behind it.
+
+### Evidence
+
+- **Issue #5097 and PR #5103** (2026-08-15): five result aggregators ran under `if: always()` and failed on `cancelled` dependency results. Every push that superseded an in-flight run published red `failure` check runs on the old head. Fix: `!cancelled()` guards, pinned by `tests/workflows/test_aggregator_cancellation_guard.py`. See `.project-toolkit/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md`, which first filed this under FM-10 and retracted that in its correction sections.
+- **Issue #1168**: branch protection blocked merges because three required checks reported `skipped` after a path filter skipped them on purpose. The required-check rule maps `skipped` to not passing, so an intentional skip and a missing result looked the same. The issue's recommended fix is a pass-through job that reports success when the filter skips the real job.
+- **Issue #5104**: `check-blocking-issues` in `.github/workflows/codeql-analysis.yml` runs under `always()` and scores SARIF artifacts. On a cancelled run the artifacts may never upload, so the gate can read a cancelled upstream as a failed scan. See `.project-toolkit/retrospective/2026-09-01-issue-5104-codeql-cancellation-guard.md`, which found no class that fit and pointed at this one.
+
+### Detection
+
+| Mechanism | Where it runs | What it catches |
+|-----------|---------------|-----------------|
+| Review question: "list every value this input can take; which outcome does each get?" | Review, `/build` exit gate | Unenumerated states |
+| `tests/workflows/test_aggregator_cancellation_guard.py` | CI (pytest) | An `always()` aggregator on a PR head with no cancellation guard |
+| Table-driven test with one row per input state, including `cancelled`, `skipped`, and absent | `/test` functional gate | Any guard whose states share a branch |
+| Falsifiable distinguisher against FM-10: the wrong outcome is visible to the reader | Retrospective classification | Filing a loud conflation under silent suppression |
+
+### Enforcement Pattern
+
+The replacement: **make each distinguishable state an explicit branch with its own outcome.**
+
+| Anti-pattern | Replacement |
+|--------------|-------------|
+| `if: always()` on an aggregator | `if: ${{ !cancelled() }}` so a superseded run skips, and real failures still run the aggregator |
+| `needs.x.result != 'success'` as the only test | Name each result the aggregator accepts (`success`, intentional `skipped`) and each it rejects (`failure`, `cancelled`) |
+| A required check that goes `skipped` on a path filter | A pass-through job with the same name that reports success when the filter skips the real job |
+| Scoring an artifact without checking it exists | Test for the upstream result first, then score the artifact only when the upstream ran to completion |
+| `x or default` or `if not x` on a field with several falsy states | `x is None`, `x is False`, and `x == 0` as separate branches when the outcomes differ |
+
+The principle: **a guard is correct only for the states it names.** Enumerate the input domain in a test with one row per state. A missing row is the defect this class describes.
+
+### Why this is FM-13, not FM-10
+
+FM-10 describes suppression: the execution succeeds, the failure is invisible, and the call site cannot know the operation did not do what its name claims. FM-13 describes conflation: the outcome is visible and loud, and the call site is told something false about which of several real states occurred. The distinguisher is falsifiable. Ask whether a reader of the output knows something went wrong. If yes, the incident is not FM-10. The same guard can fall under both only when it hides one state and mislabels another, and the retrospective must then name both. The fix differs too: FM-10 is fixed by surfacing what was swallowed, FM-13 by adding the branch that separates the states.
+
+### References
+
+- `.project-toolkit/architecture/ADR-117-state-conflation-failure-mode.md`
+- `.project-toolkit/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md` (correction sections)
+- Issues #5097, #5103, #5139, #5145 (this class), #1168, #5104
+- `tests/workflows/test_aggregator_cancellation_guard.py`
+- FM-10 (silent defaults), the neighbor this class is distinguished from
 
 ---
 

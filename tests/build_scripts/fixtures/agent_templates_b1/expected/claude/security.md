@@ -35,6 +35,7 @@ tools:
   - WebFetch
   - TodoWrite
   - Write
+  - ToolSearch
   - mcp__github__pull_request_read
   - mcp__github__get_commit
   - mcp__github__list_commits

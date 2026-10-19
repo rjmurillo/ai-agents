@@ -1,0 +1,26 @@
+{
+  "claim": "output matches expected",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R",
+      "generator:gen-v1"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "expected-output",
+      "state": "VERIFIED",
+      "premises": [
+        "generator:gen-v1"
+      ],
+      "authority": "derived"
+    }
+  ],
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 0
+  }
+}

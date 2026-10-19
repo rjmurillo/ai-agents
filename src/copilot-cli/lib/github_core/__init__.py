@@ -48,6 +48,7 @@ from .formatting import (
     get_reaction_emoji,
 )
 from .gh_client import GhCliClient
+from .not_found import is_pr_not_found
 from .output import (
     get_output_format,
     write_skill_error,
@@ -65,6 +66,7 @@ from .validation import (
     assert_valid_body_file,
     escaped_newline_body_error,
     inline_body_error,
+    is_allowed_body_file_path,
     is_github_name_valid,
     is_safe_file_path,
 )
@@ -91,6 +93,7 @@ __all__ = [
     "error_and_exit",
     "escaped_newline_body_error",
     "inline_body_error",
+    "is_allowed_body_file_path",
     "filter_unresolved_threads",
     "get_all_prs_with_comments",
     "get_bot_authors",
@@ -112,6 +115,7 @@ __all__ = [
     "is_bot",
     "is_gh_authenticated",
     "is_github_name_valid",
+    "is_pr_not_found",
     "is_safe_file_path",
     "resolve_repo_params",
     "safe_log_str",

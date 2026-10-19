@@ -4,6 +4,7 @@ description: Brutally honest strategic advisor who cuts through comfort and deli
 metadata:
   role: strategic
 argument-hint: Describe the strategic decision or conflict needing advice
+disallowedTools: Agent
 ---
 # High-Level Advisor Agent
 

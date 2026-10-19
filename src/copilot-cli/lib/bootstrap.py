@@ -11,7 +11,8 @@ literals: `tests/test_plugin_path_resolution.py` grep-asserts them, and the
 only exemption it grants is delegation to `_bootstrap.ensure_plugin_paths`
 (the generated-tree helper, ADR-068), NOT this function. Migrating those
 hooks here removes the literals and fails the ADR-047 test.
-See ADR-047 (Path Resolution) for the sanctioned
+`scripts/migrations/req003_inline_plugin_root_bootstrap.py` exists precisely
+to revert such a migration. See ADR-047 (Path Resolution) for the sanctioned
 inline pattern and issue #2898 for the history.
 
 The setup_hook_lib_path function handles:

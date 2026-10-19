@@ -27,7 +27,15 @@ def default_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(git_hook_policy.PYTEST_WORKER_CAP_ENV, raising=False)
     monkeypatch.delenv(git_hook_policy.PYTEST_CPU_RESERVE_ENV, raising=False)
     monkeypatch.delenv("COVERAGE_CORE", raising=False)
+    # A pre-push lane runs this suite with its own TESTMON_DATAFILE (issue #6477).
+    # The hook reads that variable, so an inherited one would move the database
+    # these tests build under tmp_path.
+    monkeypatch.delenv("TESTMON_DATAFILE", raising=False)
     monkeypatch.delenv(git_hook_policy.TESTMON_NO_SEED_ENV, raising=False)
+    # Issue #6200: with no database the hook collects instead of running. Most
+    # tests cover the run itself, so they start from the run path. The cold
+    # deferral tests restore the real function.
+    monkeypatch.setattr(git_hook_policy, "_should_defer_cold_selection", lambda *_a, **_k: False)
     # No test may reach the network: the seed fetch is stubbed to "no seed".
     monkeypatch.setattr(
         git_hook_policy.testmon_seed,

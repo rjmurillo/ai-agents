@@ -150,8 +150,7 @@ class _StrictLoader(yaml.SafeLoader):
 def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
     """Reject a mapping that declares the same key twice.
 
-    Mirrors ``build/scripts/generate_adr_index.py:202`` verbatim in behaviour,
-    including its hard-won detail: keys are collected in a list and compared
+    This is the canonical loader. Keys are collected in a list and compared
     with ``==`` rather than kept in a set, because a YAML key need not be
     hashable (``? [a, b]`` builds a list key) and both ``in`` and ``add`` raise
     ``TypeError`` on it. That ``TypeError`` escapes the caller's

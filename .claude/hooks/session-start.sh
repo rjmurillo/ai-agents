@@ -18,6 +18,48 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
+# Declare this environment a remote container (Issue #5541). The ADR-104 rule 8
+# reclamation bound reads AI_AGENTS_REMOTE_CONTAINER through
+# _is_remote_container() in scripts/validation/run_workflow_local_test.py, and
+# the filesystem probe there finds nothing on a runtime that writes no marker
+# file. Claude Code sets this gate in its web container, the environment rule 8
+# was measured against. Anyone who exports it locally gets the marker too.
+#
+# This runs before the bootstrap check so a missing bootstrap-vm.sh cannot skip
+# it, and the write is non-fatal so an unwritable $CLAUDE_ENV_FILE cannot stop
+# the bootstrap below. The guard reads the LAST line touching the variable:
+# when it is not the exact export line (absent, a later `=0`, a later `unset`,
+# or a multi-name statement), a new line is appended, because the last
+# statement is the one sourcing leaves in effect.
+# Accepted limit: a `readonly` or `declare -r` line makes the variable
+# read-only, so the appended export fails when sourced ("readonly variable")
+# and the earlier value stays. The append is still attempted; it cannot win.
+if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  # End the file's last line first. Another SessionStart hook can leave it
+  # without a trailing LF, and an append would then fuse onto that line:
+  # `FOO=bar` becomes `FOO=barexport ...` and the marker never takes effect.
+  # `$(tail -c1)` is empty only when the last byte is LF, so a non-empty
+  # result means the last line is unterminated. Applies to every append below.
+  if [ -s "$CLAUDE_ENV_FILE" ] && [ -n "$(tail -c1 "$CLAUDE_ENV_FILE" 2>/dev/null)" ]; then
+    { echo >> "$CLAUDE_ENV_FILE"; } 2>/dev/null || true
+  fi
+  # Match every non-comment line that names the variable as a whole word: an
+  # assignment (`=`, `+=`, or one operand of a multi-name `export FOO=1 NAME=0`),
+  # or an `unset`, `export -n`, `declare`, `typeset`, or `readonly` line, even
+  # when other names share the statement. Any such line can change the value
+  # sourcing leaves in effect, so only the exact export line as the LAST match
+  # skips the append. Read-only lines are matched but cannot be overridden
+  # (see the accepted limit above). A name that merely shares the prefix is not a match.
+  last_marker="$(grep -v '^[[:space:]]*#' "$CLAUDE_ENV_FILE" 2>/dev/null |
+    grep -E '(^|[^[:alnum:]_])AI_AGENTS_REMOTE_CONTAINER([^[:alnum:]_]|$)' | tail -n 1 || true)"
+  if [ "$last_marker" != 'export AI_AGENTS_REMOTE_CONTAINER=1' ]; then
+    echo 'export AI_AGENTS_REMOTE_CONTAINER=1' >> "$CLAUDE_ENV_FILE" ||
+      echo "[session-start] could not write AI_AGENTS_REMOTE_CONTAINER to CLAUDE_ENV_FILE" >&2
+  fi
+else
+  echo "[session-start] CLAUDE_ENV_FILE is unset; AI_AGENTS_REMOTE_CONTAINER was not persisted" >&2
+fi
+
 # Resolve repo root from the script's own location so the hook is robust
 # against $CLAUDE_PROJECT_DIR being unset, $PWD being something unexpected,
 # or any environment-variable manipulation (CWE-22 defense).

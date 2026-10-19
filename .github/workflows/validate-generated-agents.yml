@@ -104,10 +104,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Build-all staleness check (REQ-003-005)
         # Fails (exit 2) if any generator output is stale relative to its
@@ -169,11 +169,11 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       - name: Set up uv
         if: steps.should-run.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'
@@ -229,8 +229,8 @@ jobs:
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
         # Catches the class of drift the build-all generator cannot:
-        # the install copies under .claude/agents/ and .github/agents/
-        # are hand-maintained self-host copies and must move together
+        # the install links under .claude/agents/ and .github/agents/
+        # (ADR-119) point at src/ trees that must move together
         # with the shared template under templates/agents/ and the three
         # vendored copies under src/. PR #2087 (qa) and PR #2083
         # (orchestrator) are the regressions this gate prevents.

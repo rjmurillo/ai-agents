@@ -33,7 +33,10 @@ def _import_script(name: str):
 
 _mod = _import_script("close_issue")
 main = _mod.main
+
 build_parser = _mod.build_parser
+
+pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 
 
 # ---------------------------------------------------------------------------
@@ -249,12 +252,15 @@ class TestMain:
         assert env["Success"] is False
         assert env["Error"]["Code"] == 2
 
-    def test_comment_file_path_traversal_exits_2(self, tmp_path, capsys, monkeypatch):
-        work = tmp_path / "work"
+    def test_comment_file_outside_every_root_exits_2(
+        self, external_tmp_path, capsys, monkeypatch, stub_temp_roots
+    ):
+        work = external_tmp_path / "work"
         work.mkdir()
-        outside = tmp_path / "outside.md"
+        outside = external_tmp_path / "outside.md"
         outside.write_text("secret", encoding="utf-8")
         monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        stub_temp_roots()
         with (
             patch(
                 "close_issue.assert_gh_authenticated",
@@ -275,6 +281,88 @@ class TestMain:
         env = _envelope(capsys)
         assert env["Success"] is False
         assert env["Error"]["Type"] == "InvalidParams"
+        assert "Comment file must be under" in env["Error"]["Message"]
+
+    def test_scratchpad_comment_file_under_temp_dir_closes(self, tmp_path, capsys, monkeypatch):
+        """Issue #6667: a /tmp/claude-<uid>/ scratchpad file is accepted."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        scratch = tmp_path / "claude-1000" / "scratchpad"
+        scratch.mkdir(parents=True)
+        comment_path = scratch / "close5369.md"
+        comment_path.write_text("Closing from scratchpad.", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        with (
+            patch("close_issue.assert_gh_authenticated"),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(stdout="{}", rc=0),
+                    _completed(stdout="closed", rc=0),
+                ],
+            ) as mock_run,
+        ):
+            rc = main(["--issue", "11", "--comment-file", str(comment_path)])
+        assert rc == 0
+        assert _envelope(capsys)["Data"]["commented"] is True
+        post_input = mock_run.call_args_list[2].kwargs["input"]
+        assert json.loads(post_input)["body"] == "Closing from scratchpad."
+
+    def test_symlink_in_temp_dir_pointing_outside_exits_2(
+        self, tmp_path, external_tmp_path, capsys, monkeypatch, stub_temp_roots
+    ):
+        target = external_tmp_path / "secret.md"
+        target.write_text("secret", encoding="utf-8")
+        link = tmp_path / "link.md"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+        work = external_tmp_path / "work"
+        work.mkdir()
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        stub_temp_roots(tmp_path)
+        with (
+            patch("close_issue.assert_gh_authenticated"),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", return_value=_state_open()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "12", "--comment-file", str(link)])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert _envelope(capsys)["Error"]["Type"] == "InvalidParams"
+
+    def test_workspace_root_is_not_an_approved_root(
+        self, external_tmp_path, capsys, monkeypatch, stub_temp_roots
+    ):
+        work = external_tmp_path / "work"
+        work.mkdir()
+        (work / "note.md").write_text("workspace file", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        stub_temp_roots()
+        with (
+            patch("close_issue.assert_gh_authenticated"),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", return_value=_state_open()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "12", "--comment-file", "note.md"])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert _envelope(capsys)["Error"]["Type"] == "InvalidParams"
 
     def test_comment_base_uses_repo_root_when_workspace_missing(self, tmp_path, monkeypatch):
         nested = tmp_path / "nested"

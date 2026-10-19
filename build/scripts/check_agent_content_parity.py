@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Content-parity gate: .claude/agents/ must match src/claude/agents/.
+"""Presence gate: .claude/agents/ must hold every file in src/claude/agents/.
 
 validate_install_parity.py catches drift only at PR time (co-change in a
-diff). It does not detect content divergence that already exists on disk.
-This script compares the two hand-maintained copies byte-for-byte and fails
-if any shared filename disagrees.
+diff). This script checks the on-disk state.
 
-The two trees are hand-maintained siblings; neither is the generator source.
-GENERATOR-FILES.md, line 35: 'src/claude/agents/ is a hand-maintained copy, not a
-generator output'. REQ-003-010 forbids generators from writing under
-.claude/. Editing a shared agent means updating both copies manually.
+Since ADR-119, each .claude/agents/<name>.md is a symlink to
+src/claude/agents/<name>.md, so the byte comparison below passes by
+construction for any link that resolves. What the check still catches is a
+missing link, a stray real file with no sibling, or a real file that replaced
+a link and then drifted. The byte compare is kept as a backstop for that last
+case.
+
+Neither tree is hand-edited. src/claude/agents/ is rendered from
+templates/agents/ by agent_templates.py (ADR-109 B1), and the binplace step
+links .claude/agents/ to it (templates/platforms/binplace.yaml, ``agents``
+class). Fix a failure by editing the template and running build_all.py.
 
 Files present in one tree but absent from the other are reported as missing.
 Files listed in ALLOWED_ONLY_IN_CLAUDE or ALLOWED_ONLY_IN_SRC are exempt

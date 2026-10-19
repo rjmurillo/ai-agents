@@ -2,7 +2,7 @@
 
 Coverage:
 
-- positive: a synthetic repo with all three host marketplaces passes, and the
+- positive: a synthetic repo with every host marketplace passes, and the
   real repository passes with the expected examined count.
 - negative: a source outside the repo, a missing source directory, a missing
   manifest, a name mismatch, a non-string source, and an empty plugin list each
@@ -28,6 +28,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 import check_host_marketplaces as gate
 
 _MANIFEST = ".claude-plugin/plugin.json"
+_CURSOR_MANIFEST = ".cursor-plugin/plugin.json"
 
 
 def _write_json(path: Path, data: object) -> None:
@@ -41,8 +42,8 @@ def _marketplace(name: str = "tool", source: object = "./plugin") -> dict[str, o
 
 def _repo(tmp_path: Path) -> Path:
     """A repo where every host marketplace lists plugin ``tool`` at ./plugin."""
-    _write_json(tmp_path / "plugin" / _MANIFEST, {"name": "tool"})
-    for marketplace, _ in gate.HOST_MARKETPLACES:
+    for marketplace, manifest in gate.HOST_MARKETPLACES:
+        _write_json(tmp_path / "plugin" / manifest, {"name": "tool"})
         _write_json(tmp_path / marketplace, _marketplace())
     return tmp_path
 
@@ -54,14 +55,50 @@ def _first_marketplace() -> str:
 def test_clean_repo_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _repo(tmp_path)
     assert gate.main([str(repo)]) == 0
-    assert "3 plugin entries examined" in capsys.readouterr().out
+    assert "5 plugin entries examined" in capsys.readouterr().out
 
 
-def test_real_repo_passes_and_covers_grok() -> None:
+def test_real_repo_passes_and_covers_grok_cursor_and_codex() -> None:
     violations, examined = gate.find_violations(REPO_ROOT)
     assert violations == []
-    assert examined == 3
+    assert examined == 5
     assert (REPO_ROOT / ".grok-plugin" / "marketplace.json").is_file()
+    assert (REPO_ROOT / ".cursor-plugin" / "marketplace.json").is_file()
+    assert (REPO_ROOT / ".agents" / "plugins" / "marketplace.json").is_file()
+    assert dict(gate.HOST_MARKETPLACES)[".agents/plugins/marketplace.json"] == "plugin.json"
+
+
+def test_cursor_row_reads_the_cursor_manifest_not_the_claude_one() -> None:
+    assert (".cursor-plugin/marketplace.json", ".cursor-plugin/plugin.json") in (
+        gate.HOST_MARKETPLACES
+    )
+
+
+def test_cursor_marketplace_needs_the_cursor_manifest(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "plugin" / _CURSOR_MANIFEST).unlink()
+    violations, _ = gate.find_violations(repo)
+    assert len(violations) == 1
+    assert violations[0].startswith(".cursor-plugin/marketplace.json")
+    assert "missing manifest .cursor-plugin/plugin.json" in violations[0]
+
+
+def test_codex_marketplace_needs_the_root_plugin_json(tmp_path: Path) -> None:
+    """The Codex row reads ``plugin.json``; a ``.claude-plugin`` manifest alone fails it."""
+    repo = _repo(tmp_path)
+    (repo / "plugin" / "plugin.json").unlink()
+    violations, _ = gate.find_violations(repo)
+    assert len(violations) == 1
+    assert violations[0].startswith(".agents/plugins/marketplace.json")
+    assert "missing manifest plugin.json" in violations[0]
+
+
+def test_codex_name_mismatch_is_a_violation(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_json(repo / "plugin" / "plugin.json", {"name": "other"})
+    violations, _ = gate.find_violations(repo)
+    assert len(violations) == 1
+    assert "does not match manifest name 'other'" in violations[0]
 
 
 def test_validate_wrapper_matches_main(tmp_path: Path) -> None:
@@ -118,7 +155,8 @@ def test_symlink_escaping_the_repo_is_a_violation(tmp_path: Path) -> None:
 
 def test_missing_manifest_is_a_violation(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
-    (repo / "plugin" / _MANIFEST).unlink()
+    for _, manifest in gate.HOST_MARKETPLACES:
+        (repo / "plugin" / manifest).unlink(missing_ok=True)
     violations, _ = gate.find_violations(repo)
     assert len(violations) == len(gate.HOST_MARKETPLACES)
     assert all("missing manifest" in v for v in violations)
@@ -172,7 +210,7 @@ def test_main_returns_nonzero_on_violation(
     assert gate.main([str(repo)]) == 1
     err = capsys.readouterr().err
     assert "outside the repository" in err
-    assert "1 host marketplace violation(s) in 3 plugin entries examined" in err
+    assert "1 host marketplace violation(s) in 5 plugin entries examined" in err
 
 
 def test_missing_marketplace_file_is_a_config_error(tmp_path: Path) -> None:

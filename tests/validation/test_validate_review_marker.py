@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.validation._review_artifact import commit_marker, commit_message, marker_message
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 REFERENCES_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "validate_review_marker.py"
@@ -100,16 +102,7 @@ def _write_marker_commit(repo: Path, axes: str) -> tuple[str, str]:
     reviewed code state). Returns (reviewed_tip_sha, marker_head_sha).
     """
     reviewed_tip = _git(repo, "rev-parse", "HEAD")
-    _git(
-        repo,
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        "review: /review PASS marker",
-        "--trailer",
-        f"Reviewed-By: /review@{axes} on {reviewed_tip}",
-    )
+    commit_marker(repo, axes, reviewed_tip)
     return reviewed_tip, _git(repo, "rev-parse", "HEAD")
 
 
@@ -475,6 +468,7 @@ def test_source_validator_cli_runs() -> None:
     )
     assert result.returncode == 0
     assert "Validate a SHA-bound" in result.stdout
+    assert "--digest" in result.stdout
 
 
 # --- validate_ref: edge -----------------------------------------------------
@@ -483,17 +477,9 @@ def test_source_validator_cli_runs() -> None:
 def test_validate_ref_passes_with_extra_unrelated_trailers(git_repo: Path) -> None:
     """A Co-authored-by trailer alongside the marker does not break binding."""
     reviewed_tip = _git(git_repo, "rev-parse", "HEAD")
-    _git(
+    commit_message(
         git_repo,
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        "review: marker with extra trailer",
-        "--trailer",
-        "Co-authored-by: Someone <s@example.com>",
-        "--trailer",
-        f"Reviewed-By: /review@qa on {reviewed_tip}",
+        marker_message("qa", reviewed_tip) + "Co-authored-by: Someone <s@example.com>\n",
     )
     outcome = vrm.validate_ref("HEAD", git_repo, references_dir=REFERENCES_DIR)
     assert outcome.ok is True
@@ -672,3 +658,37 @@ class TestGitDiagnosticsAreNotFlattened:
             None,
             "git log exited with 1",
         )
+
+
+# --- per-axis passing verdicts (issue #6506) ---------------------------------
+
+
+@pytest.mark.parametrize("verdict", ["WARN", "PARTIAL"])
+def test_security_axis_rejects_warn_and_partial(verdict: str) -> None:
+    assert verdict not in vrm.passing_verdicts_for("security")
+    assert verdict in vrm.passing_verdicts_for("analyst")
+
+
+@pytest.mark.parametrize("verdict", ["PASS", "COMPLIANT"])
+def test_every_axis_accepts_pass_and_compliant(verdict: str) -> None:
+    assert verdict in vrm.passing_verdicts_for("security")
+    assert verdict in vrm.passing_verdicts_for("analyst")
+
+
+@pytest.mark.parametrize("verdict", ["FAIL", "CRITICAL_FAIL", "UNKNOWN", ""])
+def test_no_axis_accepts_a_failing_or_unknown_verdict(verdict: str) -> None:
+    assert verdict not in vrm.passing_verdicts_for("security")
+    assert verdict not in vrm.passing_verdicts_for("analyst")
+
+
+def test_check_report_rows_names_the_security_axis_on_a_warn_row() -> None:
+    sha = "a" * 40
+    report = [f"Reviewed-SHA: {sha}", "analyst: PASS", "security: WARN"]
+    failure = vrm.check_report_rows(report, sha, ("analyst", "security"))
+    assert failure == "report has a non-passing verdict for: security"
+
+
+def test_check_report_rows_accepts_a_warn_on_a_non_security_axis() -> None:
+    sha = "a" * 40
+    report = [f"Reviewed-SHA: {sha}", "analyst: WARN", "security: PASS"]
+    assert vrm.check_report_rows(report, sha, ("analyst", "security")) is None

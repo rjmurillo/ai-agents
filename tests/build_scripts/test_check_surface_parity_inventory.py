@@ -80,6 +80,43 @@ def test_binplace_row_without_a_plugin_surface_is_unmanifested(repo: Path) -> No
     assert [(f.kind, f.path) for f in findings(repo)] == [("UNMANIFESTED", "build/plugin")]
 
 
+def _self_sourced_layout(repo: Path, source: str) -> None:
+    # ADR-119 lib-paths shape: a hand-maintained plugin file binplaced onto .claude/.
+    put(
+        repo,
+        "templates/platforms/binplace.yaml",
+        'schemaVersion: "1.0"\nrows:\n  - class: lib-paths\n'
+        f"    source: {source}\n    plugin_tree: src/lib/paths.py\n"
+        "    install_tree: .claude/lib/paths.py\n",
+    )
+    put(repo, "src/lib/paths.py")
+    write_manifest(
+        repo,
+        [
+            independent("src/lib/paths.py"),
+            surface(
+                path=".claude/lib/paths.py",
+                relation="binplaced",
+                authority="src/lib/paths.py",
+                generator="build/gen.py",
+                owner="o",
+            ),
+        ],
+        ["src"],
+    )
+
+
+def test_self_sourced_plugin_file_may_be_independent(repo: Path) -> None:
+    _self_sourced_layout(repo, "src/lib/paths.py")
+    assert [f for f in findings(repo) if f.path == "src/lib/paths.py"] == []
+
+
+def test_independent_plugin_file_with_another_source_is_unmanifested(repo: Path) -> None:
+    _self_sourced_layout(repo, "scripts/paths.py")
+    found = [(f.kind, f.path) for f in findings(repo) if f.path == "src/lib/paths.py"]
+    assert found == [("UNMANIFESTED", "src/lib/paths.py")]
+
+
 def test_binplace_install_surface_must_name_the_plugin_tree_as_authority(repo: Path) -> None:
     write_binplace(repo, "src/out", ".claude/agents")
     wrong = surface(

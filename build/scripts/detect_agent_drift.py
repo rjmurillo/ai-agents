@@ -5,22 +5,22 @@ Two comparisons run by default:
 
 1. Vendored copies: Claude agents (src/claude/agents/*.md) against VS Code agents
    (src/vs-code-agents/*.agent.md).
-2. Install copies (Issue #2267): the hand-maintained Claude Code self-host
+2. Install copies (Issue #2267): the binplaced Claude Code self-host
    copies (.claude/agents/*.md) against the GitHub Copilot self-host copies
    (.github/agents/*.agent.md), scoped to shared-template agents (the ones
    whose prose comes from templates/agents/*.shared.md). Pass
    ``--skip-install-comparison`` to run only the vendored comparison.
 
-The install copies are hand-maintained: no generator writes them
-(REQ-003-010 forbids generators under .claude/). validate_install_parity.py
-already enforces that they move together in a diff; this script adds the
+Both install copies are generated output (ADR-109 B1): binplace_manifest.py
+links .claude/agents to src/claude/agents and .github/agents to
+src/copilot-cli/agents (ADR-119). validate_install_parity.py already
+enforces that they move together in a diff; this script adds the
 semantic-similarity check that parity enforcement omits.
 
 Issue #4852 asks the gate to cover "all six maintained/generated surfaces or
 document why a surface is not a runtime input." The six are src/claude/agents,
 src/vs-code-agents, src/copilot-cli/agents, .claude/agents, .github/agents,
-and templates/agents/*.shared.md (per build/AGENTS.md, "Hand-Maintained Agent
-Copies"). Two of those six (src/copilot-cli/agents and templates/agents) are
+and templates/agents/*.shared.md. Two of those six (src/copilot-cli/agents and templates/agents) are
 intentionally NOT drift-compared here: src/copilot-cli/agents and
 src/vs-code-agents are both generated from templates/agents/*.shared.md by
 ``build/generate_agents.py``, whose ``--validate`` flag (see
@@ -30,15 +30,15 @@ template source, not a similarity threshold; a generator bug there fails
 that check outright rather than drifting silently. templates/agents itself
 is the shared source both generated trees derive from, so it has no
 independent counterpart to drift against. The two comparisons this script
-does run (vendored src/claude/agents vs src/vs-code-agents, and the hand-maintained
-.claude/agents vs .github/agents) cover the pairs where two independently
-maintained or independently editable copies can diverge without any
-generator or validator catching it, which is exactly the failure mode #4852
-reported.
+does run (vendored src/claude/agents vs src/vs-code-agents, and the install
+.claude/agents vs .github/agents) cover the pairs rendered from two different
+template families, which can diverge without any generator or validator
+catching it, which is exactly the failure mode #4852 reported.
 
-Claude agents have unique content and are NOT generated from templates.
-This script detects when Claude agents diverge significantly from the
-shared content that VS Code/Copilot agents are generated from.
+Claude agents render from their own *.claude.md.tmpl templates, which carry
+Claude-specific content. This script detects when Claude agents diverge
+significantly from the shared content that VS Code/Copilot agents are
+generated from.
 
 The script ignores known platform-specific differences:
 - YAML frontmatter format differences
@@ -159,16 +159,26 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # template (templates/agents/merge-resolver.shared.md), and therefore the
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
 # agent prompt and change agent behavior (architect review, out of scope for a
-# baseline-green fix). Floor is set to the measured 20.7% so the existing
-# structure is accepted but any worsening still blocks. Re-measured for issue
-# #5074: the add/add rename-never-content-merge rule was added with identical
-# wording to both sides, which shifted the Jaccard section scores from the
-# prior 20.9% because the two shapes carry different surrounding prose.
+# baseline-green fix). Floor is the latest measured value (see the re-measure
+# notes below) so the existing structure is accepted. A similarity drop below
+# the floor prints DRIFT DETECTED. It fails only the install comparison, and only
+# with --fail-on-install-drift (the weekly workflow passes it). The vendored
+# comparison stays advisory through _ADVISORY_VENDORED_DRIFT.
+# Re-measured for issue #5074: the add/add rename-never-content-merge rule was
+# added with identical wording to both sides, which shifted the Jaccard section
+# scores from the prior 20.9% because the two shapes carry different
+# surrounding prose.
 # Re-measured for issue #5130 after the tier hierarchy was removed from the
 # governance docs and ``tier:`` frontmatter became ``role:``: both comparisons
 # still measure 20.7%. The enrichment PR #1426 added is section structure, not
 # tier prose, and neither merge-resolver body ever carried the tier text, so
 # removing it moved nothing. The floors stay where they are.
+# Re-measured for issue #5642 on 2026-10-17 (main 44fd46a46): PR #5470 (merged
+# 2026-09-02 UTC, merge commit 12bea5f59) deleted the "HANDOFF.md is read-only"
+# constraint line from both merge-resolver bodies when it retired HANDOFF.md.
+# Both sides lost the same shared words, so the Jaccard overlap fell from 20.7%
+# (measured at 3d304d4e2, the parent of #5470) to 20.3% in both comparisons.
+# The change was intended, so the floors are lowered to the measured 20.3%.
 #
 # merge-resolver install copy (Issue #2715): the same enrichment
 # lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
@@ -177,12 +187,13 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # reconciled by resyncing .github from the generated src/copilot-cli output, but
 # merge-resolver cannot be: its richness is on the .claude side by design, so a
 # resync would delete substantive Claude-only instructions. Floor is the measured
-# 20.7% (identical to the vendored floor because both compare the same enriched
-# .claude body against the same leaner template-derived body). Any worsening still
-# blocks.
+# 20.3% (identical to the vendored floor because both compare the same enriched
+# .claude body against the same leaner template-derived body). A similarity drop
+# below the floor prints DRIFT DETECTED and fails this comparison with
+# --fail-on-install-drift.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
-    ("merge-resolver", "src-claude vs src-vscode"): 20.7,
-    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.7,
+    ("merge-resolver", "src-claude vs src-vscode"): 20.3,
+    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.3,
 }
 
 # Pre-existing missing sections at the time section inventory was added
@@ -944,13 +955,13 @@ def run_install_detection(
     threshold: int,
     restrict_to: frozenset[str] | None = None,
 ) -> list[AgentResult]:
-    """Compare hand-maintained install copies for shared-template agents.
+    """Compare the install copies for shared-template agents.
 
-    Issue #2267: ``.claude/agents``, ``.github/agents``, and ``src/claude/agents`` are
-    hand-maintained (no generator writes them; REQ-003-010 forbids generators
-    under ``.claude/``). ``validate_install_parity.py`` already enforces that
-    the install copies move together in a diff, but it does not check semantic
-    similarity. This pass adds that check for shared-template agents: agents
+    Issue #2267: ``.claude/agents`` links to ``src/claude/agents`` and
+    ``.github/agents`` links to ``src/copilot-cli/agents`` (ADR-119), so
+    the two come from different template families. ``validate_install_parity.py``
+    already enforces that the install copies move together in a diff, but it
+    does not check semantic similarity. This pass adds that check for shared-template agents: agents
     whose prose comes from ``templates/agents/{name}.shared.md``. Freestanding
     Claude-only or GitHub-only agents are skipped via ``restrict_to``.
 

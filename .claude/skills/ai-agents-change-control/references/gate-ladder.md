@@ -37,7 +37,7 @@ which tries `uv run --frozen lefthook`, then `lefthook` on `PATH` or in
 | Rule | State | Note |
 |------|-------|------|
 | Files per commit | No hook measures this | `check_atomic_commit` was demoted to advisory (issue #5241, ADR-100 item 2), then deleted outright (ADR-100, issue #5241). `.claude/rules/universal.md` SHOULD 5 stays as author guidance, not a measured number |
-| Commits per PR | No hook or CI step measures this | `scripts/validation/pr_commit_count.py` and the `pr-validation.yml` steps that read its status were deleted (ADR-100, issue #5241). The former 20/40-commit block and its `commit-limit-bypass` human-only label were removed earlier (issue #5233): that block required local, pre-push verification of a GitHub label that a sandboxed harness cannot always perform, and the only way through an unverifiable-but-satisfied gate was an expensive stacked-branch workaround |
+| Commits per PR | No hook or CI step measures this | `scripts/validation/pr_commit_count.py` and the `pr-validation.yml` steps that read its status were deleted (ADR-100, issue #5241). The former 20/40-commit block and its `commit-limit-bypass` human-only label were removed earlier (issue #5233): that block required local, pre-push verification of a GitHub label that a sandboxed harness cannot always perform, and the only way through an unverifiable-but-satisfied gate was an expensive stacked-branch workaround <!-- orphan-ref-ignore --> |
 | Lint scope | Changed files only | PR #908 fix: scope `markdownlint --fix` to `git diff --name-only` output, never `**/*.md` |
 
 <!-- citation-freshness: ignore -- retro line 6 holds the 228-comment stats; the checker anchors on the later markdownlint span -->

@@ -103,6 +103,17 @@ class SemanticNode:
         """Classify the semantic zone based on ΔS using default thresholds."""
         return classify_zone(self.delta_s)
 
+    def zone_with_thresholds(self, thresholds: ZoneThresholds) -> SemanticZone:
+        """Classify the semantic zone based on ΔS with custom thresholds.
+
+        Args:
+            thresholds: Custom zone thresholds
+
+        Returns:
+            SemanticZone classification
+        """
+        return classify_zone(self.delta_s, thresholds)
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {

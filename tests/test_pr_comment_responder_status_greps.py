@@ -21,6 +21,14 @@ pending and the gate clears an artifact that describes nothing. Every gate now
 also compares ``TOTAL`` against ``$TOTAL_COMMENTS``, the API count Phase 1
 recorded, and blocks when the two disagree.
 
+Aggregate counts alone still fail open (issue #5367). One ``### Comment``
+block can carry two terminal status lines while another carries none, and the
+totals still match. One comment can be deleted while another is posted, and the
+total never moves. Every gate now also reconciles per comment ID: each block
+must hold exactly one status line, and the map's IDs must equal the sorted API
+IDs that Phase 1 recorded in ``comment_ids.txt``. Phase 8.3 diffs the map
+against each fresh payload by ID instead of comparing counts.
+
 The counting tests read the quoted argument out of the carrier and hand it to a
 real ``grep -Ec`` subprocess against a rendered comment map. A Python ``re``
 mirror cannot catch a shell-side typo, because the engines disagree silently:
@@ -175,14 +183,26 @@ COUNT_RECORD_STEPS: tuple[str, ...] = (
     'printf \'%s\\n\' "$TOTAL_COMMENTS" > "$COUNT_FILE"',
 )
 
+# Phase 1 also records the sorted API comment IDs beside the count. Counts
+# cannot see a duplicate-plus-missing or delete-plus-add pair; the IDs can.
+IDS_ARTIFACT_PATH = ".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+IDS_RECORD_FAILURE = '|| { echo "[BLOCKED] Cannot record comment IDs from the payload"; exit 1; }'
+IDS_RECORD_START = f'IDS_FILE="{IDS_ARTIFACT_PATH}"'
+
 # Phase 8.3 re-fetches after a push and appends the comments that arrived since
 # Phase 1 to the map with status ``[NEW]``. The recorded count is how many
 # status fields the map should carry, so it has to move with that append. Left
 # at the Phase 1 snapshot it is permanently smaller than the map, and the
 # API-count invariant below blocks every later pass on correct work.
 RECHECK_SECTION_KEY = "Phase 8.3"
-RECHECK_BLOCK_OPEN = 'if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then'
+RECHECK_BLOCK_OPEN = 'if [ -n "$ADDED_IDS" ]; then'
 COUNT_REFRESH_STEP = 'printf \'%s\\n\' "$NEW_COMMENTS" > "$COUNT_FILE"'
+IDS_REFRESH_STEP = "printf '%s\\n' \"$RECHECK_IDS\" | sed '/^$/d' > \"$IDS_FILE\""
+# The ID diff that replaced the count comparison (issue #5367). A count only
+# moves when a comment is added, so a delete-plus-add pair left the old branch
+# unentered and the map kept the deleted comment's stale terminal row.
+RECHECK_RECONCILE_START = "RECHECK_IDS=$("
+RECHECK_REMOVED_BLOCK = 'if [ -n "$REMOVED_IDS" ]; then'
 
 # Phase 8.3's re-fetch, and the two guards that keep its failures from reading
 # as "no new comments arrived".
@@ -296,6 +316,44 @@ API_COUNT_INVARIANT = (
     "fi"
 )
 
+# The per-ID reconciliation (issue #5367). Read-time, in every counting fence:
+# it blocks unless each ``### Comment`` block holds exactly one status line and
+# the map's IDs equal the IDs Phase 1 recorded. Aggregate counts cannot see a
+# duplicate-plus-missing pair or a delete-plus-add pair, because both net to the
+# same totals. Quoted verbatim so a fence that drops or edits it fails here.
+RECONCILE_STEP = (
+    "# Reconcile per comment ID, not in aggregate. Matching counts cannot tell one\n"
+    "# block with two status lines plus one block with none from two clean blocks,\n"
+    "# or a deleted comment plus a new one from no change at all. Phase 1 recorded\n"
+    "# the API comment IDs beside the count. Block when any block lacks exactly one\n"
+    "# status line, or when the map's IDs differ from the recorded ones. This runs\n"
+    "# at read time, in every gate, because Gate 3 guards only the writes it makes: a\n"
+    "# hand edit or an external delete-plus-add never passes through it.\n"
+    f'IDS_FILE="{IDS_ARTIFACT_PATH}"\n'
+    'if [ ! -f "$IDS_FILE" ]; then\n'
+    '  echo "[BLOCKED] API comment IDs not recorded: $IDS_FILE"\n'
+    "  exit 1\n"
+    "fi\n"
+    "BLOCK_FAULTS=$(awk '\n"
+    '  function close_block() { if (id != "" && n != 1) printf "%s(%d) ", id, n }\n'
+    "  /^### Comment / { close_block(); id = $3; n = 0; next }\n"
+    '  /^\\*\\*Status\\*\\*: / { if (id == "") stray++; else n++ }\n'
+    '  END { close_block(); if (stray) printf "unowned(%d) ", stray }\n'
+    '\' "$COMMENT_MAP") || '
+    '{ echo "[BLOCKED] Cannot read comment blocks: $COMMENT_MAP"; exit 1; }\n'
+    'if [ -n "$BLOCK_FAULTS" ]; then\n'
+    '  echo "[BLOCKED] Comment blocks without exactly one status line: $BLOCK_FAULTS"\n'
+    "  exit 1\n"
+    "fi\n"
+    "if ! ID_DIFF=$(diff <(awk '/^### Comment / { print $3 }' \"$COMMENT_MAP\" "
+    '| LC_ALL=C sort) <(LC_ALL=C sort "$IDS_FILE")); then\n'
+    '  echo "[BLOCKED] Comment map IDs differ from the API IDs '
+    '(< map only, > API only):"\n'
+    '  echo "$ID_DIFF"\n'
+    "  exit 1\n"
+    "fi"
+)
+
 # Every step a fence that counts the comment map must publish, in this order.
 REQUIRED_DERIVATION_STEPS: tuple[str, ...] = (
     MAP_EXISTS_GUARD,
@@ -304,6 +362,7 @@ REQUIRED_DERIVATION_STEPS: tuple[str, ...] = (
     FAIL_CLOSED_DERIVATION,
     COUNT_READ_BLOCK,
     API_COUNT_INVARIANT,
+    RECONCILE_STEP,
 )
 
 # The blocking half of a gate: the check that turns a nonzero pending count into
@@ -387,21 +446,36 @@ INDEX_STATUS_TOKEN_RE = re.compile(
 # numbers issues and pull requests from 1, so neither can ever resolve. The
 # terminal pattern reads ``#[1-9][0-9]*``; the older ``#[0-9]+`` admitted both
 # and let deferred work go terminal against a tracking issue nobody can open.
+#
+# Each status sits under its own ``### Comment`` header, the block shape the
+# per-ID reconciliation reads (issue #5367). The flat list this replaced had no
+# headers, so block structure was invisible to every test that read it.
+SAMPLE_STATUS_VALUES: tuple[str, ...] = (
+    "[NEW]",
+    "[ACKNOWLEDGED]",
+    "[COMPLETE]",
+    "[WONTFIX]",
+    "[DUPLICATE]",
+    "[DEFERRED] Refs #4054",
+    "[COMPLETE]  ",
+    "[DEFERRED]",
+    "[BOGUS]",
+    "[COMPLETE]oops",
+    "[DEFERRED] Refs #4054garbage",
+    "[DEFERRED] Refs #0",
+    "[DEFERRED] Refs #007",
+)
+SAMPLE_FIRST_COMMENT_ID = 200
 SAMPLE_COMMENT_MAP_LINES: tuple[str, ...] = (
     "| 123 | @reviewer | review | file.py#12 | TBD | - |",
-    "**Status**: [NEW]",
-    "**Status**: [ACKNOWLEDGED]",
-    "**Status**: [COMPLETE]",
-    "**Status**: [WONTFIX]",
-    "**Status**: [DUPLICATE]",
-    "**Status**: [DEFERRED] Refs #4054",
-    "**Status**: [COMPLETE]  ",
-    "**Status**: [DEFERRED]",
-    "**Status**: [BOGUS]",
-    "**Status**: [COMPLETE]oops",
-    "**Status**: [DEFERRED] Refs #4054garbage",
-    "**Status**: [DEFERRED] Refs #0",
-    "**Status**: [DEFERRED] Refs #007",
+    *(
+        line
+        for index, status in enumerate(SAMPLE_STATUS_VALUES)
+        for line in (
+            f"### Comment {SAMPLE_FIRST_COMMENT_ID + index} (@reviewer)",
+            f"**Status**: {status}",
+        )
+    ),
 )
 SAMPLE_TOTAL_STATUS_LINES = 13
 SAMPLE_TERMINAL_LINES = 5
@@ -432,6 +506,56 @@ COMPLETE_COMMENT_MAP_LINES: tuple[str, ...] = (
     "**Status**: [DEFERRED] Refs #4054",
 )
 
+# The IDs Phase 1 records for the three-comment fixtures above.
+API_COMMENT_IDS: tuple[int, ...] = (123, 124, 125)
+
+# Duplicate-plus-missing (issue #5367). Comment 123 carries two terminal status
+# lines and comment 124 carries none. TOTAL is 3, TERMINAL is 3, and the API
+# reported 3, so every aggregate check clears. Only the per-block count sees it.
+DUPLICATE_PLUS_MISSING_MAP_LINES: tuple[str, ...] = (
+    "### Comment 123 (@reviewer)",
+    "**Status**: [COMPLETE]",
+    "**Status**: [WONTFIX]",
+    "### Comment 124 (@reviewer)",
+    "### Comment 125 (@reviewer)",
+    "**Status**: [DEFERRED] Refs #4054",
+)
+DUPLICATE_PLUS_MISSING_FAULTS = "123(2) 124(0)"
+
+# A status line above the first header belongs to no comment. It still counts
+# toward TOTAL, so the totals match while one real block has no status.
+UNOWNED_STATUS_MAP_LINES: tuple[str, ...] = (
+    "**Status**: [COMPLETE]",
+    "### Comment 123 (@reviewer)",
+    "**Status**: [COMPLETE]",
+    "### Comment 124 (@reviewer)",
+    "### Comment 125 (@reviewer)",
+    "**Status**: [WONTFIX]",
+)
+
+# Delete-plus-add (issue #5367), seen from the gates. Comment 125 was deleted
+# upstream and comment 126 posted, so the API still reports 3 and every block
+# is well formed. The map's IDs no longer equal the recorded ones.
+DELETE_PLUS_ADD_MAP_LINES: tuple[str, ...] = (
+    "### Comment 123 (@reviewer)",
+    "**Status**: [COMPLETE]",
+    "### Comment 124 (@reviewer)",
+    "**Status**: [WONTFIX]",
+    "### Comment 126 (@reviewer)",
+    "**Status**: [DEFERRED] Refs #4054",
+)
+
+# The same comment listed twice with one status each. Counts match, blocks are
+# well formed, and the ID set holds 123 twice and never 125.
+REPEATED_ID_MAP_LINES: tuple[str, ...] = (
+    "### Comment 123 (@reviewer)",
+    "**Status**: [COMPLETE]",
+    "### Comment 123 (@reviewer)",
+    "**Status**: [WONTFIX]",
+    "### Comment 125 (@reviewer)",
+    "**Status**: [DEFERRED] Refs #4054",
+)
+
 # The comments the API reports on a second pass: the three Phase 1 recorded,
 # plus the bot answer that arrived after the push. The four-comment map is NOT
 # written here. Building it by hand is what let the earlier version of these
@@ -450,6 +574,14 @@ SECOND_PASS_COMMENTS: tuple[tuple[int, str], ...] = FIRST_PASS_COMMENTS + (
 SECOND_PASS_COMMENT_COUNT = len(SECOND_PASS_COMMENTS)
 APPENDED_HEADING = f"### Comment {NEW_COMMENT_ID} (@{NEW_COMMENT_AUTHOR})"
 APPENDED_STATUS_LINE = "**Status**: [NEW]"
+
+# Phase 8.3 delete-plus-add: comment 125 is gone and comment 126 is new, so the
+# payload still reports three. A count comparison sees no change.
+DELETE_PLUS_ADD_COMMENTS: tuple[tuple[int, str], ...] = (
+    (123, "reviewer"),
+    (124, "reviewer"),
+    (NEW_COMMENT_ID, NEW_COMMENT_AUTHOR),
+)
 
 # The same three comments with one still unworked. All three status fields are
 # present, so the API-count invariant clears and the gate's blocking check on
@@ -649,6 +781,8 @@ def _recheck_script(
     with_append: bool = True,
     with_verify: bool = True,
     with_refresh: bool = True,
+    with_ids_refresh: bool = True,
+    with_reconcile: bool = True,
 ) -> str:
     """Lift Phase 8.3's re-fetch, count read, and new-comment branch out verbatim.
 
@@ -666,8 +800,11 @@ def _recheck_script(
     guards added ahead of the opener close at column zero too, which is why the
     search starts at the opener rather than at the top of the slice.
 
-    ``with_fetch_guards``, ``with_append``, ``with_verify``, and
-    ``with_refresh`` are the negative controls. Dropping the fetch guards
+    ``with_fetch_guards``, ``with_append``, ``with_verify``, ``with_refresh``,
+    ``with_ids_refresh``, and ``with_reconcile`` are the negative controls.
+    Dropping the reconcile removes the ID read and the removed-ID block, so
+    nothing sets ``ADDED_IDS`` and the branch is never entered. That is the
+    count-only shape: a delete-plus-add pair reads as no change. Dropping the fetch guards
     reproduces the shape PR #5342 shipped: a failed or malformed re-fetch reads
     as "no new comments" and the pass continues. Dropping the append reproduces
     the earlier one: the recorded count advances while the map never gains the
@@ -698,6 +835,14 @@ def _recheck_script(
         "Phase 8.3 appends new comments to the map without refreshing the "
         "recorded count, so Gate 4's API-count invariant blocks every later pass"
     )
+    assert IDS_REFRESH_STEP in fence, (
+        "Phase 8.3 appends new comments to the map without refreshing the "
+        "recorded IDs, so Gate 4's per-ID reconciliation blocks every later pass"
+    )
+    assert RECHECK_RECONCILE_START in fence and RECHECK_REMOVED_BLOCK in fence, (
+        "Phase 8.3 compares counts only, so a deleted comment plus a new one "
+        "leaves the total unchanged and the branch never runs"
+    )
     start = fence.index(RECHECK_PRODUCER_LINE)
     end = fence.index(BLOCK_END, fence.index(RECHECK_BLOCK_OPEN)) + len(BLOCK_END)
     body = fence[start:end]
@@ -709,6 +854,12 @@ def _recheck_script(
         body = body.replace(APPEND_VERIFY_STEP, ":")
     if not with_refresh:
         body = body.replace(COUNT_REFRESH_STEP, ":")
+    if not with_ids_refresh:
+        body = body.replace(IDS_REFRESH_STEP, ":")
+    if not with_reconcile:
+        reconcile_start = body.index(RECHECK_RECONCILE_START)
+        reconcile_end = body.index(RECHECK_BLOCK_OPEN)
+        body = body[:reconcile_start] + ":\n\n" + body[reconcile_end:]
     return f"SCRIPTS_DIR={shlex.quote(str(scripts_dir))}\n{body}\n"
 
 
@@ -721,18 +872,41 @@ def _counting_fences(text: str) -> list[tuple[str, str]]:
     ]
 
 
-def _record_api_count(work_dir: Path, value: object | None) -> Path:
+def _record_comment_ids(work_dir: Path, ids: Sequence[int] | None) -> Path:
+    """Write the sorted ID artifact Phase 1 records, or leave it absent.
+
+    Sorted as the carrier sorts it (``LC_ALL=C sort``), so byte order and not
+    numeric order decides, and the fixture cannot hide a sort mismatch.
+    """
+    ids_file = work_dir / IDS_ARTIFACT_PATH
+    if ids is None:
+        return ids_file
+    ids_file.parent.mkdir(parents=True, exist_ok=True)
+    ids_file.write_text("".join(f"{item}\n" for item in sorted(map(str, ids))), encoding="utf-8")
+    return ids_file
+
+
+def _record_api_count(
+    work_dir: Path,
+    value: object | None,
+    ids: Sequence[int] | None = API_COMMENT_IDS,
+) -> Path:
     """Write the count artifact Phase 1 records, or leave it absent.
 
     The carrier hardcodes the path, so the test creates it under the working
     directory the derivation runs in rather than injecting a variable. Passing
     ``None`` omits the file, which is the missing-artifact case.
+
+    Phase 1 records the comment IDs beside the count, so a recorded count brings
+    the three fixture IDs with it. ``ids`` overrides that, and ``None`` leaves
+    the ID artifact absent.
     """
     count_file = work_dir / COUNT_ARTIFACT_PATH
     if value is None:
         return count_file
     count_file.parent.mkdir(parents=True, exist_ok=True)
     count_file.write_text(f"{value}\n", encoding="utf-8")
+    _record_comment_ids(work_dir, ids)
     return count_file
 
 
@@ -742,6 +916,7 @@ def _derivation_script(
     *,
     with_invariant: bool = True,
     with_count_read: bool = True,
+    with_reconcile: bool = True,
 ) -> str:
     """Lift a fence's counting steps out verbatim and make them runnable.
 
@@ -751,8 +926,9 @@ def _derivation_script(
     ``COMMENT_MAP`` is injected; the count artifact is read from the path the
     carrier publishes, relative to the working directory the caller runs in.
 
-    ``with_invariant`` and ``with_count_read`` exist for the negative controls:
-    removing either step must let a bad comment map clear the gate.
+    ``with_invariant``, ``with_count_read``, and ``with_reconcile`` exist for
+    the negative controls: removing any step must let a bad comment map clear
+    the gate.
     """
     assert TOTAL_ASSIGNMENT_TEXT in fence, "fence publishes no canonical TOTAL assignment"
     assert API_COUNT_INVARIANT in fence, (
@@ -763,6 +939,10 @@ def _derivation_script(
         "fence publishes no count-artifact read, so $TOTAL_COMMENTS is unset "
         "and the invariant below it never fires"
     )
+    assert RECONCILE_STEP in fence, (
+        "fence publishes no per-ID reconciliation, so a duplicate status plus a "
+        "missing one, or a delete plus an add, nets to matching counts and clears"
+    )
     start = fence.index(TOTAL_ASSIGNMENT_TEXT)
     invariant_end = fence.index(API_COUNT_INVARIANT) + len(API_COUNT_INVARIANT)
     body = fence[start : _pending_block_end(fence, invariant_end)]
@@ -770,6 +950,8 @@ def _derivation_script(
         body = body.replace(API_COUNT_INVARIANT, ":")
     if not with_count_read:
         body = body.replace(COUNT_READ_BLOCK, ":")
+    if not with_reconcile:
+        body = body.replace(RECONCILE_STEP, ":")
     body = GH_GRAPHQL_ASSIGNMENT_RE.sub(r"\1=0", body)
     return (
         f"COMMENT_MAP={shlex.quote(str(comment_map))}\n"
@@ -829,6 +1011,23 @@ def _count_record_fence(path: Path) -> str:
             end = body.index(COUNT_RECORD_STEPS[2]) + len(COUNT_RECORD_STEPS[2])
             return body[start:end]
     raise AssertionError(f"{_carrier_id(path)} never records the API comment count")
+
+
+def _phase_one_record_fences(path: Path) -> list[str]:
+    """Both Phase 1 recording slices, count and IDs together, ready to run.
+
+    One slice per retrieval path, cut from ``COUNT_FILE=`` through the ID
+    recorder's failure guard. The retrieval calls ahead of it are left out; the
+    caller supplies the variables they would have set.
+    """
+    slices: list[str] = []
+    for _, body in _bash_fences(path.read_text(encoding="utf-8")):
+        if COUNT_RECORD_STEPS[2] not in body:
+            continue
+        start = body.index(COUNT_RECORD_STEPS[0])
+        end = body.index(IDS_RECORD_FAILURE, start) + len(IDS_RECORD_FAILURE)
+        slices.append(body[start:end])
+    return slices
 
 
 def _comment_index_rows(text: str) -> list[str]:
@@ -1277,8 +1476,11 @@ def test_without_the_count_read_an_unset_variable_clears_the_gate(tmp_path: Path
     count_file = _record_api_count(tmp_path, None)
     assert not count_file.exists()
 
+    # The per-ID reconciliation also blocks here (no ID artifact was recorded),
+    # so it is stripped too; left in it would mask the fail-open under control.
     without = _run_derivation(
-        _derivation_script(fence, comment_map, with_count_read=False), cwd=tmp_path
+        _derivation_script(fence, comment_map, with_count_read=False, with_reconcile=False),
+        cwd=tmp_path,
     )
     shipped = _run_derivation(_derivation_script(fence, comment_map), cwd=tmp_path)
 
@@ -1307,8 +1509,11 @@ def test_without_the_invariant_a_stripped_map_clears_the_gate(tmp_path: Path) ->
     comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
     _record_api_count(tmp_path, API_COMMENT_COUNT)
 
+    # A block with no status line is also a reconciliation fault, so strip it
+    # too; left in it would block the stripped map and mask this control.
     without = _run_derivation(
-        _derivation_script(fence, comment_map, with_invariant=False), cwd=tmp_path
+        _derivation_script(fence, comment_map, with_invariant=False, with_reconcile=False),
+        cwd=tmp_path,
     )
     with_invariant = _run_derivation(_derivation_script(fence, comment_map), cwd=tmp_path)
 
@@ -1317,37 +1522,103 @@ def test_without_the_invariant_a_stripped_map_clears_the_gate(tmp_path: Path) ->
     assert with_invariant.returncode == 1
 
 
+# What each retrieval path hands the recorder. The preferred path holds one
+# payload with a ``Comments`` list keyed ``Id``. The raw ``gh`` path holds two
+# arrays keyed ``id``, review and issue comments apart, and the IDs come from
+# their union.
+RAW_REVIEW_COMMENTS = json.dumps([{"id": 125}, {"id": 123}])
+RAW_ISSUE_COMMENTS = json.dumps([{"id": 124}])
+
+
+def _phase_one_inputs(record: str) -> str:
+    """The variables the retrieval calls ahead of a recording slice would set."""
+    if "$ALL_REVIEW_COMMENTS" in record:
+        return (
+            f"ALL_REVIEW_COMMENTS={shlex.quote(RAW_REVIEW_COMMENTS)}\n"
+            f"ALL_ISSUE_COMMENTS={shlex.quote(RAW_ISSUE_COMMENTS)}\n"
+        )
+    return f"COMMENTS={shlex.quote(_recheck_payload(FIRST_PASS_COMMENTS))}\n"
+
+
 @requires_bash
+@requires_jq
+@pytest.mark.parametrize("retrieval_path", (0, 1), ids=("preferred", "raw-gh"))
 @pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
-def test_the_recorded_count_reaches_the_gate_that_reads_it(path: Path, tmp_path: Path) -> None:
+def test_the_recorded_count_and_ids_reach_the_gate_that_reads_them(
+    path: Path, retrieval_path: int, tmp_path: Path
+) -> None:
     """Run Phase 1's writer and Gate 4's reader against one filesystem.
 
     Comparing the two published path literals would only prove the document is
     internally consistent. Executing the writer, then the reader, in the same
-    working directory proves the artifact the workflow creates is the artifact
-    the gate opens, which is the whole point of moving the count out of a
-    shell variable.
+    working directory proves the artifacts the workflow creates are the
+    artifacts the gate opens, which is the whole point of moving the count and
+    the IDs out of shell variables. Both retrieval paths run: a carrier that
+    records IDs on one path only blocks every gate for anyone on the other.
     """
-    record = _count_record_fence(path)
+    record = _phase_one_record_fences(path)[retrieval_path]
     comment_map = _render_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     count_file = _record_api_count(tmp_path, None)
     assert not count_file.exists(), "Phase 1 must be the step that creates the artifact"
 
-    written = _run_derivation(f"TOTAL_COMMENTS={API_COMMENT_COUNT}\n{record}\n", cwd=tmp_path)
+    written = _run_derivation(
+        f"TOTAL_COMMENTS={API_COMMENT_COUNT}\n{_phase_one_inputs(record)}{record}\n",
+        cwd=tmp_path,
+    )
     assert written.returncode == 0, (
-        f"{_carrier_id(path)} Phase 1 failed to record the count: {written.stderr!r}"
+        f"{_carrier_id(path)} Phase 1 failed to record the count and IDs: "
+        f"{written.stdout!r} {written.stderr!r}"
     )
     assert count_file.exists(), (
         f"{_carrier_id(path)} Phase 1 wrote no artifact at {COUNT_ARTIFACT_PATH}"
+    )
+    ids_file = tmp_path / IDS_ARTIFACT_PATH
+    assert ids_file.read_text(encoding="utf-8").split() == [str(i) for i in API_COMMENT_IDS], (
+        f"{_carrier_id(path)} Phase 1 recorded the wrong IDs at {IDS_ARTIFACT_PATH}"
     )
 
     result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
 
     assert result.returncode == 0, (
-        f"{_carrier_id(path)} Gate 4 rejected the count Phase 1 recorded: "
+        f"{_carrier_id(path)} Gate 4 rejected the count and IDs Phase 1 recorded: "
         f"exit {result.returncode}, stdout {result.stdout!r}"
     )
     assert "PENDING=0" in result.stdout
+
+
+@requires_bash
+@requires_jq
+@pytest.mark.parametrize("retrieval_path", (0, 1), ids=("preferred", "raw-gh"))
+def test_the_id_recorder_blocks_on_an_unreadable_payload(
+    retrieval_path: int, tmp_path: Path
+) -> None:
+    """A payload jq cannot read must stop Phase 1, not record an empty ID list.
+
+    An empty list written over a real PR would make every gate block on a map
+    the recorder never saw, and a gate that cleared against it would be
+    comparing the map to nothing.
+    """
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    record = _phase_one_record_fences(path)[retrieval_path]
+    unreadable = "ALL_REVIEW_COMMENTS='not json'\nALL_ISSUE_COMMENTS='[]'\n"
+    if retrieval_path == 0:
+        unreadable = "COMMENTS='not json'\n"
+
+    result = _run_derivation(
+        f"TOTAL_COMMENTS={API_COMMENT_COUNT}\n{unreadable}{record}\n", cwd=tmp_path
+    )
+
+    assert result.returncode == 1
+    assert "[BLOCKED] Cannot record comment IDs from the payload" in result.stdout
+
+
+def test_the_sample_map_holds_exactly_one_status_per_block() -> None:
+    """The rebuilt fixture must be the block shape the reconciliation reads."""
+    headers = [line for line in SAMPLE_COMMENT_MAP_LINES if line.startswith("### Comment ")]
+    statuses = [line for line in SAMPLE_COMMENT_MAP_LINES if line.startswith("**Status**: ")]
+
+    assert len(headers) == len(statuses) == SAMPLE_TOTAL_STATUS_LINES
+    assert len(set(headers)) == len(headers), "every sample block needs its own comment ID"
 
 
 def _work_appended_row_to_terminal(comment_map: Path) -> None:
@@ -1400,7 +1671,7 @@ def test_phase_eight_three_appends_the_new_comment_then_the_gate_clears(
         f"exit {refreshed.returncode}, stdout {refreshed.stdout!r}, "
         f"stderr {refreshed.stderr!r}"
     )
-    assert "[NEW COMMENTS] 1 new comments detected" in refreshed.stdout
+    assert f"[NEW COMMENTS] New in the API: {NEW_COMMENT_ID}" in refreshed.stdout
 
     after = comment_map.read_text(encoding="utf-8")
     assert APPENDED_HEADING in after, (
@@ -1415,6 +1686,10 @@ def test_phase_eight_three_appends_the_new_comment_then_the_gate_clears(
     assert count_file.read_text(encoding="utf-8").strip() == str(SECOND_PASS_COMMENT_COUNT), (
         f"{_carrier_id(path)} left the recorded count behind the appended map"
     )
+    ids_file = tmp_path / IDS_ARTIFACT_PATH
+    assert ids_file.read_text(encoding="utf-8").split() == [
+        str(comment_id) for comment_id, _ in SECOND_PASS_COMMENTS
+    ], f"{_carrier_id(path)} left the recorded IDs behind the appended map"
 
     _work_appended_row_to_terminal(comment_map)
     result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
@@ -1503,6 +1778,9 @@ def test_the_refresh_is_refused_when_the_append_does_not_land(tmp_path: Path) ->
     assert count_file.read_text(encoding="utf-8").strip() == str(API_COMMENT_COUNT), (
         "the refresh must not run once the verification blocks"
     )
+    assert (tmp_path / IDS_ARTIFACT_PATH).read_text(encoding="utf-8").split() == [
+        str(comment_id) for comment_id in API_COMMENT_IDS
+    ], "the ID refresh must not run once the verification blocks"
 
 
 @requires_bash
@@ -1543,6 +1821,137 @@ def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> No
         f"but the gate exited {result.returncode}: {result.stdout!r}"
     )
     assert "[BLOCKED] Comment map carries 4 status fields, API reported 3" in result.stdout
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_phase_eight_three_blocks_a_delete_plus_an_add(path: Path, tmp_path: Path) -> None:
+    """One comment deleted and a different one posted between two polls.
+
+    The payload still reports three, the recorded count is three, and the old
+    ``-gt`` comparison never entered its branch. The map kept comment 125's
+    terminal row and never learned about 126. The ID diff has to stop the pass.
+    """
+    count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    before = comment_map.read_text(encoding="utf-8")
+    payload = _recheck_payload(DELETE_PLUS_ADD_COMMENTS)
+    assert json.loads(payload)["TotalComments"] == API_COMMENT_COUNT
+    scripts_dir = _install_recheck_producer(tmp_path, payload)
+
+    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} Phase 8.3 read a delete-plus-add pair as no new "
+        f"comments: exit {result.returncode}, stdout {result.stdout!r}, "
+        f"stderr {result.stderr!r}"
+    )
+    assert (
+        "[BLOCKED] Comments in the map are gone from the API: 125 (new in the API: 126)"
+        in result.stdout
+    )
+    assert comment_map.read_text(encoding="utf-8") == before, "a blocked pass must not edit the map"
+    assert count_file.read_text(encoding="utf-8").strip() == str(API_COMMENT_COUNT)
+    assert (tmp_path / IDS_ARTIFACT_PATH).read_text(encoding="utf-8").split() == [
+        str(i) for i in API_COMMENT_IDS
+    ]
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_without_the_reconcile_a_delete_plus_an_add_reads_as_no_new_comments(
+    path: Path, tmp_path: Path
+) -> None:
+    """Negative control: the count-only shape, reproduced exactly.
+
+    Remove only the ID diff and the same payload exits 0 with no diagnostic, no
+    append, and the deleted comment's row still in the map. That is the silent
+    "no new comments" the issue describes.
+    """
+    count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    before = comment_map.read_text(encoding="utf-8")
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(DELETE_PLUS_ADD_COMMENTS))
+
+    result = _run_derivation(
+        _recheck_script(_recheck_fence(path), scripts_dir, with_reconcile=False),
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 0
+    assert "[BLOCKED]" not in result.stdout
+    assert "[NEW COMMENTS]" not in result.stdout
+    assert comment_map.read_text(encoding="utf-8") == before
+    assert "### Comment 125 " in before
+    assert count_file.read_text(encoding="utf-8").strip() == str(API_COMMENT_COUNT)
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+def test_phase_eight_three_blocks_a_pure_deletion(tmp_path: Path) -> None:
+    """Edge: a comment gone and nothing added is still a structural change."""
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS[:2]))
+
+    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+
+    assert result.returncode == 1
+    assert (
+        "[BLOCKED] Comments in the map are gone from the API: 125 (new in the API: none)"
+        in result.stdout
+    )
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+def test_phase_eight_three_blocks_when_the_map_is_missing(tmp_path: Path) -> None:
+    """The map check now runs before the ID diff, on every pass."""
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
+
+    result = _run_derivation(_recheck_script(_recheck_fence(path), scripts_dir), cwd=tmp_path)
+
+    assert result.returncode == 1
+    assert "[BLOCKED] Comment map not found" in result.stdout
+
+
+@requires_bash
+@requires_jq
+@requires_python3
+def test_without_the_ids_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> None:
+    """Negative control for the ID refresh, parallel to the count refresh.
+
+    Phase 8.3 appends comment 126 and moves the count to four, but the ID list
+    stays at three. Gate 4's reconciliation then blocks a fully worked second
+    pass, because the map holds an ID the recorded list has never heard of.
+    """
+    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    _record_api_count(tmp_path, API_COMMENT_COUNT)
+    comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
+    scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
+
+    stale = _run_derivation(
+        _recheck_script(_recheck_fence(path), scripts_dir, with_ids_refresh=False),
+        cwd=tmp_path,
+    )
+    assert stale.returncode == 0
+    assert APPENDED_HEADING in comment_map.read_text(encoding="utf-8")
+
+    _work_appended_row_to_terminal(comment_map)
+    result = _run_derivation(_derivation_script(_gate_four_fence(path), comment_map), cwd=tmp_path)
+
+    assert result.returncode == 1
+    assert "[BLOCKED] Comment map IDs differ from the API IDs" in result.stdout
+    assert f"< {NEW_COMMENT_ID}" in result.stdout
 
 
 # The three ways the re-fetch can come back unusable, each paired with the
@@ -1631,6 +2040,10 @@ def test_without_the_fetch_guards_a_broken_recheck_reads_as_no_new_comments(
     with no diagnostic and no append, which is a pass reporting no new comments
     on a re-fetch that never returned a count. If these assertions did not hold,
     the positive test above would prove nothing about the guards.
+
+    The ID reconciliation reads the same payload and blocks on a broken one too,
+    so the control strips it as well. Left in, it would mask the fail-open this
+    control exists to reproduce.
     """
     path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
     _record_api_count(tmp_path, API_COMMENT_COUNT)
@@ -1638,7 +2051,12 @@ def test_without_the_fetch_guards_a_broken_recheck_reads_as_no_new_comments(
     scripts_dir = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
 
     result = _run_derivation(
-        _recheck_script(_recheck_fence(path), scripts_dir, with_fetch_guards=False),
+        _recheck_script(
+            _recheck_fence(path),
+            scripts_dir,
+            with_fetch_guards=False,
+            with_reconcile=False,
+        ),
         cwd=tmp_path,
     )
 
@@ -1701,6 +2119,10 @@ def test_phase_one_records_the_api_count_on_every_retrieval_path(path: Path) -> 
     for body in records:
         for step in COUNT_RECORD_STEPS:
             assert step in body, f"{_carrier_id(path)} records the count without {step!r}"
+        assert IDS_RECORD_START in body and IDS_RECORD_FAILURE in body, (
+            f"{_carrier_id(path)} records the count without the comment IDs, so "
+            f"every gate's per-ID reconciliation blocks for lack of an artifact"
+        )
 
 
 @pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
@@ -1838,6 +2260,194 @@ def test_skill_entrypoint_completion_criteria_name_every_terminal_status(
             f"{_carrier_id(path)} completion criteria omit {status}, so an "
             f"agent reading the entrypoint gets criteria the gates disagree with"
         )
+
+
+# The per-ID reconciliation (issue #5367), executed by the shell the carriers
+# publish it for. Each fixture nets to the aggregate totals every older check
+# accepts, so only the per-block count or the ID diff can stop it.
+
+RECONCILED_GATES: tuple[str, ...] = GATE_SECTION_KEYS
+
+
+def _gate_result(
+    path: Path,
+    section: str,
+    lines: Sequence[str],
+    tmp_path: Path,
+    *,
+    count: int = API_COMMENT_COUNT,
+    ids: Sequence[int] | None = API_COMMENT_IDS,
+    with_reconcile: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    comment_map = _render_comment_map(tmp_path, lines)
+    _record_api_count(tmp_path, count, ids)
+    script = _derivation_script(
+        _gate_fence(path, section), comment_map, with_reconcile=with_reconcile
+    )
+    return _run_derivation(script, cwd=tmp_path)
+
+
+@requires_bash
+@requires_grep
+@pytest.mark.parametrize("section", RECONCILED_GATES)
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_duplicate_status_plus_a_missing_one_blocks_the_gate(
+    path: Path, section: str, tmp_path: Path
+) -> None:
+    """Comment 123 carries two terminal statuses and 124 carries none.
+
+    The aggregate totals read three of three, so ``TOTAL``, ``TERMINAL``, and the
+    API count all agree and ``PENDING`` is zero. Comment 124's unresolved state
+    would drop silently. Only the per-block count sees it.
+    """
+    comment_map = _render_comment_map(tmp_path, DUPLICATE_PLUS_MISSING_MAP_LINES)
+    assert _grep_count(TOTAL_ASSIGNMENT_RE.findall(TOTAL_ASSIGNMENT_TEXT)[0], comment_map) == 3
+    assert _grep_count(TERMINAL_PATTERN, comment_map) == API_COMMENT_COUNT
+
+    result = _gate_result(path, section, DUPLICATE_PLUS_MISSING_MAP_LINES, tmp_path)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} {section} cleared a map with a duplicate status "
+        f"and a missing one: exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert (
+        f"[BLOCKED] Comment blocks without exactly one status line: "
+        f"{DUPLICATE_PLUS_MISSING_FAULTS}" in result.stdout
+    )
+    assert "PENDING=" not in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("section", RECONCILED_GATES)
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_without_the_reconcile_a_duplicate_plus_missing_status_clears_the_gate(
+    path: Path, section: str, tmp_path: Path
+) -> None:
+    """Negative control: the reconciliation is what catches the pair.
+
+    Strip only that step and the shipped aggregate checks read three of three
+    terminal, so the gate exits 0 with zero pending. This is the fail-open
+    reported on PR #5342, reproduced against the real shell.
+    """
+    result = _gate_result(
+        path, section, DUPLICATE_PLUS_MISSING_MAP_LINES, tmp_path, with_reconcile=False
+    )
+
+    assert result.returncode == 0, (
+        f"{_carrier_id(path)} {section} blocked without the reconciliation, so the "
+        f"fixture is not isolating it: exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "PENDING=0" in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("section", RECONCILED_GATES)
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_delete_plus_add_in_the_map_blocks_the_gate(
+    path: Path, section: str, tmp_path: Path
+) -> None:
+    """Comment 125 was deleted and 126 posted: three comments before and after.
+
+    Every block is well formed and the totals match the API's three, so only the
+    ID diff can see that the map describes a comment the API no longer has.
+    """
+    result = _gate_result(path, section, DELETE_PLUS_ADD_MAP_LINES, tmp_path)
+
+    assert result.returncode == 1, (
+        f"{_carrier_id(path)} {section} cleared a map whose IDs left the API: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "[BLOCKED] Comment map IDs differ from the API IDs" in result.stdout
+    assert "< 126" in result.stdout, "the diagnostic must name the ID only the map has"
+    assert "> 125" in result.stdout, "the diagnostic must name the ID only the API has"
+
+
+@requires_bash
+@pytest.mark.parametrize("section", RECONCILED_GATES)
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_without_the_reconcile_a_delete_plus_add_clears_the_gate(
+    path: Path, section: str, tmp_path: Path
+) -> None:
+    """Negative control: with the ID diff removed the stale map clears."""
+    result = _gate_result(path, section, DELETE_PLUS_ADD_MAP_LINES, tmp_path, with_reconcile=False)
+
+    assert result.returncode == 0, (
+        f"{_carrier_id(path)} {section} blocked without the reconciliation: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "PENDING=0" in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_repeated_comment_id_blocks_the_gate(path: Path, tmp_path: Path) -> None:
+    """Edge: the same ID twice with one status each still differs from the API.
+
+    Both blocks are well formed and the totals match, but the ID list holds 123
+    twice and never 124.
+    """
+    result = _gate_result(path, "Gate 4", REPEATED_ID_MAP_LINES, tmp_path)
+
+    assert result.returncode == 1
+    assert "[BLOCKED] Comment map IDs differ from the API IDs" in result.stdout
+    assert "< 123" in result.stdout
+    assert "> 124" in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_status_line_above_the_first_comment_block_blocks_the_gate(
+    path: Path, tmp_path: Path
+) -> None:
+    """Edge: a status that belongs to no comment cannot stand in for one.
+
+    Three status lines, three recorded comments, one block with none. The stray
+    line above the first header is counted by ``TOTAL`` and owned by nothing.
+    """
+    result = _gate_result(path, "Gate 4", UNOWNED_STATUS_MAP_LINES, tmp_path)
+
+    assert result.returncode == 1
+    assert (
+        "[BLOCKED] Comment blocks without exactly one status line: 124(0) unowned(1)"
+        in result.stdout
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_without_the_reconcile_a_status_line_above_the_first_block_clears_the_gate(
+    path: Path, tmp_path: Path
+) -> None:
+    """Negative control for the unowned-status edge."""
+    result = _gate_result(path, "Gate 4", UNOWNED_STATUS_MAP_LINES, tmp_path, with_reconcile=False)
+
+    assert result.returncode == 0
+    assert "PENDING=0" in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("section", RECONCILED_GATES)
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_missing_id_artifact_blocks_the_gate(path: Path, section: str, tmp_path: Path) -> None:
+    """No recorded IDs means the diff has nothing to compare against."""
+    result = _gate_result(path, section, COMPLETE_COMMENT_MAP_LINES, tmp_path, ids=None)
+
+    assert result.returncode == 1
+    assert "[BLOCKED] API comment IDs not recorded" in result.stdout
+    assert "PENDING=" not in result.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("path", CARRIER_PATHS, ids=_carrier_id)
+def test_a_pr_with_no_comments_still_clears_the_reconciliation(path: Path, tmp_path: Path) -> None:
+    """Edge: zero comments is a clean pass, not a diff against an empty file."""
+    result = _gate_result(path, "Gate 4", (), tmp_path, count=0, ids=())
+
+    assert result.returncode == 0, (
+        f"{_carrier_id(path)} Gate 4 blocked a PR with no comments: "
+        f"exit {result.returncode}, stdout {result.stdout!r}"
+    )
+    assert "PENDING=0" in result.stdout
 
 
 # The vocabulary table is the single authority the greps are derived from.

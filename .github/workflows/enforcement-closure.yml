@@ -46,7 +46,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -77,7 +77,7 @@ jobs:
 
       - name: Upload the closure manifest
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: closure-manifest
           path: ${{ runner.temp }}/closure-manifest.json
@@ -93,7 +93,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -104,7 +104,10 @@ jobs:
       # object store into a scratch directory, so nothing of the head sits in
       # the workspace beside the code that reads it.
       # Full history: the script finds the merge base of this tree and the head, so
-      # a pull request behind the base is not charged with files the base moved.
+      # a file the base moved after the branch point is labelled STALE. It still fails.
+      # The head fetch is depth-limited (HEAD_FETCH_DEPTH in the script), so after the
+      # closure step this checkout may be shallow at the head's ancestor. Keep the step
+      # last, and add no step that walks history.
       - name: Check out the base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

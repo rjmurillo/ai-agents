@@ -29,6 +29,8 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from pre_pr_console import note_once, reset_noted  # noqa: E402
+
 if TYPE_CHECKING:
     # Type checkers resolve the sibling via its package path so the wrapper's
     # ``tuple[int, str, str]`` return type is preserved. Runtime uses the bare
@@ -162,10 +164,9 @@ def _gh_base_ref_probe(repo_root: Path) -> tuple[str | None, bool, int, str]:
 
     probe2 = _gh_pr_base_ref_name(repo_root, [head])
     if probe2.base_ref:
-        print(
+        note_once(
             f"[base-ref] selected origin/{probe2.base_ref}: PR resolved by upstream head "
             f"'{head}' after the local branch name matched no PR",
-            file=sys.stderr,
         )
         return f"origin/{probe2.base_ref}", True, probe2.exit_code, probe2.stderr
     return None, probe2.no_pr_confirmed, probe2.exit_code, probe2.stderr
@@ -213,6 +214,7 @@ def _reset_gh_base_cache() -> None:
     """
     _gh_pr_base_cache.clear()
     _gh_pr_base_logged_failures.clear()
+    reset_noted()
 
 
 def _gh_base_ref(repo_root: Path) -> str | None:
@@ -335,7 +337,7 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
             timeout=10,
         )
         if exit_code == 0:
-            print(f"[base-ref] selected {pr_base}: open PR base branch", file=sys.stderr)
+            note_once(f"[base-ref] selected {pr_base}: open PR base branch")
             return pr_base
 
     # ``@{u}`` is the right base for derivative branches that track a parent
@@ -352,10 +354,9 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
             timeout=10,
         )
         if exit_code == 0:
-            print(
+            note_once(
                 f"[base-ref] selected {ref}: no PR base resolved, first "
-                "candidate ref that exists locally",
-                file=sys.stderr,
+                "candidate ref that exists locally"
             )
             return ref
     return None
@@ -402,7 +403,8 @@ def _refresh_remote_base(base_ref: str, repo_root: Path) -> str | None:
 
     Returns: None when no fetch was attempted (non-``origin/<branch>`` ref,
     or under CI where the runner already fetched); a short error string on
-    a failed attempt (caller warns and proceeds); empty string on success.
+    a failed attempt (callers decide: ci_parity and ratchets fail, the build-script gate warns,
+    check_adr_lifecycle ignores it); empty string on success.
     """
     if not base_ref.startswith("origin/"):
         return None

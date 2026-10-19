@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import glob
 import os
 import re
 import shutil
@@ -19,6 +20,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.validation.models import ValidationResult  # noqa: E402
+from tests.containment_fixtures import (  # noqa: E402, F401
+    stub_git_probes,
+    stub_temp_roots,
+    tmp_path_is_temp_root,
+)
 from tests.gc_real_git import GitSandbox, git, write_and_commit  # noqa: E402
 from tests.git_config_isolation import (  # noqa: E402
     restore_git_config_env,
@@ -95,6 +101,19 @@ def _clear_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _disable_heavy_stage_headroom_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Turn off the host-wide pre-push headroom gate in every test (issue #6609).
+
+    The pre-push hook runs this suite while the hook itself holds a heavy-stage
+    slot, on a host whose load the suite raises. A test that calls `run_pytest`
+    or `scan_pushed_heads` would otherwise wait on that slot or that load.
+    `tests/validation/test_host_headroom.py` passes its own settings.
+    """
+    monkeypatch.setenv("AI_AGENTS_HEAVY_STAGE_SLOTS", "0")
+    monkeypatch.setenv("AI_AGENTS_HEAVY_STAGE_MAX_LOAD", "0")
+
+
+@pytest.fixture(autouse=True)
 def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default every test to the ai-agents project repo (issue #2610).
 
@@ -107,6 +126,23 @@ def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     and stub the git lookup) to exercise the skip path.
     """
     monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
+
+
+@pytest.fixture(autouse=True)
+def _reset_console_note_record() -> None:
+    """Forget the once-per-run console notes before every test.
+
+    ``note_once`` keeps a module-global record so one ``pre_pr.py`` run prints
+    each ``[base-ref] selected ...`` note once. Tests share that process-wide
+    record, so a test that printed a note would silence the same note for every
+    later test and make stderr assertions depend on run order. The module loads
+    under both its bare name (``checks_common`` puts ``scripts/validation`` on
+    ``sys.path``) and its package name, so reset whichever copies are loaded.
+    """
+    for name in ("pre_pr_console", "scripts.validation.pre_pr_console"):
+        module = sys.modules.get(name)
+        if module is not None:
+            module.reset_noted()
 
 
 _GIT_POINTER_VARS = (
@@ -283,19 +319,58 @@ def _isolate_gc_worktree_audit_log(
 
 
 @pytest.fixture
+def monkeypatch(request: pytest.FixtureRequest) -> Iterator[pytest.MonkeyPatch]:
+    """Undo every patch before ``tmp_path`` is removed.
+
+    ``tmp_path_retention_policy = "failed"`` makes the ``tmp_path`` teardown
+    call ``shutil.rmtree``. Pytest tears fixtures down in reverse setup order,
+    so a ``monkeypatch`` created before ``tmp_path`` (every autouse fixture
+    here asks for it first) would still hold its patches while ``rmtree`` ran.
+    Tests that patch ``os.scandir``, ``os.open`` or ``os.close`` then broke the
+    teardown. Creating ``tmp_path`` first puts its teardown after the undo.
+    """
+    if "tmp_path" in request.fixturenames:
+        request.getfixturevalue("tmp_path")
+    with pytest.MonkeyPatch.context() as patch:
+        yield patch
+
+
+@pytest.fixture(autouse=True)
+def _clear_stale_tmp_path_siblings(request: pytest.FixtureRequest) -> None:
+    """Remove siblings left by an earlier test that shared this ``tmp_path`` name.
+
+    The retention policy deletes a passing test's ``tmp_path``, and pytest then
+    hands the same numbered name to the next test whose truncated name matches.
+    Tests that park a fixture beside ``tmp_path`` (``<name>-outside``) are not
+    covered by that deletion, so the next owner of the name finds it present.
+    """
+    if "tmp_path" not in request.fixturenames:
+        return
+    tmp_path = request.getfixturevalue("tmp_path")
+    for stale in tmp_path.parent.glob(f"{glob.escape(tmp_path.name)}-*"):
+        if stale.is_dir() and not stale.is_symlink():
+            shutil.rmtree(stale)
+        else:
+            stale.unlink()
+
+
+@pytest.fixture
 def external_tmp_path() -> Iterator[Path]:
     """Create a temp directory outside the checkout for path-boundary tests."""
     # Imported here rather than at module scope: the helper lives under `tests`,
     # which only becomes importable after the sys.path insert above.
-    from tests.external_scratch import outside_every_repository
+    from tests.external_scratch import (
+        make_external_dir,
+        outside_every_repository,
+        remove_external_dir,
+    )
 
     root = outside_every_repository(PROJECT_ROOT) / f".pytest-external-{PROJECT_ROOT.name}"
-    path = root / uuid.uuid4().hex
-    path.mkdir(parents=True)
+    path = make_external_dir(root, uuid.uuid4().hex)
     try:
         yield path
     finally:
-        shutil.rmtree(path, ignore_errors=True)
+        remove_external_dir(path)
 
 
 def assert_validation_result(

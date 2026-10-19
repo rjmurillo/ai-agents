@@ -129,6 +129,16 @@ def test_read_only_keep_reference_accepted() -> None:
     assert checker.scan_text("docs/example.md", text) == []
 
 
+def test_codex_marketplace_read_accepted() -> None:
+    text = "Codex reads `.agents/plugins/marketplace.json` from the root.\n"
+    assert checker.scan_text("scripts/validation/example.py", text) == []
+
+
+def test_write_into_the_codex_marketplace_dir_still_flagged() -> None:
+    text = 'echo "{}" > .agents/plugins/marketplace.json\n'
+    assert checker.scan_text("scripts/a.sh", text)
+
+
 def test_keep_top_level_file_read_accepted() -> None:
     text = "Read `.agents/HANDOFF.md` for the current state.\n"
     assert checker.scan_text("docs/example.md", text) == []
@@ -393,3 +403,27 @@ def test_python_join_and_literal_on_one_line_report_once() -> None:
 
 def test_python_literal_under_tests_is_fixture_data() -> None:
     assert checker.scan_python("tests/x.py", 'OLD = ".agents/sessions/x.json"\n') == []
+
+
+# ADR-119 decision 7: .agents/skills is Codex's skill directory again, and only
+# the binplace install-root owners may name it.
+@pytest.mark.parametrize(
+    ("relative", "text", "expected"),
+    [
+        ("templates/platforms/binplace.yaml", "install_tree: .agents/skills\n", 0),
+        ("build/scripts/binplace_manifest.py", 'ROOT = ".agents/skills"\n', 0),
+        ("scripts/validation/other.py", 'ROOT = ".agents/skills"\n', 1),
+        ("docs/guide.md", "Edit `.agents/skills/foo`.\n", 1),
+        ("templates/platforms/binplace.yaml", "install_tree: .agents/context\n", 1),
+        ("templates/platforms/binplace.yaml", "install_tree: .agents/skills/foo\n", 1),
+    ],
+)
+def test_codex_skills_root_is_nameable_only_by_its_owners(
+    tmp_path: Path, relative: str, text: str, expected: int
+) -> None:
+    repo = _init_repo(tmp_path, {relative: text})
+
+    findings, examined = checker.check_repository(repo)
+
+    assert examined == 1
+    assert len(findings) == expected

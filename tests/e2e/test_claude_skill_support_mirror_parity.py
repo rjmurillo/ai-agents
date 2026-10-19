@@ -6,7 +6,7 @@ ADR-109 B3 (PR #5785) rendered only ``SKILL.md`` into
 ``.claude/skills/<name>/`` had nothing mirroring those into the Claude
 plugin tree, so an installed plugin's SKILL.md could point at a script that
 was never shipped. ``build/scripts/generate_skills.py``'s
-``sync_claude_plugin_skill_support`` closes that gap (the B3 follow-up).
+``prune_stale_claude_skill_support`` closes that gap (the B3 follow-up).
 
 This is the always-on, non-CLI regression test for the gap: no CLI, no
 ``RUN_CLI_E2E`` gate, just a byte-for-byte parity check over the two

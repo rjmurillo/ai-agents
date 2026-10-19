@@ -1,8 +1,10 @@
 """CWE-78 (command injection) detection patterns by language.
 
-Extracted verbatim from ``scan_vulnerabilities.py`` to keep the main scanner
-module under the file-size limit (issue #1848). This is a pure data move: the
-patterns, descriptions, severities, and recommendations are unchanged. The main
+Extracted from ``scan_vulnerabilities.py`` to keep the main scanner module
+under the file-size limit (issue #1848). The patterns, descriptions,
+severities, and recommendations are unchanged by the move. The bash
+unquoted-variable pattern carries a ``scrub_lines`` hook (issue #6294), whose
+lexer lives in ``scan_bash_lexer.py``. The main
 module re-exports ``CWE78_PATTERNS`` so existing callers and tests that read
 ``scan_vulnerabilities.CWE78_PATTERNS`` continue to work.
 
@@ -13,6 +15,13 @@ docstring for the buy-vs-build rationale.
 
 import re
 
+from scan_bash_lexer import scrub_bash_line, scrub_bash_lines
+
+__all__ = ["CWE78_PATTERNS", "scrub_bash_line", "scrub_bash_lines"]
+
+# Optional per-pattern file preparation. When a pattern dict has a "scrub_lines"
+# key, the scanner runs the regex against ``scrub_lines(lines)[n]`` instead of
+# raw line ``n``, so the hook can carry state from one line to the next.
 # CWE-78: Command Injection patterns by language
 CWE78_PATTERNS = {
     "python": [
@@ -130,6 +139,7 @@ CWE78_PATTERNS = {
             "pattern": re.compile(
                 r"(?<![\"'])\$\w+(?![\"'\w])",
             ),
+            "scrub_lines": scrub_bash_lines,
             "description": "Unquoted variable expansion (potential word splitting/injection)",
             "severity": "MEDIUM",
             "recommendation": 'Quote all variable expansions: use "$var" instead of $var',

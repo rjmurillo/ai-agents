@@ -73,3 +73,7 @@ commit them to a branch first. If `--is-ancestor` fails, the commit is not on
   branch that is behind `main` fails tests that read committed repo state.
   That one is about the **diff base**; this one is about the **tooling being
   executed**. A branch can be current and still be run by a stale checkout.
+- `git-prove-content-reachable-before-any-force-checkout.md` picks up where the
+  recovery steps above stop. They assume `git status --porcelain` is empty; that
+  memory covers proving a dirty stale checkout holds no unique work before
+  discarding it.

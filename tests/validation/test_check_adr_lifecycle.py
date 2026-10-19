@@ -1,7 +1,7 @@
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: this file is one test per behavior across the
-# eight checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
+# nine checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
 # and the TESTING-RIGOR pos+neg+edge bar are what set its length. Its line count
 # tracks how many behaviors the gate has, not how hard the module is to read;
 # every test is independent and none shares state, so the rule's remediation
@@ -41,6 +41,24 @@ removed with it rather than left asserting a contract the gate no longer has.
   is exempt from the no-edge direction; a dangling ``superseded-by`` is left
   to ``supersession-target-exists`` alone, not double-counted)
 
+- section-structure: pos (canonical set, MADR set, and a per-concept mix all pass; no
+  Status or Date section is needed), neg (neither set, each concept missing alone,
+  wrong heading level), edge (fenced and HTML-comment headings do not count, case and
+  closing hashes are tolerated, an unparseable body is a counted finding)
+
+- review-by-format / review-by-past-due / review-by-prose-date (issue #5193): pos (an
+  absent, null, future, or on-time date passes), neg (a past date, a malformed value,
+  a date missing from the prose), edge (due today is on time, the day after is late,
+  quoted and unquoted YAML dates both parse, a quoted impossible date is a format
+  finding, a fenced date does not count as prose, `superseded`, `deprecated`, and
+  `rejected` records skip the date checks). Every case fixes "today" instead of
+  reading the wall clock.
+
+- cited-paths-exist: pos (a tracked path in Decision passes), neg (a deleted path
+  fails, named in the detail), edge (a fenced illustration passes, a path outside
+  Decision and Implementation Notes passes, a `deprecated` or `superseded` record
+  is exempt, an unparseable body is a counted finding)
+
 Ratchet and CLI behavior: improvement passes, regression exits 1, baseline
 missing / malformed / stale exits 2, missing ADR directory exits 2,
 ``--write-baseline`` round-trips, and ``main(argv)`` itself returns non-zero on
@@ -54,6 +72,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -70,6 +89,7 @@ from check_adr_lifecycle import (
     EXIT_CONFIG,
     EXIT_OK,
     EXIT_REGRESSION,
+    SECTION_EQUIVALENTS,
     _find_cycles,
     identities,
     main,
@@ -87,11 +107,26 @@ def _adr_dir(tmp_path: Path) -> Path:
     return path
 
 
-def _write(adr_dir: Path, number: int, frontmatter: str | None, body: str = "") -> Path:
-    """Write ADR-NNN-thing.md with an optional raw frontmatter block."""
+# The canonical section set `section-structure` requires. `_write` appends it by
+# default so a fixture exercising another check does not also raise this one.
+_SECTIONS = "\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n\n## Consequences\n\nSo.\n"
+
+
+def _write(
+    adr_dir: Path,
+    number: int,
+    frontmatter: str | None,
+    body: str = "",
+    sections: str = _SECTIONS,
+) -> Path:
+    """Write ADR-NNN-thing.md with an optional raw frontmatter block.
+
+    ``sections`` follows ``body`` and defaults to the canonical set; pass ``""``
+    to write a record with none.
+    """
     head = f"---\n{textwrap.dedent(frontmatter).strip()}\n---\n" if frontmatter else ""
     path = adr_dir / f"ADR-{number:03d}-thing.md"
-    path.write_text(f"{head}\n# ADR-{number:03d}: Thing\n{body}", encoding="utf-8")
+    path.write_text(f"{head}\n# ADR-{number:03d}: Thing\n{body}{sections}", encoding="utf-8")
     return path
 
 
@@ -555,6 +590,235 @@ def test_unresolved_superseded_by_does_not_double_report(tmp_path):
 
     assert counts["supersession-target-exists"] == 1
     assert counts["status-edge-consistency"] == 0
+
+
+# --- cited-paths-exist ------------------------------------------------------
+
+
+def _with_file(root: Path, rel: str) -> None:
+    target = root / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x", encoding="utf-8")
+
+
+def _decision(text: str) -> str:
+    return f"\n## Decision\n\n{text}\n"
+
+
+def test_a_live_cited_path_in_an_accepted_record_passes(tmp_path):
+    _with_file(tmp_path, "scripts/live.py")
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision("Run `scripts/live.py` first."))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_deleted_cited_path_in_an_accepted_record_fails(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision("Run `scripts/gone.py` first."))
+
+    details = _hits(tmp_path, "cited-paths-exist")
+
+    assert len(details) == 1
+    assert "scripts/gone.py" in details[0]
+
+
+def test_each_missing_path_is_its_own_violation_under_one_record(tmp_path):
+    _with_file(tmp_path, "scripts/live.py")
+    body = _decision("`scripts/gone_a.py`, `scripts/live.py`, and `scripts/gone_b.py`.")
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 2
+
+
+def test_a_missing_path_in_implementation_notes_fails(tmp_path):
+    body = "\n## Implementation Notes\n\nSee `scripts/gone.py`.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 1
+
+
+def test_a_missing_path_in_a_fenced_illustration_is_not_a_citation(tmp_path):
+    fenced = "Shape:\n\n```yaml\npath: `scripts/illustration.py`\n```\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision(fenced))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_missing_path_outside_the_binding_sections_is_not_read(tmp_path):
+    body = "\n## Context\n\nOnce there was `scripts/history.py`.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+@pytest.mark.parametrize("status", ["deprecated", "rejected", "proposed"])
+def test_a_record_that_is_not_accepted_is_exempt(tmp_path, status):
+    _write(_adr_dir(tmp_path), 1, _valid(1, status=status), _decision("`scripts/gone.py`."))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_superseded_record_is_exempt(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="superseded", **{"superseded-by": "ADR-002"}),
+        _decision("`scripts/gone.py`."),
+    )
+    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_record_without_frontmatter_is_left_to_frontmatter_parses(tmp_path):
+    _write(_adr_dir(tmp_path), 1, None, _decision("`scripts/gone.py`."))
+
+    counts = _counts(tmp_path)
+
+    assert counts["cited-paths-exist"] == 0
+    assert counts["frontmatter-parses"] == 1
+
+
+def test_an_unparseable_body_is_a_finding_not_a_skip(tmp_path):
+    quote = ">" * 20 + " "
+    body = "\n" + quote + "```\n" + quote + "## Decision\n" + quote + "```\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    details = _hits(tmp_path, "cited-paths-exist")
+
+    assert len(details) == 1
+    assert "could not be parsed" in details[0]
+
+
+def test_an_untracked_file_does_not_satisfy_a_citation_in_a_git_checkout(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, capture_output=True)
+    _with_file(tmp_path, "scripts/residue.py")
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision("`scripts/residue.py`."))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 1
+
+
+# --- section-structure ------------------------------------------------------
+
+_MADR_SECTIONS = (
+    "\n## Context and Problem Statement\n\nWhy.\n\n## Considered Options\n\nA, B.\n\n"
+    "## Decision Outcome\n\nA.\n\n### Consequences\n\nSo.\n"
+)
+
+
+def test_the_canonical_heading_set_passes(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1))
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_the_madr_heading_set_passes(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=_MADR_SECTIONS)
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_a_per_concept_mix_of_the_two_sets_passes(tmp_path):
+    sections = "\n## Context\n\nWhy.\n\n## Decision Outcome\n\nA.\n\n## Consequences\n\nSo.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_status_and_date_sections_are_not_required(tmp_path):
+    """ADR-073 (amended 2026-09-29) made `## Status` optional; `## Date` restates frontmatter."""
+    _write(_adr_dir(tmp_path), 1, _valid(1))
+
+    counts = _counts(tmp_path)
+
+    assert counts["section-structure"] == 0
+    assert counts["prose-frontmatter-agree"] == 0
+
+
+def test_a_record_matching_neither_set_names_every_missing_concept(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections="\n## Background\n\nWords.\n")
+
+    details = _hits(tmp_path, "section-structure")
+
+    assert len(details) == 1
+    assert "missing Context, Decision, Consequences" in details[0]
+    assert "ADR-TEMPLATE.md" in details[0]
+
+
+@pytest.mark.parametrize(
+    ("kept", "missing"),
+    [
+        ("## Decision\n\nD.\n\n## Consequences\n\nC.\n", "Context"),
+        ("## Context\n\nW.\n\n## Consequences\n\nC.\n", "Decision"),
+        ("## Context\n\nW.\n\n## Decision\n\nD.\n", "Consequences"),
+    ],
+)
+def test_each_missing_concept_is_named_alone(tmp_path, kept, missing):
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections="\n" + kept)
+
+    details = _hits(tmp_path, "section-structure")
+
+    assert len(details) == 1
+    assert details[0].startswith(f"missing {missing}.")
+
+
+def test_a_context_heading_at_level_three_does_not_count(tmp_path):
+    sections = "\n### Context\n\nW.\n\n## Decision\n\nD.\n\n## Consequences\n\nC.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _hits(tmp_path, "section-structure")[0].startswith("missing Context.")
+
+
+def test_a_consequences_heading_at_level_four_does_not_count(tmp_path):
+    sections = "\n## Context\n\nW.\n\n## Decision\n\nD.\n\n#### Consequences\n\nC.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _hits(tmp_path, "section-structure")[0].startswith("missing Consequences.")
+
+
+def test_headings_in_a_fence_or_html_comment_do_not_count(tmp_path):
+    sections = "\n```markdown\n## Context\n\n## Decision\n\n```\n\n<!--\n## Consequences\n-->\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert "missing Context, Decision, Consequences" in _hits(tmp_path, "section-structure")[0]
+
+
+def test_heading_case_and_closing_hashes_are_tolerated(tmp_path):
+    sections = "\n## CONTEXT ##\n\nW.\n\n## decision outcome\n\nD.\n\n## Consequences\n\nC.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_a_record_without_frontmatter_is_left_to_frontmatter_parses_for_structure(tmp_path):
+    _write(_adr_dir(tmp_path), 1, None, sections="")
+
+    counts = _counts(tmp_path)
+
+    assert counts["section-structure"] == 0
+    assert counts["frontmatter-parses"] == 1
+
+
+def test_an_unparseable_body_is_a_structure_finding_not_a_skip(tmp_path):
+    quote = ">" * 20 + " "
+    body = "\n" + quote + "```\n" + quote + "## Decision\n" + quote + "```\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    details = _hits(tmp_path, "section-structure")
+
+    assert len(details) == 1
+    assert "could not be parsed" in details[0]
+
+
+def test_the_mapping_and_the_template_agree():
+    """ADR-TEMPLATE.md documents every heading the gate accepts."""
+    template = (REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-TEMPLATE.md").read_text(
+        encoding="utf-8"
+    )
+    for concept, names, _levels in SECTION_EQUIVALENTS:
+        assert concept in template
+        for name in names:
+            assert name in template.lower(), f"{name!r} is accepted by the gate but undocumented"
 
 
 # --- proposed-cannot-supersede / implemented-implies-decided ----------------
@@ -1352,8 +1616,15 @@ def test_the_shipped_baseline_covers_every_check():
     )
 
 
-def test_the_repository_corpus_does_not_exceed_the_shipped_baseline():
-    """ci-scripts.md MUST 13: the gate must pass against the full corpus."""
+def test_the_repository_corpus_does_not_exceed_the_shipped_baseline(monkeypatch):
+    """ci-scripts.md MUST 13: the gate must pass against the full corpus.
+
+    "Today" is pinned: the review-by past-due check reads the clock, and an
+    unpinned run would go red on the day any real ADR's review-by date passes,
+    for every unrelated PR. The pre_pr gate stays the forcing function.
+    """
+    monkeypatch.setattr("check_adr_lifecycle._utc_today", lambda: _TODAY)
+
     assert main(["--repo-root", str(REPO_ROOT)]) == EXIT_OK
 
 
@@ -2005,3 +2276,215 @@ def test_a_real_status_after_an_html_comment_is_still_found(tmp_path):
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 1, (
         "an HTML-comment-hidden status must not mask real drift"
     )
+
+
+# --- review-by (issue #5193) ------------------------------------------------
+
+_TODAY = date(2026, 10, 13)
+_REVIEW_BY_CHECKS = ("review-by-format", "review-by-past-due", "review-by-prose-date")
+
+
+def _review_counts(tmp_path: Path, today: date = _TODAY) -> dict[str, int]:
+    found = identities(scan(tmp_path / ".project-toolkit" / "architecture", tmp_path, today))
+    return {name: sum(found[name].values()) for name in _REVIEW_BY_CHECKS}
+
+
+def _review_record(
+    tmp_path: Path,
+    review_by: object,
+    prose: str = "Re-review by 2026-10-13.",
+    status: str = "accepted",
+) -> None:
+    """One ADR whose frontmatter carries ``review-by`` and whose body carries ``prose``."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status=status, **{"review-by": review_by}), f"\n{prose}\n")
+
+
+def test_a_record_without_review_by_has_no_review_by_finding(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1))
+
+    assert _review_counts(tmp_path) == dict.fromkeys(_REVIEW_BY_CHECKS, 0)
+
+
+def test_a_null_review_by_has_no_finding(tmp_path):
+    _review_record(tmp_path, "null", prose="No deadline.")
+
+    assert _review_counts(tmp_path) == dict.fromkeys(_REVIEW_BY_CHECKS, 0)
+
+
+def test_a_future_date_stated_in_prose_passes(tmp_path):
+    _review_record(tmp_path, "2026-10-18", prose="Re-review by 2026-10-18 (90 days).")
+
+    assert _review_counts(tmp_path) == dict.fromkeys(_REVIEW_BY_CHECKS, 0)
+
+
+def test_a_past_date_is_a_named_past_due_violation(tmp_path):
+    _review_record(tmp_path, "2026-09-27", prose="Review checkpoint is 2026-09-27.")
+
+    assert _review_counts(tmp_path) == {
+        "review-by-format": 0,
+        "review-by-past-due": 1,
+        "review-by-prose-date": 0,
+    }
+
+
+def test_the_past_due_detail_names_the_date_and_the_days_late(tmp_path):
+    _review_record(tmp_path, "2026-10-10", prose="Re-review by 2026-10-10.")
+
+    found = scan(tmp_path / ".project-toolkit" / "architecture", tmp_path, _TODAY)
+    messages = [v.detail for v in found if v.check == "review-by-past-due"]
+    assert len(messages) == 1
+    assert "2026-10-10" in messages[0]
+    assert "passed 3 day(s) before 2026-10-13" in messages[0]
+
+
+def test_a_date_due_today_is_still_on_time(tmp_path):
+    _review_record(tmp_path, "2026-10-13", prose="Re-review by 2026-10-13.")
+
+    assert _review_counts(tmp_path)["review-by-past-due"] == 0
+
+
+def test_the_day_after_the_due_date_is_late(tmp_path):
+    _review_record(tmp_path, "2026-10-13", prose="Re-review by 2026-10-13.")
+
+    assert _review_counts(tmp_path, date(2026, 10, 14))["review-by-past-due"] == 1
+
+
+def test_a_proposed_record_is_as_live_as_an_accepted_one(tmp_path):
+    _review_record(tmp_path, "2026-09-27", prose="Checkpoint 2026-09-27.", status="proposed")
+
+    assert _review_counts(tmp_path)["review-by-past-due"] == 1
+
+
+def test_a_quoted_date_parses_like_an_unquoted_one(tmp_path):
+    _review_record(tmp_path, "'2026-09-27'", prose="Checkpoint 2026-09-27.")
+
+    assert _review_counts(tmp_path) == {
+        "review-by-format": 0,
+        "review-by-past-due": 1,
+        "review-by-prose-date": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2026-9-27",
+        "soon",
+        "20260927",
+        "'2026-02-30'",
+        "2026-09-27 10:00:00",
+        "true",
+        "[2026-09-27]",
+        "''",
+    ],
+)
+def test_a_malformed_review_by_is_one_format_finding_and_nothing_else(tmp_path, value):
+    _review_record(tmp_path, value, prose="Re-review by 2026-09-27.")
+
+    assert _review_counts(tmp_path) == {
+        "review-by-format": 1,
+        "review-by-past-due": 0,
+        "review-by-prose-date": 0,
+    }
+
+
+def test_a_date_missing_from_the_prose_is_a_prose_date_finding(tmp_path):
+    _review_record(tmp_path, "2026-12-01", prose="No date is stated here.")
+
+    assert _review_counts(tmp_path) == {
+        "review-by-format": 0,
+        "review-by-past-due": 0,
+        "review-by-prose-date": 1,
+    }
+
+
+def test_a_different_date_in_the_prose_does_not_satisfy_the_check(tmp_path):
+    _review_record(tmp_path, "2026-12-01", prose="Re-review by 2026-12-02.")
+
+    assert _review_counts(tmp_path)["review-by-prose-date"] == 1
+
+
+def test_a_date_that_is_a_prefix_of_a_longer_number_does_not_count(tmp_path):
+    _review_record(tmp_path, "2026-12-01", prose="Ticket 2026-12-011 and 12026-12-01.")
+
+    assert _review_counts(tmp_path)["review-by-prose-date"] == 1
+
+
+def test_a_date_inside_a_code_fence_is_not_prose(tmp_path):
+    fenced = "```text\nreview-by: 2026-12-01\n```"
+    _review_record(tmp_path, "2026-12-01", prose=fenced)
+
+    assert _review_counts(tmp_path)["review-by-prose-date"] == 1
+
+
+def test_an_unparseable_body_is_a_prose_date_finding_not_a_skip(tmp_path):
+    quote = ">" * 20 + " "
+    body = "\n" + quote + "```\n" + quote + "## Decision\n" + quote + "```\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1, **{"review-by": "2026-12-01"}), body)
+
+    found = scan(tmp_path / ".project-toolkit" / "architecture", tmp_path, _TODAY)
+    messages = [v.detail for v in found if v.check == "review-by-prose-date"]
+
+    assert len(messages) == 1
+    assert "could not be parsed" in messages[0]
+
+
+def test_a_date_in_the_status_section_counts_as_prose(tmp_path):
+    prose = "## Status\n\nAccepted. The review checkpoint is 2026-12-01."
+    _review_record(tmp_path, "2026-12-01", prose=prose)
+
+    assert _review_counts(tmp_path)["review-by-prose-date"] == 0
+
+
+@pytest.mark.parametrize("status", ["deprecated", "rejected"])
+def test_a_closed_record_skips_the_past_due_and_prose_date_checks(tmp_path, status):
+    _review_record(tmp_path, "2026-01-17", prose="Nothing about a date.", status=status)
+
+    assert _review_counts(tmp_path) == dict.fromkeys(_REVIEW_BY_CHECKS, 0)
+
+
+def test_a_superseded_record_skips_the_past_due_and_prose_date_checks(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="superseded", **{"superseded-by": "ADR-002", "review-by": "2026-01-17"}),
+    )
+    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"))
+
+    assert _review_counts(tmp_path) == dict.fromkeys(_REVIEW_BY_CHECKS, 0)
+
+
+def test_a_closed_record_with_a_malformed_value_still_reports_the_format(tmp_path):
+    _review_record(tmp_path, "soon", status="deprecated")
+
+    assert _review_counts(tmp_path)["review-by-format"] == 1
+
+
+def test_scan_without_a_clock_argument_reads_the_current_date(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, **{"review-by": "2000-01-01"}), "\nBy 2000-01-01.\n")
+    _write(adr_dir, 2, _valid(2, **{"review-by": "2999-01-01"}), "\nBy 2999-01-01.\n")
+
+    late = [v.path for v in scan(adr_dir, tmp_path) if v.check == "review-by-past-due"]
+
+    assert late == [_rel(1)]
+
+
+def test_a_past_due_record_fails_the_ratchet_until_it_is_baselined(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, **{"review-by": "2000-01-01"}), "\nBy 2000-01-01.\n")
+
+    bare = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+    held = _run(
+        tmp_path, "--baseline", str(_baseline(tmp_path, **{"review-by-past-due": {_rel(1): 1}}))
+    )
+
+    assert bare.returncode == EXIT_REGRESSION
+    assert "review-by-past-due" in bare.stdout
+    assert held.returncode == EXIT_OK
+
+
+def test_the_review_by_checks_are_registered_in_check_order():
+    assert CHECKS[-3:] == _REVIEW_BY_CHECKS

@@ -44,28 +44,33 @@ Baseline ratchet:
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
 ``PLUGIN_ROOTS``, plus the flat source and generated trees in
-``EXTRA_SCAN_ROOTS`` (``templates/agents``,
+``EXTRA_SCAN_ROOTS`` (``templates/agents``, the three agent output trees,
 ``src/copilot-cli/instructions``, and ``src/claude/rules``). These extra
 directories ship or generate shipped output, but sit outside plugin-root
 ``skills/`` sources.
-``templates/agents`` generates
-Copilot CLI agents under ``src/copilot-cli/agents/`` via
-``build/generate_agents.py``; this validator does not scan agent outputs, so
-the template source is the only covered surface. ``src/copilot-cli/instructions``
-is the generated Copilot instruction mirror of ``.claude/rules/*.md`` via
-``build/scripts/generate_rules.py``. Its per-rule contract docstring
+``templates/agents`` generates agent files into ``src/claude/agents`` (via
+``build/scripts/agent_templates.py``) and into ``src/copilot-cli/agents`` and
+``.github/agents`` (via ``build/generate_agents.py``).
+All three output trees are scanned as well as the template source (issue
+#5689). The first two ship to consumers verbatim. ``.github/agents`` is the
+in-repo Copilot mirror that issue #5689 names explicitly, so it is scanned too.
+A ``vendor-portability`` marker in a generated agent file comes from the
+template that renders it, so a declaration belongs in the template, and a
+platform template's marker reaches only that platform's output.
+``src/copilot-cli/instructions`` is the generated Copilot instruction mirror of
+``.claude/rules/*.md`` via ``build/scripts/generate_rules.py``. Its per-rule contract docstring
 (lines 20-32) lists the transform steps for emitting
 ``.github/instructions/<name>.instructions.md`` (rename ``paths:`` to
 ``applyTo:``, drop ``alwaysApply:``/``priority:``, preserve
 ``description:``, synthesize a universal scope when none is declared,
 skip the rule when its scope is entirely internal-only), with the body
-left untouched, the last line of that list reading verbatim: "- body
-unchanged". ``outputDirs`` (documented at that file's lines 8-14) fans the
-same transformed content out to every configured destination, including
-``src/copilot-cli/instructions``. It is scanned directly because it is
-itself the shipped artifact, not a source that generates one. See issues
-#3578 (plugin-root widening), #3646 (templates/agents
-widening), #5214 (instructions widening), and #5294 (rules widening).
+left untouched (the list ends with the step "body unchanged"). ``outputDirs``
+(documented at that file's lines 8-14) fans the same transformed content out
+to every configured destination, including ``src/copilot-cli/instructions``.
+It is scanned directly because it is itself the shipped artifact, not a source
+that generates one. See issues #3578 (plugin-root widening), #3646
+(templates/agents widening), #5214 (instructions widening), #5294 (rules widening), and #5689
+(agent output widening).
 
 ``src/claude/rules`` is the rendered Claude rules tree (compiled from
 ``templates/rules`` by ``build/scripts/rule_templates.py``) of the
@@ -75,7 +80,8 @@ constantly, so the corpus is grandfathered in the baseline and the same
 The edit source ``templates/rules`` and the binplaced ``.claude/rules`` copy
 are not scanned. The binplaced copy is byte-identical to the shipped tree, and
 the source differs only by the ``\\{{`` literal-brace escape, so adding either
-would count each reference twice.
+would count each reference twice. The binplaced ``.claude/agents`` copy of
+``src/claude/agents`` is left out for the same reason.
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -86,6 +92,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -306,10 +313,17 @@ PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/claude", "src/copilot-cli"})
 
 # Non-skills directories that also ship to consumers or generate shipped output
-# and carry upstream-path prose. ``templates/agents`` generates Copilot CLI
-# agents under ``src/copilot-cli/agents``, which this validator deliberately
-# does not scan, so scanning the source tree covers the otherwise unscanned
-# source surface. Issue #3646.
+# and carry upstream-path prose. ``templates/agents`` is the canonical source of
+# every agent file, so scanning it covers the source surface. Issue #3646.
+#
+# Issue #5689 added the three generated agent output trees. A template scan
+# alone misses prose the generators add or transform, and it never reads the
+# files a consumer receives. ``src/claude/agents`` and ``src/copilot-cli/agents``
+# ship in the two plugin roots. ``.github/agents`` is the in-repo Copilot mirror;
+# the issue names it, so it is scanned, which also means a template reference is
+# counted once per output tree. ``.claude/agents`` is the byte-identical
+# binplaced copy of ``src/claude/agents`` and stays out so no reference counts
+# twice.
 #
 # ``.claude/commands`` was the third entry, scanned because it generated Copilot
 # CLI skills whose mirrors the plugin-root scan already read, so reading the
@@ -332,6 +346,9 @@ REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/claude", "src
 # there is not a defect.
 EXTRA_SCAN_ROOTS: tuple[str, ...] = (
     "templates/agents",
+    "src/claude/agents",
+    "src/copilot-cli/agents",
+    ".github/agents",
     "src/copilot-cli/instructions",
     "src/claude/rules",
 )
@@ -349,8 +366,18 @@ EXTRA_SCAN_ROOTS: tuple[str, ...] = (
 # rules tree of the ``project-toolkit`` plugin root the Claude marketplace
 # lists. Issue #5294 found it was never scanned directly, only through the
 # Copilot mirror, which drops rules whose scope is internal-only.
+#
+# The three agent output trees (issue #5689) are required for the same reason:
+# each is generated output, and an absent or empty one would read as a clean
+# scan while the files a consumer receives went unexamined.
 REQUIRED_EXTRA_ROOTS: frozenset[str] = frozenset(
-    {"src/copilot-cli/instructions", "src/claude/rules"}
+    {
+        "src/claude/agents",
+        "src/copilot-cli/agents",
+        ".github/agents",
+        "src/copilot-cli/instructions",
+        "src/claude/rules",
+    }
 )
 
 
@@ -363,6 +390,16 @@ def has_portability_marker(text: str) -> bool:
     return _MARKER_PATTERN.search(_strip_inline_code(_strip_code(text))) is not None
 
 
+# One scanned file reaches ``_strip_code`` several times with the same text:
+# ``count_file_refs`` and ``count_marker_suppressed_refs`` each call
+# ``has_portability_marker``, which strips, ``count_file_refs`` then strips
+# again itself, and the drift check strips again. A CommonMark parse costs
+# milliseconds, so an unmarked file was parsed several times where once is
+# enough (issue #5382). A marked file still takes a second parse, because
+# ``count_marker_suppressed_refs`` strips the text with its marker removed.
+# The result is a pure function of an immutable string, so it is cached. 128
+# entries hold one file's working set. A failed parse raises and is not cached.
+@functools.lru_cache(maxsize=128)
 def _strip_code(text: str) -> str:
     """Remove fenced and indented code blocks, leaving prose and inline code.
 
@@ -574,9 +611,10 @@ def extra_scan_dirs(root: Path) -> list[Path]:
 
     These are flat source trees that ship to consumers or generate shipped
     output, but are not under a plugin root's ``skills/`` subtree.
-    ``templates/agents`` mirrors into ``src/copilot-cli/agents``, which this
-    validator deliberately does not scan, so listing the source is what keeps
-    those template references covered (issue #3646).
+    ``templates/agents`` generates the agent output trees. Both the source and
+    the outputs are listed, so a reference is caught whether it enters through
+    a template (issue #3646) or reaches an output tree some other way (issue
+    #5689).
 
     Absent directories are skipped: a checkout that does not have
     ``templates/agents`` is not broken, it may just be a minimal clone.
@@ -832,22 +870,25 @@ def _is_skill_markdown(rel_path: str) -> bool:
     )
 
 
-# src/claude/skills/ and src/copilot-cli/skills/ mirror .claude/skills/ byte
-# for byte (build/scripts/generate_skills.py). A skill .md's upstream-path
-# ref count at one of these mirror paths is not new drift when the file's
-# content, right now, matches its .claude/skills/ source verbatim: it is the
-# SAME already-baselined count appearing at a path the branch is populating
-# for the first time (ADR-109 B3's support-file follow-up mirrored 525 files
-# in one PR, each carrying whatever refs its already-reviewed source already
-# had). Without this, the semantic-baseline-conflict guard (issue #4195)
+# src/copilot-cli/skills/ mirrors src/claude/skills/ byte for byte
+# (build/scripts/generate_skills.py). ADR-119 made src/claude/skills/ the
+# canonical copy and .claude/skills/<name> a directory link to it, so
+# src/claude/skills/ is no longer a mirror of anything: treating it as one
+# compares a file with itself and always reports it verbatim. A skill .md's
+# upstream-path ref count at the Copilot mirror path is not new drift when the
+# file's content, right now, matches its src/claude/skills/ source verbatim: it
+# is the SAME already-baselined count appearing at a path the branch is
+# populating for the first time (ADR-109 B3's support-file follow-up mirrored 525
+# files in one PR, each carrying whatever refs its already-reviewed source
+# already had). Without this, the semantic-baseline-conflict guard (issue #4195)
 # cannot tell a verbatim mirror apart from genuinely new prose, because the
 # path itself is new even though its content is not.
-_SKILL_MIRROR_PREFIXES: tuple[str, ...] = ("src/claude/skills/", "src/copilot-cli/skills/")
-_SKILL_CANONICAL_PREFIX = ".claude/skills/"
+_SKILL_MIRROR_PREFIXES: tuple[str, ...] = ("src/copilot-cli/skills/",)
+_SKILL_CANONICAL_PREFIX = "src/claude/skills/"
 
 
 def _skill_mirror_source(rel_path: str) -> str | None:
-    """Return the canonical .claude/skills/ path a mirror path maps to, if any."""
+    """Return the canonical src/claude/skills/ path a mirror path maps to, if any."""
     for prefix in _SKILL_MIRROR_PREFIXES:
         if rel_path.startswith(prefix):
             return _SKILL_CANONICAL_PREFIX + rel_path[len(prefix) :]
@@ -1101,8 +1142,8 @@ def _semantic_conflict_is_fatal(
     if ref_counts is None:
         _report_semantic_conflict(baseline_path, root, conflicting_inputs)
         return True
-    # A verbatim generated-mirror path (src/claude/skills/, src/copilot-cli/
-    # skills/) is excluded here too, not only from conflicting_inputs above:
+    # A verbatim generated-mirror path (src/copilot-cli/skills/) is excluded here
+    # too, not only from conflicting_inputs above:
     # this comparison runs against the FULL current-count map regardless of
     # which paths triggered the guard, so a real regression elsewhere (for
     # example an instructions mirror) would otherwise still drag in every

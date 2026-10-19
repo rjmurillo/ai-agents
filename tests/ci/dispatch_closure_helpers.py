@@ -15,6 +15,8 @@ GATE = vdc.GATE
 CONFIG = vdc.CONFIG
 VERIFIER = ".claude/skills/demo/scripts/verify.py"
 HELPER = ".claude/skills/demo/scripts/helper.py"
+DEMO_LINK = ".claude/skills/demo"
+DEMO_TARGET = "src/claude/skills/demo"
 
 
 def git(root: Path, *args: str) -> None:
@@ -26,6 +28,15 @@ def git(root: Path, *args: str) -> None:
         errors="replace",
         check=True,
     )
+
+
+def link_demo_skill(root: Path) -> None:
+    """Move the demo skill under src/claude/skills and link .claude/skills/demo to it (ADR-119)."""
+    (root / "src/claude/skills").mkdir(parents=True, exist_ok=True)
+    git(root, "mv", DEMO_LINK, DEMO_TARGET)
+    (root / DEMO_LINK).symlink_to("../../src/claude/skills/demo")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "link the demo skill")
 
 
 def write(root: Path, relative: str, body: str) -> Path:

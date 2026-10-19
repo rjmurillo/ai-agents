@@ -17,6 +17,7 @@ import pytest
 
 from scripts.validation.evidence import pre_pr_policy
 from scripts.validation.pre_pr import validate_review_marker, validate_vendor_portability
+from tests.validation._review_artifact import commit_marker
 
 
 class TestValidateVendorPortability:
@@ -145,16 +146,7 @@ class TestValidateReviewMarker:
     def _add_marker(self, repo: Path) -> None:
         """Add an empty /review marker commit binding the current tip."""
         tip = self._git(repo, "rev-parse", "HEAD")
-        self._git(
-            repo,
-            "commit",
-            "-q",
-            "--allow-empty",
-            "-m",
-            "review: marker",
-            "--trailer",
-            f"Reviewed-By: /review@analyst,security on {tip}",
-        )
+        commit_marker(repo, "analyst,security", tip)
 
     def test_missing_script_advisory_returns_true(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=False)

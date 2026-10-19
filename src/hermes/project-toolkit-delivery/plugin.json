@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "project-toolkit-delivery",
+  "description": "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations.",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "license": "MIT"
+}
