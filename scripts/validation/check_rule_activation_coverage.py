@@ -166,14 +166,12 @@ _SHIPPED_SKILLS_DIR = Path("src") / "claude" / "skills"
 _SHIPPED_RULES_DIR = Path("src") / "claude" / "rules"
 
 
-def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: str) -> str:
-    """Resolve a scenario target under its artifact dir, returning the artifact id.
+def _check_spelling(repo_root: Path, target_str: str, artifact_dir: Path, kind: str) -> Path:
+    """Require the .claude/ spelling and return the resolved path.
 
-    Raises CoverageConfigError on traversal escape, a missing target (orphan),
-    or the wrong file shape for the kind.
+    A scenario names the .claude/ spelling. It may resolve into src/claude/
+    through a link (ADR-119); a direct src/claude/ spelling is refused.
     """
-    # A scenario names the .claude/ spelling. It may resolve into src/claude/
-    # through a link (ADR-119); a direct src/claude/ spelling is refused.
     named = Path(os.path.normpath(repo_root / target_str))
     resolved = (repo_root / target_str).resolve()
     shipped_dir = _SHIPPED_SKILLS_DIR if kind == "skill" else _SHIPPED_RULES_DIR
@@ -186,6 +184,16 @@ def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: 
             f"{shipped_dir.as_posix()}/ through a link; a direct {shipped_dir.as_posix()}/ "
             f"path is refused): {target_str}"
         )
+    return resolved
+
+
+def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: str) -> str:
+    """Resolve a scenario target under its artifact dir, returning the artifact id.
+
+    Raises CoverageConfigError on traversal escape, a missing target (orphan),
+    or the wrong file shape for the kind.
+    """
+    resolved = _check_spelling(repo_root, target_str, artifact_dir, kind)
     if kind == "rule":
         if resolved.suffix != ".md":
             raise CoverageConfigError(f"rule_path must be a .md file: {target_str}")
@@ -218,6 +226,7 @@ def _is_reference_scenario(repo_root: Path, data: Mapping[str, Any], path: Path)
     assert isinstance(skill, str)
     reference_path = reference.strip()
     skill_path = skill.strip()
+    _check_spelling(repo_root, skill_path, SKILLS_SUBDIR, "skill")
     for ref in (reference_path, skill_path):
         target = (repo_root / ref).resolve()
         try:
