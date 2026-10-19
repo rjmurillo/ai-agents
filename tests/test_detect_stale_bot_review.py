@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
-import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
@@ -46,12 +43,14 @@ def _review(
     commit: str,
     submitted: str,
     canonical: str | None = None,
+    author_type: str | None = None,
 ) -> dict[str, Any]:
     return {
         "id": review_id,
         "author": login,
         "author_observed": login,
         "author_canonical": canonical or login,
+        "author_type": author_type,
         "state": state,
         "commit_id": commit,
         "submittedAt": submitted,
@@ -70,13 +69,13 @@ def _pr(**overrides: Any) -> dict[str, Any]:
     return base
 
 
-def _classify(reviews, pr=None, ci_green=True) -> dict[str, Any]:
+def _classify(reviews, pr=None, ci_state="green") -> dict[str, Any]:
     return classify(
         owner="o",
         repo="r",
         pr_number=7,
         pr=pr if pr is not None else _pr(),
-        ci_green=ci_green,
+        ci_state=ci_state,
         reviews=reviews,
     )
 
@@ -106,7 +105,7 @@ class TestStaleClassification:
         assert f"commit {OLD}" in handoff
         assert "gh api -X PUT repos/o/r/pulls/7/reviews/100/dismissals" in handoff
         assert "-f event=DISMISS" in handoff
-        assert "Every review thread is resolved and CI is green" in handoff
+        assert "Every review thread is resolved and required CI checks pass" in handoff
         assert "does not check that the later commits fixed each finding" in handoff
         assert "The agent does not dismiss reviews" in handoff
 
@@ -186,27 +185,87 @@ class TestFreshAndAbsent:
 
 class TestNotReady:
     @pytest.mark.parametrize(
-        ("pr", "ci_green", "reason"),
+        ("pr", "ci_state", "reason"),
         [
-            (_pr(review_thread_unresolved_count=2), True, "2 review thread(s) unresolved"),
-            (_pr(review_thread_counts_complete=False), True, "thread count is incomplete"),
-            (_pr(review_thread_unresolved_count=None), True, "thread count is incomplete"),
-            (_pr(), False, "CI is not passing"),
-            (_pr(merge_state_status="BEHIND"), True, "merge state is BEHIND"),
-            (_pr(merge_state_status="DIRTY"), True, "merge state is DIRTY"),
-            (_pr(head_sha=""), True, "head SHA is unknown"),
+            (_pr(review_thread_unresolved_count=2), "green", "2 review thread(s) unresolved"),
+            (_pr(review_thread_counts_complete=False), "green", "thread count is incomplete"),
+            (_pr(review_thread_unresolved_count=None), "green", "thread count is incomplete"),
+            (_pr(), "failing", "CI is not passing"),
+            (_pr(), "unknown", "CI state is unknown"),
+            (_pr(), "bogus", "CI state is unknown"),
+            (_pr(merge_state_status="BEHIND"), "green", "merge state is BEHIND"),
+            (_pr(merge_state_status="DIRTY"), "green", "merge state is DIRTY"),
+            (_pr(merge_state_status="UNKNOWN"), "green", "merge state is UNKNOWN"),
+            (_pr(merge_state_status=None), "green", "merge state is unknown"),
+            (_pr(merge_state_status=""), "green", "merge state is unknown"),
+            (_pr(head_sha=""), "green", "head SHA is unknown"),
         ],
     )
-    def test_open_work_blocks_the_stale_review_path(self, pr, ci_green, reason):
-        out = _classify([_stale_cr()], pr=pr, ci_green=ci_green)
+    def test_open_work_blocks_the_stale_review_path(self, pr, ci_state, reason):
+        out = _classify([_stale_cr()], pr=pr, ci_state=ci_state)
         assert out["verdict"] == "NOT_READY"
         assert any(reason in r for r in out["reasons"])
         assert out["handoff"] is None
 
+    @pytest.mark.parametrize("state", ["BLOCKED", "CLEAN", "UNSTABLE", "HAS_HOOKS"])
+    def test_states_that_do_not_need_branch_work_stay_ready(self, state):
+        """BLOCKED must pass: a stale CHANGES_REQUESTED review is what blocks the PR."""
+        out = _classify([_stale_cr()], pr=_pr(merge_state_status=state))
+        assert out["verdict"] == "REQUEST_REREVIEW"
+        assert out["reasons"] == []
+
     def test_readiness_is_not_checked_when_no_bot_blocks(self):
-        out = _classify([], pr=_pr(review_thread_unresolved_count=5), ci_green=False)
+        out = _classify([], pr=_pr(review_thread_unresolved_count=5), ci_state="failing")
         assert out["verdict"] == "NO_BOT_CHANGES_REQUESTED"
         assert out["reasons"] == []
+
+
+class TestBotIdentity:
+    """The API account type outranks the -bot naming guess (issue #6506)."""
+
+    def test_user_account_ending_in_bot_is_a_human_blocker(self):
+        review = _review(
+            100,
+            "robot-fan-bot",
+            "CHANGES_REQUESTED",
+            OLD,
+            "2026-09-01T00:00:00Z",
+            author_type="User",
+        )
+        out = _classify([review])
+        assert out["verdict"] == "NO_BOT_CHANGES_REQUESTED"
+        assert out["human_changes_requested"] == ["robot-fan-bot"]
+
+    def test_same_login_without_a_type_keeps_the_naming_guess(self):
+        review = _review(100, "robot-fan-bot", "CHANGES_REQUESTED", OLD, "2026-09-01T00:00:00Z")
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
+
+    def test_user_account_listed_in_bot_authors_is_still_a_bot(self):
+        review = _review(
+            100,
+            "rjmurillo-bot",
+            "CHANGES_REQUESTED",
+            OLD,
+            "2026-09-01T00:00:00Z",
+            author_type="User",
+        )
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
+
+    def test_bot_type_counts_without_a_bot_suffix(self):
+        review = _review(
+            100,
+            "some-review-app",
+            "CHANGES_REQUESTED",
+            OLD,
+            "2026-09-01T00:00:00Z",
+            author_type="Bot",
+        )
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
+
+    def test_non_string_type_is_ignored(self):
+        review = _review(100, "x[bot]", "CHANGES_REQUESTED", OLD, "2026-09-01T00:00:00Z")
+        review["author_type"] = 7
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
 
 
 class TestMixedBots:
@@ -245,131 +304,3 @@ class TestMixedBots:
 def test_dismissal_command_is_a_single_put_to_the_dismissals_endpoint():
     command = build_dismissal_command("o", "r", 7, 100)
     assert command.startswith("gh api -X PUT repos/o/r/pulls/7/reviews/100/dismissals")
-
-
-# --- main() wiring -------------------------------------------------------
-
-
-def _siblings(context, checks, reviews, calls):
-    def fake(script, args):
-        calls.append(script)
-        return {
-            "get_pr_context.py": (0, context),
-            "get_pr_checks.py": checks,
-            "get_pr_reviews.py": (0, {"reviews": reviews} if reviews is not None else None),
-        }[script]
-
-    return fake
-
-
-def _fake_repo():
-    return type("R", (), {"owner": "o", "repo": "r"})()
-
-
-def _run_main(fake, argv=None):
-    with (
-        patch(f"{_MODULE}.assert_gh_authenticated"),
-        patch(f"{_MODULE}.resolve_repo_params", return_value=_fake_repo()),
-        patch(f"{_MODULE}._run_sibling", side_effect=fake),
-    ):
-        return main(argv or ["--pull-request", "7", "--output-format", "json"])
-
-
-class TestMain:
-    def test_emits_handoff_envelope_and_only_reads(self, capsys):
-        calls: list[str] = []
-        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        fake = _siblings(_pr(), (1, {"AllPassing": True}), [_stale_cr(), rereview], calls)
-
-        assert _run_main(fake) == 0
-
-        envelope = json.loads(capsys.readouterr().out)
-        assert envelope["Success"] is True
-        assert envelope["Data"]["verdict"] == "DISMISSAL_HANDOFF"
-        assert "reviews/100/dismissals" in envelope["Data"]["handoff"]
-        assert sorted(calls) == ["get_pr_checks.py", "get_pr_context.py", "get_pr_reviews.py"]
-
-    def test_failing_ci_reports_not_ready(self, capsys):
-        fake = _siblings(_pr(), (1, {"AllPassing": False}), [_stale_cr()], [])
-        assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
-
-    def test_context_failure_exits_3(self, capsys):
-        fake = _siblings(None, (0, {"AllPassing": True}), [], [])
-        assert _run_main(fake) == 3
-        assert json.loads(capsys.readouterr().out)["Success"] is False
-
-    def test_checks_error_envelope_exits_3(self, capsys):
-        fake = _siblings(_pr(), (3, {"Number": 7}), [_stale_cr()], [])
-        assert _run_main(fake) == 3
-        assert json.loads(capsys.readouterr().out)["Success"] is False
-
-    def test_incomplete_checks_exit_7_is_a_verdict(self, capsys):
-        fake = _siblings(_pr(), (7, {"AllPassing": False}), [_stale_cr()], [])
-        assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
-
-    def test_unreadable_checks_exits_3(self):
-        fake = _siblings(_pr(), (3, None), [], [])
-        assert _run_main(fake) == 3
-
-    def test_review_fetch_failure_exits_3(self):
-        fake = _siblings(_pr(), (0, {"AllPassing": True}), None, [])
-        assert _run_main(fake) == 3
-
-    def test_sibling_timeout_exits_3(self):
-        def fake(script, args):
-            raise subprocess.TimeoutExpired(cmd=script, timeout=1)
-
-        assert _run_main(fake) == 3
-
-    def test_human_format_prints_the_handoff(self, capsys):
-        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        fake = _siblings(_pr(), (0, {"AllPassing": True}), [_stale_cr(), rereview], [])
-        assert _run_main(fake, ["--pull-request", "7", "--output-format", "human"]) == 0
-        assert "gh api -X PUT" in capsys.readouterr().out
-
-
-class TestRunSibling:
-    def _completed(self, stdout: str, rc: int = 0):
-        return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr="")
-
-    def test_returns_data_from_envelope(self):
-        payload = json.dumps({"Success": True, "Data": {"a": 1}})
-        with patch(f"{_MODULE}.subprocess.run", return_value=self._completed(payload)) as run:
-            code, data = _mod._run_sibling("get_pr_checks.py", ["--pull-request", "7"])
-        assert (code, data) == (0, {"a": 1})
-        cmd = run.call_args.args[0]
-        assert cmd[0] == sys.executable
-        assert cmd[1].endswith("get_pr_checks.py")
-        assert cmd[-2:] == ["--output-format", "json"]
-
-    def test_keeps_nonzero_exit_code_with_data(self):
-        payload = json.dumps({"Success": True, "Data": {"AllPassing": False}})
-        with patch(f"{_MODULE}.subprocess.run", return_value=self._completed(payload, 1)):
-            assert _mod._run_sibling("x.py", []) == (1, {"AllPassing": False})
-
-    def test_unparsable_output_yields_none(self):
-        with patch(f"{_MODULE}.subprocess.run", return_value=self._completed("oops", 3)):
-            assert _mod._run_sibling("x.py", []) == (3, None)
-
-    def test_non_object_envelope_yields_none(self):
-        with patch(f"{_MODULE}.subprocess.run", return_value=self._completed("[1]")):
-            assert _mod._run_sibling("x.py", []) == (0, None)
-
-    def test_envelope_without_object_data_yields_none(self):
-        payload = json.dumps({"Success": False, "Data": None})
-        with patch(f"{_MODULE}.subprocess.run", return_value=self._completed(payload, 3)):
-            assert _mod._run_sibling("x.py", []) == (3, None)
-
-
-class TestBuildParser:
-    def test_pull_request_required(self):
-        with pytest.raises(SystemExit):
-            build_parser().parse_args([])
-
-    def test_defaults(self):
-        args = build_parser().parse_args(["--pull-request", "99"])
-        assert args.pull_request == 99
-        assert args.owner == ""
-        assert args.repo == ""

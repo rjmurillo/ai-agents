@@ -379,6 +379,68 @@ def test_report_blocking_summary_stays_one_line(
     assert len(output.read_text(encoding="utf-8").splitlines()) == 2
 
 
+@pytest.mark.parametrize(
+    ("finding", "expected"),
+    [
+        ("plain finding", "plain finding"),
+        ("File: src/gone.py", "File: src/gone.py"),
+        ("File: pages/[id].tsx", "File: pages/[id].tsx"),
+        ("a`b", "ab"),
+        ("`` ``` `", ""),
+        ("x`; **bold** @octocat please", "x; **bold** octocat please"),
+        ("ping @org/team and @user-name", "ping org/team and user-name"),
+        ("mail me@example.com", "mail me@example.com"),
+        ("<!-- PR-VALIDATION --> <b>x</b>", "!-- PR-VALIDATION -- bx/b"),
+        ("line one\nline two\r\nline three", "line one line two line three"),
+        ("tab\there\x00nul\x1b[31mred", "tab here nul [31mred"),
+        ("sep\u2028one\u2029two", "sep one two"),
+        ("   padded   ", "padded"),
+    ],
+)
+def test_neutralize_keeps_the_finding_one_inert_line(finding: str, expected: str) -> None:
+    assert report_mod._neutralize(finding) == expected
+
+
+def test_report_cannot_be_broken_out_of_its_code_span_by_a_hostile_finding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
+    monkeypatch.setenv(
+        "DESCRIPTION_FINDING",
+        "x`\n\n@octocat <script>alert(1)</script> [click](http://evil.example)",
+    )
+
+    assert report_mod.main() == 0
+
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if ln.startswith("- PR description does not match"))
+    assert line.count("`") == 2
+    assert "@octocat" not in text
+    assert "<script>" not in text
+    assert text.count("<!-- PR-VALIDATION -->") == 1
+    assert len(output.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_report_without_a_finding_keeps_the_bare_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
+    monkeypatch.setenv("DESCRIPTION_FINDING", "`` <> ``")
+
+    assert report_mod.main() == 0
+    assert "- PR description does not match actual changes\n" in report.read_text(encoding="utf-8")
+
+
 def test_report_blocking_summary_is_empty_when_nothing_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

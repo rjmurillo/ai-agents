@@ -24,6 +24,7 @@ source), else ``.claude/skills/<name>/SKILL.md``.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -38,8 +39,38 @@ _TEMPLATE_SUFFIX = ".SKILL.md.tmpl"
 _FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
 
 
+_PROBLEM_CAP = 80
+
+
 class SkillDistributionError(ValueError):
     """The ``metadata.distribution`` field is malformed or has an unknown value."""
+
+
+def _yaml_where(exc: yaml.YAMLError) -> str:
+    """Name where a YAML error happened without a source line snippet.
+
+    ``str(exc)`` carries a snippet of the source line. The parser's short
+    ``problem`` and the position are enough to find the defect, so the snippet
+    is dropped. ``problem`` can still repeat one token from the file, such as an
+    alias or tag name, so it is capped at 80 characters. A ``ReaderError`` (bad
+    control character) has no mark, so its character offset and fixed reason
+    are used instead. ``_skill_source`` refuses a symlinked file, directory, or
+    ancestor, so a repeated token comes from the skill's own frontmatter.
+    """
+    mark = getattr(exc, "problem_mark", None)
+    problem = " ".join(str(getattr(exc, "problem", "") or "").split())[:_PROBLEM_CAP]
+    where = (
+        f" at frontmatter line {mark.line + 1}, column {mark.column + 1}"
+        if mark is not None
+        else ""
+    )
+    if mark is None and isinstance(exc, yaml.reader.ReaderError):
+        # A bad control character fails before parsing, so there is no mark. The
+        # reason is a fixed parser string and the offset is a number; the
+        # offending character itself stays out of the message.
+        problem = " ".join(str(exc.reason or "").split())[:_PROBLEM_CAP]
+        where = f" at frontmatter character offset {exc.position}"
+    return f"{where}: {problem}" if problem else where
 
 
 def distribution_of_text(text: str, source: str) -> str:
@@ -54,7 +85,9 @@ def distribution_of_text(text: str, source: str) -> str:
     try:
         frontmatter = yaml.safe_load(match.group(1))
     except yaml.YAMLError as exc:
-        raise SkillDistributionError(f"{source}: unparseable frontmatter: {exc}") from exc
+        raise SkillDistributionError(
+            f"{source}: unparseable frontmatter{_yaml_where(exc)}"
+        ) from exc
     if not isinstance(frontmatter, dict):
         return SHIPPED
     metadata = frontmatter.get("metadata")
@@ -70,13 +103,49 @@ def distribution_of_text(text: str, source: str) -> str:
     return REPO_LOCAL
 
 
+def _is_plugin_link(path: Path, name: str) -> bool:
+    """Return True when ``path`` is the ADR-119 link for shipped skill ``name``.
+
+    Binplace links ``.claude/skills/<name>`` to ``../../src/claude/skills/<name>``.
+    Only that exact link text is accepted, so any other link still fails.
+    """
+    return path.is_symlink() and os.readlink(path) == f"../../src/claude/skills/{name}"
+
+
 def _skill_source(repo_root: Path, name: str) -> Path | None:
+    """Return the template or installed ``SKILL.md`` for ``name``, refusing a symlink.
+
+    A symlinked file, or a symlinked skill directory, would make the flag read,
+    and a parse error quote, a file outside the skill tree. The one link allowed
+    is the ADR-119 skill link (:func:`_is_plugin_link`), whose target must
+    resolve under ``src/claude/skills``. A symlinked ancestor
+    (``.claude/skills`` or ``templates/skills``) does the same as any other
+    link, so each existing candidate must also resolve to a path under the real
+    repo root's ``templates/skills`` or the skill tree it is read from. The
+    expected roots are joined onto the resolved repo root and are not resolved
+    themselves, so a symlinked ancestor cannot widen the check.
+    """
     template = repo_root / "templates" / "skills" / f"{name}{_TEMPLATE_SUFFIX}"
-    if template.is_file():
-        return template
     installed = repo_root / ".claude" / "skills" / name / "SKILL.md"
-    if installed.is_file():
-        return installed
+    linked = _is_plugin_link(installed.parent, name)
+    refused = (template, installed) if linked else (template, installed, installed.parent)
+    for link in refused:
+        if link.is_symlink():
+            raise SkillDistributionError(f"{link}: is a symlink, not a regular path")
+    real_root = repo_root.resolve()
+    installed_tree = real_root / ("src/claude/skills" if linked else ".claude/skills")
+    for candidate, tree in (
+        (template, real_root / "templates" / "skills"),
+        (installed, installed_tree),
+    ):
+        if not candidate.is_file():
+            continue
+        if not candidate.resolve().is_relative_to(tree):
+            raise SkillDistributionError(
+                f"{candidate}: resolves outside {tree.relative_to(real_root)}; "
+                "a parent directory is a symlink"
+            )
+        return candidate
     return None
 
 

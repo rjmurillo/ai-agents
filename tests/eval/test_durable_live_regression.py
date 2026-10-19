@@ -16,14 +16,17 @@ from typing import Any
 import pytest
 
 from tests.eval._durable_live_test_support import (
+    CLEAN_REVIEW,
     Verdict,
     classify,
     fake_runner,
     grader_mod,
     live_mod,
     record_mod,
+    reviewer_settings,
     stream_mod,
     stream_text,
+    timed,
 )
 from tests.eval._routing_integration_test_support import (
     EXTENSION_CORPUS,
@@ -44,13 +47,15 @@ BASE = {
 
 
 def _run(task: str, overlays: list[str | None], tmp_path: Path, **kwargs: Any) -> Any:
+    """Run with the reviewer arm on. Every fake process replies with a clean review."""
     scenario = load_extension(task)
     control_file = tmp_path / "control.md"
     control_file.write_text("rules", encoding="utf-8")
+    kwargs.setdefault("stdout", lambda _i: stream_text(text=f"Done.\n{CLEAN_REVIEW}"))
     runner = fake_runner(scenario, overlays, **kwargs)
     budget = live_mod.InvocationBudget(10)
     return live_mod.run_task(
-        scenario, "current", control_file, BASE, SETTINGS, budget, runner=runner
+        scenario, "current", control_file, BASE, reviewer_settings(), budget, runner=runner
     )
 
 
@@ -71,7 +76,49 @@ class TestHiddenRegressionRecord:
         assert run.record.durable.followup_validation.value == "FAIL"
         assert run.record.durable.objective_satisfied.value == "FAIL"
         assert run.record.durable.residual_defects and run.record.durable.residual_defects > 0
-        assert classify(run.record) is Verdict.ACCEPTED_NOT_DURABLE
+        assert classify(timed(run.record)) is Verdict.ACCEPTED_NOT_DURABLE
+
+    @pytest.mark.parametrize("task", TASKS)
+    def test_a_regression_that_passes_locally_is_rolled_back_and_counted(
+        self, task: str, tmp_path: Path
+    ) -> None:
+        run = _run(task, ["hidden_regression"], tmp_path)
+
+        assert run.record is not None
+        assert run.record.durable.rollback_events == 1
+
+    @pytest.mark.parametrize("task", TASKS)
+    def test_a_correct_change_needs_no_rollback(self, task: str, tmp_path: Path) -> None:
+        run = _run(task, ["known_good"], tmp_path)
+
+        assert run.record is not None
+        assert run.record.durable.rollback_events == 0
+
+    @pytest.mark.parametrize("task", TASKS)
+    def test_a_locally_wrong_change_integrated_nothing_so_nothing_is_rolled_back(
+        self, task: str, tmp_path: Path
+    ) -> None:
+        run = _run(task, ["known_bad"], tmp_path)
+
+        assert run.record is not None
+        assert run.record.durable.rollback_events == 0
+
+    def test_the_change_is_still_on_disk_when_security_findings_read_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[bool] = []
+        real = record_mod.security_findings
+
+        def spy(workdir: Path, changed: Any) -> int | None:
+            seen.append(all((workdir / path).exists() for path in changed))
+            return real(workdir, changed)
+
+        monkeypatch.setattr(record_mod, "security_findings", spy)
+        run = _run(TOP_SCORES, ["hidden_regression"], tmp_path)
+
+        # The rollback runs after the scan. A scan of the reverted tree would see nothing.
+        assert run.record is not None and run.record.durable.rollback_events == 1
+        assert seen == [True]
 
     @pytest.mark.parametrize("task", TASKS)
     def test_a_correct_change_is_accepted_durable(self, task: str, tmp_path: Path) -> None:
@@ -80,7 +127,7 @@ class TestHiddenRegressionRecord:
         assert run.record is not None
         assert run.record.durable.followup_validation.value == "PASS"
         assert run.record.durable.objective_satisfied.value == "PASS"
-        assert classify(run.record) is Verdict.ACCEPTED_DURABLE
+        assert classify(timed(run.record)) is Verdict.ACCEPTED_DURABLE
 
     @pytest.mark.parametrize("task", TASKS)
     def test_a_locally_wrong_change_is_rejected(self, task: str, tmp_path: Path) -> None:
@@ -95,7 +142,7 @@ class TestHiddenRegressionRecord:
         run = _run(TOP_SCORES, ["known_bad", "hidden_regression"], tmp_path)
 
         assert run.record is not None and run.record.execution.retries == 1
-        assert classify(run.record) is Verdict.ACCEPTED_NOT_DURABLE
+        assert classify(timed(run.record)) is Verdict.ACCEPTED_NOT_DURABLE
 
     def test_the_correction_prompt_does_not_name_the_integration_check(
         self, tmp_path: Path
@@ -146,7 +193,7 @@ class TestReworkMinutes:
     def test_no_invocations_is_zero(self) -> None:
         assert record_mod.rework_minutes([]) == 0.0
 
-    def test_a_recovered_task_records_nonnegative_rework_and_zero_human_time(
+    def test_a_recovered_task_records_nonnegative_rework_and_no_human_time(
         self, tmp_path: Path
     ) -> None:
         run = _run(TOP_SCORES, ["known_bad", "known_good"], tmp_path)
@@ -154,7 +201,9 @@ class TestReworkMinutes:
         assert run.record is not None
         assert run.record.durable.rework_minutes is not None
         assert run.record.durable.rework_minutes >= 0.0
-        assert run.record.economics.human_correction_minutes == 0.0
+        # No human timed the pass, so the value is missing evidence, not 0.0.
+        assert run.record.economics.human_correction_minutes is None
+        assert classify(run.record) is Verdict.UNVERIFIED
 
     def test_a_first_pass_task_has_no_rework(self, tmp_path: Path) -> None:
         run = _run(TOP_SCORES, ["known_good"], tmp_path)

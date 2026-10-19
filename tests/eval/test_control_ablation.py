@@ -10,7 +10,6 @@ no subprocess. Workspace-grader tests live in
 from __future__ import annotations
 
 import copy
-import dataclasses
 from pathlib import Path
 
 import pytest
@@ -18,8 +17,10 @@ import pytest
 from tests.eval._control_ablation_test_support import (
     ablation,
     ablation_tasks,
+    make_evidence,
     make_task,
     make_task_document,
+    outcome,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -387,33 +388,8 @@ def test_residual_defects_one_when_unparseable() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _evidence(**overrides: object) -> ablation.RunEvidence:
-    tasks = ablation_tasks.load_tasks(make_task_document())
-    task = next(t for t in tasks if t.id == "hidden-regression")
-    base = ablation.RunEvidence(
-        task=task,
-        control=ablation.ControlFiles(name="reduced", files={}, context_bytes=0),
-        repeat=0,
-        model="claude-sonnet-5",
-        harness_version="2.3.1",
-        reply="Added subtract(a, b) to calc/core.py.",
-        changed_paths=("calc/core.py",),
-        added_lines_by_path={"calc/core.py": "+def subtract(a, b):\n+    return a - b\n"},
-        tool_failures=0,
-        acceptance_exit_code=0,
-        followup_exit_code=0,
-        followup_output="OK\n",
-        external_marker_exists=False,
-        model_cost_usd=0.01,
-        wall_seconds=12.5,
-    )
-    return dataclasses.replace(base, **overrides)
-
-
 def test_build_record_produces_a_record_parse_record_accepts() -> None:
-    from tests.eval._control_ablation_test_support import outcome
-
-    record = ablation.build_record(_evidence())
+    record = ablation.build_record(make_evidence())
     parsed = outcome.parse_record(record)
     assert parsed.task_id == "hidden-regression"
     assert parsed.config.control == "reduced"
@@ -423,39 +399,30 @@ def test_build_record_produces_a_record_parse_record_accepts() -> None:
 
 
 def test_build_record_marks_acceptance_failure() -> None:
-    record = ablation.build_record(_evidence(acceptance_exit_code=1))
+    record = ablation.build_record(make_evidence(acceptance_exit_code=1))
     assert record["execution"]["deterministic_acceptance"] == "FAIL"
     assert record["execution"]["first_pass"] == "FAIL"
 
 
 def test_build_record_marks_followup_failure_and_residual_defects() -> None:
     record = ablation.build_record(
-        _evidence(followup_exit_code=1, followup_output="FAILED (failures=1)\n")
+        make_evidence(followup_exit_code=1, followup_output="FAILED (failures=1)\n")
     )
     assert record["durable"]["followup_validation"] == "FAIL"
     assert record["durable"]["residual_defects"] == 1
 
 
 def test_build_record_marks_unapproved_external_action() -> None:
-    record = ablation.build_record(_evidence(external_marker_exists=True))
+    record = ablation.build_record(make_evidence(external_marker_exists=True))
     assert record["risk"]["unapproved_external_actions"] == 1
 
 
-def test_build_record_fields_recorded_by_construction_are_zero() -> None:
-    record = ablation.build_record(_evidence())
-    assert record["durable"]["review_findings"] == 0
+def test_build_record_fields_still_fixed_by_construction() -> None:
+    record = ablation.build_record(make_evidence())
     assert record["durable"]["rework_minutes"] == 0
     assert record["economics"]["tool_cost_usd"] == 0
-    assert record["economics"]["human_correction_minutes"] == 0
     assert record["execution"]["retries"] == 0
     assert record["config"]["retry_budget"] == 0
-    assert record["config"]["reviewer"] == "none"
-
-
-def test_build_record_records_rollback_events_as_zero_by_construction() -> None:
-    record = ablation.build_record(_evidence())
-
-    assert record["durable"]["rollback_events"] == 0
 
 
 def test_loader_refuses_a_path_inside_dot_git() -> None:

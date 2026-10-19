@@ -1939,11 +1939,12 @@ def test_branch_policy_allows_feature_and_detached_head(tmp_path: Path) -> None:
     assert policy.check_branch(repo) == 0
 
 
-def test_branch_policy_blocks_main(tmp_path: Path) -> None:
+def test_branch_policy_blocks_main(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="main")
 
     assert policy.check_branch(repo) == 1
+    assert "cannot commit directly to 'main'" in capsys.readouterr().err
 
 
 def _write_session_log(
@@ -6331,6 +6332,121 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
     assert destinations == ["destination"]
 
 
+def _main_checkout_push_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, str, str]:
+    """Build a repo with HEAD on main and stub the policies this suite does not cover."""
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    remote = _commit_file(repo, "tracked", "base\n")
+    head = _commit_file(repo, "tracked", "head\n")
+    monkeypatch.setattr(policy, "_check_review_marker", lambda *_args: 0)
+    monkeypatch.setattr(policy, "_check_plugin_version", lambda *_args: 0)
+    monkeypatch.setattr(policy, "check_pushed_infrastructure", lambda *_args, **_kwargs: 0)
+    return repo, remote, head
+
+
+def test_push_policy_allows_deleting_feature_branch_from_main_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, remote, _head = _main_checkout_push_repo(tmp_path, monkeypatch)
+
+    result = policy.check_push_refs(
+        io.StringIO(f"(delete) {'0' * 40} refs/heads/feature {remote}\n"),
+        repo,
+    )
+
+    assert result == 0
+
+
+def test_push_policy_allows_feature_update_from_main_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, remote, head = _main_checkout_push_repo(tmp_path, monkeypatch)
+
+    result = policy.check_push_refs(
+        io.StringIO(f"refs/heads/main {head} refs/heads/feature {remote}\n"),
+        repo,
+    )
+
+    assert result == 0
+
+
+def test_push_policy_allows_pushing_feature_branch_while_on_main(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, remote, head = _main_checkout_push_repo(tmp_path, monkeypatch)
+    _git(repo, "branch", "feature", head)
+
+    result = policy.check_push_refs(
+        io.StringIO(f"refs/heads/feature {head} refs/heads/feature {remote}\n"),
+        repo,
+    )
+
+    assert _git(repo, "symbolic-ref", "--short", "HEAD").stdout.strip() == "main"
+    assert result == 0
+
+
+@pytest.mark.parametrize("protected", ["main", "master"])
+def test_push_policy_blocks_deleting_protected_branch_from_main_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    protected: str,
+) -> None:
+    repo, remote, _head = _main_checkout_push_repo(tmp_path, monkeypatch)
+
+    result = policy.check_push_refs(
+        io.StringIO(f"(delete) {'0' * 40} refs/heads/{protected} {remote}\n"),
+        repo,
+    )
+
+    assert result == 1
+    assert f"cannot delete or update protected branch '{protected}'" in capsys.readouterr().err
+
+
+def test_push_policy_blocks_update_of_main_from_feature_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, remote, head = _main_checkout_push_repo(tmp_path, monkeypatch)
+    _git(repo, "checkout", "-q", "-b", "feature/work")
+
+    result = policy.check_push_refs(
+        io.StringIO(f"refs/heads/feature/work {head} refs/heads/main {remote}\n"),
+        repo,
+    )
+
+    assert result == 1
+    assert "cannot delete or update protected branch 'main'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("protected", ["main", "master"])
+def test_push_policy_blocks_mixed_push_that_includes_protected_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    protected: str,
+) -> None:
+    repo, remote, head = _main_checkout_push_repo(tmp_path, monkeypatch)
+
+    result = policy.check_push_refs(
+        io.StringIO(
+            f"refs/heads/main {head} refs/heads/feature {remote}\n"
+            f"refs/heads/main {head} refs/heads/{protected} {remote}\n"
+        ),
+        repo,
+    )
+
+    assert result == 1
+    assert f"cannot delete or update protected branch '{protected}'" in capsys.readouterr().err
+
+
 def test_new_branch_uses_origin_main_for_policy_bases(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -7071,14 +7187,10 @@ def test_push_update_rejects_deletion_and_falls_back_to_local_main(
     assert policy.resolve_push_update(new_ref, tmp_path).base == "main-base"
 
 
-def test_push_policy_reports_branch_and_input_configuration_errors(
+def test_push_policy_reports_input_configuration_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(policy, "check_branch", lambda _root: 2)
-    assert policy.check_push_refs(io.StringIO(), tmp_path) == 2
-
-    monkeypatch.setattr(policy, "check_branch", lambda _root: 0)
     monkeypatch.setattr(policy, "_check_history_integrity", lambda _root: 0)
     assert policy.check_push_refs(io.StringIO("bad input\n"), tmp_path) == 2
 
@@ -8516,6 +8628,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
+    monkeypatch.setattr(policy, "_commit_link_paths", lambda *_args: {})
     monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: set())
     monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 0)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
@@ -11399,6 +11512,7 @@ def test_scan_pushed_heads_skips_identical_root_moves(
     monkeypatch.setattr(policy, "_push_updates", lambda *_args: [_push_update()])
     monkeypatch.setattr(policy, "_changed_commit_paths", lambda *_args: [moved])
     monkeypatch.setattr(policy, "_commit_paths", lambda *_args: [moved])
+    monkeypatch.setattr(policy, "_commit_link_paths", lambda *_args: {})
     monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: {moved})
     monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 1)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0

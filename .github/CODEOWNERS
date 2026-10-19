@@ -19,15 +19,19 @@
 /.github/prompts/pr-quality.*.prompt.md   @rjmurillo
 
 # Shared library backing the AI review gates and the plugin hook shims. The
-# canonical packages live under scripts/; .claude/lib/ is the binplaced copy
-# (ADR-109 B5, build/scripts/lib_mirror.py). Pin both so gate-logic changes
+# canonical packages live under scripts/; .claude/lib/ holds relative links
+# into src/claude/lib (ADR-119 decision 14). Pin both so gate-logic changes
 # (verdict.py merge rules) or hook-utility changes cannot bypass owner review.
+# A trailing slash matches directories only, so each link entry is pinned by
+# name: retargeting one would swap the lib every hook and verifier imports.
 /scripts/ai_review_common/                @rjmurillo
-/.claude/lib/ai_review_common/            @rjmurillo
+/.claude/lib/ai_review_common             @rjmurillo
 /scripts/hook_utilities/                  @rjmurillo
-/.claude/lib/hook_utilities/              @rjmurillo
+/.claude/lib/hook_utilities               @rjmurillo
 /scripts/github_core/                     @rjmurillo
-/.claude/lib/github_core/                 @rjmurillo
+/.claude/lib/github_core                  @rjmurillo
+/.claude/lib/bootstrap.py                 @rjmurillo
+/.claude/lib/paths.py                     @rjmurillo
 # The plugin lib is a runtime lib too: verifiers load it when a plugin root
 # names src/claude, and paths.py is hand-maintained there (ADR-119).
 /src/claude/lib/                          @rjmurillo
