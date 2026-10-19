@@ -310,6 +310,7 @@ class TestReviewSkillStatesTheContract:
         assert "`[diff-caused]`" in text
         assert "`[unmet-criterion]`" in text
         assert "tagged findings included" in text
+        assert "Check each remaining finding against the two counting rules" in text
         assert "a file it did not touch" in text
 
     def test_resource_has_no_dashes(self) -> None:
