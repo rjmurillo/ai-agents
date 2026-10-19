@@ -145,7 +145,7 @@ def test_api_failure(mock_run, capsys):
 
 
 @patch("subprocess.run")
-def test_body_file(mock_run, capsys, tmp_path):
+def test_body_file(mock_run, capsys, tmp_path, tmp_path_is_temp_root, stub_git_probes):
     body_file = tmp_path / "body.md"
     body_file.write_text("File-based body content")
 
@@ -162,7 +162,7 @@ def test_body_file(mock_run, capsys, tmp_path):
 
 
 @patch("subprocess.run")
-def test_body_file_not_found(mock_run, capsys):
+def test_body_file_not_found(mock_run, capsys, tmp_path, tmp_path_is_temp_root, stub_git_probes):
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),
     ]
@@ -174,7 +174,7 @@ def test_body_file_not_found(mock_run, capsys):
             "--title",
             "Test",
             "--body-file",
-            "/nonexistent/file.md",
+            str(tmp_path / "missing.md"),
             "--output-format",
             "json",
         ]

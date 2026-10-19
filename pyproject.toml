@@ -339,15 +339,24 @@ dev = [
 ]
 
 # Seconds a validator suite's tests may sum to in one JUnit report, enforced by
-# `scripts/testing/slow_test_report.py --budget pyproject.toml`. Both entries are
-# the hotspots issue #5382 optimized, so both need a floor under them.
+# `scripts/testing/slow_test_budget.py --budget pyproject.toml`. Each entry is a
+# hotspot issue #5382 optimized, so each needs a floor under it.
 #
-# Each budget is roughly four times the sum this branch measures locally
-# (31.57s and 8.96s, serial, no coverage). The multiplier absorbs a slower or
-# loaded runner, per `.claude/rules/ci-scripts.md` item 16: a standalone wall
-# clock does not predict the same work under contention. What survives that
-# headroom is the regression the batching prevents, a suite that goes back to
-# rediscovering the whole repository per test and lands several times over.
+# The first two budgets are roughly four times the sum this branch measures
+# locally (31.57s and 8.96s, serial, no coverage). The multiplier absorbs a
+# slower or loaded runner, per `.claude/rules/ci-scripts.md` item 16: a
+# standalone wall clock does not predict the same work under contention. What
+# survives that headroom is the regression each fix prevents: a suite that goes
+# back to rediscovering the whole repository per test, or to re-sorting the
+# surface manifest once per file, and lands several times over.
+#
+# The surface parity budget is set against the CI report, which runs with
+# coverage, not against the local serial sum. In CI the suite summed 60.3s on
+# main before the sort-once change (run 39161326676, 2026-10-18) and 32.7s with
+# it (run 39161002142). Locally without coverage the same sums are 49.6s and
+# 12.5s. A 25s budget failed the fixed code in CI. At 45s the fixed code has
+# about 1.4x headroom and a revert fails by about 1.3x.
 [tool.slow-test-budget]
 "tests/test_validate_session_json.py" = 120.0
 "tests/test_guard_diff.py" = 35.0
+"tests/build_scripts/test_surface_parity_repo.py" = 45.0

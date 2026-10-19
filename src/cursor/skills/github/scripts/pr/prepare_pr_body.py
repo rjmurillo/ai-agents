@@ -26,6 +26,10 @@ _BODY_FILE_RULES = (
     "(owner-only); create one with new_pr.py --prepare-body-file"
 )
 _PRIVATE_MASK = 0o077
+# World-write only. Any account could rewrite a world-writable template and plant
+# text in every body seeded from it (#6506). Group-write stays allowed: a umask
+# of 002, common with per-user groups, gives every fresh checkout mode 664.
+_TEMPLATE_WRITE_MASK = 0o002
 _HAS_DIRECTORY_FDS = (
     hasattr(os, "O_DIRECTORY")
     and os.open in os.supports_dir_fd
@@ -140,6 +144,8 @@ def _read_template_fd(descriptor: int) -> str:
         raise PreparePrBodyError("PR template is not a plain file")
     if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
         raise PreparePrBodyError("PR template has another owner")
+    if stat.S_IMODE(metadata.st_mode) & _TEMPLATE_WRITE_MASK:
+        raise PreparePrBodyError("PR template is world-writable")
     with os.fdopen(descriptor, "rb", closefd=False) as template_file:
         data = template_file.read(_TEMPLATE_MAX_BYTES + 1)
     if len(data) > _TEMPLATE_MAX_BYTES:
@@ -151,8 +157,8 @@ def _seed_content(root: Path) -> str:
     """Return the placeholder line followed by the repository PR template.
 
     A repository without a safe template gets the placeholder alone. Safe means
-    a regular file, one link, owned by the caller, at most 64 KiB, reached
-    without crossing a symlink.
+    a regular file, one link, owned by the caller, not world-writable,
+    at most 64 KiB, reached without crossing a symlink.
     """
     if not _HAS_DIRECTORY_FDS:
         return _BODY_PLACEHOLDER

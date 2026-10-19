@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one suite owns the run-side fixtures and fakes.
 """Tests for the run side of scripts/eval/eval_skill_bootstrap_capability.py."""
 
 from __future__ import annotations
@@ -56,7 +57,12 @@ def checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _head(monkeypatch: pytest.MonkeyPatch, value: str | None) -> None:
-    monkeypatch.setattr(cap, "_checkout_head", lambda path: value)
+    def fake(path: Path) -> str:
+        if value is None:
+            raise cap.HeadError("git rev-parse HEAD failed: fatal")
+        return value
+
+    monkeypatch.setattr(cap, "_checkout_head", fake)
 
 
 def _fake_answer(task: dict[str, Any]) -> str:
@@ -162,7 +168,7 @@ def test_checkout_without_skill_exits_2(tmp_path, monkeypatch):
     assert not out.exists()
 
 
-def test_head_failure_exits_3_before_opening_out(tmp_path, checkout, monkeypatch):
+def test_head_failure_exits_3_before_opening_out(tmp_path, checkout, monkeypatch, capsys):
     _head(monkeypatch, None)
     out = tmp_path / "o.jsonl"
 
@@ -170,18 +176,19 @@ def test_head_failure_exits_3_before_opening_out(tmp_path, checkout, monkeypatch
 
     assert code == 3
     assert not out.exists()
+    assert "git rev-parse HEAD failed: fatal" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
-    "outcome",
+    ("outcome", "text"),
     [
-        subprocess.CompletedProcess([], 128, "", "fatal"),
-        subprocess.CompletedProcess([], 0, "  \n", ""),
-        FileNotFoundError("git"),
-        subprocess.TimeoutExpired("git", 30),
+        (subprocess.CompletedProcess([], 128, "", "fatal: not a repo"), "fatal: not a repo"),
+        (subprocess.CompletedProcess([], 0, "  \n", ""), "empty output"),
+        (FileNotFoundError("git"), "git could not run: git"),
+        (subprocess.TimeoutExpired("git", 30), "timed out after 30 s"),
     ],
 )
-def test_checkout_head_returns_none_on_every_failure(tmp_path, monkeypatch, outcome):
+def test_checkout_head_raises_with_the_cause_on_every_failure(tmp_path, monkeypatch, outcome, text):
     def fake(*args, **kwargs):
         assert kwargs["timeout"] == cap.GIT_TIMEOUT_S
         if isinstance(outcome, BaseException):
@@ -190,7 +197,8 @@ def test_checkout_head_returns_none_on_every_failure(tmp_path, monkeypatch, outc
 
     monkeypatch.setattr(cap.subprocess, "run", fake)
 
-    assert cap._checkout_head(tmp_path) is None
+    with pytest.raises(cap.HeadError, match=text):
+        cap._checkout_head(tmp_path)
 
 
 def test_checkout_head_returns_the_sha(tmp_path, monkeypatch):
@@ -198,6 +206,145 @@ def test_checkout_head_returns_the_sha(tmp_path, monkeypatch):
     monkeypatch.setattr(cap.subprocess, "run", lambda *a, **k: done)
 
     assert cap._checkout_head(tmp_path) == "abc123"
+
+
+BASE = "a" * 40
+HEAD = "b" * 40
+
+
+def _ancestor(monkeypatch, code: int, stderr: str = ""):
+    done = subprocess.CompletedProcess([], code, "", stderr)
+    monkeypatch.setattr(cap.subprocess, "run", lambda *a, **k: done)
+
+
+def test_base_commit_warning_is_silent_on_the_base_commit(tmp_path):
+    assert cap._base_commit_warning(tmp_path, BASE, BASE) is None
+
+
+def test_base_commit_warning_names_a_checkout_ahead_of_the_base(tmp_path, monkeypatch):
+    _ancestor(monkeypatch, 0)
+
+    warning = cap._base_commit_warning(tmp_path, HEAD, BASE)
+
+    assert warning is not None
+    assert "is ahead of base_commit" in warning
+    assert HEAD[:9] in warning and BASE[:9] in warning
+
+
+def test_base_commit_warning_names_an_unrelated_checkout(tmp_path, monkeypatch):
+    _ancestor(monkeypatch, 1)
+
+    assert "does not descend from" in cap._base_commit_warning(tmp_path, HEAD, BASE)
+
+
+def test_base_commit_warning_reports_a_git_failure_with_its_text(tmp_path, monkeypatch):
+    _ancestor(monkeypatch, 128, "fatal: Not a valid commit name")
+
+    warning = cap._base_commit_warning(tmp_path, HEAD, BASE)
+
+    assert "could not compare" in warning and "Not a valid commit name" in warning
+
+
+def test_base_commit_warning_reports_a_git_that_cannot_run(tmp_path, monkeypatch):
+    def broken(*a, **k):
+        raise subprocess.TimeoutExpired("git", 30)
+
+    monkeypatch.setattr(cap.subprocess, "run", broken)
+
+    assert "could not compare" in cap._base_commit_warning(tmp_path, HEAD, BASE)
+
+
+def test_base_commit_warning_flags_a_tasks_file_without_one(tmp_path):
+    assert "no 'base_commit'" in cap._base_commit_warning(tmp_path, HEAD, None)
+
+
+def test_run_warns_on_stderr_when_the_checkout_moved_past_base_commit(
+    tmp_path, checkout, monkeypatch, capsys
+):
+    _head(monkeypatch, HEAD)
+    _ancestor(monkeypatch, 0)
+    monkeypatch.setattr(cap, "run_one", lambda *a: _ok_record())
+    data = {**TASKS, "base_commit": BASE}
+
+    code = _run(["--task", "A"], _write_tasks(tmp_path, data), checkout, tmp_path / "o", "after")
+
+    assert code == 0
+    assert "is ahead of base_commit" in capsys.readouterr().err
+
+
+def test_run_is_silent_about_base_commit_when_head_matches(tmp_path, checkout, monkeypatch, capsys):
+    _head(monkeypatch, BASE)
+    monkeypatch.setattr(cap, "run_one", lambda *a: _ok_record())
+    data = {**TASKS, "base_commit": BASE}
+
+    _run(["--task", "A"], _write_tasks(tmp_path, data), checkout, tmp_path / "o", "before")
+
+    assert "base_commit" not in capsys.readouterr().err
+
+
+def _ok_record() -> dict[str, Any]:
+    return {
+        "result": "",
+        "is_error": False,
+        "num_turns": 1,
+        "cost_usd": 0.0,
+        "output_tokens": 1,
+        "wall_s": 0.1,
+    }
+
+
+@pytest.mark.parametrize("base", ["short", "A" * 40, 7, "g" * 40])
+def test_malformed_base_commit_exits_2(tmp_path, checkout, monkeypatch, base):
+    _head(monkeypatch, "h")
+    monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
+
+    code = _run([], _write_tasks(tmp_path, {**TASKS, "base_commit": base}), checkout,
+                tmp_path / "o", "before")  # fmt: skip
+
+    assert code == 2
+
+
+def test_unknown_grader_kind_exits_2_before_any_run(tmp_path, checkout, monkeypatch, capsys):
+    _head(monkeypatch, "h")
+    monkeypatch.setattr(cap, "run_one", lambda *a: pytest.fail("run_one must not be called"))
+    data = json.loads(json.dumps(TASKS))
+    data["tasks"][1]["grader"] = "set_f2"
+
+    code = _run([], _write_tasks(tmp_path, data), checkout, tmp_path / "o", "before")
+
+    assert code == 2
+    assert "unknown grader 'set_f2'" in capsys.readouterr().err
+
+
+def test_run_one_child_gets_no_stdin(monkeypatch, tmp_path):
+    seen: dict[str, Any] = {}
+
+    class Child:
+        pid = 1
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            return json.dumps({"result": "x"}), ""
+
+    def popen(command, **kwargs):
+        seen.update(kwargs)
+        return Child()
+
+    monkeypatch.setattr(cap.subprocess, "Popen", popen)
+
+    cap.run_one(tmp_path, "p", "m")
+
+    assert seen["stdin"] is subprocess.DEVNULL
+
+
+def test_set_f1_prefix_lowercases_gold_and_predictions():
+    task = {"grader": "set_f1_prefix", "answer_key": "r", "gold": ["ABCDEF123"]}
+
+    score = cap.grade(task, {"r": ["abcdef123"]})
+    upper = cap.grade(task, {"r": ["ABCDEF123"]})
+
+    assert score["f1"] == 1.0
+    assert upper["f1"] == 1.0
 
 
 def _tasks_without(key: str) -> dict[str, Any]:
@@ -493,3 +640,9 @@ def test_load_records_skips_blank_lines_and_rejects_non_json(tmp_path):
     path.write_text("\n" + json.dumps(_record("A", "before", "h")) + "\n\n", encoding="utf-8")
 
     assert len(cap.load_records(str(path), {"A"})) == 1
+
+
+def test_extract_answer_skips_a_deeply_nested_block_instead_of_crashing():
+    text = '```json\n{"top": ["a"]}\n```\n```json\n' + "[" * 200_000 + "\n```"
+
+    assert cap.extract_answer(text) == {"top": ["a"]}
