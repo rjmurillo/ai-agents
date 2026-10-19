@@ -17,6 +17,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL_REL = Path("skills") / "skillopt"
 SHIPPED_ROOTS = (".claude", "src/claude", "src/copilot-cli", "src/codex")
+BODY_ROOTS = (*SHIPPED_ROOTS, "src/cursor", "src/hermes/project-toolkit-knowledge")
 TRIGGERS = (
     "optimize this skill",
     "make this skill better",
@@ -113,6 +114,13 @@ def test_skill_md_documents_every_verdict_and_boundary() -> None:
         assert term in text
     assert "~/Documents" not in text
     assert "SOUL.md" not in text
+
+
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_skill_md_budget_step_documents_zero_based_indexing(root: str) -> None:
+    text = " ".join(_skill_md(root).split())
+    assert "`skillopt.py budget --step T --total N`" in text
+    assert "T is 0-based, from 0 to N-1" in text
 
 
 @pytest.mark.parametrize("root", SHIPPED_ROOTS)
@@ -304,3 +312,108 @@ def test_documented_exit_codes_for_scalar_gate_and_hash(tmp_path: Path) -> None:
     mismatch = _run("skillopt.py", "hash", str(target), "--expect", "0" * 64, cwd=tmp_path)
     assert mismatch.returncode == 1
     assert "MISMATCH" in mismatch.stdout
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_preconditions_require_two_isolated_runners(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert "Two isolated runners" in preconditions
+    assert "fresh subagent or another session" in preconditions
+    assert "do not run skillopt" in preconditions
+    assert "gate cannot be independent" in preconditions
+    assert "same agent are still exposed" in preconditions
+    assert (
+        "must not write, run, or see the `sel` prompts, verifiers, or per-task results"
+        in preconditions
+    )
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_process_cross_reference_matches_precondition_number(root: str) -> None:
+    text = _skill_md(root)
+    pre_start = text.index("## Preconditions")
+    pre_end = text.index("## Scripts", pre_start)
+    proc_start = text.index("## Process")
+    proc_end = text.index("## Before promotion", proc_start)
+    assert "4. **Two isolated runners.**" in text[pre_start:pre_end]
+    assert "(Precondition 4)" in text[proc_start:proc_end]
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_eval_set_format_says_who_may_write_replacement_holdouts(root: str) -> None:
+    refs = _skill_dir(root) / "references" / "eval-set-format.md"
+    text = " ".join(refs.read_text(encoding="utf-8").split())
+    assert "Replacement holdouts must come from an author who has not seen the candidate" in text
+    assert "If the candidate author also writes them, they are exposed too" in text
+    assert "candidate author saw at any point in the run" in text
+    assert "before the candidate was frozen" not in text
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_limits_and_checklist_cover_single_runner_harness(root: str) -> None:
+    text = _skill_md(root)
+    limits = " ".join(text[text.index("## Limits") : text.index("## Anti-Patterns")].split())
+    assert "cannot run a separate `sel` runner must not run skillopt at all" in limits
+    assert "not even to flag" in limits
+    assert "Precondition 4" in limits
+    checklist = " ".join(
+        text[text.index("## Verification") : text.index("## Extension Points")].split()
+    )
+    assert (
+        "A runner other than the candidate author wrote and ran the `sel` tasks,"
+        " and the author never saw them."
+    ) in checklist
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_replacement_holdout_remedy_names_who_may_write_them(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert (
+        "add untouched holdout tasks written by a runner who has not seen the candidate"
+        " (Precondition 4)"
+    ) in preconditions
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_precondition_four_does_not_repeat_runner_sentence(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert preconditions.count("fresh subagent or another session") == 1
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_sel_runner_holds_full_eval_json_and_author_gets_train_only_copy(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert "The `sel` runner writes and holds the full `eval.json`" in preconditions
+    assert (
+        "The author gets a train-only copy that keeps the `sel` task ids"
+        " but drops the `sel` task bodies"
+    ) in preconditions
+    assert "`apply` reads only those ids" in preconditions
+    assert "Only the gate verdict goes back" in preconditions
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_sel_exposure_bound_is_the_whole_run_in_every_place(root: str) -> None:
+    text = _skill_md(root)
+    pre_start = text.index("## Preconditions")
+    pre_end = text.index("## Scripts", pre_start)
+    proc_start = text.index("## Process")
+    proc_end = text.index("## Before promotion", proc_start)
+    preconditions = " ".join(text[pre_start:pre_end].split())
+    process = " ".join(text[proc_start:proc_end].split())
+    assert "for the whole run (Precondition 4)" in preconditions
+    assert "holds the `sel` prompts, verifiers, and results in every step" in process
+    assert "until the candidate is frozen" not in preconditions
+    assert "until the candidate is frozen" not in process
