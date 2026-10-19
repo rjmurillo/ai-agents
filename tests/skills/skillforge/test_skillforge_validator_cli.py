@@ -230,6 +230,16 @@ class TestCheckDocsSafety:
         assert docs_safety.main([str(not_a_skill)]) == 2
         assert "no SKILL.md" in capsys.readouterr().err
 
+    def test_docstring_exit_2_rule_matches_behavior(self, capsys: pytest.CaptureFixture[str]):
+        """The module docstring must state the SKILL.md rule the code enforces (#6675)."""
+        doc = docs_safety.__doc__ or ""
+        exit2 = [line.strip() for line in doc.splitlines() if line.strip().startswith("2 -")]
+        assert exit2 == ["2 - bad input: unreadable path, or a directory with no SKILL.md"]
+        assert "no markdown" not in doc
+        with pytest.raises(SystemExit):
+            docs_safety.main(["--help"])
+        assert "a directory with no SKILL.md" in capsys.readouterr().out
+
     def test_references_only_dir_with_unsafe_doc_still_exits_2(self, tmp_path: Path):
         not_a_skill = tmp_path / "not-a-skill"
         (not_a_skill / "references").mkdir(parents=True)
