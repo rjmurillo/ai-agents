@@ -296,7 +296,7 @@ class TestNewIssue:
         assert result["Success"] is False
         assert result["Error"]["Type"] == "InvalidParams"
 
-    def test_main_body_file_not_found_exits_2(self, tmp_path, capsys):
+    def test_main_body_file_not_found_exits_2(self, tmp_path, tmp_path_is_temp_root, capsys):
         mod = self._import()
         with (
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
@@ -318,7 +318,7 @@ class TestNewIssue:
         assert result["Success"] is False
         assert result["Error"]["Type"] == "NotFound"
 
-    def test_main_body_file_used(self, tmp_path, capsys):
+    def test_main_body_file_used(self, tmp_path, tmp_path_is_temp_root, capsys):
         mod = self._import()
         body_file = tmp_path / "body.txt"
         body_file.write_text("file body content")

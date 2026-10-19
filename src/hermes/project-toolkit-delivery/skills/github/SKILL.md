@@ -424,11 +424,11 @@ author gets `source:human`. It only labels.
 
 | Document | Content |
 |----------|---------|
-| [examples.md](references/examples.md) | Complete script examples |
+| [examples.md](references/examples.md) | Script examples |
 | [patterns.md](references/patterns.md) | Reusable workflow patterns |
 | [copilot-prompts.md](references/copilot-prompts.md) | Creating @copilot directives |
 | [copilot-synthesis-guide.md](references/copilot-synthesis-guide.md) | Copilot context synthesis |
-| [api-reference.md](references/api-reference.md) | Exit codes, API endpoints, troubleshooting |
+| [api-reference.md](references/api-reference.md) | Exit codes, endpoints, body-file rule, troubleshooting |
 | [transport-routing.md](references/transport-routing.md) | Picking gh or the MCP tools, and the script-to-tool map |
 | [issue-relationships.md](references/issue-relationships.md) | Choosing parent, sub-issue, blocked-by, blocking, or relates-to |
 | `scripts/github_core/` | Shared Python helper functions |

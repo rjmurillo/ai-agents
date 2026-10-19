@@ -46,12 +46,14 @@ def _review(
     commit: str,
     submitted: str,
     canonical: str | None = None,
+    author_type: str | None = None,
 ) -> dict[str, Any]:
     return {
         "id": review_id,
         "author": login,
         "author_observed": login,
         "author_canonical": canonical or login,
+        "author_type": author_type,
         "state": state,
         "commit_id": commit,
         "submittedAt": submitted,
@@ -196,6 +198,9 @@ class TestNotReady:
             (_pr(), "bogus", "CI state is unknown"),
             (_pr(merge_state_status="BEHIND"), "green", "merge state is BEHIND"),
             (_pr(merge_state_status="DIRTY"), "green", "merge state is DIRTY"),
+            (_pr(merge_state_status="UNKNOWN"), "green", "merge state is UNKNOWN"),
+            (_pr(merge_state_status=None), "green", "merge state is unknown"),
+            (_pr(merge_state_status=""), "green", "merge state is unknown"),
             (_pr(head_sha=""), "green", "head SHA is unknown"),
         ],
     )
@@ -205,10 +210,65 @@ class TestNotReady:
         assert any(reason in r for r in out["reasons"])
         assert out["handoff"] is None
 
+    @pytest.mark.parametrize("state", ["BLOCKED", "CLEAN", "UNSTABLE", "HAS_HOOKS"])
+    def test_states_that_do_not_need_branch_work_stay_ready(self, state):
+        """BLOCKED must pass: a stale CHANGES_REQUESTED review is what blocks the PR."""
+        out = _classify([_stale_cr()], pr=_pr(merge_state_status=state))
+        assert out["verdict"] == "REQUEST_REREVIEW"
+        assert out["reasons"] == []
+
     def test_readiness_is_not_checked_when_no_bot_blocks(self):
         out = _classify([], pr=_pr(review_thread_unresolved_count=5), ci_state="failing")
         assert out["verdict"] == "NO_BOT_CHANGES_REQUESTED"
         assert out["reasons"] == []
+
+
+class TestBotIdentity:
+    """The API account type outranks the -bot naming guess (issue #6506)."""
+
+    def test_user_account_ending_in_bot_is_a_human_blocker(self):
+        review = _review(
+            100,
+            "robot-fan-bot",
+            "CHANGES_REQUESTED",
+            OLD,
+            "2026-09-01T00:00:00Z",
+            author_type="User",
+        )
+        out = _classify([review])
+        assert out["verdict"] == "NO_BOT_CHANGES_REQUESTED"
+        assert out["human_changes_requested"] == ["robot-fan-bot"]
+
+    def test_same_login_without_a_type_keeps_the_naming_guess(self):
+        review = _review(100, "robot-fan-bot", "CHANGES_REQUESTED", OLD, "2026-09-01T00:00:00Z")
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
+
+    def test_user_account_listed_in_bot_authors_is_still_a_bot(self):
+        review = _review(
+            100,
+            "rjmurillo-bot",
+            "CHANGES_REQUESTED",
+            OLD,
+            "2026-09-01T00:00:00Z",
+            author_type="User",
+        )
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
+
+    def test_bot_type_counts_without_a_bot_suffix(self):
+        review = _review(
+            100,
+            "some-review-app",
+            "CHANGES_REQUESTED",
+            OLD,
+            "2026-09-01T00:00:00Z",
+            author_type="Bot",
+        )
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
+
+    def test_non_string_type_is_ignored(self):
+        review = _review(100, "x[bot]", "CHANGES_REQUESTED", OLD, "2026-09-01T00:00:00Z")
+        review["author_type"] = 7
+        assert _classify([review])["verdict"] == "DISMISSAL_HANDOFF"
 
 
 class TestMixedBots:
@@ -310,7 +370,71 @@ class TestMain:
         assert envelope["Success"] is True
         assert envelope["Data"]["verdict"] == "DISMISSAL_HANDOFF"
         assert "reviews/100/dismissals" in envelope["Data"]["handoff"]
-        assert sorted(calls) == ["get_pr_checks.py", "get_pr_context.py", "get_pr_reviews.py"]
+        assert sorted(calls) == [
+            "get_pr_checks.py",
+            "get_pr_context.py",
+            "get_pr_context.py",
+            "get_pr_reviews.py",
+        ]
+
+    def test_head_moved_while_fetching_exits_3(self, capsys):
+        """A push between the first context read and the last call voids every input."""
+        contexts = [_pr(), _pr(head_sha="n" * 40)]
+
+        def fake(script, args):
+            return {
+                "get_pr_context.py": lambda: (0, contexts.pop(0)),
+                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
+            }[script]()
+
+        assert _run_main(fake) == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Success"] is False
+        assert "head moved" in envelope["Error"]["Message"]
+
+    def test_thread_opened_during_fetch_blocks_the_handoff(self, capsys):
+        """A thread opened without a push must show in the verdict, not the first read."""
+        contexts = [_pr(), _pr(review_thread_unresolved_count=1)]
+
+        def fake(script, args):
+            return {
+                "get_pr_context.py": lambda: (0, contexts.pop(0)),
+                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
+            }[script]()
+
+        assert _run_main(fake) == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["verdict"] == "NOT_READY"
+        assert data["handoff"] is None
+
+    def test_merge_state_lost_during_fetch_blocks_the_handoff(self, capsys):
+        contexts = [_pr(), _pr(merge_state_status="UNKNOWN")]
+
+        def fake(script, args):
+            return {
+                "get_pr_context.py": lambda: (0, contexts.pop(0)),
+                "get_pr_checks.py": lambda: (0, {"AllPassing": True}),
+                "get_pr_reviews.py": lambda: (0, {"reviews": [_stale_cr()]}),
+            }[script]()
+
+        assert _run_main(fake) == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
+
+    def test_head_recheck_failure_exits_3(self, capsys):
+        contexts = [(0, _pr()), (3, None)]
+
+        def fake(script, args):
+            if script == "get_pr_context.py":
+                return contexts.pop(0)
+            return {
+                "get_pr_checks.py": (0, {"AllPassing": True}),
+                "get_pr_reviews.py": (0, {"reviews": [_stale_cr()]}),
+            }[script]
+
+        assert _run_main(fake) == 3
+        assert "recheck failed" in json.loads(capsys.readouterr().out)["Error"]["Message"]
 
     @pytest.mark.parametrize("exit_code", [0, 1], ids=["pending_optional", "failing_optional"])
     def test_optional_checks_do_not_block_the_handoff(self, exit_code, capsys):

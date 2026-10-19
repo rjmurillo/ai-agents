@@ -157,6 +157,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
             isDraft
             mergeable
             mergeStateStatus
+            headRefOid
             baseRefName
             baseRepository {
                 defaultBranchRef {
@@ -665,6 +666,18 @@ def _merge_state_status(pr: dict) -> str:
 # allowlist the code enumerated blockers instead, so any value nobody listed
 # reached `CanMerge=True` and through it `Tier=T1`, the auto-merge path.
 _SUPPORTED_MERGE_STATES = frozenset({"CLEAN", "HAS_HOOKS", "UNSTABLE"})
+
+
+def _evaluate_head_pin(pr: dict[str, Any], expected_head_sha: str, reasons: list[str]) -> None:
+    """Append a reason when the PR head is not the pinned SHA (case-insensitive)."""
+    if not expected_head_sha:
+        return
+    actual = pr.get("headRefOid")
+    actual = actual if isinstance(actual, str) else ""
+    if actual.lower() != expected_head_sha.lower():
+        reasons.append(
+            f"head SHA {actual or 'unknown'} differs from the pinned {expected_head_sha}"
+        )
 
 
 def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
@@ -1654,12 +1667,19 @@ def check_merge_readiness(
     include_non_required: bool = False,
     dispositions_file: str | None = None,
     is_bot: bool = False,
+    expected_head_sha: str = "",
 ) -> dict:
-    """Check if a PR is ready to merge. Sergeant orchestrator."""
+    """Check if a PR is ready to merge. Sergeant orchestrator.
+
+    ``expected_head_sha`` pins the head the caller reviewed. The query is one
+    snapshot, so a head that differs from the pin makes every verdict in this
+    result describe a commit the caller never saw, and the PR is not ready.
+    """
     op_start = time.monotonic()
     pr = _fetch_pr_data(owner, repo, pr_number, op_start)
 
     reasons: list[str] = []
+    _evaluate_head_pin(pr, expected_head_sha, reasons)
     merge_state = _merge_state_status(pr)
     mergeable = _evaluate_pr_state(pr, reasons)
     unresolved_count, total_threads, threads_pages_complete = _evaluate_review_threads(
@@ -1724,6 +1744,7 @@ def check_merge_readiness(
         "IsDraft": pr.get("isDraft", False),
         "Mergeable": mergeable,
         "MergeStateStatus": merge_state,
+        "HeadSha": pr.get("headRefOid") if isinstance(pr.get("headRefOid"), str) else "",
         "BaseRef": _base_ref_name(pr),
         "DefaultBranch": _default_branch_name(pr),
         "StaleDirtySuspected": stale_dirty_suspected(mergeable or "", merge_state),
@@ -1958,6 +1979,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Indicate the PR author is a bot (affects tier classification)",
     )
+    parser.add_argument(
+        "--expected-head-sha",
+        default="",
+        help="Head SHA the caller reviewed. A different head makes the PR not ready.",
+    )
     return parser
 
 
@@ -1978,6 +2004,7 @@ def main(argv: list[str] | None = None) -> int:
         include_non_required=args.include_non_required,
         dispositions_file=args.dispositions_file,
         is_bot=args.is_bot,
+        expected_head_sha=args.expected_head_sha,
     )
 
     print(json.dumps(result, indent=2))

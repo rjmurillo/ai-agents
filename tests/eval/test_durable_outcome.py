@@ -13,19 +13,12 @@ from typing import Any
 import pytest
 
 from tests.eval._durable_outcome_test_support import (
+    classify_record,
     durable,
     durable_record,
     make_record,
     outcome,
 )
-
-
-def _classify_record(**section_overrides: dict[str, Any]) -> durable.Verdict:
-    data = make_record()
-    for section, fields in section_overrides.items():
-        data[section] = {**data[section], **fields}
-    return durable.classify(outcome.parse_record(data))
-
 
 # ---------------------------------------------------------------------------
 # classify (REQ-042 AC-2 to AC-4)
@@ -34,18 +27,18 @@ def _classify_record(**section_overrides: dict[str, Any]) -> durable.Verdict:
 
 def test_deterministic_fail_rejects_despite_judge_pass() -> None:
     # REQ-042 AC-2: deterministic evidence first.
-    verdict = _classify_record(execution={"deterministic_acceptance": "FAIL", "judge": "PASS"})
+    verdict = classify_record(execution={"deterministic_acceptance": "FAIL", "judge": "PASS"})
     assert verdict is durable.Verdict.REJECTED
 
 
 def test_capability_not_attempted_rejects() -> None:
-    verdict = _classify_record(capability={"attempted": False})
+    verdict = classify_record(capability={"attempted": False})
     assert verdict is durable.Verdict.REJECTED
 
 
 def test_judge_never_rescues_deterministic_fail() -> None:
     # REQ-042 AC-2: the judge only downgrades, never upgrades.
-    verdict = _classify_record(execution={"deterministic_acceptance": "FAIL", "judge": "PASS"})
+    verdict = classify_record(execution={"deterministic_acceptance": "FAIL", "judge": "PASS"})
     assert verdict is durable.Verdict.REJECTED
 
 
@@ -60,7 +53,7 @@ def test_judge_never_rescues_deterministic_fail() -> None:
 )
 def test_unverified_required_evidence_yields_unverified(section: str, field: str) -> None:
     # REQ-042 AC-3
-    verdict = _classify_record(**{section: {field: "UNVERIFIED"}})
+    verdict = classify_record(**{section: {field: "UNVERIFIED"}})
     assert verdict is durable.Verdict.UNVERIFIED
 
 
@@ -69,7 +62,7 @@ def test_unverified_required_evidence_yields_unverified(section: str, field: str
 )
 def test_null_durable_count_yields_unverified(field: str) -> None:
     # REQ-042 AC-3
-    verdict = _classify_record(durable={field: None})
+    verdict = classify_record(durable={field: None})
     assert verdict is durable.Verdict.UNVERIFIED
 
 
@@ -84,19 +77,19 @@ def test_null_durable_count_yields_unverified(field: str) -> None:
 )
 def test_null_risk_count_yields_unverified(field: str) -> None:
     # REQ-042 AC-3
-    verdict = _classify_record(risk={field: None})
+    verdict = classify_record(risk={field: None})
     assert verdict is durable.Verdict.UNVERIFIED
 
 
 def test_judge_fail_rejects() -> None:
-    verdict = _classify_record(execution={"judge": "FAIL"})
+    verdict = classify_record(execution={"judge": "FAIL"})
     assert verdict is durable.Verdict.REJECTED
 
 
 def test_judge_unverified_does_not_force_unverified() -> None:
     # judge is optional evidence: UNVERIFIED judge alone stays out of the
     # required-evidence check in step 2.
-    verdict = _classify_record(execution={"judge": "UNVERIFIED"})
+    verdict = classify_record(execution={"judge": "UNVERIFIED"})
     assert verdict is durable.Verdict.ACCEPTED_DURABLE
 
 
@@ -121,24 +114,24 @@ def test_durability_signal_yields_accepted_not_durable(
     section: str, field: str, value: object
 ) -> None:
     # REQ-042 AC-4
-    verdict = _classify_record(**{section: {field: value}})
+    verdict = classify_record(**{section: {field: value}})
     assert verdict is durable.Verdict.ACCEPTED_NOT_DURABLE
 
 
 def test_review_findings_alone_does_not_demote() -> None:
-    verdict = _classify_record(durable={"review_findings": 3})
+    verdict = classify_record(durable={"review_findings": 3})
     assert verdict is durable.Verdict.ACCEPTED_DURABLE
 
 
 def test_unresolved_uncertainty_alone_does_not_demote() -> None:
     # Matches the five_cases "ambiguous requirement" case: risk is counted,
     # but the run still classifies durable.
-    verdict = _classify_record(risk={"unresolved_uncertainty": 1})
+    verdict = classify_record(risk={"unresolved_uncertainty": 1})
     assert verdict is durable.Verdict.ACCEPTED_DURABLE
 
 
 def test_fully_clean_record_is_accepted_durable() -> None:
-    verdict = _classify_record()
+    verdict = classify_record()
     assert verdict is durable.Verdict.ACCEPTED_DURABLE
 
 
@@ -434,7 +427,7 @@ def test_compare_better_requires_no_zero_drop_even_with_better_average() -> None
 
 def test_no_artifact_rejects() -> None:
     """REQ-042 AC-2: an attempt that produced no artifact is never accepted."""
-    verdict = _classify_record(capability={"produced_artifact": False})
+    verdict = classify_record(capability={"produced_artifact": False})
     assert verdict is durable.Verdict.REJECTED
 
 

@@ -1525,7 +1525,7 @@ def _count_commit_events(events: list) -> int:
     return sum(1 for evt in events if _as_dict(evt).get("type") == "commit")
 
 
-def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
+def _drop_dangling_commit_events(events: list[dict], *, files_changed: int = 0) -> list[dict]:
     """Remove commit events whose SHA resolves locally but no ref reaches.
 
     A dangling object is clone residue (a rebase onto a concurrent push, a
@@ -1542,6 +1542,13 @@ def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
     event is kept, because only ``False`` proves the commit dangling (issue
     #6565). Ids are renumbered so they stay contiguous; the caller's relink
     pass rebuilds the causal edges.
+
+    A drop that would remove every commit event while ``files_changed`` is
+    positive is refused. A squash-merged and pruned branch leaves every one of
+    its commits dangling, and writing ``commits == 0`` beside file changes is
+    the shape ``validate_metrics_consistency`` rejects as failed commit
+    collection (issue #3873). The dangling events stay as the only record that
+    the session made commits.
     """
     kept: list[dict] = []
     for evt in events:
@@ -1549,9 +1556,19 @@ def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
         if sha and _commit_datetime(sha) is not None and _sha_is_reachable(sha) is False:
             continue
         kept.append(evt)
+    if files_changed > 0 and _count_commit_events(kept) == 0:
+        return events
     if len(kept) != len(events):
         _renumber_events(kept)
     return kept
+
+
+def _files_changed(metrics: dict) -> int:
+    """``metrics.files_changed`` as a non-negative int, 0 when absent or malformed."""
+    try:
+        return max(int(metrics.get("files_changed") or 0), 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _merge_metrics(new: dict, existing: dict) -> dict:
@@ -1572,7 +1589,13 @@ def _merge_metrics(new: dict, existing: dict) -> dict:
     return out
 
 
-def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict:
+def merge_preserving(
+    new: dict,
+    existing: dict,
+    *,
+    session_id: str = "",
+    measured_files_changed: int | None = None,
+) -> dict:
     """Merge a freshly extracted episode over an existing one without data loss.
 
     Read-modify-write semantics for regeneration: fresh extraction is the base,
@@ -1584,8 +1607,11 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     is already deterministic from the SHA and is the only ordering evidence the
     causal graph has against a same-day milestone (issue #4071). Commit events
     whose SHA resolves locally but is reachable from no ref are dropped, and
-    ``metrics.commits`` is recomputed from the surviving events (issue #5213).
-    Applying twice is a no-op.
+    ``metrics.commits`` is recomputed from the surviving events (issue #5213),
+    unless the drop would leave zero commits beside positive ``files_changed``.
+    A caller-measured ``measured_files_changed`` (even zero) replaces the merged
+    file count before that guard, so a stale preserved count cannot keep
+    dangling commits alive. Applying twice is a no-op.
     """
     existing = _as_dict(existing)
     date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
@@ -1609,9 +1635,13 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         midnight,
         session_id=session_id,
     )
-    merged["events"] = _drop_dangling_commit_events(merged["events"])
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
+    )
+    if measured_files_changed is not None:
+        merged["metrics"]["files_changed"] = measured_files_changed
+    merged["events"] = _drop_dangling_commit_events(
+        merged["events"], files_changed=_files_changed(merged["metrics"])
     )
     # metrics.commits must equal the distinct commit-event count so preserve
     # accumulation never drifts from the event stream (issue #3123). The event
@@ -2871,9 +2901,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 1
             prior_edges = _total_causal_edges(existing_raw.get("events"))
-            episode = merge_preserving(episode, existing_raw, session_id=session_id)
-            if measured_files_changed is not None:
-                episode["metrics"]["files_changed"] = measured_files_changed
+            episode = merge_preserving(
+                episode,
+                existing_raw,
+                session_id=session_id,
+                measured_files_changed=measured_files_changed,
+            )
             decisions = episode["decisions"]
             events = episode["events"]
             lessons = episode["lessons"]

@@ -15,8 +15,11 @@ from typing import Any
 import pytest
 
 from tests.eval._durable_live_test_support import (
+    BASE,
+    CLEAN_REVIEW,
     GOOD_TASK,
     PLAUSIBLE_TASK,
+    SETTINGS,
     Verdict,
     classify,
     compare,
@@ -26,30 +29,12 @@ from tests.eval._durable_live_test_support import (
     load,
     parse_record,
     record_mod,
+    reviewed_case,
+    run_case,
     stream_mod,
     stream_text,
+    timed,
 )
-
-SETTINGS = live_mod.RunSettings("haiku", "low", retry_budget=1)
-BASE = {
-    "harness": "claude",
-    "context_bytes": 0,
-    "retry_budget": 1,
-    "reviewer": "none",
-    "control": "current",
-}
-
-
-def _run(task: str, overlays: list[str | None], tmp_path: Path, **kwargs: Any) -> Any:
-    scenario = load(task)
-    control_file = tmp_path / "control.md"
-    control_file.write_text("rules", encoding="utf-8")
-    runner = fake_runner(scenario, overlays, **kwargs)
-    budget = live_mod.InvocationBudget(10)
-    run = live_mod.run_task(
-        scenario, "current", control_file, BASE, SETTINGS, budget, runner=runner
-    )
-    return run, runner, budget
 
 
 class TestParseStream:
@@ -121,6 +106,15 @@ class TestArgvAndEnv:
         assert "--dangerously-skip-permissions" not in argv
         assert "WebFetch" not in argv and "Bash(python:*)" in argv
 
+    def test_restrict_tools_adds_the_tools_flag_with_the_same_names(self, tmp_path: Path) -> None:
+        names = ("Read", "Glob", "Grep")
+        argv = live_mod.claude_argv(SETTINGS, tmp_path / "c.md", "p", names, restrict_tools=True)
+        assert argv[argv.index("--tools") + 1] == "Read,Glob,Grep"
+        assert argv[argv.index("--allowedTools") + 1 : argv.index("--allowedTools") + 4] == [*names]
+
+    def test_producer_argv_has_no_tools_flag(self, tmp_path: Path) -> None:
+        assert "--tools" not in live_mod.claude_argv(SETTINGS, tmp_path / "c.md", "p")
+
     def test_env_drops_billing_variables_and_disables_claude_mds(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -163,6 +157,10 @@ class TestBudget:
     def test_upper_bound_counts_every_round(self) -> None:
         assert live_mod.max_invocations(6, 2, 1, 1) == 24
         assert live_mod.max_invocations(6, 2, 2, 0) == 24
+
+    def test_the_reviewer_arm_adds_one_launch_per_taskrun_case(self) -> None:
+        assert live_mod.max_invocations(6, 2, 1, 1, reviewer=True) == 36
+        assert live_mod.max_invocations(6, 2, 2, 0, reviewer=True) == 48
 
 
 class TestRunClaude:
@@ -207,40 +205,43 @@ class TestRunClaude:
 
 class TestRunTask:
     def test_known_good_first_pass_is_accepted_durable(self, tmp_path: Path) -> None:
-        run, runner, budget = _run(GOOD_TASK, ["known_good"], tmp_path)
-        assert run.record is not None and len(runner.calls) == 1 and budget.used == 1
-        assert classify(run.record) is Verdict.ACCEPTED_DURABLE
+        run, runner, budget = reviewed_case(GOOD_TASK, ["known_good"], tmp_path, CLEAN_REVIEW)
+        assert run.record is not None and len(runner.calls) == 2 and budget.used == 2
+        assert classify(timed(run.record)) is Verdict.ACCEPTED_DURABLE
         assert run.record.execution.retries == 0
         assert run.record.config.model == "claude-haiku-4-5-20251001"
         assert run.record.config.harness_version == "2.1.285"
 
     def test_known_bad_exhausts_retries_and_is_rejected(self, tmp_path: Path) -> None:
-        run, runner, _ = _run(GOOD_TASK, ["known_bad"], tmp_path)
+        run, runner, _ = run_case(GOOD_TASK, ["known_bad"], tmp_path)
         assert run.record is not None and len(runner.calls) == 2
         assert classify(run.record) is Verdict.REJECTED
         assert run.record.execution.first_pass.value == "FAIL"
         assert run.record.execution.retries == 1
 
     def test_untouched_initial_state_is_rejected_without_artifact(self, tmp_path: Path) -> None:
-        run, _, _ = _run(GOOD_TASK, [None], tmp_path)
+        run, _, _ = run_case(GOOD_TASK, [None], tmp_path)
         assert run.record is not None
         assert run.record.capability.produced_artifact is False
         assert classify(run.record) is Verdict.REJECTED
 
     def test_correction_round_recovers_and_counts_a_retry(self, tmp_path: Path) -> None:
-        run, runner, _ = _run(GOOD_TASK, ["known_bad", "known_good"], tmp_path)
-        assert run.record is not None and len(runner.calls) == 2
+        run, runner, _ = reviewed_case(
+            GOOD_TASK, ["known_bad", "known_good"], tmp_path, CLEAN_REVIEW
+        )
+        assert run.record is not None and len(runner.calls) == 3
         assert run.record.execution.first_pass.value == "FAIL"
         assert run.record.execution.deterministic_acceptance.value == "PASS"
-        assert classify(run.record) is Verdict.ACCEPTED_DURABLE
+        assert run.record.execution.retries == 1
+        assert classify(timed(run.record)) is Verdict.ACCEPTED_DURABLE
 
     def test_plausible_but_wrong_is_caught_by_hidden_checks(self, tmp_path: Path) -> None:
-        run, _, _ = _run(PLAUSIBLE_TASK, ["known_bad"], tmp_path)
+        run, _, _ = run_case(PLAUSIBLE_TASK, ["known_bad"], tmp_path)
         assert run.record is not None
         assert classify(run.record) is Verdict.REJECTED
 
     def test_turn_limit_is_graded_not_dropped(self, tmp_path: Path) -> None:
-        run, _, _ = _run(
+        run, _, _ = run_case(
             GOOD_TASK,
             ["known_bad"],
             tmp_path,
@@ -251,7 +252,7 @@ class TestRunTask:
         assert all(i.facts.limit_hit == "error_max_turns" for i in run.invocations)
 
     def test_turn_limit_exit_code_1_is_graded_not_a_harness_failure(self, tmp_path: Path) -> None:
-        run, _, _ = _run(
+        run, _, _ = run_case(
             GOOD_TASK,
             ["known_good"],
             tmp_path,
@@ -259,27 +260,29 @@ class TestRunTask:
             returncodes=[1],
         )
         assert run.record is not None
-        assert classify(run.record) is Verdict.ACCEPTED_DURABLE
+        assert run.record.execution.deterministic_acceptance.value == "PASS"
+        # No reviewer arm and no human timing: the run is graded but not verified.
+        assert classify(run.record) is Verdict.UNVERIFIED
 
     def test_nonzero_exit_with_a_success_result_is_still_a_harness_failure(
         self, tmp_path: Path
     ) -> None:
-        run, _, _ = _run(GOOD_TASK, ["known_good"], tmp_path, returncodes=[2])
+        run, _, _ = run_case(GOOD_TASK, ["known_good"], tmp_path, returncodes=[2])
         assert run.record is None and run.note == "exit code 2"
 
     def test_harness_failure_yields_no_record(self, tmp_path: Path) -> None:
-        run, runner, _ = _run(GOOD_TASK, ["known_good"], tmp_path, returncodes=[1])
+        run, runner, _ = run_case(GOOD_TASK, ["known_good"], tmp_path, returncodes=[1])
         assert run.record is None and len(runner.calls) == 1
         assert run.note == "exit code 1"
 
     def test_incomplete_stream_yields_no_record(self, tmp_path: Path) -> None:
-        run, _, _ = _run(
+        run, _, _ = run_case(
             GOOD_TASK, ["known_good"], tmp_path, stdout=lambda _i: stream_text(with_result=False)
         )
         assert run.record is None and run.note == "no result event in stream"
 
     def test_cost_and_unapproved_actions_are_summed_across_rounds(self, tmp_path: Path) -> None:
-        run, _, _ = _run(
+        run, _, _ = run_case(
             GOOD_TASK,
             ["known_bad", "known_good"],
             tmp_path,
@@ -291,10 +294,10 @@ class TestRunTask:
 
     def test_unsupported_claim_is_counted_only_when_acceptance_fails(self, tmp_path: Path) -> None:
         claim = "All tests pass."
-        bad, _, _ = _run(
+        bad, _, _ = run_case(
             GOOD_TASK, ["known_bad"], tmp_path, stdout=lambda _i: stream_text(text=claim)
         )
-        good, _, _ = _run(
+        good, _, _ = run_case(
             GOOD_TASK, ["known_good"], tmp_path, stdout=lambda _i: stream_text(text=claim)
         )
         assert bad.record.risk.unsupported_claims == 1
@@ -335,7 +338,7 @@ class TestCorrectionPrompt:
 
 class TestRecordHelpers:
     def test_record_to_row_roundtrips_through_the_strict_parser(self, tmp_path: Path) -> None:
-        run, _, _ = _run(GOOD_TASK, ["known_good"], tmp_path)
+        run, _, _ = run_case(GOOD_TASK, ["known_good"], tmp_path)
         row = record_mod.record_to_row(run.record)
         assert parse_record(row) == run.record
         assert row["execution"]["deterministic_acceptance"] == "PASS"
@@ -367,7 +370,7 @@ class TestRecordHelpers:
         assert record_mod.security_findings(tmp_path, ["ok.py"]) == 0
         assert record_mod.security_findings(tmp_path, ["notes.md", "gone.py"]) == 0
 
-    def test_security_findings_is_none_when_ruff_cannot_run(
+    def test_security_findings_is_none_when_ruff_cannotrun_case(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
@@ -379,7 +382,7 @@ class TestRecordHelpers:
         assert record_mod.security_findings(tmp_path, ["a.py"]) is None
 
     def test_a_null_security_count_makes_the_record_unverified(self, tmp_path: Path) -> None:
-        run, _, _ = _run(GOOD_TASK, ["known_good"], tmp_path)
+        run, _, _ = run_case(GOOD_TASK, ["known_good"], tmp_path)
         row = record_mod.record_to_row(run.record)
         row["risk"]["security_findings"] = None
         assert classify(parse_record(row)) is Verdict.UNVERIFIED
