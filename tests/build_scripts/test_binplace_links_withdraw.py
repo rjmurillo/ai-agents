@@ -1,4 +1,5 @@
-"""A refused binplace entry must not leave its earlier install link reachable."""
+"""Nested symlinks in a binplace entry are refused, and a refused entry
+must not leave its earlier install link reachable."""
 
 from __future__ import annotations
 
@@ -60,3 +61,40 @@ def test_refused_entry_keeps_a_real_directory_at_the_install_path(tmp_path: Path
     binplace_links.link_row(plugin, install, check=False)
 
     assert (install / "alpha" / "mine.txt").read_text(encoding="utf-8") == "edit\n"
+
+
+def test_symlink_nested_inside_an_entry_is_refused(tmp_path: Path, capsys) -> None:
+    plugin, install = _plugin(tmp_path), _install(tmp_path)
+    (tmp_path / "outside").mkdir()
+    nested = plugin / "alpha" / "scripts" / "sub"
+    nested.symlink_to(tmp_path / "outside", target_is_directory=True)
+
+    outcome = binplace_links.link_row(plugin, install, check=False)
+
+    assert outcome.exit_code == 2
+    assert str(nested) in outcome.drifted
+    assert str(nested) in capsys.readouterr().err
+    assert not (install / "alpha").exists(), "the unsafe entry is not linked"
+    assert (install / "beta.md").is_symlink(), "other entries still link"
+
+
+def test_nested_symlink_is_refused_in_check_mode(tmp_path: Path) -> None:
+    plugin, install = _plugin(tmp_path), _install(tmp_path)
+    (plugin / "alpha" / "SKILL.link").symlink_to("SKILL.md")
+
+    outcome = binplace_links.link_row(plugin, install, check=True)
+
+    assert outcome.exit_code == 2
+    assert str(plugin / "alpha" / "SKILL.link") in outcome.drifted
+
+
+def test_clean_tree_with_bytecode_passes(tmp_path: Path) -> None:
+    plugin, install = _plugin(tmp_path), _install(tmp_path)
+    cache = plugin / "alpha" / "scripts" / "__pycache__"
+    cache.mkdir()
+    (cache / "run.cpython-314.pyc").write_bytes(b"\0")
+
+    outcome = binplace_links.link_row(plugin, install, check=False)
+
+    assert outcome.exit_code == 0
+    assert (install / "alpha").is_symlink()
