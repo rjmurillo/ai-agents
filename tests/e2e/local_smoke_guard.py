@@ -4,137 +4,62 @@ The local smoke runs on the harness the developer uses, on their own login. The
 pre-push gate passes ``-m "not copilot"``, which only deselects tests that carry
 the ``copilot`` marker. A Copilot call added without that marker would still run
 locally. This guard closes that gap: when the gate sets ``LOCAL_SMOKE_ENV``, any
-``subprocess.run`` or ``subprocess.Popen`` whose program is ``copilot`` fails
-the test before the process starts.
+``subprocess.run`` or ``subprocess.Popen`` that would start ``copilot``, as the
+program or anywhere in a compound command line, fails the test before the
+process starts.
+
+The guard also wraps the ``os`` spawn entry points (``system``, ``posix_spawn``,
+``posix_spawnp``, the ``exec*`` and ``spawn*`` families). It cannot see a launch
+that skips Python's ``os`` module: a C extension, ``ctypes`` calling ``system``,
+or a program the test starts that itself starts Copilot. Those stay a review
+concern.
+
+The threat is an unmarked test a contributor wrote by mistake, not an adversary. The
+command parser reads a fixed set of launchers and shells, and its scope is frozen at the
+forms such a test is likely to use. A program started through any other launcher
+(``script -c``, ``su -c``, ``find -exec``, ``parallel``) is not seen. The backstop is
+``local_smoke_shim``: a ``copilot`` that exits non-zero, first on ``PATH``, so a launch by
+bare name fails when the launcher keeps PATH. It does not stop a launch by absolute path.
+
+The refusal derives from ``BaseException``. A broad ``except Exception`` in the
+code under test would otherwise turn the refusal into a pass.
 """
 
 from __future__ import annotations
 
 import os
-import re
-import shlex
 import subprocess
 from collections.abc import Callable, Mapping
-from pathlib import PurePath, PureWindowsPath
 from typing import Any
 
-LOCAL_SMOKE_ENV = "AI_AGENTS_LOCAL_CLI_SMOKE"
-_COPILOT_NAMES = frozenset({"copilot", "copilot.exe", "copilot.cmd", "copilot.bat"})
-# A leading NAME=VALUE environment assignment, as in ``FOO=1 copilot``.
-_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-# An npm package spec's version suffix, as in ``@github/copilot@1.0.91``.
-_VERSION_SUFFIX = re.compile(r"(?<=.)@[^/]*$")
-# Launchers that run a later word as the program, mapped to their options that
-# take a separate value. ``gh copilot`` is a gh extension, not the Copilot CLI,
-# so ``gh`` is not listed.
-_LAUNCHERS: dict[str, frozenset[str]] = {
-    "env": frozenset({"-u", "--unset", "-C", "--chdir"}),
-    "sudo": frozenset({"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "--user", "--group"}),
-    "npx": frozenset({"-p", "--package", "-c", "--call"}),
-    "nohup": frozenset(),
-    "exec": frozenset({"-a"}),
-    "command": frozenset(),
-}
-# Options after which a launcher only looks the program up instead of running it.
-_LOOKUP_OPTIONS = frozenset({"-v", "-V"})
-# Shells, mapped to the option whose value is a command line to run.
-_SHELLS: dict[str, frozenset[str]] = (
-    {name: frozenset({"-c"}) for name in ("sh", "bash", "zsh", "dash", "ksh")}
-    | {name: frozenset({"/c", "/k"}) for name in ("cmd", "cmd.exe")}
-    | {
-        name: frozenset({"-c", "-command"})
-        for name in ("pwsh", "pwsh.exe", "powershell", "powershell.exe")
-    }
+from local_smoke_os import _ORIGINAL_OS, install_os
+from local_smoke_refuse import (
+    LOCAL_SMOKE_ENV,
+    CopilotCallRefusedError,
+    guard_active,
+    refuse_copilot,
 )
+from local_smoke_shim import install_path_shim, remove_path_shim
 
+__all__ = [
+    "LOCAL_SMOKE_ENV",
+    "CopilotCallRefusedError",
+    "GuardedPopen",
+    "guard_active",
+    "install",
+    "install_path_shim",
+    "refuse_copilot",
+    "remove_path_shim",
+    "restore",
+    "snapshot",
+    "uninstall",
+]
 
-class CopilotCallRefusedError(AssertionError):
-    """Raised when the local smoke tries to start the Copilot CLI."""
+_ORIGINAL_POPEN = subprocess.Popen
 
-
-def guard_active(environ: Mapping[str, str] | None = None) -> bool:
-    """Return True when the local pre-push smoke marked this run."""
-    source = os.environ if environ is None else environ
-    return source.get(LOCAL_SMOKE_ENV) == "1"
-
-
-def _words(args: object) -> list[str]:
-    """Split a subprocess ``args`` value into words.
-
-    A path object is one program path, as ``Popen`` treats it, even when the
-    path holds spaces. A string is split like a shell command line.
-    """
-    if isinstance(args, os.PathLike):
-        return [os.fsdecode(args)]
-    if isinstance(args, (str, bytes)):
-        text = os.fsdecode(args)
-        if "\\" in text:
-            return text.split()
-        try:
-            return shlex.split(text)
-        except ValueError:
-            return text.split()
-    if isinstance(args, (list, tuple)):
-        return [os.fsdecode(word) for word in args]
-    return []
-
-
-def _basename(word: str) -> str:
-    name = PureWindowsPath(PurePath(word).name).name.lower()
-    return _VERSION_SUFFIX.sub("", name)
-
-
-def _shell_command(name: str, rest: list[str]) -> str | None:
-    """Return the command line a shell runs with ``-c`` or its equivalent."""
-    flags = _SHELLS[name]
-    for index, word in enumerate(rest):
-        if word.lower() in flags and index + 1 < len(rest):
-            return rest[index + 1]
-    return None
-
-
-def program_name(args: object) -> str:
-    """Return the lowercased basename of the program a subprocess call starts.
-
-    Leading ``NAME=VALUE`` assignments are skipped. A launcher such as ``env``,
-    ``sudo`` or ``npx`` is skipped with its flags and the values its known
-    options take. A shell's ``-c`` command line is read as the real command.
-    ``command -v`` only looks a program up, so it starts nothing. A version
-    suffix on an npm package spec is dropped.
-    """
-    words = _words(args)
-    launcher = ""
-    index = 0
-    while index < len(words):
-        word = words[index]
-        index += 1
-        if _ASSIGNMENT.match(word):
-            continue
-        if word.startswith("-"):
-            if launcher == "command" and word in _LOOKUP_OPTIONS:
-                return ""
-            index += word in _LAUNCHERS.get(launcher, frozenset())
-            continue
-        name = _basename(word)
-        if name in _LAUNCHERS:
-            launcher = name
-            continue
-        if name in _SHELLS:
-            command = _shell_command(name, words[index:])
-            return name if command is None else program_name(command)
-        return name
-    return ""
-
-
-def refuse_copilot(args: object) -> None:
-    """Raise when ``args`` would start the Copilot CLI."""
-    if program_name(args) in _COPILOT_NAMES:
-        raise CopilotCallRefusedError(
-            f"The local CLI smoke must not call Copilot (got {args!r}). "
-            "Give the test the copilot marker (the requires_copilot decorator in "
-            "test_plugin_load_smoke.py and test_cli_hook_e2e.py applies it), so "
-            "only the CI leg runs it."
-        )
+# Popen's `shell` position among the arguments after `args`: bufsize, executable, stdin,
+# stdout, stderr, preexec_fn, close_fds, then shell.
+_POPEN_SHELL_INDEX = 7
 
 
 class GuardedPopen(subprocess.Popen[Any]):
@@ -147,6 +72,10 @@ class GuardedPopen(subprocess.Popen[Any]):
 
     def __init__(self, args: Any, *rest: Any, **kwargs: Any) -> None:
         refuse_copilot(args)
+        # With shell=True the first item of a sequence is a command line, not a program.
+        shell = kwargs.get("shell") or (len(rest) > _POPEN_SHELL_INDEX and rest[_POPEN_SHELL_INDEX])
+        if shell and isinstance(args, (list, tuple)) and args:
+            refuse_copilot(args[0])
         # Popen's positional order is (args, bufsize, executable, ...).
         executable = kwargs.get("executable", rest[1] if len(rest) > 1 else None)
         if executable is not None:
@@ -155,5 +84,34 @@ class GuardedPopen(subprocess.Popen[Any]):
 
 
 def install(setattr_fn: Callable[[object, str, object], None]) -> None:
-    """Replace ``subprocess.Popen`` through ``setattr_fn``."""
+    """Replace ``subprocess.Popen`` and the ``os`` spawn entry points through ``setattr_fn``."""
     setattr_fn(subprocess, "Popen", GuardedPopen)
+    install_os(setattr_fn)
+
+
+def snapshot() -> dict[str, Any]:
+    """Return what ``install`` and the PATH shim change, for ``restore``."""
+    return {
+        "popen": subprocess.Popen,
+        "os": {name: getattr(os, name) for name in _ORIGINAL_OS},
+        "path": os.environ.get("PATH"),
+    }
+
+
+def restore(state: Mapping[str, Any]) -> None:
+    """Put back a ``snapshot``. The PATH shim itself is removed by ``remove_path_shim``."""
+    setattr(subprocess, "Popen", state["popen"])  # noqa: B010
+    for name, value in state["os"].items():
+        setattr(os, name, value)
+    if state["path"] is None:
+        os.environ.pop("PATH", None)
+    else:
+        os.environ["PATH"] = state["path"]
+
+
+def uninstall() -> None:
+    """Put back the real ``subprocess.Popen``, the ``os`` entry points, and ``PATH``."""
+    setattr(subprocess, "Popen", _ORIGINAL_POPEN)  # noqa: B010
+    for name, original in _ORIGINAL_OS.items():
+        setattr(os, name, original)
+    remove_path_shim()

@@ -222,6 +222,23 @@ def _causes(
     return causes
 
 
+def _needs_coupled_lookup(
+    by_kind: dict[str, list[str]], effects: list[str], unknown: list[str]
+) -> bool:
+    """True when a cause other than a scannable changed document is present.
+
+    A changed document is scanned directly. Any other cause (a verified effect,
+    an unknown effect, an unreadable or unclassified path, an agent artifact, a
+    public API, or no paths) can leave a document stale that the diff never
+    touched, so the coupled-document lookup must run beside the changed ones.
+    """
+    if effects or unknown or not by_kind:
+        return True
+    return any(
+        by_kind.get(kind) for kind in ("unclassified", "unreadable", "agent-artifact", "api")
+    )
+
+
 def _escalation(activate: bool, by_kind: dict[str, list[str]], effects: list[str]) -> str:
     if not activate:
         return ESCALATION_NONE
@@ -267,7 +284,7 @@ def decide(
         "unreadable_documents": by_kind.get("unreadable", []),
         "historical_paths": by_kind.get("historical", []),
         "unknown_effects": unknown,
-        "coupled_documents_needed": activate and not documents,
+        "coupled_documents_needed": _needs_coupled_lookup(by_kind, known, unknown),
         "behavioral_escalation": _escalation(activate, by_kind, known),
     }
 

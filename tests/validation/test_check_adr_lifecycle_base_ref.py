@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
@@ -276,3 +278,131 @@ def test_a_live_baseline_missing_a_check_is_still_refused(tmp_path):
     _without_check(baseline, "cited-paths-exist")
 
     assert _plain_run(tmp_path, baseline) == EXIT_CONFIG
+
+
+def _symlink_or_skip(link: Path, target: Path, *, directory: bool = False) -> None:
+    """Create a symlink, or skip where the platform denies it (Windows without elevation)."""
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this platform")
+
+
+def _symlink_baseline_to(baseline: Path, target: Path) -> None:
+    """Replace the repo baseline with a symlink to ``target``."""
+    baseline.unlink()
+    _symlink_or_skip(baseline, target)
+
+
+def test_symlinked_baseline_pointing_outside_the_repo_is_refused(tmp_path, capsys):
+    """Issue #6506: a symlink out of the repo must not switch off the base-ref check."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    adr_dir, baseline = _repo(repo)
+    _git(repo, "checkout", "-q", "-b", "feature")
+    (adr_dir / "ADR-002-bad.md").write_text(_BAD_FRONTMATTER, encoding="utf-8")
+    outside = tmp_path / "outside.json"
+    _set_baseline(outside, 1)
+    _symlink_baseline_to(baseline, outside)
+    _commit(repo, "regress and hide the raised ceiling behind a symlink")
+
+    assert _plain_run(repo, baseline) == EXIT_CONFIG
+    err = capsys.readouterr().err
+    assert "symlink" in err
+    assert "[CONFIG]" in err
+
+
+def test_symlinked_baseline_pointing_inside_the_repo_is_refused(tmp_path, capsys):
+    adr_dir, baseline = _repo(tmp_path)
+    real = tmp_path / "real-baseline.json"
+    _set_baseline(real, 0)
+    _symlink_baseline_to(baseline, real)
+    _commit(tmp_path, "point the baseline at another tracked file")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_CONFIG
+    assert "symlink" in capsys.readouterr().err
+
+
+def test_baseline_under_a_symlinked_directory_is_refused(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _repo(repo)
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    _set_baseline(outside_dir / "baseline.json", 0)
+    _symlink_or_skip(repo / "linked", outside_dir, directory=True)
+
+    assert _plain_run(repo, repo / "linked" / "baseline.json") == EXIT_CONFIG
+    assert "linked" in capsys.readouterr().err
+
+
+def test_write_baseline_through_a_symlink_is_refused(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _, baseline = _repo(repo)
+    outside = tmp_path / "outside.json"
+    _set_baseline(outside, 0)
+    _symlink_baseline_to(baseline, outside)
+
+    code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--write-baseline"])
+
+    assert code == EXIT_CONFIG
+    assert "symlink" in capsys.readouterr().err
+
+
+def test_regular_baseline_file_is_still_accepted(tmp_path):
+    """Control for the symlink refusals: the same layout without the link passes."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _, baseline = _repo(repo)
+
+    assert not baseline.is_symlink()
+    assert _plain_run(repo, baseline) == EXIT_OK
+
+
+def test_dotdot_segment_does_not_hide_a_symlinked_directory(tmp_path, capsys):
+    """``repo/linked/../baseline.json`` is opened through ``linked``, so it must be walked."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _repo(repo)
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    _symlink_or_skip(repo / "linked", outside_dir, directory=True)
+
+    assert _plain_run(repo, repo / "linked" / ".." / "baseline.json") == EXIT_CONFIG
+    assert "linked" in capsys.readouterr().err
+
+
+def test_resolved_root_with_a_baseline_reached_through_a_symlinked_parent_is_walked(
+    tmp_path, capsys
+):
+    """``main`` builds a resolved root and an unresolved baseline; the forms must still line up."""
+    real = tmp_path / "real"
+    real.mkdir()
+    repo = real / "repo"
+    repo.mkdir()
+    _, baseline = _repo(repo)
+    outside = tmp_path / "outside.json"
+    _set_baseline(outside, 0)
+    _symlink_baseline_to(baseline, outside)
+    alias = tmp_path / "alias"
+    _symlink_or_skip(alias, real, directory=True)
+
+    code = main(["--repo-root", str(repo), "--baseline", str(alias / "repo" / "baseline.json")])
+
+    assert code == EXIT_CONFIG
+    assert "symlink" in capsys.readouterr().err
+
+
+def test_resolved_root_with_a_regular_baseline_through_a_symlinked_parent_is_accepted(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    repo = real / "repo"
+    repo.mkdir()
+    _repo(repo)
+    alias = tmp_path / "alias"
+    _symlink_or_skip(alias, real, directory=True)
+
+    code = main(["--repo-root", str(repo), "--baseline", str(alias / "repo" / "baseline.json")])
+
+    assert code == EXIT_OK

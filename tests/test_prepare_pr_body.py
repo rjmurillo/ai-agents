@@ -329,6 +329,25 @@ def test_seed_ignores_a_template_owned_by_another_user(
     assert seed == _PLACEHOLDER_ONLY
 
 
+@pytest.mark.parametrize("mode", [0o666, 0o646, 0o602, 0o777])
+def test_seed_ignores_a_world_writable_template(tmp_path: Path, mode: int) -> None:
+    _write_template(tmp_path, "## Summary\n")
+    (tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md").chmod(mode)
+
+    assert _MODULE._seed_content(tmp_path.resolve()) == _PLACEHOLDER_ONLY
+
+
+@pytest.mark.parametrize("mode", [0o600, 0o644, 0o664, 0o640, 0o444])
+def test_seed_accepts_a_template_that_is_not_world_writable(tmp_path: Path, mode: int) -> None:
+    """A umask of 002 makes a fresh checkout mode 664, so group-write must pass."""
+    _write_template(tmp_path, "## Summary\n")
+    (tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md").chmod(mode)
+
+    seed = _MODULE._seed_content(tmp_path.resolve())
+
+    assert seed == _PLACEHOLDER_ONLY.rstrip("\n") + "\n\n## Summary\n"
+
+
 def test_seed_is_placeholder_only_without_directory_descriptors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

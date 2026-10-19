@@ -212,10 +212,42 @@ def test_allows_null_risk_count() -> None:
     assert record.risk.security_findings is None
 
 
+def test_allows_null_human_correction_minutes() -> None:
+    data = make_record()
+    data["economics"] = {**data["economics"], "human_correction_minutes": None}
+    record = outcome.parse_record(data)
+    assert record.economics.human_correction_minutes is None
+
+
+def test_keeps_a_timed_human_correction_value() -> None:
+    data = make_record()
+    data["economics"] = {**data["economics"], "human_correction_minutes": 7.5}
+    assert outcome.parse_record(data).economics.human_correction_minutes == 7.5
+
+
+@pytest.mark.parametrize("value", [-1, True, "5", [1]])
+def test_refuses_a_bad_human_correction_value(value: object) -> None:
+    data = make_record()
+    data["economics"] = {**data["economics"], "human_correction_minutes": value}
+    with pytest.raises(outcome.DurableOutcomeError, match="human_correction_minutes"):
+        outcome.parse_record(data)
+
+
+def test_still_requires_the_human_correction_key() -> None:
+    data = make_record()
+    del data["economics"]["human_correction_minutes"]
+    with pytest.raises(outcome.DurableOutcomeError, match="human_correction_minutes"):
+        outcome.parse_record(data)
+
+
 @pytest.mark.parametrize("value", [float("nan"), float("inf")])
 @pytest.mark.parametrize(
     ("section", "field"),
-    [("economics", "model_cost_usd"), ("durable", "rework_minutes")],
+    [
+        ("economics", "model_cost_usd"),
+        ("economics", "human_correction_minutes"),
+        ("durable", "rework_minutes"),
+    ],
 )
 def test_refuses_nonfinite_number(section: str, field: str, value: float) -> None:
     """REQ-042 data-model invariant 1: NaN and Infinity from JSONL are refused."""

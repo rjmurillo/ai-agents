@@ -18,7 +18,7 @@ merge-tree gate and only a registered ratchet has one:
 - Registered (ruff, taste, type-ignore, memory-index, cli-exit): prints
   `BEHIND BASE (not blocking)` to stdout and evaluates the count leg as usual.
   The 31-of-33 shape recorded under Evidence no longer blocks.
-- Not registered (subprocess-encoding): `BEHIND BASE` and `EXIT_REGRESSION`.
+- Not registered (subprocess-encoding, canonical-citations): `BEHIND BASE` and `EXIT_REGRESSION`.
   Nothing else would measure the merged result, so the stale ceiling stands.
 
 Not equal. The direction is measured and the two directions do not share a
@@ -50,7 +50,7 @@ practice; it is no longer a precondition for a green baseline-above-base leg.
 
 ## Question
 
-`main`'s branch ruleset sets `strict_required_status_checks_policy: false` (measured 2026-08-14; reverted 2026-08-10), so
+`main`'s branch ruleset sets `strict_required_status_checks_policy: false` (re-measured 2026-10-18; reverted 2026-08-10), so
 being behind `main` does not formally block a merge. Nevertheless the count
 ratchets still make stale branches fail in practice. Does branch freshness
 matter even without the ruleset requiring it?

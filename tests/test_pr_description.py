@@ -180,6 +180,36 @@ class TestTemplateCompliance:
         r = run_validator("--title", "feat: X", "--body", "Just a description")
         assert r["Validations"]["TemplateCompliance"]["Status"] == "WARN"
 
+    def test_message_names_every_missing_section_and_its_expected_syntax(self):
+        r = run_validator("--title", "feat: X", "--body", "Just a description")
+        message = r["Validations"]["TemplateCompliance"]["Message"]
+        assert message.startswith("Template compliance: 0/4 sections complete. Missing: ")
+        assert "Summary (a `## Summary` heading" in message
+        assert "SpecificationReferences (a table row starting `| **Issue** |`" in message
+        assert "TypeOfChange (at least one checked `[x]` box)" in message
+        assert "Changes (a `## Changes` heading" in message
+
+    def test_message_omits_sections_that_passed(self):
+        body = "## Summary\n\nAdded auth.\n\n## Type of Change\n\n- [x] Feature\n"
+        r = run_validator("--title", "feat: X", "--body", body)
+        message = r["Validations"]["TemplateCompliance"]["Message"]
+        assert "2/4 sections complete" in message
+        assert "Summary (" not in message
+        assert "TypeOfChange (" not in message
+        assert "SpecificationReferences (" in message
+        assert "Changes (" in message
+
+    def test_message_has_no_missing_list_when_complete(self):
+        body = (
+            "## Summary\n\nAdded auth.\n\n"
+            "| Type | Reference |\n|------|--------|\n| **Issue** | Closes #1 |\n\n"
+            "## Type of Change\n\n- [x] New feature\n\n"
+            "## Changes\n\n- Added OAuth2\n"
+        )
+        r = run_validator("--title", "feat: Auth", "--body", body)
+        message = r["Validations"]["TemplateCompliance"]["Message"]
+        assert message == "Template compliance: 4/4 sections complete"
+
 
 class TestOverall:
     def test_success_with_warnings(self):
