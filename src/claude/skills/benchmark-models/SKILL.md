@@ -1,7 +1,7 @@
 ---
 name: benchmark-models
 version: 1.0.0
-description: Cross-model benchmark. Runs one prompt or skill through Claude, GPT (Codex CLI), and Gemini side by side and compares latency, tokens, cost, tool calls, and optionally output quality via an Anthropic-API judge. Answers "which model is actually best for this skill?" with data. Use when you say "benchmark models", "compare models", "which model is best for X", "cross-model comparison", or "model shootout". Do NOT use to measure web page performance.
+description: Cross-model benchmark. Runs one prompt or skill through Claude, GPT (Codex CLI), and Gemini side by side and compares latency, tokens, cost, tool calls, and optionally output quality via an Anthropic-API judge. Reports per-metric leaders with data, and grades a single run per provider as inconclusive. Use when you say "benchmark models", "compare models", "which model is best for X", "cross-model comparison", or "model shootout". Do NOT use to measure web page performance.
 license: MIT
 metadata:
   domains:
@@ -43,6 +43,9 @@ Invoke this skill when the user says any of:
 - `model shootout`
 - `which model is best`
 - `cross-model comparison`
+
+A request for the best model gets per-metric leaders and a rerun plan, not a
+winner (Step 4).
 
 Do NOT invoke for web page performance (that is a different concern).
 
@@ -124,10 +127,12 @@ Option A) or the run aborts with exit code 2 before any provider starts.
 
 ### Step 4: Interpret and optionally save
 
-Summarize: fastest (latency), cheapest (cost), highest quality (if judged), and
-a best-overall call that names the tradeoff. Call out any provider that errored,
-with its remediation path. Offer to save a JSON baseline so future runs can be
-diffed for regressions:
+Summarize the per-metric leaders: fastest (latency), cheapest (cost), highest
+quality (if judged). One run per provider is inconclusive, not a preference:
+report n and an interval or margin (or say none can be estimated at n=1), call
+no winner from a directional delta, and rerun to confirm. Call
+out any provider that errored, with its remediation path. Offer to save a JSON
+baseline so future runs can be diffed for regressions:
 
 ```bash
 python3 "$BENCH" <prompt-spec> --models <picked> [--judge] --output json > benchmark-$(date +%Y%m%d)-<slug>.json

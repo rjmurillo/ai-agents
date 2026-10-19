@@ -436,7 +436,7 @@ def test_linked_skill_escaping_both_roots_is_refused(tmp_path: Path) -> None:
     (tmp_path / ".claude" / "skills").mkdir(parents=True)
     (tmp_path / ".claude" / "skills" / "alpha").symlink_to("../../elsewhere/alpha")
 
-    with pytest.raises(gate.CoverageConfigError, match="must stay under"):
+    with pytest.raises(gate.CoverageConfigError, match="must be spelled under"):
         gate._resolve_target(
             tmp_path, ".claude/skills/alpha/SKILL.md", Path(".claude/skills"), "skill"
         )
@@ -465,5 +465,30 @@ def test_linked_rule_escaping_both_roots_is_refused(tmp_path: Path) -> None:
     (tmp_path / ".claude" / "rules").mkdir(parents=True)
     (tmp_path / ".claude" / "rules" / "alpha.md").symlink_to("../../elsewhere/alpha.md")
 
-    with pytest.raises(gate.CoverageConfigError, match="must stay under"):
+    with pytest.raises(gate.CoverageConfigError, match="must be spelled under"):
         gate._resolve_target(tmp_path, ".claude/rules/alpha.md", Path(".claude/rules"), "rule")
+
+
+@pytest.mark.parametrize(
+    ("kind", "target", "shipped"),
+    [
+        ("rule", "src/claude/rules/alpha.md", "src/claude/rules/alpha.md"),
+        ("skill", "src/claude/skills/alpha/SKILL.md", "src/claude/skills/alpha/SKILL.md"),
+    ],
+)
+def test_direct_src_claude_spelling_is_refused(
+    tmp_path: Path, kind: str, target: str, shipped: str
+) -> None:
+    (tmp_path / shipped).parent.mkdir(parents=True)
+    (tmp_path / shipped).write_text("x", encoding="utf-8")
+    with pytest.raises(gate.CoverageConfigError, match=f"direct src/claude/{kind}s/ path"):
+        gate._resolve_target(tmp_path, target, Path(f".claude/{kind}s"), kind)
+
+
+def test_traversal_out_of_the_named_root_is_refused(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "rules").mkdir(parents=True)
+    (tmp_path / "other.md").write_text("x", encoding="utf-8")
+    with pytest.raises(gate.CoverageConfigError, match="must be spelled under .claude/rules/"):
+        gate._resolve_target(
+            tmp_path, ".claude/rules/../../other.md", Path(".claude/rules"), "rule"
+        )

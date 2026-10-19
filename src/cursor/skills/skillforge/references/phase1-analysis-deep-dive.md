@@ -114,8 +114,8 @@ FOR EACH operation in the skill:
 ├── Does this involve external tools?
 │   └── YES → Consider integration script
 │
-└── Can Claude verify success autonomously?
-    └── NO → Add self-verification script
+└── Can a program check the outcome independently of the executor?
+    └── NO → Keep a reviewed decision for the outcome (add a fast-fail check only if an executor script runs)
 ```
 
 **Automation Lens Questions:**

@@ -191,7 +191,10 @@ and [references/specification-template.md](references/specification-template.md)
 
 Generate the skill directory in this order: structure, `SKILL.md`, references,
 assets, then scripts when scripts are needed. Keep `SKILL.md` concise and move
-deep detail into progressive-disclosure reference files.
+deep detail into progressive-disclosure reference files. Choose map, GPS, or
+hybrid design with the Design Selection section of the script integration
+framework. Record that choice in the generated skill only where it changes the
+workflow. Reuse an existing tool before adding a script.
 
 See [references/phase3-generation-deep-dive.md](references/phase3-generation-deep-dive.md),
 [references/output-structure.md](references/output-structure.md),
@@ -238,8 +241,15 @@ FORGE="$ROOT/skills/skillforge/scripts"
 cd "$HOME/.claude"
 python "$FORGE/quick_validate.py" skills/my-skill/     # required before packaging
 python "$FORGE/validate-skill.py" skills/my-skill/     # full structural validation
+python "$FORGE/check_docs_safety.py" skills/my-skill/  # unsafe hook command examples in docs
+python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci  # size and progressive disclosure
 python "$FORGE/package_skill.py" skills/my-skill/ ./dist   # package for distribution
 ```
+
+Every validator takes the skill directory and answers `--help`. `skill_modularity_audit.py`
+exits `0` without `--ci` even for an oversized skill; with `--ci` it exits `1`. In either mode it
+exits `2` when it audited nothing (wrong path, or every `SKILL.md` unreadable). With `--ci`, any
+unreadable `SKILL.md` also exits `2`. An exit `2` is never a pass.
 
 To validate a skill in another checkout without `cd` or copying, pass
 `--root DIR` to `quick_validate.py` or `validate-skill.py`. The skill must
@@ -285,11 +295,13 @@ After creation:
 - [ ] Description <=1024 chars, with no `<` or `>`
 - [ ] 3-5 trigger phrases defined
 - [ ] Timelessness score >=7
-- [ ] `python scripts/quick_validate.py` passes
-- [ ] `python scripts/check_docs_safety.py` passes
+- [ ] `python "$FORGE/quick_validate.py" skills/my-skill/` passes
+- [ ] `python "$FORGE/validate-skill.py" skills/my-skill/` passes
+- [ ] `python "$FORGE/check_docs_safety.py" skills/my-skill/` passes
+- [ ] `python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci` exits `0` (`1` means oversized, `2` means it audited nothing)
 - [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
-- [ ] Scripts self-verify when scripts are present
+- [ ] Scripts fail fast, and a separate check confirms the outcome where it can be checked independently, when scripts are present
 - [ ] Every claim in the body is something the model could not already know. Generic engineering knowledge moved to `references/` or deleted
 - [ ] Body earns its length: if the description alone would produce the same behavior, cut the body down to what it adds
 
@@ -297,7 +309,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
+The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with fast-fail checks and independent postcondition checks. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
 
 | Script | Purpose |
 |--------|---------|

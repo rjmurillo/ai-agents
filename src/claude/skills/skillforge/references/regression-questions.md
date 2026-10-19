@@ -173,9 +173,9 @@ For each affirmative answer:
    </script>
    ```
 
-4. **Design self-verification:**
+4. **Design fast-fail and independent checks:**
    - Every script should return success/failure via exit code
-   - Complex operations should verify their own outputs
+   - Complex operations should fail fast on a bad result, and a separate check should confirm the outcome where it can be checked independently
    - Error messages should be actionable
 
 **Research Existing Scripts:**
@@ -192,7 +192,7 @@ grep -r "ValidationResult\|validate" ~/.claude/skills/*/scripts/
 After script analysis, verify:
 
 - [ ] Autonomous Execution: Can skill run without user intervention?
-- [ ] Self-Verification: Can scripts verify their own outputs?
+- [ ] Fast-Fail and Independent Check: Do scripts fail fast, and, where the outcome can be checked independently, does a separate postcondition check confirm it?
 - [ ] Error Recovery: Can scripts retry or recover from failures?
 - [ ] State Persistence: Is progress saved across sessions?
 - [ ] Structured Output: Do scripts output machine-readable data?

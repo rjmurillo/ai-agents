@@ -865,6 +865,12 @@ class SkillValidator:
 
 def main():
     """Main entry point."""
+    if len(sys.argv) >= 2 and sys.argv[1] == "--help":
+        print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
+        print("Example: python validate-skill.py skills/my-skill/")
+        print("\nExit codes: 0 all checks passed, 1 a check failed or no path given.")
+        sys.exit(0)
+
     parsed = parse_args(sys.argv[1:])
     if parsed is None:
         print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")

@@ -74,6 +74,9 @@ class MessageResponse:
     block_types: tuple[str, ...]
     refusal_category: str | None = None
     refusal_explanation: str | None = None
+    # `usage.output_tokens` as the API reported it (#5405). None when the
+    # provider sends no usage block, so a missing count is never read as zero.
+    output_tokens: int | None = None
 
     @property
     def blocks_scoring(self) -> bool:
@@ -84,6 +87,29 @@ class MessageResponse:
         wrong verdict.
         """
         return self.termination in NON_SCOREABLE_TERMINATIONS
+
+
+# No model emits a billion tokens in one reply. A larger value is a damaged
+# payload, and an unbounded int would overflow the float division in a mean.
+_MAX_PLAUSIBLE_OUTPUT_TOKENS = 10**9
+
+
+def _read_output_tokens(payload: dict[str, Any]) -> int | None:
+    """Return `usage.output_tokens` when it is a plausible count, else None.
+
+    Plausible means a non-negative integer up to `_MAX_PLAUSIBLE_OUTPUT_TOKENS`.
+    `bool` is an `int` subclass in Python, so it is refused by name: `True`
+    would otherwise be recorded as one token.
+    """
+    usage = payload.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    tokens = usage.get("output_tokens")
+    if isinstance(tokens, bool) or not isinstance(tokens, int):
+        return None
+    if tokens < 0 or tokens > _MAX_PLAUSIBLE_OUTPUT_TOKENS:
+        return None
+    return tokens
 
 
 def parse_message_response(payload: dict[str, Any]) -> MessageResponse:
@@ -134,7 +160,27 @@ def parse_message_response(payload: dict[str, Any]) -> MessageResponse:
         block_types=tuple(block_types),
         refusal_category=refusal_category,
         refusal_explanation=refusal_explanation,
+        output_tokens=_read_output_tokens(payload),
     )
+
+
+def record_provider_cap(provider: object, metadata: dict[str, object] | None) -> None:
+    """Copy a provider's output cap and raw finish reason into `metadata` (#5405).
+
+    A provider that sends `max_tokens` can cut an answer yet reports no
+    termination, so a caller reading sizes cannot tell a finished answer from
+    a clipped one. `applies_max_tokens` and `finish_reason` are optional
+    provider attributes. Stale keys from a reused dict are cleared first.
+    """
+    if metadata is None:
+        return
+    metadata.pop("max_tokens_applied", None)
+    metadata.pop("finish_reason", None)
+    if getattr(provider, "applies_max_tokens", False) is True:
+        metadata["max_tokens_applied"] = True
+    finish_reason = getattr(provider, "finish_reason", None)
+    if isinstance(finish_reason, str):
+        metadata["finish_reason"] = finish_reason
 
 
 def record_output_tokens(provider: object, metadata: dict[str, object] | None) -> None:
@@ -151,3 +197,9 @@ def record_output_tokens(provider: object, metadata: dict[str, object] | None) -
     tokens = getattr(provider, "output_tokens", None)
     if isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0:
         metadata["output_tokens"] = tokens
+
+
+def record_provider_metadata(provider: object, metadata: dict[str, object] | None) -> None:
+    """Copy a non-default provider's output cap, finish reason, and token count."""
+    record_provider_cap(provider, metadata)
+    record_output_tokens(provider, metadata)

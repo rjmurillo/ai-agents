@@ -86,7 +86,7 @@ metadata:
 
 ### Scripts Directory
 
-Scripts enable skills to be **agentic** - capable of autonomous operation with self-verification.
+Scripts enable skills to be **agentic** - capable of scoped unattended operation with fast-fail checks and independent postcondition checks.
 
 | Category | Purpose | When to Include |
 |----------|---------|-----------------|
@@ -101,7 +101,7 @@ Scripts enable skills to be **agentic** - capable of autonomous operation with s
 - Python 3.x with standard library only (graceful fallbacks for extras)
 - `Result` dataclass pattern for structured returns, where a script produces structured output
 - Exit codes follow the repo convention: 0=success, 1=logic error, 2=config error, 3=external error (see AGENTS.md)
-- Self-verification where applicable
+- Fast-fail check, plus an independent postcondition check where the outcome can be checked independently
 - Documented in SKILL.md with usage examples
 
 See: [script-integration-framework.md](script-integration-framework.md)
