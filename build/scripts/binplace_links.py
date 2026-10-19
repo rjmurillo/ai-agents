@@ -111,7 +111,11 @@ def link_row(
         if entry.is_symlink() or not entry.resolve().is_relative_to(resolved_plugin):
             # CWE-59: a link here would chain .claude/<x> through the plugin
             # tree to wherever the entry points, outside what was validated.
-            print(f"Error: plugin entry {entry} is a symlink; refusing to link it", file=sys.stderr)
+            print(
+                f"Error: plugin entry {entry} is a symlink or resolves outside "
+                f"{plugin_tree}; refusing to link it",
+                file=sys.stderr,
+            )
             outcome.drifted.append(str(entry))
             outcome.exit_code = 2
             _withdraw_link(install_tree / entry.name, check)

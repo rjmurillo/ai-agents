@@ -18,7 +18,7 @@ Reviewed-By: /review@<comma-separated-axis-list> on <reviewed-tip-sha>
 Review-Artifact: sha256:<digest of the report lines>
 ```
 
-The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdict is that axis's extracted token from SKILL.md Process step 6 (`extract_verdict`, or `adapt_local_axis_verdict` for the local axes `code-qualities-assessment`, `doc-accuracy`, `golden-principles`, and `taste-lints`). The validator accepts `PASS`, `COMPLIANT`, `PARTIAL`, and `WARN`; write `WARN` only when it was acknowledged. The validator rejects a report with a missing, extra, or failing row, a report that names another SHA, and a digest that does not match.
+The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdict is that axis's extracted token from SKILL.md Process step 6 (`extract_verdict`, or `adapt_local_axis_verdict` for the local axes `code-qualities-assessment`, `doc-accuracy`, `golden-principles`, and `taste-lints`). The validator accepts `PASS`, `COMPLIANT`, `PARTIAL`, and `WARN`; write `WARN` only when it was acknowledged. The `security` row is stricter: only `PASS` or `COMPLIANT` backs a marker, because a `WARN` or `PARTIAL` there is an open security finding that the CRITICAL-path push gate also rejects. This holds after the step 4a scope downgrade too: a security finding that sits wholly outside the diff becomes `WARN`, and a `WARN` security row still blocks the marker, so fix it or re-run the axis once it is resolved. The validator rejects a report with a missing, extra, or failing row, a report that names another SHA, and a digest that does not match.
 
 ## Write steps
 

@@ -41,13 +41,12 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 
 ## Constraints
 
-- `validate_templates_schema.py` validates only a `platforms/*.yaml` carrying a top-level `provider:`, skipping `binplace.yaml`. `binplace_manifest.py` validates that one, requiring every `install_tree` under `.claude/` or `.github/` (`BinplaceConfigError`, exit 2).
+- `validate_templates_schema.py` validates only a `platforms/*.yaml` carrying a top-level `provider:`, skipping `binplace.yaml`. `binplace_manifest.py` validates that one, requiring every `install_tree` under `.claude/` or `.github/`, or exactly Codex's repository skill root (ADR-119) (`BinplaceConfigError`, exit 2).
 - Cross-harness hook, event, or generated-Copilot change: read the `agent-harness-reference` skill, route through `ai-agents-portability-campaign`.
 
 ## Dangerous assumptions
 
-- `.claude/rules/templates.md` renders from `rules/templates.md` and is stale: MUST-2, SHOULD-3 and MUST NOT-1 still call `src/claude/`, `.claude/agents/` and `.github/agents/` hand-maintained, MUST-4 denies that any agent template defines `name` while all 30 `.claude.md.tmpl` do, MUST-1 omits `hooks/`. Fix at the template.
-- `uv run python build/generate_agents.py` alone never populates `copilot_sources` and never writes `src/claude/agents/`: it falls back to `.shared.md` for copilot-cli and github.
+- `uv run python build/generate_agents.py` alone never populates `copilot_sources` and never writes `src/claude/agents/`: it falls back to `.shared.md` for copilot-cli. No `github` platform file exists, so `.github/agents` is only a link to `src/copilot-cli/agents`.
 - Lefthook auto-regen globs `agents/*.shared.md` and `platforms/**` only; a `.tmpl`, partial, rule, skill or hook edit triggers nothing. Run `build_all.py` yourself.
 - `$toolset:` never reaches Claude Code: expansion lives in `generate_agents_common.py`, called only by `generate_agents.py`, and no `.claude.md.tmpl` or partial uses it. `analyst` and `security` carry a literal `tools:` list no gate compares against `toolsets.yaml`.
 - The `Skill Markdown Portability` ratchet is per file and scans `.md` only, so a repo-internal path added to a skill or rule template raises the count on generated output you cannot edit (`.claude/skills/<name>/SKILL.md`, `src/copilot-cli/instructions/<name>.instructions.md`). `agents/*.shared.md` is scanned; `.tmpl` files and partials are not.

@@ -92,6 +92,12 @@ made after seeing the data is a description, not a test. Concretely:
    It is the only no-spend path; there is no `--mock`.
 3. Run the real eval, compare against the written prediction, and record both
    in the write-up. A miss is a finding, not an embarrassment.
+4. Grade the result before you act on it. A run too small to separate signal
+   from noise is inconclusive, not a preference. Report the sample size and an
+   interval or margin with every comparison. A directional delta alone does not
+   promote an ADR or justify a model pin: rerun it to confirm. ADR-111 rule 2
+   sets the bar for agent pins (delta, paired bootstrap interval, at least 8
+   shared fixtures).
 
 Available instruments (all under `scripts/eval/`, verified 2026-07-03):
 `eval-prompt-change.py` (before/after scenario judgment per ADR-057),

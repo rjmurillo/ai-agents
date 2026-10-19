@@ -175,7 +175,7 @@ def _load_always_on_skills(repo_root: Path) -> list[InstructionFile]:
         # so the containment root is the repository, not the link directory.
         resolved = path.resolve()
         if not resolved.is_relative_to(repo_root.resolve()):
-            msg = f"SKILL.md resolves outside {SKILLS_SUBDIR}: {path.relative_to(repo_root)}"
+            msg = f"SKILL.md resolves outside the repository: {path.relative_to(repo_root)}"
             raise MalformedSkillFrontmatterError(msg)
         content = resolved.read_text(encoding="utf-8", errors="replace")
         parsed = parse_frontmatter(content)

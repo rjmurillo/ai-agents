@@ -81,5 +81,8 @@ def shipped_verifier_closure() -> tuple[list[str], list[str]]:
             os.environ.pop(var, None)
         os.environ["CLAUDE_PLUGIN_ROOT"] = SHIPPED_PLUGIN_ROOT
         named, _external, escaping = gate._collect_command_paths(criteria, 1, REPO_ROOT)
+        # The import roots also read these variables (``_environment_libs``), so the
+        # closure is built under the same pinned environment.
+        closure = gate._expand_import_closure(named, REPO_ROOT)
     assert escaping == [], f"config commands escape the work tree: {escaping}"
-    return named, gate._expand_import_closure(named, REPO_ROOT)
+    return named, closure

@@ -20,11 +20,18 @@ def good_evidence() -> dict[str, Any]:
     }
 
 
-def verdict(evidence: dict[str, Any], scan: dict[str, Any] | None = None) -> dict[str, Any]:
-    return gate_verdict.evaluate(evidence, scan)
+# A scan that found no sink beyond the ones the evidence declares. Most tests probe one
+# evidence rule and need a scan report to reach it, because every verdict requires one.
+ACTIVE_SCAN: dict[str, Any] = {"decision": "activate", "sinks": []}
+NO_SCAN = object()
 
 
-def reasons(evidence: dict[str, Any], scan: dict[str, Any] | None = None) -> str:
+def verdict(evidence: dict[str, Any], scan: Any = ACTIVE_SCAN) -> dict[str, Any]:
+    result: dict[str, Any] = gate_verdict.evaluate(evidence, None if scan is NO_SCAN else scan)
+    return result
+
+
+def reasons(evidence: dict[str, Any], scan: Any = ACTIVE_SCAN) -> str:
     return " | ".join(verdict(evidence, scan)["reasons"])
 
 
@@ -33,8 +40,139 @@ def test_complete_evidence_passes() -> None:
 
 
 def test_read_only_change_skips() -> None:
-    assert verdict({})["verdict"] == "SKIP"
     assert verdict({}, {"decision": "skip", "sinks": []})["verdict"] == "SKIP"
+
+
+def test_missing_scan_report_cannot_skip() -> None:
+    """Issue #6506: no sinks declared and no scan is an unproven claim, not a skip."""
+    result = verdict({}, NO_SCAN)
+    assert result["verdict"] == "BLOCK"
+    assert "no scan report" in result["reasons"][0]
+
+
+@pytest.mark.parametrize(
+    "scan",
+    [
+        {},
+        {"sinks": []},
+        {"decision": None},
+        {"decision": ""},
+        {"decision": "SKIP"},
+        {"decision": 0},
+    ],
+)
+def test_scan_report_without_a_known_decision_blocks(scan: dict[str, Any]) -> None:
+    result = verdict({}, scan)
+    assert result["verdict"] == "BLOCK"
+    assert "no known `decision`" in result["reasons"][0]
+
+
+def test_scan_report_without_a_decision_blocks_even_with_complete_evidence() -> None:
+    assert verdict(good_evidence(), {"sinks": []})["verdict"] == "BLOCK"
+
+
+def test_declared_sinks_with_no_scan_report_block() -> None:
+    """Issue #6506 review: an agent could declare one sink and omit the rest the scan finds."""
+    result = verdict(good_evidence(), NO_SCAN)
+    assert result["verdict"] == "BLOCK"
+    assert "no scan report" in result["reasons"][0]
+
+
+def test_complete_evidence_with_a_matching_scan_passes() -> None:
+    scan = {"decision": "activate", "sinks": [{"location": "store.py:10"}]}
+    assert verdict(good_evidence(), scan) == {"verdict": "PASS", "reasons": []}
+
+
+@pytest.mark.parametrize(
+    "sinks",
+    [{"location": "a.sql"}, "a.sql", 3, None, True],
+)
+@pytest.mark.parametrize("decision", ["skip", "activate"])
+def test_scan_report_with_non_list_sinks_blocks(decision: str, sinks: object) -> None:
+    """A malformed scan `sinks` must not read as an empty scan and clear the gate."""
+    result = verdict({}, {"decision": decision, "sinks": sinks})
+    assert result["verdict"] == "BLOCK"
+    assert result["reasons"] == ["scan report `sinks` must be a list"]
+
+
+def test_scan_report_with_non_list_sinks_blocks_even_with_complete_evidence() -> None:
+    scan = {"decision": "activate", "sinks": {"location": "store.py:10"}}
+    assert verdict(good_evidence(), scan)["verdict"] == "BLOCK"
+
+
+def test_skip_scan_without_a_sinks_key_still_skips() -> None:
+    assert verdict({}, {"decision": "skip"})["verdict"] == "SKIP"
+
+
+@pytest.mark.parametrize("sinks", [[], None])
+def test_activate_scan_with_no_sinks_cannot_back_a_skip(sinks: object) -> None:
+    """An `activate` report that lists no sink is inconsistent, so it never skips."""
+    scan: dict[str, Any] = {"decision": "activate"}
+    if sinks is not None:
+        scan["sinks"] = sinks
+    result = verdict({}, scan)
+    assert result["verdict"] == "BLOCK"
+    assert "lists no sink" in result["reasons"][0]
+
+
+def test_skip_scan_with_declared_sinks_still_evaluates_the_rules() -> None:
+    assert verdict(good_evidence(), {"decision": "skip", "sinks": []})["verdict"] == "PASS"
+
+
+def test_skip_scan_with_a_declared_sink_does_not_excuse_a_broken_rule() -> None:
+    """Evidence may declare a sink the scan missed, and it is held to every rule."""
+    evidence = good_evidence()
+    del evidence["rollback"]
+    result = verdict(evidence, {"decision": "skip", "sinks": []})
+    assert result["verdict"] == "BLOCK"
+    assert "no rollback contract" in " | ".join(result["reasons"])
+
+
+def test_skip_scan_with_a_declared_sink_lacking_a_trace_blocks() -> None:
+    evidence = good_evidence()
+    evidence["sinks"] = [{"location": "store.py:10", "trace": []}]
+    assert "has no traced path" in reasons(evidence, {"decision": "skip", "sinks": []})
+
+
+def test_module_docstring_states_that_evidence_may_exceed_the_scan() -> None:
+    doc = " ".join((gate_verdict.__doc__ or "").split())
+    assert "Evidence may declare sinks the scan missed" in doc
+    assert "backs the declared sinks" not in doc
+
+
+@pytest.mark.parametrize("exit_code", [False, True, None, "0", 0.0, 1, -1])
+def test_preflight_exit_code_must_be_the_integer_zero(exit_code: object) -> None:
+    evidence = good_evidence()
+    evidence["preflight"]["exit_code"] = exit_code
+    result = verdict(evidence)
+    assert result["verdict"] == "BLOCK"
+    assert "preflight did not exit 0" in reasons(evidence)
+
+
+@pytest.mark.parametrize("exit_code", [False, True, None, "0", 0.0, 2])
+def test_check_exit_code_must_be_the_integer_zero(exit_code: object) -> None:
+    evidence = good_evidence()
+    evidence["checks"] = [{"command": "pytest -q", "exit_code": exit_code}]
+    result = verdict(evidence)
+    assert result["verdict"] == "BLOCK"
+    assert "check failed: pytest -q" in reasons(evidence)
+
+
+def test_negative_measured_count_blocks() -> None:
+    evidence = good_evidence()
+    evidence["preflight"]["measured"] = -1
+    evidence["expected"] = {"max": 10}
+    result = verdict(evidence)
+    assert result["verdict"] == "BLOCK"
+    assert "preflight measured a negative count" in reasons(evidence)
+    assert "measured no count" not in reasons(evidence)
+
+
+def test_zero_measured_count_within_max_passes() -> None:
+    evidence = good_evidence()
+    evidence["preflight"]["measured"] = 0
+    evidence["expected"] = {"max": 10}
+    assert verdict(evidence)["verdict"] == "PASS"
 
 
 def test_scan_sinks_the_evidence_omits_block() -> None:

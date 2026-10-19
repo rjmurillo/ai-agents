@@ -51,6 +51,11 @@ def evidence_for(measured: int, expected: int, location: str) -> dict[str, Any]:
     }
 
 
+def scan_file_for(tmp_path: Path, location: str) -> str:
+    scan = {"decision": "activate", "sinks": [{"location": location}]}
+    return write_json(tmp_path / "scan.json", scan)
+
+
 def test_direct_database_delete_with_count_preflight_passes(tmp_path: Path) -> None:
     db = tmp_path / "app.db"
     make_db(db, rows=5)
@@ -58,7 +63,7 @@ def test_direct_database_delete_with_count_preflight_passes(tmp_path: Path) -> N
     assert preview.returncode == 0
     measured = json.loads(preview.stdout)["count"]
     evidence = write_json(tmp_path / "ev.json", evidence_for(measured, 5, "store.py:3"))
-    gate = run("gate", "--evidence", evidence)
+    gate = run("gate", "--evidence", evidence, "--scan", scan_file_for(tmp_path, "store.py:3"))
     assert gate.returncode == 0
     assert json.loads(gate.stdout)["verdict"] == "PASS"
 
@@ -69,7 +74,7 @@ def test_unexpected_cardinality_blocks_the_delete(tmp_path: Path) -> None:
     preview = run("preview-sql", "--database", str(db), "--statement", "DELETE FROM users")
     measured = json.loads(preview.stdout)["count"]
     evidence = write_json(tmp_path / "ev.json", evidence_for(measured, 5, "store.py:3"))
-    gate = run("gate", "--evidence", evidence)
+    gate = run("gate", "--evidence", evidence, "--scan", scan_file_for(tmp_path, "store.py:3"))
     assert gate.returncode == 1
     assert "measured 5000, expected 5" in json.loads(gate.stdout)["reasons"][0]
 
@@ -119,16 +124,45 @@ def test_read_only_change_skips_cleanly(read_only_repo: Path, tmp_path: Path) ->
     assert json.loads(gate.stdout)["verdict"] == "SKIP"
 
 
+def test_gate_without_a_scan_is_a_usage_error(tmp_path: Path) -> None:
+    """``--scan`` is required: a missing flag is bad arguments (exit 2), not a BLOCK verdict."""
+    gate = run("gate", "--evidence", write_json(tmp_path / "ev.json", {}))
+    assert gate.returncode == 2
+    assert gate.stdout == ""
+    assert "--scan" in gate.stderr
+
+
+def test_gate_with_declared_sinks_and_no_scan_is_a_usage_error(tmp_path: Path) -> None:
+    """Issue #6506 review: a declared sink does not excuse the scan that catches the rest."""
+    evidence = write_json(tmp_path / "ev.json", evidence_for(5, 5, "store.py:3"))
+    gate = run("gate", "--evidence", evidence)
+    assert gate.returncode == 2
+    assert "--scan" in gate.stderr
+
+
+def test_gate_blocks_a_scan_file_without_a_decision(tmp_path: Path) -> None:
+    gate = run(
+        "gate",
+        "--evidence",
+        write_json(tmp_path / "ev.json", {}),
+        "--scan",
+        write_json(tmp_path / "scan.json", {"sinks": []}),
+    )
+    assert gate.returncode == 1
+    assert "no known `decision`" in json.loads(gate.stdout)["reasons"][0]
+
+
 def test_irreversible_operation_blocks_until_a_human_approves(tmp_path: Path) -> None:
     evidence = evidence_for(1, 1, "revoke.py:9")
     evidence["rollback"] = {"kind": "irreversible"}
     path = write_json(tmp_path / "ev.json", evidence)
-    blocked = run("gate", "--evidence", path)
+    scan = scan_file_for(tmp_path, "revoke.py:9")
+    blocked = run("gate", "--evidence", path, "--scan", scan)
     assert blocked.returncode == 1
     assert "needs human approval" in json.loads(blocked.stdout)["reasons"][0]
     evidence["approval"] = {"human": "owner approved in issue"}
     path = write_json(tmp_path / "ev2.json", evidence)
-    assert run("gate", "--evidence", path).returncode == 0
+    assert run("gate", "--evidence", path, "--scan", scan).returncode == 0
 
 
 def test_unparsable_source_exits_one(tmp_path: Path) -> None:
@@ -171,13 +205,15 @@ def test_main_reports_empty_scope_as_config_error(
 def test_unusable_evidence_file_is_a_config_error(tmp_path: Path, content: str) -> None:
     path = tmp_path / "ev.json"
     path.write_text(content, encoding="utf-8")
-    result = run("gate", "--evidence", str(path))
+    scan = scan_file_for(tmp_path, "store.py:3")
+    result = run("gate", "--evidence", str(path), "--scan", scan)
     assert result.returncode == 2
     assert "config error" in result.stderr
 
 
 def test_missing_evidence_file_is_a_config_error(tmp_path: Path) -> None:
-    assert run("gate", "--evidence", str(tmp_path / "gone.json")).returncode == 2
+    scan = scan_file_for(tmp_path, "store.py:3")
+    assert run("gate", "--evidence", str(tmp_path / "gone.json"), "--scan", scan).returncode == 2
 
 
 def test_main_returns_codes_in_process(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -206,9 +242,11 @@ def test_in_process_gate_scan_and_sql_paths(
     )
     capsys.readouterr()
     evidence = write_json(tmp_path / "ev.json", evidence_for(2, 3, "store.py:3"))
-    assert destructive_gate.main(["gate", "--evidence", evidence]) == 1
+    scan = scan_file_for(tmp_path, "store.py:3")
+    assert destructive_gate.main(["gate", "--evidence", evidence, "--scan", scan]) == 1
     assert json.loads(capsys.readouterr().out)["verdict"] == "BLOCK"
-    assert destructive_gate.main(["gate", "--evidence", str(tmp_path / "gone.json")]) == 2
+    gone = str(tmp_path / "gone.json")
+    assert destructive_gate.main(["gate", "--evidence", gone, "--scan", scan]) == 2
     assert destructive_gate.main(["scan", str(tmp_path / "gone")]) == 2
     (tmp_path / "broken.py").write_text("def (:\n", encoding="utf-8")
     assert destructive_gate.main(["scan", str(tmp_path / "broken.py")]) == 1
@@ -222,7 +260,8 @@ def test_in_process_gate_scan_and_sql_paths(
 def test_in_process_rejects_a_json_array_as_evidence(tmp_path: Path) -> None:
     path = tmp_path / "ev.json"
     path.write_text("[1]", encoding="utf-8")
-    assert destructive_gate.main(["gate", "--evidence", str(path)]) == 2
+    scan = scan_file_for(tmp_path, "store.py:3")
+    assert destructive_gate.main(["gate", "--evidence", str(path), "--scan", scan]) == 2
 
 
 def test_directory_pattern_preview_gates_a_tree_delete(tmp_path: Path) -> None:

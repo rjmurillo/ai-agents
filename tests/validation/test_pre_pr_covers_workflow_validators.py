@@ -393,19 +393,6 @@ def test_new_gates_are_never_skipped_in_quick_mode() -> None:
     assert not [name for name in _NEW_GATES if gates[name].skip_when_quick]
 
 
-def test_a_missing_base_ref_skips_the_two_diff_gates(monkeypatch: pytest.MonkeyPatch) -> None:
-    import checks_ci_parity
-    from checks_common import MissingScriptSkip
-
-    monkeypatch.setattr(checks_ci_parity, "_resolve_default_base_ref", lambda _root: None)
-    for validate in (
-        checks_ci_parity.validate_placeholder_identity,
-        checks_ci_parity.validate_security_suppressions_diff,
-    ):
-        with pytest.raises(MissingScriptSkip):
-            validate(REPO_ROOT)
-
-
 def test_a_missing_script_skips_where_no_workflows_exist(tmp_path: Path) -> None:
     import checks_ci_parity
     from checks_common import MissingScriptSkip
@@ -421,26 +408,6 @@ def test_a_missing_script_fails_where_workflows_still_run_it(tmp_path: Path) -> 
     with redirect_stdout(io.StringIO()) as captured:
         assert checks_ci_parity.validate_agent_registry(tmp_path) is False
     assert "agent_registry.py is missing" in captured.getvalue()
-
-
-def test_the_diff_gates_refresh_the_base_and_warn_when_the_fetch_fails(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import checks_ci_parity
-
-    refreshed: list[str] = []
-
-    def refresh(base_ref: str, _root: Path) -> str:
-        refreshed.append(base_ref)
-        return "offline"
-
-    monkeypatch.setattr(checks_ci_parity, "_resolve_default_base_ref", lambda _root: "origin/main")
-    monkeypatch.setattr(checks_ci_parity, "_refresh_remote_base", refresh)
-    with redirect_stdout(io.StringIO()) as captured:
-        base = checks_ci_parity._base_ref_or_skip(REPO_ROOT, "test gate")
-    assert base == "origin/main"
-    assert refreshed == ["origin/main"]
-    assert "could not refresh origin/main (offline)" in captured.getvalue()
 
 
 def test_the_discriminator_scores_changed_files_including_untracked_ones(

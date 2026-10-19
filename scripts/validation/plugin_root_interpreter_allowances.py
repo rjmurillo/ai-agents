@@ -4,8 +4,8 @@ Each entry is keyed by (path relative to its plugin root, YAML key path, rule,
 script tail), so one entry covers the three mirrors and survives line moves,
 but a new command under another key is still reported. Rules: "form",
 "dependency", "bare-path". For an entry that no longer matches anything, the
-checker prints a non-failing ``note:`` line on stdout, so a fixed offense shows
-up as an entry to delete without failing CI.
+checker prints it to stderr and exits 1, so a stale entry cannot hide a later
+offense. Delete the entry once the offense is fixed (issue #6506).
 """
 
 from __future__ import annotations

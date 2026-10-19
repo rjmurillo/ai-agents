@@ -1773,8 +1773,31 @@ def _import_roots(script: Path, toplevel: Path) -> list[Path]:
     for alias in _pinned_aliases(script, toplevel):
         roots.extend(_ancestor_libs(alias, toplevel))
     roots.extend(lib for lib in _ancestor_libs(script, toplevel) if lib not in roots)
+    # The lib roots a verifier reaches through the environment rather than
+    # through its own location: ``$GITHUB_WORKSPACE/.claude/lib`` and each
+    # ``<plugin root>/lib``. They count only inside the work tree, where a PR
+    # can write them. Modeled directly, so the closure does not depend on the
+    # pinned-link table loading.
+    roots.extend(lib for lib in _environment_libs(toplevel) if lib not in roots)
     roots.append(toplevel)
     return roots
+
+
+def _environment_libs(toplevel: Path) -> list[Path]:
+    """Existing ``lib`` directories the environment names, inside ``toplevel``."""
+    bases: list[Path] = []
+    workspace = os.environ.get("GITHUB_WORKSPACE", "").strip()
+    if workspace:
+        resolved = _resolve_or_none(Path(workspace))
+        if resolved is not None:
+            bases.append(resolved / ".claude")
+    bases.extend(_host_declared_roots())
+    libs: list[Path] = []
+    for base in bases:
+        lib = base / "lib"
+        if lib.is_dir() and _is_within(lib, toplevel) and lib not in libs:
+            libs.append(lib)
+    return libs
 
 
 def _ancestor_libs(script: Path, toplevel: Path) -> list[Path]:
@@ -1862,6 +1885,25 @@ def _relative_import_root(script: Path, level: int, toplevel: Path) -> list[Path
     return [base] if _is_within(base, toplevel) else []
 
 
+def _module_candidates(root: Path, parts: list[str]) -> list[Path]:
+    """Files that can satisfy ``import parts`` in ``root``, in Python's order.
+
+    ``FileFinder`` prefers a package directory (``name/__init__.py``) over a
+    module file (``name.py``), so the package comes first. Both the resolver
+    and the symlink scan walk this one list, so they cannot disagree on which
+    paths an import can reach.
+    """
+    return [
+        root.joinpath(*parts, "__init__.py"),
+        root.joinpath(*parts[:-1], f"{parts[-1]}.py"),
+    ]
+
+
+def _ancestor_initializers(root: Path, parts: list[str]) -> list[Path]:
+    """``__init__.py`` of every ancestor package of ``parts``; each runs before the leaf."""
+    return [root.joinpath(*parts[:depth], "__init__.py") for depth in range(1, len(parts))]
+
+
 def _resolve_module_root(
     dotted: str,
     roots: list[Path],
@@ -1878,10 +1920,7 @@ def _resolve_module_root(
     if not parts:
         return None
     for root in roots:
-        for candidate in (
-            root.joinpath(*parts).with_suffix(".py"),
-            root.joinpath(*parts, "__init__.py"),
-        ):
+        for candidate in _module_candidates(root, parts):
             if not candidate.is_file() or not _is_within(candidate, toplevel):
                 continue
             if _first_symlinked_component(candidate, toplevel) is not None:
@@ -1928,8 +1967,7 @@ def _module_files_in_root(dotted: str, root: Path, toplevel: Path) -> list[str]:
     module = None if resolved is None else resolved[1]
     parts = [part for part in dotted.split(".") if part]
     files: list[str] = []
-    for depth in range(1, len(parts)):
-        initializer = root.joinpath(*parts[:depth], "__init__.py")
+    for initializer in _ancestor_initializers(root, parts):
         if not initializer.is_file() or not _is_within(initializer, toplevel):
             continue
         if _first_symlinked_component(initializer, toplevel) is not None:
@@ -2513,8 +2551,32 @@ def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[st
     return sites
 
 
+def _script_imports(rel: str, toplevel: Path) -> list[tuple[str, list[Path]]]:
+    """``(dotted, roots)`` for every import in ``rel``, with the roots it searches.
+
+    Absolute imports search every import root; a relative import searches its
+    package directory. A literal dynamic load (``importlib.import_module("x")``)
+    imports too. Returns [] when the file cannot be read.
+    """
+    script = toplevel / rel
+    try:
+        source = script.read_bytes()
+    except OSError:
+        return []
+    absolute_roots = _import_roots(script, toplevel)
+    imports = list(_imported_module_names(source))
+    imports.extend((0, load.module) for load in _dynamic_loads(source, script) if load.module)
+    return [
+        (
+            dotted,
+            absolute_roots if level == 0 else _relative_import_root(script, level, toplevel),
+        )
+        for level, dotted in imports
+    ]
+
+
 def _symlinked_import_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
-    """``path: message`` for every import in ``rel_paths`` that reaches an unpinned link.
+    """``path: message`` for every import in ``rel_paths`` that reaches a link it cannot follow.
 
     :func:`_resolve_module_root` declines a candidate behind a symlink, so it
     never joins the closure and is never byte-compared. The verifier still
@@ -2522,34 +2584,29 @@ def _symlinked_import_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
     package directory with a link to its own code and run it under a trusted
     verdict (CWE-59, CWE-829). ADR-119 makes links routine, so such an import
     fails closed here instead. A link the trusted ref pins is followed by
-    :func:`_first_symlinked_component` and is not reported.
+    :func:`_first_symlinked_component` and is not reported, unless its target
+    leaves the work tree or the hop cap runs out; the message covers all
+    three cases.
+
+    Every root is scanned, so a link that an earlier root shadows still halts
+    the gate, on purpose: which root wins depends on ``sys.path`` order the
+    gate does not control.
     """
     sites: list[str] = []
     for rel in rel_paths:
         if not rel.endswith(".py"):
             continue
-        script = toplevel / rel
-        try:
-            source = script.read_bytes()
-        except OSError:
-            continue
-        absolute_roots = _import_roots(script, toplevel)
-        imports = list(_imported_module_names(source))
-        # A literal dynamic load (importlib.import_module("x")) imports too.
-        imports.extend((0, load.module) for load in _dynamic_loads(source, script) if load.module)
-        for level, dotted in imports:
-            roots = absolute_roots if level == 0 else _relative_import_root(script, level, toplevel)
+        for dotted, roots in _script_imports(rel, toplevel):
             parts = [part for part in dotted.split(".") if part]
             if not parts:
                 continue
             for root in roots:
-                # Every dotted prefix: an ancestor package's __init__.py runs
-                # even when the leaf is missing.
-                candidates = [root.joinpath(*parts).with_suffix(".py")]
-                candidates.extend(
-                    root.joinpath(*parts[:depth], "__init__.py")
-                    for depth in range(1, len(parts) + 1)
-                )
+                # An ancestor package's __init__.py runs even when the leaf
+                # is missing.
+                candidates = [
+                    *_ancestor_initializers(root, parts),
+                    *_module_candidates(root, parts),
+                ]
                 for candidate in candidates:
                     if not _is_within(candidate, toplevel) or not candidate.is_file():
                         continue
@@ -2557,12 +2614,81 @@ def _symlinked_import_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
                     if link is None:
                         continue
                     site = (
-                        f"{rel}: import {dotted} reaches unpinned symlink "
-                        f"{link.relative_to(toplevel).as_posix()}"
+                        f"{rel}: import {dotted} reaches symlink "
+                        f"{link.relative_to(toplevel).as_posix()} that the trusted ref "
+                        f"does not pin or that cannot be followed within the work tree"
                     )
                     if site not in sites:
                         sites.append(site)
     return sites
+
+
+# Names a compiled or sourceless module can take next to ``name``: extension
+# modules (``name.cpython-312-x86_64-linux-gnu.so``, ``name.abi3.so``,
+# ``name.so``, ``name.pyd``), a sourceless ``name.pyc``, and a cached
+# ``__pycache__/name.cpython-312.pyc``. The match is deliberately broad (any
+# ``name.<anything>`` with one of these suffixes) so an odd spelling halts
+# instead of slipping through.
+_SHADOW_SUFFIXES = (".so", ".pyd", ".pyc")
+
+
+def _is_shadow_file(path: Path, name: str) -> bool:
+    """True when ``path`` is a compiled or sourceless module file for ``name``."""
+    base = path.name
+    if not base.startswith(f"{name}.") or not base.endswith(_SHADOW_SUFFIXES):
+        return False
+    return path.is_symlink() or not path.is_dir()
+
+
+def _shadow_files_in(directory: Path, name: str) -> list[Path]:
+    """Compiled or sourceless files for ``name`` directly inside ``directory``."""
+    if not directory.is_dir():
+        return []
+    # An unreadable directory raises; _verify_command_trust turns that into a
+    # git-error halt (exit 3) instead of reading it as "no shadows".
+    entries = sorted(directory.iterdir())
+    return [entry for entry in entries if _is_shadow_file(entry, name)]
+
+
+def _shadowing_import_files(rel_paths: list[str], toplevel: Path) -> list[str]:
+    """Work-tree-relative extension or sourceless module files an import can load.
+
+    Python's ``FileFinder`` tries extension modules before ``name.py`` and
+    sourceless ``.pyc`` files beside it, so a PR can plant ``name.so`` or
+    ``name.pyc`` next to a trusted ``name.py`` and have it run while every
+    ``.py`` in the closure stays byte-identical. The closure only follows
+    source files, so each such file in an import root that matches an
+    imported name (or an ancestor package's ``__init__``) is returned for
+    the trust check. The caller compares only the tracked ones: an untracked
+    file, such as a ``__pycache__`` entry a prior step wrote, is the
+    operator's own state and PR content always arrives tracked (see the
+    module docstring's scope section). Zip archives, ``.pth`` files, and
+    ``PYTHONPATH`` entries are the unmodeled ``sys.path`` residual named there.
+    """
+    found: list[str] = []
+    for rel in rel_paths:
+        if not rel.endswith(".py"):
+            continue
+        for dotted, roots in _script_imports(rel, toplevel):
+            parts = [part for part in dotted.split(".") if part]
+            for root in roots:
+                for depth in range(1, len(parts) + 1):
+                    directory = root.joinpath(*parts[: depth - 1])
+                    name = parts[depth - 1]
+                    for shadow in (
+                        *_shadow_files_in(directory, name),
+                        *_shadow_files_in(directory / name, "__init__"),
+                        # PEP 552: an unchecked-hash pyc in __pycache__ runs in
+                        # place of a byte-identical name.py.
+                        *_shadow_files_in(directory / "__pycache__", name),
+                        *_shadow_files_in(directory / name / "__pycache__", "__init__"),
+                    ):
+                        if not _is_within(shadow, toplevel):
+                            continue
+                        shadow_rel = shadow.relative_to(toplevel).as_posix()
+                        if shadow_rel not in found:
+                            found.append(shadow_rel)
+    return found
 
 
 def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
@@ -2810,7 +2936,31 @@ def _verify_command_trust(
         untrusted.extend(_unresolvable_dynamic_sites(checked, toplevel))
         untrusted.extend(_symlinked_import_sites(checked, toplevel))
         errors: list[str] = []
-        for rel_path in checked:
+        # A compiled or sourceless module in an import root can shadow a trusted
+        # .py. It joins no closure, so compare it here; one the trusted ref does
+        # not hold byte for byte fails closed.
+        found_shadows = [
+            path for path in _shadowing_import_files(checked, toplevel) if path not in checked
+        ]
+        tracked_shadows, shadow_error = _tracked_subset(found_shadows, toplevel)
+        if shadow_error:
+            return CommandTrustCheck(
+                COMMAND_TRUST_GIT_ERROR,
+                [],
+                [],
+                external,
+                [],
+                shadow_error,
+            )
+        shadows = [path for path in found_shadows if path in tracked_shadows]
+        # An untracked shadow inside a nested repository is not the operator's
+        # own file for the same reason an untracked closure file is not.
+        untrusted.extend(
+            path
+            for path in found_shadows
+            if path not in tracked_shadows and _is_in_nested_repository(path, toplevel)
+        )
+        for rel_path in [*checked, *shadows]:
             is_trusted, error = _verify_worktree_file_trust(
                 rel_path,
                 toplevel,
@@ -2833,7 +2983,7 @@ def _verify_command_trust(
     if errors:
         return CommandTrustCheck(
             COMMAND_TRUST_GIT_ERROR,
-            checked,
+            [*checked, *shadows],
             untrusted,
             external,
             untracked,
@@ -2842,7 +2992,7 @@ def _verify_command_trust(
     if untrusted:
         return CommandTrustCheck(
             COMMAND_TRUST_UNTRUSTED,
-            checked,
+            [*checked, *shadows],
             untrusted,
             external,
             untracked,
@@ -2850,7 +3000,8 @@ def _verify_command_trust(
         )
     return CommandTrustCheck(
         COMMAND_TRUST_TRUSTED,
-        checked,
+        # The report lists every file compared, shadow binaries included.
+        [*checked, *shadows],
         [],
         external,
         untracked,

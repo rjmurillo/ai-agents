@@ -46,7 +46,7 @@ Ranked.
 2. The `agents` and `skills` rows set `link: true`. `.claude/agents/<name>.md` links to `../../src/claude/agents/<name>.md`. `.claude/skills/<name>` links to `../../src/claude/skills/<name>` for each shipped skill.
 3. A shipped skill's support files are hand-maintained in `src/claude/skills/<name>/`. `SKILL.md` still renders from `templates/skills/<name>.SKILL.md.tmpl`.
 4. A repo-local skill (`metadata.distribution: repo-local`) has no plugin copy. It stays a real directory under `.claude/skills/<name>/`, and binplace never links it.
-5. The `.claude/`-to-`src/` support-file mirror is retired. `sync_claude_plugin_skill_support` now only removes a stale plugin copy of a skill that became repo-local. It refuses while `.claude/skills/<name>` is still a link, because the plugin copy is then the only copy.
+5. The `.claude/`-to-`src/` support-file mirror is retired. `sync_claude_plugin_skill_support` now only removes a stale plugin copy of a skill that became repo-local. It refuses while `.claude/skills/<name>` is still a link, because the plugin copy is then the only copy. The function is now named `prune_stale_claude_skill_support`.
 6. The `skills-sidecar` row's `install_tree` is null, since `.claude/skills/review/` is a link.
 7. Codex loads the shipped Codex skills the same way. A `skills-codex` row links each `.agents/skills/<name>` to `../../src/codex/skills/<name>`; Codex loads repository skills from `.agents/skills`. Repo-local skills have no `src/codex` copy, so they stay Claude-only. `.agents/skills` is the only `.agents/` path binplace may write, and only the binplace manifest, `binplace.yaml`, and `surface-parity.yaml` may name it (`scripts/validation/agents_install_roots.py`, read by `check_agents_write_targets.py`).
 8. `.claude/agents/` leaves `build_all.OWNED_PREFIXES`. It holds only links, and the `--check` snapshot refuses a symlink under an owned prefix. Its content lives under `src/`, which stays owned.
@@ -108,7 +108,7 @@ Copilot CLI loading of a linked skill directory in this checkout is unverified a
 ### Positive
 
 - An agent or skill edit lands in one place. `.claude/` cannot hold stale agent or skill content.
-- 679 duplicate tracked files leave the tree: 649 skill files are deleted and 30 agent files become links, for 134 new link entries (135 in the index with `memory_enhancement`). `.claude/skills/` keeps 121 entries: 104 shipped links and 17 repo-local directories.
+- 679 duplicate tracked files leave the tree: 649 skill files are deleted and 30 agent files become links, for 134 new link entries under `.claude/agents` and `.claude/skills` (135 in the index with `memory_enhancement`). The 679 count describes the pre-conversion tree at `28eb90c9e` (2026-10-17): 649 shipped skill files and 30 agent files. Link counts come from `git ls-tree -r 5d69fdbd8 | awk '$1=="120000"'` (2026-10-18). They are 30 in `.claude/agents`, 104 in `.claude/skills`, 23 in `.claude/rules`, 104 in `.agents/skills`, 30 in `.github/agents`, 23 in `.github/instructions`, 1 in `.github/hooks`, and 1 for `memory_enhancement`. That is 316 links in all. `.claude/skills/` keeps 121 entries: 104 shipped links and 17 repo-local directories.
 - The dogfood now runs the shipped layout. It surfaced and fixed three shipped defects: the Claude plugin had no `lib/paths.py`, the npm bundler dropped linked skills (92 files bundled instead of 642), and several scanners counted both copies.
 
 ### Negative

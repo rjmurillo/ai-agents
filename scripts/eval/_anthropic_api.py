@@ -20,7 +20,7 @@ from typing import Any, cast
 
 # Sibling imports; loaded under the same EVAL_DIR sys.path entry every
 # caller of this module already uses to reach them by bare name.
-from _anthropic_response import MessageResponse, parse_message_response, record_output_tokens
+from _anthropic_response import MessageResponse, parse_message_response, record_provider_metadata
 from _cli_credentials import parse_dotenv
 from _eval_common import (
     call_with_temperature_fallback,
@@ -149,7 +149,7 @@ def _call_selected_provider(
     )
     if metadata is not None and fingerprint is not None:
         metadata["system_fingerprint"] = fingerprint
-    record_output_tokens(selected_provider, metadata)
+    record_provider_metadata(selected_provider, metadata)
     return text
 
 
@@ -263,8 +263,7 @@ def call_api_response(
     """
     selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
     if metadata is not None:
-        # The default path reports no count, so a reused dict must not keep one.
-        metadata.pop("output_tokens", None)
+        metadata.pop("output_tokens", None)  # a reused dict must not keep a stale count
     alternate = _call_selected_provider(
         selected,
         messages,
@@ -313,17 +312,18 @@ def call_api(
 ) -> str:
     """Call the selected provider and return assistant text.
 
-    Text view over `call_api_response`. A passed `metadata` dict also gets
-    `termination`, `stop_reason`, and `refusal_category` on a refusal.
+    Text view over `call_api_response`. A passed `metadata` dict also gets `termination`,
+    `stop_reason`, `output_tokens` when reported, and `refusal_category` on a refusal.
     """
     response = call_api_response(
         api_key, messages, system, model, max_tokens, temperature, provider, seed, metadata
     )
     if metadata is not None:
-        metadata["termination"] = response.termination
-        metadata["stop_reason"] = response.stop_reason
+        metadata.update(termination=response.termination, stop_reason=response.stop_reason)
         if response.refusal_category is not None:
             metadata["refusal_category"] = response.refusal_category
+        if response.output_tokens is not None:  # never clobber a provider's own count
+            metadata["output_tokens"] = response.output_tokens
     # Per-file mypy resolves the sibling import as Any; the field is str.
     return cast(str, response.text)
 

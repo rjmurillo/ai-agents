@@ -36,7 +36,7 @@
 5. Create scripts (if needed)
    • Use script-template.py as base
    • Include Result dataclass pattern
-   • Add self-verification
+   • Add a fast-fail check, and plan an independent postcondition check
    • Document exit codes
    • Test before finalizing
    • In SKILL.md, invoke scripts through a plugin-root env var, never a bare
