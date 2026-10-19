@@ -90,7 +90,7 @@ class TestScenarioSet:
         loaded = runner._load_scenarios_file(str(SCENARIO_FILE))
         assert not isinstance(loaded, int), f"runner refused the file with exit {loaded}"
         data, (rule_path, reference_path) = loaded
-        assert rule_path == REPO_ROOT / ".claude" / "rules" / "universal.md"
+        assert rule_path.resolve() == (REPO_ROOT / ".claude" / "rules" / "universal.md").resolve()
         assert reference_path is None
         assert data["rule_id"] == "capability-first"
 
