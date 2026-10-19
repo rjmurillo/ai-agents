@@ -96,6 +96,11 @@ def test_longer_outer_fence_holds_inner_fence():
     assert gate.find_placeholders(text) == []
 
 
+def test_blockquoted_shell_fence_fails():
+    text = "> ```bash\n> echo $1\n> ```\n"
+    assert gate.find_placeholders(text) == [(2, "echo $1")]
+
+
 def test_shell_fence_closes_before_later_prose():
     text = _fenced("bash", "echo ok") + "price is $25\n"
     assert gate.find_placeholders(text) == []

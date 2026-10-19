@@ -38,6 +38,7 @@ _SKILL_MANIFEST = "SKILL.md"
 
 _SHELL_LANGS = frozenset({"bash", "sh", "shell", "zsh", "console", "shellscript"})
 _FENCE_OPEN = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})\s*(?P<info>[^`]*)$")
+_QUOTE_PREFIX = re.compile(r"^\s*(?:>\s?)+")
 _PLACEHOLDER = re.compile(r"\$[0-9]")
 
 
@@ -52,13 +53,15 @@ def find_placeholders(text: str) -> list[tuple[int, str]]:
 
     Fence tracking follows CommonMark: a fence closes on a bare line of the same
     character with at least as many characters as the opener, so a longer outer
-    fence can hold a shorter inner one.
+    fence can hold a shorter inner one. A leading blockquote marker (``>``) is
+    stripped first, because the loader substitutes the whole body.
     """
     findings: list[tuple[int, str]] = []
     open_char = ""
     open_len = 0
     in_shell = False
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, raw in enumerate(text.splitlines(), start=1):
+        line = _QUOTE_PREFIX.sub("", raw)
         if open_char:
             stripped = line.strip()
             if stripped and set(stripped) == {open_char} and len(stripped) >= open_len:
