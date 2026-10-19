@@ -92,10 +92,8 @@ Measured on `origin/main` at 6baae9f616 (2026-10-18, US Pacific). Run windows ar
 | 4. Dogfood `--check` exits 0 on HEAD, 1 after an edit | Met. | `tests/test_dogfood_copilot_plugin.py` and `tests/test_dogfood_copilot_plugin_drift.py`: 50 passed (re-run 2026-10-19). |
 | 5. Parity and version gates if the overlay gate fires | Not triggered. | No `surface: internal` item exists. The overlay tree was never created. |
 
-The Review Date section had pre-written an outcome: "the tag plus the dogfood
-install (not the split) were the durable outcome." That sentence is false. The
-tag never shipped. Only the dogfood install and the base-alone e2e did. This
-amendment records the true outcome instead.
+The Review Date section pre-wrote the outcome "the tag plus the dogfood
+install". That is false: the tag never shipped, so it is not repeated here.
 
 ### Owner decisions
 
@@ -109,37 +107,17 @@ amendment records the true outcome instead.
    The Reversibility section names removal as the exit. The overlay was never
    built, so the unwind deletes nothing. No manifest, gate entry, or e2e job
    existed for it.
-3. **Amend Decision item 5 to record the security hooks as retired.** PR #3306
-   (issue #3295) deleted `invoke_security_gate` and
-   `invoke_security_commit_gate` on 2026-07-22. Issue #3219 records why the
-   #3197 review killed both: as shipped they were net-negative, and their only
-   production records were outages (#2610, #2523). ADR-097 (accepted
-   2026-08-19) lists both as already retired in its
-   Decision section 4. It also sets the vendored surface to zero `PreToolUse`,
-   `PostToolUse`, and `PostToolUseFailure` hooks. ADR-097 therefore governs
-   whether either hook may return. This ADR no longer carries the MUST. The
-   deletion used the hook-ROI purge, which ADR-084's carve-out does not permit
-   for a security control. This owner decision is the after-the-fact
-   authorization, and it closes the gap the 2026-07-27 amendment recorded. No
-   control changes: the shipped base had neither hook before this amendment
-   and has neither after it.
+3. **Record the security hooks as retired (Decision item 5).** Both were
+   deleted on 2026-07-22, and ADR-097 governs the hook surface. This owner
+   decision withdraws the MUST and authorizes the retirement after the fact.
+   No control changes. Decision item 5 holds the record and its evidence.
 4. **Restate Confirmation Criterion 1.** The base ships no hooks, so a fired
    base hook cannot be the primary signal. The primary signal is now `copilot
    skill list` on a base-alone install. The fired-hook probe stays best-effort.
 
-### What changes in this record
-
-- Decision items 1, 2, and 6 are marked retired. They keep their numbers, so
-  existing citations still resolve.
-- Decision items 3 and 4 drop the overlay. Item 4 names `plugin-cli-smoke.yml`
-  and the current signal order.
-- Decision item 5 records the retirement and points to ADR-097.
-- Confirmation Criteria 1 is restated. Criteria 2, 3, and 5 are retired.
-- Implementation Notes mark phases 4 and 5 retired. The overlay gate
-  reconciliation detail is removed.
-- `implemented` flips to `true`, per ADR-073: the first change merged in July.
-- Consequences > Negative states the security gate consumers lost in July.
-- `review-by` moves to 2027-01-17. That review checks Criterion 1.
+Decision items 1, 2, and 6 are marked retired and keep their numbers, so
+existing citations still resolve. Criteria 2, 3, and 5 are retired. Phases 4
+and 5 are retired in the Implementation Notes.
 
 Noticed, not changed: Decision item 4 asks the test to assert that a shipped
 skill script resolves under the Copilot plugin root. On 2026-10-18,
@@ -359,10 +337,8 @@ existing citations still resolve.
 
 ## Rationale
 
-The table and trade-offs below record the reasoning as first accepted. The
-2026-10-19 amendment retired the `surface` tag and the overlay, so the chosen
-row now delivers only its copy-dogfood and base-alone e2e parts. Hooks follow
-#3197 and ADR-097, and skills keep the filename excludes.
+This section records the reasoning as first accepted. Since the 2026-10-19
+amendment, the chosen row delivers only its dogfood and e2e parts.
 
 ### Alternatives Considered
 
@@ -378,21 +354,12 @@ row now delivers only its copy-dogfood and base-alone e2e parts. Hooks follow
 ### Trade-offs
 
 The design accepted two mechanisms for two surfaces: hooks flow to Lefthook and
-CI via #3197, skills flow to a load-time overlay. A hook can run at commit, push,
-or PR time from a git hook or CI; a skill can only be delivered as a plugin.
-Forcing both into one mechanism would either strand internal skills (delete
-approach) or duplicate hook governance in two enforcement points (overlay-hooks
-approach), which #3197's audit found net-negative.
-
-The `surface` tag would have added a per-item maintenance obligation and a build
-gate, to buy a recorded decision on every item. In 90 days no item needed the
-`internal` value, so the cost bought nothing. The 2026-10-19 amendment retired
-it. A borderline item now relies on the filename excludes and on review.
+CI via #3197, skills flow to a load-time overlay. A hook can run from a git hook
+or CI; a skill can only be delivered as a plugin. The `surface` tag would have
+bought a recorded decision on every item, at a per-item cost. In 90 days no
+item needed the `internal` value, so the 2026-10-19 amendment retired it.
 
 ## Consequences
-
-The tag and overlay consequences below were retired with those items on
-2026-10-19. They are kept so a reader can see what the review weighed.
 
 ### Positive
 
@@ -401,14 +368,9 @@ The tag and overlay consequences below were retired with those items on
 - The base-alone e2e catches base-only failures that the `.claude` superset masks.
 - The copy dogfood install is scripted in-repo and ends the 0.5.248 untracked-copy
   rot: re-running `--install` refreshes it to repo `HEAD`.
-- Retired 2026-10-19: customers receive a base without this repo's internal
-  machinery, and the `surface` tag is one declarative source for #3197 and
-  #3216. Neither shipped.
 
 ### Negative
 
-- Retired 2026-10-19: a third Copilot output tree, a tag router, a third plugin
-  manifest, and a build failure on every untagged item. None was built.
 - After the amendment: no per-item record says whether a skill is meant for
   customers. A repo-internal skill ships unless a filename exclude drops it.
 - Since 2026-07-22, a plugin consumer install has no agent-time security gate
@@ -420,9 +382,7 @@ The tag and overlay consequences below were retired with those items on
 ### Neutral
 
 - The internal overlay was expected to start empty for skills, and it stayed
-  empty for the full 90 days. #3216 found internal items on the hook surface,
-  and #3197 deleted them, so the hook boundary was real. The skill boundary
-  never produced an internal item.
+  empty for the full 90 days. The tag and overlay costs were never incurred.
 
 ## Impact on Dependent Components
 
@@ -433,9 +393,7 @@ The tag and overlay consequences below were retired with those items on
 | `.github/workflows/plugin-cli-smoke.yml` | Direct | Runs the base-alone e2e on pull requests on Linux, macOS, and Windows (moved from the nightly workflow by the 2026-10-08 amendment) | Low |
 | `.github/plugin/marketplace.json` | Direct | Lists the base only; unchanged | Low |
 
-Retired 2026-10-19 with Decision items 1, 2, and 6: the tag reader in the
-generators, tag routing in `templates/platforms/copilot-cli.yaml`, the overlay
-tree, and the overlay entries in the parity and version gates. None was built.
+The tag router, overlay tree, and overlay gate entries were retired unbuilt.
 
 ## Implementation Notes
 
@@ -453,10 +411,7 @@ rule.
 5. Retired 2026-10-19: the two-plugin split and its gate reconciliation. Never
    built.
 
-The original notes for phases 4 and 5 (tag location, the overlay manifest, and
-the parity and version-gate wiring) described machinery that was never built.
-The 2026-10-19 amendment removed them. They remain in git history before that
-date.
+Their original notes (tag location, overlay gate wiring) remain in git history.
 
 ## Reversibility
 
@@ -464,12 +419,9 @@ Each phase is independently revertible. The base-alone e2e and the copy dogfood
 install are pure additions: reverting them removes a CI job and an install
 script with no effect on the shipped base.
 
-The 2026-10-19 amendment used this section's exit for the overlay. The overlay
-was never stood up, so the unwind had nothing to delete: no overlay manifest,
-no fourth version-gate entry, no overlay e2e job, and no tagged items. The tag
-was never added, so retiring it deletes no frontmatter. Reverting the amendment
-is a revert of this file and its debate log. It changes no code, gate, or
-customer artifact.
+The 2026-10-19 amendment used this exit for the overlay and the tag. Neither
+was built, so the unwind deleted nothing. Reverting the amendment reverts this
+file and its debate log only; no code, gate, or customer artifact changes.
 
 ## Confirmation Criteria
 

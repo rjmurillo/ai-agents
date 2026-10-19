@@ -78,6 +78,10 @@ architect and critic raised that ADR-097 does not cite ADR-083, and that "cross-
 - Core vs Context: N/A.
 - Second-System Effect: PASS. The amendment removes unbuilt scope and adds none.
 
+### Post-Review Trim
+
+The pre-push taste ratchet blocked the first push: the amended ADR ran to 547 lines, over the 500-line file-size cap (count 452 against a base of 451). The author cut it to 499 lines without new claims. Owner decision 3 now points to Decision item 5 instead of repeating it. The "What changes in this record" list, the retired-consequence bullets, and the Rationale, Impact, Implementation Notes, and Reversibility notes were condensed. Every reviewed claim keeps its place in Decision item 5, Consequences > Negative, the Confirmation Criteria, or the Review Date.
+
 ### Verdict
 
 **Consensus: 1 Accept, 2 Disagree-and-Commit, 0 Block.** Accepted as amended. Merge condition from all three seats: this log lands in the same change.
