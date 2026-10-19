@@ -66,6 +66,7 @@ from .validation import (
     assert_valid_body_file,
     escaped_newline_body_error,
     inline_body_error,
+    is_allowed_body_file_path,
     is_github_name_valid,
     is_safe_file_path,
 )
@@ -92,6 +93,7 @@ __all__ = [
     "error_and_exit",
     "escaped_newline_body_error",
     "inline_body_error",
+    "is_allowed_body_file_path",
     "filter_unresolved_threads",
     "get_all_prs_with_comments",
     "get_bot_authors",

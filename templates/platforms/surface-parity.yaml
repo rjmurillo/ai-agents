@@ -386,40 +386,21 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
-  - id: lib-hook-utilities-claude-install
-    path: .claude/lib/hook_utilities
-    relation: binplaced
-    authority: src/claude/lib/hook_utilities
-    generator: build/scripts/binplace_manifest.py
-    owner: build_all.py --check
-  - id: lib-github-core-claude-install
-    path: .claude/lib/github_core
-    relation: binplaced
-    authority: src/claude/lib/github_core
-    generator: build/scripts/binplace_manifest.py
-    owner: build_all.py --check
-  - id: lib-ai-review-common-claude-install
-    path: .claude/lib/ai_review_common
-    relation: binplaced
-    authority: src/claude/lib/ai_review_common
-    generator: build/scripts/binplace_manifest.py
-    owner: build_all.py --check
-  - id: lib-bootstrap-claude-install
-    path: .claude/lib/bootstrap.py
-    relation: binplaced
-    authority: src/claude/lib/bootstrap.py
-    generator: build/scripts/binplace_manifest.py
-    owner: build_all.py --check
   - id: lib-paths-claude-plugin
     path: src/claude/lib/paths.py
     relation: independent
-    reason: Hand-maintained and canonical (ADR-119); the lib-paths binplace row copies it onto .claude/lib/paths.py.
-  - id: lib-paths-claude-install
-    path: .claude/lib/paths.py
+    reason: Hand-maintained and canonical (ADR-119); the `lib` binplace row links .claude/lib/paths.py to it.
+  - id: lib-claude-plugin
+    path: src/claude/lib
+    relation: independent
+    reason: Parent of the lib packages and paths.py. The `lib` link row (ADR-119 decision 14) names it as its own source; each entry has its own row.
+  - id: lib-claude-install
+    path: .claude/lib
     relation: binplaced
-    authority: src/claude/lib/paths.py
-    generator: build/scripts/binplace_manifest.py
+    authority: src/claude/lib
+    generator: build/scripts/binplace_links.py
     owner: build_all.py --check
+    reason: Each top-level plugin entry is a relative link here (ADR-119 decision 14). The hand-maintained modules below stay real files.
   - id: lib-claude-modules
     path: .claude/lib
     relation: independent
@@ -433,16 +414,6 @@ surfaces:
     divergent: [paths.py]
     owner: build/scripts/check_surface_parity.py
     reason: Hand-maintained copies of the .claude/lib top-level modules. paths.py differs on purpose; its consumer-side root is .agents, not .project-toolkit.
-  - id: lib-hook-utilities-guide
-    path: .claude/lib/hook_utilities
-    relation: independent
-    include: ["CLAUDE.md"]
-    reason: Per-package guide authored in place.
-  - id: lib-github-core-guide
-    path: .claude/lib/github_core
-    relation: independent
-    include: ["CLAUDE.md"]
-    reason: Per-package guide authored in place.
 
   # ---- Hermes packs (ADR-115 Decision 6) ----------------------------------
   - id: skills-hermes-packs

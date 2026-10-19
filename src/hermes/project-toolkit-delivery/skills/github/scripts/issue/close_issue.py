@@ -67,6 +67,7 @@ from github_core.pr_merge_state import (
     PrMergeStatus,
     read_pr_merge_state,
 )
+from github_core.validation import is_allowed_body_file_path
 
 # gh issue close --reason accepts exactly these two values. "not planned" is the
 # spelling gh expects (with a space), so we pass the value through verbatim.
@@ -361,7 +362,11 @@ def verify_claims(claims: Claims, *, owner: str, repo: str) -> VerificationResul
 
 
 def _comment_base_dir() -> Path:
-    """Return the directory that comment files must stay under."""
+    """Return the base that relative comment paths resolve against.
+
+    It only resolves relative paths. It is not an approved root: containment
+    is the shared rule in ``is_allowed_body_file_path`` (issue #6667).
+    """
     workspace = os.environ.get("GITHUB_WORKSPACE", "").strip()
     if workspace:
         return Path(workspace).expanduser().resolve()
@@ -376,9 +381,10 @@ def _resolve_comment_file(comment_file: str, fmt: str) -> Path:
     raw_path = Path(comment_file)
     path = raw_path if raw_path.is_absolute() else base_dir / raw_path
     resolved = path.resolve()
-    if not resolved.is_relative_to(base_dir):
+    if not is_allowed_body_file_path(str(resolved)):
         write_skill_error(
-            f"Comment file must stay under {base_dir}: {comment_file}",
+            "Comment file must be under the repo root, a temp directory, "
+            f"or the git dir: {comment_file}",
             2,
             error_type="InvalidParams",
             output_format=fmt,

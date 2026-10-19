@@ -8,6 +8,8 @@ import pytest
 from github_core.api import RepoInfo
 from test_helpers import import_skill_script, make_completed_process
 
+pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
+
 
 def _mock_repo():
     return RepoInfo(owner="o", repo="r")
@@ -313,3 +315,77 @@ class TestSubprocessEncoding:
                 f"{rel}:{call.lineno} subprocess.run still passes text= "
                 "(use encoding/errors instead)"
             )
+
+
+class TestBodyFileContainment:
+    """--body-file follows the shared containment rule (issue #6667)."""
+
+    def test_scratchpad_body_file_under_temp_dir_posts(self, _import_module, tmp_path, monkeypatch):
+        mod = _import_module
+        scratch = tmp_path / "claude-1000" / "scratchpad"
+        scratch.mkdir(parents=True)
+        body = scratch / "comment.md"
+        body.write_text("from scratchpad", encoding="utf-8")
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        response = {"id": 100, "html_url": "https://example.com/comment"}
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(response))
+            ) as mock_run,
+        ):
+            rc = mod.main(["--issue", "1", "--body-file", str(body)])
+        assert rc == 0
+        assert "from scratchpad" in mock_run.call_args.kwargs["input"]
+
+    def test_body_file_outside_every_root_exits_2(
+        self, _import_module, external_tmp_path, monkeypatch, stub_temp_roots, capsys
+    ):
+        mod = _import_module
+        outside = external_tmp_path / "outside.md"
+        outside.write_text("secret", encoding="utf-8")
+        stub_temp_roots()
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run") as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--body-file", str(outside)])
+        assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert "path traversal not allowed" in capsys.readouterr().err
+
+    def test_symlink_in_temp_dir_pointing_outside_exits_2(
+        self, _import_module, tmp_path, external_tmp_path, monkeypatch, stub_temp_roots, capsys
+    ):
+        mod = _import_module
+        target = external_tmp_path / "secret.md"
+        target.write_text("secret", encoding="utf-8")
+        link = tmp_path / "link.md"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+        stub_temp_roots(tmp_path)
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run") as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--body-file", str(link)])
+        assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert "path traversal not allowed" in capsys.readouterr().err
+
+    def test_missing_body_file_exits_2(self, _import_module, tmp_path):
+        mod = _import_module
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--body-file", str(tmp_path / "missing.md")])
+        assert exc.value.code == 2

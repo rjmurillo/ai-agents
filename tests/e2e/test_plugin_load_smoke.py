@@ -95,7 +95,7 @@ import subprocess
 import sys
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import NoReturn, Protocol, TypeVar
 
@@ -335,11 +335,56 @@ def _clean_env() -> dict[str, str]:
     return env
 
 
+# Name segments that mark a credential, matched after splitting the name on `_`. A
+# segment match keeps `GIT_AUTHOR_NAME` and `PATH` and drops `AWS_ACCESS_KEY_ID`,
+# `NPM_CONFIG__AUTH`, `SSH_AUTH_SOCK`, `OPENAI_KEY`, and `BOT_PAT`. The model probe runs
+# a CLI against a plugin and a model id this repository supplies, so it gets only the
+# one token it needs. A denylist can miss a name nobody listed; the probe is CI-only
+# (`requires_copilot`), so an allowlist that dropped a variable the CLI needs would fail
+# there and could not be tried locally.
+_CREDENTIAL_SEGMENTS = frozenset(
+    {
+        "TOKEN",
+        "TOKENS",
+        "SECRET",
+        "SECRETS",
+        "PASSWORD",
+        "PASSWD",
+        "CREDENTIAL",
+        "CREDENTIALS",
+        "AUTH",
+        "KEY",
+        "KEYS",
+        "PAT",
+        "APIKEY",
+    }
+)
+_COPILOT_AUTH_VARS = frozenset({"COPILOT_GITHUB_TOKEN"})
+
+
+def _is_credential_var(name: str) -> bool:
+    return not _CREDENTIAL_SEGMENTS.isdisjoint(name.upper().split("_"))
+
+
+def _copilot_probe_env() -> dict[str, str]:
+    """``_clean_env`` minus every credential-shaped name except the Copilot CLI's own token.
+
+    The model probe sends a real prompt, so it needs ``COPILOT_GITHUB_TOKEN``. It
+    does not need ``GH_TOKEN``, a cloud key, or any other secret the CI step holds.
+    """
+    return {
+        key: value
+        for key, value in _clean_env().items()
+        if key.upper() in _COPILOT_AUTH_VARS or not _is_credential_var(key)
+    }
+
+
 def _run_cli(
     args: list[str],
     *,
     timeout: int,
     cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
@@ -349,7 +394,7 @@ def _run_cli(
         errors="replace",
         timeout=timeout,
         check=False,
-        env=_clean_env(),
+        env=_clean_env() if env is None else dict(env),
     )
 
 
@@ -1386,6 +1431,20 @@ def _rejected_models(*streams: str) -> list[str]:
     return [match.group("model") for text in streams for match in _MODEL_REJECTED_RE.finditer(text)]
 
 
+_BARE_MODEL_ID = re.compile(r"[A-Za-z][A-Za-z0-9._-]*")
+
+
+def _frontmatter_scalar(value: str) -> str:
+    """Return ``value`` as a YAML scalar that reads back as the same string.
+
+    A plain id (letters, digits, dot, dash) is written bare unless YAML would read
+    it as another type (``null``, ``true``). Everything else is double-quoted.
+    """
+    if _BARE_MODEL_ID.fullmatch(value) and yaml.safe_load(value) == value:
+        return value
+    return json.dumps(value)
+
+
 def _write_model_probe_plugin(plugin_dir: Path, model: str) -> str:
     """Write a one-agent ``--plugin-dir`` plugin pinned to ``model``.
 
@@ -1396,9 +1455,12 @@ def _write_model_probe_plugin(plugin_dir: Path, model: str) -> str:
     name = probe_name()
     (plugin_dir / "agents").mkdir(parents=True)
     (plugin_dir / "plugin.json").write_text(manifest(name), encoding="utf-8")
+    # An ordinary id stays bare, byte for byte what the CLI reads from shipped agents.
+    # Anything else gets a double-quoted scalar, so a newline or colon in an id cannot
+    # add a key to the frontmatter.
     (plugin_dir / "agents" / f"{_MODEL_PROBE_AGENT}.agent.md").write_text(
         f"---\nname: {_MODEL_PROBE_AGENT}\ndescription: model id runtime probe\n"
-        f"model: {model}\n---\n{_MODEL_PROBE_PROMPT}\n",
+        f"model: {_frontmatter_scalar(model)}\n---\n{_MODEL_PROBE_PROMPT}\n",
         encoding="utf-8",
     )
     return f"{name}:{_MODEL_PROBE_AGENT}"
@@ -1426,6 +1488,7 @@ def _run_copilot_model_probe(tmp_path: Path, model: str) -> subprocess.Completed
             ),
             cwd=cwd,
             timeout=_CLI_TIMEOUT_SECONDS,
+            env=_copilot_probe_env(),
         )
     except subprocess.TimeoutExpired as exc:
         _skip_or_fail_copilot_timeout(f"copilot model probe for {model}", exc)
@@ -1781,6 +1844,141 @@ def test_model_probe_plugin_pins_the_model_and_names_the_agent(tmp_path: Path) -
         "description": "model id runtime probe",
         "model": "claude-opus-4.6",
     }
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "claude-opus-4.6",
+        "claude-opus-5",
+        'x"\nmodel: other',
+        "a: b",
+        "x\nname: evil\ntools: [bash]",
+        "- item",
+        "#comment",
+        "null",
+        "true",
+        "",
+    ],
+)
+def test_model_probe_plugin_keeps_any_model_id_a_single_string_value(
+    tmp_path: Path, model: str
+) -> None:
+    """Edge and negative: an id cannot add a key, a list, or a non-string value."""
+    plugin = tmp_path / "plugin"
+
+    ref = _write_model_probe_plugin(plugin, model)
+
+    agent = ref.split(":")[1]
+    text = (plugin / "agents" / f"{agent}.agent.md").read_text(encoding="utf-8")
+    frontmatter = yaml.safe_load(text.split("---")[1])
+    assert set(frontmatter) == {"name", "description", "model"}
+    assert frontmatter["model"] == model
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "ANTHROPIC_API_KEY",
+        "OPENAI_KEY",
+        "BOT_PAT",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "ACTIONS_RUNTIME_TOKEN",
+        "NPM_CONFIG__AUTH",
+        "NODE_AUTH_TOKEN",
+        "SSH_AUTH_SOCK",
+        "GPG_PRIVATE_KEY",
+        "db_password",
+        "REGISTRY_CREDENTIALS",
+    ],
+)
+def test_probe_env_drops_credential_shaped_names(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "secret")
+
+    assert name not in _copilot_probe_env()
+    assert _is_credential_var(name)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["PATH", "HOME", "USERPROFILE", "LANG", "TEMP", "GIT_AUTHOR_NAME", "PYTHONPATH", "GOPATH"]
+    + ["XDG_CONFIG_HOME", "SSL_CERT_FILE", "TERM", "CI", "COPILOT_HOME"],
+)
+def test_probe_env_keeps_the_runtime_variables_the_cli_needs(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "kept")
+
+    assert _copilot_probe_env()[name] == "kept"
+    assert not _is_credential_var(name)
+
+
+def test_probe_env_keeps_only_the_copilot_token_among_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "keep")
+    monkeypatch.setenv("GH_TOKEN", "drop")
+
+    env = _copilot_probe_env()
+
+    assert env["COPILOT_GITHUB_TOKEN"] == "keep"
+    assert [k for k in env if _is_credential_var(k)] == ["COPILOT_GITHUB_TOKEN"]
+
+
+def test_probe_env_still_strips_the_inherited_plugin_roots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "/elsewhere")
+
+    assert "COPILOT_PLUGIN_ROOT" not in _copilot_probe_env()
+
+
+def test_model_probe_passes_the_scrubbed_env_to_the_cli(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "leak")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "keep")
+    calls = _stub_model_probe_run(monkeypatch, returncode=0)
+
+    _run_copilot_model_probe(tmp_path, "claude-opus-4.6")
+
+    env = calls[0]["env"]
+    assert isinstance(env, dict)
+    assert "GH_TOKEN" not in env
+    assert env["COPILOT_GITHUB_TOKEN"] == "keep"
+
+
+def test_run_cli_defaults_to_the_full_clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Other callers keep their env: only the probe opts into the scrubbed one."""
+    seen: dict[str, object] = {}
+
+    def fake(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake)
+    monkeypatch.setenv("GH_TOKEN", "kept")
+
+    _run_cli(["x"], timeout=1)
+    env = seen["env"]
+    assert isinstance(env, dict) and env["GH_TOKEN"] == "kept"
+    _run_cli(["x"], timeout=1, env={"ONLY": "1"})
+    assert seen["env"] == {"ONLY": "1"}
+
+
+def test_a_plain_model_id_is_written_bare(tmp_path: Path) -> None:
+    plugin = tmp_path / "plugin"
+
+    ref = _write_model_probe_plugin(plugin, "claude-opus-4.6")
+
+    text = (plugin / "agents" / f"{ref.split(':')[1]}.agent.md").read_text(encoding="utf-8")
+    assert "\nmodel: claude-opus-4.6\n" in text
 
 
 def test_model_probe_plugin_names_are_unique_per_call(tmp_path: Path) -> None:

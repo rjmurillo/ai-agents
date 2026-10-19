@@ -11,7 +11,7 @@ The transform is intentionally narrow and fully declarative (REQ-008-02):
 - strip YAML frontmatter keys `name`, `role`, `version`, `description`
 - prepend a static 3-line HTML-comment CI header (no timestamps, no SHAs)
 - emit canonical body unchanged
-- write atomically: temp file in same dir, fsync, os.replace
+- write atomically: exclusive no-follow temp file in same dir, os.replace
 
 Idempotency: running the script twice in succession produces zero diff
 on `.github/prompts/`. Any time-varying token in the output (timestamp,
@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import argparse
 import difflib
-import os
 import re
 import subprocess
 import sys
@@ -43,6 +42,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 
 from scripts.validation.frontmatter_split import split_leading_frontmatter  # noqa: E402
 
@@ -185,27 +187,29 @@ def transform(canonical_text: str, role: str) -> str:
 
 
 def _atomic_write(path: Path, content: str) -> None:
-    """Write file atomically: temp file in same dir, fsync, os.replace.
+    """Write file atomically through ``atomic_write.publish_bytes_preserving_mode``.
 
-    Preserves prior file on crash mid-write.
+    Preserves prior file on crash mid-write. There is no fsync, so a power
+    loss can leave an empty prompt; the generator rewrites it on the next run.
+    A new file is created ``0o600``; git tracks only the executable bit.
 
     Rejects symlinked destinations (or symlinked parent) before writing.
     A branch can replace ``.github/prompts`` or an individual
     ``pr-quality-gate-*.md`` with a symlink that redirects writes outside
     the repo. Refuses to follow that pointer. CWE-22 path traversal
     hardening per PR #1965 coderabbit H_3.
+
+    The temp file has a random sibling name and is created with ``O_EXCL`` and
+    ``O_NOFOLLOW``, so a symlink planted at a guessable ``<name>.tmp`` is not
+    followed (CWE-59, issue #6506). The old fixed ``.tmp`` name was never
+    checked. Output is LF-only bytes, as before.
     """
     if path.is_symlink():
         raise GeneratePromptsError(f"generated path must not be a symlink: {path}")
     parent = path.parent
     if parent.is_symlink():
         raise GeneratePromptsError(f"generated parent dir must not be a symlink: {parent}")
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(content)
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp, path)
+    publish_bytes_preserving_mode(path, content.encode("utf-8"))
 
 
 def _list_canonical_files(canonical_dir: Path) -> list[Path]:
@@ -249,6 +253,11 @@ def _read_committed_dest(dest: Path) -> str | None:
     Git emits UTF-8 regardless of platform, so decode explicitly. The locale
     codec on Windows (CP1252) turns arrows and comparison signs into mojibake
     and reports false drift (#5440).
+
+    The decode is strict. Replacing invalid bytes with U+FFFD let a committed
+    file with corrupt bytes compare equal to a source that holds a real
+    U+FFFD, so drift passed on bytes that differ (issue #6506). Invalid UTF-8
+    raises ``GeneratePromptsError``.
     """
     try:
         rel = dest.relative_to(REPO_ROOT)
@@ -258,9 +267,6 @@ def _read_committed_dest(dest: Path) -> str | None:
         result = subprocess.run(
             ["git", "show", f"HEAD:{rel.as_posix()}"],
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             cwd=str(REPO_ROOT),
             check=False,
             timeout=10,
@@ -269,7 +275,12 @@ def _read_committed_dest(dest: Path) -> str | None:
         return None
     if result.returncode != 0:
         return None
-    return result.stdout
+    try:
+        return result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise GeneratePromptsError(
+            f"committed {rel.as_posix()} is not valid UTF-8: {exc.reason} at byte {exc.start}"
+        ) from exc
 
 
 def regenerate(
@@ -340,7 +351,12 @@ def regenerate(
             # is unavailable or dest is untracked, fall back to working-tree
             # so dry-run still functions outside a git repo (e.g. pytest
             # tmp_path fixtures).
-            committed = _read_committed_dest(dest)
+            try:
+                committed = _read_committed_dest(dest)
+            except GeneratePromptsError as exc:
+                log.append(f"role={role} status=config_error error={exc}")
+                config_error = True
+                continue
             current = (
                 committed
                 if committed is not None

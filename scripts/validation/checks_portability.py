@@ -22,6 +22,7 @@ and fails until one exists for it, wherever it is defined.
 
 from __future__ import annotations
 
+import shlex
 import sys
 from pathlib import Path
 
@@ -248,8 +249,11 @@ def validate_rule_lossless_fixtures(repo_root: Path) -> bool:
         print(line)
     for name in stale_rule_fixtures(repo_root):
         built = _built_rule(repo_root, f"{name}.md")
-        source = built.relative_to(repo_root).as_posix() if built else f"src/claude/rules/{name}.md"
-        print(f"cp {source} {_RULE_FIXTURE_DIR}/{name}.md")
+        source = shlex.quote(
+            built.relative_to(repo_root).as_posix() if built else f"src/claude/rules/{name}.md"
+        )
+        target = shlex.quote(f"{_RULE_FIXTURE_DIR}/{name}.md")
+        print(f"cp {source} {target}")
     return False
 
 

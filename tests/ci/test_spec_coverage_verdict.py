@@ -64,6 +64,39 @@ class TestDecide:
         assert not result.passed
         assert ACCEPTANCE_HEADING in result.reason
 
+    def test_missing_section_states_the_item_syntax(self) -> None:
+        result = decide(True, "Just prose, no list.")
+        assert "`- [ ] text` or `- [x] text`" in result.reason
+        assert "does not accept" not in result.reason
+        assert "heading is present" not in result.reason
+
+    def test_suffixed_heading_is_named_as_the_near_miss(self) -> None:
+        body = "## Acceptance criteria (draft)\n\n- [x] one\n"
+        result = decide(True, body)
+        assert not result.passed
+        assert "`## Acceptance criteria (draft)`" in result.reason
+        assert "does not accept" in result.reason
+
+    def test_prefixed_heading_is_named_as_the_near_miss(self) -> None:
+        result = decide(True, "## 3. Acceptance criteria\n\n- [x] one\n")
+        assert "`## 3. Acceptance criteria`" in result.reason
+
+    def test_numbered_list_reason_says_numbered_lists_do_not_count(self) -> None:
+        result = decide(True, NUMBERED_ONLY)
+        assert "heading is present" in result.reason
+        assert "Numbered lists" in result.reason
+        assert "does not accept" not in result.reason
+
+    def test_heading_hidden_in_a_comment_is_not_a_near_miss(self) -> None:
+        body = "<!--\n## Acceptance criteria (old)\n-->\nprose\n"
+        result = decide(True, body)
+        assert "does not accept" not in result.reason
+
+    def test_unchecked_reason_says_how_to_clear_it(self) -> None:
+        result = decide(True, ONE_UNCHECKED)
+        assert "Check each box" in result.reason
+        assert "## Deferred" in result.reason
+
     def test_unchecked_items_are_listed(self) -> None:
         result = decide(True, ONE_UNCHECKED)
         assert not result.passed
