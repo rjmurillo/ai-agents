@@ -126,6 +126,9 @@ RETIRED_CLAIMS: tuple[RetiredClaim, ...] = (
             "A shipped skill's support files live in src/claude/skills/<name>/; "
             ".claude/skills/<name> is a symlink to it (ADR-119)."
         ),
+        # A repo-local skill has no plugin copy, so its support files really are
+        # hand-maintained under .claude/skills/<name>/ (skill_distribution.render_target).
+        except_when=re.compile(r"repo-local", re.IGNORECASE),
     ),
     RetiredClaim(
         name="drift allowlist size as a count",

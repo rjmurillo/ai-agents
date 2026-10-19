@@ -63,7 +63,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | binplaced from `src/claude/lib/` | `src/claude/lib/` | `build_all.py` binplace |
 | `src/claude/{agents,rules,hooks,hooks.json,settings.json}` | generated (ADR-109 B1, B2, B4; supersedes the pre-ADR-109 hand-synced model) | `templates/{agents,rules,hooks}/` | `build_all.py`, then binplaced to `.claude/` |
 
-All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`; it renders `src/claude/skills/<name>/SKILL.md` first, `.claude/skills/<name>` links to that directory (ADR-119), then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`.
+All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`. A shipped skill renders `src/claude/skills/<name>/SKILL.md` first, `.claude/skills/<name>` links to that directory (ADR-119), then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`. A repo-local skill renders only to `.claude/skills/<name>/`; its support files are hand-maintained there.
 
 Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it; seven since ADR-064 retired `commands`):
 

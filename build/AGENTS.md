@@ -51,7 +51,7 @@ Generators and drift gates for the agent/skill/rule/hook/settings pipeline. Sour
 
 ## Architecture
 
-- Lib (B5): `lib_mirror.py` renders `scripts/{hook_utilities,github_core,ai_review_common}`, `hook_utilities/bootstrap.py`, and `validation/validate_review_marker.py` (only canonical copy) into `src/{claude,copilot-cli}/lib/` and each tree's `skills/review/scripts/`; the `lib` row links each `src/claude/lib` entry into `.claude/lib/` (ADR-119 decision 14; `paths.py` is hand-maintained in `src/claude/lib/`), and the `lib-*` rows only compile into the plugin trees; the `skills-sidecar` rows have a null `install_tree` because `.claude/skills/review` already links to the plugin directory. `build_all.py --check` exits 2 on drift. `.claude/lib/` top-level modules have no `scripts/` source; they stay hand-maintained (`.claude/AGENTS.md`).
+- Lib (B5): `lib_mirror.py` renders `scripts/{hook_utilities,github_core,ai_review_common}`, `hook_utilities/bootstrap.py`, and `validation/validate_review_marker.py` (only canonical copy) into `src/{claude,copilot-cli}/lib/` and each tree's `skills/review/scripts/`; the `lib` row links each `src/claude/lib` entry into `.claude/lib/` (ADR-119 decision 14), and the `lib-*` rows only compile into the plugin trees; the `skills-sidecar` rows have a null `install_tree` because `.claude/skills/review` already links to the plugin directory. `build_all.py --check` exits 2 on drift. `.claude/lib/` top-level modules stay hand-maintained (`.claude/AGENTS.md`).
 
 ## Commands
 

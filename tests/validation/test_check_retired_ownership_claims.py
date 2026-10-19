@@ -196,6 +196,30 @@ class TestFindRetiredClaims:
 
         assert find_retired_claims(repo) == []
 
+    def test_a_repo_local_skill_qualification_is_not_the_claim(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path)
+        _add(
+            repo,
+            "templates/skills/x.SKILL.md.tmpl",
+            "Repo-local skill support files are hand-maintained under `.claude/skills/<name>/`.\n",
+        )
+
+        assert find_retired_claims(repo) == []
+
+    def test_an_unqualified_install_tree_claim_is_still_found(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path)
+        _add(
+            repo,
+            "templates/skills/x.SKILL.md.tmpl",
+            "Support files are hand-maintained under `.claude/skills/<name>/`.\n",
+        )
+
+        findings = find_retired_claims(repo)
+
+        assert [f.claim.name for f in findings] == [
+            "skill support files edited in the install tree"
+        ]
+
     def test_a_hand_maintained_reference_copy_under_the_agent_dir_is_not_the_claim(
         self, tmp_path: Path
     ) -> None:
