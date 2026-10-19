@@ -235,3 +235,78 @@ items left open are owner decisions and are named as such on the PR.
 - The three audit-found corruptions and their fix: `44e3503d2`.
 - Guards that could not fail in the promised direction: `c4a0ee621`.
 - Edit-shape blind spot and the tracked-file corruption: `32eb3e603`.
+
+## Correction, 2026-10-13, row 8 decided (issue #5353)
+
+Rationale: row 8 of the owner table stayed OPEN. The issue asked for the oracle to be measured, the
+six refuted claims to be listed in one place, and a decision. This section does all three. The
+original text above is unchanged.
+
+### Decision: keep `markdown-it-py` as the single oracle, with a measured conformance floor
+
+This is option 1 from issue #5353. The repository owner delegated the choice on 2026-10-11.
+
+| Measurement | Result | Command |
+|---|---|---|
+| CommonMark 0.31.2 spec examples rendered byte for byte | 649 of 652 | `uv run pytest tests/skills/fix-markdown-fences/test_oracle_conformance.py` |
+| The 3 misses (examples 218, 239, 240) | Empty block quote: `<blockquote></blockquote>` for `<blockquote>\n</blockquote>` | same |
+| "Fenced code blocks" section (examples 119 to 147) | 29 of 29 render exactly | same |
+| Helper `oracle_fence_lines` against code the spec HTML shows | 28 of 29 frame it; the 29th (example 134) is indented code and correctly yields no fence line | same |
+| Examples with no code block in the spec HTML | 570 of 570 yield no fence line | same |
+
+The spec file is vendored byte for byte and pinned by SHA-256. Every count is an equality.
+
+### Option 2 and 3 evidence, measured once outside the suite
+
+No second parser is added. A second implementation was installed in a throwaway environment
+(`cmarkgfm` 2025.10.22, GitHub's cmark-gfm, and `commonmark` 0.9.2) to answer the consumer question
+the issue left open.
+
+- Over all 5,561 tracked Markdown files, `markdown-it-py` and cmark-gfm return the same list of
+  code block bodies. Two files differ only by the final newline of an unclosed fence at end of
+  file; with trailing newlines trimmed, zero differ.
+- GitHub renders these files with cmark-gfm. For fenced code blocks, the oracle and the real
+  consumer agree on the whole tracked corpus.
+- Under one whitespace-collapsing comparison, the spec suite misses are 3 for `markdown-it-py`,
+  4 for `commonmark` 0.9.2 (examples 171, 354, 625, 626), and 11 for cmark-gfm (examples 28, 354,
+  389, 417, 425, 426, 427, 464, 465, 466, 468). The oracle is not the weakest of the three.
+
+Option 3 (change the authority) has no evidence behind it: the consumer agrees on the corpus. It
+would also touch seven production scripts.
+
+### One divergence found, pinned on the oracle side
+
+`[foo]: /url` followed by `2. bar`: `markdown-it-py` renders a list starting at 2. cmark-gfm and
+`commonmark` render a paragraph. The spec parses a definition out of an open paragraph, and an
+ordered marker other than 1 cannot interrupt a paragraph. No tracked file shows a code block
+difference from it (see above). The scanner
+follows the oracle, so on this shape it sees a fence that GitHub does not. The oracle side is pinned
+in `TestKnownDivergenceFromTheReferenceImplementations`; a parser upgrade that changes it fails the test.
+
+### The six refuted claims, in one place
+
+The retrospective never listed them. This list is reconstructed from the PR #5322 threads, so the
+count of six is the retrospective's and the membership is this section's reading. Claim 1 was
+reported at two sites and counts once. Finding 5's over-indented continuation was confirmed as a
+corruption, so it is not here. Finding 5's unescaped bracket and parenthesis reports were misses, not
+refutations, so they are not here either.
+
+Base URL: `https://github.com/rjmurillo/ai-agents/pull/5322`.
+
+| # | Claim | Reported | Refutation | Re-check 2026-10-13 |
+|---|---|---|---|---|
+| 1 | CommonMark caps a link label at 999 characters, so a 1,000 character label is paragraph text | `#discussion_r3866891549` (fix_fences), `#discussion_r3866891589` (prose_lint) | `#discussion_r3867109599`, `#discussion_r3867967659`, `#issuecomment-5432438126` | Holds. `markdown-it-py` and cmark-gfm both resolve a 1,000 character label. `commonmark` 0.9.2 caps it. GitHub is unaffected. |
+| 2 | Raw `<` or `>` in a bare destination ends the definition | `#issuecomment-5432438126` | Same comment, half refuted. The ASCII control half was real and fixed on the PR branch. | Holds. Both parsers accept `/a<b` and `/a>b` and reject `<a`. |
+| 3 | A container-pop site lets `--write` append a closer to a balanced document | `#issuecomment-5431946446` | Same comment. The patch raised writes to balanced documents from 42 to 78. | Holds. Both parsers render a code block, and repair balances the unclosed fence. |
+| 4 | A stale pending destination makes `/url` a destination and opens a false fence | `#discussion_r3867976108` | `#discussion_r3868190182` | Holds. Neither parser sees a fence. `--write` leaves the document unchanged. |
+| 5 | `reference_lines("")` returns `[""]` | `#issuecomment-5433547448` | Same comment | Holds. It returns `[]`. |
+| 6 | After `- ` plus U+00A0, a nested `2.` makes `--write` append a fence to indented code | `#discussion_r3866117841`, `#discussion_r3866117910` | `#discussion_r3866381622`. The site was real; the predicted consequence was not. | Holds. Neither parser sees a fence. `--write` leaves the document unchanged. |
+
+All six survive the re-check against the oracle and, for claims 1 to 4 and 6, against cmark-gfm.
+None becomes live, so none gets a new corruption pin. Claim 5 is checked on the helper alone. The documents are held as data in
+`REFUTED_CLAIMS` in `test_oracle_conformance.py`, with both directions asserted.
+
+### Row 8
+
+Row 8 moves from OPEN to decided: keep `markdown-it-py`, conformance 649 of 652, consumer
+agreement 5,561 of 5,561 files on code block bodies.

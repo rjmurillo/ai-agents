@@ -7,7 +7,7 @@
 **Tracking Issue**: #2003
 **Parent Epic**: #1944 (Skill Catalog Triage Action Slate)
 **Related Issues**: #2001 (closed: spec-generator skill conversion), #2002 (closed dup of #2001), #1932 (eval-skill-overlap.py), #1944 (umbrella)
-**Authority**: ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Template Architecture), `.agents/governance/agent-consolidation-process.md`
+**Authority**: `.agents/governance/SKILL-CREATION-CRITERIA.md` (Skill-first rule; replaces ADR-030, now rejected), ADR-036 (Two-Source Agent Template Architecture), `.agents/governance/agent-consolidation-process.md`
 
 ---
 
@@ -15,7 +15,7 @@
 
 ### Direct prior art from memory
 
-- **ADR-030 Skills Pattern Superiority** (`.project-toolkit/architecture/ADR-030-skills-pattern-superiority.md`): documents that skills have lower latency (5-20ms vs 100-200ms for subagent spawn), lower token usage (load on demand vs full agent context), and direct MCP access. Decision: **honor**. ADR-030 is the documented authority for the audit's discriminator claim that "skill is the lower-cost shape when isolation is not required."
+- **Skill-first rule** (`.agents/governance/SKILL-CREATION-CRITERIA.md`): prefer a skill over a subagent dispatch when isolation is not required. Decision: **honor**. This replaces ADR-030 (Skills Pattern Superiority), which this PRD originally cited. ADR-030 is now `rejected` (issue #5293). The governance section is the authority for the audit's discriminator claim that "skill is the lower-cost shape when isolation is not required."
 - **ADR-036 Two-Source Agent Template Architecture** (`.project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md`): agents live in BOTH `src/claude/*.md` (manual) AND `templates/agents/*.shared.md` (auto-generates Copilot CLI + VS Code variants). Decision: **honor**. Audit table includes a `has_shared_template` column so Phase 2 refactor planning correctly targets both sources.
 - **Process: agent-consolidation-process.md** (`.agents/governance/agent-consolidation-process.md`, 313 lines): defines overlap analysis matrix, recommendation thresholds (0-10% no action / 11-20% clarify / 21-40% consider / 41-70% strong / 71-100% required), and trigger conditions (>20% overlap, <5% usage, >3 routing errors/month, duplicate outputs). Decision: **adapt + extend**. The audit applies this process AND extends it with the issue #2003 4-criterion discriminator + a 5th frontmatter-bytes criterion added because of the Claude truncation context.
 - **Epic #1944 Skill Catalog Triage Action Slate** (M1-M4 + Wave 2): the umbrella consolidation effort. M1 prunes doc-coverage/doc-sync/workflow (PR #1942 in flight); M2 folds session-qa-eligibility into session; M3 decomposes the memory skill (143KB = 18× ceiling); M4 runs pairwise overlap eval; Wave 2 sweeps remaining 47 skills. Decision: **honor**. Issue #2003 is filed as a child issue of #1944 (the agent-side sibling of #1944's skill-side work).
@@ -48,7 +48,7 @@
 
 The `.claude/agents/` directory contains 23 agents. Two independent failure modes exist concurrently:
 
-1. **Misclassification**: at least one agent (`spec-generator`) shipped 9-of-13 frontmatter schema violations on PR #1995 because the agent body was not forced to re-read `.agents/governance/spec-schemas.md`. The structural cause is shape mismatch: spec-generator is ~80% reference material (format spec, validation rules, anti-pattern catalogs) and ~20% reasoning, which is textbook skill shape per ADR-030, but it ships as an agent. Issues #2001 and #2002 reached the same verdict by independent paths. Other agents may share this shape mismatch.
+1. **Misclassification**: at least one agent (`spec-generator`) shipped 9-of-13 frontmatter schema violations on PR #1995 because the agent body was not forced to re-read `.agents/governance/spec-schemas.md`. The structural cause is shape mismatch: spec-generator is ~80% reference material (format spec, validation rules, anti-pattern catalogs) and ~20% reasoning, which is textbook skill shape per the Skill-first rule, but it ships as an agent. Issues #2001 and #2002 reached the same verdict by independent paths. Other agents may share this shape mismatch.
 2. **Catalog load pressure**: Claude Code runtime truncates loaded agent/skill content when the catalog exceeds the load budget. Items get lost or not loaded. The catalog-size pressure is the broader context this audit serves.
 
 The discriminator from #2001/#2002 (4 criteria) plus a 5th load-budget criterion gives a deterministic test for misclassification. Without an audit, refactor decisions are made one-at-a-time per spec-PR-failure cycle, which is the very anti-pattern this issue closes.
@@ -59,7 +59,7 @@ The discriminator from #2001/#2002 (4 criteria) plus a 5th load-budget criterion
 |-------|-----|--------|-------------------|
 | US-1 | Catalog maintainer (rjmurillo) | reads the audit table | sees one row per agent with verdict (skill / context-fork-skill / keep-as-agent / merge-into-X) and per-criterion evidence |
 | US-2 | Phase 2 refactor PR author | filters audit for verdict ≠ keep-as-agent | gets a backlog of refactor candidates, each with one-line justification |
-| US-3 | ADR-030 / ADR-036 reviewer | inspects the audit | can verify each verdict traces to the ADR-documented criteria |
+| US-3 | Skill-first rule / ADR-036 reviewer | inspects the audit | can verify each verdict traces to the documented criteria |
 | US-4 | Epic #1944 owner | links audit from #1944 | sees agent-side progress alongside M1-M4 + Wave 2 skill-side work |
 | US-5 | CodeRabbit / future bot reviewer | reads the audit table during a PR involving an agent | can cite the audit's verdict as evidence in review comments |
 
@@ -137,7 +137,7 @@ Each criterion is independently testable as pass/fail. Criteria use EARS syntax.
 6. **AC-6**: THE SYSTEM SHALL set `verdict = keep-as-agent` when the agent body documents a context-isolation requirement that cannot be satisfied by `context: fork` SO THAT genuine separate-context agents (e.g., `orchestrator`, `analyst`, `critic`, `pr-comment-responder` per #2003 counter-signal section) are correctly preserved.
 7. **AC-7**: THE SYSTEM SHALL include a `has_shared_template` column populated by checking for `templates/agents/{agent}.shared.md` per ADR-036 SO THAT Phase 2 refactor planning correctly targets dual-source agents.
 8. **AC-8**: THE SYSTEM SHALL include a per-row `c5_frontmatter_bytes` measurement (bytes from start of file to end of YAML frontmatter delimiter) SO THAT load-budget impact of `verdict = skill` recommendations is quantified.
-9. **AC-9**: THE SYSTEM SHALL include a summary footer with: total agents, count by verdict, total `c5_frontmatter_bytes` saved if all `verdict = skill` AND `verdict = context-fork-skill` rows were migrated (both verdicts represent shape-mismatch refactor candidates and contribute equally to load-budget reduction), and citations to ADR-030, ADR-036, and `.agents/governance/agent-consolidation-process.md` SO THAT readers see the audit's authority and impact at a glance.
+9. **AC-9**: THE SYSTEM SHALL include a summary footer with: total agents, count by verdict, total `c5_frontmatter_bytes` saved if all `verdict = skill` AND `verdict = context-fork-skill` rows were migrated (both verdicts represent shape-mismatch refactor candidates and contribute equally to load-budget reduction), and citations to ADR-030 (since rejected; the Skill-first rule in `.agents/governance/SKILL-CREATION-CRITERIA.md` carries its principle), ADR-036, and `.agents/governance/agent-consolidation-process.md` SO THAT readers see the audit's authority and impact at a glance.
 10. **AC-10**: THE SYSTEM SHALL produce a Phase 2 backlog list (one bullet per `verdict ≠ keep-as-agent` row, with one-line justification) committed alongside the audit table SO THAT the issue's second acceptance criterion ("List of refactor candidates with one-line justification per agent") is satisfied.
 11. **AC-11**: THE SYSTEM SHALL record a verdict (skill / context-fork-skill / keep-as-agent / merge-into-X) for every row SO THAT the issue's third acceptance criterion ("Decision recorded for each agent") is satisfied; "no decision" is not a valid verdict.
 12. **AC-12**: WHEN the Phase 3 CI check is referenced THE SYSTEM SHALL link to a separate filed GitHub issue (not implement the check) SO THAT the issue's fourth acceptance criterion ("Phase 3 CI check spec'd in separate issue if implementation is non-trivial") is satisfied without expanding this audit's scope.
@@ -158,7 +158,7 @@ Each criterion is independently testable as pass/fail. Criteria use EARS syntax.
 | Decision | Owner | When to decide |
 |----------|-------|----------------|
 | Whether to invoke `eval-skill-overlap.py` for quantitative agent ranking | Phase 2 PR author | When sizing first refactor candidate |
-| Whether to amend ADR-030 to make the discriminator more directive | architect agent | After 3+ Phase 2 refactors land successfully |
+| Whether to amend the Skill-first rule to make the discriminator more directive | architect agent | After 3+ Phase 2 refactors land successfully |
 | Whether to file Wave 3 epic for periodic re-audits | rjmurillo | After Wave 2 (#1950) completes |
 | Whether `merge-into-X` verdicts should propose specific X targets in Phase 1 or defer to Phase 2 | rjmurillo | At time of audit execution; default = name X if obvious, otherwise leave as `merge-into-?` |
 
@@ -194,4 +194,4 @@ Each criterion is independently testable as pass/fail. Criteria use EARS syntax.
 | Audit output (Phase 1 deliverable) | `.project-toolkit/audits/2026-05-10-agent-skill-classification-audit.md` (created by TASK-011) |
 | Source issue | GH-2003 |
 | Parent epic | GH-1944 |
-| Authority | ADR-030, ADR-036, `.agents/governance/agent-consolidation-process.md` |
+| Authority | `.agents/governance/SKILL-CREATION-CRITERIA.md`, ADR-036, `.agents/governance/agent-consolidation-process.md` |

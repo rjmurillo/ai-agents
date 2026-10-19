@@ -39,6 +39,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
 
+from agent_tree_copy import uses_agent_tree_copy  # noqa: E402
 from drift_allowlist import (  # noqa: E402
     AllowedDivergence,
     AllowlistError,
@@ -311,6 +312,20 @@ def generate_agents(
                 stanza = read_artifacts_stanza(config_file, "agents")
                 if stanza is not None:
                     config["__agents_stanza__"] = stanza
+                # ADR-115 Decision 7: a platform that ships no agents (Codex has
+                # no plugin component for them) declares an `artifacts` mapping
+                # with no `agents` stanza and no legacy output. Skip only that
+                # shape; any other config with no agents output still reaches
+                # the allowlist check below and fails loud.
+                artifacts = config.get("artifacts")
+                declares_no_agents = (
+                    isinstance(artifacts, dict)
+                    and "agents" not in artifacts
+                    and not config.get("legacy")
+                    and not config.get("outputDir")
+                )
+                if declares_no_agents:
+                    continue
                 platforms.append(config)
 
     if not platforms:
@@ -396,6 +411,10 @@ def generate_agents(
             legacy: dict[str, object] = _legacy_raw if isinstance(_legacy_raw, dict) else {}
             _stanza_raw = platform.get("__agents_stanza__")
             agents_stanza: dict[str, object] = _stanza_raw if isinstance(_stanza_raw, dict) else {}
+            if uses_agent_tree_copy(agents_stanza):
+                # ADR-115 Decision 2: this platform copies src/claude/agents with a
+                # frontmatter allow-list (build/scripts/agent_tree_copy.py).
+                continue
             configured_output_dir = str(
                 legacy.get(
                     "outputDir",
@@ -405,7 +424,6 @@ def generate_agents(
             allowed_output_dirs = {
                 "src/copilot-cli/agents",
                 "src/vs-code-agents",
-                ".github/agents",  # ADR-109 B1: rendered, not binplaced
             }
             if configured_output_dir not in allowed_output_dirs:
                 print(
@@ -421,12 +439,10 @@ def generate_agents(
             if prefix_match:
                 output_dir_relative = prefix_match.group(1)
 
-            # ADR-109 B1: the github platform renders the repository's own
-            # .github/agents tree, which sits beside src/, not under it.
-            if output_dir_relative.startswith(".github/"):
-                output_dir = repo_root / output_dir_relative
-            else:
-                output_dir = output_root / output_dir_relative
+            # ADR-119: .github/agents links to src/copilot-cli/agents, so no
+            # platform renders outside src/; writing there would go through
+            # the links into the shipped tree.
+            output_dir = output_root / output_dir_relative
             # Walk the LEXICAL (unresolved) ancestor chain, not the
             # resolved output_dir built from the already-dereferenced
             # output_root above: is_symlink() on a path built from a

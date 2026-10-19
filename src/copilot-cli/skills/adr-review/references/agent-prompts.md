@@ -62,7 +62,7 @@ Add this section to your output:
 ### Architect
 
 ```python
-Task(subagent_type="architect", prompt="""
+task(agent_type="project-toolkit:architect", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Technical authority on ADR structure and architectural coherence.
@@ -146,7 +146,7 @@ before you rate it, and record each in the Claims Checked table.
 ### Critic
 
 ```python
-Task(subagent_type="critic", prompt="""
+task(agent_type="project-toolkit:critic", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Stress-test the ADR for completeness, gaps, and alignment.
@@ -214,7 +214,7 @@ before you rate it, and record each in the Claims Checked table.
 ### Independent-Thinker
 
 ```python
-Task(subagent_type="independent-thinker", prompt="""
+task(agent_type="project-toolkit:independent-thinker", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Challenge assumptions and prevent groupthink.
@@ -282,7 +282,7 @@ before you rate it, and record each in the Claims Checked table.
 ### Security
 
 ```python
-Task(subagent_type="security", prompt="""
+task(agent_type="project-toolkit:security", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Analyze security implications and threat models.
@@ -352,7 +352,7 @@ before you rate it, and record each in the Claims Checked table.
 ### Analyst
 
 ```python
-Task(subagent_type="analyst", prompt="""
+task(agent_type="project-toolkit:analyst", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Validate claims with evidence and assess feasibility.
@@ -420,7 +420,7 @@ before you rate it, and record each in the Claims Checked table.
 ### High-Level-Advisor
 
 ```python
-Task(subagent_type="high-level-advisor", prompt="""
+task(agent_type="project-toolkit:high-level-advisor", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Strategic assessment and priority validation.
@@ -492,7 +492,7 @@ before you rate it, and record each in the Claims Checked table.
 ### Conflict Resolution
 
 ```python
-Task(subagent_type="high-level-advisor", prompt="""
+task(agent_type="project-toolkit:high-level-advisor", prompt="""
 ADR Conflict Resolution Required
 
 ## ADR Under Review
@@ -569,7 +569,7 @@ If 2+ agents flagged scope concerns:
 ### Convergence Template (All Agents)
 
 ```python
-Task(subagent_type="{agent}", prompt="""
+task(agent_type="project-toolkit:{agent}", prompt="""
 ADR Convergence Check (Round {round_number})
 
 ## Updated ADR

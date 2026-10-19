@@ -7,14 +7,16 @@ Gates|S init/handoff/resume/memory/git|P `pre_pr.py`/no BLOCKING/security/style|
 **Ask First**: architecture/ADR/breaking/security
 **Autonomy Guardrail**: tiers ADR-112|irreversible->human|ambiguous minimal+flag
 **Never**: Secrets|New bash scripts|YAML logic|Raw `gh`|Force-push|No-verify|Internal refs|Scratch
+Disk|wt: `~/worktrees/<repo>/<branch>`|scratch: wt `.project-toolkit/scratch/`|done: remove wt+branch
 Block|artifact->test|security->fix/owner|conflict->resolve|validation->pre-PR
 Skills|route autoplan|no skill -> autoplan|multi -> orchestrator|conflict -> GitHub/merge-resolver|CI ladder|new cap buy-vs-build|agent-harness-reference|ai-agents-portability-campaign|ADR review: debate log required for any non-frontmatter ADR edit; full panel only when the change touches executable enforcement or a rule other gates read, else reduced panel (architect+critic)
 
 ## Routing
 
-Cost|route by shape/verifier/failure|accepted-result cost = inference+retry+repair+replay/tool+verifier/review+coordination+human wait|weight judgment/correction > price|down: bounded+cheap+objective+low fan-out+compact receipt|no model/task table, labels advisory|derive effort, do not inherit vendor default
-Effort|by task shape+verifier|bounded: lowest|specified: low/medium|judgment: medium, high when ambiguity/repair/architecture/acceptance dominate|more != better, validate per task+harness|pins: ADR-080
-Tiers|effort|delegation contract|typed exceptions -> orchestrator agent, Model, Effort, and Cost Routing|intent -> autoplan
+Cost|route by shape/verifier/failure|price accepted results, not tokens (see orchestrator)|weight judgment/correction > price|down: bounded+cheap+objective+low fan-out+compact receipt|no model/task table, labels advisory
+Effort|by task shape+verifier, never vendor default|bounded: lowest|specified: low/medium|judgment: medium, high when ambiguity/repair/architecture/acceptance dominate|more != better, validate per task+harness|pins: ADR-080
+Context|goal: system outcomes, not model competence (gov `agent-design-principles`)|script/rule before model|delegate a task worth a brief (inputs fit, result compact), else inline|state in files, pass paths|distill once; read fields, not files|brief AI calls: job/needs/leave alone/return
+Tiers|delegation contract -> orchestrator
 
 ## Standards
 

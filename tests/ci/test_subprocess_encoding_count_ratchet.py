@@ -60,22 +60,26 @@ def test_current_count_counts_checker_findings(tmp_path: Path) -> None:
 class TestGeneratedSkillMirrorExclusion:
     """ADR-109 B3 follow-up: a mirrored skill support file counts once, at source.
 
-    .claude/skills/<name>/ is the canonical, hand-maintained source for every
-    non-SKILL.md file; src/claude/skills/ and src/copilot-cli/skills/ each
-    carry a byte-for-byte copy (generate_skills.py). Without this exclusion a
-    violation already counted at the source recounts once per generated
-    mirror.
+    src/claude/skills/<name>/ is the canonical source for every shipped skill
+    file (ADR-119); .claude/skills/<name> links to it, and src/copilot-cli/
+    skills/ carries a byte-for-byte copy (generate_skills.py). Without this
+    exclusion a violation already counted at the source recounts once per
+    generated mirror.
     """
 
     @pytest.mark.parametrize(
         ("rel", "expected"),
         [
-            ("src/claude/skills/review/scripts/run.py", ".claude/skills/review/scripts/run.py"),
+            ("src/claude/skills/review/scripts/run.py", None),
             (
                 "src/copilot-cli/skills/review/scripts/run.py",
-                ".claude/skills/review/scripts/run.py",
+                "src/claude/skills/review/scripts/run.py",
             ),
-            (".claude/skills/review/scripts/run.py", None),
+            ("src/cursor/skills/review/scripts/run.py", "src/claude/skills/review/scripts/run.py"),
+            ("src/hermes/project-toolkit-delivery/skills/review/scripts/run.py", None),
+            ("src/hermes/project-toolkit-delivery/plugin.json", None),
+            ("src/hermes/not-a-pack/skills/review/scripts/run.py", None),
+            (".claude/skills/review/scripts/run.py", "src/claude/skills/review/scripts/run.py"),
             ("scripts/authored/run.py", None),
         ],
     )
@@ -91,6 +95,7 @@ class TestGeneratedSkillMirrorExclusion:
         mirrors = [
             tmp_path / "src" / "claude" / "skills" / "review" / "scripts" / "run.py",
             tmp_path / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "run.py",
+            tmp_path / "src" / "cursor" / "skills" / "review" / "scripts" / "run.py",
         ]
         for mirror in mirrors:
             mirror.parent.mkdir(parents=True)
@@ -101,9 +106,31 @@ class TestGeneratedSkillMirrorExclusion:
             ".claude/skills/review/scripts/run.py",
             "src/claude/skills/review/scripts/run.py",
             "src/copilot-cli/skills/review/scripts/run.py",
+            "src/cursor/skills/review/scripts/run.py",
         )
 
         assert ratchet.current_count(tmp_path) == 1
+
+
+def test_shipped_skill_violation_counts_once_when_only_the_shipped_tree_is_tracked(
+    tmp_path: Path,
+) -> None:
+    """ADR-119 layout: .claude/skills holds a link entry, not the files beneath it.
+
+    The shipped file is tracked at src/claude/skills and at each platform mirror.
+    Mapping mirrors back to .claude/skills (untracked) counted every mirror again.
+    """
+    _git(tmp_path, "init")
+    bad_line = "subprocess.run(['x'], capture_output=True, encoding='utf-8')\n"
+    tracked = []
+    for root in ("src/claude/skills", "src/copilot-cli/skills", "src/cursor/skills"):
+        script = tmp_path / root / "review" / "scripts" / "run.py"
+        script.parent.mkdir(parents=True)
+        script.write_text(f"import subprocess\n{bad_line}", encoding="utf-8")
+        tracked.append(f"{root}/review/scripts/run.py")
+    _git(tmp_path, "add", *tracked)
+
+    assert ratchet.current_count(tmp_path) == 1
 
 
 def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
@@ -224,6 +251,8 @@ class TestTheSubstringProbeChangesNothingButCost:
             check=True,
         )
         files = [repo_root / rel for rel in listing.stdout.split("\0") if rel]
+        # A tracked file link (ADR-119 decision 14) names a target listed on its own.
+        files = [path for path in files if not path.is_symlink()]
         assert len(files) > 1000, "corpus lookup returned too few files to be a real check"
 
         unprobed: set[tuple[str, int]] = set()
@@ -245,3 +274,19 @@ class TestTheSubstringProbeChangesNothingButCost:
         }
 
         assert probed == unprobed
+
+
+def test_ratchet_skips_only_file_links_whose_target_is_tracked(tmp_path: Path) -> None:
+    """ADR-119 decision 14: .claude/lib/paths.py links to a tracked target counted once."""
+    (tmp_path / "real.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "ok.py").symlink_to("real.py")
+    (tmp_path / "dangling.py").symlink_to("missing.py")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.py"
+    outside.write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "escape.py").symlink_to(outside)
+    tracked = frozenset({"real.py", "ok.py", "dangling.py", "escape.py"})
+
+    assert ratchet._is_tracked_file_link(tmp_path, "ok.py", tracked) is True
+    assert ratchet._is_tracked_file_link(tmp_path, "real.py", tracked) is False
+    assert ratchet._is_tracked_file_link(tmp_path, "dangling.py", tracked) is False
+    assert ratchet._is_tracked_file_link(tmp_path, "escape.py", tracked) is False

@@ -9,19 +9,23 @@ run, instead of a separately invoked script whose order relative to
 `build_all.py` mattered (issue #2613, `.claude/rules/generated-artifacts.md`
 "Generator order: sync before build", removed by this change).
 
-Two destinations per source, per `templates/platforms/binplace.yaml`'s
-`lib-*` and `lib-*-copilot` rows:
+Three destinations per source, per `templates/platforms/binplace.yaml`'s
+`lib-*`, `lib-*-copilot` and `lib-*-codex` rows (a fourth, `src/cursor/lib`, follows
+ADR-115 Decision 1 and has no binplace row because the Cursor tree has no install tree):
 
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/claude/lib/<pkg>/*.py
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/copilot-cli/lib/<pkg>/*.py
+    scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/codex/lib/<pkg>/*.py
 
 `binplace_manifest.binplace()` then copies `src/claude/lib/<pkg>/` onto its
 `.claude/lib/<pkg>/` install-tree counterpart; `src/copilot-cli/lib/<pkg>/`
-has no further hop (it IS the Copilot plugin's own lib tree). The two
+has no further hop (it IS the Copilot plugin's own lib tree), and neither
+does `src/codex/lib/<pkg>/` (the Codex plugin's own, ADR-115). The two
 `SYNC_FILE_PAIRS` entries (`bootstrap.py`, `validate_review_marker.py`) get
-the same two-destination treatment, file-shaped (DESIGN-025 "lib-bootstrap"
+the same per-tree treatment, file-shaped (DESIGN-025 "lib-bootstrap"
 and "skills-sidecar" rows). The review sidecar's destinations are
-`src/claude/skills/review/scripts/` and `src/copilot-cli/skills/review/scripts/`.
+`src/claude/skills/review/scripts/`, `src/copilot-cli/skills/review/scripts/`
+and `src/codex/skills/review/scripts/`.
 
 `compile_all(check=True)` writes nothing and records every destination that
 differs from its source in `LibMirrorResult.drift`; `build_all.py --check`
@@ -62,7 +66,12 @@ PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common"
 # is rendered into. `.claude/lib/` is never a render target here: it is an
 # install tree, reached only via `binplace_manifest.binplace()` copying
 # `src/claude/lib/` onto it (templates/platforms/binplace.yaml `lib-*` rows).
-PLUGIN_ROOTS: tuple[str, ...] = ("src/claude/lib", "src/copilot-cli/lib")
+PLUGIN_ROOTS: tuple[str, ...] = (
+    "src/claude/lib",
+    "src/copilot-cli/lib",
+    "src/codex/lib",
+    "src/cursor/lib",
+)
 
 # Individual file copies: (source file, destination file name under each
 # PLUGIN_ROOTS entry). Byte-for-byte copies of a single module that lives at
@@ -92,10 +101,14 @@ SYNC_FILE_NAMES: tuple[tuple[str, str], ...] = (
 SKILLS_SIDECAR_SOURCE = "scripts/validation/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREE = "src/claude/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_COPILOT_TREE = "src/copilot-cli/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_CURSOR_TREE = "src/cursor/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_CODEX_TREE = "src/codex/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_INSTALL_TREE = ".claude/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREES: tuple[str, ...] = (
     SKILLS_SIDECAR_PLUGIN_TREE,
     SKILLS_SIDECAR_COPILOT_TREE,
+    SKILLS_SIDECAR_CURSOR_TREE,
+    SKILLS_SIDECAR_CODEX_TREE,
 )
 SKILLS_SIDECAR_OWNED: tuple[str, str] = ("review", "scripts/validate_review_marker.py")
 

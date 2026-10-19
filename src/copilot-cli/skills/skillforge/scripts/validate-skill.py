@@ -6,8 +6,12 @@ Validates that a SKILL.md file meets the requirements defined in
 SkillForge 4.1's quality standards.
 
 Usage:
-    python validate-skill.py <path-to-skill-directory>
+    python validate-skill.py <path-to-skill-directory> [--root DIR]
     python validate-skill.py ~/.claude/skills/my-skill/
+
+The skill directory must resolve inside the current working directory (CWE-22
+guard). Pass --root DIR to opt in to a different trusted root, for example
+``--root /other/repo`` to validate ``/other/repo/skills/my-skill`` from anywhere.
 """
 
 import os
@@ -16,15 +20,26 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Shared CWE-22 containment and CLI parsing, same module quick_validate.py uses.
+# Same fallback as package_skill.py: put this file's directory on sys.path when it
+# is loaded from elsewhere.
+try:
+    from _path_guard import contained_realpath, is_within, parse_args, resolve_root
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from _path_guard import contained_realpath, is_within, parse_args, resolve_root
+
 
 class SkillValidator:
     """Validates skill files against SkillForge 4.1 standards."""
 
-    def __init__(self, skill_path: str):
-        # SECURITY: Validate path stays within allowed base directory (CWE-22)
-        cwd_real = os.path.realpath(os.getcwd())
-        resolved = os.path.realpath(str(skill_path))
-        if not resolved.startswith(cwd_real + os.sep) and resolved != cwd_real:
+    def __init__(self, skill_path: str, root: str | None = None):
+        # SECURITY: Validate path stays within allowed base directory (CWE-22).
+        # The base is the current working directory unless the caller opts in to
+        # another trusted root.
+        self.root = resolve_root(root)
+        resolved = os.path.normcase(os.path.realpath(str(skill_path)))
+        if not is_within(resolved, self.root):
             raise ValueError(f"Path traversal detected: {skill_path}")
         self.skill_path = Path(skill_path)
         self.skill_md_path = self._find_skill_md()
@@ -49,8 +64,18 @@ class SkillValidator:
             self.errors.append(f"Skill file not found: {self.skill_md_path}")
             return False
 
+        # SECURITY (CWE-22): the skill directory is inside the root, but SKILL.md
+        # can be a symlink that points outside it. Read the resolved real path so
+        # the containment check and the read target cannot diverge.
+        read_target = contained_realpath(self.skill_md_path, self.root)
+        if read_target is None:
+            self.errors.append(
+                f"SKILL.md resolves outside the permitted root: {self.skill_md_path}"
+            )
+            return False
+
         try:
-            self.content = self.skill_md_path.read_text(encoding="utf-8")
+            self.content = Path(read_target).read_text(encoding="utf-8")
             return True
         except Exception as e:
             self.errors.append(f"Failed to read skill file: {e}")
@@ -596,9 +621,29 @@ class SkillValidator:
             warning=True,
         )
 
+    def _subdirectory_contained(self, dir_path: Path, label: str) -> bool:
+        """Return False, recording one error, when a skill subdirectory escapes the root.
+
+        SECURITY (CWE-22): ``scripts/`` and ``references/`` can be directory
+        symlinks. Listing one that points outside the root would read, and could
+        report, outside filenames. A missing path is fine: nothing to contain.
+        """
+        if not os.path.lexists(dir_path):
+            return True
+        if contained_realpath(dir_path, self.root) is not None:
+            return True
+        self.check(
+            f"{label}.contained",
+            False,
+            f"{label}/ resolves outside the permitted root",
+        )
+        return False
+
     def validate_references_directory(self):
         """Validate references directory if skill is complex."""
         refs_path = self.skill_path / "references"
+        if not self._subdirectory_contained(refs_path, "references"):
+            return
 
         # Complex skills should have references
         line_count = len(self.content.split("\n"))
@@ -613,6 +658,8 @@ class SkillValidator:
     def validate_scripts_directory(self):
         """Validate scripts directory if present."""
         scripts_path = self.skill_path / "scripts"
+        if not self._subdirectory_contained(scripts_path, "scripts"):
+            return
 
         if not scripts_path.exists():
             # Skills tagged vendor-portability intentionally reference upstream repo
@@ -650,8 +697,18 @@ class SkillValidator:
 
     def _validate_script(self, script_path: Path):
         """Validate a single Python script file."""
+        # SECURITY (CWE-22): a scripts/*.py symlink can point outside the root.
+        read_target = contained_realpath(script_path, self.root)
+        if read_target is None:
+            self.check(
+                f"script.{script_path.name}.contained",
+                False,
+                f"Script {script_path.name} resolves outside the permitted root",
+            )
+            return
+
         try:
-            content = script_path.read_text(encoding="utf-8")
+            content = Path(read_target).read_text(encoding="utf-8")
         except Exception as e:
             self.check(
                 f"script.{script_path.name}.readable",
@@ -808,13 +865,27 @@ class SkillValidator:
 
 def main():
     """Main entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: python validate-skill.py <path-to-skill-directory>")
+    if len(sys.argv) >= 2 and sys.argv[1] == "--help":
+        print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
+        print("Example: python validate-skill.py skills/my-skill/")
+        print("\nExit codes: 0 all checks passed, 1 a check failed or no path given.")
+        sys.exit(0)
+
+    parsed = parse_args(sys.argv[1:])
+    if parsed is None:
+        print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
         print("Example: python validate-skill.py ~/.claude/skills/my-skill/")
         sys.exit(1)
 
-    skill_path = sys.argv[1]
-    validator = SkillValidator(skill_path)
+    skill_path, root = parsed
+    if root is not None and not Path(root).is_dir():
+        print(f"Error: --root is not a directory: {root}")
+        sys.exit(1)
+    try:
+        validator = SkillValidator(skill_path, root=root)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
     passed, report = validator.validate()
 
     print(report)

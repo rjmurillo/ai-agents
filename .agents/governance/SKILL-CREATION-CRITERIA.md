@@ -259,6 +259,14 @@ Sometimes the question is "skill or agent?"
 - **Skill**: "Do this specific thing following this procedure"
 - **Agent**: "Apply your expertise to this problem"
 
+### Skill-first rule
+
+Prefer a skill over a subagent dispatch when the work does not need an isolated context. A skill runs in the current context and loads on demand. A Task spawn starts a fresh context and loads the full agent prompt.
+
+Choose an agent when the work needs isolation: independent review, bias-free investigation, or an adversarial second view. The agent-vs-skill discriminator (`scripts/validation/check_agent_skill_discriminator.py`) enforces this rule at the PR gate. The 4-criterion scoring and verdict rule are in `.project-toolkit/audits/2026-05-10-agent-skill-classification-audit.md`.
+
+This section is the written authority for the rule. ADR-030 first proposed it as an amendment memo to ADR-027, and its status is now `rejected`. The rule does not depend on the latency figures in that memo.
+
 ---
 
 ## Skill vs Passive Context
@@ -364,7 +372,7 @@ Remove skills when:
 ## Related Documents
 
 - [SKILL-PHASE-GATES.md](./SKILL-PHASE-GATES.md): Gate implementation
-- [ADR-030](../../.project-toolkit/architecture/ADR-030-skills-pattern-superiority.md): Skills vs subagents
+- [ADR-064](../../.project-toolkit/architecture/ADR-064-commands-to-skills-migration.md): Skills are the single user-invocable surface
 - [ADR-033](../../.project-toolkit/architecture/ADR-033-routing-level-enforcement-gates.md): Routing-level enforcement gates
 - [Agent Design Principles](./agent-design-principles.md): Agent creation criteria
 - [SkillForge](../../.claude/skills/SkillForge/SKILL.md): Meta-skill for production-ready skill creation

@@ -210,6 +210,9 @@ class _OpenAICompatibleProvider:
         self._base_url = base_url
         self._default_headers = default_headers
         self.system_fingerprint: str | None = None
+        # The request carries `max_tokens`, so a long answer can be cut (#5405).
+        self.applies_max_tokens = True
+        self.finish_reason: str | None = None
 
     def _client(self) -> OpenAI:
         try:
@@ -245,6 +248,7 @@ class _OpenAICompatibleProvider:
     ) -> str:
         client = self._client()
         self.system_fingerprint = None
+        self.finish_reason = None
         full_messages: list[dict[str, str]] = []
         if system:
             full_messages.append({"role": "system", "content": system})
@@ -278,6 +282,8 @@ class _OpenAICompatibleProvider:
             )
         fingerprint = getattr(resp, "system_fingerprint", None)
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
+        finish_reason = getattr(choices[0], "finish_reason", None)
+        self.finish_reason = finish_reason if isinstance(finish_reason, str) else None
         return content
 
 
@@ -292,6 +298,9 @@ class _AnthropicSDKProvider:
     name = "anthropic-sdk"
     _provider_label = "Anthropic"
     system_fingerprint: str | None = None
+    # The request carries `max_tokens`, so a long answer can be cut (#5405).
+    applies_max_tokens = True
+    finish_reason: str | None = None
 
     def complete(
         self,
@@ -303,6 +312,7 @@ class _AnthropicSDKProvider:
         temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
+        self.finish_reason = None
         try:
             from anthropic import Anthropic
         except ModuleNotFoundError as exc:  # pragma: no cover - env-dependent
@@ -344,4 +354,6 @@ class _AnthropicSDKProvider:
             for block in getattr(resp, "content", [])
             if getattr(block, "type", None) == "text"
         ]
+        stop_reason = getattr(resp, "stop_reason", None)
+        self.finish_reason = stop_reason if isinstance(stop_reason, str) else None
         return "".join(parts)

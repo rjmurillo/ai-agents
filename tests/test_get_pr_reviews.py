@@ -43,11 +43,15 @@ def _api_review(
     body: str | None = "ship it",
     review_id: int = 1,
     author_id: int | None = None,
+    user_type: object = None,
 ):
+    user: dict[str, object] = {"login": login, "id": author_id}
+    if user_type is not None:
+        user["type"] = user_type
     return {
         "id": review_id,
         "node_id": f"PRR_node{review_id}",
-        "user": {"login": login, "id": author_id},
+        "user": user,
         "state": state,
         "body": body,
         "submitted_at": "2026-08-01T00:00:00Z",
@@ -105,6 +109,7 @@ class TestNormalize:
             "author": "alice",
             "aliases": [],
             "author_id": 101,
+            "author_type": None,
             "author_observed": "alice",
             "author_canonical": "alice",
             "state": "APPROVED",
@@ -113,6 +118,19 @@ class TestNormalize:
             "url": "https://github.com/o/r/pull/1#pullrequestreview-42",
             "commit_id": "deadbeef",
         }
+
+    @pytest.mark.parametrize("user_type", ["User", "Bot", "Organization"])
+    def test_account_type_is_carried_through(self, user_type):
+        assert _normalize(_api_review(user_type=user_type))["author_type"] == user_type
+
+    @pytest.mark.parametrize("user_type", [7, ["Bot"], {"a": 1}])
+    def test_non_string_account_type_becomes_none(self, user_type):
+        assert _normalize(_api_review(user_type=user_type))["author_type"] is None
+
+    def test_missing_user_has_no_account_type(self):
+        item = _api_review()
+        item["user"] = None
+        assert _normalize(item)["author_type"] is None
 
     def test_empty_body_normalized(self):
         assert _normalize(_api_review(body=None))["body"] == ""
@@ -228,6 +246,9 @@ class TestMain:
         [
             ("server error", 3),
             ("Could not resolve not found", 2),
+            ("gh: Not Found (HTTP 404)", 2),
+            ("GraphQL: Could not resolve to a PullRequest", 2),
+            ("Could not resolve host: api.github.com", 3),
             ("not logged in", 4),
         ],
     )

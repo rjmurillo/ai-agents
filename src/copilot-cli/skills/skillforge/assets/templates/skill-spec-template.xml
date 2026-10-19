@@ -193,10 +193,10 @@
           <pattern><!-- argparse_subcommands|simple_argparse|json_state|validation_result --></pattern>
         </patterns_used>
 
-        <verification>
-          <self_verifies><!-- true|false --></self_verifies>
-          <verification_method><!-- How the script verifies its own output --></verification_method>
-        </verification>
+        <fast_fail_and_independent_check>
+          <fails_fast><!-- true|false --></fails_fast>
+          <independent_check><!-- What separate check confirms the outcome, if it can be checked independently --></independent_check>
+        </fast_fail_and_independent_check>
 
         <rationale><!-- WHY this script was included, what problem it solves --></rationale>
       </script>
@@ -219,10 +219,10 @@
         <description><!-- Can the skill run without user intervention? How? --></description>
       </autonomous_execution>
 
-      <self_verification>
+      <fast_fail_and_independent_check>
         <supported><!-- true|false --></supported>
-        <description><!-- Can scripts verify their own success? How? --></description>
-      </self_verification>
+        <description><!-- Do scripts fail fast? Where the outcome can be checked independently, what separate check confirms it? --></description>
+      </fast_fail_and_independent_check>
 
       <error_recovery>
         <supported><!-- true|false --></supported>

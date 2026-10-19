@@ -427,7 +427,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    assert_gh_authenticated()
+    # Every call here is `gh api` REST (user, repos/.../pulls), so a session
+    # that refuses only GraphQL can still run it (issue #5693).
+    assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
     fmt = get_output_format(args.output_format)

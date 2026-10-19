@@ -174,6 +174,7 @@ class TestGeneratedLibMirrorExclusion:
             ".claude/lib/github_core/bot_config.py",
             "src/claude/lib/github_core/bot_config.py",
             "src/copilot-cli/lib/hook_utilities/guards.py",
+            "src/cursor/lib/hook_utilities/guards.py",
         ],
     )
     def test_mirror_package_files_are_excluded(self, rel: str) -> None:
@@ -186,6 +187,16 @@ class TestGeneratedLibMirrorExclusion:
         """Only the three mirrored package dirs are excluded, not the whole tree."""
         assert ratchet._is_generated_lib_mirror(".claude/lib/paths.py") is False
 
+    @pytest.mark.parametrize(
+        "rel",
+        [
+            "src/hermes/project-toolkit-delivery/lib/github_core/api.py",
+            "src/hermes/project-toolkit-knowledge/lib/ai_review_common/retry.py",
+        ],
+    )
+    def test_hermes_paths_are_not_excluded_by_name(self, rel: str) -> None:
+        assert ratchet._is_generated_lib_mirror(rel) is False
+
     def test_exclusion_is_load_bearing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -196,6 +207,7 @@ class TestGeneratedLibMirrorExclusion:
             tmp_path / ".claude" / "lib" / "github_core" / "bot_config.py",
             tmp_path / "src" / "claude" / "lib" / "github_core" / "bot_config.py",
             tmp_path / "src" / "copilot-cli" / "lib" / "github_core" / "bot_config.py",
+            tmp_path / "src" / "cursor" / "lib" / "github_core" / "bot_config.py",
         ]
         for mirror in mirrors:
             mirror.parent.mkdir(parents=True)
@@ -206,6 +218,7 @@ class TestGeneratedLibMirrorExclusion:
             ".claude/lib/github_core/bot_config.py",
             "src/claude/lib/github_core/bot_config.py",
             "src/copilot-cli/lib/github_core/bot_config.py",
+            "src/cursor/lib/github_core/bot_config.py",
         )
         monkeypatch.setattr(subprocess, "run", _fake_git(rels))
 
@@ -213,23 +226,27 @@ class TestGeneratedLibMirrorExclusion:
 
 
 class TestGeneratedSkillMirrorExclusion:
-    """ADR-109 B3 follow-up: a mirrored skill support file counts once, at source.
+    """ADR-119: a mirrored skill support file counts once, at src/claude/skills.
 
-    .claude/skills/<name>/ is the canonical, hand-maintained source for every
-    non-SKILL.md file; src/claude/skills/ and src/copilot-cli/skills/ each
-    carry a byte-for-byte copy (generate_skills.py). Same rationale as the lib
-    mirror exclusion above, applied to skills.
+    src/claude/skills/<name>/ is the canonical, hand-maintained source for
+    every non-SKILL.md file; src/copilot-cli/skills/ carries a byte-for-byte
+    copy, and a tree that predates ADR-119 still tracks .claude/skills/<file>
+    as a second copy. Same rationale as the lib mirror exclusion above,
+    applied to skills.
     """
 
     @pytest.mark.parametrize(
         ("rel", "expected"),
         [
-            ("src/claude/skills/review/scripts/run.py", ".claude/skills/review/scripts/run.py"),
+            (".claude/skills/review/scripts/run.py", "src/claude/skills/review/scripts/run.py"),
             (
                 "src/copilot-cli/skills/review/scripts/run.py",
-                ".claude/skills/review/scripts/run.py",
+                "src/claude/skills/review/scripts/run.py",
             ),
-            (".claude/skills/review/scripts/run.py", None),
+            ("src/hermes/project-toolkit-delivery/skills/review/scripts/run.py", None),
+            ("src/hermes/project-toolkit-delivery/plugin.json", None),
+            ("src/hermes/not-a-pack/skills/review/scripts/run.py", None),
+            ("src/claude/skills/review/scripts/run.py", None),
             ("scripts/authored/run.py", None),
         ],
     )
@@ -239,11 +256,11 @@ class TestGeneratedSkillMirrorExclusion:
     def test_exclusion_is_load_bearing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        canonical = tmp_path / ".claude" / "skills" / "review" / "scripts" / "run.py"
+        canonical = tmp_path / "src" / "claude" / "skills" / "review" / "scripts" / "run.py"
         canonical.parent.mkdir(parents=True)
         canonical.write_text("x = None  # type: ignore[assignment]\n", encoding="utf-8")
         mirrors = [
-            tmp_path / "src" / "claude" / "skills" / "review" / "scripts" / "run.py",
+            tmp_path / ".claude" / "skills" / "review" / "scripts" / "run.py",
             tmp_path / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "run.py",
         ]
         for mirror in mirrors:
@@ -262,11 +279,11 @@ class TestGeneratedSkillMirrorExclusion:
     def test_mirror_with_no_canonical_source_still_counts(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A mirror-shaped path with nothing at .claude/skills/ is authored work."""
-        orphan = tmp_path / "src" / "claude" / "skills" / "new" / "scripts" / "run.py"
+        """A mirror-shaped path with nothing at src/claude/skills/ is authored work."""
+        orphan = tmp_path / "src" / "copilot-cli" / "skills" / "new" / "scripts" / "run.py"
         orphan.parent.mkdir(parents=True)
         orphan.write_text("x = None  # type: ignore[assignment]\n", encoding="utf-8")
-        rels = ("src/claude/skills/new/scripts/run.py",)
+        rels = ("src/copilot-cli/skills/new/scripts/run.py",)
         monkeypatch.setattr(subprocess, "run", _fake_git(rels))
 
         assert ratchet.current_count(tmp_path) == 1

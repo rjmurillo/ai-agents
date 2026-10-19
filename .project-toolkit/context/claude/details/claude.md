@@ -1,3 +1,3 @@
 # .claude/
 
-Binplaced dogfood copy of the `project-toolkit` plugin tree (`src/claude/`), not a marketplace source since ADR-109 B6; `hooks/` and `skills/` have own guides.
+Dogfood copy of `src/claude/` (`project-toolkit`), not a marketplace source (ADR-109 B6); `agents/*` and shipped `skills/*` are symlinks into it (ADR-119); `hooks/`, `skills/` have own guides.

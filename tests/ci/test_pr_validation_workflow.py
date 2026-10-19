@@ -379,6 +379,68 @@ def test_report_blocking_summary_stays_one_line(
     assert len(output.read_text(encoding="utf-8").splitlines()) == 2
 
 
+@pytest.mark.parametrize(
+    ("finding", "expected"),
+    [
+        ("plain finding", "plain finding"),
+        ("File: src/gone.py", "File: src/gone.py"),
+        ("File: pages/[id].tsx", "File: pages/[id].tsx"),
+        ("a`b", "ab"),
+        ("`` ``` `", ""),
+        ("x`; **bold** @octocat please", "x; **bold** octocat please"),
+        ("ping @org/team and @user-name", "ping org/team and user-name"),
+        ("mail me@example.com", "mail me@example.com"),
+        ("<!-- PR-VALIDATION --> <b>x</b>", "!-- PR-VALIDATION -- bx/b"),
+        ("line one\nline two\r\nline three", "line one line two line three"),
+        ("tab\there\x00nul\x1b[31mred", "tab here nul [31mred"),
+        ("sep\u2028one\u2029two", "sep one two"),
+        ("   padded   ", "padded"),
+    ],
+)
+def test_neutralize_keeps_the_finding_one_inert_line(finding: str, expected: str) -> None:
+    assert report_mod._neutralize(finding) == expected
+
+
+def test_report_cannot_be_broken_out_of_its_code_span_by_a_hostile_finding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
+    monkeypatch.setenv(
+        "DESCRIPTION_FINDING",
+        "x`\n\n@octocat <script>alert(1)</script> [click](http://evil.example)",
+    )
+
+    assert report_mod.main() == 0
+
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if ln.startswith("- PR description does not match"))
+    assert line.count("`") == 2
+    assert "@octocat" not in text
+    assert "<script>" not in text
+    assert text.count("<!-- PR-VALIDATION -->") == 1
+    assert len(output.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_report_without_a_finding_keeps_the_bare_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    report = tmp_path / "pr-validation-report.md"
+    _set_output(monkeypatch, output)
+    monkeypatch.setattr(report_mod, "REPORT_PATH", report)
+    monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
+    monkeypatch.setenv("DESCRIPTION_FINDING", "`` <> ``")
+
+    assert report_mod.main() == 0
+    assert "- PR description does not match actual changes\n" in report.read_text(encoding="utf-8")
+
+
 def test_report_blocking_summary_is_empty_when_nothing_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -499,6 +561,55 @@ def test_enforce_passes_when_no_blocking_inputs(
 
     assert enforce_mod.main() == 0
     assert "✓ PR validation passed" in capsys.readouterr().out
+
+
+def test_enforce_passes_on_bypassed_status(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """BYPASSED is the label override from build_pr_validation_report.py."""
+    monkeypatch.setenv("OVERALL_STATUS", "BYPASSED")
+
+    assert enforce_mod.main() == 0
+    assert "✓ PR validation passed" in capsys.readouterr().out
+
+
+def test_enforce_fails_closed_when_status_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("OVERALL_STATUS", raising=False)
+
+    assert enforce_mod.main() == 1
+    captured = capsys.readouterr()
+    assert "::error::PR validation failed: UNKNOWN (empty)" in captured.err
+    assert "passed" not in captured.out
+
+
+@pytest.mark.parametrize("status", ["", "UNKNOWN", "pass", "WARN", "SKIPPED", "PASS "])
+def test_enforce_fails_closed_on_any_value_outside_the_allow_list(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    status: str,
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", status)
+
+    assert enforce_mod.main() == 1
+    captured = capsys.readouterr()
+    assert "::error::PR validation failed:" in captured.err
+    assert captured.out == ""
+
+
+def test_enforce_escapes_an_unknown_status_value(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", "X\n::error::forged")
+
+    assert enforce_mod.main() == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1
+    assert "X%0A::error::forged" in err
 
 
 def test_enforce_ignores_the_commit_status_env_var(

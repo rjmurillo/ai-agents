@@ -99,7 +99,6 @@ These bind today.
 | [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules | 2026-04-29 | Chosen option: Option 1 - Thin Workflows, Testable Modules |
 | [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-08-19 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
 | [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design | 2025-12-20 | Multi-agent coordination MUST include consensus mechanisms for conflict resolution. |
-| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | 2025-12-20 | All significant outputs MUST pass through a formalized evaluator-optimizer loop. |
 | [ADR-014](ADR-014-distributed-handoff-architecture.md) | Distributed Handoff Architecture | 2026-08-16 | Implement a three-tier distributed handoff architecture that eliminates centralized HANDOFF.md as a write target: |
 | [ADR-015](ADR-015-artifact-storage-minimization.md) | Artifact Storage Minimization Strategy | 2025-12-22 | Reduce artifact retention to minimum necessary duration: |
 | [ADR-016](ADR-016-workflow-execution-optimization.md) | Workflow Execution Optimization Strategy | 2025-12-22 | Implement two complementary optimizations: |
@@ -121,7 +120,6 @@ These bind today.
 | [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace | 2026-02-07 | Extract the reusable multi-agent framework from `rjmurillo/ai-agents` into a new repository `rjmurillo/awesome-ai`, published as a Claude Code plugin marketplace with 4 plugins. |
 | [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity | 2026-02-08 | Rename all three planning agents to reflect their distinct roles: |
 | [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
-| [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | 2026-02-21 | Establish a two-tier ADR-to-Protocol sync process: an automated audit script and a manual integration checklist. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
@@ -137,10 +135,9 @@ These bind today.
 | [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission | 2026-06-09 | Adopt two coupled changes. |
 | [ADR-073](ADR-073-adr-lifecycle-frontmatter.md) | Machine-Readable ADR Lifecycle Frontmatter | 2026-06-19 | Adopt a queryable lifecycle frontmatter schema as the machine-readable source of truth for ADR state, keeping a human-readable `## Status` prose section as an optional secondary rendering, present... |
 | [ADR-074](ADR-074-security-review-quick-pass-mode.md) | Bounded Security-Review Quick-Pass Mode | 2026-06-17 | Add a bounded quick-pass mode to security review, governed by a diff-scope classifier, a caller-enforced deadline, and an extended verdict taxonomy. |
-| [ADR-076](ADR-076-pr-autofix-branch-ownership-lease.md) | PR-Autofix Branch-Ownership Lease | 2026-06-17 | Adopt a PR-comment-backed, advisory, fail-open branch-ownership lease that `pr-autofix` (local) and remote review/autofix routines acquire before committing fix work to a shared PR branch, and... |
 | [ADR-081](ADR-081-confidence-elicitation-experiment.md) | Confidence Elicitation Is a Shadow Study, Not a Shipped Gate | 2026-07-11 | Do not ship confidence elicitation as a blocking PreToolUse hook. |
 | [ADR-082](ADR-082-claude-hook-group-dispatch.md) | Claude-Side Consolidated Hook Group Dispatch | 2026-07-16 | One process per (event, matcher) group on the Claude side. |
-| [ADR-083](ADR-083-copilot-dogfood-surface-separation.md) | Dogfood the Shipped Copilot Base and Separate Ship-vs-Internal Surface | 2026-07-20 | Adopt a per-item surface tag, split the Copilot form-factor into a shipped base plus a local-only internal overlay, and dogfood both by installing them the way a customer installs the base. |
+| [ADR-083](ADR-083-copilot-dogfood-surface-separation.md) | Dogfood the Shipped Copilot Base and Separate Ship-vs-Internal Surface | 2026-07-20 | Dogfood the shipped Copilot base by installing it the way a customer installs it, and prove in CI that the base alone loads. |
 | [ADR-084](ADR-084-vendored-hook-roi-bar.md) | Vendored-Hook ROI Bar | 2026-07-20 | A hook may ship in a vendored plugin surface only if it delivers value in a consumer's own repository. |
 | [ADR-085](ADR-085-cross-harness-permission-surface-asymmetry.md) | Cross-Harness Permission-Surface Asymmetry and Hook Survivor Disposition | 2026-07-31 | A vendored guard hook may be replaced by host-native permissions only when all three hold: |
 | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) | Lefthook for Local Git Hook Orchestration | 2026-07-20 | Use Lefthook 2.1.10 as the only local Git hook orchestrator. |
@@ -182,12 +179,11 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-069](ADR-069-context-corpus-is-the-product.md) | The Curated Context Corpus IS the Product, Orchestration Is Plumbing | 2026-05-02 | Adopt the following architectural principle: | - |
 | [ADR-070](ADR-070-memory-first-gate-spec-pipeline.md) | Memory-First Gate Is a BLOCKING Step in the Spec Pipeline | 2026-07-27 | The Memory-First Gate is a BLOCKING step (Step 0.5) in the `/spec` pipeline, running after Step 0 and before Step 1. | - |
 | [ADR-075](ADR-075-form-factor-eval-methodology.md) | Form-Factor Evaluation Methodology (Agent vs Skill) | 2026-07-20 | Adopt a three-variant eval. | Requested by issue [#1875](https://github.com/rjmurillo/ai-agents/issues/1875). Follow-on to ADR-058 (agent eval discipline), which scoped the form-factor question out and tracked it here. |
-| [ADR-077](ADR-077-flip-stale-contract-tests.md) | Flip Stale Contract Tests | 2026-06-29 | Add a governance rule to `.agents/governance/TESTING-RIGOR.md`: when a change alters an observable contract, the author must find and flip stale tests in the same diff. | This is a 90-day experimental governance rule. The review checkpoint is 2026-09-27. |
+| [ADR-077](ADR-077-flip-stale-contract-tests.md) | Flip Stale Contract Tests | 2026-06-29 | Add a governance rule to `.agents/governance/TESTING-RIGOR.md`: when a change alters an observable contract, the author must find and flip stale tests in the same diff. | review by 2026-09-27; This is a 90-day experimental governance rule. The review checkpoint is 2026-09-27. |
 | [ADR-078](ADR-078-autoplan-orchestrator-router-boundary.md) | Autoplan and Orchestrator Router Boundary | 2026-08-20 | Adopt an explicit two-layer boundary and document it in both routing surfaces: the autoplan skill and the orchestrator shared source. | - |
 | [ADR-087](ADR-087-held-out-validated-improvement.md) | Held-Out Validation for Iterated Improvement Claims | 2026-07-26 | An improvement claim about an authored artifact, made by a loop that reads its own evaluation results, MUST be validated against a group whose number of consultations is bounded and counted by a... | Requested by two independent adversarial reviews on PR #3430 (gpt-5.6-sol and gemini-3.1-pro-preview), both of which concluded that the mechanism that PR adds asserts a norm the repository has not... |
 | [ADR-088](ADR-088-progressive-disclosure-book-rules.md) | Progressive Disclosure for Book-Derived Rules | 2026-07-27 | Move the eight situational book-derived rules from always-on instruction files to one progressively-disclosed skill named `software-engineering-library`. | - |
 | [ADR-089](ADR-089-remove-causal-memory-tier.md) | Remove the Tier 3 Causal Memory Graph | 2026-07-27 | Delete the Tier 3 causal graph and all machinery that exists only to maintain it: | The removal is implemented in the same change that files this ADR, so the document records a decision already carried out rather than one awaiting execution. On reversal, see the Consequences... |
-| [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-07-27 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. | This ADR amends ADR-076 for issue #3413. It records the decision before implementation because the change controls who may mutate a PR branch. |
 | [ADR-093](ADR-093-verify-red-checks-with-the-same-checker.md) | A local run clears a red remote check only when it is the same checker | 2026-08-07 | Add one MUST to `.claude/rules/universal.md`, which is always-on: | - |
 | [ADR-098](ADR-098-agent-role-metadata-replaces-tier-hierarchy.md) | Agent Role Metadata Replaces the Tier Hierarchy | 2026-08-20 | Retire the four-tier agent hierarchy. | - |
 | [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. | Six-seat adr-review debate held 2026-08-25; log at `.project-toolkit/critique/ADR-104-debate-log.md`. The first revision was blocked by two seats and this record is the rewrite. `implemented` stays... |
@@ -196,6 +192,10 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-112](ADR-112-risk-tiered-action-boundaries.md) | Risk-Tiered Action Boundaries for Agent Tools | 2026-09-28 | Sort every agent action into four tiers, deny the highest tier at the Claude harness, check shared-repository mutations inside the script that performs them, and record every gap this leaves open. | review by 2027-03-28; The record was filed on 2026-09-28 for issue #5767, a child of epic #5456. It is implemented in the same change. Requirement: REQ-043. Tasks: TASK-052. |
 | [ADR-114](ADR-114-agent-workflows-approval-and-non-blocking.md) | Agent Workflows Run Only After Approval and Never Block Merges (Except the Plugin CLI Smoke) | 2026-10-08 | Approval before running, one environment per provider. | review by 2027-04-03 |
 | [ADR-115](ADR-115-native-plugin-support-per-host.md) | Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse | 2026-10-12 | A generated plugin tree for each host whose native format differs. | review by 2027-04-12; It refines ADR-072 Decision 2 and Decision 5 for seven more hosts. A reduced `adr-review` panel (architect and critic) reached consensus in round 3 on the first four hosts. The... |
+| [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-10-13 | Propose a class named Unchecked In-Context Rule Violation, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for... | review by 2027-04-13; The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then. |
+| [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. | review by 2027-04-13 |
+| [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. | review by 2027-04-13 |
+| [ADR-119](ADR-119-symlinked-dogfood-agents-and-skills.md) | Symlink the Agent and Skill Dogfood Trees to the Plugin Tree | 2026-10-17 | A binplace manifest row may set `link: true` (`templates/platforms/binplace.yaml`). | review by 2027-04-17; This record amends ADR-109 and ADR-108; see Related Decisions. |
 
 ## Retired
 
@@ -207,6 +207,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-004](ADR-004-pre-commit-hook-architecture.md) | Pre-Commit Hook as Validation Orchestration Point | superseded | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) |
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
 | [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
+| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | deprecated | not recorded |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
@@ -214,8 +215,10 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
+| [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | deprecated | not recorded |
 | [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | superseded | [ADR-109](ADR-109-template-first-plugin-distribution.md) |
 | [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |
+| [ADR-076](ADR-076-pr-autofix-branch-ownership-lease.md) | PR-Autofix Branch-Ownership Lease | deprecated | not recorded |
 | [ADR-079](ADR-079-merge-time-plugin-version-bump.md) | Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation) | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) (via ADR-091) |
 | [ADR-080](ADR-080-model-pin-justification-policy.md) | Model Pins Require Cited Eval Evidence | superseded | [ADR-111](ADR-111-skill-model-pins-project-per-harness.md) |
 | [ADR-091](ADR-091-post-merge-version-bot.md) | Post-Merge Bot Owns Plugin Version and Count Baselines | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) |
@@ -229,6 +232,7 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 | [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority | 2026-08-25 | - |
 | [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2026-08-25 | Implement a hybrid architecture for PowerShell skill execution: |
 | [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body | 2026-08-25 | Amend REQ-003-007 step 5 so the generator emits delegate shims, not inline-body shims. |
+| [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-10-13 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. |
 | [ADR-095](ADR-095-scoped-re-review-axes.md) | Scoped re-review runs only the axes that flagged (rejected) | 2026-08-15 | - |
 
 ## Needs backfill

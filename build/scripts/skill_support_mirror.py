@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Copy a skill directory tree; mirror support files into the Claude plugin tree.
+"""Copy a skill directory tree; reconcile the Claude plugin tree with repo-local skills.
 
 Split out of ``generate_skills.py`` (taste-lint file-size ceiling; ADR-109
 B3's support-file follow-up pushed that file over it), the same reason
 ``skill_templates.py`` split ``skill_template_grammar.py`` out of itself: this
 module holds the filesystem primitive (:func:`_copy_skill_tree`, used by both
-the Copilot mirror in ``generate_skills.py`` and the Claude mirror below) and
-everything specific to the Claude-tree support-file sync
-(:func:`sync_claude_plugin_skill_support`). ``generate_skills.py`` imports
+the Copilot mirror in ``generate_skills.py``) and the Claude-tree
+reconcile (:func:`prune_stale_claude_skill_support`). ``generate_skills.py`` imports
 every public and private name it still needs from here and re-exports them,
 so every existing caller and test that reaches them through
 ``generate_skills.<name>`` keeps working unchanged.
 
-``.claude/skills/<name>/`` stays the canonical, hand-maintained source for
-every skill file except ``SKILL.md`` (rendered separately by
-``skill_templates.compile_all``); this module never writes ``SKILL.md``.
+A shipped skill's support files are hand-maintained in
+``src/claude/skills/<name>/``, and ``.claude/skills/<name>`` is a symlink to
+that directory, so no Claude-side copy exists to sync. ``SKILL.md`` is
+rendered separately by ``skill_templates.compile_all``; this module never
+writes it.
 """
 
 from __future__ import annotations
@@ -32,30 +33,21 @@ from atomic_write import (  # noqa: E402
     publish_bytes_preserving_mode,
 )
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
-from copilot_body_translation import translate_skill_file  # noqa: E402
-from lib_mirror import lib_owned_support_files  # noqa: E402
+from copilot_support_translation import (  # noqa: E402
+    SupportTranslationError,
+    translated_text,
+)
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from skill_copy_compare import copy_matches, text_matches, tree_sources  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
+from skill_md_rewrite import GenerateSkillsError, rewrite_skill_md  # noqa: E402
 
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 
-# ADR-109 B3 follow-up: every skill's non-SKILL.md files (scripts/,
-# references/, tests/, and any other support file) stay hand-maintained
-# under .claude/skills/<name>/; SKILL.md itself is the only file rendered
-# from a template into src/claude/skills/<name>/ (skill_templates.compile_all).
-# This mirror copies everything else so the plugin tree binplace ships from
-# (src/claude/skills) is complete, the same way _copy_skill_tree already
-# mirrors .claude/skills/ into src/copilot-cli/skills/ for the Copilot
-# target. Unlike the Copilot mirror, this one does NOT exclude
-# merge-resolver: that skill ships in the Claude plugin, just not the
-# publicly-shipping Copilot toolkit (see templates/platforms/copilot-cli.yaml).
-_CLAUDE_SUPPORT_SOURCE_REL = Path(".claude") / "skills"
-_CLAUDE_SUPPORT_TARGET_REL = Path("src") / "claude" / "skills"
-_SKILL_MD = Path("SKILL.md")
-
-
-class GenerateSkillsError(Exception):
-    """Domain error for skill generation. Wraps copy/load issues."""
+# A shipped skill lives in src/claude/skills/<name>/ and .claude/skills/<name>
+# links to it; a repo-local skill lives only in .claude/skills/<name>/.
+_CLAUDE_INSTALL_REL = Path(".claude") / "skills"
+_CLAUDE_PLUGIN_REL = Path("src") / "claude" / "skills"
 
 
 class SkillSupportSyncError(GenerateSkillsError):
@@ -71,7 +63,10 @@ class SkillSupportSyncError(GenerateSkillsError):
 
 
 def _iter_skill_sources(
-    source_dir: Path, excludes: set[str], skip_names: frozenset[str] = frozenset()
+    source_dir: Path,
+    excludes: set[str],
+    skip_names: frozenset[str] = frozenset(),
+    templated: frozenset[str] = frozenset(),
 ) -> list[Path]:
     """Return immediate subdirectories that contain a SKILL.md file.
 
@@ -80,6 +75,13 @@ def _iter_skill_sources(
     skill-like layouts are not recursed. ``skip_names`` drops skills flagged
     ``distribution: repo-local`` (``skill_distribution.repo_local_names``):
     they stay under ``.claude/skills/`` and reach no vendor plugin tree.
+
+    ``templated`` names skills that own a ``templates/skills/<name>.SKILL.md.tmpl``
+    (``skill_templates.discover``). Such a skill counts as present even when
+    its install-tree ``SKILL.md`` is absent: a new skill has none until the
+    binplace step, which runs after every generator, writes it. Requiring the
+    file made a new skill's support files wait for a second build run
+    (issue #6537).
     """
     if not source_dir.is_dir():
         raise GenerateSkillsError(f"sourceDir not found: {source_dir}")
@@ -89,47 +91,10 @@ def _iter_skill_sources(
             continue
         if child.name in excludes or child.name in skip_names:
             continue
-        if not (child / "SKILL.md").is_file():
+        if child.name not in templated and not (child / "SKILL.md").is_file():
             continue
         skills.append(child)
     return skills
-
-
-def _copy_matches(dst_path: Path, src_path: Path) -> bool:
-    """True when ``dst_path`` already has ``src_path``'s bytes and permission bits.
-
-    Mirrors ``binplace_manifest._binplace_one_file``'s own reasoning: byte
-    equality alone is not enough, because a file can keep its committed
-    content while losing its executable bit (chmod, a re-clone with a
-    restrictive umask, an editor save that resets permissions). A missing,
-    symlinked, or unreadable destination is never a match, so the caller
-    always falls through to a real write for it.
-    """
-    try:
-        dst_stat = dst_path.lstat()
-    except OSError:
-        return False
-    if stat.S_ISLNK(dst_stat.st_mode):
-        return False
-    try:
-        if dst_path.read_bytes() != src_path.read_bytes():
-            return False
-    except OSError:
-        return False
-    return (dst_stat.st_mode & 0o777) == (src_path.stat().st_mode & 0o777)
-
-
-def _text_matches(dst_path: Path, content: str) -> bool:
-    """True when ``dst_path`` already holds ``content`` (UTF-8), byte for byte.
-
-    Used for the SKILL.md/translate branch, which ``write_text`` has never
-    mode-preserved (unlike the ``shutil.copy2`` branch ``_copy_matches``
-    guards), so only content is compared here.
-    """
-    try:
-        return dst_path.read_text(encoding="utf-8") == content
-    except OSError:
-        return False
 
 
 def _copy_skill_tree(
@@ -142,6 +107,7 @@ def _copy_skill_tree(
     plugin_skill_md: Path | None = None,
     skip_filenames: frozenset[Path] = frozenset(),
     frontmatter_drop: frozenset[str] = frozenset(),
+    frontmatter_keep: frozenset[str] | None = None,
 ) -> tuple[int, int]:
     """Copy a single skill directory into ``target``.
 
@@ -154,12 +120,12 @@ def _copy_skill_tree(
     "N written" useless as a signal of what actually changed.
 
     When ``skills_output_dir`` is provided (Copilot CLI target), the
-    top-level ``SKILL.md`` body is translated from Claude Code conventions
-    to Copilot CLI equivalents (issue #2743) instead of copied verbatim.
-    Every other file is copied byte-for-byte, straight from ``source``
-    (``.claude/skills/<name>/``); scripts, references, and tests are
-    hand-maintained there and never rendered by a template, so this path is
-    unchanged by ADR-109 B3.
+    top-level ``SKILL.md`` body and every ``references/*.md`` are translated
+    from Claude Code conventions to Copilot CLI equivalents (issues #2743,
+    #5657) instead of copied verbatim. Every other file is copied
+    byte-for-byte, straight from ``source`` (``.claude/skills/<name>/``);
+    scripts and tests are hand-maintained there and never rendered by a
+    template, so this path is unchanged by ADR-109 B3.
 
     ``plugin_skill_md`` (ADR-109 B3), when given and present on disk, is
     read for the ``SKILL.md`` body instead of ``source / "SKILL.md"``. It
@@ -176,13 +142,17 @@ def _copy_skill_tree(
 
     ``skip_filenames``, when given, names relative paths (typically just
     ``SKILL.md``) this call must never write, at all: used by the Claude
-    plugin-tree support-file mirror (:func:`sync_claude_plugin_skill_support`),
+    plugin-tree support-file mirror (:func:`prune_stale_claude_skill_support`),
     whose SKILL.md is owned exclusively by ``skill_templates.compile_all``
     and must never be touched by a plain byte-for-byte copy.
 
     ``frontmatter_drop`` names top-level ``SKILL.md`` frontmatter keys the
     translated copy omits (the platform config's ``frontmatterDrop``). It only
-    applies with ``skills_output_dir``, the translate branch (ADR-111).
+    applies with ``skills_output_dir``, the translate branch (ADR-111). Without
+    it, a non-empty list still drops those keys and keeps the body (ADR-115).
+
+    ``frontmatter_keep`` (ADR-115 Decision 2) is Cursor's allow-list cut of the
+    top-level ``SKILL.md`` frontmatter; see ``skill_md_rewrite.py``.
 
     ``check``, when set, never writes either, but (unlike ``what_if``)
     counts every mismatch into ``written``: a caller running a staleness
@@ -197,14 +167,17 @@ def _copy_skill_tree(
     """
     written = 0
     skipped = 0
-    for src_path in source.rglob("*"):
+    renders_skill_md = (
+        skills_output_dir is not None or frontmatter_keep is not None or bool(frontmatter_drop)
+    )
+    for src_path in tree_sources(source, plugin_skill_md if renders_skill_md else None):
         if src_path.is_dir():
             continue
         # Skip Python cache artifacts; they're build-time noise that
         # belongs in .gitignore, not in a customer-facing plugin install.
-        if is_bytecode_artifact(src_path):
-            continue
         rel = src_path.relative_to(source)
+        if is_bytecode_artifact(rel):
+            continue
         if rel in skip_filenames:
             continue
         dst_path = target / rel
@@ -215,16 +188,24 @@ def _copy_skill_tree(
             skipped += 1
             continue
 
-        if skills_output_dir is not None and rel == Path("SKILL.md"):
-            content_source = src_path
-            if plugin_skill_md is not None and plugin_skill_md.is_file():
-                content_source = plugin_skill_md
-            content = content_source.read_text(encoding="utf-8")
-            try:
-                translated = translate_skill_file(content, skills_output_dir, frontmatter_drop)
-            except ValueError as exc:
-                raise GenerateSkillsError(f"{content_source}: {exc}") from exc
-            if _text_matches(dst_path, translated):
+        try:
+            skill_text = rewrite_skill_md(
+                src_path,
+                rel,
+                skills_output_dir=skills_output_dir,
+                plugin_skill_md=plugin_skill_md,
+                frontmatter_drop=frontmatter_drop,
+                frontmatter_keep=frontmatter_keep,
+            )
+            if skill_text is None:
+                # Copilot also translates references/*.md (issue #5657).
+                skill_text = translated_text(
+                    rel, src_path, plugin_skill_md, skills_output_dir, frontmatter_drop
+                )
+        except SupportTranslationError as exc:
+            raise GenerateSkillsError(str(exc)) from exc
+        if skill_text is not None:
+            if text_matches(dst_path, skill_text):
                 continue
             if check:
                 print(f"  DRIFT: {dst_path} differs from {src_path}")
@@ -234,9 +215,9 @@ def _copy_skill_tree(
                 print(f"  Would copy: {src_path} -> {dst_path}")
                 continue
             dst_path.parent.mkdir(parents=True, exist_ok=True)
-            publish_bytes_preserving_mode(dst_path, translated.encode("utf-8"))
+            publish_bytes_preserving_mode(dst_path, skill_text.encode("utf-8"))
         else:
-            if _copy_matches(dst_path, src_path):
+            if copy_matches(dst_path, src_path):
                 continue
             if check:
                 print(f"  DRIFT: {dst_path} differs from {src_path}")
@@ -255,34 +236,6 @@ def _copy_skill_tree(
     return written, skipped
 
 
-def _iter_support_relpaths(skill_dir: Path) -> set[Path]:
-    """Return every non-``SKILL.md`` file under ``skill_dir``, as relative paths.
-
-    Skips ``__pycache__``/``.pyc``/``.pyo`` (same build-time noise
-    :func:`_copy_skill_tree` excludes). Raises :class:`SkillSupportSyncError`
-    on the first symlink found anywhere in the tree, file or directory: this
-    mirror copies byte-for-byte with no per-path containment check, so a
-    linked entry (or a linked ancestor directory, which ``rglob`` would
-    otherwise silently descend into and copy through) could point outside
-    the skill directory (CWE-22/59). The check runs before ``is_dir()``
-    short-circuits so a symlinked directory is caught before anything
-    reached through it is ever read.
-    """
-    rels: set[Path] = set()
-    for src_path in skill_dir.rglob("*"):
-        if src_path.is_symlink():
-            raise SkillSupportSyncError(f"{src_path}: symlink inside a skill directory refused")
-        if src_path.is_dir():
-            continue
-        if is_bytecode_artifact(src_path):
-            continue
-        rel = src_path.relative_to(skill_dir)
-        if rel == _SKILL_MD:
-            continue
-        rels.add(rel)
-    return rels
-
-
 def _prune_empty_dirs(root: Path) -> None:
     """Remove now-empty directories left behind by :func:`_prune_stale_support_files`."""
     if not root.is_dir():
@@ -294,59 +247,6 @@ def _prune_empty_dirs(root: Path) -> None:
             directory.rmdir()
         except OSError:
             pass
-
-
-def _prune_stale_support_files(
-    target_dir: Path, wanted: set[Path], *, check: bool = False
-) -> tuple[int, list[str]]:
-    """Delete files under ``target_dir`` (excluding ``SKILL.md``) not in ``wanted``.
-
-    A NO-REGEN-protected extra is left in place (NOTICE, not an error): the
-    same declared-divergence exemption every other file in this class
-    honors. A removal that raises ``OSError`` is recorded as an error and
-    left in place rather than crashing the run; the caller folds it into a
-    nonzero exit code.
-
-    ``check``, when set, deletes nothing: a stale extra is reported (DRIFT)
-    and counted into ``removed`` the same way a real deletion would be, so
-    a staleness gate can escalate on an extra file that was never committed
-    (git diff has no signal for a file it never saw removed) without this
-    function ever mutating the working tree.
-    """
-    removed = 0
-    errors: list[str] = []
-    if not target_dir.is_dir():
-        return removed, errors
-    for existing in sorted(target_dir.rglob("*")):
-        if existing.is_dir():
-            continue
-        if is_bytecode_artifact(existing):
-            continue
-        if existing.name.endswith(".noregen"):
-            # A NO-REGEN sidecar (regen_guard.py) is a hand-placed
-            # protection marker for its sibling, checked via
-            # regen_detect_reason below; it is never itself a mirrored
-            # support file, so it is never a deletion candidate on its own.
-            continue
-        rel = existing.relative_to(target_dir)
-        if rel == _SKILL_MD or rel in wanted:
-            continue
-        reason = regen_detect_reason(existing)
-        if reason is not None:
-            print(f"  NOTICE: kept stale {existing} (NO-REGEN: {reason})")
-            continue
-        if check:
-            print(f"  DRIFT: {existing} has no canonical source")
-            removed += 1
-            continue
-        try:
-            existing.unlink()
-            removed += 1
-        except OSError as exc:
-            errors.append(f"{existing}: could not remove stale mirror file: {exc}")
-    if not check:
-        _prune_empty_dirs(target_dir)
-    return removed, errors
 
 
 def prune_repo_local_vendor_copies(
@@ -406,93 +306,45 @@ def _vendor_copy_files(skill_dir: Path) -> list[Path]:
     return files
 
 
-def sync_claude_plugin_skill_support(
+def prune_stale_claude_skill_support(
     repo_root: Path, *, what_if: bool = False, check: bool = False
 ) -> tuple[int, int, int, list[str]]:
-    """Mirror every skill's non-``SKILL.md`` files into the Claude plugin tree.
+    """Reconcile ``src/claude/skills`` with each skill's distribution flag.
 
-    ``.claude/skills/<name>/`` stays the canonical, hand-maintained source
-    for scripts, references, tests, and any other support file (ADR-109's
-    lib exception applies the same pattern here: imported/hand-written code
-    stays at its existing location, and the build owns the copy). A skill
-    flagged ``distribution: repo-local`` is not mirrored: its support files
-    stay only under ``.claude/skills/<name>/``, and a stale
-    ``src/claude/skills/<name>/`` left by a skill that just became repo-local is
-    removed (reported as drift under ``check``).
-    ``src/claude/skills/<name>/SKILL.md`` is rendered separately by
-    ``skill_templates.compile_all`` and is never touched here (``SKILL.md``
-    is always excluded, via ``_copy_skill_tree``'s ``skip_filenames``).
+    Formerly ``sync_claude_plugin_skill_support``, when it mirrored support
+    files from ``.claude/skills`` into the plugin tree. ADR-109 and ADR-110
+    still use the old name; ADR-119 retired the mirror and kept only the prune.
 
-    Unlike the Copilot mirror (``_iter_skill_sources`` called with
-    ``copilot-cli.yaml``'s ``excludeFilenames``), this walk uses only the
-    module default excludes (``AGENTS.md``, ``CLAUDE.md``): merge-resolver
-    ships in the Claude plugin even though it is excluded from the
-    publicly-shipping Copilot toolkit.
+    A shipped skill needs no mirror. ``.claude/skills/<name>`` is a relative
+    symlink to ``src/claude/skills/<name>`` (binplace ``link`` row,
+    ``binplace_links.py``), so the plugin tree holds the only copy of every
+    support file and is edited in place. What remains is the repo-local
+    case: a skill that became ``distribution: repo-local`` leaves its old
+    ``src/claude/skills/<name>/`` copy behind, and this removes it.
 
-    Returns ``(written, removed, skipped, errors)``. ``written`` and
-    ``skipped`` come from :func:`_copy_skill_tree` (skipped counts
-    NO-REGEN-protected copy targets); ``removed`` counts stale mirror files
-    deleted because their source no longer exists; ``errors`` collects one
-    message per skill this run refused (a symlink) or could not fully prune
-    (a removal that raised ``OSError``) -- a non-empty list means the
-    caller should report failure, but every OTHER skill still mirrors
-    normally rather than the whole run aborting on one bad skill.
+    Removal is refused, as an error, while ``.claude/skills/<name>`` is still
+    a symlink: the plugin copy is then the skill's only copy. Replace the
+    link with a real directory holding the files first.
 
-    An absent ``.claude/skills/`` (a synthetic test fixture with its own,
-    unrelated ``sourceDir``) is a silent no-op: this mirror always reads
-    the real, repo-global source tree, never the caller's platform config,
-    the same way ``skill_templates.compile_all`` always reads
-    ``templates/skills/`` regardless of which platform triggered the call.
-
-    ``check=True`` never writes or deletes anything (see
-    :func:`_copy_skill_tree` and :func:`_prune_stale_support_files`'s own
-    ``check`` parameters): every mismatch, real or would-be, is counted
-    into ``written``/``removed`` instead, so a caller running a staleness
-    gate gets a direct comparison against the canonical source rather than
-    depending on git diff, which cannot see a divergence that was never
-    committed. Mutually exclusive with ``what_if``; ``check`` wins if both
-    are set.
+    Returns ``(written, removed, skipped, errors)`` for the caller's existing
+    report shape; ``written`` and ``skipped`` are always 0. ``check`` and
+    ``what_if`` delete nothing and count what would go.
     """
-    source_dir = repo_root / _CLAUDE_SUPPORT_SOURCE_REL
-    target_dir = repo_root / _CLAUDE_SUPPORT_TARGET_REL
     try:
         repo_local = repo_local_names(repo_root)
     except SkillDistributionError as exc:
         return (0, 0, 0, [str(exc)])
-    try:
-        skills = _iter_skill_sources(source_dir, set(_DEFAULT_EXCLUDES), repo_local)
-    except GenerateSkillsError:
-        return (0, 0, 0, [])
-
-    total_written = 0
-    total_skipped = 0
-    errors: list[str] = []
-    total_removed, errors = prune_repo_local_vendor_copies(
-        target_dir, repo_local, check=check, what_if=what_if
+    install_dir = repo_root / _CLAUDE_INSTALL_REL
+    still_linked = sorted(name for name in repo_local if (install_dir / name).is_symlink())
+    errors = [
+        f"{install_dir / name}: repo-local skill is still a symlink into the plugin tree; "
+        "replace it with a real directory before the plugin copy is removed"
+        for name in still_linked
+    ]
+    removed, prune_errors = prune_repo_local_vendor_copies(
+        repo_root / _CLAUDE_PLUGIN_REL,
+        repo_local - frozenset(still_linked),
+        check=check,
+        what_if=what_if,
     )
-    for src in skills:
-        owned = lib_owned_support_files(src.name)
-        try:
-            wanted = _iter_support_relpaths(src) | owned
-        except SkillSupportSyncError as exc:
-            errors.append(str(exc))
-            continue
-        target = target_dir / src.name
-        written, skipped = _copy_skill_tree(
-            src,
-            target,
-            what_if=what_if,
-            check=check,
-            skip_filenames=frozenset({_SKILL_MD}) | owned,
-        )
-        total_written += written
-        total_skipped += skipped
-        if check:
-            removed, prune_errors = _prune_stale_support_files(target, wanted, check=True)
-            total_removed += removed
-            errors.extend(prune_errors)
-        elif not what_if:
-            removed, prune_errors = _prune_stale_support_files(target, wanted)
-            total_removed += removed
-            errors.extend(prune_errors)
-    return total_written, total_removed, total_skipped, errors
+    return (0, removed, 0, errors + prune_errors)

@@ -194,7 +194,7 @@ After user approves learnings (step 4 above), before writing to Serena:
 
 **Example**:
 
-Learning text: "The bug was in `scripts/health.py` line 45, where we forgot to handle None"
+Learning text: "The bug was in `scripts/health.py` line 45, where we forgot to handle None" <!-- orphan-ref-ignore -->
 
 1. Extract: target=scripts/health.py
 2. Append to the memory body:

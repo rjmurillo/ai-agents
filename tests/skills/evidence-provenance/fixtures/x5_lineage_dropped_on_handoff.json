@@ -1,0 +1,32 @@
+{
+  "claim": "R holds",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "delegate-confirmation",
+      "state": "VERIFIED",
+      "origin": "independent-reviewer",
+      "authority": "normative"
+    }
+  ],
+  "claimed_independent": 1,
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 1,
+    "violations": [
+      "inflated-confidence"
+    ],
+    "not_independent_because": {
+      "delegate-confirmation": [
+        "lineage-missing"
+      ]
+    }
+  }
+}

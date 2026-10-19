@@ -26,7 +26,7 @@ eliminating retrieval decisions.
 
 - `analyze skill placement` - classify and validate content as Skill vs Passive Context
 - `compress markdown` - reduce context overhead
-- `optimize context` - lower API costs and improve agent performance
+- `optimize context` - lower API costs and improve agent performance; distill a large log or diff once with distill_artifact.py, then read the digest
 - `extract and index` - split markdown into detail files with compact index
 - `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships. **Requires a full rjmurillo/ai-agents checkout**: the procedure runs this repo's eval harness and rule generator, neither of which ships in a plugin install. The doctrine and the instrument write-ups are readable anywhere; only the commands need the checkout
 
@@ -52,6 +52,7 @@ eliminating retrieval decisions.
 | `compress_markdown_content.py` | Compress markdown and report the result | 0=success, 1=error, 2=config, 3=external |
 | `test_skill_passive_compliance.py` | Validate compliance with decision framework | 0=pass, 1=violations |
 | `extract_and_index.py` | Extract sections into detail files with pipe-delimited index | 0=success, 1=error, 2=config, 3=external |
+| `distill_artifact.py` | Distill a log, diff, or long text once into a cached digest with line citations; no model call | 0=success, 2=config, 3=external |
 | `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
 
 ## Prerequisites
@@ -291,6 +292,45 @@ python3 scripts/extract_and_index.py -i AGENTS.md -d .agents-details -r .agents-
 ```
 
 Works with CLAUDE.md @import mechanism. Reference via `@AGENTS-INDEX.md`.
+
+</details>
+
+<details>
+<summary><strong>Tool Details: Distill Artifact</strong></summary>
+
+**Script**: `distill_artifact.py`
+
+Boils one log, diff, or long text down to a markdown digest with line
+citations. No model call. The digest is cached by content and source, so a
+repeat call reuses it.
+
+Use it for an artifact you will read on more than one turn, or one too large
+to read whole. The digest keeps signal lines (error, fail, warning, and
+similar), the first and last 15 lines, and per-file counts for a diff. Middle
+lines without a signal are omitted, so a clean `git log` digests thin: use
+`git log --oneline` for chronology instead.
+
+**Usage**:
+
+```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts"
+
+# Save the output and its exit code first, so the raw stays searchable
+some_command > build.log 2>&1; echo "exit=$?"
+
+# Distill the saved file; prints the digest path
+python3 "$SCRIPTS_DIR/distill_artifact.py" build.log
+
+# JSON adds cached, kind, raw and digest bytes, ratio
+python3 "$SCRIPTS_DIR/distill_artifact.py" build.log --format json
+```
+
+`-` reads stdin, but then no raw copy remains to search, and a pipe reports
+the distiller's exit code, not the command's. Save to a file first.
+
+Use the digest to locate evidence (`L{n}` cites the raw line). It omits middle
+lines without a signal, so search the raw source for any detail it lacks and
+read the matching lines with their context.
 
 </details>
 

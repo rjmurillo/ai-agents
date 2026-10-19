@@ -19,8 +19,8 @@ uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py
 Invoke analyst to assess deletion impact:
 
 ```python
-Task(
-    subagent_type="analyst",
+task(
+    agent_type="project-toolkit:analyst",
     prompt="""
 ADR Deletion Impact Assessment
 

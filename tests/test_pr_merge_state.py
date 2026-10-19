@@ -31,11 +31,22 @@ def _merged_payload() -> dict:
         merged=True,
         mergedAt="2026-08-07T12:00:00Z",
         mergedBy={"login": "admin"},
+        headRefName="fix/issue-4729",
+        headRefOid="a" * 40,
+        mergeCommit={"oid": "b" * 40},
     )
 
 
 def _unmerged_payload() -> dict:
-    return _payload(state="OPEN", merged=False, mergedAt=None, mergedBy=None)
+    return _payload(
+        state="OPEN",
+        merged=False,
+        mergedAt=None,
+        mergedBy=None,
+        headRefName="fix/issue-1024",
+        headRefOid="c" * 40,
+        mergeCommit=None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +73,14 @@ class TestMerged:
         assert state.state == "MERGED"
         assert state.merged_at == "2026-08-07T12:00:00Z"
         assert state.merged_by == "admin"
+        assert state.head_ref == "fix/issue-4729"
+        assert state.head_sha == "a" * 40
+        assert state.merge_commit_sha == "b" * 40
+
+    def test_query_requests_branch_head_and_merge_commit(self):
+        assert "headRefName" in PR_MERGE_STATE_QUERY
+        assert "headRefOid" in PR_MERGE_STATE_QUERY
+        assert "mergeCommit {\n        oid\n      }" in PR_MERGE_STATE_QUERY
 
     def test_query_is_sent_with_typed_variables(self):
         with patch(_PATCH_TARGET, return_value=_merged_payload()) as mock_graphql:
@@ -92,6 +111,13 @@ class TestUnmerged:
         assert state.is_verified is True
         assert state.state == "OPEN"
         assert state.exit_code == 0
+
+    def test_open_pr_has_head_but_no_merge_commit(self):
+        with patch(_PATCH_TARGET, return_value=_unmerged_payload()):
+            state = read_pr_merge_state("o", "r", 1024)
+        assert state.head_ref == "fix/issue-1024"
+        assert state.head_sha == "c" * 40
+        assert state.merge_commit_sha is None
 
     def test_closed_unmerged_pr_reports_unmerged(self):
         payload = _payload(state="CLOSED", merged=False, mergedAt=None, mergedBy=None)
@@ -263,6 +289,36 @@ class TestMalformedResponse:
         assert state.state is None
         assert state.merged_at is None
         assert state.merged_by is None
+
+    def test_non_string_head_and_merge_fields_are_dropped_not_fatal(self):
+        payload = _payload(
+            state="MERGED",
+            merged=True,
+            headRefName=3,
+            headRefOid=["x"],
+            mergeCommit={"oid": 9},
+        )
+        with patch(_PATCH_TARGET, return_value=payload):
+            state = read_pr_merge_state("o", "r", 1)
+        assert state.status is PrMergeStatus.MERGED
+        assert state.head_ref is None
+        assert state.head_sha is None
+        assert state.merge_commit_sha is None
+
+    @pytest.mark.parametrize("merge_commit", [None, "b" * 40, []])
+    def test_merge_commit_that_is_not_an_object_reads_none(self, merge_commit: object):
+        payload = _payload(state="MERGED", merged=True, mergeCommit=merge_commit)
+        with patch(_PATCH_TARGET, return_value=payload):
+            state = read_pr_merge_state("o", "r", 1)
+        assert state.status is PrMergeStatus.MERGED
+        assert state.merge_commit_sha is None
+
+    def test_absent_head_and_merge_fields_default_to_none(self):
+        payload = _payload(state="MERGED", merged=True)
+        with patch(_PATCH_TARGET, return_value=payload):
+            state = read_pr_merge_state("o", "r", 1)
+        assert state.status is PrMergeStatus.MERGED
+        assert (state.head_ref, state.head_sha, state.merge_commit_sha) == (None, None, None)
 
 
 # ---------------------------------------------------------------------------

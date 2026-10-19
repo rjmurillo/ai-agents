@@ -61,15 +61,29 @@ def test_nested_paths_under_one_root_do_not_spread() -> None:
     "text",
     [
         "no frontmatter",
-        "---\nnever closed\n",
-        "---\n: : [\n---\nbody",
-        "---\n- a\n- b\n---\nbody",
+        "",
+        "---\n---\nbody",
         "---\nname: x\n---\nbody",
         "---\npaths: 5\n---\nbody",
     ],
 )
-def test_missing_or_malformed_scope_has_zero_spread(text: str) -> None:
+def test_absent_or_scopeless_frontmatter_has_zero_spread(text: str) -> None:
     assert coh.path_spread(text) == 0
+
+
+@pytest.mark.parametrize(
+    ("text", "reason"),
+    [
+        ("---\nnever closed\n", "never closes"),
+        ("---\n: : [\n---\nbody", "not valid YAML"),
+        ("---\n- a\n- b\n---\nbody", "must be a mapping, got list"),
+        ("---\njust a string\n---\nbody", "must be a mapping, got str"),
+    ],
+)
+def test_unparseable_frontmatter_raises_instead_of_reading_zero(text: str, reason: str) -> None:
+    """Issue #6506: a spread of 0 for a broken rule skips the ratchet silently."""
+    with pytest.raises(coh.FrontmatterError, match=reason):
+        coh.path_spread(text)
 
 
 def test_string_paths_value_counts_as_one_root() -> None:
@@ -78,6 +92,31 @@ def test_string_paths_value_counts_as_one_root() -> None:
 
 def test_non_string_entries_are_ignored() -> None:
     assert coh.path_spread("---\npaths:\n  - 3\n  - src/**\n---\nbody") == 1
+
+
+@pytest.mark.parametrize("body", ["---\nnever closed\n", "---\npaths: [a\n---\nbody"])
+def test_a_rule_with_broken_frontmatter_is_a_scan_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], body: str
+) -> None:
+    _tree(tmp_path, {})
+    (tmp_path / _BROAD).write_text(body, encoding="utf-8")
+
+    with pytest.raises(gate.ScanError, match="templates/rules/broad.md"):
+        gate.measure(tmp_path)
+
+    assert gate.run(tmp_path, update=False) == 2
+    assert "cohesion ratchet cannot measure it" in capsys.readouterr().err
+
+
+def test_a_template_fragment_with_an_unclosed_fence_is_not_a_scan_error(tmp_path: Path) -> None:
+    """templates/agents/*.tmpl take their closing `---` from a shared include."""
+    _tree(tmp_path, {})
+    (tmp_path / "templates/agents/analyst.claude.md.tmpl").write_text(
+        "---\nname: analyst\n", encoding="utf-8"
+    )
+
+    assert gate.measure(tmp_path)["cohesion"] == {}
+    assert gate.run(tmp_path, update=False) == 0
 
 
 def test_rule_below_floor_is_not_reported(tmp_path: Path) -> None:

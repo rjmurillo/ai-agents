@@ -1,0 +1,18 @@
+schemaVersion: "1.0"
+provider: "codex"
+artifacts:
+  skills:
+    # ADR-115 Decision 2: the Codex plugin tree ships exactly the skills the
+    # Claude plugin tree ships (src/claude/skills), repo-local ai-agents-*
+    # skills excluded by skill_distribution.repo_local_names. Unlike
+    # copilot-cli, merge-resolver stays in.
+    sourceDir: "src/claude/skills"
+    outputDir: "src/codex/skills"
+    mode: "directory-copy"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+    # Codex skills have no per-skill model field, and a bare alias such as
+    # `haiku` is not a Codex model id (ADR-111). The body ships verbatim; only
+    # the pin and its rationale are dropped.
+    frontmatterDrop:
+      - model
+      - model-rationale

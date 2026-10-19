@@ -13,9 +13,16 @@ Evidence is a JSON object the agent assembles from real command output:
       "checks": [{"command": "pytest ...", "exit_code": 0}]
     }
 
-``PASS`` means every rule held. ``SKIP`` means no sink was declared and, when a
-scan report is supplied, the scan found none. ``BLOCK`` carries every reason.
-Missing evidence blocks; it never defaults to pass.
+``PASS`` means every rule held and a scan report covers every sink it found.
+Evidence may declare sinks the scan missed, even under a ``skip`` report. The scan
+sets the minimum, and each declared sink is held to the same trace, scope, rollback,
+and check rules.
+``SKIP`` means no sink was declared and a scan report with ``"decision": "skip"``
+proved the scan found none. Every verdict needs a scan report: a missing one, or
+one without a known ``decision``, blocks, because the scan is what catches a sink
+the evidence leaves out. A report that says ``activate`` yet lists no sink cannot
+back a SKIP. ``BLOCK`` carries every reason. Missing evidence blocks; it never
+defaults to pass.
 
 EXIT CODES (ADR-035), through ``destructive_gate.py``:
     0 - PASS or SKIP
@@ -33,6 +40,7 @@ from typing import TypeGuard
 Evidence = dict[str, object]
 Rule = Callable[[Evidence, "list[str]"], list[str]]
 
+SCAN_DECISIONS = {"skip", "activate", "unknown"}
 ROLLBACK_KINDS = {"backup", "snapshot", "version", "irreversible"}
 REFERENCED_KINDS = {"backup", "snapshot", "version"}
 
@@ -47,6 +55,12 @@ def as_list(value: object) -> list[object]:
 
 def is_int(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def exited_zero(entry: dict[str, object]) -> bool:
+    """True only for the integer 0; JSON ``false`` equals 0 in Python and must not pass."""
+    exit_code = entry.get("exit_code")
+    return is_int(exit_code) and exit_code == 0
 
 
 def rule_sinks_traced(evidence: Evidence, scanned: list[str]) -> list[str]:
@@ -70,9 +84,12 @@ def rule_preflight(evidence: Evidence, scanned: list[str]) -> list[str]:
     if not preflight:
         return ["no preflight evidence: scope is unknown"]
     reasons = []
-    if preflight.get("exit_code") != 0:
+    if not exited_zero(preflight):
         reasons.append("preflight did not exit 0: scope is unknown")
-    if not is_int(preflight.get("measured")):
+    measured = preflight.get("measured")
+    if is_int(measured) and measured < 0:
+        reasons.append("preflight measured a negative count: scope is unknown")
+    elif not is_int(measured):
         reasons.append("preflight measured no count: scope is unknown")
     return reasons
 
@@ -81,7 +98,7 @@ def rule_cardinality(evidence: Evidence, scanned: list[str]) -> list[str]:
     """The measured count must match the expected exact count or stay under max."""
     measured = as_dict(evidence.get("preflight")).get("measured")
     expected = evidence.get("expected")
-    if not is_int(measured):
+    if not is_int(measured) or measured < 0:
         return []
     if is_int(expected):
         return (
@@ -134,7 +151,7 @@ def rule_checks(evidence: Evidence, scanned: list[str]) -> list[str]:
     checks = [as_dict(c) for c in as_list(evidence.get("checks"))]
     if not checks:
         return ["no verification checks recorded"]
-    return [f"check failed: {c.get('command', '?')}" for c in checks if c.get("exit_code") != 0]
+    return [f"check failed: {c.get('command', '?')}" for c in checks if not exited_zero(c)]
 
 
 RULES: tuple[Rule, ...] = (
@@ -147,16 +164,33 @@ RULES: tuple[Rule, ...] = (
 
 
 def evaluate(evidence: Evidence, scan_report: Evidence | None = None) -> dict[str, object]:
-    """Return ``{"verdict", "reasons"}`` for the evidence and optional scan report."""
-    scanned = [str(as_dict(s).get("location")) for s in as_list((scan_report or {}).get("sinks"))]
-    if scan_report is not None and scan_report.get("decision") == "unknown":
+    """Return ``{"verdict", "reasons"}`` for the evidence and its scan report (None blocks)."""
+    if scan_report is None:
+        return {
+            "verdict": "BLOCK",
+            "reasons": ["no scan report: run `scan` and pass --scan to prove which sinks exist"],
+        }
+    scanned = [str(as_dict(s).get("location")) for s in as_list(scan_report.get("sinks"))]
+    if scan_report.get("decision") not in SCAN_DECISIONS:
+        return {
+            "verdict": "BLOCK",
+            "reasons": ["scan report has no known `decision` (skip, activate, or unknown)"],
+        }
+    if scan_report.get("decision") == "unknown":
         return {
             "verdict": "BLOCK",
             "reasons": ["scan could not parse or cover every file: scope is unknown"],
         }
+    if "sinks" in scan_report and not isinstance(scan_report["sinks"], list):
+        return {"verdict": "BLOCK", "reasons": ["scan report `sinks` must be a list"]}
     if "sinks" in evidence and not isinstance(evidence["sinks"], list):
         return {"verdict": "BLOCK", "reasons": ["evidence `sinks` must be a list"]}
     if not as_list(evidence.get("sinks")) and not scanned:
+        if scan_report.get("decision") != "skip":
+            return {
+                "verdict": "BLOCK",
+                "reasons": ["scan decision `activate` lists no sink: the report is inconsistent"],
+            }
         return {"verdict": "SKIP", "reasons": ["no destructive sink declared or scanned"]}
     reasons = [reason for rule in RULES for reason in rule(evidence, scanned)]
     return {"verdict": "BLOCK" if reasons else "PASS", "reasons": reasons}

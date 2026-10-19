@@ -1,6 +1,6 @@
 # Agent Eval Triage
 
-Per-agent classification for the 23 agents under `.claude/agents/`. Companion to `evals/skill-triage.md` (covers skills). Decides which agents get an A/B spike under `evals/<agent>-agent-spike/`.
+Per-agent classification for the agents under `.claude/agents/` as of the date named in Scope. Companion to `evals/skill-triage.md` (covers skills). Decides which agents get an A/B spike under `evals/<agent>-agent-spike/`.
 
 ## Scope
 

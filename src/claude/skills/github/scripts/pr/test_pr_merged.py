@@ -37,6 +37,17 @@ The legacy exit-100 sentinel from Skill-PR-Review-007 remains available via
 ``--exit-100-on-merged`` for scripts that already encoded the "100 = skip
 review" convention. The opposite-named flag ``--exit-zero-on-merged`` from
 issue #2277 still parses (as a no-op) for backward compatibility.
+
+The JSON also carries ``head_ref``, ``head_sha``, and ``merge_commit_sha``.
+Post-merge cleanup reads them to find the PR's worktree, confirm its head is
+the merged one, and check the merge commit is on the base branch. GitHub
+leaves ``merge_commit_sha`` null until the PR merges.
+
+``--output-format`` is the shared ADR-056 flag every sibling ``pr/`` script
+accepts. ``json`` (and ``auto`` when stdout is not a terminal) prints the flat
+JSON object callers read as ``.merged``. ``human`` prints one summary line. The
+flat object is kept, not wrapped in the ADR-056 envelope, because ``pr-review``
+and ``pr-autofix`` already branch on a top-level ``merged`` key.
 """
 
 from __future__ import annotations
@@ -45,6 +56,7 @@ import argparse
 import json
 import os
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -68,6 +80,7 @@ from github_core.api import (
     error_and_exit,
     resolve_repo_params,
 )
+from github_core.output import add_output_format_arg, get_output_format
 from github_core.pr_merge_state import PrMergeStatus, read_pr_merge_state
 
 
@@ -103,7 +116,14 @@ def build_parser() -> argparse.ArgumentParser:
             "branch on the 100 sentinel."
         ),
     )
+    add_output_format_arg(parser)
     return parser
+
+
+def _human_summary(output: dict[str, Any]) -> str:
+    """Return the one-line ``--output-format human`` rendering."""
+    verdict = "merged" if output["merged"] else "not merged"
+    return f"PR #{output['pull_request']} in {output['owner']}/{output['repo']}: {verdict}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -132,9 +152,15 @@ def main(argv: list[str] | None = None) -> int:
         "merged": state.is_merged,
         "merged_at": state.merged_at,
         "merged_by": state.merged_by,
+        "head_ref": state.head_ref,
+        "head_sha": state.head_sha,
+        "merge_commit_sha": state.merge_commit_sha,
     }
 
-    print(json.dumps(output, indent=2))
+    if get_output_format(args.output_format) == "json":
+        print(json.dumps(output, indent=2))
+    else:
+        print(_human_summary(output))
 
     if state.is_merged:
         return 100 if args.exit_100_on_merged else 0

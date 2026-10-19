@@ -15,6 +15,7 @@ import pytest
 
 from scripts.validation.pre_pr import main
 from tests.validation.pre_pr_main_helpers import (
+    RunBackedPopen,
     healthy_git_run,
     sequence_with_passing_corpus_gates,
 )
@@ -36,6 +37,7 @@ class TestHookModeBanner:
         "pre_pr_sequence._SEQUENCE",
         new_callable=sequence_with_passing_corpus_gates,
     )
+    @patch("subprocess.Popen", new=RunBackedPopen)
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_interactive_mode_prints_verification_guidance(
@@ -63,6 +65,7 @@ class TestHookModeBanner:
         "pre_pr_sequence._SEQUENCE",
         new_callable=sequence_with_passing_corpus_gates,
     )
+    @patch("subprocess.Popen", new=RunBackedPopen)
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_skip_autofix_zero_is_not_hook_mode(
@@ -87,6 +90,7 @@ class TestHookModeBanner:
         "pre_pr_sequence._SEQUENCE",
         new_callable=sequence_with_passing_corpus_gates,
     )
+    @patch("subprocess.Popen", new=RunBackedPopen)
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_success_output_requires_remote_sha_to_match_head(

@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import git_hook_policy as policy
+from tests.validation._review_artifact import commit_marker
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DETECTOR = ".claude/skills/security-detection/detect_infrastructure.py"
@@ -52,16 +53,7 @@ def commit(repo: Path, relative_path: str, content: str) -> str:
 
 def marker(repo: Path) -> str:
     parent = git(repo, "rev-parse", "HEAD")
-    git(
-        repo,
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        "review: /review PASS marker",
-        "--trailer",
-        f"Reviewed-By: /review@analyst,security on {parent}",
-    )
+    commit_marker(repo, "analyst,security", parent)
     return git(repo, "rev-parse", "HEAD")
 
 

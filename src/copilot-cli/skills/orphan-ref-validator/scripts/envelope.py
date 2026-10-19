@@ -30,6 +30,7 @@ Kind = Literal[
     "script_path",
     "rule_path",
     "instruction_path",
+    "retired_path",
     "scan_truncated",
 ]
 ScanErrorType = Literal["logic", "config", "external", "auth"]

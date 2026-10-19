@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Non-destructive scope previews (destructive-change-safety).
 
-``preview_files`` lists what a glob would touch under a root. ``preview_sql``
+``preview_files`` lists what a glob would touch under a root, counting the
+files beneath any directory the glob matches. ``preview_sql``
 runs one SQLite DELETE or UPDATE against an in-memory copy of the database and
 reports the rows it changed. Neither writes to the target. A preview that
 cannot run raises ``PreviewError``; the caller reports unknown scope, which the
@@ -15,6 +16,7 @@ EXIT CODES (ADR-035), through ``destructive_gate.py``:
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -26,8 +28,35 @@ class PreviewError(Exception):
     """The scope could not be measured without risk."""
 
 
+def _raise_walk_error(error: OSError) -> None:
+    """Fail closed: an unreadable subdirectory leaves part of the scope unmeasured."""
+    raise PreviewError(f"cannot read directory while counting: {error}") from error
+
+
+def _files_beneath(directory: Path) -> list[Path]:
+    """Return every file under ``directory`` without following directory symlinks."""
+    found: list[Path] = []
+    for current, _dirs, names in os.walk(directory, onerror=_raise_walk_error):
+        found.extend(Path(current) / name for name in names)
+    return found
+
+
+def _selected_files(item: Path, base: Path) -> list[Path]:
+    """Return the files a glob match selects: itself, or all files under a directory."""
+    if not item.resolve().is_relative_to(base):
+        return []
+    if item.is_dir():
+        return _files_beneath(item)
+    return [item] if item.is_file() else []
+
+
 def preview_files(root: Path, patterns: list[str]) -> dict[str, object]:
-    """Return the files under ``root`` that ``patterns`` select, never touching them."""
+    """Return the files under ``root`` that ``patterns`` select, never touching them.
+
+    A pattern that matches a directory selects every file beneath it, because
+    removing the directory removes them all. Symlinks that leave the root are
+    ignored.
+    """
     if not root.is_dir():
         raise PreviewError(f"root is not a directory: {root}")
     base = root.resolve()
@@ -36,9 +65,9 @@ def preview_files(root: Path, patterns: list[str]) -> dict[str, object]:
         if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
             raise PreviewError(f"pattern escapes the root: {pattern}")
         for item in base.glob(pattern):
-            resolved = item.resolve()
-            if item.is_file() and resolved.is_relative_to(base):
-                selected.add(item.relative_to(base).as_posix())
+            for path in _selected_files(item, base):
+                if path.resolve().is_relative_to(base):
+                    selected.add(path.relative_to(base).as_posix())
     files = sorted(selected)
     return {"kind": "files", "root": str(base), "count": len(files), "files": files}
 
@@ -49,7 +78,10 @@ def preview_sql(database: Path, statement: str) -> dict[str, object]:
         raise PreviewError("only a single DELETE or UPDATE statement can be previewed")
     if not database.is_file():
         raise PreviewError(f"database file not found: {database}")
-    source = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)
+    # as_uri() percent-encodes the path, so a ``?``, ``#`` or ``%`` in a file name
+    # cannot end the path early or add a query parameter to the SQLite URI.
+    uri = f"{database.resolve().as_uri()}?mode=ro"
+    source = sqlite3.connect(uri, uri=True)
     copy = sqlite3.connect(":memory:")
     try:
         source.backup(copy)

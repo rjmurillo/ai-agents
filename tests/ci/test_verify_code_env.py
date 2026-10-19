@@ -127,7 +127,7 @@ class TestToolReport:
     def test_missing_tools_report_nothing(
         self, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        vce.report_tools(python=True, pester=True)
+        vce.report_tools(python=True)
         assert capsys.readouterr().out == ""
 
     def test_npx_warms_the_markdownlint_cache(
@@ -141,7 +141,7 @@ class TestToolReport:
             return _completed(1)
 
         monkeypatch.setattr(vce, "_run", _run)
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         out = capsys.readouterr().out
         assert "[PASS] npx is available" in out
         assert "[PASS] markdownlint-cli2 is installed" in out
@@ -152,7 +152,7 @@ class TestToolReport:
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda name: "/x" if name == "ruff" else None)
         monkeypatch.setattr(vce, "_run", lambda _argv: _completed(0))
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         assert "ruff" not in capsys.readouterr().out
 
     def test_python_version_is_reported(
@@ -160,7 +160,7 @@ class TestToolReport:
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda name: "/x" if name == "python3" else None)
         monkeypatch.setattr(vce, "_run", lambda _argv: _completed(0, "Python 3.14.6\n"))
-        vce.report_tools(python=True, pester=False)
+        vce.report_tools(python=True)
         assert "[PASS] Python 3.14.6 is installed" in capsys.readouterr().out
 
     def test_gh_is_reported_independently_of_python(
@@ -168,28 +168,18 @@ class TestToolReport:
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda name: "/x" if name == "gh" else None)
         monkeypatch.setattr(vce, "_run", lambda _argv: _completed(0))
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         assert "[PASS] GitHub CLI is available for workflow monitoring" in capsys.readouterr().out
 
-    def test_pester_is_skipped_when_off(
+    def test_powershell_yaml_version_is_reported(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda _name: None)
         monkeypatch.setattr(vce, "_module_version", lambda name: "5.7.1")
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         out = capsys.readouterr().out
         assert "Pester" not in out
         assert "[PASS] powershell-yaml 5.7.1 is installed" in out
-
-    def test_pester_version_is_reported_when_on(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        monkeypatch.setattr(vce.shutil, "which", lambda _name: None)
-        monkeypatch.setattr(
-            vce, "_module_version", lambda name: "5.7.1" if name == "Pester" else None
-        )
-        vce.report_tools(python=False, pester=True)
-        assert "[PASS] Pester 5.7.1 is installed" in capsys.readouterr().out
 
 
 class TestModuleVersion:

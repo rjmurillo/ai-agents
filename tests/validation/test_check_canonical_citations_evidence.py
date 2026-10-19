@@ -183,7 +183,7 @@ def test_copy_findings_are_reported_but_never_block(repo: Path, capsys) -> None:
     _write(repo, doc)
     assert ccc.main(["--repo-root", str(repo), "--strict"]) == 0
     out = capsys.readouterr().out
-    assert "[PASS] No uncited mirror-claims found." in out
+    assert "[PASS] No uncited mirror-claims found in 1 file(s) examined." in out
     assert "[WARN] 1 copied-contract" in out
     assert "eliminate the copy" in out.lower()
 

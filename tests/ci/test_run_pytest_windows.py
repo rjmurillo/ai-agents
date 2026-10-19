@@ -303,6 +303,63 @@ def test_narrowed_run_with_a_failing_test_still_fails(
     assert _rpw.main(["-p", "no:cacheprovider"]) == 1
 
 
+def test_narrowed_zero_item_run_prints_a_warning_naming_the_modules(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Issue #6506: a green job that ran zero tests must say so."""
+    _fake_project(tmp_path)
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_names_only.py"]')
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == _rpw.EXIT_OK
+
+    err = capsys.readouterr().err
+    assert "::warning::windows_path run collected 0 items from 1 selected module(s)" in err
+    assert "tests/test_names_only.py" in err
+
+
+def test_narrowed_run_that_collects_items_prints_no_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _fake_project(tmp_path)
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_applies.py"]')
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == _rpw.EXIT_OK
+
+    assert "::warning::" not in capsys.readouterr().err
+
+
+def test_whole_run_with_zero_items_prints_no_warning_and_still_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(_rpw, "marked_files", lambda _root: _DISCOVERED)
+    monkeypatch.setattr(
+        _rpw.subprocess,
+        "run",
+        lambda command, **_kwargs: subprocess.CompletedProcess(command, _rpw.PYTEST_NO_TESTS),
+    )
+    monkeypatch.delenv(_rpw.ENV_SELECTED, raising=False)
+
+    assert _rpw.main([]) == _rpw.PYTEST_NO_TESTS
+    assert "::warning::" not in capsys.readouterr().err
+
+
+def test_zero_collected_warning_truncates_a_long_module_list() -> None:
+    modules = [f"tests/test_{n}.py" for n in range(8)]
+
+    warning = _rpw.zero_collected_warning(modules)
+
+    assert "from 8 selected module(s)" in warning
+    assert "(+3 more)" in warning
+    assert "tests/test_7.py" not in warning
+
+
 def test_narrowed_exit_code_maps_only_no_tests_to_ok() -> None:
     assert _rpw.exit_code(_rpw.PYTEST_NO_TESTS, narrowed=True) == _rpw.EXIT_OK
     assert _rpw.exit_code(_rpw.PYTEST_NO_TESTS, narrowed=False) == _rpw.PYTEST_NO_TESTS

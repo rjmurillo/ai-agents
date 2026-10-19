@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Detect a stale bot CHANGES_REQUESTED review that blocks merge (issue #5950).
 
-After every thread is fixed and resolved and CI is green, a PR can stay blocked
+After every thread is fixed and resolved and required CI checks pass, a PR can stay blocked
 because a bot such as CodeRabbit left a ``CHANGES_REQUESTED`` review on an
 older commit. A later bot pass posts ``COMMENTED``, which does not supersede it.
 Only an ``APPROVED`` review or a dismissal clears it, and dismissal is a human
@@ -15,9 +15,14 @@ unresolved thread count), ``get_pr_checks.py`` (CI verdict), and
 Verdicts in ``Data.verdict``:
 
     NO_BOT_CHANGES_REQUESTED  No bot holds an active CHANGES_REQUESTED review.
-    NOT_READY                 A bot holds one, but a thread is unresolved, CI is
-                              not green, or the branch needs an update first.
-                              Finish that work; this is not a stale-review case.
+    NOT_READY                 A bot holds one, but a thread is unresolved, a
+                              required CI check is not passing (any check, when
+                              the repo marks none required), the CI state is
+                              unknown, the branch needs an update, or GitHub has
+                              not computed the merge state yet (UNKNOWN or
+                              missing). Finish that work, or wait and run this
+                              again for an unknown merge state. This is not a
+                              stale-review case.
     FRESH_CHANGES_REQUESTED   A bot review on the current head still requests
                               changes. Address its findings.
     REQUEST_REREVIEW          Stale review, PR ready, no re-review at head yet.
@@ -67,7 +72,7 @@ from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
 )
-from github_core.bot_config import is_bot
+from github_core.bot_config import get_bot_authors, is_bot
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -81,11 +86,17 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Review states that move GitHub's reviewDecision. COMMENTED and PENDING do not.
 _VERDICT_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "DISMISSED"})
 
-# Merge states where the branch itself needs work before a review matters.
-_BRANCH_WORK_STATES = frozenset({"BEHIND", "DIRTY"})
+# Merge states where the branch itself needs work before a review matters, plus
+# UNKNOWN, which means GitHub has not computed the state yet. BLOCKED is not in
+# the set: a stale CHANGES_REQUESTED review is what makes a PR BLOCKED, which is
+# the case this script exists to classify.
+_BRANCH_WORK_STATES = frozenset({"BEHIND", "DIRTY", "UNKNOWN"})
 
 # get_pr_checks.py exits that still carry a verdict: pass, failing, incomplete.
 _CHECKS_VERDICT_EXITS = frozenset({0, 1, 7})
+_CI_GREEN = "green"
+_CI_FAILING = "failing"
+_CI_UNKNOWN = "unknown"
 
 # Comment that makes a known bot re-review the current head. A bot absent from
 # this map has no verified trigger, so the script never invents one.
@@ -94,7 +105,8 @@ _REREVIEW_TRIGGERS: dict[str, str] = {
 }
 
 _DISMISS_MESSAGE = (
-    "Every review thread is resolved and CI is green. This review is on an older commit than head."
+    "Every review thread is resolved and required CI checks pass. "
+    "This review is on an older commit than head."
 )
 
 
@@ -122,6 +134,20 @@ def _review_order(review: dict[str, Any]) -> tuple[str, int]:
     return str(review.get("submittedAt") or ""), review_id if isinstance(review_id, int) else 0
 
 
+def _is_bot_review(review: dict[str, Any]) -> bool:
+    """True when the review author is a bot.
+
+    The API user type outranks the naming guess. A ``User`` account whose login
+    ends in ``-bot`` is a person, so only an entry in ``bot-authors.yml`` makes
+    it a bot (a machine account such as ``rjmurillo-bot`` is listed there).
+    """
+    login = _author_login(review)
+    user_type = review.get("author_type")
+    if user_type == "User":
+        return login.lower() in {name.lower() for name in get_bot_authors()}
+    return bool(is_bot(login, user_type if isinstance(user_type, str) else None))
+
+
 def _latest_verdict_by_author(reviews: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Return each author's latest verdict-bearing review, keyed by canonical login."""
     latest: dict[str, dict[str, Any]] = {}
@@ -147,9 +173,7 @@ def _reviewed_head_after(
 def _active_bot_blockers(reviews: list[dict[str, Any]]) -> list[dict[str, Any]]:
     latest = _latest_verdict_by_author(reviews)
     return [
-        r
-        for r in latest.values()
-        if r.get("state") == "CHANGES_REQUESTED" and is_bot(_author_login(r))
+        r for r in latest.values() if r.get("state") == "CHANGES_REQUESTED" and _is_bot_review(r)
     ]
 
 
@@ -158,11 +182,11 @@ def _human_blockers(reviews: list[dict[str, Any]]) -> list[str]:
     return sorted(
         _author_login(r)
         for r in latest.values()
-        if r.get("state") == "CHANGES_REQUESTED" and not is_bot(_author_login(r))
+        if r.get("state") == "CHANGES_REQUESTED" and not _is_bot_review(r)
     )
 
 
-def _readiness_reasons(pr: dict[str, Any], ci_green: bool) -> list[str]:
+def _readiness_reasons(pr: dict[str, Any], ci_state: str) -> list[str]:
     """Reasons the PR is not yet in the all-threads-resolved, CI-green state."""
     reasons: list[str] = []
     unresolved = pr.get("review_thread_unresolved_count")
@@ -170,10 +194,14 @@ def _readiness_reasons(pr: dict[str, Any], ci_green: bool) -> list[str]:
         reasons.append("review thread count is incomplete")
     elif unresolved > 0:
         reasons.append(f"{unresolved} review thread(s) unresolved")
-    if not ci_green:
+    if ci_state == _CI_FAILING:
         reasons.append("CI is not passing")
+    elif ci_state != _CI_GREEN:
+        reasons.append("CI state is unknown")
     state = pr.get("merge_state_status")
-    if state in _BRANCH_WORK_STATES:
+    if not isinstance(state, str) or not state:
+        reasons.append("merge state is unknown")
+    elif state in _BRANCH_WORK_STATES:
         reasons.append(f"merge state is {state}")
     return reasons
 
@@ -227,7 +255,7 @@ def build_handoff(
     """Return the ready-to-run text a human needs to dismiss the stale reviews."""
     lines = [
         f"PR #{pr} is blocked by stale bot CHANGES_REQUESTED review(s). Head is {head_sha}.",
-        "Every review thread is resolved and CI is green, and the review is on an "
+        "Every review thread is resolved and required CI checks pass, and the review is on an "
         "older commit than head. This script does not check that the later commits "
         "fixed each finding. Confirm that before dismissing.",
         "The agent does not dismiss reviews. A human runs:",
@@ -250,7 +278,7 @@ def classify(
     repo: str,
     pr_number: int,
     pr: dict[str, Any],
-    ci_green: bool,
+    ci_state: str,
     reviews: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Classify the PR's bot CHANGES_REQUESTED state. Pure: no I/O."""
@@ -270,7 +298,7 @@ def classify(
     if not blockers:
         return data
     data["bots"] = [_bot_entry(r, reviews, head_sha) for r in blockers]
-    reasons = _readiness_reasons(pr, ci_green)
+    reasons = _readiness_reasons(pr, ci_state)
     if not head_sha:
         reasons.append("head SHA is unknown")
     if reasons:
@@ -308,17 +336,87 @@ def _common_args(owner: str, repo: str, pr: int) -> list[str]:
     return ["--owner", owner, "--repo", repo, "--pull-request", str(pr)]
 
 
+def _merge_state_unproven(checks: dict[str, Any]) -> bool:
+    """Return True when GitHub is still computing mergeability and reports no conflict.
+
+    get_pr_checks.build_output sets MergeRefUsable False for MergeState or
+    MergeStateStatus UNKNOWN, which GitHub reports for a moment after a push.
+    CONFLICTING and DIRTY are proven, so they win over an UNKNOWN in the other field.
+    """
+    state = checks.get("MergeState")
+    status = checks.get("MergeStateStatus")
+    if state == "CONFLICTING" or status == "DIRTY":
+        return False
+    return state == "UNKNOWN" or status == "UNKNOWN"
+
+
+def _ci_state(checks: dict[str, Any]) -> str:
+    """Classify CI for merge purposes as _CI_GREEN, _CI_FAILING, or _CI_UNKNOWN.
+
+    A missing or malformed key is unknown, never green: build_output always
+    emits MergeRefUsable, RequiredState, and AllPassing.
+
+    RequiredState FAILURE or PENDING is failing whether or not a row is marked
+    required. build_output derives both only from required checks that failed,
+    are running, or never reported against the branch ruleset, so each is
+    proven required. A stranded required check needs a fix or a re-trigger, not
+    a detector re-run.
+
+    MergeRefUsable False is failing (no usable merge ref), except while GitHub
+    is still computing mergeability (MergeState or MergeStateStatus UNKNOWN with
+    no CONFLICTING or DIRTY). That is unknown: there is nothing to fix yet. A
+    proven required failure or pending check still outranks it.
+
+    Otherwise, when at least one check row is marked required, RequiredState
+    decides. SUCCESS is green. UNKNOWN, which also covers an incomplete check
+    set, is unknown. Optional checks never move it. get_pr_checks.py downgrades
+    RequiredState to UNKNOWN when REST cannot prove which checks are required.
+
+    When no row is marked required, RequiredState SUCCESS means the repo
+    requires no status checks (vacuous), so AllPassing decides. UNKNOWN there is
+    unproven: the required set may come from classic branch protection that REST
+    cannot see. That is unknown, so the handoff never claims required checks are
+    green on an unproven set.
+    """
+    merge_ref_usable = checks.get("MergeRefUsable")
+    required_state = checks.get("RequiredState")
+    proven_required_open = required_state in ("FAILURE", "PENDING")
+    if merge_ref_usable is False:
+        if _merge_state_unproven(checks) and not proven_required_open:
+            return _CI_UNKNOWN
+        return _CI_FAILING
+    if merge_ref_usable is not True:
+        return _CI_UNKNOWN
+    if proven_required_open:
+        return _CI_FAILING
+    rows = checks.get("Checks")
+    has_required = isinstance(rows, list) and any(
+        isinstance(row, dict) and row.get("IsRequired") is True for row in rows
+    )
+    if has_required:
+        return _CI_GREEN if required_state == "SUCCESS" else _CI_UNKNOWN
+    if required_state != "SUCCESS":
+        return _CI_UNKNOWN
+    return _CI_GREEN if checks.get("AllPassing") is True else _CI_FAILING
+
+
 def _fetch_inputs(
     owner: str, repo: str, pr: int
-) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
-    """Fetch PR context, CI verdict, and reviews. Raises RuntimeError on failure."""
+) -> tuple[dict[str, Any], str, list[dict[str, Any]]]:
+    """Fetch PR context, CI state, and reviews. Raises RuntimeError on failure."""
     args = _common_args(owner, repo, pr)
     code, context = _run_sibling("get_pr_context.py", args)
     if code != 0 or context is None:
         raise RuntimeError(f"get_pr_context.py failed for PR #{pr} (exit {code})")
     # get_pr_checks.py exits 0 (all pass), 1 (failing), or 7 (incomplete) with a
     # verdict. Any other exit (2 config, 3 API or ruleset error, 4 auth) carries an
-    # error envelope with no AllPassing, which is an unknown, never failing CI.
+    # error envelope with no RequiredState, which is an unknown, never failing CI.
+    # CI is green when the required checks pass. AllPassing also counts optional
+    # checks, and one that waits on an environment approval stays pending forever
+    # (issue #6632). With no required check it is the only signal left, so
+    # _ci_state falls back to it. The call omits --required-only: with no
+    # ruleset contexts on the REST fallback that flag exits 3, which is outside
+    # _CHECKS_VERDICT_EXITS.
     checks_code, checks = _run_sibling("get_pr_checks.py", args)
     if checks is None or checks_code not in _CHECKS_VERDICT_EXITS:
         raise RuntimeError(
@@ -328,7 +426,21 @@ def _fetch_inputs(
     reviews = review_data.get("reviews") if review_data else None
     if code != 0 or not isinstance(reviews, list):
         raise RuntimeError(f"get_pr_reviews.py failed for PR #{pr} (exit {code})")
-    return context, checks.get("AllPassing") is True, reviews
+    # The head SHA read above is the premise of every verdict. Read it again now
+    # that the slower calls are done: a push in between makes the checks and
+    # reviews describe a different head than the one classified.
+    code, latest = _run_sibling("get_pr_context.py", args)
+    if code != 0 or latest is None:
+        raise RuntimeError(f"get_pr_context.py recheck failed for PR #{pr} (exit {code})")
+    if latest.get("head_sha") != context.get("head_sha"):
+        raise RuntimeError(
+            f"PR #{pr} head moved from {context.get('head_sha')} to {latest.get('head_sha')} "
+            "while the inputs were fetched; run again"
+        )
+    # Return the recheck, not the first read: threads and merge state can change
+    # without a push, and the recheck is the freshest view of them. The head is
+    # identical in both reads, so the checks and reviews still describe it.
+    return latest, _ci_state(checks), reviews
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -339,7 +451,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo, pr = resolved.owner, resolved.repo, args.pull_request
 
     try:
-        context, ci_green, reviews = _fetch_inputs(owner, repo, pr)
+        context, ci_state, reviews = _fetch_inputs(owner, repo, pr)
     except (RuntimeError, subprocess.TimeoutExpired) as exc:
         write_skill_error(
             str(exc) or "sibling script timed out",
@@ -356,7 +468,7 @@ def main(argv: list[str] | None = None) -> int:
         repo=repo,
         pr_number=pr,
         pr=context,
-        ci_green=ci_green,
+        ci_state=ci_state,
         reviews=reviews,
     )
     write_skill_output(

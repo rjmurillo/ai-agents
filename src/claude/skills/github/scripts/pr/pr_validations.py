@@ -81,11 +81,37 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
 _LS_REMOTE_NO_MATCH = 2
 
 
+# Characters git refuses in a ref name. ``*?[`` matter most: ls-remote globs.
+_REF_FORBIDDEN = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]")
+
+
+def is_valid_branch_name(name: str) -> bool:
+    """Return whether ``name`` is a legal git branch name, refused before any git call.
+
+    Parity with ``git check-ref-format --branch``, except ``@`` (``git branch`` refuses it).
+    """
+    if not name or name in {"@", "HEAD"} or name.startswith("-") or name.endswith("."):
+        return False
+    if _REF_FORBIDDEN.search(name) or ".." in name or "@{" in name:
+        return False
+    return not any(
+        not part or part.startswith(".") or part.endswith(".lock") for part in name.split("/")
+    )
+
+
 def head_on_origin(head: str) -> bool | None:
-    """Return whether origin has ``head``, or None when origin cannot be read."""
+    """Return whether origin has ``head``, or None when origin cannot be read.
+
+    ``ls-remote`` globs its pattern against the tail of each ref, so
+    ``evil/refs/heads/main`` answers a query for ``main``. The answer must be
+    the exact ref ``refs/heads/<head>``, not just a zero exit.
+    """
+    if not is_valid_branch_name(head):
+        return False
+    wanted = f"refs/heads/{head}"
     try:
         result = subprocess.run(
-            ["git", "ls-remote", "--exit-code", "--heads", "--", "origin", f"refs/heads/{head}"],
+            ["git", "ls-remote", "--exit-code", "--heads", "--", "origin", wanted],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -96,7 +122,7 @@ def head_on_origin(head: str) -> bool | None:
     except (subprocess.TimeoutExpired, OSError):
         return None
     if result.returncode == 0:
-        return True
+        return any(line.partition("\t")[2].strip() == wanted for line in result.stdout.splitlines())
     if result.returncode == _LS_REMOTE_NO_MATCH:
         return False
     return None
@@ -104,6 +130,9 @@ def head_on_origin(head: str) -> bool | None:
 
 def require_head_on_origin(head: str) -> bool:
     """Refuse to continue when gh would resolve a head that origin lacks."""
+    if not is_valid_branch_name(head):
+        print(f"Head {head!r} is not a valid git branch name.", file=sys.stderr)
+        return False
     on_origin = head_on_origin(head)
     if on_origin is None:
         print(

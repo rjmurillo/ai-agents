@@ -4,8 +4,8 @@
 Issue #5420 moved every agent write target from ``.agents/<sub>`` to
 ``.project-toolkit/<sub>``. ``.agents/`` keeps only read-only inputs: the KEEP
 subtrees below and its top-level files. Issue #5421 then moved the generated
-``context`` and ``skills`` subtrees, so they left KEEP too. Two independent
-findings:
+``context`` and ``skills`` subtrees (ADR-119: ``agents_install_roots.py``).
+Two independent findings:
 
   (a) STALE ROOT: ``.agents/<sub>`` with ``<sub>`` outside KEEP, read or
       write, in slash, backslash, or Python join form. Globs and regexes are
@@ -38,8 +38,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from agents_install_roots import names_codex_skills_root
+
+# plugins: the hand-maintained Codex marketplace file (ADR-115 Decision 7).
 _KEEP_DIRS = frozenset(
     {"governance", "steering", "schemas", "templates", "dictionaries", "guides", "hooks", "archive"}
+    | {"plugins"}
 )
 
 # Top-level files that issue #5421 moved to ``.project-toolkit/`` unchanged.
@@ -454,7 +458,9 @@ def check_repository(repo_root: Path) -> tuple[list[Finding], int]:
     for relative, blob in candidates.items():
         text = contents[blob]
         scan = scan_python if relative.endswith(".py") else scan_text
-        findings.extend(scan(relative, text))
+        for f in scan(relative, text):
+            if not (f.reason == _STALE_REASON and names_codex_skills_root(f.path, f.target)):
+                findings.append(f)
     return sorted(findings, key=lambda item: (item.path, item.line, item.target)), len(candidates)
 
 

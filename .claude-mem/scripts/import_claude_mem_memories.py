@@ -160,8 +160,8 @@ class PathModule(Protocol):
     to such a Protocol passes AND a ``splitdrive(path=...)`` call through it
     passes, so the checker launders a runtime crash instead of catching it.
 
-    Stricter/looser/different than canonical: ``_PathModule`` in
-    ``.claude/skills/skillforge/scripts/quick_validate.py`` is the same idea and
+    Stricter/looser/different than canonical: ``PathModule`` in
+    ``.claude/skills/skillforge/scripts/_path_guard.py`` is the same idea and
     is the source of the positional-only form used here. It declares ``sep`` and
     ``altsep`` as plain attributes, which this deliberately does not copy. That
     version does not accept ``ntpath`` (``altsep: expected "str | None", got

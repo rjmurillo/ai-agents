@@ -101,6 +101,9 @@ ENV/
 /drift-results.json
 /issue-body.md
 /homework-results.json
+/autoplan-model-results.json
+/autoplan-route-report.json
+/autoplan-route-report.txt
 /health-report.json
 /health-report.md
 /memory-health-report.md

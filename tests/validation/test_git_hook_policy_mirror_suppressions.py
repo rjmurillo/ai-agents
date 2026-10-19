@@ -1,6 +1,6 @@
 """Generated-mirror false positives in the security-suppression gate.
 
-ADR-109 B3's follow-up (generate_skills.sync_claude_plugin_skill_support)
+ADR-109 B3's follow-up (generate_skills.prune_stale_claude_skill_support)
 mirrors .claude/skills/ into src/claude/skills/ byte for byte. Git's rename
 detector (-M) only pairs an ADDED path with a DELETED one; a mirror added
 alongside its unchanged source has no deletion to pair with, so an
@@ -229,3 +229,66 @@ def test_is_verbatim_mirror_on_disk_false_when_source_is_missing(tmp_path: Path)
     _write(repo, "src/claude/skills/foo/scripts/run.py", "x = 1\n")
 
     assert not policy._is_verbatim_mirror_on_disk(repo, "src/claude/skills/foo/scripts/run.py")
+
+
+# --- Codex plugin tree (ADR-115 Decision 7) -----------------------------
+
+
+def test_codex_skill_and_lib_paths_map_to_their_claude_sources() -> None:
+    assert policy._mirror_source("src/codex/skills/foo/scripts/run.py") == (
+        ".claude/skills/foo/scripts/run.py"
+    )
+    assert policy._mirror_source("src/codex/lib/github_core/api.py") == (
+        ".claude/lib/github_core/api.py"
+    )
+
+
+def test_drops_violation_for_byte_identical_codex_skill_mirror(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write(repo, ".claude/skills/foo/scripts/run.py", SUPPRESSED_LINE)
+    _commit_all(repo, "seed reviewed source")
+    _write(repo, "src/codex/skills/foo/scripts/run.py", SUPPRESSED_LINE)
+    _git(repo, "add", "-A")
+
+    # citation-freshness: ignore -- synthetic fixture path in a tmp_path repo, not a real citation
+    violations = ["staged:src/codex/skills/foo/scripts/run.py:1"]
+    kept = policy._drop_verbatim_mirror_violations(
+        violations, repo, source_ref="HEAD", dest_ref=None
+    )
+
+    assert kept == []
+
+
+def test_keeps_violation_when_codex_skill_mirror_diverges(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write(repo, ".claude/skills/foo/scripts/run.py", SUPPRESSED_LINE)
+    _commit_all(repo, "seed reviewed source")
+    _write(repo, "src/codex/skills/foo/scripts/run.py", SUPPRESSED_LINE + "extra_line = 1\n")
+    _git(repo, "add", "-A")
+
+    # citation-freshness: ignore -- synthetic fixture path in a tmp_path repo, not a real citation
+    violations = ["staged:src/codex/skills/foo/scripts/run.py:1"]
+    kept = policy._drop_verbatim_mirror_violations(
+        violations, repo, source_ref="HEAD", dest_ref=None
+    )
+
+    assert kept == violations
+
+
+def test_keeps_violation_for_a_codex_file_with_no_claude_source(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write(repo, "README.md", "seed\n")
+    _commit_all(repo, "seed")
+    _write(repo, "src/codex/skills/invented/scripts/run.py", SUPPRESSED_LINE)
+    _git(repo, "add", "-A")
+
+    # citation-freshness: ignore -- synthetic fixture path in a tmp_path repo, not a real citation
+    violations = ["staged:src/codex/skills/invented/scripts/run.py:1"]
+    kept = policy._drop_verbatim_mirror_violations(
+        violations, repo, source_ref="HEAD", dest_ref=None
+    )
+
+    assert kept == violations

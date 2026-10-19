@@ -63,13 +63,13 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
 6. **Test coverage**. Security-critical code MUST have 100% coverage per `AGENTS.md` standards.
 7. **Eureka: gate availability is gate correctness**. A required security review
    that does not run MUST produce a blocking verdict. Infrastructure failure is
-   not a security pass. Issue #4777 records the failure where ten missing
-   reviews produced a green required check.
-8. **Keep hook fallback logic in the `lefthook_runner.py` validation script**.
+   not a security pass. Issue #4777: ten missing reviews produced a green
+   required check.
+8. **Keep hook fallback logic in `lefthook_runner.py`**.
    Lefthook wraps the configured `lefthook:` runner in `test -n "<literal>"`,
-   which is always true, so a fallback written in `lefthook.yml` or in the
-   generated shim never runs. Put every fallback inside the runner (PR #5988).
-9. **End a CRITICAL-path push with the `/review` marker**. A push matching any `CRITICAL_PATTERNS` path (`detect_infrastructure.py`) must end in an empty single-parent commit trailed `Reviewed-By: /review@<axes with security> on <parent sha>` trailer. Any later commit voids it. `pre_pr.py` only warns.
+   always true, so a fallback in `lefthook.yml` or the generated shim never
+   runs. Put every fallback inside the runner (PR #5988).
+9. **End a CRITICAL-path push with the `/review` marker**. A push matching any `CRITICAL_PATTERNS` path (`detect_infrastructure.py`) must end in an empty single-parent commit trailed `Reviewed-By: /review@<axes with security> on <parent sha>` and `Review-Artifact: sha256:<digest>`, its body the report. A bare trailer fails. Any later commit voids it. `pre_pr.py` only warns.
 
 ## SHOULD
 

@@ -73,9 +73,15 @@ _FROZEN_RUN = "rewriting it would claim a run scored something it did not"
 
 # Path to (class, matching-line count pinned from `git grep -ic`, reason).
 EXEMPTIONS: dict[str, tuple[str, int, str]] = {
-    ".claude/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "src/claude/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "src/copilot-cli/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
+    "src/cursor/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
+    "src/hermes/project-toolkit-delivery/skills/orphan-ref-validator/scripts/filters.py": (
+        REGISTRY,
+        1,
+        _KNOWN_RETIRED,
+    ),
+    "src/codex/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "scripts/validation/check_adr_links_baseline.txt": (
         REGISTRY,
         2,

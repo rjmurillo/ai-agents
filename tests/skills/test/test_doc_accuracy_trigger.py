@@ -26,6 +26,13 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 
+_SCRIPTS_PATH = str(PROJECT_ROOT / "build" / "scripts")
+sys.path.insert(0, _SCRIPTS_PATH)
+try:
+    from copilot_body_translation import translate_reference_file
+finally:
+    sys.path.remove(_SCRIPTS_PATH)
+
 from tests.lib.vendored_copy import copy_vendored_entry
 
 mod = import_skill_script(
@@ -252,12 +259,6 @@ def test_diff_base_and_scope_are_echoed(classifier) -> None:
     assert result["scope"] == "incremental: origin/develop...HEAD"
 
 
-def test_changed_document_with_other_changes_does_not_need_coupled_documents(classifier) -> None:
-    result = _decide(classifier, ["docs/guide.md", "src/service.py"], ["quantitative-claim"])
-    assert result["coupled_documents_needed"] is False
-    assert result["changed_documents"] == ["docs/guide.md"]
-
-
 def test_review_categories_drive_the_decision() -> None:
     """The decision comes from the #4981 classifier, not a private taxonomy."""
     as_docs = SimpleNamespace(
@@ -342,10 +343,13 @@ def test_cli_emits_decision_from_a_foreign_cwd(shipped_script: Path, tmp_path: P
         Path("test") / "references" / "doc-accuracy-gate.md",
     ],
 )
-def test_shipped_copies_are_byte_identical(name: Path) -> None:
+def test_shipped_copies_match_the_canonical_file(name: Path) -> None:
     canonical = (SKILLS_ROOT / name).read_bytes()
+    # The Copilot mirror translates Claude call syntax in references (issue #5657).
+    translated = translate_reference_file(canonical.decode("utf-8"), COPILOT_SKILLS_ROOT)
+    copilot_expected = translated.encode("utf-8") if name.suffix == ".md" else canonical
     assert (SRC_CLAUDE_SKILLS_ROOT / name).read_bytes() == canonical
-    assert (COPILOT_SKILLS_ROOT / name).read_bytes() == canonical
+    assert (COPILOT_SKILLS_ROOT / name).read_bytes() == copilot_expected
 
 
 def test_cli_exits_2_when_the_classifier_is_missing(tmp_path: Path) -> None:

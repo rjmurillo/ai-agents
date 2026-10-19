@@ -39,6 +39,7 @@ jobs:
               # is the body plus every references/*.md beside it, so an edit to
               # a reference changes graded behavior and has to fire this gate.
               - '.claude/skills/spec/**'
+              - 'src/claude/skills/spec/**'
             spec_evals:
               - 'tests/evals/spec-scenarios.json'
               - 'scripts/eval/eval-prompt-change.py'
@@ -66,8 +67,8 @@ jobs:
       - name: Install eval extra (openai grader)
         # setup-code-env installs only .[dev]; the github provider grader needs
         # the openai package from .[eval]. Without this, eval-prompt-change.py
-        # exits 3 (missing package is not a provider outage, so the skip-net
-        # does not neutral-skip it). Gated on the same condition as the eval so
+        # exits 3 with the generic "eval failed" message (a missing package is
+        # not a provider outage). Gated on the same condition as the eval so
         # it only runs when the /spec eval actually fires.
         if: |
           github.event_name == 'pull_request' &&
@@ -78,9 +79,14 @@ jobs:
       - name: Run /spec behavioral evals
         # Grader: claude-sonnet-4-6 via the Anthropic API (ANTHROPIC_API_KEY
         # CI secret). GitHub Models retired permanently on 2026-07-30; the
-        # three retirement-brownout markers have been removed from the skip-net
-        # in eval-prompt-change.py so it covers only genuine transient outages.
-        # Refs #4339.
+        # three retirement-brownout markers have been removed from the outage
+        # classifier in eval-prompt-change.py so it covers only genuine transient
+        # outages. Refs #4339.
+        # A provider outage exits 3 ("ERROR: provider unavailable"), not 0, so
+        # this leg turns red instead of passing without running (issue #6148).
+        # The workflow is listed in advisory_agent_workflows (ADR-114), so a
+        # red outage leg does not block a merge. The reviewer reads the result
+        # and decides whether to rerun.
         if: |
           github.event_name == 'pull_request' &&
           needs.check-paths.outputs.spec_evals_changed == 'true' &&
