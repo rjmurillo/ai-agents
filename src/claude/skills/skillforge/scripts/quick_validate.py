@@ -6,15 +6,19 @@ Validates that a skill meets the packaging requirements for distribution.
 This is the minimal validation required before packaging with package_skill.py.
 
 Usage:
-    python quick_validate.py <skill_directory>
+    python quick_validate.py <skill_directory> [--root DIR]
     python quick_validate.py ~/.claude/skills/my-skill/
+    python quick_validate.py /other/repo/skills/my-skill --root /other/repo
+
+The skill directory must resolve inside the current working directory (CWE-22
+guard). Pass --root DIR to opt in to a different trusted root.
 """
 
 import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 try:
     import yaml
@@ -22,6 +26,21 @@ try:
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
+
+# Import shared path guard (CWE-22 containment and CLI parsing). Same fallback as
+# package_skill.py: when this file is loaded from another directory, put its own
+# directory on sys.path so the sibling module resolves.
+try:
+    from _path_guard import contained_realpath as _contained_realpath
+    from _path_guard import is_within as _is_within
+    from _path_guard import parse_args as _parse_args
+    from _path_guard import resolve_root as _resolve_root
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from _path_guard import contained_realpath as _contained_realpath
+    from _path_guard import is_within as _is_within
+    from _path_guard import parse_args as _parse_args
+    from _path_guard import resolve_root as _resolve_root
 
 # Import shared constants
 try:
@@ -109,83 +128,6 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
         frontmatter[current_key] = " ".join(current_value_lines).strip()
 
     return frontmatter
-
-
-class _PathModule(Protocol):
-    """Structural type for the ``os.path`` surface ``_is_within`` needs.
-
-    Lets tests substitute ``posixpath`` or ``ntpath`` for the host ``os.path``
-    while keeping a precise return type (``commonpath`` yields ``str``, so the
-    containment comparison stays ``bool`` instead of decaying to ``Any``).
-    """
-
-    sep: str
-    altsep: str | None
-
-    def commonpath(self, paths: list[str], /) -> str: ...
-
-    def splitdrive(self, p: str, /) -> tuple[str, str]: ...
-
-
-def _is_within(child: str, root: str, pathmod: _PathModule = os.path) -> bool:
-    """Return True when case-normalized realpath ``child`` is ``root`` or nested inside it.
-
-    Both arguments must already be ``os.path.normcase(os.path.realpath(...))``
-    results. Containment is decided by ``os.path.commonpath`` rather than a
-    separator-appended prefix match, because ``os.path.join(root, "")`` does NOT
-    append a separator to a bare drive root (``C:\\``) or a bare UNC share root
-    (``\\\\server\\share``) on Windows. With the old prefix match a sibling that
-    merely shares a string prefix (``C:\\evil`` under ``C:\\``,
-    ``\\\\server\\shareevil`` under ``\\\\server\\share``) passed the guard and
-    escaped the CWD sandbox (CWE-22). ``commonpath`` compares whole path
-    components, so only true descendants match.
-
-    ``commonpath`` raises ``ValueError`` when the two paths cannot form a common
-    base. Different drives or drive-vs-UNC genuinely mean "not contained". But a
-    bare UNC share root (``\\\\server\\share``) has an empty root-relative part,
-    so ``ntpath`` treats it as rootless and refuses to mix it with a rooted
-    child, even though real descendants of that share ARE contained. On that
-    ``ValueError`` the guard decides by drive identity: contained only when child
-    and root share the same drive/share and root is that drive/share root itself.
-    This keeps the CWE-22 sibling-share rejection while no longer false-rejecting
-    a legitimate SKILL.md that lives directly under a bare share root.
-
-    ``pathmod`` is injected only so tests can pin ``posixpath`` or ``ntpath`` and
-    exercise both platforms' root semantics deterministically on any host;
-    production always uses the default ``os.path``.
-    """
-    if child == root:
-        return True
-    try:
-        return pathmod.commonpath([child, root]) == root
-    except ValueError:
-        # See the docstring: distinguish a genuine different-drive mismatch from
-        # a bare UNC share root that ``ntpath`` cannot mix with a rooted child.
-        child_drive, _ = pathmod.splitdrive(child)
-        root_drive, root_rel = pathmod.splitdrive(root)
-        if child_drive != root_drive:
-            return False
-        separators = {pathmod.sep, pathmod.altsep or pathmod.sep}
-        return root_rel == "" or root_rel in separators
-
-
-def _contained_realpath(target: Path, root: str) -> str | None:
-    """Resolve ``target`` and return its real path only if it stays within ``root``.
-
-    ``root`` must already be an ``os.path.normcase(os.path.realpath(...))``
-    result. Returns ``None`` when the resolved target escapes ``root`` (via a
-    symlink or ``..``), letting the caller reject an out-of-root read (CWE-22).
-
-    The containment check compares case-normalized paths so a Windows path that
-    differs only by drive-letter or component casing (``C:\\`` vs ``c:\\``) is not
-    misclassified as an escape. The original real path is returned unchanged so
-    the caller reads the exact resolved target.
-    """
-    real = os.path.realpath(target)
-    real_cmp = os.path.normcase(real)
-    if _is_within(real_cmp, root):
-        return real
-    return None
 
 
 def validate_skill(skill_path, root: str | None = None):
@@ -308,24 +250,31 @@ def validate_skill(skill_path, root: str | None = None):
 
 def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print("Usage: python quick_validate.py <skill_directory>")
+        print("Usage: python quick_validate.py <skill_directory> [--root DIR]")
         print("\nValidate a skill's frontmatter. The skill directory must be under the")
-        print("current directory.")
+        print("current directory, or under DIR when --root DIR is given.")
         print("\nExit codes: 0 valid, 1 invalid or bad path.")
         sys.exit(0)
 
-    if len(sys.argv) != 2:
-        print("Usage: python quick_validate.py <skill_directory>")
+    parsed = _parse_args(sys.argv[1:])
+    if parsed is None:
+        print("Usage: python quick_validate.py <skill_directory> [--root DIR]")
         print("\nExample:")
         print("  python quick_validate.py ~/.claude/skills/my-skill/")
+        print("  python quick_validate.py /other/repo/skills/my-skill --root /other/repo")
         sys.exit(1)
 
-    skill_path = sys.argv[1]
+    skill_path, root_arg = parsed
 
-    # SECURITY: Validate path stays within the current working directory (CWE-22).
+    # SECURITY: Validate path stays within the trusted root (CWE-22). The root is
+    # the current working directory unless the caller opts in to another one with
+    # --root, so a skill in a different repo validates without a cd or a copy.
     # normcase() makes the containment check case-insensitive on Windows (C:\ vs
     # c:\) while realpath() resolves symlinks so a descendant symlink cannot escape.
-    cwd_root = os.path.normcase(os.path.realpath(os.getcwd()))
+    if root_arg is not None and not Path(root_arg).is_dir():
+        print(f"Error: --root is not a directory: {root_arg}")
+        sys.exit(1)
+    cwd_root = _resolve_root(root_arg)
     resolved = os.path.normcase(os.path.realpath(skill_path))
     if not _is_within(resolved, cwd_root):
         print(f"Error: Path traversal detected: {skill_path}")

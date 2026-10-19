@@ -229,6 +229,18 @@ exits `0` without `--ci` even for an oversized skill; with `--ci` it exits `1`. 
 exits `2` when it audited nothing (wrong path, or every `SKILL.md` unreadable). With `--ci`, any
 unreadable `SKILL.md` also exits `2`. An exit `2` is never a pass.
 
+To validate a skill in another checkout without `cd` or copying, pass
+`--root DIR` to `quick_validate.py` or `validate-skill.py`. The skill must
+resolve inside `DIR`. A symlinked skill directory, `SKILL.md`, or
+script file that escapes it is rejected. The default root stays the
+current directory, and an absolute path outside it is still rejected without
+`--root`. A relative skill path resolves against the current directory, not
+against `DIR`, so pass an absolute path with `--root`:
+
+```bash
+python "$FORGE/quick_validate.py" /other/repo/skills/my-skill --root /other/repo
+```
+
 See [references/output-structure.md](references/output-structure.md) for allowed
 frontmatter fields, directory layout, script categories, hook configuration, and
 output requirements.

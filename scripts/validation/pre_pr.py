@@ -148,6 +148,7 @@ from checks_tooling import (
     validate_yaml_style,
 )
 from pre_pr_console import enable_line_buffering
+from pre_pr_headroom import headroom_stage
 from pre_pr_reexports import *  # noqa: F403  (identity re-exports, see module docstring)
 from pre_pr_sequence import run_all_validations
 from stale_script_refs import validate_stale_script_refs
@@ -419,6 +420,12 @@ def _print_summary(summary: AggregateOutcome, state: ValidationState) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
+    # Issue #6725: in the pre-push hook, wait for host headroom first.
+    with headroom_stage():
+        return _main(argv)
+
+
+def _main(argv: list[str] | None) -> int:
     # A redirected or piped log must track the run, not lag behind an 8 KiB buffer.
     enable_line_buffering()
     parser = build_parser()

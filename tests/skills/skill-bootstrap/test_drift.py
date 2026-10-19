@@ -282,14 +282,19 @@ def test_command_passes_when_nonzero_exit_is_expected(capsys, repo, skills):
     assert only_check(payload)["status"] == "pass"
 
 
-def test_command_timeout_is_a_failure(capsys, repo, skills, monkeypatch):
+def test_command_timeout_has_its_own_status_and_leaves_the_skill_incomplete(
+    capsys, repo, skills, monkeypatch
+):
     monkeypatch.setattr(bootstrap_drift, "COMMAND_TIMEOUT_S", 0.2)
     check = {"id": "R5", "kind": "command", "argv": [PY, "-c", "import time; time.sleep(30)"]}
 
     code, payload = check_one(capsys, repo, skills, check, "--allow-commands")
 
     assert code == 1
-    assert only_check(payload)["status"] == "fail"
+    assert only_check(payload)["status"] == "timeout"
+    assert payload["skills"][0]["status"] == "incomplete"
+    assert payload["update_candidates"] == []
+    assert payload["timed_out"] == ["s1"]
     assert "timed out" in only_check(payload)["detail"]
 
 
@@ -730,7 +735,7 @@ def _alive(pid: int) -> bool:
         return True
     try:
         return state.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0] != "Z"
-    except ProcessLookupError:
+    except (ProcessLookupError, FileNotFoundError):
         return False  # exited between the exists check and the read
 
 

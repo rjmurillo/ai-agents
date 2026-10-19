@@ -30,7 +30,10 @@ def _import_script(name: str):
 
 _mod = _import_script("reopen_issue")
 main = _mod.main
+
 build_parser = _mod.build_parser
+
+pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
@@ -253,6 +256,141 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "999"])
             assert exc.value.code == 2
+
+
+class TestCommentFileContainment:
+    """--comment-file follows the shared containment rule (issue #6667)."""
+
+    @staticmethod
+    def _reopen(argv, side_effect):
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=side_effect) as mock_run,
+        ):
+            return mock_run, main(argv)
+
+    def test_scratchpad_comment_file_under_temp_dir_reopens(self, tmp_path, capsys, monkeypatch):
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        scratch = tmp_path / "claude-1000" / "scratchpad"
+        scratch.mkdir(parents=True)
+        body = scratch / "reopen.md"
+        body.write_text("Reopening from scratchpad.", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        mock_run, rc = self._reopen(
+            ["--issue", "9", "--comment-file", str(body)],
+            [_state_closed(), _completed(stdout="reopened"), _completed(stdout="{}")],
+        )
+        assert rc == 0
+        assert _envelope(capsys)["Data"]["commented"] is True
+        post_input = mock_run.call_args_list[2].kwargs["input"]
+        assert json.loads(post_input)["body"] == "Reopening from scratchpad."
+
+    def test_relative_comment_file_resolves_against_workspace_base(
+        self, tmp_path, capsys, monkeypatch, stub_temp_roots
+    ):
+        """GITHUB_WORKSPACE only resolves the relative path. The temp root approves it."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        body = workspace / "note.md"
+        body.write_text("Relative note.", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+        stub_temp_roots(tmp_path)
+        mock_run, rc = self._reopen(
+            ["--issue", "9", "--comment-file", "note.md"],
+            [_state_closed(), _completed(stdout="reopened"), _completed(stdout="{}")],
+        )
+        assert rc == 0
+        post_input = mock_run.call_args_list[2].kwargs["input"]
+        assert json.loads(post_input)["body"] == "Relative note."
+
+    def test_comment_file_outside_every_root_exits_2(
+        self, external_tmp_path, capsys, monkeypatch, stub_temp_roots
+    ):
+        work = external_tmp_path / "work"
+        work.mkdir()
+        outside = external_tmp_path / "outside.md"
+        outside.write_text("secret", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        stub_temp_roots()
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch("reopen_issue.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=_state_closed()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "9", "--comment-file", str(outside)])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Type"] == "InvalidParams"
+        assert "Comment file must be under" in env["Error"]["Message"]
+
+    def test_symlink_in_temp_dir_pointing_outside_exits_2(
+        self, tmp_path, external_tmp_path, capsys, monkeypatch, stub_temp_roots
+    ):
+        target = external_tmp_path / "secret.md"
+        target.write_text("secret", encoding="utf-8")
+        link = tmp_path / "link.md"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+        work = external_tmp_path / "work"
+        work.mkdir()
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        stub_temp_roots(tmp_path)
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch("reopen_issue.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=_state_closed()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "9", "--comment-file", str(link)])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        env = _envelope(capsys)
+        assert env["Error"]["Type"] == "InvalidParams"
+        assert "Comment file must be under" in env["Error"]["Message"]
+
+    def test_workspace_root_is_not_an_approved_root(
+        self, external_tmp_path, capsys, monkeypatch, stub_temp_roots
+    ):
+        work = external_tmp_path / "work"
+        work.mkdir()
+        inside = work / "note.md"
+        inside.write_text("workspace file", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
+        stub_temp_roots()
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch("reopen_issue.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=_state_closed()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "9", "--comment-file", "note.md"])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert _envelope(capsys)["Error"]["Type"] == "InvalidParams"
+
+    def test_missing_comment_file_exits_2(self, tmp_path, capsys, monkeypatch):
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch("reopen_issue.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=_state_closed()) as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "9", "--comment-file", "missing.md"])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+        assert _envelope(capsys)["Error"]["Type"] == "NotFound"
 
 
 if __name__ == "__main__":
