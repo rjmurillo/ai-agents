@@ -452,11 +452,12 @@ def test_read_tool_maps_to_each_cli_read_tool() -> None:
     Claude's Edit refuses a file the session has not read, and the path-local
     fixtures need the model to open a sibling workflow before it edits.
     """
-    assert parity._tool_args(["read", "write"], "claude") == ["--tools", "Read,Edit"]
+    assert parity._tool_args(["read", "write"], "claude") == ["--tools", "Read,Write,Edit"]
     assert parity._tool_args(["read", "write"], "copilot") == [
-        "--available-tools=view,edit",
+        "--available-tools=view,edit,create",
         "--allow-tool=view",
         "--allow-tool=edit",
+        "--allow-tool=create",
     ]
 
 
