@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -38,9 +39,33 @@ def _status_inputs() -> dict[str, str]:
     }
 
 
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+# A backtick would end the code span the finding sits in. Angle brackets would
+# open HTML or a comment if the span ever broke.
+_BREAKOUT_CHARS = re.compile(r"[`<>]")
+# `@name` at the start of a word notifies a user or team. An address such as
+# `a@b.example` has a word character before the `@` and is left alone.
+_MENTION = re.compile(r"(?<!\w)@(?=[\w-])")
+
+
+def _neutralize(finding: str) -> str:
+    """Return ``finding`` as one inert line for the bot comment.
+
+    The producer (``map_pr_description_result._clean``) already cleans the value,
+    but this report is the last step before the text is published, so it does
+    not rely on that. Control characters and newlines collapse to single spaces.
+    Backticks and angle brackets are removed, and ``@`` is dropped from a mention.
+    Other punctuation stays: inside the code span it is inert, and removing it
+    would rewrite file names such as ``pages/[id].tsx``.
+    """
+    stripped = _BREAKOUT_CHARS.sub("", _CONTROL_CHARS.sub(" ", finding))
+    return _MENTION.sub("", " ".join(stripped.split()))
+
+
 def _with_finding(message: str, finding: str) -> str:
     """Name the first failing finding so the failed step is actionable."""
-    return f"{message}: `{finding}`" if finding else message
+    clean = _neutralize(finding)
+    return f"{message}: `{clean}`" if clean else message
 
 
 def _overall_status(inputs: dict[str, str]) -> tuple[str, list[str], list[str]]:

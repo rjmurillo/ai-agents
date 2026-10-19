@@ -832,7 +832,7 @@ posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: ne
 | `Data.verdict` | Meaning | Action |
 |----------------|---------|--------|
 | `NO_BOT_CHANGES_REQUESTED` | No bot holds an active `CHANGES_REQUESTED` review | The block is another outside gate: stop |
-| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`, an incomplete thread count, or an unknown head SHA) | Finish open work. An incomplete count or unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
+| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`, an `UNKNOWN` or missing merge state, an incomplete thread count, or an unknown head SHA) | Finish open work. An unknown merge state, an incomplete count, or an unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
 | `FRESH_CHANGES_REQUESTED` | The review is on the current head | Address its findings through the thread lifecycle |
 | `REQUEST_REREVIEW` | Stale review, PR ready, no bot review at head yet | For each `Data.bots[]` entry whose `action` is `REQUEST_REREVIEW`, post its `rereview_trigger` as a PR comment once per head SHA. First read the PR comments: if that trigger was already posted since the last push, wait instead. Then run the detector again. `Data.handoff` stays null on this verdict even when another bot is handoff-ready; the next run produces it |
 | `DISMISSAL_HANDOFF` | Stale review, PR ready, and the bot already reviewed head (or has no known trigger) | Give `Data.handoff` to the human verbatim and stop |
