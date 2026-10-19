@@ -79,6 +79,8 @@ none is found, ask what to plan rather than inferring it.
 - **First principles.** Question the requirement, try to delete the step, then
   optimize, then speed up, then automate. Never automate something that should
   not exist.
+  When the architecture is still open, the `spec` skill's Step 0 reframing check
+  owns the capability question. A frozen spec is not reopened here.
 
 ## Output
 

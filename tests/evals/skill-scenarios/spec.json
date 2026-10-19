@@ -1,6 +1,7 @@
 {
   "skill_path": ".claude/skills/spec/SKILL.md",
   "skill_id": "spec",
+  "_scope_note": "S5 and S6 are decision-graded scenarios for issue #6737, the Step 0 reframing check. S5 is a positive case: repeated GUI steps where a documented machine interface returns the same rows. S6 is a negative case: a frozen narrow edit that must not reopen the architecture. scripts/eval/_decision_grade.py grades the DECISION and EVIDENCE lines deterministically, so reciting 'capability', 'interface', or 'invention' cannot pass. S1 to S4 are judge-scored only. Offline checks: uv run pytest tests/eval/test_spec_reframing_scenarios.py. No live run has been made, so the effect of the reframing check on observed behavior is UNVERIFIED. A baseline pass rate close to the enabled rate means the prompt cued the answer, not that the skill text worked.",
   "scenarios": [
     {
       "id": "S1",
@@ -45,6 +46,97 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This asks for decomposition of an existing spec, which the skill's description routes to plan. It names no problem to define and asks for no acceptance criteria, so spec should stay inactive."
+    },
+    {
+      "id": "S5",
+      "desc": "Open architecture: repeated GUI steps where a documented machine interface returns the same rows",
+      "input": "A team lead reads a build-failure dashboard every Monday. The steps are: open the web UI, pick the team, click Export CSV, open the file, and copy the failing test names into a weekly report. The same service documents a read-only endpoint, GET /api/v1/failures?team=<id>, that returns those rows as JSON. The goal is the weekly list of failing tests per team. The dashboard is not part of the goal, and the architecture is still open. Choose AUTOMATE_UI to script the browser steps, or INTERFACE to read the endpoint directly. For AUTOMATE_UI, EVIDENCE names the step you would script. For INTERFACE, EVIDENCE names the endpoint and one check that would prove its rows equal the dashboard export. Reply in at most 4 short lines. The last two lines must be exactly:\nDECISION: <AUTOMATE_UI or INTERFACE>\nEVIDENCE: <one line>\nDo not modify any files.",
+      "expected_signals": [
+        "api/v1/failures"
+      ],
+      "expected_gate": "prefer-purpose-built-interface",
+      "rationale": "The goal is the weekly list, and a direct endpoint reaches it without UI steps. Scripting the browser automates the inherited workflow and is the failure. Reading the endpoint with a check that its rows equal the export is the pass.",
+      "decision": {
+        "options": [
+          "AUTOMATE_UI",
+          "INTERFACE"
+        ],
+        "expected": [
+          "INTERFACE"
+        ],
+        "evidence_all": [
+          "api/v1/failures",
+          "\\b(?:compare|compares|diff|match|matches|equal|equals|same|row count|count)\\b",
+          "^(?!.*(?:\\b(?:headless|selenium|playwright|puppeteer|macro|scrap\\w*)\\b|script(?:ing)? the (?:ui|browser)|(?<!no )(?<!without )\\bclick))"
+        ],
+        "known_good_variants": [
+          "DECISION: INTERFACE\nEVIDENCE: /api/v1/failures?team=42, check its row count equals the dashboard export",
+          "DECISION: interface\nEVIDENCE: curl -s '/api/v1/failures?team=42' | jq length, compare to the CSV line count",
+          "1. DECISION: INTERFACE\n2. EVIDENCE: GET /api/v1/failures, rows must match the exported CSV for the same team",
+          "DECISION: INTERFACE\nEVIDENCE: read /api/v1/failures directly with no clicks, diff one team against its export"
+        ],
+        "known_good": [
+          "The endpoint returns the same rows without UI steps.\nDECISION: INTERFACE\nEVIDENCE: GET /api/v1/failures?team=<id>; diff its rows against the Export CSV for one team"
+        ],
+        "known_bad": [
+          "I will script the export steps in a headless browser.\nDECISION: AUTOMATE_UI\nEVIDENCE: a Playwright script that clicks Export CSV and parses the file"
+        ],
+        "right_token_bad_evidence": [
+          "Use the endpoint.\nDECISION: INTERFACE\nEVIDENCE: /api/v1/failures, and I will also script the browser to click Export CSV",
+          "Use the endpoint.\nDECISION: INTERFACE\nEVIDENCE: /api/v1/failures, compare rows, but first write a headless Selenium job",
+          "Use the endpoint.\nDECISION: INTERFACE\nEVIDENCE: /api/v1/failures as a fallback, I will scrape the dashboard and compare",
+          "Use the endpoint.\nDECISION: INTERFACE\nEVIDENCE: /api/v1/failures, then a Playwright macro, and compare counts",
+          "Use the endpoint.\nDECISION: INTERFACE\nEVIDENCE: /api/v1/failures exists; I would click Export CSV and compare",
+          "Use the endpoint.\nDECISION: INTERFACE\nEVIDENCE: /api/v1/failures, it is the better source"
+        ],
+        "keyword_stuffed": [
+          "Invent capability, not automation. A purpose-built interface makes new work possible, with a falsifiable hypothesis, an owner, and an authority boundary.",
+          "Capability invention beats workflow automation.\nDECISION: AUTOMATE_UI\nEVIDENCE: api/v1/failures capability interface new work map GPS"
+        ]
+      }
+    },
+    {
+      "id": "S6",
+      "desc": "Frozen narrow edit: the spec is accepted and a speculative redesign is suggested (negative case)",
+      "input": "The spec for the `report` CLI is frozen and approved: add a --json flag, and when it is set print json.dumps(summary, sort_keys=True) instead of format_text(summary). Here is the complete function, and it has no other callers.\ndef main(args):\n    summary = build_summary(args.path)\n    print(format_text(summary))\nA teammate comments that agents might get more from a long-lived report daemon with its own query protocol. The spec does not include it. Choose IMPLEMENT to make the specified change now, or REFRAME to reopen the architecture first. For IMPLEMENT, EVIDENCE is the changed line. For REFRAME, EVIDENCE names the alternative design. Reply in at most 4 short lines. The last two lines must be exactly:\nDECISION: <IMPLEMENT or REFRAME>\nEVIDENCE: <one line>\nDo not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The architecture is accepted and the edit is fully specified. Reopening the design or proposing a daemon is the failure. Making the specified change is the pass.",
+      "decision": {
+        "options": [
+          "IMPLEMENT",
+          "REFRAME"
+        ],
+        "expected": [
+          "IMPLEMENT"
+        ],
+        "evidence_all": [
+          "json\\.dumps\\(\\s*summary",
+          "^(?!.*\\b(?:daemon|protocol|server|service|socket|endpoint|reframe|reopen|architecture)\\b)"
+        ],
+        "known_good_variants": [
+          "DECISION: IMPLEMENT\nEVIDENCE: print(json.dumps(summary, sort_keys=True))",
+          "DECISION: implement\nEVIDENCE: if args.json: print(json.dumps(summary, sort_keys=True)) else: print(format_text(summary))",
+          "def main(args):\n    summary = build_summary(args.path)\n    print(json.dumps(summary, sort_keys=True))\nDECISION: IMPLEMENT\nEVIDENCE: json.dumps(summary, sort_keys=True)"
+        ],
+        "known_good": [
+          "The spec is frozen and complete.\nDECISION: IMPLEMENT\nEVIDENCE: print(json.dumps(summary, sort_keys=True))"
+        ],
+        "known_bad": [
+          "A daemon with a query protocol would let agents ask directly.\nDECISION: REFRAME\nEVIDENCE: a report daemon exposing a query protocol"
+        ],
+        "right_token_bad_evidence": [
+          "The spec is frozen.\nDECISION: IMPLEMENT\nEVIDENCE: json.dumps(summary, sort_keys=True), and I will also start a report daemon",
+          "The spec is frozen.\nDECISION: IMPLEMENT\nEVIDENCE: json.dumps(summary), after I reopen the architecture review",
+          "The spec is frozen.\nDECISION: IMPLEMENT\nEVIDENCE: json.dumps(summary), plus a new query protocol for agents",
+          "The spec is frozen.\nDECISION: IMPLEMENT\nEVIDENCE: json.dumps(summary), then expose it from a small server",
+          "The spec is frozen.\nDECISION: IMPLEMENT\nEVIDENCE: json.dumps(summary), though I would reframe the design first"
+        ],
+        "keyword_stuffed": [
+          "Capability invention, a purpose-built interface, a falsifiable hypothesis, and a protocol for agents.",
+          "Invent capability, not automation.\nDECISION: REFRAME\nEVIDENCE: json.dumps(summary) capability interface protocol"
+        ]
+      }
     }
   ]
 }
