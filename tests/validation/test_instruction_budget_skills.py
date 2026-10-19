@@ -238,5 +238,5 @@ def test_symlinked_skill_outside_the_repo_fails_closed(tmp_path: Path) -> None:
         (repo / ib.SKILLS_SUBDIR / "x").symlink_to(outside, target_is_directory=True)
     except OSError:
         pytest.skip("symlinks need extra privileges on this platform")
-    with pytest.raises(ib.MalformedSkillFrontmatterError, match="resolves outside"):
+    with pytest.raises(ib.MalformedSkillFrontmatterError, match="resolves outside the repository"):
         ib.evaluate(repo, {".py": 10_000})

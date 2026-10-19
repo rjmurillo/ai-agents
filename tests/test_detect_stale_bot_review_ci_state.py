@@ -136,17 +136,17 @@ class TestCiStateFromProducerOutput:
 
 class TestMergeStateComputing:
     @pytest.mark.parametrize(
-        ("merge_state", "merge_state_status", "expected"),
+        ("merge_state", "merge_state_status", "expected_required", "expected"),
         [
-            ("MERGEABLE", "UNKNOWN", _UNKNOWN),
-            ("UNKNOWN", "CLEAN", _UNKNOWN),
-            ("UNKNOWN", "UNKNOWN", _UNKNOWN),
-            ("MERGEABLE", None, _UNKNOWN),
-            ("CONFLICTING", "DIRTY", _FAILING),
-            ("CONFLICTING", "UNKNOWN", _FAILING),
-            ("UNKNOWN", "DIRTY", _FAILING),
-            ("MERGEABLE", "CLEAN", _GREEN),
-            ("MERGEABLE", "BLOCKED", _GREEN),
+            ("MERGEABLE", "UNKNOWN", "UNKNOWN", _UNKNOWN),
+            ("UNKNOWN", "CLEAN", "UNKNOWN", _UNKNOWN),
+            ("UNKNOWN", "UNKNOWN", "UNKNOWN", _UNKNOWN),
+            ("MERGEABLE", None, "UNKNOWN", _UNKNOWN),
+            ("CONFLICTING", "DIRTY", "UNKNOWN", _FAILING),
+            ("CONFLICTING", "UNKNOWN", "UNKNOWN", _FAILING),
+            ("UNKNOWN", "DIRTY", "UNKNOWN", _FAILING),
+            ("MERGEABLE", "CLEAN", "SUCCESS", _GREEN),
+            ("MERGEABLE", "BLOCKED", "SUCCESS", _GREEN),
         ],
         ids=[
             "status_unknown",
@@ -160,14 +160,16 @@ class TestMergeStateComputing:
             "blocked_review_gate_is_green",
         ],
     )
-    def test_green_required_row_by_merge_state(self, merge_state, merge_state_status, expected):
+    def test_green_required_row_by_merge_state(
+        self, merge_state, merge_state_status, expected_required, expected
+    ):
         out = _produce(
             [_row("req", required=True)],
             ruleset=["req"],
             MergeState=merge_state,
             MergeStateStatus=merge_state_status,
         )
-        assert out["RequiredState"] == "SUCCESS"
+        assert out["RequiredState"] == expected_required
         assert _ci_state(out) == expected
 
     def test_proven_required_pending_outranks_unknown_merge_state(self):

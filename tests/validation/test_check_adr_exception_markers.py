@@ -5,8 +5,9 @@ Pins the runner-exception marker gate:
 - pos: a marker naming a live ADR passes; a tree with no markers passes
 - neg: a marker naming a missing ADR, or a superseded, deprecated, or
   rejected ADR, exits 1 and names file, line, and ADR
-- edge: marker spelling variants, `.yaml` files, an ADR with no frontmatter
-  (status unknown, existence still checked), a `# ADR-NNN:` line that is not
+- edge: marker spelling variants, `.yaml` files, an ADR whose status cannot be
+  read (absent, malformed, or non-scalar; the marker fails, issue #6506), a
+  `# ADR-NNN:` line that is not
   an exception marker, missing directories (exit 2 per ADR-035)
 - wiring: the pre-PR adapter returns a bool that follows the exit code
 """
@@ -281,18 +282,38 @@ def test_adapter_returns_false_on_a_near_miss(tmp_path: Path) -> None:
     assert gate.validate_adr_exception_markers(tmp_path) is False
 
 
-def test_adr_without_frontmatter_passes_on_existence(tmp_path: Path) -> None:
+def test_adr_without_frontmatter_fails_the_marker(tmp_path: Path) -> None:
     _adr(tmp_path, 55, None)
     _workflow(tmp_path, "# ADR-055 Exception: reason")
-    assert _run(tmp_path).returncode == 0
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert "ADR-055 has no readable frontmatter status" in result.stdout
+    assert ".github/workflows/ci.yml:" in result.stdout
 
 
-def test_adr_with_malformed_frontmatter_passes_on_existence(tmp_path: Path) -> None:
+def test_adr_with_malformed_frontmatter_fails_the_marker(tmp_path: Path) -> None:
     adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-055-runner.md").write_text("---\nstatus: [oops\n---\n", encoding="utf-8")
     _workflow(tmp_path, "# ADR-055 Exception: reason")
+    assert _run(tmp_path).returncode == 1
+
+
+def test_unreadable_status_does_not_fail_a_tree_with_no_marker(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, None)
+    _workflow(tmp_path, "# plain")
     assert _run(tmp_path).returncode == 0
+
+
+def test_judge_reports_an_empty_status_by_name() -> None:
+    marker = gate.Marker("wf.yml", 3, 55)
+    message = gate.judge(marker, {55: ""})
+    assert message is not None
+    assert message.startswith("wf.yml:3: ADR-055 has no readable frontmatter status")
+
+
+def test_judge_still_passes_a_live_status() -> None:
+    assert gate.judge(gate.Marker("wf.yml", 3, 55), {55: "accepted"}) is None
 
 
 def test_status_case_and_padding_are_normalised(tmp_path: Path) -> None:
@@ -319,7 +340,7 @@ def test_non_scalar_status_does_not_crash(tmp_path: Path) -> None:
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-055-runner.md").write_text("---\nstatus:\n  - a\n---\n", encoding="utf-8")
     _workflow(tmp_path, "# ADR-055 Exception: reason")
-    assert _run(tmp_path).returncode == 0
+    assert _run(tmp_path).returncode == 1
 
 
 def test_missing_workflow_dir_is_config_error(tmp_path: Path) -> None:

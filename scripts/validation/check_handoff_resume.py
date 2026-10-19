@@ -69,7 +69,24 @@ DUPLICATE = "{conflicting duplicate}"
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _PLACEHOLDER = re.compile(r"^\{.*\}$")
 _FIELD_LINE = re.compile(r"^[-*+] \*\*(?P<key>[^*]+)\*\*:[ \t]*(?P<value>.*)$")
-_DECISION_LINE = re.compile(r"^[-*+] ")
+# A decision is a bullet, a numbered item (`1.` or `1)`), or a `###` to `######`
+# heading. Counting only bullets let a numbered or heading decision skip the
+# provenance check entirely (issue #6506).
+_DECISION_LINE = re.compile(
+    r"^(?:(?P<bullet>[-*+])|(?P<number>\d+[.)])|(?P<heading>\#{3,6}))[ \t](?P<title>.*)$"
+)
+# CommonMark lets a numbered item or an ATX heading start after up to 3 spaces.
+_INDENTED_DECISION_LINE = re.compile(
+    r"^(?P<indent> {1,3})(?:(?P<number>\d+[.)])|(?P<heading>\#{3,6}))[ \t](?P<title>.*)$"
+)
+# A table data row is a decision. The header row (the one above the separator) and the
+# separator row are not.
+_TABLE_ROW = re.compile(r"^ {0,3}\|.*\|[ \t]*$")
+_TABLE_SEPARATOR_CELL = re.compile(r"^:?-+:?$")
+# The handoff template lists these as sibling fields of a decision. Under a numbered
+# or heading decision they sit at the top level, so they belong to that decision.
+_ATTRIBUTE_KEYS = frozenset({"alternatives considered", "provenance", "superseded by"})
+_TOP_LEVEL_ATTRIBUTE = re.compile(r"^[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _SUB_BULLET = re.compile(r"^\s+[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _REMOTE_URL = re.compile(r"[:/](?P<owner>[^/:]+)/(?P<name>[^/]+?)(?:\.git)?/?$")
 
@@ -117,15 +134,125 @@ def _is_missing(value: str | None) -> bool:
     return value is None or not value.strip() or bool(_PLACEHOLDER.match(value.strip()))
 
 
+def _table_cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _is_table_separator(line: str) -> bool:
+    if not _TABLE_ROW.match(line):
+        return False
+    cells = _table_cells(line)
+    return bool(cells) and all(_TABLE_SEPARATOR_CELL.match(cell) for cell in cells)
+
+
+def _table_decisions(
+    lines: list[str], index: int, header: list[str]
+) -> tuple[int, list[tuple[str, bool]]]:
+    """Return ``(next index, decisions)`` for the data rows of a table.
+
+    ``header`` holds the lower-cased header cells. A row is sourced when the table has a
+    ``Provenance`` column and the row's cell there is not blank or a placeholder.
+    """
+    column = header.index("provenance") if "provenance" in header else None
+    rows: list[tuple[str, bool]] = []
+    while index < len(lines) and _TABLE_ROW.match(lines[index]):
+        cells = _table_cells(lines[index])
+        sourced = column is not None and column < len(cells) and not _is_missing(cells[column])
+        rows.append((cells[0] if cells else "", sourced))
+        index += 1
+    return index, rows
+
+
+def _unrecognized_content(body: str) -> str:
+    """Return the first Decisions Made line that is not blank, a placeholder, or an empty table.
+
+    A table header with its separator and no data rows is an empty table, like an empty section.
+    """
+    lines = body.splitlines()
+    for index, line in enumerate(lines):
+        text = line.strip()
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        empty_table_part = _is_table_separator(line) or _is_table_separator(next_line)
+        if text and not empty_table_part and not _PLACEHOLDER.match(text) and not _is_none(text):
+            return text
+    return ""
+
+
+def _match_decision(line: str, content_offset: int | None) -> tuple[str, bool, int | None] | None:
+    """Return ``(title, block_form, content offset)`` when ``line`` starts a decision.
+
+    ``content_offset`` is the indent at which a line nests under the list item above, or
+    ``None`` when that decision is not a list item. A heading has no offset.
+    """
+    found = _DECISION_LINE.match(line)
+    indent = 0
+    if not found:
+        found = _INDENTED_DECISION_LINE.match(line)
+        indent = len(found.group("indent")) if found else 0
+        if found and content_offset is not None and indent >= content_offset:
+            return None  # nested under the list item above, not a new decision
+    if not found:
+        return None
+    groups = found.groupdict()
+    marker = groups.get("bullet") or groups.get("number")
+    offset = indent + len(marker) + 1 if marker else None
+    return found.group("title").strip(), not groups.get("bullet"), offset
+
+
 def decisions_without_provenance(text: str) -> list[str]:
-    """Return the decision titles that lack a non-empty ``Provenance:`` sub-bullet."""
+    """Return the decision titles that lack a non-empty ``Provenance:`` sub-bullet.
+
+    A heading decision is never treated as a group over bullet decisions: a heading
+    with no ``Provenance:`` of its own is reported, so no unsourced decision passes
+    by hiding under a grouping heading. Give the heading a ``Provenance:`` line.
+
+    Only unindented items are decisions. An indented item belongs to the decision
+    above it: the handoff template's ``Alternatives considered: {list}`` is
+    legitimately a nested list, and counting its entries as decisions would HOLD
+    every handoff that lists two alternatives. A numbered item or heading indented by
+    1 to 3 spaces is still a top-level item in CommonMark, so it counts, unless it is
+    indented past the content offset of a list decision above it, which nests it.
+
+    A table data row is a decision, sourced by a ``Provenance`` column. A section with
+    content but no recognized decision (a paragraph) is reported as one unsourced
+    decision, so prose cannot skip the check.
+    """
     body = _section(_strip_comments(text), "Decisions Made")
     if not _has_heading(text, "Decisions Made"):
         return [MISSING_DECISIONS]
     decisions: list[tuple[str, bool]] = []
-    for line in body.splitlines():
-        if _DECISION_LINE.match(line):
-            decisions.append((line[2:].strip(), False))
+    block_form = False
+    content_offset: int | None = None  # indent at which a line nests under the last list item
+    lines = body.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        index += 1
+        if (
+            _TABLE_ROW.match(line)
+            and not _is_table_separator(line)
+            and index < len(lines)
+            and _is_table_separator(lines[index])
+        ):
+            header = [cell.lower() for cell in _table_cells(line)]
+            index, rows = _table_decisions(lines, index + 1, header)
+            decisions.extend(rows)
+            block_form = True
+            content_offset = None
+            continue
+        attribute = _TOP_LEVEL_ATTRIBUTE.match(line)
+        key = attribute.group("key").strip().lower() if attribute else ""
+        if block_form and attribute and key in _ATTRIBUTE_KEYS:
+            # Under a numbered or heading decision, an unindented attribute bullet
+            # (`- Provenance:`, `- Alternatives considered:`) belongs to that decision,
+            # not to a new bullet decision. Only a non-empty Provenance sources it.
+            if decisions and key == "provenance" and not _is_missing(attribute.group("value")):
+                decisions[-1] = (decisions[-1][0], True)
+            continue
+        found = _match_decision(line, content_offset)
+        if found:
+            title, block_form, content_offset = found
+            decisions.append((title, False))
             continue
         sub = _SUB_BULLET.match(line)
         has_source = (
@@ -135,6 +262,9 @@ def decisions_without_provenance(text: str) -> list[str]:
         )
         if decisions and has_source:
             decisions[-1] = (decisions[-1][0], True)
+    if not decisions:
+        stray = _unrecognized_content(body)
+        return [f"unrecognized decision form: {stray}"] if stray else []
     return [title for title, sourced in decisions if not sourced and not _is_none(title)]
 
 

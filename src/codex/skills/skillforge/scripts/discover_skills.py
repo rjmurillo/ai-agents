@@ -38,6 +38,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from _inflection import has_term as _has_term
+
 # Import shared constants (optional - used for validation if available)
 try:
     from _constants import SEMVER_REGEX, VALID_AGENT_TYPES
@@ -398,16 +400,31 @@ def extract_keywords(content: str, name: str) -> list[str]:
     return list(set(keywords))
 
 
-def classify_domain(keywords: list[str], content: str) -> list[str]:
-    """Classify skill into domains based on keywords."""
+def classify_domain(name: str, description: str, keywords: list[str]) -> list[str]:
+    """
+    Classify skill into domains from its name, description, and extracted keywords.
+
+    Body prose in SKILL.md is not scanned. A meta-skill such as skill-creator
+    mentions testing, deployment, and databases in examples, which would index it
+    under domains it does not serve and make it match unrelated queries. Body text
+    still reaches this function through keywords: extract_keywords collects
+    keyword-table cells and the words after a Purpose or Description line.
+
+    A domain term in the description or keywords scores 1. A term in the name
+    scores 2 more. A domain needs 2 points.
+    """
     domains = []
-    content_lower = content.lower()
+    name_text = name.lower().replace("-", " ").replace("_", " ")
+    description_lower = description.lower()
+    keyword_set = {k.lower() for k in keywords}
 
     for domain, domain_keywords in DOMAIN_KEYWORDS.items():
         score = 0
         for kw in domain_keywords:
-            if kw in keywords or kw in content_lower:
+            if kw in keyword_set or _has_term(description_lower, kw):
                 score += 1
+            if _has_term(name_text, kw):
+                score += 2
         if score >= 2:
             domains.append(domain)
 
@@ -435,7 +452,6 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
     # Extract metadata
     triggers = extract_triggers(content)
     keywords = extract_keywords(content, name)
-    domains = classify_domain(keywords, content)
 
     # Get description
     # YAML types a bare `description: 2024-01-01` as a date, which json.dumps
@@ -452,6 +468,8 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
             if line.strip() and not line.startswith("#") and not line.startswith("-"):
                 description = line.strip()[:200]
                 break
+
+    domains = classify_domain(str(name), str(description), keywords)
 
     return {
         "name": name,

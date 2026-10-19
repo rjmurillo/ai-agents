@@ -129,9 +129,20 @@ class Observed:
             self.argv.setdefault(validator, []).append(argv)
 
 
+def _stdout_for(argv: Any) -> str:
+    """Answer the one git query a diff gate needs a value from.
+
+    ``checks_ci_parity._require_base_ref`` fails closed on an empty answer to
+    ``git symbolic-ref``, so the recorder names a branch instead of "".
+    """
+    if isinstance(argv, (list, tuple)) and "symbolic-ref" in argv:
+        return "origin/main\n"
+    return ""
+
+
 class _Completed(subprocess.CompletedProcess[str]):
     def __init__(self, argv: Any) -> None:
-        super().__init__(argv, 0, "", "")
+        super().__init__(argv, 0, _stdout_for(argv), "")
 
 
 class _FakeProcess:
@@ -141,7 +152,7 @@ class _FakeProcess:
         self.args = argv
 
     def communicate(self, *_: Any, **__: Any) -> tuple[str, str]:
-        return "", ""
+        return _stdout_for(self.args), ""
 
     def wait(self, *_: Any, **__: Any) -> int:
         return 0

@@ -35,7 +35,6 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import checks_portability
 import pre_pr_sequence
-from checks_common import MissingScriptSkip
 
 GATE = "Rule Lossless Fixtures"
 LOSSLESS_TEST = Path("tests") / "build_scripts" / "test_rule_templates_lossless.py"
@@ -177,14 +176,18 @@ class TestValidateRuleLosslessFixtures:
         assert "cp " not in out
         assert "pytest output" in out
 
-    def test_skips_when_the_lossless_test_is_absent(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    def test_fails_closed_when_the_lossless_test_is_absent(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
-        calls = _fake_runner(monkeypatch, 1)
+        """Issue #6506: a deleted test file must not become a SKIP."""
+        calls = _fake_runner(monkeypatch, 0)
 
-        with pytest.raises(MissingScriptSkip):
-            checks_portability.validate_rule_lossless_fixtures(tmp_path)
+        assert checks_portability.validate_rule_lossless_fixtures(tmp_path) is False
         assert calls == []
+        assert "test_rule_templates_lossless.py absent" in capsys.readouterr().err
 
 
 def _run_sequence(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:

@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import json
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -35,6 +36,70 @@ def test_main_reads_null_delimited_stdin(
     payload = json.loads(capsys.readouterr().out)
     assert payload["file_count"] == 2
     assert payload["highest_risk"] == "critical"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        subprocess.TimeoutExpired(["git"], 15),
+        subprocess.CompletedProcess([], 128, "", "fatal: not a git repository"),
+    ],
+)
+def test_main_exits_3_when_staged_files_are_unreadable_and_review_is_required(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: BaseException | subprocess.CompletedProcess[str],
+) -> None:
+    """A git failure must not read as "no CRITICAL files" (issue #6506)."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["detect_infrastructure.py", "--use-git-staged", "--require-security-review"],
+    )
+    run_kwargs = (
+        {"side_effect": error} if isinstance(error, BaseException) else {"return_value": error}
+    )
+
+    with patch("subprocess.run", **run_kwargs):
+        assert main() == 3
+
+    captured = capsys.readouterr()
+    assert "[BLOCKED] detect_infrastructure" in captured.err
+    assert "scope=staged files from git" in captured.err
+    assert "No infrastructure/security files detected." not in captured.out
+
+
+def test_main_stays_advisory_when_staged_files_are_unreadable_without_the_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["detect_infrastructure.py", "--use-git-staged"])
+
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["git"], 15)):
+        assert main() == 0
+
+    captured = capsys.readouterr()
+    assert "[BLOCKED] detect_infrastructure" in captured.err
+    assert "No infrastructure/security files detected." not in captured.out
+
+
+def test_main_passes_when_staged_files_are_readable_and_clean(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["detect_infrastructure.py", "--use-git-staged", "--require-security-review"],
+    )
+
+    with patch(
+        "subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, "README.md\n", ""),
+    ):
+        assert main() == 0
+
+    assert "No infrastructure/security files detected." in capsys.readouterr().out
 
 
 def test_main_reports_high_risk_findings(
@@ -107,3 +172,75 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code == 0
+
+
+def test_main_json_emits_an_error_object_when_staged_files_are_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A JSON caller must not read empty stdout as "nothing found" (issue #6506)."""
+    monkeypatch.setattr(sys, "argv", ["detect_infrastructure.py", "--use-git-staged", "--json"])
+
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["git"], 15)):
+        assert main() == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["state"] == "BLOCKED"
+    assert payload["reason"] == "timeout"
+    assert "timed out" in payload["detail"]
+    assert "[BLOCKED] detect_infrastructure" in captured.err
+
+
+def test_main_json_error_object_keeps_exit_3_when_review_is_required(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["detect_infrastructure.py", "--use-git-staged", "--json", "--require-security-review"],
+    )
+    failed = subprocess.CompletedProcess([], 128, "", "fatal: not a git repository")
+
+    with patch("subprocess.run", return_value=failed):
+        assert main() == 3
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["state"] == "BLOCKED"
+    assert "not a git repository" in payload["detail"]
+
+
+def test_main_without_json_prints_no_error_object_when_staged_files_are_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["detect_infrastructure.py", "--use-git-staged"])
+
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["git"], 15)):
+        main()
+
+    assert capsys.readouterr().out == ""
+
+
+def test_main_reads_the_staged_index_in_repo_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--repo-root, not the cwd, picks the repository whose index is read."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["detect_infrastructure.py", "--use-git-staged", "--json", "--repo-root", str(tmp_path)],
+    )
+
+    with patch(
+        "subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, "README.md\n", ""),
+    ) as run:
+        assert main() == 0
+
+    assert run.call_args.args[0][:3] == ["git", "--literal-pathspecs", "-C"]
+    assert run.call_args.args[0][3] == str(tmp_path.resolve())
+    assert json.loads(capsys.readouterr().out)["highest_risk"] == "none"

@@ -14,7 +14,10 @@ Returns structured JSON with check states, conclusions, and summary counts.
 Supports polling until checks complete and filtering to required checks only.
 
 Exit codes follow ADR-035:
-    0 - All checks passing (or skipped/pending)
+    0 - All checks passing (or skipped/pending). Exit 0 and Status PASS do not prove
+        the required set: RequiredState carries that. It reads UNKNOWN, not SUCCESS,
+        when --base-branch '' skipped the ruleset or the merge ref is unusable, and a
+        gate must read RequiredState instead of the exit code alone.
     1 - One or more checks failed
     2 - PR not found
     3 - API error
@@ -662,14 +665,18 @@ def derive_required_state(
     pending_required: list[str],
     missing_required: list[str] | None,
     missing_queued: bool = False,
+    merge_ref_usable: bool = True,
 ) -> str:
     """Return the rollup state over required checks only.
 
     UNKNOWN when no checks reported or pagination did not finish, FAILURE when
     a required check failed or a ruleset context never reported past the grace
     window, PENDING when a required check is still running or a ruleset context
-    is only queued (issue #6389), otherwise SUCCESS. Non-required checks never
-    move this value. Issue #6396.
+    is only queued (issue #6389). A green set is SUCCESS only when it is proven:
+    ``missing_required`` of ``None`` means the ruleset was never read, so
+    nothing shows that every required context reported, and a merge ref that
+    cannot be built means most workflows may not have run. Both read UNKNOWN
+    (issue #6506). Non-required checks never move this value. Issue #6396.
     """
     if not has_checks or checks_incomplete:
         return "UNKNOWN"
@@ -677,6 +684,8 @@ def derive_required_state(
         return "FAILURE"
     if pending_required or missing_queued:
         return "PENDING"
+    if missing_required is None or not merge_ref_usable:
+        return "UNKNOWN"
     return "SUCCESS"
 
 
@@ -832,6 +841,7 @@ def build_output(
         pending_required=pending_required,
         missing_required=missing_required,
         missing_queued=missing_queued,
+        merge_ref_usable=merge_ref_usable,
     )
     # REST has no per-row isRequired flag. Without a ruleset listing required
     # checks, no row is marked required, so a green required set is not proven.
@@ -944,7 +954,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--base-branch",
         default=None,
         help="Base branch to read the ruleset from for missing-check detection "
-        "(default: PR base branch). Pass empty string to skip ruleset fetch.",
+        "(default: PR base branch). Pass empty string to skip ruleset fetch; "
+        "RequiredState then reads UNKNOWN, because no ruleset proves every "
+        "required check reported.",
     )
     add_output_format_arg(parser)
     return parser

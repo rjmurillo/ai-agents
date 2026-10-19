@@ -238,7 +238,14 @@ def validate_rule_lossless_fixtures(repo_root: Path) -> bool:
     gate prints one ``cp`` per stale fixture, the repair the test cannot name.
     """
     if not (repo_root / _RULE_LOSSLESS_TEST).is_file():
-        raise MissingScriptSkip(f"{_RULE_LOSSLESS_TEST} not present")
+        # Fail closed: deleting the test must not turn this gate into a SKIP that
+        # leaves the exit code unchanged (issue #6506).
+        print(
+            f"[ERROR] {_RULE_LOSSLESS_TEST} absent; the rule lossless gate cannot run. "
+            "Hard failure: the gate is the point of registering this validator.",
+            file=sys.stderr,
+        )
+        return False
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, "-m", "pytest", _RULE_LOSSLESS_TEST, "-q", "-p", "no:cacheprovider"],
         cwd=repo_root,

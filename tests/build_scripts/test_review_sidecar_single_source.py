@@ -121,7 +121,7 @@ def test_install_path_reads_the_fresh_render_without_a_second_binplace(repo: Pat
     _write(repo, CANONICAL, NEW)
 
     lib_mirror.compile_all(repo)
-    generate_skills.sync_claude_plugin_skill_support(repo)
+    generate_skills.prune_stale_claude_skill_support(repo)
 
     assert _read(repo, lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE) == NEW
     assert _read(repo, lib_mirror.SKILLS_SIDECAR_INSTALL_TREE) == NEW
@@ -149,7 +149,7 @@ def test_other_review_support_files_are_edited_in_the_plugin_tree(repo: Path) ->
 def test_sidecar_is_not_pruned_from_the_plugin_trees(repo: Path) -> None:
     _build(repo)
 
-    removed = generate_skills.sync_claude_plugin_skill_support(repo)[1]
+    removed = generate_skills.prune_stale_claude_skill_support(repo)[1]
 
     assert removed == 0
     assert (repo / lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE).is_file()

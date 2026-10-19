@@ -56,7 +56,7 @@ from lib_mirror import lib_owned_support_files  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
 # _copy_skill_tree, GenerateSkillsError, SkillSupportSyncError,
-# _iter_skill_sources, _DEFAULT_EXCLUDES, and sync_claude_plugin_skill_support
+# _iter_skill_sources, _DEFAULT_EXCLUDES, and prune_stale_claude_skill_support
 # live in skill_support_mirror.py (split for the taste-lint file-size ceiling,
 # ADR-109 B3's support-file follow-up), re-exported here so every existing
 # caller and test that reaches them through generate_skills.<name> keeps
@@ -68,7 +68,7 @@ from skill_support_mirror import (  # noqa: E402,F401
     _copy_skill_tree,
     _iter_skill_sources,
     prune_repo_local_vendor_copies,
-    sync_claude_plugin_skill_support,
+    prune_stale_claude_skill_support,
 )
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
@@ -211,7 +211,7 @@ def generate_skills(
         # directly enough for --warn-return-any to notice.
         return int(compile_result.exit_code)
 
-    sync_written, sync_removed, sync_skipped, sync_errors = sync_claude_plugin_skill_support(
+    sync_written, sync_removed, sync_skipped, sync_errors = prune_stale_claude_skill_support(
         repo_root, what_if=what_if, check=validate
     )
     if sync_written or sync_removed:

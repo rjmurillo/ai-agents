@@ -83,7 +83,8 @@ Detection:
   there is flagged (``.claude/rules/plugin-self-containment.md`` MUST 2); any
   other interpreter is one rule-1 offense. Markdown bare paths belong to
   ``check_skill_md_exec_portability.py``. Allowed YAML offenses are not
-  reported; an allowance that matches nothing prints a ``note:`` on stdout.
+  reported; an allowance that matches nothing is stale and fails the run, so it
+  cannot hide a later offense under the same key (issue #6506).
 
   A line carrying ``plugin-root-interpreter:`` plus a reason, on the offending
   line or the line directly above it, suppresses that one offense. Same
@@ -98,8 +99,8 @@ Detection:
   the original file, not where the operand happened to land.
 
 Exit codes (ADR-035):
-  0 - no offenses found (allowance notes do not change the exit code)
-  1 - one or more offenses found
+  0 - no offenses found and every allowance still matches
+  1 - one or more offenses found, or an allowance matches nothing
   2 - configuration error (git unavailable, an in-scope tracked file could not
       be read, or the scan examined zero files)
 """
@@ -481,15 +482,14 @@ def main(argv: list[str] | None = None) -> int:
 
     for message in offenses:
         print(message, file=sys.stderr)
-    for path, owner, rule, tail in sorted(set(_YAML_ALLOWANCES) - used_allowances):
-        note = f"allowance no longer matches: {path} {owner} {rule} {tail}"
-        print(f"check-plugin-root-interpreter: note: {note}")
+    stale = sorted(set(_YAML_ALLOWANCES) - used_allowances)
+    for entry in stale:
+        message = "check-plugin-root-interpreter: allowance no longer matches: "
+        print(message + " ".join(entry), file=sys.stderr)
 
-    if offenses:
-        print(
-            f"check-plugin-root-interpreter: FAIL ({len(offenses)} offense(s))",
-            file=sys.stderr,
-        )
+    if offenses or stale:
+        counts = f"{len(offenses)} offense(s), {len(stale)} stale allowance(s)"
+        print(f"check-plugin-root-interpreter: FAIL ({counts})", file=sys.stderr)
         return 1
 
     print(f"check-plugin-root-interpreter: OK ({tracked_count} files examined)")

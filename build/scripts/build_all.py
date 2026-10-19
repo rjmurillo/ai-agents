@@ -209,7 +209,7 @@ def _build_skills(
     # today; that is not applicable, not a config error. The compile/drift
     # gate itself is not platform-scoped (see docstring above) and still
     # runs on this path, as does the Claude plugin support-file mirror
-    # (generate_skills.sync_claude_plugin_skill_support): both read fixed,
+    # (generate_skills.prune_stale_claude_skill_support): both read fixed,
     # repo-global paths, never this platform's (absent) stanza.
     try:
         cfg = load_platform_config(config_path)
@@ -221,7 +221,7 @@ def _build_skills(
         compile_result = skill_templates.compile_all(repo_root, validate=check)
         rc = compile_result.exit_code
         sync_written, sync_removed, _, sync_errors = (
-            generate_skills.sync_claude_plugin_skill_support(repo_root, check=check)
+            generate_skills.prune_stale_claude_skill_support(repo_root, check=check)
         )
         for err in sync_errors:
             print(f"Error: {err}", file=sys.stderr)

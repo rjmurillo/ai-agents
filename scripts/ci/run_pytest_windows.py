@@ -26,9 +26,10 @@ suite unseen.
 
 A module can name the marker without applying it (a test called
 `test_detects_windows_path`), so a narrowed selection can collect zero items and
-pytest exits 5. That run proves nothing failed, so a narrowed run maps 5 to 0.
-An unnarrowed run keeps 5: zero items across every marked module means the
-suite itself is gone.
+pytest exits 5. That run proves nothing failed, so a narrowed run maps 5 to 0, and
+prints a `::warning::` naming the selected modules so a green job that ran zero
+tests is visible in the log and the annotations (issue #6506). An unnarrowed run
+keeps 5: zero items across every marked module means the suite itself is gone.
 
 Exit codes (AGENTS.md contract): 0 ok, 2 config, 3 external. Any other code is
 pytest's own and is passed through unchanged.
@@ -122,6 +123,15 @@ def exit_code(returncode: int, *, narrowed: bool) -> int:
     return returncode
 
 
+def zero_collected_warning(selected: list[str]) -> str:
+    """The annotation for a narrowed run where pytest collected no ``MARKER`` item."""
+    shown = ", ".join(selected[:5]) + (f" (+{len(selected) - 5} more)" if len(selected) > 5 else "")
+    return (
+        f"::warning::windows_path run collected 0 items from {len(selected)} selected "
+        f"module(s): {shown}. The job passes because they only name the marker."
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     passthrough = list(sys.argv[1:] if argv is None else argv)
 
@@ -159,7 +169,10 @@ def main(argv: list[str] | None = None) -> int:
         # runner red, which is worse than the outer cap this already has.
         sys.stdout.flush()
         returncode = subprocess.run(command, cwd=PROJECT_ROOT, check=False).returncode
-        return exit_code(returncode, narrowed=len(selected) < len(files))
+        narrowed = len(selected) < len(files)
+        if narrowed and returncode == PYTEST_NO_TESTS:
+            print(zero_collected_warning(selected), file=sys.stderr)
+        return exit_code(returncode, narrowed=narrowed)
     except OSError as exc:
         print(f"could not start pytest: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
