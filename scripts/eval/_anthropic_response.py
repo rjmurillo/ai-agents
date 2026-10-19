@@ -197,3 +197,9 @@ def record_output_tokens(provider: object, metadata: dict[str, object] | None) -
     tokens = getattr(provider, "output_tokens", None)
     if isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0:
         metadata["output_tokens"] = tokens
+
+
+def record_provider_metadata(provider: object, metadata: dict[str, object] | None) -> None:
+    """Copy a non-default provider's output cap, finish reason, and token count."""
+    record_provider_cap(provider, metadata)
+    record_output_tokens(provider, metadata)
