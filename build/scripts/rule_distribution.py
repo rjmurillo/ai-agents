@@ -10,7 +10,9 @@ plugin tree, renders straight to ``.claude/rules/<name>.md``, and reaches
 repository's copies are links into the plugin trees.
 
 ``generate_rules.py`` has applied the same test since issue #4317 to skip a
-rule from a shipped instruction tree; this module is now its single owner.
+rule from a shipped instruction tree. This module owns the shared
+``INTERNAL_PATH_PREFIXES`` tuple; ``generate_rules._filter_internal_globs``
+keeps its own per-glob filter.
 """
 
 from __future__ import annotations

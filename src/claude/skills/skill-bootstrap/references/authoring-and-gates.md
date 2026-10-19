@@ -100,12 +100,14 @@ sibling routes. Put conditional detail in `references/`.
 
 **Every computable claim ships with a script.** For each `instrument` or
 `both` item, the skill gets a script in its scripts directory that computes the
-answer, plus tests with a positive, a negative, and an edge case. Reuse an
-existing project script when one computes the answer; link it instead of
-copying it. Prose covers what no program can carry: the reason, the
-history, and where the script's answer stops being the whole answer. Reject
-a draft that asks the model to count, look up, compare, or list what a
-script could. Scripts follow the project's language and exit-code
+answer. A new script also gets tests with a positive, a negative, and an edge
+case. Reuse an existing instrument first, and add a script only after you
+verify the capability gap. A linked, existing instrument satisfies the script
+requirement; link it instead of copying it. The tests requirement applies only
+to a script you add. Prose covers what no program can carry: the reason, the
+history, and where the script's answer stops being the whole answer. Reject a
+draft that asks the model to count, look up, compare, or list what a script
+could. Scripts follow the project's language and exit-code
 conventions, print the examined count, and stay read-only unless the skill's
 outcome is a write.
 
@@ -116,10 +118,10 @@ The SKILL.md Limits entry records that run `20261017T164000Z-2e1e279c` did not
 show a capability gain from the script-first rule, so this rationale is a
 design argument, not a measured result.
 
-Use a
-Mermaid diagram when the branching is easier to read as a graph. Keep each
-command, coordinate, authority requirement, and success check as text beside
-the diagram.
+Name the map, GPS, or hybrid design (per skillforge Design Selection) only
+where it changes the workflow. Use a Mermaid diagram when the branching is
+easier to read as a graph. Keep each command, coordinate, authority
+requirement, and success check as text beside the diagram.
 
 ## Provenance contract
 

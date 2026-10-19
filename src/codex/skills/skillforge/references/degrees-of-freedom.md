@@ -118,5 +118,5 @@ The key insight: freedom should decrease as you move from thinking to acting. An
 
 ## Related References
 
-- [Script Integration Framework](script-integration-framework.md) -- scripts are the primary tool for low-freedom sections
+- [Script Integration Framework](script-integration-framework.md) -- scripts are the primary tool for low-freedom sections; its Design Selection section chooses map, GPS, or hybrid
 - [Multi-Lens Framework](multi-lens-framework.md) -- analysis lenses are high-freedom by design

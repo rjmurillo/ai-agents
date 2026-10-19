@@ -65,7 +65,7 @@ for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
 
 from check_capability_graph import TreeError, survey  # noqa: E402
 from nl_cardinality import Fence, derived_count_claims, fence_step  # noqa: E402
-from nl_cohesion import MIN_SPREAD, path_spread  # noqa: E402
+from nl_cohesion import MIN_SPREAD, FrontmatterError, path_spread  # noqa: E402
 from nl_debt_ceiling import (  # noqa: E402
     SECTIONS,
     BaseRefError,
@@ -84,6 +84,10 @@ SKILL_ROOT = ".claude/skills"
 # authored comes from `instruction_bytes_corpus.canonical_paths`, the one source of truth.
 EXTRA_AUTHORED_GLOBS: tuple[tuple[str, str], ...] = ((".github/prompts", "*.md"),)
 NL_SUFFIXES = (".md", ".tmpl", ".mustache")
+# A template is a fragment: templates/agents/*.claude.md.tmpl opens `---` and takes its
+# closing fence from a shared include, so its frontmatter is not parseable alone. The
+# rendered rule is what carries `paths:`, so only non-template files fail on bad frontmatter.
+FRAGMENT_SUFFIXES = (".tmpl", ".mustache")
 # `.github/prompts/pr-quality-gate-*.md` is generated from the review skill's
 # references (templates/platforms/binplace.yaml), so it is a projection.
 GENERATED_PROMPT_PREFIX = "pr-quality-gate-"
@@ -207,7 +211,14 @@ def stale_counts(files: dict[str, str]) -> dict[str, str]:
 
 def spreads(files: dict[str, str]) -> dict[str, int]:
     """Map each rule path to its root spread when the spread reaches the cohesion floor."""
-    found = {rel: path_spread(text) for rel, text in files.items()}
+    found: dict[str, int] = {}
+    for rel, text in files.items():
+        try:
+            found[rel] = path_spread(text)
+        except FrontmatterError as exc:
+            if rel.endswith(FRAGMENT_SUFFIXES):
+                continue
+            raise ScanError(f"{rel}: {exc}; the cohesion ratchet cannot measure it") from exc
     return {rel: n for rel, n in sorted(found.items()) if n >= MIN_SPREAD}
 
 

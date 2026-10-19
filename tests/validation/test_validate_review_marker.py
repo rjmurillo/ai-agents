@@ -658,3 +658,37 @@ class TestGitDiagnosticsAreNotFlattened:
             None,
             "git log exited with 1",
         )
+
+
+# --- per-axis passing verdicts (issue #6506) ---------------------------------
+
+
+@pytest.mark.parametrize("verdict", ["WARN", "PARTIAL"])
+def test_security_axis_rejects_warn_and_partial(verdict: str) -> None:
+    assert verdict not in vrm.passing_verdicts_for("security")
+    assert verdict in vrm.passing_verdicts_for("analyst")
+
+
+@pytest.mark.parametrize("verdict", ["PASS", "COMPLIANT"])
+def test_every_axis_accepts_pass_and_compliant(verdict: str) -> None:
+    assert verdict in vrm.passing_verdicts_for("security")
+    assert verdict in vrm.passing_verdicts_for("analyst")
+
+
+@pytest.mark.parametrize("verdict", ["FAIL", "CRITICAL_FAIL", "UNKNOWN", ""])
+def test_no_axis_accepts_a_failing_or_unknown_verdict(verdict: str) -> None:
+    assert verdict not in vrm.passing_verdicts_for("security")
+    assert verdict not in vrm.passing_verdicts_for("analyst")
+
+
+def test_check_report_rows_names_the_security_axis_on_a_warn_row() -> None:
+    sha = "a" * 40
+    report = [f"Reviewed-SHA: {sha}", "analyst: PASS", "security: WARN"]
+    failure = vrm.check_report_rows(report, sha, ("analyst", "security"))
+    assert failure == "report has a non-passing verdict for: security"
+
+
+def test_check_report_rows_accepts_a_warn_on_a_non_security_axis() -> None:
+    sha = "a" * 40
+    report = [f"Reviewed-SHA: {sha}", "analyst: WARN", "security: PASS"]
+    assert vrm.check_report_rows(report, sha, ("analyst", "security")) is None

@@ -6,7 +6,7 @@ B3's support-file follow-up pushed that file over it), the same reason
 ``skill_templates.py`` split ``skill_template_grammar.py`` out of itself: this
 module holds the filesystem primitive (:func:`_copy_skill_tree`, used by both
 the Copilot mirror in ``generate_skills.py``) and the Claude-tree
-reconcile (:func:`sync_claude_plugin_skill_support`). ``generate_skills.py`` imports
+reconcile (:func:`prune_stale_claude_skill_support`). ``generate_skills.py`` imports
 every public and private name it still needs from here and re-exports them,
 so every existing caller and test that reaches them through
 ``generate_skills.<name>`` keeps working unchanged.
@@ -142,7 +142,7 @@ def _copy_skill_tree(
 
     ``skip_filenames``, when given, names relative paths (typically just
     ``SKILL.md``) this call must never write, at all: used by the Claude
-    plugin-tree support-file mirror (:func:`sync_claude_plugin_skill_support`),
+    plugin-tree support-file mirror (:func:`prune_stale_claude_skill_support`),
     whose SKILL.md is owned exclusively by ``skill_templates.compile_all``
     and must never be touched by a plain byte-for-byte copy.
 
@@ -306,10 +306,14 @@ def _vendor_copy_files(skill_dir: Path) -> list[Path]:
     return files
 
 
-def sync_claude_plugin_skill_support(
+def prune_stale_claude_skill_support(
     repo_root: Path, *, what_if: bool = False, check: bool = False
 ) -> tuple[int, int, int, list[str]]:
     """Reconcile ``src/claude/skills`` with each skill's distribution flag.
+
+    Formerly ``sync_claude_plugin_skill_support``, when it mirrored support
+    files from ``.claude/skills`` into the plugin tree. ADR-109 and ADR-110
+    still use the old name; ADR-119 retired the mirror and kept only the prune.
 
     A shipped skill needs no mirror. ``.claude/skills/<name>`` is a relative
     symlink to ``src/claude/skills/<name>`` (binplace ``link`` row,

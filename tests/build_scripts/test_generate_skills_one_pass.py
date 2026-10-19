@@ -123,7 +123,7 @@ def test_support_sync_alone_leaves_a_templated_skill_untouched(tmp_path: Path) -
     _seed_new_skill(tmp_path)
     before = _snapshot(tmp_path)
 
-    result = skill_support_mirror.sync_claude_plugin_skill_support(tmp_path)
+    result = skill_support_mirror.prune_stale_claude_skill_support(tmp_path)
 
     assert result == (0, 0, 0, [])
     assert _snapshot(tmp_path) == before

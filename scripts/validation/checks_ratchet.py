@@ -227,6 +227,8 @@ def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
 
 
 def _normalize_remote_head(repo_root: Path, base_ref: str) -> str | None:
+    # checks_ci_parity._origin_branch repeats the symbolic-ref resolution below and raises
+    # on failure. Keep the two in step (checks_common.py is at the 500-line ceiling).
     if base_ref != "refs/remotes/origin/HEAD":
         return base_ref
     exit_code, stdout, stderr = _run_subprocess(

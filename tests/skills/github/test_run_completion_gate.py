@@ -5480,3 +5480,297 @@ class TestPinnedLinkTrust:
         assert _dispatcher._pinned_link_text(tmp_path / "a" / "link", tmp_path) is None
         assert _dispatcher._pinned_link_text(tmp_path / "sub" / "a" / "link", tmp_path) == "../real"
         assert not marker.exists()
+
+
+class TestImportResolutionOrderAndShadows:
+    """Gaps that predate ADR-119: the resolver must model how Python finds a module.
+
+    Each case plants the file in the PR and asserts the gate halts (exit 2)
+    with the marker file absent, so a halt after execution cannot pass.
+    """
+
+    @staticmethod
+    def _verifier(tmp_path: Path, marker: Path, lib: str = "lib", env_lib: str | None = None):
+        """``verify.py`` writes the marker, then imports ``mod`` from a lib directory."""
+        if env_lib is None:
+            path_expr = (
+                "os.path.join(os.path.dirname(os.path.dirname("
+                f"os.path.abspath(__file__))), {lib!r})"
+            )
+        else:
+            path_expr = env_lib
+        script = tmp_path / "scripts" / "verify.py"
+        script.parent.mkdir(exist_ok=True)
+        script.write_text(
+            "import json, os, pathlib, sys\n"
+            f"sys.path.insert(0, {path_expr})\n"
+            f"pathlib.Path({str(marker)!r}).write_text('ran')\n"
+            "print(json.dumps({'ok': True}))\n"
+            "try:\n"
+            "    import mod\n"
+            "except ImportError:\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+        return script
+
+    def _trusted_module(self, git_repo, tmp_path, marker, lib="lib", env_lib=None):
+        (tmp_path / lib).mkdir(parents=True, exist_ok=True)
+        module = tmp_path / lib / "mod.py"
+        module.write_text("VALUE = 1\n", encoding="utf-8")
+        script = self._verifier(tmp_path, marker, lib, env_lib)
+        config_path = _write_config(tmp_path, [_script_criterion("Order", script)])
+        _commit_as_trusted(git_repo, config_path, script, module)
+        return config_path
+
+    def _run(self, config_path):
+        return _dispatcher.main(["--config", str(config_path), "--pull-request", "1"])
+
+    def test_untouched_module_dispatches(self, git_repo, tmp_path):
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+
+        assert self._run(config_path) == 0
+        assert marker.exists()
+
+    def test_pr_package_beside_a_trusted_module_halts(self, git_repo, tmp_path):
+        # Python prefers lib/mod/__init__.py over lib/mod.py. The module stays
+        # byte-identical; the package is what runs.
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        (tmp_path / "lib" / "mod").mkdir()
+        (tmp_path / "lib" / "mod" / "__init__.py").write_text("EVIL = 1\n", encoding="utf-8")
+        _git(git_repo, "add", "lib/mod")
+        _git(git_repo, "commit", "-q", "-m", "PR plants a package beside the module")
+
+        rc = self._run(config_path)
+
+        assert rc == 2
+        assert not marker.exists(), "the package Python prefers must not run unverified"
+
+    @pytest.mark.parametrize(
+        "shadow",
+        [
+            "mod.cpython-312-x86_64-linux-gnu.so",
+            "mod.abi3.so",
+            "mod.so",
+            "mod.cp312-win_amd64.pyd",
+            "mod.pyd",
+            "mod.pyc",
+        ],
+    )
+    def test_pr_compiled_or_sourceless_module_beside_a_trusted_module_halts(
+        self, git_repo, tmp_path, shadow
+    ):
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        (tmp_path / "lib" / shadow).write_bytes(b"\x00not python\x00")
+        _git(git_repo, "add", f"lib/{shadow}")
+        _git(git_repo, "commit", "-q", "-m", "PR plants a shadowing module")
+
+        rc = self._run(config_path)
+
+        assert rc == 2
+        assert not marker.exists(), "a shadowing module must not run unverified"
+
+    def test_pr_pycache_pyc_beside_a_trusted_module_halts(self, git_repo, tmp_path):
+        # PEP 552: an unchecked-hash pyc in __pycache__ runs in place of the
+        # byte-identical lib/mod.py.
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        cached = tmp_path / "lib" / "__pycache__" / "mod.cpython-312.pyc"
+        cached.parent.mkdir()
+        cached.write_bytes(b"\x00")
+        _git(git_repo, "add", str(cached.relative_to(tmp_path)))
+        _git(git_repo, "commit", "-q", "-m", "PR plants an unchecked-hash pyc")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists(), "a cached pyc must not run unverified"
+
+    def test_untracked_pycache_from_a_prior_step_does_not_halt(self, git_repo, tmp_path):
+        # Python writes lib/__pycache__ whenever an earlier step imports the
+        # lib. Untracked bytes are the operator's own state, not PR content.
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        cached = tmp_path / "lib" / "__pycache__" / "mod.cpython-312.pyc"
+        cached.parent.mkdir()
+        cached.write_bytes(b"\x00")
+
+        assert self._run(config_path) == 0
+        assert marker.exists()
+
+    def test_pr_symlinked_shadow_halts(self, git_repo, tmp_path):
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        (tmp_path / "evil").mkdir()
+        (tmp_path / "evil" / "payload").write_bytes(b"\x00")
+        (tmp_path / "lib" / "mod.so").symlink_to("../evil", target_is_directory=True)
+        _git(git_repo, "add", "lib/mod.so", "evil")
+        _git(git_repo, "commit", "-q", "-m", "PR plants a symlinked shadow")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists()
+
+    def test_pr_shadow_under_an_ancestor_package_halts(self, git_repo, tmp_path):
+        marker = tmp_path / "ran.txt"
+        (tmp_path / "lib" / "pkg").mkdir(parents=True)
+        (tmp_path / "lib" / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+        (tmp_path / "lib" / "pkg" / "sub.py").write_text("VALUE = 1\n", encoding="utf-8")
+        script = self._verifier(tmp_path, marker)
+        script.write_text(
+            script.read_text().replace("import mod", "import pkg.sub"), encoding="utf-8"
+        )
+        config_path = _write_config(tmp_path, [_script_criterion("Ancestor", script)])
+        _commit_as_trusted(
+            git_repo,
+            config_path,
+            script,
+            tmp_path / "lib" / "pkg" / "__init__.py",
+            tmp_path / "lib" / "pkg" / "sub.py",
+        )
+        shadow = tmp_path / "lib" / "pkg" / "sub.cpython-312-x86_64-linux-gnu.so"
+        shadow.write_bytes(b"\x00")
+        _git(git_repo, "add", str(shadow.relative_to(tmp_path)))
+        _git(git_repo, "commit", "-q", "-m", "PR plants a shadow in a package")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists()
+
+    def test_shadow_the_trusted_ref_holds_identically_does_not_halt(self, git_repo, tmp_path):
+        # Negative control: a compiled module the base branch already ships is
+        # vouched for, so the gate must not halt on every legitimate .so.
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        shadow = tmp_path / "lib" / "mod.so"
+        shadow.write_bytes(b"\x00")
+        _git(git_repo, "add", "lib/mod.so")
+        _git(git_repo, "commit", "-q", "-m", "trusted shadow")
+        _git(git_repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+        assert self._run(config_path) == 0
+        assert marker.exists()
+
+    def test_verified_shadow_appears_in_the_trust_report(self, git_repo, tmp_path, capsys):
+        # A tracked shadow the gate compared must be listed, so the report
+        # names every file behind a trusted verdict.
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        (tmp_path / "lib" / "mod.so").write_bytes(b"\x00")
+        _git(git_repo, "add", "lib/mod.so")
+        _git(git_repo, "commit", "-q", "-m", "trusted shadow")
+        _git(git_repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert "lib/mod.so" in payload["command_trust"]["checked_files"]
+
+    def test_pr_edit_to_a_trusted_shadow_halts(self, git_repo, tmp_path):
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        shadow = tmp_path / "lib" / "mod.so"
+        shadow.write_bytes(b"\x00")
+        _git(git_repo, "add", "lib/mod.so")
+        _git(git_repo, "commit", "-q", "-m", "trusted shadow")
+        _git(git_repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        shadow.write_bytes(b"\x01evil")
+        _git(git_repo, "commit", "-q", "-am", "PR edits the shadow")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists()
+
+    def test_pr_edit_to_the_plugin_root_lib_halts(self, git_repo, tmp_path, monkeypatch):
+        # The verifier sits outside any lib ancestor and reaches the module only
+        # through CLAUDE_PLUGIN_ROOT. No pinned link is involved.
+        marker = tmp_path / "ran.txt"
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path / "plug"))
+        config_path = self._trusted_module(
+            git_repo,
+            tmp_path,
+            marker,
+            lib="plug/lib",
+            env_lib="os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'], 'lib')",
+        )
+        (tmp_path / "plug" / "lib" / "mod.py").write_text("VALUE = 2\n", encoding="utf-8")
+        _git(git_repo, "commit", "-q", "-am", "PR edits the plugin root lib")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists()
+
+    def test_pr_edit_to_the_workspace_claude_lib_halts(self, git_repo, tmp_path, monkeypatch):
+        marker = tmp_path / "ran.txt"
+        for var in ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+        config_path = self._trusted_module(
+            git_repo,
+            tmp_path,
+            marker,
+            lib=".claude/lib",
+            env_lib="os.path.join(os.environ['GITHUB_WORKSPACE'], '.claude', 'lib')",
+        )
+        (tmp_path / ".claude" / "lib" / "mod.py").write_text("VALUE = 2\n", encoding="utf-8")
+        _git(git_repo, "commit", "-q", "-am", "PR edits the workspace lib")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists()
+
+    def test_environment_libs_outside_the_work_tree_are_not_roots(
+        self, git_repo, tmp_path, monkeypatch
+    ):
+        outside = tmp_path.parent / f"{tmp_path.name}-plugin"
+        (outside / "lib").mkdir(parents=True)
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(outside))
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(outside))
+
+        assert _dispatcher._environment_libs(tmp_path.resolve()) == []
+
+    def test_import_candidates_follow_pythons_order(self, tmp_path):
+        parts = ["pkg", "mod"]
+
+        assert _dispatcher._module_candidates(tmp_path, parts) == [
+            tmp_path / "pkg" / "mod" / "__init__.py",
+            tmp_path / "pkg" / "mod.py",
+        ]
+
+    def test_symlink_message_fits_a_pinned_link_that_escapes(self, git_repo, tmp_path):
+        # lib -> ../<outside> is in the trusted ref, so it is pinned, but its
+        # target leaves the work tree. The message must not call it unpinned.
+        marker = tmp_path / "ran.txt"
+        outside = tmp_path.parent / f"{tmp_path.name}-outside"
+        outside.mkdir()
+        (outside / "mod.py").write_text("VALUE = 1\n", encoding="utf-8")
+        script = self._verifier(tmp_path, marker)
+        (tmp_path / "scripts" / "lib").symlink_to(f"../../{outside.name}", target_is_directory=True)
+        config_path = _write_config(tmp_path, [_script_criterion("Escape", script)])
+        _commit_as_trusted(git_repo, config_path, script, tmp_path / "scripts" / "lib")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists()
+        sites = _dispatcher._symlinked_import_sites(["scripts/verify.py"], tmp_path.resolve())
+        assert sites
+        assert all("unpinned" not in site for site in sites)
+        assert all("does not pin or that cannot be followed" in site for site in sites)
+
+    def test_symlink_scan_halts_on_a_link_an_earlier_root_shadows(self, git_repo, tmp_path):
+        # scripts/mod.py is found first, yet the unpinned link at lib/ still
+        # halts: every root is scanned, on purpose.
+        marker = tmp_path / "ran.txt"
+        config_path = self._trusted_module(git_repo, tmp_path, marker)
+        (tmp_path / "scripts" / "mod.py").write_text("VALUE = 0\n", encoding="utf-8")
+        _git(git_repo, "add", "scripts/mod.py")
+        _git(git_repo, "commit", "-q", "-m", "trusted sibling")
+        _git(git_repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        (tmp_path / "evil").mkdir()
+        (tmp_path / "evil" / "mod.py").write_text("VALUE = 2\n", encoding="utf-8")
+        _git(git_repo, "rm", "-q", "-r", "lib")
+        (tmp_path / "lib").symlink_to("evil", target_is_directory=True)
+        _git(git_repo, "add", "lib", "evil")
+        _git(git_repo, "commit", "-q", "-m", "PR swaps lib for a link")
+
+        assert self._run(config_path) == 2
+        assert not marker.exists()

@@ -11,7 +11,7 @@
 [Constraints]
 |`validate_templates_schema.py` validates only a `platforms/*.yaml` carrying a... (see: .project-toolkit/context/templates/details/constraints.md)
 [Dangerous assumptions]
-|`.claude/rules/templates.md` renders from `rules/templates.md` and is stale: ... (see: .project-toolkit/context/templates/details/dangerous-assumptions.md)
+|`uv run python build/generate_agents.py` alone never populates `copilot_sourc... (see: .project-toolkit/context/templates/details/dangerous-assumptions.md)
 [Dependencies]
 |Generator order, `OWNED_PREFIXES`, the binplace step, gate semantics, the lib... (see: .project-toolkit/context/templates/details/dependencies.md)
 [Architecture]

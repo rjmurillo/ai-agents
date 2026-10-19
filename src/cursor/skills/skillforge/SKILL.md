@@ -183,7 +183,10 @@ and [references/specification-template.md](references/specification-template.md)
 
 Generate the skill directory in this order: structure, `SKILL.md`, references,
 assets, then scripts when scripts are needed. Keep `SKILL.md` concise and move
-deep detail into progressive-disclosure reference files.
+deep detail into progressive-disclosure reference files. Choose map, GPS, or
+hybrid design with the Design Selection section of the script integration
+framework. Record that choice in the generated skill only where it changes the
+workflow. Reuse an existing tool before adding a script.
 
 See [references/phase3-generation-deep-dive.md](references/phase3-generation-deep-dive.md),
 [references/output-structure.md](references/output-structure.md),
@@ -290,7 +293,7 @@ After creation:
 - [ ] `python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci` exits `0` (`1` means oversized, `2` means it audited nothing)
 - [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
-- [ ] Scripts self-verify when scripts are present
+- [ ] Scripts fail fast, and a separate check confirms the outcome where it can be checked independently, when scripts are present
 - [ ] Every claim in the body is something the model could not already know. Generic engineering knowledge moved to `references/` or deleted
 - [ ] Body earns its length: if the description alone would produce the same behavior, cut the body down to what it adds
 
@@ -298,7 +301,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
+The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with fast-fail checks and independent postcondition checks. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
 
 | Script | Purpose |
 |--------|---------|
@@ -312,6 +315,7 @@ The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, vali
 | `check_docs_safety.py` | Safety scan of generated documentation |
 | `frontmatter.py` | Internal helper module: shared YAML frontmatter parsing (imported, not run directly) |
 | `_constants.py` | Internal helper module: shared constants and thresholds (imported, not run directly) |
+| `_inflection.py` | Internal helper module: shared word-inflection matching for discovery and triage (imported, not run directly) |
 
 See [references/script-integration-framework.md](references/script-integration-framework.md) for when to add scripts and [references/script-patterns-catalog.md](references/script-patterns-catalog.md) for the standard patterns.
 

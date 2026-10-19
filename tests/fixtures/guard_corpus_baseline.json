@@ -282,12 +282,6 @@
         0
       ]
     ],
-    "security-detection/detect_infrastructure.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "security-scan/scripts/scan_vulnerabilities.py": [
       [
         "result = subprocess.run(",

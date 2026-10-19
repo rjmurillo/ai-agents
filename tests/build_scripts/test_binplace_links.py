@@ -236,6 +236,18 @@ def test_live_manifest_links_agents_skills_rules_and_instructions() -> None:
     assert rows["skills-sidecar"].install_tree is None
 
 
+def test_plugin_entry_refusal_names_both_causes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plugin, install = _plugin(tmp_path), _install(tmp_path)
+    (tmp_path / "outside").mkdir()
+    (plugin / "chained").symlink_to(tmp_path / "outside", target_is_directory=True)
+
+    binplace_links.link_row(plugin, install, check=False)
+
+    assert "is a symlink or resolves outside" in capsys.readouterr().err
+
+
 def test_plugin_entry_that_is_a_symlink_is_refused(tmp_path: Path) -> None:
     plugin, install = _plugin(tmp_path), _install(tmp_path)
     (tmp_path / "outside").mkdir()

@@ -137,15 +137,31 @@ def test_allowance_suppresses_only_its_key(tmp_path: Path, monkeypatch: pytest.M
     assert used == {key}
 
 
-def test_main_notes_an_allowance_that_no_longer_matches(
+def test_main_fails_on_an_allowance_that_no_longer_matches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Issue #6506: a stale allowance fails the run so it cannot hide a later offense."""
     key = ("skills/demo/config.yaml", "a", "bare-path", "skills/foo/scripts/gone.py")
     monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
     repo = make_repo(tmp_path, {**_STDLIB, _CONFIG: "a: 1\n"})
+    assert checker.main(["--repo-root", str(repo)]) == 1
+    captured = capsys.readouterr()
+    assert "allowance no longer matches: skills/demo/config.yaml a bare-path" in captured.err
+    assert "0 offense(s), 1 stale allowance(s)" in captured.err
+    assert "OK" not in captured.out
+
+
+def test_main_passes_when_every_allowance_still_matches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key = ("skills/demo/config.yaml", "a", "bare-path", "skills/foo/scripts/bar.py")
+    monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
+    repo = make_repo(
+        tmp_path,
+        {**_STDLIB, ".claude/skills/foo/scripts/bar.py": "import json\n", _CONFIG: _BARE_BAR},
+    )
     assert checker.main(["--repo-root", str(repo)]) == 0
-    out = capsys.readouterr().out
-    assert "allowance no longer matches: skills/demo/config.yaml a bare-path" in out
+    assert "no longer matches" not in capsys.readouterr().err
 
 
 def test_shipped_config_offenses_are_all_allowed() -> None:
