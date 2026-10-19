@@ -61,6 +61,17 @@ Write the answers as a structured block (the `## Step 0 First Principles` block)
 
 The pass criteria, hedge phrase validation table, script-resolution rules, kill criteria, and archival policy are in the `spec-generator` skill's `references/spec-step0-gates.md`.
 
+#### Reframing check (only while the architecture is open)
+
+Runs with Q2. Treat today's workflow as evidence of the goal and its constraints, not as a template for the solution. Ask what becomes possible if the agent works through a purpose-built interface, instrument, representation, or coordination protocol instead of repeating human UI or process steps.
+
+- Workflow automation is the same work, faster. Capability invention is new work, or a materially different and previously impractical way to reach the goal. Say which one the spec proposes, and name the capability it enables.
+- A proposed tool needs grounded demand (Q1), an owner, an authority boundary, a falsifiable success check, and a maintenance cost. Novelty alone is not value. Judge the resulting system, not the number of tools.
+- Skip this check when the spec is frozen, the task is a narrow edit, or the architecture is already accepted. Downstream agents honor that decision and do not reopen it. Autonomy tiers and approval gates are unchanged.
+- Map, GPS, or both (`skill-bootstrap`) is chosen after this question is settled.
+
+End the Q2 answer with one sentence recording the outcome: `Reframing: skipped (<reason>)`, `Reframing: automation only`, or `Reframing: capability invention, check: <falsifiable signal>`.
+
 ### Step 0.5: Memory-First Gate
 
 {{> bound-the-search}}
