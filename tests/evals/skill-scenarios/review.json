@@ -65,7 +65,7 @@
     {
       "id": "S6",
       "desc": "A round 2 finding on a pre-existing defect goes to flagged notes",
-      "input": "I am running /review --round 2 on a PR after one fix-and-re-review round. The security axis returned CRITICAL_FAIL for an unchecked path join in legacy/uploader.py:88. The PR diff never touches legacy/uploader.py, and the PR claims no acceptance criterion about it. What counts toward the verdict, and does it start round 3? Answer in 5 short bullets. Do not modify any files.",
+      "input": "I am running /review --round 2 on a PR after one fix-and-re-review round. The security axis returned CRITICAL_FAIL for an unchecked path join in legacy/uploader.py. The PR diff never touches legacy/uploader.py, and the PR claims no acceptance criterion about it. What counts toward the verdict, and does it start round 3? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "flagged note",
         "not counted",
@@ -79,7 +79,7 @@
     {
       "id": "S7",
       "desc": "A round 2 defect introduced by the round 1 fix still counts",
-      "input": "I am running /review --round 2. In round 1 I pushed a fix commit that added src/retry.py. The correctness pass now reports that src/retry.py:14 swallows the timeout exception my fix introduced. Does it count toward the verdict? Answer in 4 short bullets. Do not modify any files.",
+      "input": "I am running /review --round 2. In round 1 I pushed a fix commit that added src/retry.py. The correctness pass now reports that src/retry.py swallows the timeout exception my fix introduced. Does it count toward the verdict? Answer in 4 short bullets. Do not modify any files.",
       "expected_signals": [
         "counts",
         "fix commit",
