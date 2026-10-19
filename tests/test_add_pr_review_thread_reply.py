@@ -560,7 +560,7 @@ class TestExpectedIdentity:
 
     def test_matching_identity_replies_guards_and_resolves(self):
         rc, calls, guard_calls = _run_with_identity(
-            [_live_state(), _live_state()], ["--resolve", *_IDENTITY_ARGS]
+            [_live_state(), _live_state(), _live_state()], ["--resolve", *_IDENTITY_ARGS]
         )
 
         assert rc == 0
@@ -608,7 +608,7 @@ class TestExpectedIdentity:
     def test_moved_head_without_expectation_keeps_existing_behavior(self):
         """Negative control: no expected arguments means no identity check."""
         rc, calls, guard_calls = _run_with_identity(
-            [_live_state(headRefOid="ccc333"), _live_state(headRefOid="ccc333")],
+            [_live_state(headRefOid="ccc333")] * 3,
             ["--resolve"],
         )
 

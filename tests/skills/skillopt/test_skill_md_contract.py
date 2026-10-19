@@ -117,6 +117,13 @@ def test_skill_md_documents_every_verdict_and_boundary() -> None:
 
 
 @pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_skill_md_budget_step_documents_zero_based_indexing(root: str) -> None:
+    text = " ".join(_skill_md(root).split())
+    assert "`skillopt.py budget --step T --total N`" in text
+    assert "T is 0-based, from 0 to N-1" in text
+
+
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
 def test_ceiling_guidance_forbids_regating_the_same_candidate(root: str) -> None:
     skill_dir = _skill_dir(root)
     for rel in ("SKILL.md", "references/eval-set-format.md"):

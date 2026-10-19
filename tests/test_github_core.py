@@ -38,6 +38,7 @@ from scripts.github_core import (
     get_unresolved_review_threads,
     gh_api_paginated,
     gh_graphql,
+    is_allowed_body_file_path,
     is_gh_authenticated,
     is_github_name_valid,
     is_safe_file_path,
@@ -423,6 +424,60 @@ class TestAssertValidBodyFileGitDir:
         with pytest.raises(SystemExit) as exc:
             assert_valid_body_file(str(outside_file), None)
         assert exc.value.code == 2
+
+
+class TestIsAllowedBodyFilePath:
+    """is_allowed_body_file_path is the one containment rule (issue #6667)."""
+
+    def test_accepts_scratchpad_path_under_temp_root(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        scratch = tmp_path / "claude-1000" / "scratchpad"
+        scratch.mkdir(parents=True)
+        body = scratch / "close5369.md"
+        body.write_text("body")
+        assert is_allowed_body_file_path(str(body)) is True
+
+    def test_accepts_path_under_repo_root(self):
+        assert is_allowed_body_file_path(str(Path(__file__).resolve())) is True
+
+    def test_rejects_path_outside_every_root(self, external_tmp_path: Path, monkeypatch):
+        from scripts.github_core import validation as _validation
+
+        monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [])
+        monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])
+        outside = external_tmp_path / "body.md"
+        outside.write_text("x")
+        assert is_allowed_body_file_path(str(outside)) is False
+
+    def test_symlink_in_temp_root_pointing_outside_is_rejected(
+        self, tmp_path: Path, external_tmp_path: Path, monkeypatch
+    ):
+        from scripts.github_core import validation as _validation
+
+        monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [str(tmp_path.resolve())])
+        monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])
+        target = external_tmp_path / "secret.md"
+        target.write_text("secret")
+        link = tmp_path / "link.md"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+        assert is_allowed_body_file_path(str(link)) is False
+
+    def test_rejects_parent_traversal_pattern(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        (tmp_path / "sub").mkdir()
+        assert is_allowed_body_file_path(str(tmp_path / "sub" / ".." / "x.md")) is False
+
+    def test_takes_only_the_path(self):
+        import inspect
+
+        assert list(inspect.signature(is_allowed_body_file_path).parameters) == ["path"]
+
+    def test_never_exits_for_missing_file(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        assert is_allowed_body_file_path(str(tmp_path / "missing.md")) is True
 
 
 # ---------------------------------------------------------------------------

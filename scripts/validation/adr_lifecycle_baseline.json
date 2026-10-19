@@ -25,7 +25,6 @@
       ".project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md": 1,
       ".project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md": 2,
       ".project-toolkit/architecture/ADR-081-confidence-elicitation-experiment.md": 1,
-      ".project-toolkit/architecture/ADR-083-copilot-dogfood-surface-separation.md": 2,
       ".project-toolkit/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md": 3,
       ".project-toolkit/architecture/ADR-092-omit-plugin-manifest-version.md": 1,
       ".project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md": 2,

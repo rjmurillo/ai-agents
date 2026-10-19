@@ -11,6 +11,8 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from scripts.github_core import orphaned_commits as oc
 
 LIVE = "a" * 40
@@ -203,6 +205,23 @@ class TestScanUnpushed:
         report = oc.scan_unpushed_commits("--output=/tmp/x", git)
         assert report["status"] == "unverified"
         assert git.calls == []
+
+    @pytest.mark.parametrize(
+        "value",
+        [LIVE + "\n", "\n" + LIVE, LIVE + "\r\n", LIVE + " ", "a" * 6, "a" * 65, "g" * 40, ""],
+    )
+    def test_malformed_sha_never_reaches_git(self, value):
+        git = FakeGit()
+        report = oc.scan_unpushed_commits(value, git)
+        assert report["status"] == "unverified"
+        assert "not a commit SHA" in str(report["reason"])
+        assert git.calls == []
+
+    @pytest.mark.parametrize("value", ["a" * 7, "A" * 40, "0123456789abcdefABCDEF", "f" * 64])
+    def test_well_formed_sha_reaches_git(self, value):
+        git = FakeGit()
+        oc.scan_unpushed_commits(value, git)
+        assert git.calls[0][:2] == ["merge-base", "--is-ancestor"]
 
 
 class TestScanIfEscalated:
