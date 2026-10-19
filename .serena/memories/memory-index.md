@@ -210,9 +210,9 @@
 
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (1019)
-|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2739), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1693)
+|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure semgrep io_uring ENOMEM EIO_BACKEND: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2739), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1813)
 |github pr stack base branch delete-branch merge_pr dependent closed retarget sidecar: [github-observations](github-observations.md) (253)
-|orchestrator subagent owner approval relayed refuse approve-untrusted-config sidecar: [orchestrator-observations](orchestrator-observations.md) (118)
+|orchestrator subagent owner approval relayed refuse approve-untrusted-config sidecar mid-turn message fan-out label duplicate credits quota reviewer review-loop convergence frozen-contract eureka review-date pre-written-amendment adr-083: [orchestrator-observations](orchestrator-observations.md) (646)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1660)
 |eval keyword grader verbatim phrase prompt wording behavior text-pinning ADR-057 false failure: [eval/eval-keyword-graders-test-wording-not-behavior](eval/eval-keyword-graders-test-wording-not-behavior.md) (358)
