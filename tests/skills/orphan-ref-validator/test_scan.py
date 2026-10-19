@@ -2419,6 +2419,8 @@ class TestTheMemoryCorpusIsGateable:
         real_catalog = _repo_root() / ".claude" / "skills"
         if not real_catalog.is_dir():
             pytest.skip("no skills catalog in this checkout")
+        shared = _repo_root() / ".serena" / "memories" / PLANTED_PROBE_NAME
+        shared_before = shared.exists()
         root = tmp_path / "repo"
         (root / ".git").mkdir(parents=True)
         (root / ".claude").mkdir()
@@ -2427,8 +2429,7 @@ class TestTheMemoryCorpusIsGateable:
         write(probe, "See the `doc-coverage` skill.\n")
         result = scan([probe], root)
         assert _skill_names(result) == {"doc-coverage"}
-        shared = _repo_root() / ".serena" / "memories" / PLANTED_PROBE_NAME
-        assert not shared.exists(), "the probe leaked into the shared checkout"
+        assert shared.exists() == shared_before, "the test touched the shared checkout"
 
 
 class TestDocumentationMayQuoteARouteWithoutBecomingOne:
