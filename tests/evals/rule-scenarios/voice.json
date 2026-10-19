@@ -1,6 +1,12 @@
 {
   "rule_path": ".claude/rules/voice.md",
   "rule_id": "voice",
+  "load_bearing": {
+    "control_instruction": "Reporting style for this task: be thorough and explicit. Write full sentences. Restate the context, narrate each step you took, and explain your reasoning before you give the result. Describe finished work as complete and successful.",
+    "min_shrink_vs_control": 0.25,
+    "min_score_gain_vs_control": 0.5,
+    "max_exempt_shrink_vs_baseline": 0.2
+  },
   "scenarios": [
     {
       "id": "V1",

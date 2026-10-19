@@ -909,6 +909,29 @@ The gate cannot fire for `capability-first.json` today. It targets `universal.md
 
 `tests/evals/rule-scenarios/capability-first.json` is the first user (issue #6658). It freezes five decision classes (measure not guess, reuse before build, preserve judgment, verify independently, no false capability claim) plus one negative case. It targets `universal.md` today and should repoint to the capability-first rule when #6656 lands. Until then `eval-suite.py` does not select it: `find_rule_scenarios` keys by `rule_path`, `universal.json` also sets `.claude/rules/universal.md`, and the last sorted file wins, so run `capability-first.json` with a direct `--scenarios tests/evals/rule-scenarios/capability-first.json` call. Its results key is `capability-first`, so `eval-suite.py` would not find a verdict under `universal` either. Offline check: `uv run pytest tests/eval/test_capability_first_scenarios.py tests/eval/test_decision_grade.py`.
 
+### Load-bearing contract (`load_bearing`)
+
+The judge scores vocabulary and cannot see length. On `claude-cli` the `baseline` arm also carries the Claude Code default prompt, so "full beats baseline" does not show that a rule shortens output or blocks a false success report. A scenario file opts in to a contrast arm and three checks with a top-level `load_bearing` object (issue #5405; `voice.json` is the first user):
+
+```json
+"load_bearing": {
+  "control_instruction": "Reporting style for this task: be thorough and explicit. ...",
+  "min_shrink_vs_control": 0.25,
+  "min_score_gain_vs_control": 0.5,
+  "max_exempt_shrink_vs_baseline": 0.2
+}
+```
+
+The harness runs a fourth cell, `control`, with `control_instruction` as the system prompt and no rule text. The control arm is not in `MECHANISMS`, so no gate, ranking, or decision check reads it and a declared contract cannot change the verdict. It costs one more call plus judges per scenario (`--dry-run` counts it). The contract reports under `summary.load_bearing` and prints after the table:
+
+- `concision`: positive pool, the rule arm's output is at least `min_shrink_vs_control` smaller than the control arm's.
+- `grounding`: positive pool, the rule arm's judge average beats the control arm's by at least `min_score_gain_vs_control`.
+- `exempt`: negative pool (requested detail, long-form deliverables), the rule arm's output is not more than `max_exempt_shrink_vs_baseline` smaller than `baseline`'s. This is the length-aware check the judge cannot make.
+
+Output size is `output_tokens` when both sides reported it on every scenario in the pool, else `response_chars` under the same rule. A side that covers part of a pool reads `UNMEASURED`, never a pass. `claude-cli` counts thinking tokens in `output_tokens`. The overall status is `FAIL` if any check failed, `UNMEASURED` if none failed but one could not be measured, else `PASS`. Anything other than `PASS` makes the run exit 1, even when the verdict is `PASS`. The file loader refuses a missing, non-numeric, or out-of-range field with exit 2 before any call.
+
+The control arm is an instruction contrast, not a rule-absent arm. It shows the harness separates two instruction sets and that the rule's effect exceeds the model's own spread. It leaves the baseline-equals-full confound visible instead of removing it. The thresholds in `voice.json` are first values with no run behind them. The one archived exempt measurement (2026-10-18, negative pool 1498.8 to 1489.0 characters, a 0.7% shrink) would pass. Each cell is one sample, so recalibrate after a multi-run record exists. The record for the check is a live run (`EVAL_PROVIDER=claude-cli`, at least 3 runs per ADR-057); this change adds the harness and has no live run.
+
 ### Evidence states in the coverage gate
 
 `scripts/validation/report_rule_activation_states.py --output PATH` writes JSON that keeps each evidence state apart, so baseline membership is never read as efficacy:
