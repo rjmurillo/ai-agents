@@ -68,6 +68,14 @@ from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
 from _anthropic_response import NON_SCOREABLE_TERMINATIONS
+from _decision_grade import (
+    VERDICT_FAIL_DECISION,
+    decision_gate,
+    grade_decision,
+    render_decision_check,
+    summarize_decisions,
+    validate_decision_spec,
+)
 from _eval_common import (
     EST_TOKENS_PER_CALL,
     MalformedProviderMetadataError,
@@ -1157,6 +1165,9 @@ def eval_one_scenario(
         "negative_case": _is_negative_gate(scenario.get("expected_gate")),
         "mechanisms": {},
     }
+    decision_spec = scenario.get("decision")
+    if decision_spec is not None:
+        result["decision_declared"] = True
 
     for mechanism in MECHANISMS:
         system = build_system_prompt(mechanism, rule, rule_id)
@@ -1278,6 +1289,18 @@ def eval_one_scenario(
             "score_reducer": judge_reducer,
             "system_prompt_chars": len(system),
         }
+        if decision_spec is not None:
+            termination = metadata.get("termination")
+            if termination in NON_SCOREABLE_TERMINATIONS:
+                # REQ-037 AC-9: a refusal, a token-limit cutoff, or an
+                # incomplete stop is never graded as a right or wrong call.
+                # With no `decision` key, summarize_decisions leaves the cell
+                # ungraded, the same way it treats an API error.
+                mechanism_result["decision_ungraded"] = str(termination)
+            else:
+                # Graded on the response itself, so rule vocabulary in the
+                # prose cannot move it. The judge scores above are unchanged.
+                mechanism_result["decision"] = grade_decision(decision_spec, response).to_dict()
         _add_mechanism_metadata(mechanism_result, routing, fingerprint)
         # A response cut at the token cap, refused, or otherwise unfinished is
         # shorter than the full answer, so its size says nothing about the rule.
@@ -2404,6 +2427,11 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                     file=sys.stderr,
                 )
                 return 2
+        if "decision" in sc:
+            decision_error = validate_decision_spec(sc["decision"])
+            if decision_error is not None:
+                print(f"ERROR: scenarios[{idx}]: {decision_error} in {spath}", file=sys.stderr)
+                return 2
     return _validate_scenario_pools(scenarios, spath)
 
 
@@ -2629,6 +2657,11 @@ def _process_one_rule(
         )
         print(f"  description present: {bool(rule['description'])}")
         print(f"  body chars: {len(rule['body'])}")
+        decision_count = sum(1 for sc in scenarios if "decision" in sc)
+        if decision_count:
+            print(
+                f"  decision-graded scenarios: {decision_count} (pass rate UNMEASURED in a dry run)"
+            )
         return rule_id, None, n_calls
 
     scenario_results: list[dict[str, Any]] = []
@@ -2649,7 +2682,14 @@ def _process_one_rule(
         scenario_results.append(r)
 
     summary = aggregate(scenario_results, routed=reference_path is not None)
+    decision_check = summarize_decisions(scenario_results, MECHANISMS)
+    if decision_check["declared"]:
+        # Before the table, so the verdict it prints is the one the run exits on.
+        _apply_decision_gate(summary, decision_check)
+        summary["decision_check"] = decision_check
     print(render_table(rule_id, summary))
+    if decision_check["declared"]:
+        print(render_decision_check(decision_check, MECHANISMS))
     result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
     if reference_path is not None:
         result_paths["reference_path"] = str(reference_path.relative_to(REPO_ROOT))
@@ -2662,6 +2702,21 @@ def _process_one_rule(
         },
         n_calls,
     )
+
+
+def _apply_decision_gate(summary: dict[str, Any], decision_check: dict[str, Any]) -> None:
+    """Withhold a PASS that the judge gave over wrong or unmeasured calls.
+
+    The judge scores vocabulary, so every decision cell can fail while the
+    judge passes the run. Only a PASS is taken, as with NO_NEGATIVE_CASES: a
+    verdict that already failed names a more specific defect and stays. The
+    positive pool is read on `description`, the mechanism the positive verdict
+    certifies; the negative pool on the mechanisms the negative floor reads.
+    """
+    gate = decision_gate(decision_check, ["description"], summary["negative_gate_mechanisms"])
+    decision_check["gate"] = gate
+    if summary["verdict"] == "PASS" and (gate["failed"] or gate["incomplete"]):
+        summary["verdict"] = VERDICT_FAIL_DECISION
 
 
 def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:

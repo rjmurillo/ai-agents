@@ -35,9 +35,6 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
 ]
-serena = [
-    # Serena memory integration (when available)
-]
 
 [project.scripts]
 semantic-hooks = "semantic_hooks.cli:main"
@@ -51,13 +48,11 @@ packages = ["src/semantic_hooks"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "hooks" = "share/semantic-hooks/hooks"
-"templates" = "share/semantic-hooks/templates"
 
 [tool.hatch.build.targets.sdist]
 include = [
     "src/",
     "hooks/",
-    "templates/",
 ]
 
 [tool.ruff]
