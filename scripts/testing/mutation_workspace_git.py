@@ -312,21 +312,40 @@ def scratch_directory(repo_root: Path) -> Path:
     write the checkout's parent.
     """
     root = repo_root.resolve()
-    sibling = root.parent / f"{root.name}{SCRATCH_DIRECTORY_SUFFIX}"
+    sibling, home = _external_scratch_candidates(root)
     if enclosing_checkout(root.parent) is None and (
         sibling.exists() or os.access(root.parent, os.W_OK)
     ):
         return sibling
+    return home
+
+
+def _external_scratch_candidates(root: Path) -> tuple[Path, Path]:
+    """Return the sibling and home scratch locations for a resolved checkout."""
+    sibling = root.parent / f"{root.name}{SCRATCH_DIRECTORY_SUFFIX}"
     digest = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:8]
-    return Path.home() / "worktrees" / f"{root.name}-{digest}{SCRATCH_DIRECTORY_SUFFIX}"
+    home = Path.home() / "worktrees" / f"{root.name}-{digest}{SCRATCH_DIRECTORY_SUFFIX}"
+    return sibling, home
 
 
 def allowed_scratch_roots(repo_root: Path) -> tuple[Path, ...]:
-    """Return every directory recovery may remove a scratch worktree from."""
-    return (
-        scratch_directory(repo_root),
-        (repo_root / LEGACY_SCRATCH_DIRECTORY).resolve(),
-    )
+    """Return every directory recovery may remove a scratch worktree from.
+
+    The selected directory comes first. Both external locations stay allowed
+    so a run that began under one location can still clean up after the
+    checkout parent's writability changes. A sibling inside another checkout
+    is excluded, which keeps the nested-checkout guard.
+    """
+    root = repo_root.resolve()
+    sibling, home = _external_scratch_candidates(root)
+    roots = [scratch_directory(repo_root)]
+    for candidate in (sibling, home):
+        if candidate == sibling and enclosing_checkout(root.parent) is not None:
+            continue
+        if candidate not in roots:
+            roots.append(candidate)
+    roots.append((repo_root / LEGACY_SCRATCH_DIRECTORY).resolve())
+    return tuple(roots)
 
 
 def add_worktree(repo_root: Path, scratch_root: Path) -> None:
