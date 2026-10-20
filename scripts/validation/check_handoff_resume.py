@@ -213,7 +213,8 @@ def decisions_without_provenance(text: str) -> list[str]:
     1 to 3 spaces is still a top-level item in CommonMark, so it counts, unless it is
     indented past the content offset of a list decision above it, which nests it.
 
-    A table data row is a decision, sourced by a ``Provenance`` column. A section with
+    A table data row is a decision, sourced by a ``Provenance`` column alone: a
+    ``Provenance:`` bullet after a table never sources its last row. A section with
     content but no recognized decision (a paragraph) is reported as one unsourced
     decision, so prose cannot skip the check.
     """
@@ -222,6 +223,7 @@ def decisions_without_provenance(text: str) -> list[str]:
         return [MISSING_DECISIONS]
     decisions: list[tuple[str, bool]] = []
     block_form = False
+    after_table = False  # the last decision is a table row, sourced by its cell alone
     content_offset: int | None = None  # indent at which a line nests under the last list item
     lines = body.splitlines()
     index = 0
@@ -238,6 +240,7 @@ def decisions_without_provenance(text: str) -> list[str]:
             index, rows = _table_decisions(lines, index + 1, header)
             decisions.extend(rows)
             block_form = True
+            after_table = True
             content_offset = None
             continue
         attribute = _TOP_LEVEL_ATTRIBUTE.match(line)
@@ -246,12 +249,18 @@ def decisions_without_provenance(text: str) -> list[str]:
             # Under a numbered or heading decision, an unindented attribute bullet
             # (`- Provenance:`, `- Alternatives considered:`) belongs to that decision,
             # not to a new bullet decision. Only a non-empty Provenance sources it.
-            if decisions and key == "provenance" and not _is_missing(attribute.group("value")):
+            if (
+                decisions
+                and not after_table
+                and key == "provenance"
+                and not _is_missing(attribute.group("value"))
+            ):
                 decisions[-1] = (decisions[-1][0], True)
             continue
         found = _match_decision(line, content_offset)
         if found:
             title, block_form, content_offset = found
+            after_table = False
             decisions.append((title, False))
             continue
         sub = _SUB_BULLET.match(line)
@@ -260,7 +269,7 @@ def decisions_without_provenance(text: str) -> list[str]:
             and sub.group("key").strip().lower() == "provenance"
             and not _is_missing(sub.group("value"))
         )
-        if decisions and has_source:
+        if decisions and has_source and not after_table:
             decisions[-1] = (decisions[-1][0], True)
     if not decisions:
         stray = _unrecognized_content(body)
