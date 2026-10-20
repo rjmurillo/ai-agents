@@ -1381,6 +1381,17 @@ _ACT_ARTIFACT_SERVICE_PATTERN = re.compile(
     r"Failed to \w+: Failed to make request after \d+ attempts:"
 )
 
+# github/codeql-action/upload-sarif reads its own workflow run through the REST
+# API (``get-a-workflow-run``) before it uploads. act runs a synthetic run id
+# that GitHub does not know, so the call returns 404 and the action aborts with
+# this annotation. In CI the run exists and the step passes. Anchored on the
+# ``::error::`` form and the endpoint URL: the same text as a ``::warning::``
+# telemetry note does not attribute a failure, and a 404 from any other endpoint
+# is a real defect that keeps blocking. See issue #6803.
+_ACT_RUN_LOOKUP_404_PATTERN = re.compile(
+    r"::error::Not Found - https://docs\.github\.com/rest/actions/workflow-runs#get-a-workflow-run"
+)
+
 # Workflows that call ``gh api`` or Python scripts that auto-detect the
 # repository via ``gh repo view`` (e.g. scripts/github_core/api.py
 # resolve_repo_params) fail in act because no GH_TOKEN with real repo context
@@ -1438,6 +1449,13 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "actions/upload-artifact client sends, so artifact transport fails only "
         "in local act, not in CI. Artifact defects (no files matched, invalid "
         "name) carry different text and still block.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_RUN_LOOKUP_404_PATTERN.search(text)),
+        "act runs a synthetic workflow run that GitHub does not know, so "
+        "github/codeql-action/upload-sarif gets a 404 when it reads its own run. "
+        "The run exists in CI, so this fails only in local act, not in CI.",
     ),
     (
         None,
@@ -1750,7 +1768,30 @@ def _toolcache_permission_hint(combined: str) -> str | None:
 
 
 _EXCEPTION_LINE_PATTERN = re.compile(r"\b[A-Za-z_][\w.]*(?:Error|Exception): \S")
+# A pytest node id, ``path.py::name[params]``. Its params can hold spaces,
+# brackets, and text such as ``TypeError: x`` (#6795), so no pattern can find
+# where the id ends. A line holding one counts only in the short-summary form
+# ``FAILED path.py::name - TypeError: x``, where pytest puts the exception after
+# a `` - `` separator. A passing test's id never has that form.
+_PYTEST_NODE_ID_MARKER = ".py::"
+_PYTEST_SUMMARY_EXCEPTION_PATTERN = re.compile(
+    r"\b(?:FAILED|ERROR)\s+\S+\.py::.*? - (?P<exception>"
+    + _EXCEPTION_LINE_PATTERN.pattern
+    + r".*)$"
+)
 _OMITTED_EXCEPTION_CAP = 400
+
+
+def _exception_text(line: str) -> str | None:
+    """Return the exception text on one output line, else None.
+
+    A line with a pytest node id yields only the exception after the short
+    summary separator, never the id's own parametrize text (#6795).
+    """
+    if _PYTEST_NODE_ID_MARKER in line:
+        match = _PYTEST_SUMMARY_EXCEPTION_PATTERN.search(line)
+        return match.group("exception") if match else None
+    return line if _EXCEPTION_LINE_PATTERN.search(line) else None
 
 
 def _omitted_exception_hint(omitted: str) -> str | None:
@@ -1759,13 +1800,15 @@ def _omitted_exception_hint(omitted: str) -> str | None:
     The cap keeps the tail, where act prints the job verdict. A harness runner
     prints its own summary there (``0/9 mutation harnesses passed``) and the
     exception that explains it sits in the dropped head (#6758: a git "dubious
-    ownership" error behind 449631 omitted chars). Returns None when the
-    dropped text holds no exception line.
+    ownership" error behind 449631 omitted chars). A pytest node id does not
+    count: its parametrize id can spell ``TypeError: x`` for a test that passed
+    (#6795). Returns None when the dropped text holds no exception line.
     """
     for line in omitted.splitlines():
-        if _EXCEPTION_LINE_PATTERN.search(line):
+        text = _exception_text(line)
+        if text is not None:
             return (
-                f"[first exception in the omitted output] {line.strip()[:_OMITTED_EXCEPTION_CAP]}"
+                f"[first exception in the omitted output] {text.strip()[:_OMITTED_EXCEPTION_CAP]}"
             )
     return None
 

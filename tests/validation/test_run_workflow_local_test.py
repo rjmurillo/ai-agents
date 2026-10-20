@@ -2144,6 +2144,96 @@ def test_act_full_artifact_defect_still_fails(monkeypatch, tmp_path):
     assert res.ok is False
 
 
+# --- act workflow-run lookup 404 (#6803) --------------------------------
+
+# The verbatim tail of a real local act run of the pytest.yml security job
+# (2026-10-20). upload-sarif fails first with a 404 on the run lookup, then
+# upload-artifact fails on the artifact server limitation explained above.
+_RUN_LOOKUP_404 = (
+    "[Python Tests/Python Security Checks]   \u2757  ::error::Not Found - "
+    "https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run"
+)
+_SARIF_THEN_ARTIFACT_FAILURE = (
+    "[Python Tests/Python Security Checks]   \U0001f6a7  ::warning::Failed to gather "
+    "information for telemetry: Not Found - "
+    "https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run. "
+    "Will skip sending status report.\n"
+    f"{_RUN_LOOKUP_404}\n"
+    "[Python Tests/Python Security Checks]   \u274c  Failure - Main Upload Bandit SARIF\n"
+    "[Python Tests/Python Security Checks]   \u2757  ::error::Failed to CreateArtifact: "
+    "Failed to make request after 5 attempts: Unexpected end of JSON input\n"
+    "[Python Tests/Python Security Checks]   \u274c  Failure - Main Upload Bandit results\n"
+    "Error: Job 'Python Security Checks' failed"
+)
+
+
+def test_run_lookup_404_alone_is_an_act_limitation() -> None:
+    assert w._act_limitation_hint(_RUN_LOOKUP_404) is not None
+
+
+def test_sarif_404_followed_by_artifact_failure_downgrades() -> None:
+    # The real run: before #6803 the 404 line was an unexplained annotation and
+    # vetoed the downgrade, so the stage was a hard FAIL.
+    assert w._act_limitation_hint(_SARIF_THEN_ARTIFACT_FAILURE) is not None
+
+
+def test_run_lookup_404_downgrades_regardless_of_event() -> None:
+    for event in (None, "push", "workflow_dispatch", "pull_request", "schedule"):
+        assert w._act_limitation_hint(_SARIF_THEN_ARTIFACT_FAILURE, event) is not None
+
+
+def test_run_lookup_404_warning_alone_does_not_match() -> None:
+    # Negative: the telemetry ``::warning::`` carries the same text and is not
+    # evidence that the run failed for this reason.
+    text = (
+        "[x]   ::warning::Failed to gather information for telemetry: Not Found - "
+        "https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run. "
+        "Will skip sending status report.\n::error::boom"
+    )
+    assert w._act_limitation_hint(text) is None
+
+
+def test_404_from_another_endpoint_still_blocks() -> None:
+    # Negative control: a 404 on any other REST endpoint is a real defect.
+    text = "::error::Not Found - https://docs.github.com/rest/repos/repos#get-a-repository"
+    assert w._act_limitation_hint(text) is None
+
+
+def test_run_lookup_404_does_not_excuse_a_real_failure() -> None:
+    # Edge: an unrelated annotation next to the 404 keeps blocking.
+    combined = _SARIF_THEN_ARTIFACT_FAILURE + "\n[x]   ::error::bandit exited 1"
+    assert w._act_limitation_hint(combined) is None
+
+
+def test_act_full_sarif_run_lookup_404_warns(monkeypatch, tmp_path):
+    # Integration: the full act stage downgrades to a passing WARN. This is the
+    # #6803 symptom that blocked PR #6479.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (1, _SARIF_THEN_ARTIFACT_FAILURE, ""),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+
+
+def test_act_full_other_404_still_fails(monkeypatch, tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "::error::Not Found - https://docs.github.com/rest/repos/repos#get-a-repository",
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is False
+
+
 # ---------------------------------------------------------------------------
 # No-repo-context limitation (gh API calls in act containers - issue #3981)
 # ---------------------------------------------------------------------------
@@ -2370,6 +2460,68 @@ def test_failure_detail_ignores_a_bare_error_label_in_the_omitted_head() -> None
     combined = "Error: Job 'x' failed\n" + ("noise\n" * 2000) + "tail"
 
     assert "[first exception" not in w._with_cause_hints(combined)
+
+
+_PARAMETRIZE_NODE_ID = (
+    "tests/skills/skillforge/test_triage_skill_request_followup_6676.py::"
+    "test_split_error_class_names[TypeError: Cannot read property-Type Error: Cannot read property]"
+)
+
+
+def test_failure_detail_ignores_a_pytest_node_id_whose_params_spell_an_exception() -> None:
+    # Issue #6795: a passing test's parametrize id named TypeError and was shown
+    # as the first exception, while the real cause was a stage timeout.
+    combined = f"{_PARAMETRIZE_NODE_ID} PASSED\n" + ("noise\n" * 2000) + "TimeoutExpired"
+
+    assert "[first exception" not in w._with_cause_hints(combined)
+
+
+def test_failure_detail_skips_the_node_id_and_reports_the_real_traceback_line() -> None:
+    combined = (
+        f"[gw3] [ 42%] PASSED {_PARAMETRIZE_NODE_ID}\n"
+        f"[Pytest/pytest (split-2)]   | {_PARAMETRIZE_NODE_ID} PASSED\n"
+        "E   RuntimeError: the real failure\n" + ("noise\n" * 2000) + "0/9 passed"
+    )
+
+    detail = w._with_cause_hints(combined)
+
+    assert "[first exception in the omitted output] E   RuntimeError: the real failure" in detail
+    assert "Cannot read property" not in detail.split("\n")[1]
+
+
+def test_failure_detail_reports_the_exception_of_a_pytest_short_summary_line() -> None:
+    # Edge: a short-summary line pairs a node id with the real exception.
+    combined = "FAILED tests/test_a.py::test_x[a b] - ValueError: boom\n" + ("noise\n" * 2000)
+
+    detail = w._with_cause_hints(combined)
+
+    assert "[first exception in the omitted output] ValueError: boom" in detail
+
+
+def test_failure_detail_reports_a_short_summary_exception_behind_a_long_node_id() -> None:
+    # Edge: a long id must not push the exception out of the capped excerpt.
+    node_id = "tests/test_a.py::test_x[" + ("p" * 600) + "]"
+    combined = f"[Pytest/x]   | ERROR {node_id} - OSError: disk full\n" + ("noise\n" * 2000)
+
+    detail = w._with_cause_hints(combined)
+
+    assert "[first exception in the omitted output] OSError: disk full" in detail
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "tests/test_a.py::test_x[TypeError: boom]",
+        "tests/test_a.py::TestK::test_x[ValueError: a-b: c]",
+        "tests/test_a.py::test_x[a] b TypeError: boom] PASSED",
+        "PASSED tests/test_a.py::test_x[x] y: TypeError: z] ",
+        "scripts/y.py::test_z[Exception: x] PASSED",
+        "FAILED tests/test_a.py::test_x[TypeError: boom]",
+        "FAILED tests/test_a.py::test_x[a - b]-TypeError: boom",
+    ],
+)
+def test_omitted_exception_hint_ignores_a_node_id_line_without_a_summary_exception(line) -> None:
+    assert w._omitted_exception_hint(f"{line}\nnoise") is None
 
 
 def test_failure_detail_caps_a_long_omitted_exception_line() -> None:
