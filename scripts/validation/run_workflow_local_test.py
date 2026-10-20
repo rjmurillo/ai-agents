@@ -1708,18 +1708,19 @@ def _with_cause_hints(combined: str) -> str:
 
     Order matters: the hints are derived from the full text and appended after
     the truncation, because reading them out of the truncated copy would lose
-    the clone lines a timeout hint counts.
+    the clone lines a timeout hint counts. The omitted-exception line is the
+    exception to that placement: it goes right after the omission marker so the
+    text report's 40-line cap cannot cut it.
     """
     detail = combined[-_DETAIL_CAP:]
-    omitted_hint = None
     if len(combined) > _DETAIL_CAP:
-        detail = f"[... {len(combined) - _DETAIL_CAP} earlier chars omitted]\n{detail}"
+        marker = f"[... {len(combined) - _DETAIL_CAP} earlier chars omitted]"
+        # Right after the marker, not appended: the text report prints only
+        # the first 40 detail lines, and the tail alone can fill them.
         omitted_hint = _omitted_exception_hint(combined[:-_DETAIL_CAP])
-    hints = (
-        omitted_hint,
-        _stage_timeout_hint(combined),
-        _toolcache_permission_hint(combined),
-    )
+        head = marker if omitted_hint is None else f"{marker}\n{omitted_hint}"
+        detail = f"{head}\n{detail}"
+    hints = (_stage_timeout_hint(combined), _toolcache_permission_hint(combined))
     return "\n".join([detail, *(hint for hint in hints if hint is not None)])
 
 

@@ -2333,6 +2333,17 @@ def test_failure_detail_surfaces_the_first_exception_from_the_omitted_head() -> 
     assert "MutationWorkspaceError: cannot find git worktree root" in detail
 
 
+def test_default_text_report_shows_the_omitted_exception() -> None:
+    # The text report prints only the first 40 detail lines. A 4000-char tail of
+    # short lines fills them, so the hint must sit near the top of the detail.
+    combined = "ValueError: hidden root cause\n" + ("noise\n" * 2000) + "0/9 harnesses passed"
+    report = w.Report(1, [w.StageResult("gh act (full)", False, w._with_cause_hints(combined))])
+
+    text = w._format_text(report)
+
+    assert "[first exception in the omitted output] ValueError: hidden root cause" in text
+
+
 def test_failure_detail_reports_only_the_first_omitted_exception() -> None:
     # Edge: a second exception later in the dropped head is not repeated.
     combined = "ValueError: first\nTypeError: second\n" + ("noise\n" * 2000) + "0/9 passed"
