@@ -277,7 +277,7 @@ class TestVoiceScenarioPatterns:
 class TestVoiceRuleNamesTheUnreadCase:
     """V9: the four-state list alone pushes a started run toward `NOT RUN`."""
 
-    _UNREAD = "is not `NOT RUN` or passed: report it as started with its result unread"
+    _UNREAD = "is not `NOT RUN` or passed: report it started, result unread"
 
     def test_rule_reports_a_started_unread_check_as_unread(self):
         rule = (REPO_ROOT / "templates" / "rules" / "voice.md").read_text(encoding="utf-8")
