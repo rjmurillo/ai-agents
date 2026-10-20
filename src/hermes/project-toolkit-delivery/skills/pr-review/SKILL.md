@@ -200,7 +200,7 @@ unavailable. Record that PR as unprocessed with the transport as the reason,
 never as a verdict. Step 3 reads `head.ref` from `pull_request_read` per
 `mcp_mode_constraints` in config.
 
-Each agent's intermediate output is subject to `output_constraints.per_pr_max_response_tokens` from config. If an agent approaches the token limit, summarize findings and move to the next PR.
+Each agent's output is capped by `output_constraints.per_pr_max_response_tokens` from config; near the cap, summarize and move to the next PR.
 
 ### Step 5: Verify, Push, and Cleanup
 
@@ -208,11 +208,11 @@ Push any changes per worktree. Clean up worktrees if `--cleanup`. Check `worktre
 
 ### Step 6: Generate Summary
 
-Report per-PR status using `output_constraints.summary_format` from config. Required columns: `output_constraints.summary_required_columns`. The only currently supported value of `summary_format` is `table`, so render a markdown table with one row per PR. If a future config introduces another value, update both this step and the allowed values in `output_constraints.summary_format` together.
+Report per-PR status in `output_constraints.summary_format` from config. Required columns: `output_constraints.summary_required_columns`. `summary_format` supports only `table`: render a markdown table with one row per PR.
 
 ## Reply Conduct
 
-Wording, pushback, deferral, and escalation of review comments follow the review-conversation protocol (capability `review-conversation`), loaded from `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`.
+Wording, pushback, deferral, and escalation of review comments follow the review-conversation protocol (capability `review-conversation`), loaded from `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`. Its frozen finding contract applies: after round 1 a new thread counts only if the diff introduced it or a claimed acceptance criterion is unmet. Otherwise reply `[WONTFIX]`, list it under "Flagged notes" in the Step 6 summary, start no new round.
 
 ## Thread Resolution
 

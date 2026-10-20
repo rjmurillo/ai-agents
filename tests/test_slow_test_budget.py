@@ -139,3 +139,50 @@ class TestTheShippedBudget:
         for module, seconds in budget.items():
             assert (REPO_ROOT / module).is_file(), module
             assert seconds > 0, module
+
+
+_PORTABILITY = "tests/validation/test_check_skill_md_portability.py"
+
+
+def _portability_junit(tmp_path: Path, seconds: float) -> Path:
+    path = tmp_path / "junit.xml"
+    path.write_text(
+        '<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest">'
+        f'<testcase classname="tests.validation.test_check_skill_md_portability" '
+        f'name="test_scan" time="{seconds}" /></testsuite></testsuites>',
+        encoding="utf-8",
+    )
+    return path
+
+
+class TestThePortabilityBudgetAgainstCiSums:
+    """The pyproject comment states the budget against CI sums, so pin those sums."""
+
+    @pytest.mark.parametrize("ci_seconds", [25.12, 28.93])
+    def test_the_measured_ci_sums_stay_under_the_shipped_budget(
+        self, tmp_path: Path, ci_seconds: float
+    ) -> None:
+        budget_file = REPO_ROOT / "pyproject.toml"
+        assert (
+            budget_gate.main(
+                [str(_portability_junit(tmp_path, ci_seconds)), "--budget", str(budget_file)]
+            )
+            == 0
+        )
+
+    def test_a_revert_scale_ci_sum_exceeds_the_shipped_budget(self, tmp_path: Path) -> None:
+        """Negative: 25.30s for the real-tree scan, run about 3x slower, is a revert."""
+        budget_file = REPO_ROOT / "pyproject.toml"
+        revert_seconds = 28.93 + 2 * 25.30
+        assert (
+            budget_gate.main(
+                [str(_portability_junit(tmp_path, revert_seconds)), "--budget", str(budget_file)]
+            )
+            == 1
+        )
+
+    def test_the_budget_leaves_between_1_3x_and_1_7x_over_the_larger_ci_sum(self) -> None:
+        """Edge: the comment claims about 1.4x to 1.6x; a retune must update it."""
+        limit = budget_gate.load_budget(REPO_ROOT / "pyproject.toml")[_PORTABILITY]
+        assert 1.3 <= limit / 28.93 <= 1.7
+        assert 1.3 <= limit / 25.12 <= 1.7
