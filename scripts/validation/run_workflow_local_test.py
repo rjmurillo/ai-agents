@@ -1750,6 +1750,11 @@ def _toolcache_permission_hint(combined: str) -> str | None:
 
 
 _EXCEPTION_LINE_PATTERN = re.compile(r"\b[A-Za-z_][\w.]*(?:Error|Exception): \S")
+# A pytest node id, ``path.py::name[params]``. The params can hold spaces and
+# text such as ``TypeError: x`` (#6795), so the whole id is dropped before the
+# exception pattern runs. The bracket group ends at a ``]`` followed by a space
+# or the end of the line.
+_PYTEST_NODE_ID_PATTERN = re.compile(r"\S+\.py::[^\s\[]*(?:\[.*?\](?=\s|$))?")
 _OMITTED_EXCEPTION_CAP = 400
 
 
@@ -1759,11 +1764,12 @@ def _omitted_exception_hint(omitted: str) -> str | None:
     The cap keeps the tail, where act prints the job verdict. A harness runner
     prints its own summary there (``0/9 mutation harnesses passed``) and the
     exception that explains it sits in the dropped head (#6758: a git "dubious
-    ownership" error behind 449631 omitted chars). Returns None when the
-    dropped text holds no exception line.
+    ownership" error behind 449631 omitted chars). A pytest node id does not
+    count: its parametrize id can spell ``TypeError: x`` for a test that passed
+    (#6795). Returns None when the dropped text holds no exception line.
     """
     for line in omitted.splitlines():
-        if _EXCEPTION_LINE_PATTERN.search(line):
+        if _EXCEPTION_LINE_PATTERN.search(_PYTEST_NODE_ID_PATTERN.sub(" ", line)):
             return (
                 f"[first exception in the omitted output] {line.strip()[:_OMITTED_EXCEPTION_CAP]}"
             )

@@ -2372,6 +2372,58 @@ def test_failure_detail_ignores_a_bare_error_label_in_the_omitted_head() -> None
     assert "[first exception" not in w._with_cause_hints(combined)
 
 
+_PARAMETRIZE_NODE_ID = (
+    "tests/skills/skillforge/test_triage_skill_request_followup_6676.py::"
+    "test_split_error_class_names[TypeError: Cannot read property-Type Error: Cannot read property]"
+)
+
+
+def test_failure_detail_ignores_a_pytest_node_id_whose_params_spell_an_exception() -> None:
+    # Issue #6795: a passing test's parametrize id named TypeError and was shown
+    # as the first exception, while the real cause was a stage timeout.
+    combined = f"{_PARAMETRIZE_NODE_ID} PASSED\n" + ("noise\n" * 2000) + "TimeoutExpired"
+
+    assert "[first exception" not in w._with_cause_hints(combined)
+
+
+def test_failure_detail_skips_the_node_id_and_reports_the_real_traceback_line() -> None:
+    combined = (
+        f"[gw3] [ 42%] PASSED {_PARAMETRIZE_NODE_ID}\n"
+        f"[Pytest/pytest (split-2)]   | {_PARAMETRIZE_NODE_ID} PASSED\n"
+        "E   RuntimeError: the real failure\n" + ("noise\n" * 2000) + "0/9 passed"
+    )
+
+    detail = w._with_cause_hints(combined)
+
+    assert "[first exception in the omitted output] E   RuntimeError: the real failure" in detail
+    assert "Cannot read property" not in detail.split("\n")[1]
+
+
+def test_failure_detail_reports_an_exception_after_a_node_id_on_the_same_line() -> None:
+    # Edge: a pytest short-summary line pairs a node id with the real exception.
+    combined = (
+        "FAILED tests/test_a.py::test_x[a b] - ValueError: boom\n" + ("noise\n" * 2000) + "tail"
+    )
+
+    detail = w._with_cause_hints(combined)
+
+    assert "[first exception in the omitted output] FAILED tests/test_a.py::test_x[a b]" in detail
+    assert "ValueError: boom" in detail
+
+
+@pytest.mark.parametrize(
+    "node_id",
+    [
+        "tests/test_a.py::test_x[TypeError: boom]",
+        "tests/test_a.py::TestK::test_x[ValueError: a-b: c]",
+        "tests/test_a.py::test_x",
+        "scripts/y.py::test_z[Exception: x] PASSED",
+    ],
+)
+def test_pytest_node_id_pattern_removes_the_whole_id(node_id) -> None:
+    assert w._EXCEPTION_LINE_PATTERN.search(w._PYTEST_NODE_ID_PATTERN.sub(" ", node_id)) is None
+
+
 def test_failure_detail_caps_a_long_omitted_exception_line() -> None:
     # Edge: a very long line must not push the real tail out of view.
     combined = "ValueError: " + ("x" * 5000) + "\n" + ("noise\n" * 2000) + "tail"
