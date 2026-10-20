@@ -1750,12 +1750,30 @@ def _toolcache_permission_hint(combined: str) -> str | None:
 
 
 _EXCEPTION_LINE_PATTERN = re.compile(r"\b[A-Za-z_][\w.]*(?:Error|Exception): \S")
-# A pytest node id, ``path.py::name[params]``. The params can hold spaces and
-# text such as ``TypeError: x`` (#6795), so the whole id is dropped before the
-# exception pattern runs. The bracket group ends at a ``]`` followed by a space
-# or the end of the line.
-_PYTEST_NODE_ID_PATTERN = re.compile(r"\S+\.py::[^\s\[]*(?:\[.*?\](?=\s|$))?")
+# A pytest node id, ``path.py::name[params]``. Its params can hold spaces,
+# brackets, and text such as ``TypeError: x`` (#6795), so no pattern can find
+# where the id ends. A line holding one counts only in the short-summary form
+# ``FAILED path.py::name - TypeError: x``, where pytest puts the exception after
+# a `` - `` separator. A passing test's id never has that form.
+_PYTEST_NODE_ID_MARKER = ".py::"
+_PYTEST_SUMMARY_EXCEPTION_PATTERN = re.compile(
+    r"\b(?:FAILED|ERROR)\s+\S+\.py::.*? - (?P<exception>"
+    + _EXCEPTION_LINE_PATTERN.pattern
+    + r".*)$"
+)
 _OMITTED_EXCEPTION_CAP = 400
+
+
+def _exception_text(line: str) -> str | None:
+    """Return the exception text on one output line, else None.
+
+    A line with a pytest node id yields only the exception after the short
+    summary separator, never the id's own parametrize text (#6795).
+    """
+    if _PYTEST_NODE_ID_MARKER in line:
+        match = _PYTEST_SUMMARY_EXCEPTION_PATTERN.search(line)
+        return match.group("exception") if match else None
+    return line if _EXCEPTION_LINE_PATTERN.search(line) else None
 
 
 def _omitted_exception_hint(omitted: str) -> str | None:
@@ -1769,9 +1787,10 @@ def _omitted_exception_hint(omitted: str) -> str | None:
     (#6795). Returns None when the dropped text holds no exception line.
     """
     for line in omitted.splitlines():
-        if _EXCEPTION_LINE_PATTERN.search(_PYTEST_NODE_ID_PATTERN.sub(" ", line)):
+        text = _exception_text(line)
+        if text is not None:
             return (
-                f"[first exception in the omitted output] {line.strip()[:_OMITTED_EXCEPTION_CAP]}"
+                f"[first exception in the omitted output] {text.strip()[:_OMITTED_EXCEPTION_CAP]}"
             )
     return None
 
