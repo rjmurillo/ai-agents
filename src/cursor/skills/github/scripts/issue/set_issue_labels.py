@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Apply labels to a GitHub Issue with auto-creation support.
+"""Apply or remove labels on a GitHub Issue or PR with auto-creation support.
 
 Creates labels if they don't exist, applies multiple labels to an issue,
-and supports priority labels with standard formatting.
+and supports priority labels with standard formatting. ``--remove-labels``
+removes labels (issue #6808); a label the issue does not carry is a no-op.
+GitHub labels PRs through the issues API, so a PR number works too.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -110,7 +112,7 @@ def expand_labels(raw_labels: list[object]) -> list[str]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Apply labels to a GitHub Issue with auto-creation support.",
+        description="Apply or remove labels on a GitHub Issue or PR (auto-creates missing labels).",
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
@@ -128,6 +130,18 @@ def build_parser() -> argparse.ArgumentParser:
             'quoted space-separated string (--labels "bug enhancement") is '
             "one label named 'bug enhancement'. Repeat the flag to add more; "
             "surrounding whitespace on each name is trimmed."
+        ),
+    )
+    parser.add_argument(
+        "--remove-labels",
+        nargs="*",
+        action="append",
+        default=None,
+        help=(
+            "Label names to remove, with the same comma/space/repeat syntax "
+            "as --labels. A label the issue does not carry is skipped with a "
+            "note. Removal runs after any additions. A name may not appear in "
+            "both --labels and --remove-labels."
         ),
     )
     parser.add_argument(
@@ -224,13 +238,11 @@ def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
     return result.returncode == 0
 
 
-def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
-    """Return the issue's current label names. Empty list on any gh failure.
+def _fetch_issue_labels_strict(owner: str, repo: str, issue: int) -> list[str] | None:
+    """Return the issue's label names, or None when the lookup fails.
 
-    Failing soft (empty list) means a transient gh hiccup degrades to "no
-    removals" rather than blocking the label apply: the worst case is a stale
-    priority label survives one pass, which the dual-priority validator still
-    catches. It never blocks the intended apply.
+    Unlike ``_get_issue_labels`` this does not fail soft: an explicit removal
+    must tell a missing issue apart from a label the issue does not carry.
     """
     try:
         result = subprocess.run(
@@ -251,20 +263,32 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return []
+        return None
     if result.returncode != 0:
-        return []
+        return None
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError:
-        return []
-    labels_field = payload.get("labels")
-    labels = labels_field if isinstance(labels_field, list) else []
+        return None
+    labels = payload.get("labels") if isinstance(payload, dict) else None
+    if not isinstance(labels, list):
+        return None
     return [
         name
         for item in labels
         if isinstance(item, dict) and isinstance(name := item.get("name"), str) and name
     ]
+
+
+def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
+    """Return the issue's current label names. Empty list on any gh failure.
+
+    Failing soft (empty list) means a transient gh hiccup degrades to "no
+    removals" rather than blocking the label apply: the worst case is a stale
+    priority label survives one pass, which the dual-priority validator still
+    catches. It never blocks the intended apply.
+    """
+    return _fetch_issue_labels_strict(owner, repo, issue) or []
 
 
 def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
@@ -342,9 +366,38 @@ def main(argv: list[str] | None = None) -> int:
         for i in reversed(priority_indices[:-1]):
             all_labels.pop(i)
 
-    if not all_labels:
+    remove_names = expand_labels(args.remove_labels or [])
+
+    if not all_labels and not remove_names:
         print("No labels to apply.", file=sys.stderr)
         return 0
+
+    conflict = sorted(
+        {n.lower() for n in remove_names} & {info["name"].lower() for info in all_labels}
+    )
+    if conflict:
+        write_skill_error(
+            f"Label(s) in both add and remove: {', '.join(conflict)}",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="set_issue_labels.py",
+        )
+        raise SystemExit(1)
+
+    current_labels: list[str] = []
+    if remove_names:
+        fetched = _fetch_issue_labels_strict(owner, repo, args.issue)
+        if fetched is None:
+            write_skill_error(
+                f"Could not read labels for #{args.issue} (not found or API failure)",
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="set_issue_labels.py",
+            )
+            raise SystemExit(3)
+        current_labels = fetched
 
     incoming_names = [label_info["name"] for label_info in all_labels]
 
@@ -352,6 +405,8 @@ def main(argv: list[str] | None = None) -> int:
     created: list[str] = []
     failed: list[str] = []
     removed: list[str] = []
+    removed_requested: list[str] = []
+    absent: list[str] = []
 
     try:
         for label_info in all_labels:
@@ -376,12 +431,26 @@ def main(argv: list[str] | None = None) -> int:
                     removed = _reconcile_priorities(owner, repo, args.issue, incoming_names)
             else:
                 failed.append(label_name)
+
+        present_lower = {name.lower(): name for name in current_labels}
+        for label_name in remove_names:
+            actual = present_lower.get(label_name.lower())
+            if actual is not None and actual.lower() in {r.lower() for r in removed}:
+                continue  # already removed by priority reconciliation
+            if actual is None:
+                absent.append(label_name)
+                print(f"Label '{label_name}' not on #{args.issue}; skipped.", file=sys.stderr)
+            elif _remove_label(owner, repo, args.issue, actual):
+                removed_requested.append(actual)
+            else:
+                failed.append(label_name)
     except subprocess.TimeoutExpired as err:
         data = {
             "issue": args.issue,
             "applied": applied,
             "created": created,
-            "removed": removed,
+            "removed": removed + removed_requested,
+            "absent": absent,
             "failed": failed,
             "total_applied": len(applied),
         }
@@ -399,7 +468,8 @@ def main(argv: list[str] | None = None) -> int:
         "issue": args.issue,
         "applied": applied,
         "created": created,
-        "removed": removed,
+        "removed": removed + removed_requested,
+        "absent": absent,
         "failed": failed,
         "total_applied": len(applied),
     }
@@ -418,7 +488,11 @@ def main(argv: list[str] | None = None) -> int:
     write_skill_output(
         data,
         output_format=fmt,
-        human_summary=f"Applied {len(applied)} label(s) to issue #{args.issue}",
+        human_summary=(
+            f"Applied {len(applied)} label(s), removed "
+            f"{len(removed) + len(removed_requested)}, absent {len(absent)} "
+            f"on issue #{args.issue}"
+        ),
         status="PASS",
         script_name="set_issue_labels.py",
     )
