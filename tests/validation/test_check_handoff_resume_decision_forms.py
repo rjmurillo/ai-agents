@@ -304,3 +304,11 @@ def test_a_decision_after_a_table_is_sourced_by_its_own_provenance() -> None:
 def test_a_numbered_decision_after_a_table_takes_attribute_bullets() -> None:
     decisions = _PROVENANCE_TABLE + "\n1. Use C\n- Provenance: ADR-2\n"
     assert _unsourced(decisions) == ["Use B"]
+
+
+@pytest.mark.parametrize("decision", ["### Use X\n", "1. Use X\n"])
+def test_an_empty_table_leaves_the_decision_above_it_sourceable(decision: str) -> None:
+    """An empty table replaces no decision, so a later Provenance bullet still sources it."""
+    empty = "\n| Decision | Provenance |\n|---|---|\n\n"
+    assert _unsourced(decision + empty + "- Provenance: ADR-1\n") == []
+    assert _unsourced(decision + empty) == ["Use X"]

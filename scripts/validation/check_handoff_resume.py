@@ -240,7 +240,7 @@ def decisions_without_provenance(text: str) -> list[str]:
             index, rows = _table_decisions(lines, index + 1, header)
             decisions.extend(rows)
             block_form = True
-            after_table = True
+            after_table = after_table or bool(rows)  # an empty table replaces no decision
             content_offset = None
             continue
         attribute = _TOP_LEVEL_ATTRIBUTE.match(line)
