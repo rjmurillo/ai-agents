@@ -613,12 +613,69 @@ def _make_tree_writable(root: Path) -> None:
         root.chmod(0o700)
 
 
+_GITDIR_COPY_PREFIX = "act-gitdir-"
+# The runner image act uses for the ubuntu labels in the repository ``.actrc``,
+# conformance-tested in test_cleanup_image_is_an_act_runner_image. The job runs
+# as uid 1001 in that image, so the files it creates in the mounted copy belong
+# to a user the host cannot delete (#6792). Root in the same image can.
+_ACT_CLEANUP_IMAGE = "catthehacker/ubuntu:full-latest"
+_CLEANUP_TIMEOUT = 120
+
+
+def _container_cleanup_command(root: Path) -> list[str]:
+    """Return the docker command that empties ``root`` as root.
+
+    ``--pull=never`` keeps a missing image from starting an 18 GB pull in a
+    cleanup path. ``find -delete`` removes the contents; the host user owns
+    ``root`` itself and removes that last.
+    """
+    return [
+        "docker",
+        "run",
+        "--rm",
+        "--pull=never",
+        "--network",
+        "none",
+        "--user",
+        "0",
+        "-v",
+        f"{root}:/cleanup",
+        _ACT_CLEANUP_IMAGE,
+        "find",
+        "/cleanup",
+        "-mindepth",
+        "1",
+        "-delete",
+    ]
+
+
+def _remove_copy_as_container_root(root: Path) -> bool:
+    """Empty and remove ``root`` through a throwaway root container. True on success.
+
+    Only a directory this module created is handed to a root process: the name
+    must carry the copy prefix and ``root`` must not be a symlink.
+    """
+    if not root.name.startswith(_GITDIR_COPY_PREFIX) or root.is_symlink() or not root.is_dir():
+        return False
+    returncode, _, _ = _run(_container_cleanup_command(root), timeout=_CLEANUP_TIMEOUT)
+    if returncode != 0:
+        return False
+    with contextlib.suppress(OSError):
+        root.rmdir()
+    return not root.exists()
+
+
 def _remove_copy(root: Path) -> str | None:
     """Remove the temp copy, retrying once after making it writable.
 
+    Files the act container user created in the copy resist the host user:
+    chmod needs ownership, and deleting needs write access to a directory that
+    user owns (#6792). After the retry fails with a permission error, a root
+    container in the act runner image removes the copy. If that fails too, the
+    message names the exact commands that do.
+
     Returns None on success, else a message naming the leftover path. Never
-    raises: files the container user created can resist deletion, and a
-    traceback would hide the stage result.
+    raises: a traceback would hide the stage result.
     """
     for attempt in range(2):
         try:
@@ -627,9 +684,14 @@ def _remove_copy(root: Path) -> str | None:
             if attempt == 0:
                 _make_tree_writable(root)
                 continue
+            if isinstance(exc, PermissionError) and _remove_copy_as_container_root(root):
+                return None
+            command = shlex.join(_container_cleanup_command(root))
             return (
                 f"could not remove the temporary git dir copy {root} ({exc}); it holds "
-                "the repository config and stays on disk until you delete it"
+                "the repository config and stays on disk until you remove it. Files made "
+                "by the act container user block the host user. Remove it with: "
+                f"{command} && rmdir {shlex.quote(str(root))}"
             )
         return None
     return None  # pragma: no cover - the loop always returns
@@ -727,7 +789,7 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     _require_mountable(common, "move the repository to a path without ':'")
     # mkdtemp creates the parent 0700; that, not the open modes on the copy,
     # keeps other host users out. Do not swap in a shared temp root.
-    tmp = Path(tempfile.mkdtemp(prefix="act-gitdir-"))
+    tmp = Path(tempfile.mkdtemp(prefix=_GITDIR_COPY_PREFIX))
     try:
         dest = tmp / "git"
         _require_mountable(dest, "set TMPDIR to a path without ':'")
@@ -1694,16 +1756,76 @@ def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     return hint
 
 
+# act prints ``[Workflow/Job] <glyph> Run Main <step>`` when a job step starts
+# and ``[Workflow/Job]   <glyph>  Success|Failure - Main <step> [<elapsed>]``
+# when it ends. ``Set up job`` and ``Run Pre`` lines come before any ``Run Main``
+# line, so a ``Run Main`` line means action setup is over.
+_ACT_STEP_START = re.compile(r"^(?P<scope>\[[^\]]+\])\s+\S+\s+Run Main (?P<step>.+?)\s*$")
+_ACT_STEP_END = re.compile(
+    r"^(?P<scope>\[[^\]]+\])\s+\S+\s+(?P<verdict>Success|Failure) - Main "
+    r"(?P<step>.+?)(?: \[(?P<elapsed>[^\]]+)\])?\s*$"
+)
+_ACT_TIMEOUT_SECONDS = re.compile(r"timed out after (\d+) seconds")
+
+
+def _timeout_step_hint(combined: str) -> str | None:
+    """Name the job step a stage timeout interrupted, else None before any step ran.
+
+    A job's last started step with no end line was running when the kill
+    landed. One that ended in ``Failure`` with an elapsed time was cut by the
+    job's own timeout just before it (#6793). A step followed by a later step in
+    the same job is never named. Among jobs, the latest such step is the one named.
+    """
+    started: dict[tuple[str, str], int] = {}
+    last_in_scope: dict[str, tuple[str, str]] = {}
+    ended: dict[tuple[str, str], tuple[str, str | None]] = {}
+    for position, line in enumerate(combined.splitlines()):
+        start = _ACT_STEP_START.match(line.strip())
+        if start is not None:
+            key = (start["scope"], start["step"])
+            started[key] = position
+            last_in_scope[start["scope"]] = key
+            ended.pop(key, None)
+            continue
+        end = _ACT_STEP_END.match(line.strip())
+        if end is not None:
+            ended[(end["scope"], end["step"])] = (end["verdict"], end["elapsed"])
+    if not started:
+        return None
+    # Only the last step a job started can have been cut by the kill: a job that
+    # went on to run later steps finished its earlier ones, failed or not.
+    latest = list(last_in_scope.values())
+    open_or_failed = [key for key in latest if key not in ended or ended[key][0] == "Failure"]
+    key = max(open_or_failed or latest, key=started.__getitem__)
+    scope, step = key
+    verdict, elapsed = ended.get(key, ("", None))
+    if verdict == "Success":
+        state = f"which had finished in {elapsed or 'an unreported time'}; no later step reported"
+    elif elapsed is not None:
+        state = f"which act reported as failed after {elapsed}"
+    else:
+        limit = _ACT_TIMEOUT_SECONDS.search(combined)
+        suffix = f" when the {limit.group(1)}s stage timeout fired" if limit else ""
+        state = f"which was still running{suffix}"
+    return (
+        f"[cause] the stage timeout fired while the job ran step '{step}' {scope}, {state}. "
+        "The run was past action setup, so a cold gh act action cache is not the cause: "
+        "the job needs a quieter machine or a larger stage budget, not a re-run."
+    )
+
+
 def _stage_timeout_hint(combined: str) -> str | None:
     """Return the cause-and-remedy line when ``combined`` shows a killed run.
 
     ``_run`` reports a timeout as ``TimeoutExpired: ...``, which on its own names
     no cause: the operator sees a correct workflow blamed for a wall-clock
-    deadline (Issue #3949). Counting the ``git clone`` lines the child emitted
-    before the kill separates the two cases that matter. Clone lines mean ``act``
-    was still populating its ref-keyed ``~/.cache/act``, which a re-run turns
-    into a warm-cache run of seconds. No clone lines mean the run itself was
-    slow, and claiming a cold cache there would point at the wrong suspect.
+    deadline (Issue #3949). Three cases matter. Once any job step has started,
+    action setup is over, so the hint names the step that was running (#6793);
+    ``git clone`` lines from the first minute of such a run say nothing about
+    the cause. Before any step started, clone lines mean ``act`` was still
+    populating its ref-keyed ``~/.cache/act``, which a re-run turns into a
+    warm-cache run of seconds. No clone lines mean the run itself was slow, and
+    claiming a cold cache there would point at the wrong suspect.
     Returns None when the output carries no timeout marker.
 
     Every stage routes its failure detail through this, not the act stages only.
@@ -1712,6 +1834,9 @@ def _stage_timeout_hint(combined: str) -> str | None:
     """
     if _ACT_TIMEOUT_MARKER not in combined:
         return None
+    step_hint = _timeout_step_hint(combined)
+    if step_hint is not None:
+        return step_hint
     clones = sum(1 for line in combined.splitlines() if _ACT_CLONE_MARKER in line)
     if clones == 0:
         return (
@@ -1721,10 +1846,11 @@ def _stage_timeout_hint(combined: str) -> str | None:
         )
     return (
         f"[cause] act was still cloning actions when the stage timeout fired: {clones} "
-        f"'git clone' line(s) in the partial output. This is a cold gh act action cache, not a "
-        f"workflow defect. act clones every referenced action into ~/.cache/act before it can "
-        f"plan, and that cache is keyed by action ref, so a bumped action digest re-pays the "
-        f"clone. Re-run: the second run reuses the cache and finishes in seconds."
+        f"'git clone' line(s) in the partial output, and no job step had started. This is a "
+        f"cold gh act action cache, not a workflow defect. act clones every referenced action "
+        f"into ~/.cache/act before it can plan, and that cache is keyed by action ref, so a "
+        f"bumped action digest re-pays the clone. Re-run: the second run reuses the cache and "
+        f"finishes in seconds."
     )
 
 
@@ -1814,18 +1940,18 @@ def _omitted_exception_hint(omitted: str) -> str | None:
 
 
 def _with_cause_hints(combined: str) -> str:
-    """Truncate a failure detail, then append any cause lines.
+    """Truncate a failure detail, then add any cause lines.
 
     The tail is kept, not the head. act prints the failing step and the job
     verdict last, while its first kilobytes are action clones and image pulls.
     Keeping the head hid the failing step of issue #5886 behind a ``git clone``
     warning.
 
-    Order matters: the hints are derived from the full text and appended after
-    the truncation, because reading them out of the truncated copy would lose
-    the clone lines a timeout hint counts. The omitted-exception line is the
-    exception to that placement: it goes right after the omission marker so the
-    text report's 40-line cap cannot cut it.
+    Order matters: the hints are derived from the full text after the
+    truncation, because reading them out of the truncated copy would lose the
+    clone lines a timeout hint counts. The toolcache hint is appended. The
+    omitted-exception line goes right after the omission marker and the timeout
+    cause goes first, so the text report's 40-line cap cannot cut either.
     """
     detail = combined[-_DETAIL_CAP:]
     if len(combined) > _DETAIL_CAP:
@@ -1835,8 +1961,13 @@ def _with_cause_hints(combined: str) -> str:
         omitted_hint = _omitted_exception_hint(combined[:-_DETAIL_CAP])
         head = marker if omitted_hint is None else f"{marker}\n{omitted_hint}"
         detail = f"{head}\n{detail}"
-    hints = (_stage_timeout_hint(combined), _toolcache_permission_hint(combined))
-    return "\n".join([detail, *(hint for hint in hints if hint is not None)])
+    # The timeout cause leads the detail: the text report prints only the first 40
+    # lines, and a chatty step can fill them before an appended hint is reached.
+    timeout_hint = _stage_timeout_hint(combined)
+    if timeout_hint is not None:
+        detail = f"{timeout_hint}\n{detail}"
+    toolcache_hint = _toolcache_permission_hint(combined)
+    return detail if toolcache_hint is None else f"{detail}\n{toolcache_hint}"
 
 
 _ACT_CONTENTION_PATTERN = re.compile(

@@ -2368,6 +2368,245 @@ def test_timeout_hint_does_not_blame_the_cache_without_clone_activity() -> None:
     assert "git clone" not in hint
 
 
+_SCOPE = "[Python Tests/pytest (split-2)]"
+_CLONE_BURST = "\n".join(f"{_CLONE_LINE} # ref=v{n}" for n in range(30))
+
+
+def _step_log(*lines: str) -> str:
+    return "\n".join(lines)
+
+
+def test_timeout_hint_names_the_running_step_not_the_cache() -> None:
+    # Issue #6793: 30 clone lines from the first minute, then pytest running.
+    # The old hint counted the clones and blamed a cold cache.
+    combined = _step_log(
+        _CLONE_BURST,
+        f"{_SCOPE} \u2b50 Run Set up job",
+        f"{_SCOPE}   \u2705  Success - Set up job",
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+        "TimeoutExpired: Command '['gh', 'act']' timed out after 600 seconds",
+    )
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "step 'Run pytest'" in hint
+    assert _SCOPE in hint
+    assert "still running when the 600s stage timeout fired" in hint
+    assert "cold gh act action cache is not the cause" in hint
+    assert "'git clone'" not in hint
+    assert "Re-run" not in hint
+
+
+def test_timeout_hint_names_the_step_and_elapsed_time_of_a_failed_step() -> None:
+    # Issue #6793 evidence: ``Failure - Main Run pytest [9m30s]`` before the kill.
+    combined = _step_log(
+        _CLONE_BURST,
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+        f"{_SCOPE}   \u274c  Failure - Main Run pytest [9m30s]",
+        "TimeoutExpired: Command '['gh', 'act']' timed out after 600 seconds",
+    )
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "step 'Run pytest'" in hint
+    assert "failed after 9m30s" in hint
+    assert "cold gh act action cache is not the cause" in hint
+
+
+def test_timeout_hint_picks_the_last_unfinished_step() -> None:
+    # Edge: finished steps are skipped; the step with no end line is the one cut.
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main actions/checkout@abc",
+        f"{_SCOPE}   \u2705  Success - Main actions/checkout@abc [5s]",
+        f"{_SCOPE} \u2b50 Run Main Install dependencies",
+        f"{_SCOPE}   \u2705  Success - Main Install dependencies [40s]",
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "step 'Run pytest'" in hint
+    assert "Install dependencies" not in hint
+
+
+def test_timeout_hint_after_a_finished_step_says_so() -> None:
+    # Edge: the kill landed between steps, so no step was cut mid-run.
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Install dependencies",
+        f"{_SCOPE}   \u2705  Success - Main Install dependencies [40s]",
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "step 'Install dependencies'" in hint
+    assert "had finished in 40s" in hint
+    assert "still running" not in hint
+
+
+def test_timeout_hint_keeps_the_cold_cache_text_when_no_step_started() -> None:
+    # Positive: clones plus setup-only lines (``Set up job``, ``Run Pre``) are
+    # the real cold-cache shape. No ``Run Main`` line means setup was not over.
+    combined = _step_log(
+        _CLONE_BURST,
+        f"{_SCOPE} \u2b50 Run Set up job",
+        f"{_SCOPE} \u2b50 Run Pre Harden Runner",
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "30 'git clone' line(s)" in hint
+    assert "no job step had started" in hint
+    assert "Re-run" in hint
+
+
+def test_timeout_hint_ignores_run_main_text_that_is_not_an_act_step_line() -> None:
+    # Negative: a test log that mentions the phrase must not count as a step.
+    combined = _step_log(
+        f"{_CLONE_LINE}",
+        "some output: Run Main thing",
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+
+    hint = w._stage_timeout_hint(combined)
+
+    assert hint is not None
+    assert "1 'git clone' line(s)" in hint
+
+
+def test_timeout_step_hint_is_none_before_any_step() -> None:
+    assert w._timeout_step_hint("[x] \u2b50 Run Set up job\nTimeoutExpired") is None
+
+
+def test_timeout_step_hint_omits_the_limit_when_the_marker_has_no_seconds() -> None:
+    hint = w._timeout_step_hint(f"{_SCOPE} \u2b50 Run Main Run pytest\nTimeoutExpired")
+
+    assert hint is not None
+    assert "which was still running. " in hint
+    assert " when the " not in hint
+
+
+def test_timeout_step_hint_restarted_step_is_unfinished() -> None:
+    # Edge: a step that failed, then ran again, is judged by its latest run.
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+        f"{_SCOPE}   \u274c  Failure - Main Run pytest [1s]",
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+    )
+
+    hint = w._timeout_step_hint(combined)
+
+    assert hint is not None
+    assert "still running" in hint
+
+
+def test_timeout_step_hint_skips_a_failed_step_the_job_moved_past() -> None:
+    # Devin review on #6806: a job that continues after a failed step (always(),
+    # continue-on-error) finished that step. The kill cut a later one.
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Lint",
+        f"{_SCOPE}   \u274c  Failure - Main Lint [1s]",
+        f"{_SCOPE} \u2b50 Run Main Cleanup",
+        f"{_SCOPE}   \u2705  Success - Main Cleanup [2s]",
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+
+    hint = w._timeout_step_hint(combined)
+
+    assert hint is not None
+    assert "step 'Cleanup'" in hint
+    assert "Lint" not in hint
+
+
+def test_timeout_step_hint_names_a_later_running_step_over_an_earlier_failure() -> None:
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Lint",
+        f"{_SCOPE}   \u274c  Failure - Main Lint [1s]",
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+    )
+
+    hint = w._timeout_step_hint(combined)
+
+    assert hint is not None
+    assert "step 'Run pytest'" in hint
+    assert "still running" in hint
+
+
+def test_timeout_step_hint_judges_each_job_by_its_own_last_step() -> None:
+    # Edge: parallel jobs interleave. A step that is last in its own job counts
+    # even when another job started a step after it.
+    other = "[Python Tests/pytest (split-4)]"
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+        f"{_SCOPE}   \u274c  Failure - Main Run pytest [9m30s]",
+        f"{other} \u2b50 Run Main Install dependencies",
+        f"{other}   \u2705  Success - Main Install dependencies [3s]",
+    )
+
+    hint = w._timeout_step_hint(combined)
+
+    assert hint is not None
+    assert "step 'Run pytest'" in hint
+    assert "9m30s" in hint
+
+
+def test_default_text_report_shows_the_timeout_step_after_a_chatty_step() -> None:
+    # Devin review on #6806: the text report prints the first 40 detail lines.
+    # 80 short lines from the step must not push the timeout cause out of view.
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Run tests",
+        *("testing" for _ in range(80)),
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+    report = w.Report(1, [w.StageResult("gh act (full)", False, w._with_cause_hints(combined))])
+
+    text = w._format_text(report)
+
+    assert "step 'Run tests'" in text
+    assert "stage timeout fired" in text
+
+
+def test_timeout_step_hint_survives_the_detail_truncation() -> None:
+    # The cap keeps the tail; the step lines sit in the dropped head.
+    combined = (
+        f"{_SCOPE} \u2b50 Run Main Run pytest\n"
+        + ("noise\n" * 2000)
+        + "TimeoutExpired: timed out after 600 seconds"
+    )
+
+    detail = w._with_cause_hints(combined)
+
+    assert "step 'Run pytest'" in detail
+
+
+def test_act_full_timeout_during_a_test_step_names_the_step(monkeypatch, tmp_path):
+    # Integration: the #6793 symptom. The stage still blocks, and the operator
+    # reads the step, not a cold-cache remedy.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            -1,
+            _step_log(_CLONE_BURST, f"{_SCOPE} \u2b50 Run Main Run pytest") + "\n",
+            "TimeoutExpired: Command '['gh', 'act']' timed out after 600 seconds",
+        ),
+    )
+
+    res = w._act_full_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "step 'Run pytest'" in res.detail
+    assert "Re-run" not in res.detail
+
+
 def test_timeout_hint_is_absent_without_a_timeout() -> None:
     # Negative: an ordinary nonzero exit gets no timeout cause line, even when
     # the output happens to carry clone activity.
