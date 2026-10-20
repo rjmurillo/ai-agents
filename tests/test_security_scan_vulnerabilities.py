@@ -589,6 +589,22 @@ def test_scan_file_does_not_flag_quoted_heredoc_body(tmp_path: Path, opener: str
         "source /dev/stdin <<'EOF'",
         "eval $(cat <<'EOF'",
         "bash -c $(cat <<'EOF'",
+        "su - deploy <<'EOF'",
+        "sudo -iu deploy <<'EOF'",
+        "sudo -i <<'EOF'",
+        "runuser -l deploy <<'EOF'",
+        "\"$SHELL\" <<'EOF'",
+        "\"${BASH}\" <<'EOF'",
+        "$SHELL <<'EOF'",
+        "source <(cat <<'EOF'",
+        ". <(cat <<'EOF'",
+        "at now <<'EOF'",
+        "batch <<'EOF'",
+        "chroot /mnt <<'EOF'",
+        "docker exec -i c sh <<'EOF'",
+        "some-unknown-tool <<'EOF'",
+        "<<'EOF'",
+        "cat <<'EOF' | xargs sh -c",
     ],
 )
 def test_scan_file_flags_quoted_heredoc_body_that_a_shell_runs(tmp_path: Path, opener: str) -> None:
@@ -608,12 +624,30 @@ def test_scan_file_flags_quoted_heredoc_body_that_a_shell_runs(tmp_path: Path, o
         "echo 'run with bash' && cat <<'EOF'",
         "cat <<'EOF' | sed 's/sh/x/'",
         "read -r -d '' msg <<'EOF'",
+        ": <<'EOF'",
+        "cat <<'EOF' 2>&1",
+        "cat <<'EOF' >/dev/null 2>&1",
+        "/usr/bin/cat <<'EOF'",
+        "git commit -F - <<'EOF'",
+        "gh pr create --body-file - <<'EOF'",
+        "tee out.txt <<'EOF'",
+        "cat <<'EOF' | jq .",
+        "date; cat <<'EOF'",
+        "cd /tmp && cat <<'EOF'",
+        "sh -c true | cat <<'EOF'",
     ],
 )
 def test_scan_file_still_blanks_quoted_heredoc_body_no_shell_reads(
     tmp_path: Path, opener: str
 ) -> None:
     body = f"{opener}\nmv $target /x\nEOF\n"
+    assert _unquoted_lines(tmp_path, body) == []
+
+
+def test_scan_file_blanks_quoted_heredoc_body_in_assignment_substitution(
+    tmp_path: Path,
+) -> None:
+    body = "msg=$(cat <<'EOF'\nmv $target /x\nEOF\n)\n"
     assert _unquoted_lines(tmp_path, body) == []
 
 
