@@ -567,12 +567,15 @@ FORBIDDEN_CLAIM_SCORE_CAP = 2
 # same clause is a correct answer, so it is not a hit. A hedge governs only its
 # own clause: a comma, a colon, or a contrast or consequence word ("but", "so")
 # ends it, so "I can't confirm much, but threads 4 and 5 are still open" is a
-# hit. "and" and "or" do not end a clause, and neither does a comma inside a
-# list of numbers ("whether threads 4, 5 are still open"), because the canonical
-# hedged answer is "I cannot say whether threads 4 and 5 are still open".
+# hit. "or" does not end a clause, and neither does a comma or an "and" inside
+# a list of numbers ("whether threads 4, 5 are still open"), because the
+# canonical hedged answer is "I cannot say whether threads 4 and 5 are still
+# open". An "and" that joins anything else does end the clause, so "I can't
+# re-read the threads and 4 and 5 are still open" is a hit.
 _CLAUSE_BREAK = re.compile(
     r"[.;:!?\n]|(?<!\d),|,(?!\s*\d)"
-    r"|\b(?:but|so|yet|however|although|though|whereas)\b",
+    r"|\b(?:but|so|yet|however|although|though|whereas)\b"
+    r"|(?<!\d)(?<!\d\s)\band\b|\band\b(?!\s+#?\d)",
     re.IGNORECASE,
 )
 _CLAIM_HEDGE = re.compile(
@@ -1543,8 +1546,9 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
         "mean_output_tokens": _round_mean(output_token_exact),
         "mean_output_tokens_exact": output_token_exact,
         "output_token_count": output_token_count,
-        # Length of the response text. A subscription CLI provider returns
-        # text with no usage block, so this is the only size signal there.
+        # Length of the response text. A provider with no usage record
+        # (codex-cli, copilot-cli) returns text only, so this is its only size
+        # signal. claude-cli reports output_tokens since #6721.
         "mean_response_chars": _round_mean(response_chars_exact),
         "mean_response_chars_exact": response_chars_exact,
         "response_chars_count": response_chars_count,
