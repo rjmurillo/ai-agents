@@ -26,7 +26,9 @@ stale branch, and checks that git still parses the config.
 
 The lock is `config.prune-lock`, beside `config`. It keeps two `--apply` runs
 apart. It does not stop `git branch --track` or `git config`, which never check
-it. The stale set is computed again under the lock. A normal exit removes the
+it. The stale set is computed again under the lock, so a branch created before the
+lock was taken keeps its section. A branch created after that second look can
+still lose its section. A normal exit removes the
 lock. A prune that was killed leaves it behind, and the next `--apply` exits `3`
 and names the file. Remove `config.prune-lock` once no prune is running.
 

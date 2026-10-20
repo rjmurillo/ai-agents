@@ -40,6 +40,9 @@ class TestLockText:
     def test_says_killed_prune_leaves_lock(self, doc: str) -> None:
         assert "killed" in doc and "leaves it behind" in doc
 
+    def test_states_residual_race_after_rescan(self, doc: str) -> None:
+        assert "created after that second look can still lose its section" in doc
+
     def test_exit_3_covers_held_lock(self, doc: str) -> None:
         exit3 = re.search(r"Exit codes:.*?`3` (.*?\.(?: |$))", doc)
         assert exit3 is not None
