@@ -141,6 +141,11 @@ the 90s lefthook cap (`lefthook.yml:543`). Across the 60 complete warm pre-push
 repetitions, the job measured p50 72.5s, p95 80.5s, and max 82.8s. Four runs crossed 85s and failed the push. The module's own comment
 records this failure mode under load average 6.2 and says it is "not
 eliminated". Here it fired with the 1-minute load near 1.0 before each run.
+The readings taken when those four runs stopped, about 90s in, were 4.52 to
+8.02 on 4 CPUs, while every complete run read 1.11 or less at its end, about
+six minutes in. So the load at the deadline is the push's own fast stage:
+`count-ratchets` shares a `parallel: true` group with six other jobs
+(`lefthook.yml:540`). INFERRED, since no reading was taken inside the run.
 This is the gate #6734 item 5 describes: a check that fails a clean change for
 reasons unrelated to the change.
 
@@ -181,21 +186,27 @@ diagnostic run only semgrep waited for host headroom, 15.0s at load 4.8.
 matching its broad glob and then scans the whole index (`lefthook.yml:226`).
 It costs 27.8s of the 30s to 34s pre-commit wall clock in every class, and
 `pre_pr.py` runs the same scan again at push time. It entered `lefthook.yml` on
-2026-09-22 (#5887), after the v0.7.0 capture, which accounts for most of the
-pre-commit change since then (9.66s median then, 34.2s now, markdown class).
+2026-09-22 (#5887), after the v0.7.0 capture. That plausibly accounts for most
+of the pre-commit change since then (9.66s median then, 34.2s now, markdown
+class); INFERRED, because other jobs changed between the two SHAs too.
 Python commits also pay `subprocess-encoding` (15.3s), which runs again inside
 `pre_pr.py` and inside `count-ratchets`.
 
 ## Proposed budgets, not enforced
 
-Derived from the warm p95 above. These are proposals for the owner, not caps:
+Derived from the warm p95 above, with one caveat stated first: warm figures
+count passing repetitions only. 5 of 70 pre-push runs failed on a clean change
+(one of them after 388.2s at load 7.16), so a push on this box also carries
+about a 7 percent chance of failing for no reason in the diff, and the
+ceiling below is a floor for a loaded push, not a bound on one. These are
+proposals for the owner, not caps:
 `ci-scripts.md` MUST-16 and ADR-104 both say a cap sized on an idle run is a
 cap a loaded push can exceed. Nothing here changes a `timeout:`.
 
 | Hook | Measured p95 | Proposed ceiling | Proposed target | Basis |
 |---|---|---|---|---|
-| pre-commit | 35.5s | 60s (ADR-104, unchanged) | 10s | 1.7x headroom over the worst class today. Outside the two scans, no job's p50 exceeds 2s. Their p50s are not additive (most jobs share one parallel group), so confirm the target by re-measuring after slice 3. |
-| pre-push | 373.3s | 400s | 300s (ADR-104, unchanged) | The ceiling sits just above the worst warm run observed (396.6s), so a regression is visible now. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
+| pre-commit | 35.5s | 60s (ADR-104, unchanged) | 10s, conditional | The ceiling keeps 1.7x headroom over the worst class's p95. The target is not a p95 figure: it assumes the two scans (`agents-write-targets`, `subprocess-encoding`) leave the commit path in slice 3. Outside them no job's p50 exceeds 2s, but their p50s are not additive (most share one parallel group), so the target holds only if a re-measure after slice 3 confirms it. |
+| pre-push | 373.3s | 400s, regression tripwire | 300s (ADR-104, unchanged) | Max-based, not p95-based: 400s sits just above the worst warm run observed (396.6s, 1.07 times the p95), so any regression past today's worst shows. It is not a revised target; ADR-104 rule 5 says a check that exceeds its tier's target is replaced, not given a raised target. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
 
 Per-job headroom over warm p95, from the same runs: `count-ratchets` 1.1x
 (85s deadline), `python-unreachable-statements` 1.7x (90s),
@@ -242,6 +253,7 @@ uv run --frozen python scripts/metrics/gate_latency.py --repo <clone> \
   --json pre-push-python.json --markdown pre-push-python.md
 ```
 
-Warm statistics are repetitions 1 to 20 with `status == "complete"` from each
-JSON file, using `_nearest_rank_percentile` from
+Warm statistics are the first 20 repetitions with `status == "complete"`
+after repetition 0 of each JSON file. For the pre-push workflows cell that is
+the 15 complete main repetitions followed by top-up repetitions 1 to 5, using `_nearest_rank_percentile` from
 `scripts/metrics/gate_latency_stats.py`.

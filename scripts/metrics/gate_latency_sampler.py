@@ -65,7 +65,8 @@ _HOOK_TIMEOUT_SECONDS = 3600.0
 # ``parse_summary`` reads, so every repetition parsed zero jobs and the report
 # kept only the hook wall clock (issue #6734). The override applies to the
 # measured subprocess alone: ``output`` changes what lefthook prints, never
-# which jobs run. ``failure`` keeps a failing job's own output next to it.
+# which jobs run. ``failure`` makes lefthook print a failing job's output too;
+# this module reads only the summary and keeps none of that output.
 _LEFTHOOK_OUTPUT = "summary,failure"
 
 

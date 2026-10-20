@@ -35,8 +35,14 @@ the `Run Python Tests` aggregate (`pytest.yml:test-result`) requires. This
 session did not read the live ruleset. The pin is checked against it twice a
 week by `ruleset-context-drift.yml`.
 
-For a CI-owned job, the local run is early feedback, and it is the only kind of
-job slice 4 could move without first building a CI twin. For every other kind,
+These kinds are a measurement aid, not a placement rule. ADR-104
+(`.project-toolkit/architecture/ADR-104-gate-tier-placement-and-budgets.md`)
+still decides placement, in particular rule 4 (a local check must not be a
+more expensive copy of a required CI check) and rule 5 (a check over its
+tier's target is replaced by a cheaper one). For a CI-owned job, the local run
+is early feedback, and it is the only kind of job slice 4 could move without
+first building a CI twin. Whether it should move is a rule 4 cost comparison
+this record does not make. For every other kind,
 removing the local run removes the enforcement.
 
 ## Counts
