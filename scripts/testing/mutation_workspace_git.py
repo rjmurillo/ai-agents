@@ -13,6 +13,8 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import IO
 
+from scripts.testing.mutation_workspace_trust import safe_directory_args
+
 GIT_COMMAND_TIMEOUT_SECONDS = 30
 MARKER_DIRECTORY_NAME = "mutation-active"
 SCRATCH_DIRECTORY_SUFFIX = ".mutation-worktrees"
@@ -79,6 +81,7 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     command = [
         "git",
         f"--work-tree={repo_root.resolve()}",
+        *safe_directory_args(repo_root),
         "-c",
         "core.bare=false",
         "-c",
