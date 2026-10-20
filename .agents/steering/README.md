@@ -184,15 +184,15 @@ Context from steering:
 
 **Without steering scoping** (all files):
 - agent-prompts.md: 1,800 tokens
-- pester-testing.md: 2,200 tokens  
+- pester-testing.md: 2,700 tokens
 - security-practices.md: 3,000 tokens
 - documentation.md: 1,500 tokens
-- **Total**: 8,500 tokens
+- **Total**: 9,000 tokens
 
 **With steering scoping** (matched only):
-- pester-testing.md: 2,200 tokens
-- **Total**: 2,200 tokens
-- **Savings**: 74%
+- pester-testing.md: 2,700 tokens
+- **Total**: 2,700 tokens
+- **Savings**: 70%
 
 ## Implementation Status
 
