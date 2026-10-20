@@ -613,12 +613,69 @@ def _make_tree_writable(root: Path) -> None:
         root.chmod(0o700)
 
 
+_GITDIR_COPY_PREFIX = "act-gitdir-"
+# The runner image act uses for the ubuntu labels in the repository ``.actrc``,
+# conformance-tested in test_cleanup_image_is_an_act_runner_image. The job runs
+# as uid 1001 in that image, so the files it creates in the mounted copy belong
+# to a user the host cannot delete (#6792). Root in the same image can.
+_ACT_CLEANUP_IMAGE = "catthehacker/ubuntu:full-latest"
+_CLEANUP_TIMEOUT = 120
+
+
+def _container_cleanup_command(root: Path) -> list[str]:
+    """Return the docker command that empties ``root`` as root.
+
+    ``--pull=never`` keeps a missing image from starting an 18 GB pull in a
+    cleanup path. ``find -delete`` removes the contents; the host user owns
+    ``root`` itself and removes that last.
+    """
+    return [
+        "docker",
+        "run",
+        "--rm",
+        "--pull=never",
+        "--network",
+        "none",
+        "--user",
+        "0",
+        "-v",
+        f"{root}:/cleanup",
+        _ACT_CLEANUP_IMAGE,
+        "find",
+        "/cleanup",
+        "-mindepth",
+        "1",
+        "-delete",
+    ]
+
+
+def _remove_copy_as_container_root(root: Path) -> bool:
+    """Empty and remove ``root`` through a throwaway root container. True on success.
+
+    Only a directory this module created is handed to a root process: the name
+    must carry the copy prefix and ``root`` must not be a symlink.
+    """
+    if not root.name.startswith(_GITDIR_COPY_PREFIX) or root.is_symlink() or not root.is_dir():
+        return False
+    returncode, _, _ = _run(_container_cleanup_command(root), timeout=_CLEANUP_TIMEOUT)
+    if returncode != 0:
+        return False
+    with contextlib.suppress(OSError):
+        root.rmdir()
+    return not root.exists()
+
+
 def _remove_copy(root: Path) -> str | None:
     """Remove the temp copy, retrying once after making it writable.
 
+    Files the act container user created in the copy resist the host user:
+    chmod needs ownership, and deleting needs write access to a directory that
+    user owns (#6792). After the retry fails with a permission error, a root
+    container in the act runner image removes the copy. If that fails too, the
+    message names the exact commands that do.
+
     Returns None on success, else a message naming the leftover path. Never
-    raises: files the container user created can resist deletion, and a
-    traceback would hide the stage result.
+    raises: a traceback would hide the stage result.
     """
     for attempt in range(2):
         try:
@@ -627,9 +684,14 @@ def _remove_copy(root: Path) -> str | None:
             if attempt == 0:
                 _make_tree_writable(root)
                 continue
+            if isinstance(exc, PermissionError) and _remove_copy_as_container_root(root):
+                return None
+            command = shlex.join(_container_cleanup_command(root))
             return (
                 f"could not remove the temporary git dir copy {root} ({exc}); it holds "
-                "the repository config and stays on disk until you delete it"
+                "the repository config and stays on disk until you remove it. Files made "
+                "by the act container user block the host user. Remove it with: "
+                f"{command} && rmdir {shlex.quote(str(root))}"
             )
         return None
     return None  # pragma: no cover - the loop always returns
@@ -727,7 +789,7 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     _require_mountable(common, "move the repository to a path without ':'")
     # mkdtemp creates the parent 0700; that, not the open modes on the copy,
     # keeps other host users out. Do not swap in a shared temp root.
-    tmp = Path(tempfile.mkdtemp(prefix="act-gitdir-"))
+    tmp = Path(tempfile.mkdtemp(prefix=_GITDIR_COPY_PREFIX))
     try:
         dest = tmp / "git"
         _require_mountable(dest, "set TMPDIR to a path without ':'")
