@@ -169,3 +169,41 @@ Reporting. The 21 runs in `results-2026-10-03/` used the old prompt. They are
 reported separately and are never pooled with runs made after this amendment.
 They do not count toward the evidence floor in the decision rules. Every run
 after this amendment uses the amended prompt.
+
+## Amendment 2 (2026-10-20): decision floor and decision mapping
+
+Decided by the owner on 2026-10-20 (D4, D5), before any run under Amendment 1
+exists. H1 to H4, the task classes, the thresholds, and the evidence floor of 8
+runs per arm in a class (line 58) are unchanged. The version stays
+`predictions-v1`. Two rules change: the decision floor, and the mapping from
+H1 to H4 to a decision value, which the text above leaves open.
+
+1. Decision floor. This replaces the floor in "Decision output" (lines
+   143 to 145). Read literally, "12 accepted ordinary runs" for any compared
+   arm needs every one of the 12 available ordinary runs of that arm to be
+   accepted, so a single task failure would block any decision. The new floor
+   counts scored runs. A scored run is neither `HARNESS_FAILED` nor `NOT_RUN`.
+   Each compared arm (A, B, C, D, E) needs 12 scored ordinary runs. Arms A, C,
+   D, and E also need the fallback rule: at least 2 scored runs in each
+   fallback scenario and a harness failure share of at most 1 in 5 in the
+   fallback class. If any arm falls short, the decision is
+   `INSUFFICIENT_EVIDENCE`.
+2. Decision mapping. The base decision is the first match in this list:
+   1. All four of H1 to H4 are `INSUFFICIENT_EVIDENCE`, or the floor is unmet:
+      `INSUFFICIENT_EVIDENCE`.
+   2. H3 is `FALSIFIED` and H1 is not `FALSIFIED`:
+      `ADOPT_ORIGINAL_SOL_LUNA_TERRA_ROUTING`.
+   3. H3 is `FALSIFIED` and H1 is `FALSIFIED`: `ADOPT_HETEROGENEOUS_ROUTING`.
+   4. H3 is `SUPPORTED` and H1 is `SUPPORTED`:
+      `ADOPT_SOL_PARENT_WITH_LUNA_WORKERS`.
+   5. H3 is `SUPPORTED`: `ADOPT_SOL_FANOUT`.
+   6. Otherwise: `KEEP_CURRENT_POLICY`.
+
+   Then, if the base decision is not `INSUFFICIENT_EVIDENCE` and H2 or H4 is
+   `SUPPORTED_FOR:fallback_reasoning`, the published decision is
+   `ADOPT_CONDITIONALLY`. The report keeps the base decision and names each
+   conditional edge: "Terra high for fallback_reasoning" for H2, and
+   "single-agent Sol for fallback_reasoning" for H4.
+
+A case this mapping handles badly is reported as such. It is changed only in a
+new versioned file, as lines 5 and 6 require.

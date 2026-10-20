@@ -41,7 +41,15 @@ FALSIFIED = "FALSIFIED"
 INSUFFICIENT = "INSUFFICIENT_EVIDENCE"
 SUPERSEDED_DIR = "results-2026-10-03"
 CODEX = "codex"
-DECISION_NOT_REGISTERED = "not pre-registered; owner decides from H1-H4"
+DECISION_RULE = "predictions-v1 amendment 2"
+DECISION_KEEP = "KEEP_CURRENT_POLICY"
+DECISION_SOL_FANOUT = "ADOPT_SOL_FANOUT"
+DECISION_ORIGINAL_ROUTING = "ADOPT_ORIGINAL_SOL_LUNA_TERRA_ROUTING"
+DECISION_SOL_WITH_LUNA = "ADOPT_SOL_PARENT_WITH_LUNA_WORKERS"
+DECISION_HETEROGENEOUS = "ADOPT_HETEROGENEOUS_ROUTING"
+DECISION_CONDITIONAL = "ADOPT_CONDITIONALLY"
+EDGE_TERRA = "Terra high for fallback_reasoning"
+EDGE_SOL_SINGLE = "single-agent Sol for fallback_reasoning"
 
 NOT_RUN = "NOT_RUN"
 ACCEPTED = "ACCEPTED"
@@ -58,7 +66,7 @@ FALLBACK_MIN_REPS = 2  # line 63
 REPETITIONS = (1, 2, 3)  # line 29
 COMPARED_ARMS = ("A", "B", "C", "D", "E")  # H1 to H4
 FALLBACK_COMPARED_ARMS = ("A", "C", "D", "E")  # H2 and H4
-DECISION_ORDINARY_ACCEPTED_FLOOR = 12  # line 143
+DECISION_ORDINARY_SCORED_FLOOR = 12  # Amendment 2 item 1
 
 INTERPRETATIONS: tuple[dict[str, object], ...] = (
     {
@@ -149,13 +157,15 @@ INTERPRETATIONS: tuple[dict[str, object], ...] = (
     },
     {
         "id": "I9",
-        "predictions_lines": "143-145",
+        "predictions_lines": "Amendment 2 items 1 and 2 (replaces 143-145)",
         "reading": (
-            "'For any compared arm' (line 144) governs both clauses. Each of arms A, B, C, D, "
-            "E needs at least 12 accepted ordinary_bounded runs AND, for arms compared on the "
-            "fallback class (A, C, D, E), the fallback rule: at least 2 non-harness-failed runs "
-            "in each fallback scenario and a fallback harness-failure share of at most 1/5. "
-            "Any arm short makes the decision INSUFFICIENT_EVIDENCE."
+            "Amendment 2 sets the decision floor per compared arm: each of A, B, C, D, E needs "
+            "12 scored ordinary_bounded runs (not HARNESS_FAILED, not NOT_RUN), and A, C, D, E "
+            "also need the fallback rule: at least 2 scored runs in each fallback scenario and a "
+            "fallback harness-failure share of at most 1/5. Any arm short gives "
+            "INSUFFICIENT_EVIDENCE. The decision value is the first matching mapping rule, "
+            "wrapped as ADOPT_CONDITIONALLY when H2 or H4 is SUPPORTED_FOR:fallback_reasoning "
+            "and the base decision is not INSUFFICIENT_EVIDENCE."
         ),
     },
     {
@@ -583,30 +593,60 @@ def evaluate_h4(runs: Sequence[Run], fallback: Sequence[str]) -> dict[str, objec
 
 
 def _arm_floor(runs: Sequence[Run], arm: str, fallback: Sequence[str]) -> dict[str, object]:
-    accepted = sum(1 for r in runs if r.arm == arm and r.klass == CLASS_ORDINARY and r.accepted)
+    ordinary = [r for r in runs if r.arm == arm and r.klass == CLASS_ORDINARY]
+    scored = sum(1 for r in ordinary if r.eligible)
     on_fallback = arm in FALLBACK_COMPARED_ARMS
     rule = fallback_rule_met(runs, arm, fallback) if on_fallback else None
-    meets = accepted >= DECISION_ORDINARY_ACCEPTED_FLOOR and rule is not False
     return {
-        "accepted_ordinary_runs": accepted,
-        "accepted_ordinary_required": DECISION_ORDINARY_ACCEPTED_FLOOR,
+        "scored_ordinary_runs": scored,
+        "scored_ordinary_required": DECISION_ORDINARY_SCORED_FLOOR,
+        "accepted_ordinary_runs": sum(1 for r in ordinary if r.accepted),
         "fallback_rule_met": rule,
-        "meets_floor": meets,
+        "meets_floor": scored >= DECISION_ORDINARY_SCORED_FLOOR and rule is not False,
     }
 
 
-def decide(runs: Sequence[Run], fallback: Sequence[str], *, superseded: bool) -> dict[str, object]:
-    """Per-arm floor check (I9). The H-status to decision-value mapping is not pre-registered."""
+def base_decision(statuses: Mapping[str, str], *, floor_met: bool) -> str:
+    """Amendment 2 item 2, first match wins."""
+    h1, h3 = statuses["H1"], statuses["H3"]
+    if not floor_met or all(status == INSUFFICIENT for status in statuses.values()):
+        return INSUFFICIENT
+    if h3 == FALSIFIED:
+        return DECISION_HETEROGENEOUS if h1 == FALSIFIED else DECISION_ORIGINAL_ROUTING
+    if h3 == SUPPORTED:
+        return DECISION_SOL_WITH_LUNA if h1 == SUPPORTED else DECISION_SOL_FANOUT
+    return DECISION_KEEP
+
+
+def conditional_edges(statuses: Mapping[str, str]) -> list[str]:
+    edges = []
+    if statuses["H2"] == SUPPORTED_FOR_FALLBACK:
+        edges.append(EDGE_TERRA)
+    if statuses["H4"] == SUPPORTED_FOR_FALLBACK:
+        edges.append(EDGE_SOL_SINGLE)
+    return edges
+
+
+def decide(
+    runs: Sequence[Run],
+    fallback: Sequence[str],
+    statuses: Mapping[str, str],
+    *,
+    superseded: bool,
+) -> dict[str, object]:
+    """Decision floor (Amendment 2 item 1) and mapping (item 2); no judgment."""
     per_arm = {arm: _arm_floor(runs, arm, fallback) for arm in COMPARED_ARMS}
     short = [arm for arm, item in per_arm.items() if not item["meets_floor"]]
     floor = {"per_arm": per_arm, "arms_short": short, "pre_amendment_inputs": superseded}
-    if superseded or short:
-        return {
-            "decision": INSUFFICIENT,
-            "decision_basis": "evidence floor unmet (PREDICTIONS.md decision output)",
-            "decision_floor": floor,
-        }
-    return {"decision": None, "decision_basis": DECISION_NOT_REGISTERED, "decision_floor": floor}
+    base = base_decision(statuses, floor_met=not (superseded or short))
+    edges = [] if base == INSUFFICIENT else conditional_edges(statuses)
+    return {
+        "decision": DECISION_CONDITIONAL if edges else base,
+        "base_decision": base,
+        "conditional_edges": edges,
+        "decision_rule": DECISION_RULE,
+        "decision_floor": floor,
+    }
 
 
 def _superseded_hypotheses() -> dict[str, dict[str, object]]:
@@ -641,6 +681,11 @@ def score(
         "rows_not_run": sum(1 for run in runs if run.status == NOT_RUN),
         "tables": tables,
         "hypotheses": hypotheses,
-        **decide(runs, fallback, superseded=superseded),
+        **decide(
+            runs,
+            fallback,
+            {k: str(h["status"]) for k, h in hypotheses.items()},
+            superseded=superseded,
+        ),
         "interpretations": list(INTERPRETATIONS),
     }

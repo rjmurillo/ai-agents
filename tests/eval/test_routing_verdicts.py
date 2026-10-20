@@ -432,14 +432,46 @@ def test_h4_insufficient_with_missing_arm() -> None:
 # ------------------------------------------------------------------------- decision
 
 
+def statuses(
+    h1: str = v.INSUFFICIENT,
+    h2: str = v.INSUFFICIENT,
+    h3: str = v.INSUFFICIENT,
+    h4: str = v.INSUFFICIENT,
+) -> dict[str, str]:
+    return {"H1": h1, "H2": h2, "H3": h3, "H4": h4}
+
+
 def test_one_arm_short_forces_insufficient_even_when_total_is_at_least_twelve() -> None:
     rows = full_dataset(A=arm_rows("A", ALL_IDS, accept_first(11)))
+    rows = [
+        r
+        for r in rows
+        if not (r["arm"] == "A" and r["scenario_id"] == ORDINARY[3] and r["repetition"] == 3)
+    ]
     report = v.score(runs_of(rows), CLASSES)
     floor = report["decision_floor"]
-    assert sum(a["accepted_ordinary_runs"] for a in floor["per_arm"].values()) >= 12  # type: ignore[index]
-    assert floor["per_arm"]["A"]["accepted_ordinary_runs"] == 11  # type: ignore[index]
+    assert sum(a["scored_ordinary_runs"] for a in floor["per_arm"].values()) >= 12  # type: ignore[index]
+    assert floor["per_arm"]["A"]["scored_ordinary_runs"] == 11  # type: ignore[index]
     assert floor["arms_short"] == ["A"]  # type: ignore[index]
     assert report["decision"] == v.INSUFFICIENT
+
+
+def test_floor_counts_scored_runs_not_accepted_runs() -> None:
+    rows = full_dataset(A=arm_rows("A", ALL_IDS, accept_first(5)))
+    floor = v.score(runs_of(rows), CLASSES)["decision_floor"]
+    assert floor["per_arm"]["A"]["scored_ordinary_runs"] == 12  # type: ignore[index]
+    assert floor["per_arm"]["A"]["accepted_ordinary_runs"] == 5  # type: ignore[index]
+    assert floor["per_arm"]["A"]["meets_floor"] is True  # type: ignore[index]
+    assert floor["arms_short"] == []  # type: ignore[index]
+
+
+def test_harness_failed_and_not_run_do_not_count_as_scored() -> None:
+    a = arm_rows("A", ALL_IDS)
+    a[0]["status"] = "HARNESS_FAILED"
+    a[1] = row(a[1]["scenario_id"], "A", a[1]["repetition"], "NOT_RUN")
+    floor = v.score(runs_of(full_dataset(A=a)), CLASSES)["decision_floor"]
+    assert floor["per_arm"]["A"]["scored_ordinary_runs"] == 10  # type: ignore[index]
+    assert floor["arms_short"] == ["A"]  # type: ignore[index]
 
 
 def test_arm_b_is_held_to_the_ordinary_floor_but_not_the_fallback_rule() -> None:
@@ -447,7 +479,7 @@ def test_arm_b_is_held_to_the_ordinary_floor_but_not_the_fallback_rule() -> None
     floor = v.score(runs_of(rows), CLASSES)["decision_floor"]
     assert floor["per_arm"]["B"]["fallback_rule_met"] is None  # type: ignore[index]
     assert floor["arms_short"] == []  # type: ignore[index]
-    short = full_dataset(B=arm_rows("B", ALL_IDS, fail_all))
+    short = [r for r in full_dataset() if not (r["arm"] == "B" and r["scenario_id"] == ORDINARY[0])]
     floor = v.score(runs_of(short), CLASSES)["decision_floor"]
     assert floor["arms_short"] == ["B"]  # type: ignore[index]
 
@@ -457,24 +489,100 @@ def test_decision_insufficient_when_fallback_rule_unmet_for_an_arm() -> None:
     report = v.score(runs_of(rows), CLASSES)
     floor = report["decision_floor"]
     assert floor["per_arm"]["E"]["fallback_rule_met"] is False  # type: ignore[index]
-    assert floor["per_arm"]["E"]["accepted_ordinary_runs"] == 12  # type: ignore[index]
     assert floor["arms_short"] == ["E"]  # type: ignore[index]
     assert report["decision"] == v.INSUFFICIENT
+    assert report["conditional_edges"] == []
 
 
 def test_arm_f_does_not_affect_the_decision_floor() -> None:
     rows = full_dataset(F=arm_rows("F", ALL_IDS, fail_all))
     report = v.score(runs_of(rows), CLASSES)
     assert set(report["decision_floor"]["per_arm"]) == set("ABCDE")  # type: ignore[index]
-    assert report["decision"] is None
-
-
-def test_decision_is_null_with_basis_when_floor_met() -> None:
-    report = v.score(runs_of(full_dataset()), CLASSES)
-    assert report["decision"] is None
-    assert report["decision_basis"] == v.DECISION_NOT_REGISTERED
     assert report["decision_floor"]["arms_short"] == []  # type: ignore[index]
-    assert set(report["hypotheses"]) == {"H1", "H2", "H3", "H4"}  # type: ignore[arg-type]
+
+
+def test_floor_met_with_flat_data_keeps_current_policy() -> None:
+    report = v.score(runs_of(full_dataset()), CLASSES)
+    assert report["decision"] == v.DECISION_KEEP
+    assert report["base_decision"] == v.DECISION_KEEP
+    assert report["conditional_edges"] == []
+    assert report["decision_rule"] == "predictions-v1 amendment 2"
+    assert "decision_basis" not in report
+
+
+def test_mapping_a_all_insufficient_or_floor_unmet() -> None:
+    assert v.base_decision(statuses(), floor_met=True) == v.INSUFFICIENT
+    assert v.base_decision(statuses(h3=v.SUPPORTED), floor_met=False) == v.INSUFFICIENT
+
+
+def test_mapping_b_h3_falsified_h1_not_falsified() -> None:
+    for h1 in (v.SUPPORTED, v.INSUFFICIENT):
+        assert (
+            v.base_decision(statuses(h1=h1, h3=v.FALSIFIED), floor_met=True)
+            == v.DECISION_ORIGINAL_ROUTING
+        )
+
+
+def test_mapping_c_h3_and_h1_falsified() -> None:
+    result = v.base_decision(statuses(h1=v.FALSIFIED, h3=v.FALSIFIED), floor_met=True)
+    assert result == v.DECISION_HETEROGENEOUS
+
+
+def test_mapping_d_h3_and_h1_supported() -> None:
+    result = v.base_decision(statuses(h1=v.SUPPORTED, h3=v.SUPPORTED), floor_met=True)
+    assert result == v.DECISION_SOL_WITH_LUNA
+
+
+def test_mapping_e_h3_supported_alone() -> None:
+    for h1 in (v.FALSIFIED, v.INSUFFICIENT):
+        assert (
+            v.base_decision(statuses(h1=h1, h3=v.SUPPORTED), floor_met=True)
+            == v.DECISION_SOL_FANOUT
+        )
+
+
+def test_mapping_f_otherwise_keeps_current_policy() -> None:
+    assert v.base_decision(statuses(h1=v.SUPPORTED), floor_met=True) == v.DECISION_KEEP
+    assert v.base_decision(statuses(h2=v.FALSIFIED), floor_met=True) == v.DECISION_KEEP
+
+
+def decide_with(h: dict[str, str], *, superseded: bool = False) -> dict[str, object]:
+    runs = runs_of(full_dataset())
+    return v.decide(runs, sorted(FALLBACK), h, superseded=superseded)
+
+
+def test_conditional_wrap_for_h2_alone() -> None:
+    out = decide_with(statuses(h1=v.SUPPORTED, h3=v.SUPPORTED, h2=v.SUPPORTED_FOR_FALLBACK))
+    assert out["decision"] == v.DECISION_CONDITIONAL
+    assert out["base_decision"] == v.DECISION_SOL_WITH_LUNA
+    assert out["conditional_edges"] == [v.EDGE_TERRA]
+
+
+def test_conditional_wrap_for_h4_alone() -> None:
+    out = decide_with(statuses(h3=v.SUPPORTED, h4=v.SUPPORTED_FOR_FALLBACK))
+    assert out["decision"] == v.DECISION_CONDITIONAL
+    assert out["base_decision"] == v.DECISION_SOL_FANOUT
+    assert out["conditional_edges"] == [v.EDGE_SOL_SINGLE]
+
+
+def test_conditional_wrap_for_both_names_both_edges() -> None:
+    both = statuses(h2=v.SUPPORTED_FOR_FALLBACK, h4=v.SUPPORTED_FOR_FALLBACK)
+    out = decide_with(both)
+    assert out["base_decision"] == v.DECISION_KEEP
+    assert out["decision"] == v.DECISION_CONDITIONAL
+    assert out["conditional_edges"] == [
+        "Terra high for fallback_reasoning",
+        "single-agent Sol for fallback_reasoning",
+    ]
+
+
+def test_no_conditional_wrap_on_insufficient_evidence() -> None:
+    only_h2 = statuses(h2=v.SUPPORTED_FOR_FALLBACK)
+    out = decide_with(only_h2, superseded=True)
+    assert out["decision"] == v.INSUFFICIENT
+    assert out["conditional_edges"] == []
+    unmet = v.decide(runs_of(arm_rows("A", ALL_IDS)), sorted(FALLBACK), only_h2, superseded=False)
+    assert unmet["decision"] == v.INSUFFICIENT
 
 
 def test_report_lists_interpretations_with_lines() -> None:
@@ -580,7 +688,7 @@ def test_cli_scores_and_writes_output(tmp_path: Path, capsys: pytest.CaptureFixt
     assert run_cli("--results", str(results), "--output", str(out)) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed == json.loads(out.read_text(encoding="utf-8"))
-    assert printed["decision"] is None
+    assert printed["decision"] == v.DECISION_KEEP
 
 
 def test_cli_accepts_several_result_files(tmp_path: Path) -> None:

@@ -28,4 +28,4 @@ directories end in `.fixture`. The loader and grader are
 
 ## Scoring results
 
-`uv run python scripts/eval/eval_routing_verdicts.py --results <jsonl> [<jsonl> ...]` applies `PREDICTIONS.md` (`predictions-v1` plus Amendment 1) to result rows and prints the H1 to H4 statuses, per arm and class tables, and the evidence-floor check as JSON. It refuses to pool `results-2026-10-03/` with later runs, and it leaves `decision` null with a stated basis when the floor is met, because the predictions do not map H statuses to a strategy value.
+`uv run python scripts/eval/eval_routing_verdicts.py --results <jsonl> [<jsonl> ...]` applies `PREDICTIONS.md` (`predictions-v1` plus Amendment 1) to result rows and prints the H1 to H4 statuses, per arm and class tables, and the evidence-floor check as JSON. It refuses to pool `results-2026-10-03/` with later runs, and it maps the statuses to a strategy decision with the floor and mapping of Amendment 2.
