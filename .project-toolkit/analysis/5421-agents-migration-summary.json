@@ -27,8 +27,8 @@
   "disposition_counts": {
     "DELETE_OBSOLETE": 330,
     "MOVE": 133,
-    "REHOME_CANONICAL": 32,
-    "RETAIN_CANONICAL": 72,
+    "REHOME_CANONICAL": 33,
+    "RETAIN_CANONICAL": 71,
     "RETAIN_HISTORY": 459
   },
   "manifest": ".project-toolkit/analysis/5421-agents-migration-manifest.csv"
