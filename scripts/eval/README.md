@@ -930,7 +930,15 @@ The harness runs a fourth cell, `control`, with `control_instruction` as the sys
 
 Output size is `output_tokens` when both sides reported it on every scenario in the pool, else `response_chars` under the same rule. A side that covers part of a pool reads `UNMEASURED`, never a pass. `claude-cli` counts thinking tokens in `output_tokens`. The overall status is `FAIL` if any check failed, `UNMEASURED` if none failed but one could not be measured, else `PASS`. Anything other than `PASS` makes the run exit 1, even when the verdict is `PASS`. The file loader refuses a missing, non-numeric, or out-of-range field with exit 2 before any call.
 
-The control arm is an instruction contrast, not a rule-absent arm. It shows the harness separates two instruction sets and that the rule's effect exceeds the model's own spread. It leaves the baseline-equals-full confound visible instead of removing it. The thresholds in `voice.json` are first values with no run behind them. The one archived exempt measurement (2026-10-18, negative pool 1498.8 to 1489.0 characters, a 0.7% shrink) would pass. Each cell is one sample, so recalibrate after a multi-run record exists. The record for the check is a live run (`EVAL_PROVIDER=claude-cli`, at least 3 runs per ADR-057); this change adds the harness and has no live run.
+The control arm is an instruction contrast, not a rule-absent arm. It shows the harness separates two instruction sets and that the rule's effect exceeds the model's own spread. It leaves the baseline-equals-full confound visible instead of removing it. The thresholds in `voice.json` are first values with no run behind them. The one archived exempt measurement (2026-10-18, negative pool 1498.8 to 1489.0 characters, a 0.7% shrink) would pass. Each cell is one sample, so recalibrate after a multi-run record exists. Record: `.project-toolkit/eval-results/2026-10-20-issue-5405-voice-load-bearing-claude-cli.json` holds three live runs (`EVAL_PROVIDER=claude-cli`, `claude-sonnet-5`, three judge samples reduced by median, commit 7b7abfcdca, 2026-10-20). Results:
+
+| Check | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| concision (rule vs control, output tokens) | PASS, shrink 0.668 | PASS, shrink 0.668 | PASS, shrink 0.711 |
+| exempt (rule vs baseline, output tokens) | PASS, +0.475 longer | PASS, +0.17 longer | PASS, +0.007 longer |
+| grounding (judge average, rule minus control) | FAIL, gain 0.03 | PASS, gain 1.10 | FAIL, gain 0.28 |
+
+The rule also cut mean positive-pool output tokens against `baseline` in all three runs (194.7 to 144.9, 159.9 to 129.8, 199.7 to 146.8). Concision is load bearing on this provider. Grounding is not shown: the control arm scored 4.26, 3.31, and 4.15, so two of three runs miss the 0.5 gain, and the rule's own average moved from 0.31 below to 0.29 above `baseline`. The 0.5 threshold was set before any run and is not retuned to fit these numbers. The exempt pool is noisy (V16 ranged from 1330 to 2228 output tokens across arms in run 1), which is why three runs are the floor.
 
 ### Evidence states in the coverage gate
 

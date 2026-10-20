@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "issue": 5405,
+  "note": "Three live runs of voice.json with the load_bearing contract. Provider claude-cli counts thinking tokens in output_tokens. One sample per cell, three judge samples reduced by median. Per-cell detail stays in the local run files; this record keeps the contract and pool summaries.",
+  "runs": [
+    {
+      "run": {
+        "provider": "claude-cli",
+        "requested_model": "claude-sonnet-5",
+        "timestamp_utc": "2026-10-20T06:01:17.441993+00:00",
+        "git_commit": "7b7abfcdca807f0c14c25b1061b210dddab362cb",
+        "scenario_hash": "36c20f08aae39641"
+      },
+      "verdict": "FAIL_NEGATIVE_INCOMPLETE",
+      "positive": {
+        "baseline": {
+          "avg_score_exact": 4.58974358974359,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 194.69230769230768,
+          "mean_response_chars_exact": 458.15384615384613
+        },
+        "full": {
+          "avg_score_exact": 4.282051282051282,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 144.92307692307693,
+          "mean_response_chars_exact": 347.2307692307692
+        }
+      },
+      "negative": {
+        "baseline": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 493.25,
+          "mean_response_chars_exact": 1563.0
+        },
+        "full": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 727.75,
+          "mean_response_chars_exact": 1761.25
+        }
+      },
+      "load_bearing": {
+        "status": "FAIL",
+        "checks": {
+          "concision": {
+            "threshold": 0.25,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 144.92307692307693,
+            "control": 436.61538461538464,
+            "shrink": 0.668
+          },
+          "grounding": {
+            "threshold": 0.5,
+            "status": "FAIL",
+            "full": 4.28,
+            "control": 4.26,
+            "gain": 0.03
+          },
+          "exempt": {
+            "threshold": 0.2,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 727.75,
+            "baseline": 493.25,
+            "shrink": -0.475
+          }
+        }
+      }
+    },
+    {
+      "run": {
+        "provider": "claude-cli",
+        "requested_model": "claude-sonnet-5",
+        "timestamp_utc": "2026-10-20T06:27:56.385352+00:00",
+        "git_commit": "7b7abfcdca807f0c14c25b1061b210dddab362cb",
+        "scenario_hash": "36c20f08aae39641"
+      },
+      "verdict": "FAIL_NEGATIVE_INCOMPLETE",
+      "positive": {
+        "baseline": {
+          "avg_score_exact": 4.256410256410256,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 159.92307692307693,
+          "mean_response_chars_exact": 459.15384615384613
+        },
+        "full": {
+          "avg_score_exact": 4.410256410256411,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 129.76923076923077,
+          "mean_response_chars_exact": 361.61538461538464
+        }
+      },
+      "negative": {
+        "baseline": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 514.5,
+          "mean_response_chars_exact": 1605.5
+        },
+        "full": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 602.0,
+          "mean_response_chars_exact": 1324.75
+        }
+      },
+      "load_bearing": {
+        "status": "PASS",
+        "checks": {
+          "concision": {
+            "threshold": 0.25,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 129.76923076923077,
+            "control": 391.2307692307692,
+            "shrink": 0.668
+          },
+          "grounding": {
+            "threshold": 0.5,
+            "status": "PASS",
+            "full": 4.41,
+            "control": 3.31,
+            "gain": 1.1
+          },
+          "exempt": {
+            "threshold": 0.2,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 602.0,
+            "baseline": 514.5,
+            "shrink": -0.17
+          }
+        }
+      }
+    },
+    {
+      "run": {
+        "provider": "claude-cli",
+        "requested_model": "claude-sonnet-5",
+        "timestamp_utc": "2026-10-20T06:27:56.385340+00:00",
+        "git_commit": "7b7abfcdca807f0c14c25b1061b210dddab362cb",
+        "scenario_hash": "36c20f08aae39641"
+      },
+      "verdict": "FAIL_NEGATIVE_INCOMPLETE",
+      "positive": {
+        "baseline": {
+          "avg_score_exact": 4.153846153846154,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 199.69230769230768,
+          "mean_response_chars_exact": 471.6923076923077
+        },
+        "full": {
+          "avg_score_exact": 4.435897435897436,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 146.76923076923077,
+          "mean_response_chars_exact": 345.6923076923077
+        }
+      },
+      "negative": {
+        "baseline": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 455.5,
+          "mean_response_chars_exact": 1403.0
+        },
+        "full": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 458.75,
+          "mean_response_chars_exact": 1206.75
+        }
+      },
+      "load_bearing": {
+        "status": "FAIL",
+        "checks": {
+          "concision": {
+            "threshold": 0.25,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 146.76923076923077,
+            "control": 508.15384615384613,
+            "shrink": 0.711
+          },
+          "grounding": {
+            "threshold": 0.5,
+            "status": "FAIL",
+            "full": 4.44,
+            "control": 4.15,
+            "gain": 0.28
+          },
+          "exempt": {
+            "threshold": 0.2,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 458.75,
+            "baseline": 455.5,
+            "shrink": -0.007
+          }
+        }
+      }
+    }
+  ]
+}
