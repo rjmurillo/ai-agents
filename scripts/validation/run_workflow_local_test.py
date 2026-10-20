@@ -979,10 +979,15 @@ def _windows_jobs(wf_path: Path) -> dict[str, str]:
 
 # A job that runs this script runs one partition of the whole test suite.
 _FULL_SUITE_RUNNER = "scripts/ci/run_pytest_partition.py"
-# Matches an interpreter invoking the runner, not a command that only names its
-# path (``test -f scripts/ci/run_pytest_partition.py``).
+# Matches an interpreter invoking the runner at a shell command position, not a
+# command that only names its path (``test -f scripts/ci/run_pytest_partition.py``)
+# or prints it (``echo python scripts/ci/run_pytest_partition.py``, a comment).
 _FULL_SUITE_INVOCATION = re.compile(
-    r"\bpython3?(?:\.\d+)?\s+(?:-\S+\s+)*" + re.escape(_FULL_SUITE_RUNNER) + r"(?!\S)"
+    r"(?:^|[;&|(])\s*(?:(?:then|do|else)\s+)?"
+    r"(?:\w+=\S+\s+)*"
+    r"(?:uv\s+run\s+(?:[^\n;&|]*?\s)?)?"
+    r"python3?(?:\.\d+)?\s+(?:-\S+\s+)*" + re.escape(_FULL_SUITE_RUNNER) + r"(?!\S)",
+    re.MULTILINE,
 )
 
 
