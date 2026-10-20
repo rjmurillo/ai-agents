@@ -6,7 +6,7 @@ The 2026-10-13 issue sweep retro produced several guards. Commit `7862817b8c` (P
 
 Six days later, the 42-issue sweep (2026-10-17 to 2026-10-19) repeated two of them:
 
-- Launch args. Line 66 says to assert `Array.isArray(args)` at the top of a Workflow script. The final round launched with `args.pending = '__FROM_FILE__'` and ran 0 agents. The relaunch added the guard.
+- Launch args. Line 66 says to assert `Array.isArray(args)` at the top of a Workflow script. The final round launched with `args.pending = '__FROM_FILE__'` and ran 0 agents. A check on `args` alone misses that: `args` was an object and the string sat in a field. The relaunch asserted `Array.isArray(args.pending)` and `Array.isArray(args.open)`, one check per array field.
 - Process matching. Line 67 says an unbracketed `pkill -f` matched its own monitor. In wave 2, two agents' `pgrep -f` waits matched their own monitor shells.
 
 One guard did not recur. The disk check before heavy steps (line 63) went into the sweep prompts. Wave-1 fix summaries cite "disk check (63G)" before each push, and no ENOSPC halt happened.

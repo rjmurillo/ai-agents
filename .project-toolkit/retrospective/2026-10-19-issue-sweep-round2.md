@@ -168,7 +168,7 @@ High to stalled at wave 2: 76 rounds with no trend to zero (for example #6686 we
 
 - **Q1:** Why 0 agents? **A1:** SUPPLIED: `pending` was a sentinel string, not an array, so the script found no work.
 - **Q2:** Why did the script accept a string? **A2:** SUPPLIED: it had no type guard until the relaunch added `Array.isArray`.
-- **Q3:** Why was there no guard, after the 2026-10-13 retro asked for one? **A3:** OBSERVED: the guard lives only in `.serena/memories/orchestration/orchestration-observations.md:66` ("Assert `Array.isArray(args)` at the top of the script"), added in `7862817b8c` (2026-10-13). A search of `templates/`, `src/claude/skills/`, `src/claude/agents/`, and `.agents/governance/` for `Array.isArray` and `__FILL__` returned 0 files.
+- **Q3:** Why was there no guard, after the 2026-10-13 retro asked for one? **A3:** OBSERVED: the guard lives only in `.serena/memories/orchestration/orchestration-observations.md:66` ("Assert `Array.isArray(args)` at the top of the script"). That check targets `args`, so it would also miss a string in `args.pending`; the line now names each array field, added in `7862817b8c` (2026-10-13). A search of `templates/`, `src/claude/skills/`, `src/claude/agents/`, and `.agents/governance/` for `Array.isArray` and `__FILL__` returned 0 files.
 - **Q4:** Why did memory not prevent it? **A4:** INFERRED: Serena memory activates only when someone searches it. No step searches memory before a workflow launch. INFERRED: the workflow script is written fresh each sweep through a harness skill, so the repo has no script source to hold the guard; `.claude/rules/universal.md` MUST NOT 7 warns against this, since an optional memory service is not a binding.
 
 **Root Cause:** a must-obey launch guard was stored on a retrieval-only surface with no activation step.
@@ -397,15 +397,19 @@ Scores below are `score_atomicity.py` results. Across 15 tries, the only penalty
 
 ### REMOVE
 
-None: no learning was contradicted.
+| Skill ID | Reason | Evidence |
+|----------|--------|----------|
+| None | No learning was contradicted | Learnings 1 to 5 above |
 
 ## Deduplication Check
 
-- Learning 1 (relayed shared state): `orchestrator-observations.md` mid-turn bullet (PR #6749), 90%, augment existing bullet.
-- Learning 2 (frozen contract): `orchestrator-observations.md` review convergence Eureka, 95%, TAG only.
-- Learning 3 (gate before option): `pr-review/triage-001-verify-before-stale-closure`, 30%, add bullet to `orchestrator-observations.md`.
-- Learning 4 (memory-only guards): `orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief`, 50% (same family: binding surface; different surface pair and recurrence evidence), new linked memory.
-- Learning 5 (verifier security review): `orchestration/orchestration-observations.md` background commit-security bullet, 40%, add bullet to `orchestrator-observations.md`.
+| New Skill | Most Similar | Similarity | Decision |
+|-----------|--------------|------------|----------|
+| Learning 1 (relayed shared state) | `orchestrator-observations.md` mid-turn bullet (PR #6749) | 90% | Augment existing bullet |
+| Learning 2 (frozen contract) | `orchestrator-observations.md` review convergence Eureka | 95% | TAG only |
+| Learning 3 (gate before option) | `pr-review/triage-001-verify-before-stale-closure` | 30% | Add bullet to `orchestrator-observations.md` |
+| Learning 4 (memory-only guards) | `orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief` | 50% (same family, different surface pair) | New linked memory |
+| Learning 5 (verifier security review) | `orchestration/orchestration-observations.md` commit-security bullet | 40% | Add bullet to `orchestrator-observations.md` |
 - Learnings 6 and 7 (private temp dirs, sibling merge rerun): none found (`search_memory.py "scratchpad temp collision"`), under 20%, add bullets to `orchestration/orchestration-observations.md`.
 - Learning 8 (reviewer credit): `orchestrator-observations.md` out-of-credit bullet, 85%, augment existing bullet.
 
@@ -440,7 +444,14 @@ Writes went to `.serena/memories/` files in the linked worktree, not through Ser
 
 #### Actionable Items Identified
 
-Items and categories: launch-arg and `pgrep` guards live only in memory (Process Improvements); no failure class for unowned shared state under fan-out (Missing Documentation); empty `blocked:owner-action` label remains (Process Improvements); `decision-question` has no per-option feasibility check (Process Improvements); `score_atomicity.py` gives 100% to a short statement with a number (Tool/Script Awareness); workflow launch args not saved to the scratchpad (Process Improvements).
+| Delta Item | Category |
+|------------|----------|
+| Launch-arg and `pgrep` guards live only in memory | Process |
+| No failure class for unowned shared state under fan-out | Missing Docs |
+| Empty `blocked:owner-action` label remains | Process |
+| `decision-question` has no per-option feasibility check | Process |
+| `score_atomicity.py` gives 100% to a short statement with a number | Tool Gap |
+| Workflow launch args not saved to the scratchpad | Process |
 
 #### Findings for the owner
 
@@ -463,7 +474,9 @@ Items and categories: launch-arg and `pgrep` guards live only in memory (Process
 - Four Five Whys chains, each ending in a fix or a finding for the owner.
 - Supplied figures checked against files: wave-2 Sol 8 of 76, round-2 audits 0 of 45, 24 agents lost to the weekly limit, label removals 12 vs 13.
 
-**Time Invested**: one pass. Six JSON files (about 1.25 MB) were parsed with Python, not read. Ten GitHub items were read through the `github` skill. **Verdict**: Continue
+**Time Invested**: one pass. Six JSON files (about 1.25 MB) were parsed with Python, not read. Ten GitHub items were read through the `github` skill.
+
+**Verdict**: Continue
 
 ### Helped, Hindered, Hypothesis
 
