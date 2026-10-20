@@ -2308,6 +2308,82 @@ def test_failure_detail_keeps_the_failing_step_at_the_tail() -> None:
     assert detail.startswith(f"[... {len(combined) - 4000} earlier chars omitted]")
 
 
+_DUBIOUS_OWNERSHIP_LINE = (
+    "[Pytest/Run mutation harnesses]   | scripts.testing.mutation_workspace_git."
+    "MutationWorkspaceError: cannot find git worktree root from /w: fatal: detected "
+    "dubious ownership in repository at '/w'"
+)
+
+
+def test_failure_detail_surfaces_the_first_exception_from_the_omitted_head() -> None:
+    # Issue #6758: the harness runner's `0/9 passed` summary sat in the tail
+    # and the exception that caused it sat in the dropped head.
+    combined = (
+        _DUBIOUS_OWNERSHIP_LINE
+        + ("\nERROR mutation_harness_x.py" * 400)
+        + "\n0/9 mutation harnesses passed"
+    )
+
+    detail = w._with_cause_hints(combined)
+
+    assert len(combined) > 4000
+    assert "0/9 mutation harnesses passed" in detail
+    assert detail.count("dubious ownership") == 1
+    assert "[first exception in the omitted output]" in detail
+    assert "MutationWorkspaceError: cannot find git worktree root" in detail
+
+
+def test_default_text_report_shows_the_omitted_exception() -> None:
+    # The text report prints only the first 40 detail lines. A 4000-char tail of
+    # short lines fills them, so the hint must sit near the top of the detail.
+    combined = "ValueError: hidden root cause\n" + ("noise\n" * 2000) + "0/9 harnesses passed"
+    report = w.Report(1, [w.StageResult("gh act (full)", False, w._with_cause_hints(combined))])
+
+    text = w._format_text(report)
+
+    assert "[first exception in the omitted output] ValueError: hidden root cause" in text
+
+
+def test_failure_detail_reports_only_the_first_omitted_exception() -> None:
+    # Edge: a second exception later in the dropped head is not repeated.
+    combined = "ValueError: first\nTypeError: second\n" + ("noise\n" * 2000) + "0/9 passed"
+
+    detail = w._with_cause_hints(combined)
+
+    assert "ValueError: first" in detail
+    assert "TypeError: second" not in detail
+
+
+def test_failure_detail_ignores_an_exception_already_in_the_tail() -> None:
+    # Negative: the tail is shown whole, so repeating it adds only noise.
+    combined = ("noise\n" * 2000) + "ValueError: in the tail"
+
+    detail = w._with_cause_hints(combined)
+
+    assert "[first exception in the omitted output]" not in detail
+    assert detail.endswith("ValueError: in the tail")
+
+
+def test_failure_detail_ignores_a_bare_error_label_in_the_omitted_head() -> None:
+    # Negative: act's own `Error: Job ... failed` label is not an exception name.
+    combined = "Error: Job 'x' failed\n" + ("noise\n" * 2000) + "tail"
+
+    assert "[first exception" not in w._with_cause_hints(combined)
+
+
+def test_failure_detail_caps_a_long_omitted_exception_line() -> None:
+    # Edge: a very long line must not push the real tail out of view.
+    combined = "ValueError: " + ("x" * 5000) + "\n" + ("noise\n" * 2000) + "tail"
+
+    hint_line = next(
+        line
+        for line in w._with_cause_hints(combined).splitlines()
+        if line.startswith("[first exception")
+    )
+
+    assert len(hint_line) <= len("[first exception in the omitted output] ") + 400
+
+
 def test_failure_detail_under_the_cap_is_unchanged() -> None:
     # Negative: short output passes through with no omission marker.
     assert w._with_cause_hints("::error::step failed") == "::error::step failed"

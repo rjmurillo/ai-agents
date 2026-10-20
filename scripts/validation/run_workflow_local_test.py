@@ -1677,6 +1677,27 @@ def _toolcache_permission_hint(combined: str) -> str | None:
     )
 
 
+_EXCEPTION_LINE_PATTERN = re.compile(r"\b[A-Za-z_][\w.]*(?:Error|Exception): \S")
+_OMITTED_EXCEPTION_CAP = 400
+
+
+def _omitted_exception_hint(omitted: str) -> str | None:
+    """Return the first exception line found in the part of the output the cap dropped.
+
+    The cap keeps the tail, where act prints the job verdict. A harness runner
+    prints its own summary there (``0/9 mutation harnesses passed``) and the
+    exception that explains it sits in the dropped head (#6758: a git "dubious
+    ownership" error behind 449631 omitted chars). Returns None when the
+    dropped text holds no exception line.
+    """
+    for line in omitted.splitlines():
+        if _EXCEPTION_LINE_PATTERN.search(line):
+            return (
+                f"[first exception in the omitted output] {line.strip()[:_OMITTED_EXCEPTION_CAP]}"
+            )
+    return None
+
+
 def _with_cause_hints(combined: str) -> str:
     """Truncate a failure detail, then append any cause lines.
 
@@ -1687,11 +1708,18 @@ def _with_cause_hints(combined: str) -> str:
 
     Order matters: the hints are derived from the full text and appended after
     the truncation, because reading them out of the truncated copy would lose
-    the clone lines a timeout hint counts.
+    the clone lines a timeout hint counts. The omitted-exception line is the
+    exception to that placement: it goes right after the omission marker so the
+    text report's 40-line cap cannot cut it.
     """
     detail = combined[-_DETAIL_CAP:]
     if len(combined) > _DETAIL_CAP:
-        detail = f"[... {len(combined) - _DETAIL_CAP} earlier chars omitted]\n{detail}"
+        marker = f"[... {len(combined) - _DETAIL_CAP} earlier chars omitted]"
+        # Right after the marker, not appended: the text report prints only
+        # the first 40 detail lines, and the tail alone can fill them.
+        omitted_hint = _omitted_exception_hint(combined[:-_DETAIL_CAP])
+        head = marker if omitted_hint is None else f"{marker}\n{omitted_hint}"
+        detail = f"{head}\n{detail}"
     hints = (_stage_timeout_hint(combined), _toolcache_permission_hint(combined))
     return "\n".join([detail, *(hint for hint in hints if hint is not None)])
 

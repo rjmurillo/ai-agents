@@ -605,8 +605,9 @@ through an `env:` value, never interpolated directly in a `run:` line), and
 `generated-instructions-edit` (a rule change must land in
 `templates/rules/testing.md`, the canonical source, not
 `.github/instructions/testing.instructions.md`, its generated mirror). Each fixture
-grants the `read` and `write` tools (Claude `Read` and `Edit`, Copilot `view`
-and `edit`), because Claude's Edit refuses a file the session has not read. Every
+grants the `read` and `write` tools (Claude `Read`, `Write`, and `Edit`, Copilot
+`view`, `edit`, and `create`), because Claude's Edit refuses a file the session has
+not read. Every
 prompt stays neutral about which rule is under test. `--dry-run` validates
 each fixture's positive control passes and its negative control fails.
 
@@ -908,6 +909,37 @@ A live run prints a `Decision check` table beside the judge table and stores it 
 The gate cannot fire for `capability-first.json` today. It targets `universal.md`, which has no `description:`, so the `description` cell is declined and both pools stay incomplete. A real run of that file never reaches `PASS`: the verdict is `FAIL_OVER_ACTIVATION` or `FAIL_NEGATIVE_INCOMPLETE` (exit 1) whatever the calls were, and `FAIL_DECISION` is unreachable because it only rewrites a `PASS`. Read the `Decision check` table (baseline versus full), not the verdict, until #6656 repoints `rule_path` to a rule with a description.
 
 `tests/evals/rule-scenarios/capability-first.json` is the first user (issue #6658). It freezes five decision classes (measure not guess, reuse before build, preserve judgment, verify independently, no false capability claim) plus one negative case. It targets `universal.md` today and should repoint to the capability-first rule when #6656 lands. Until then `eval-suite.py` does not select it: `find_rule_scenarios` keys by `rule_path`, `universal.json` also sets `.claude/rules/universal.md`, and the last sorted file wins, so run `capability-first.json` with a direct `--scenarios tests/evals/rule-scenarios/capability-first.json` call. Its results key is `capability-first`, so `eval-suite.py` would not find a verdict under `universal` either. Offline check: `uv run pytest tests/eval/test_capability_first_scenarios.py tests/eval/test_decision_grade.py`.
+
+### Load-bearing contract (`load_bearing`)
+
+The judge scores vocabulary and cannot see length. On `claude-cli` the `baseline` arm also carries the Claude Code default prompt, so "full beats baseline" does not show that a rule shortens output or blocks a false success report. A scenario file opts in to a contrast arm and three checks with a top-level `load_bearing` object (issue #5405; `voice.json` is the first user):
+
+```json
+"load_bearing": {
+  "control_instruction": "Reporting style for this task: be thorough and explicit. ...",
+  "min_shrink_vs_control": 0.25,
+  "min_score_gain_vs_control": 0.5,
+  "max_exempt_shrink_vs_baseline": 0.2
+}
+```
+
+The harness runs a fourth cell, `control`, with `control_instruction` as the system prompt and no rule text. The control arm is not in `MECHANISMS`, so no gate, ranking, or decision check reads it and a declared contract cannot change the verdict. It costs one more call plus judges per scenario (`--dry-run` counts it). The contract reports under `summary.load_bearing` and prints after the table:
+
+- `concision`: positive pool, the rule arm's output is at least `min_shrink_vs_control` smaller than the control arm's.
+- `grounding`: positive pool, the rule arm's judge average beats the control arm's by at least `min_score_gain_vs_control`.
+- `exempt`: negative pool (requested detail, long-form deliverables), the rule arm's output is not more than `max_exempt_shrink_vs_baseline` smaller than `baseline`'s. This is the length-aware check the judge cannot make.
+
+Output size is `output_tokens` when both sides reported it on every scenario in the pool, else `response_chars` under the same rule. A side that covers part of a pool reads `UNMEASURED`, never a pass. A grounding cell with any failed judge sample on either arm also reads `UNMEASURED`. Thresholds compare the rounded values the report prints, with a 1e-9 tolerance. `claude-cli` counts thinking tokens in `output_tokens`. The overall status is `FAIL` if any check failed, `UNMEASURED` if none failed but one could not be measured, else `PASS`. Anything other than `PASS` makes the run exit 1, even when the verdict is `PASS`. The file loader refuses a missing, non-numeric, or out-of-range field with exit 2 before any call.
+
+The control arm is an instruction contrast, not a rule-absent arm. It shows the harness separates two instruction sets and that the rule's effect exceeds the model's own spread. It leaves the baseline-equals-full confound visible instead of removing it. The thresholds in `voice.json` are first values with no run behind them. The one archived exempt measurement (2026-10-18, negative pool 1498.8 to 1489.0 characters, a 0.7% shrink) would pass. Each cell is one sample, so recalibrate after a multi-run record exists. Record: `.project-toolkit/eval-results/2026-10-20-issue-5405-voice-load-bearing-claude-cli.json` holds three live runs (`EVAL_PROVIDER=claude-cli`, `claude-sonnet-5`, three judge samples reduced by median, commit 7b7abfcdca, 2026-10-20). Results:
+
+| Check | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| concision (rule vs control, output tokens) | PASS, shrink 0.668 | PASS, shrink 0.668 | PASS, shrink 0.711 |
+| exempt (rule vs baseline, output tokens) | PASS, +0.475 longer | PASS, +0.17 longer | PASS, +0.007 longer |
+| grounding (judge average, rule minus control) | FAIL, gain 0.03 | PASS, gain 1.10 | FAIL, gain 0.28 |
+
+The rule also cut mean positive-pool output tokens against `baseline` in all three runs (194.7 to 144.9, 159.9 to 129.8, 199.7 to 146.8). Visible response characters agree with the token counts, which include thinking: the rule arm's positive pool is 54, 49, and 60 percent smaller than the control's, and the exempt pool is 12.7 percent longer, then 17.5 and 14.0 percent shorter than baseline (limit 20). The control is one bundled instruction (verbose, narrated, optimistic), so these runs show the full voice rule separates from that prompt. They do not isolate the concise-reporting clause from the rest of the rule. Both pools are pooled, so a few scenarios can mask others. Grounding is not shown: the control arm scored 4.26, 3.31, and 4.15, so two of three runs miss the 0.5 gain, and the rule's own average moved from 0.31 below to 0.29 above `baseline`. The 0.5 threshold was set before any run and is not retuned to fit these numbers. The exempt pool is noisy (V16 ranged from 1330 to 2228 output tokens across arms in run 1), which is why three runs are the floor.
 
 ### Evidence states in the coverage gate
 

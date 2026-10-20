@@ -62,6 +62,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
+import _load_bearing
 from _anthropic_api import DEFAULT_MODEL, verify_model_available
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
@@ -90,6 +91,9 @@ from _eval_common import (
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 RATE_LIMIT_SLEEP_SEC = 1.0
 MECHANISMS = ("baseline", "description", "full")
+# Opt-in contrast arm (#5405). Not a member of MECHANISMS: no gate, ranking, or
+# decision check reads it, so declaring one cannot move an existing verdict.
+CONTROL_MECHANISM = "control"
 
 # Rule passes activation gate when the single best non-baseline mechanism
 # averages >= MIN_ACTIVATION_SCORE across all non-negative-case scenarios,
@@ -1170,8 +1174,15 @@ def eval_one_scenario(
     seed: int | None = None,
     judge_repeats: int = DEFAULT_JUDGE_REPEATS,
     judge_reducer: str = DEFAULT_JUDGE_REDUCER,
+    control_instruction: str | None = None,
 ) -> dict[str, Any]:
-    """Run all mechanisms on one scenario."""
+    """Run all mechanisms on one scenario.
+
+    A non-empty `control_instruction` adds a fourth cell, `control`, whose
+    system prompt is that text and no rule (#5405). It is a contrast arm, not
+    a gate arm: the gates and the best-mechanism ranking read `MECHANISMS`
+    only, and `_load_bearing` reads the control cell.
+    """
     result: dict[str, Any] = {
         "id": scenario["id"],
         "desc": scenario.get("desc", ""),
@@ -1182,9 +1193,15 @@ def eval_one_scenario(
     if decision_spec is not None:
         result["decision_declared"] = True
 
-    for mechanism in MECHANISMS:
-        system = build_system_prompt(mechanism, rule, rule_id)
-        if _prompt_collapses_to_baseline(mechanism, system, rule, rule_id):
+    arms = (*MECHANISMS, CONTROL_MECHANISM) if control_instruction else MECHANISMS
+    for mechanism in arms:
+        is_control = mechanism == CONTROL_MECHANISM
+        system = (
+            (control_instruction or "")
+            if is_control
+            else build_system_prompt(mechanism, rule, rule_id)
+        )
+        if not is_control and _prompt_collapses_to_baseline(mechanism, system, rule, rule_id):
             result["mechanisms"][mechanism] = _declined_cell(system)
             continue
         routing: dict[str, Any] | None = None
@@ -2638,6 +2655,12 @@ def _load_scenarios_file(
     if id_err is not None:
         return id_err
 
+    if "load_bearing" in scenarios_data:
+        spec_error = _load_bearing.validate_spec(scenarios_data["load_bearing"])
+        if spec_error is not None:
+            print(f"ERROR: {spec_error} in {spath}", file=sys.stderr)
+            return 2
+
     resolved = _resolve_target_paths(scenarios_data, spath)
     if isinstance(resolved, int):
         return resolved
@@ -2660,12 +2683,15 @@ def _process_one_rule(
         rule = parse_skill_reference(primary_path, reference_path)
     scenarios = scenarios_data.get("scenarios", [])
     route_calls = len(scenarios) if reference_path is not None else 0
-    n_calls = len(scenarios) * len(MECHANISMS) * (1 + args.judge_repeats) + route_calls
+    load_bearing = scenarios_data.get("load_bearing")
+    control_instruction = load_bearing["control_instruction"] if load_bearing else None
+    n_arms = len(MECHANISMS) + (1 if control_instruction else 0)
+    n_calls = len(scenarios) * n_arms * (1 + args.judge_repeats) + route_calls
 
     if args.dry_run:
         print(
             f"[DRY-RUN] {rule_id}: {len(scenarios)} scenarios x "
-            f"{len(MECHANISMS)} mechanisms x "
+            f"{n_arms} mechanisms x "
             f"{1 + args.judge_repeats} (call + judges)"
             f" + {route_calls} route calls = {n_calls} calls"
         )
@@ -2692,16 +2718,21 @@ def _process_one_rule(
             seed=args.seed,
             judge_repeats=args.judge_repeats,
             judge_reducer=args.judge_reducer,
+            control_instruction=control_instruction,
         )
         scenario_results.append(r)
 
     summary = aggregate(scenario_results, routed=reference_path is not None)
+    if load_bearing:
+        summary["load_bearing"] = _evaluate_load_bearing(load_bearing, scenario_results)
     decision_check = summarize_decisions(scenario_results, MECHANISMS)
     if decision_check["declared"]:
         # Before the table, so the verdict it prints is the one the run exits on.
         _apply_decision_gate(summary, decision_check)
         summary["decision_check"] = decision_check
     print(render_table(rule_id, summary))
+    if "load_bearing" in summary:
+        print("\n".join(_load_bearing.render(summary["load_bearing"])))
     if decision_check["declared"]:
         print(render_decision_check(decision_check, MECHANISMS))
     result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
@@ -2716,6 +2747,23 @@ def _process_one_rule(
         },
         n_calls,
     )
+
+
+def _evaluate_load_bearing(
+    spec: dict[str, Any], scenario_results: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Run the load-bearing contract over the cells this run recorded (#5405)."""
+    _require_boolean_pool_markers(scenario_results)
+    pools = {
+        "positive": [s for s in scenario_results if not s["negative_case"]],
+        "negative": [s for s in scenario_results if s["negative_case"]],
+    }
+    arms = ("baseline", "full", CONTROL_MECHANISM)
+    positive, negative = (
+        {m: _mechanism_summary(pools[name], m) for m in arms} for name in ("positive", "negative")
+    )
+    contract: dict[str, Any] = _load_bearing.evaluate(spec, positive, negative)
+    return contract
 
 
 def _apply_decision_gate(summary: dict[str, Any], decision_check: dict[str, Any]) -> None:
@@ -2868,6 +2916,9 @@ def _process_scenario_file(
     if result is not None:
         all_results["rules"][rule_id] = result
         state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
+        contract = result["summary"].get("load_bearing")
+        if contract is not None:
+            state.worst_exit = max(state.worst_exit, _load_bearing.exit_code(contract))
     return None
 
 

@@ -192,9 +192,9 @@ def test_commands_isolate_profiles_and_send_the_same_fixture() -> None:
     assert "--no-auto-update" in copilot
     assert "--allow-all-tools" in copilot
     assert "--allow-all-paths" not in copilot
-    assert set(claude[claude.index("--tools") + 1].split(",")) == {"Read", "Edit"}
+    assert set(claude[claude.index("--tools") + 1].split(",")) == {"Read", "Write", "Edit"}
     available = next(a for a in copilot if a.startswith("--available-tools="))
-    assert set(available.split("=", 1)[1].split(",")) == {"view", "edit"}
+    assert set(available.split("=", 1)[1].split(",")) == {"view", "edit", "create"}
     assert claude[claude.index("--print") + 1] == fixture.prompt
     assert copilot[copilot.index("--prompt") + 1] == fixture.prompt
     assert (

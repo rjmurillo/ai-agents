@@ -38,8 +38,8 @@ def test_default_fixtures_still_load() -> None:
     assert runtime_parity.load_fixtures(FIXTURES)
 
 
-def test_claude_command_carries_read_and_edit_for_the_reversible_fixture() -> None:
+def test_claude_command_carries_read_write_and_edit_for_the_reversible_fixture() -> None:
     fixtures = runtime_parity.load_fixtures(FIXTURES)
     fixture = next(f for f in fixtures if f.fixture_id == "execute-reversible-tool")
     argv = parity.build_argv("claude", "claude", parity.DEFAULT_MODEL, fixture)
-    assert set(argv[argv.index("--tools") + 1].split(",")) == {"Read", "Edit"}
+    assert set(argv[argv.index("--tools") + 1].split(",")) == {"Read", "Write", "Edit"}
