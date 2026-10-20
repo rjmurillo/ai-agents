@@ -2507,6 +2507,72 @@ def test_timeout_step_hint_restarted_step_is_unfinished() -> None:
     assert "still running" in hint
 
 
+def test_timeout_step_hint_skips_a_failed_step_the_job_moved_past() -> None:
+    # Devin review on #6806: a job that continues after a failed step (always(),
+    # continue-on-error) finished that step. The kill cut a later one.
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Lint",
+        f"{_SCOPE}   \u274c  Failure - Main Lint [1s]",
+        f"{_SCOPE} \u2b50 Run Main Cleanup",
+        f"{_SCOPE}   \u2705  Success - Main Cleanup [2s]",
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+
+    hint = w._timeout_step_hint(combined)
+
+    assert hint is not None
+    assert "step 'Cleanup'" in hint
+    assert "Lint" not in hint
+
+
+def test_timeout_step_hint_names_a_later_running_step_over_an_earlier_failure() -> None:
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Lint",
+        f"{_SCOPE}   \u274c  Failure - Main Lint [1s]",
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+    )
+
+    hint = w._timeout_step_hint(combined)
+
+    assert hint is not None
+    assert "step 'Run pytest'" in hint
+    assert "still running" in hint
+
+
+def test_timeout_step_hint_judges_each_job_by_its_own_last_step() -> None:
+    # Edge: parallel jobs interleave. A step that is last in its own job counts
+    # even when another job started a step after it.
+    other = "[Python Tests/pytest (split-4)]"
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Run pytest",
+        f"{_SCOPE}   \u274c  Failure - Main Run pytest [9m30s]",
+        f"{other} \u2b50 Run Main Install dependencies",
+        f"{other}   \u2705  Success - Main Install dependencies [3s]",
+    )
+
+    hint = w._timeout_step_hint(combined)
+
+    assert hint is not None
+    assert "step 'Run pytest'" in hint
+    assert "9m30s" in hint
+
+
+def test_default_text_report_shows_the_timeout_step_after_a_chatty_step() -> None:
+    # Devin review on #6806: the text report prints the first 40 detail lines.
+    # 80 short lines from the step must not push the timeout cause out of view.
+    combined = _step_log(
+        f"{_SCOPE} \u2b50 Run Main Run tests",
+        *("testing" for _ in range(80)),
+        "TimeoutExpired: timed out after 600 seconds",
+    )
+    report = w.Report(1, [w.StageResult("gh act (full)", False, w._with_cause_hints(combined))])
+
+    text = w._format_text(report)
+
+    assert "step 'Run tests'" in text
+    assert "stage timeout fired" in text
+
+
 def test_timeout_step_hint_survives_the_detail_truncation() -> None:
     # The cap keeps the tail; the step lines sit in the dropped head.
     combined = (

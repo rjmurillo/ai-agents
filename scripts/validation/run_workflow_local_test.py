@@ -1709,25 +1709,32 @@ _ACT_TIMEOUT_SECONDS = re.compile(r"timed out after (\d+) seconds")
 def _timeout_step_hint(combined: str) -> str | None:
     """Name the job step a stage timeout interrupted, else None before any step ran.
 
-    A step that started and has no end line was running when the kill landed.
-    A step that ended in ``Failure`` with an elapsed time was cut by the job's
-    own timeout just before it (#6793). The last such step is the one named.
+    A job's last started step with no end line was running when the kill
+    landed. One that ended in ``Failure`` with an elapsed time was cut by the
+    job's own timeout just before it (#6793). A step followed by a later step in
+    the same job is never named. Among jobs, the latest such step is the one named.
     """
     started: dict[tuple[str, str], int] = {}
+    last_in_scope: dict[str, tuple[str, str]] = {}
     ended: dict[tuple[str, str], tuple[str, str | None]] = {}
     for position, line in enumerate(combined.splitlines()):
         start = _ACT_STEP_START.match(line.strip())
         if start is not None:
-            started[(start["scope"], start["step"])] = position
-            ended.pop((start["scope"], start["step"]), None)
+            key = (start["scope"], start["step"])
+            started[key] = position
+            last_in_scope[start["scope"]] = key
+            ended.pop(key, None)
             continue
         end = _ACT_STEP_END.match(line.strip())
         if end is not None:
             ended[(end["scope"], end["step"])] = (end["verdict"], end["elapsed"])
     if not started:
         return None
-    candidates = [key for key in started if key not in ended or ended[key][0] == "Failure"]
-    key = max(candidates or started, key=started.__getitem__)
+    # Only the last step a job started can have been cut by the kill: a job that
+    # went on to run later steps finished its earlier ones, failed or not.
+    latest = list(last_in_scope.values())
+    open_or_failed = [key for key in latest if key not in ended or ended[key][0] == "Failure"]
+    key = max(open_or_failed or latest, key=started.__getitem__)
     scope, step = key
     verdict, elapsed = ended.get(key, ("", None))
     if verdict == "Success":
@@ -1871,18 +1878,18 @@ def _omitted_exception_hint(omitted: str) -> str | None:
 
 
 def _with_cause_hints(combined: str) -> str:
-    """Truncate a failure detail, then append any cause lines.
+    """Truncate a failure detail, then add any cause lines.
 
     The tail is kept, not the head. act prints the failing step and the job
     verdict last, while its first kilobytes are action clones and image pulls.
     Keeping the head hid the failing step of issue #5886 behind a ``git clone``
     warning.
 
-    Order matters: the hints are derived from the full text and appended after
-    the truncation, because reading them out of the truncated copy would lose
-    the clone lines a timeout hint counts. The omitted-exception line is the
-    exception to that placement: it goes right after the omission marker so the
-    text report's 40-line cap cannot cut it.
+    Order matters: the hints are derived from the full text after the
+    truncation, because reading them out of the truncated copy would lose the
+    clone lines a timeout hint counts. The toolcache hint is appended. The
+    omitted-exception line goes right after the omission marker and the timeout
+    cause goes first, so the text report's 40-line cap cannot cut either.
     """
     detail = combined[-_DETAIL_CAP:]
     if len(combined) > _DETAIL_CAP:
@@ -1892,8 +1899,13 @@ def _with_cause_hints(combined: str) -> str:
         omitted_hint = _omitted_exception_hint(combined[:-_DETAIL_CAP])
         head = marker if omitted_hint is None else f"{marker}\n{omitted_hint}"
         detail = f"{head}\n{detail}"
-    hints = (_stage_timeout_hint(combined), _toolcache_permission_hint(combined))
-    return "\n".join([detail, *(hint for hint in hints if hint is not None)])
+    # The timeout cause leads the detail: the text report prints only the first 40
+    # lines, and a chatty step can fill them before an appended hint is reached.
+    timeout_hint = _stage_timeout_hint(combined)
+    if timeout_hint is not None:
+        detail = f"{timeout_hint}\n{detail}"
+    toolcache_hint = _toolcache_permission_hint(combined)
+    return detail if toolcache_hint is None else f"{detail}\n{toolcache_hint}"
 
 
 _ACT_CONTENTION_PATTERN = re.compile(
