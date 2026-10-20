@@ -2144,6 +2144,96 @@ def test_act_full_artifact_defect_still_fails(monkeypatch, tmp_path):
     assert res.ok is False
 
 
+# --- act workflow-run lookup 404 (#6803) --------------------------------
+
+# The verbatim tail of a real local act run of the pytest.yml security job
+# (2026-10-20). upload-sarif fails first with a 404 on the run lookup, then
+# upload-artifact fails on the artifact server limitation explained above.
+_RUN_LOOKUP_404 = (
+    "[Python Tests/Python Security Checks]   \u2757  ::error::Not Found - "
+    "https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run"
+)
+_SARIF_THEN_ARTIFACT_FAILURE = (
+    "[Python Tests/Python Security Checks]   \U0001f6a7  ::warning::Failed to gather "
+    "information for telemetry: Not Found - "
+    "https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run. "
+    "Will skip sending status report.\n"
+    f"{_RUN_LOOKUP_404}\n"
+    "[Python Tests/Python Security Checks]   \u274c  Failure - Main Upload Bandit SARIF\n"
+    "[Python Tests/Python Security Checks]   \u2757  ::error::Failed to CreateArtifact: "
+    "Failed to make request after 5 attempts: Unexpected end of JSON input\n"
+    "[Python Tests/Python Security Checks]   \u274c  Failure - Main Upload Bandit results\n"
+    "Error: Job 'Python Security Checks' failed"
+)
+
+
+def test_run_lookup_404_alone_is_an_act_limitation() -> None:
+    assert w._act_limitation_hint(_RUN_LOOKUP_404) is not None
+
+
+def test_sarif_404_followed_by_artifact_failure_downgrades() -> None:
+    # The real run: before #6803 the 404 line was an unexplained annotation and
+    # vetoed the downgrade, so the stage was a hard FAIL.
+    assert w._act_limitation_hint(_SARIF_THEN_ARTIFACT_FAILURE) is not None
+
+
+def test_run_lookup_404_downgrades_regardless_of_event() -> None:
+    for event in (None, "push", "workflow_dispatch", "pull_request", "schedule"):
+        assert w._act_limitation_hint(_SARIF_THEN_ARTIFACT_FAILURE, event) is not None
+
+
+def test_run_lookup_404_warning_alone_does_not_match() -> None:
+    # Negative: the telemetry ``::warning::`` carries the same text and is not
+    # evidence that the run failed for this reason.
+    text = (
+        "[x]   ::warning::Failed to gather information for telemetry: Not Found - "
+        "https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run. "
+        "Will skip sending status report.\n::error::boom"
+    )
+    assert w._act_limitation_hint(text) is None
+
+
+def test_404_from_another_endpoint_still_blocks() -> None:
+    # Negative control: a 404 on any other REST endpoint is a real defect.
+    text = "::error::Not Found - https://docs.github.com/rest/repos/repos#get-a-repository"
+    assert w._act_limitation_hint(text) is None
+
+
+def test_run_lookup_404_does_not_excuse_a_real_failure() -> None:
+    # Edge: an unrelated annotation next to the 404 keeps blocking.
+    combined = _SARIF_THEN_ARTIFACT_FAILURE + "\n[x]   ::error::bandit exited 1"
+    assert w._act_limitation_hint(combined) is None
+
+
+def test_act_full_sarif_run_lookup_404_warns(monkeypatch, tmp_path):
+    # Integration: the full act stage downgrades to a passing WARN. This is the
+    # #6803 symptom that blocked PR #6479.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (1, _SARIF_THEN_ARTIFACT_FAILURE, ""),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+
+
+def test_act_full_other_404_still_fails(monkeypatch, tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "::error::Not Found - https://docs.github.com/rest/repos/repos#get-a-repository",
+            "",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is False
+
+
 # ---------------------------------------------------------------------------
 # No-repo-context limitation (gh API calls in act containers - issue #3981)
 # ---------------------------------------------------------------------------

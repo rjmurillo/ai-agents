@@ -1381,6 +1381,17 @@ _ACT_ARTIFACT_SERVICE_PATTERN = re.compile(
     r"Failed to \w+: Failed to make request after \d+ attempts:"
 )
 
+# github/codeql-action/upload-sarif reads its own workflow run through the REST
+# API (``get-a-workflow-run``) before it uploads. act runs a synthetic run id
+# that GitHub does not know, so the call returns 404 and the action aborts with
+# this annotation. In CI the run exists and the step passes. Anchored on the
+# ``::error::`` form and the endpoint URL: the same text as a ``::warning::``
+# telemetry note does not attribute a failure, and a 404 from any other endpoint
+# is a real defect that keeps blocking. See issue #6803.
+_ACT_RUN_LOOKUP_404_PATTERN = re.compile(
+    r"::error::Not Found - https://docs\.github\.com/rest/actions/workflow-runs#get-a-workflow-run"
+)
+
 # Workflows that call ``gh api`` or Python scripts that auto-detect the
 # repository via ``gh repo view`` (e.g. scripts/github_core/api.py
 # resolve_repo_params) fail in act because no GH_TOKEN with real repo context
@@ -1438,6 +1449,13 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "actions/upload-artifact client sends, so artifact transport fails only "
         "in local act, not in CI. Artifact defects (no files matched, invalid "
         "name) carry different text and still block.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_RUN_LOOKUP_404_PATTERN.search(text)),
+        "act runs a synthetic workflow run that GitHub does not know, so "
+        "github/codeql-action/upload-sarif gets a 404 when it reads its own run. "
+        "The run exists in CI, so this fails only in local act, not in CI.",
     ),
     (
         None,
