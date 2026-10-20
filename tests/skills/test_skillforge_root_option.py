@@ -118,7 +118,7 @@ _OK_SCRIPT = (
 
 def _run(script: Path, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(script), *args],
+        [sys.executable, "-B", str(script), *args],
         cwd=str(cwd),
         capture_output=True,
         text=True,
@@ -415,6 +415,8 @@ def _load_validator(script: Path):
     """Import validate-skill.py as a module; restore sys.path afterwards."""
     # Evict the cached ``_path_guard`` so each tree imports its own sibling copy.
     saved = list(sys.path)
+    saved_bytecode = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True  # a __pycache__ in src/ reads as drift to build_all.py --check
     sys.modules.pop("_path_guard", None)
     try:
         spec = importlib.util.spec_from_file_location(f"validate_skill_{script.parts[-5]}", script)
@@ -423,6 +425,7 @@ def _load_validator(script: Path):
         spec.loader.exec_module(module)
         return module
     finally:
+        sys.dont_write_bytecode = saved_bytecode
         sys.path[:] = saved
         sys.modules.pop("_path_guard", None)
 
