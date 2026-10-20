@@ -979,6 +979,11 @@ def _windows_jobs(wf_path: Path) -> dict[str, str]:
 
 # A job that runs this script runs one partition of the whole test suite.
 _FULL_SUITE_RUNNER = "scripts/ci/run_pytest_partition.py"
+# Matches an interpreter invoking the runner, not a command that only names its
+# path (``test -f scripts/ci/run_pytest_partition.py``).
+_FULL_SUITE_INVOCATION = re.compile(
+    r"\bpython3?(?:\.\d+)?\s+(?:-\S+\s+)*" + re.escape(_FULL_SUITE_RUNNER) + r"(?!\S)"
+)
 
 
 def _runs_full_suite(body: object) -> bool:
@@ -989,7 +994,7 @@ def _runs_full_suite(body: object) -> bool:
     return any(
         isinstance(step, dict)
         and isinstance(step.get("run"), str)
-        and _FULL_SUITE_RUNNER in step["run"]
+        and _FULL_SUITE_INVOCATION.search(step["run"]) is not None
         for step in steps
     )
 

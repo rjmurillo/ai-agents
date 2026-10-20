@@ -2982,6 +2982,24 @@ def test_full_suite_jobs_finds_only_jobs_that_run_the_partition_runner(tmp_path)
     assert w._full_suite_jobs(tmp_path / WF) == ["test"]
 
 
+@pytest.mark.parametrize(
+    ("run", "expected"),
+    [
+        (_SUITE_RUN, True),
+        ("python scripts/ci/run_pytest_partition.py --partition x", True),
+        ("python3.14 -u scripts/ci/run_pytest_partition.py", True),
+        ("cd . && uv run python scripts/ci/run_pytest_partition.py\n", True),
+        ("test -f scripts/ci/run_pytest_partition.py && ruff check .", False),
+        ("cat scripts/ci/run_pytest_partition.py", False),
+        ("python scripts/ci/run_pytest_partition.py.bak", False),
+        ("python scripts/ci/other.py", False),
+    ],
+)
+def test_full_suite_detection_needs_an_interpreter_invocation(tmp_path, run, expected):
+    _write_step_wf(tmp_path, {"a": {"steps": [{"run": run}]}})
+    assert (w._full_suite_jobs(tmp_path / WF) == ["a"]) is expected
+
+
 @pytest.mark.parametrize("content", ["", "jobs: [", "jobs: nope\n", "jobs:\n  a: nope\n"])
 def test_full_suite_jobs_tolerates_malformed_workflows(tmp_path, content):
     wf = tmp_path / WF
