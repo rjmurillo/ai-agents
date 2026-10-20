@@ -7,6 +7,7 @@ external commands (actionlint, gh act, docker) are mocked; no Docker required.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -2939,6 +2940,199 @@ def test_pytest_workflow_never_dry_runs_the_windows_pwsh_job(monkeypatch):
     for target in _planned_targets(calls):
         assert not (_transitive_needs(bodies, target) & windows), target
     assert "job main-failure-alert: skipped, needs test-windows-pwsh" in res.detail
+
+
+# --- Full-suite jobs are skipped in the full act stage (#6794) -------------
+
+_SUITE_RUN = "uv run --frozen python scripts/ci/run_pytest_partition.py --partition split-1"
+
+
+def _write_step_wf(tmp_path: Path, jobs: dict[str, dict[str, object]]) -> None:
+    """Write ``WF`` with each job body as given; ``runs-on`` defaults to Linux."""
+    doc = {
+        "name": "x",
+        "on": "push",
+        "jobs": {
+            name: {
+                "runs-on": "ubuntu-latest",
+                **body,
+                "steps": body.get("steps", [{"run": "echo"}]),
+            }
+            for name, body in jobs.items()
+        },
+    }
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+
+
+def _suite_job() -> dict[str, object]:
+    return {"steps": [{"uses": "actions/checkout"}, {"name": "Run pytest", "run": _SUITE_RUN}]}
+
+
+def test_full_suite_jobs_finds_only_jobs_that_run_the_partition_runner(tmp_path):
+    _write_step_wf(
+        tmp_path,
+        {
+            "lint": {"steps": [{"run": "ruff check ."}]},
+            "test": _suite_job(),
+            "named": {"steps": [{"name": "run_pytest_partition.py is mentioned", "run": "echo"}]},
+        },
+    )
+    assert w._full_suite_jobs(tmp_path / WF) == ["test"]
+
+
+@pytest.mark.parametrize(
+    ("run", "expected"),
+    [
+        (_SUITE_RUN, True),
+        ("python scripts/ci/run_pytest_partition.py --partition x", True),
+        ("python3.14 -u scripts/ci/run_pytest_partition.py", True),
+        ("cd . && uv run python scripts/ci/run_pytest_partition.py\n", True),
+        ("uv run --frozen --extra dev python scripts/ci/run_pytest_partition.py", True),
+        ("FOO=1 python scripts/ci/run_pytest_partition.py", True),
+        ("ruff check .\npython scripts/ci/run_pytest_partition.py", True),
+        ("if true; then python scripts/ci/run_pytest_partition.py; fi", True),
+        ("test -f scripts/ci/run_pytest_partition.py && ruff check .", False),
+        ("uv run -q --frozen python scripts/ci/run_pytest_partition.py", True),
+        ("uv run --python=3.14 python scripts/ci/run_pytest_partition.py", True),
+        ("python \\\n  scripts/ci/run_pytest_partition.py --partition x", True),
+        ("cat <<EOF > a.txt\npython scripts/ci/run_pytest_partition.py\nEOF\nruff check .", False),
+        (
+            "cat <<'EOF'\nx\nEOF\npython scripts/ci/run_pytest_partition.py",
+            True,
+        ),
+        ("uv run echo python scripts/ci/run_pytest_partition.py", False),
+        ("echo python scripts/ci/run_pytest_partition.py", False),
+        ("printf python scripts/ci/run_pytest_partition.py", False),
+        ("# python scripts/ci/run_pytest_partition.py\nruff check .", False),
+        ("cat scripts/ci/run_pytest_partition.py", False),
+        ("python scripts/ci/run_pytest_partition.py.bak", False),
+        ("python scripts/ci/other.py", False),
+    ],
+)
+def test_full_suite_detection_needs_an_interpreter_invocation(tmp_path, run, expected):
+    _write_step_wf(tmp_path, {"a": {"steps": [{"run": run}]}})
+    assert (w._full_suite_jobs(tmp_path / WF) == ["a"]) is expected
+
+
+@pytest.mark.parametrize("content", ["", "jobs: [", "jobs: nope\n", "jobs:\n  a: nope\n"])
+def test_full_suite_jobs_tolerates_malformed_workflows(tmp_path, content):
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text(content, encoding="utf-8")
+    assert w._full_suite_jobs(wf) == []
+
+
+def test_full_suite_jobs_ignores_steps_without_a_run_string(tmp_path):
+    _write_step_wf(tmp_path, {"a": {"steps": [{"uses": "x"}, "text", {"run": 3}]}})
+    assert w._full_suite_jobs(tmp_path / WF) == []
+
+
+def test_full_suite_jobs_missing_file_is_empty(tmp_path):
+    assert w._full_suite_jobs(tmp_path / "absent.yml") == []
+
+
+def test_act_full_stage_skips_full_suite_job_and_warns(monkeypatch, tmp_path):
+    _write_step_wf(tmp_path, {"lint": {}, "test": _suite_job(), "docs": {}})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [
+        ["gh", "act", "-j", "lint", "-W", WF],
+        ["gh", "act", "-j", "docs", "-W", WF],
+    ]
+    assert res.detail == (
+        f"[WARN] {WF} job test: skipped, it runs the whole test suite "
+        f"({w._FULL_SUITE_RUNNER}), which cannot finish inside the "
+        f"{w._ACT_FULL_TIMEOUT}s act stage budget. CI runs it."
+    )
+
+
+def test_act_dryrun_stage_still_plans_the_full_suite_job(monkeypatch, tmp_path):
+    _write_step_wf(tmp_path, {"lint": {}, "test": _suite_job()})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [
+        ["gh", "act", "-n", "-j", "lint", "-W", WF],
+        ["gh", "act", "-n", "-j", "test", "-W", WF],
+    ]
+    assert res.detail == ""
+
+
+def test_full_suite_skip_also_skips_jobs_that_need_it(monkeypatch, tmp_path):
+    _write_step_wf(
+        tmp_path,
+        {"lint": {}, "test": _suite_job(), "coverage": {"needs": "test"}},
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert calls == [["gh", "act", "-j", "lint", "-W", WF]]
+    assert "job test: skipped, it runs the whole test suite" in res.detail
+    assert f"{WF} job coverage: skipped, needs test, which is skipped." in res.detail
+
+
+def test_workflow_with_only_the_full_suite_job_runs_no_act_and_passes(monkeypatch, tmp_path):
+    """A push that edits only the suite workflow must not hang on act (#6794)."""
+    _write_step_wf(tmp_path, {"test": _suite_job()})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == []
+    assert "job test: skipped" in res.detail
+
+
+def test_full_suite_skip_does_not_hide_a_failing_sibling_job(monkeypatch, tmp_path):
+    _write_step_wf(tmp_path, {"lint": {}, "test": _suite_job()})
+    monkeypatch.setattr(w, "_run", lambda cmd, *, timeout, cwd=None, env=None: (1, "", "boom"))
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is False
+    assert "boom" in res.detail
+
+
+def test_full_suite_and_windows_skips_both_warn(monkeypatch, tmp_path):
+    _write_step_wf(
+        tmp_path,
+        {"lint": {}, "test": _suite_job(), "win": {"runs-on": "windows-latest"}},
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert calls == [["gh", "act", "-j", "lint", "-W", WF]]
+    assert "job win: skipped, runs-on windows-latest" in res.detail
+    assert "job test: skipped, it runs the whole test suite" in res.detail
+
+
+def test_pytest_workflow_full_stage_never_runs_the_test_job(monkeypatch):
+    """Regression for #6794: the full test job cannot finish in the stage budget."""
+    rel = ".github/workflows/pytest.yml"
+    calls = _record_calls(monkeypatch)
+    # The checkout under test may be a linked worktree; the git mount is not under test.
+    monkeypatch.setattr(w, "_worktree_git_mount", lambda repo_root: contextlib.nullcontext([]))
+
+    res = w._act_full_stage([rel], REPO_ROOT)
+
+    assert res.ok is True
+    assert calls, "pytest.yml still has fast Linux jobs to run"
+    assert ["-j", "test"] not in [cmd[2:4] for cmd in calls]
+    assert "job test: skipped, it runs the whole test suite" in res.detail
+    bodies = w._workflow_job_bodies(REPO_ROOT / rel)
+    suite = set(w._full_suite_jobs(REPO_ROOT / rel))
+    assert suite == {"test"}
+    for target in _planned_targets(calls):
+        assert not (_transitive_needs(bodies, target) & suite), target
 
 
 def test_windows_jobs_is_empty_without_pyyaml(monkeypatch, tmp_path):

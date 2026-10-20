@@ -71,6 +71,15 @@ class TestScenarioSet:
         for banned in ("capability", "invention", "reframing", "architecture"):
             assert banned not in signals.split(), f"{scenario['id']} hands the judge '{banned}'"
 
+    def test_frozen_edit_prompt_asks_for_the_changed_line_only(self) -> None:
+        """A live run (2026-10-20) got a correct IMPLEMENT whose EVIDENCE line also
+        argued against the daemon. The evidence floor rejects those words by
+        design, so the prompt must say the line is code and nothing else."""
+        s6 = next(s for s in SCENARIOS if s["id"] == "S6")
+        text = " ".join(s6["input"].split())
+        assert "EVIDENCE is the changed line of code and nothing else" in text
+        assert "no commentary" in text
+
     def test_file_loads_through_the_runner_against_the_spec_skill(self) -> None:
         loaded = runner._load_scenarios_file(str(SCENARIO_FILE))
         assert not isinstance(loaded, int), f"runner refused the file with exit {loaded}"
