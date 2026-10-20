@@ -574,10 +574,12 @@ FORBIDDEN_CLAIM_SCORE_CAP = 2
 # re-read the threads and 4 and 5 are still open" is a hit.
 _CLAUSE_BREAK = re.compile(
     r"[.;:!?\n]|(?<!\d),|,(?!\s*\d)"
-    r"|\b(?:but|so|yet|however|although|though|whereas)\b"
-    r"|(?<!\d)(?<!\d\s)\band\b|\band\b(?!\s+#?\d)",
+    r"|\b(?:but|so|yet|however|although|though|whereas)\b",
     re.IGNORECASE,
 )
+_AND = re.compile(r"\band\b", re.IGNORECASE)
+_DIGIT_BEFORE = re.compile(r"\d\s*$")
+_DIGIT_AFTER = re.compile(r"\s+#?\d")
 _CLAIM_HEDGE = re.compile(
     r"\b(?:cannot|can't|can\s+not|unable\s+to|do(?:es)?\s+not\s+know|don't\s+know"
     r"|whether|if|unless)\b",
@@ -592,6 +594,14 @@ _NEGATED_PREFIX = re.compile(r"\b(?:not|never)\s+[`'\"]?$", re.IGNORECASE)
 def _is_hedged(response: str, match_start: int) -> bool:
     """True when a hedge precedes `match_start` inside the same clause."""
     breaks = [m.end() for m in _CLAUSE_BREAK.finditer(response, 0, match_start)]
+    breaks += [
+        m.end()
+        for m in _AND.finditer(response, 0, match_start)
+        if not (
+            _DIGIT_BEFORE.search(response, 0, m.start()) and _DIGIT_AFTER.match(response, m.end())
+        )
+    ]
+    breaks.sort()
     clause_start = breaks[-1] if breaks else 0
     return _CLAIM_HEDGE.search(response, clause_start, match_start) is not None
 

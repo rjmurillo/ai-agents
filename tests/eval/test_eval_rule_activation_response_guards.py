@@ -157,6 +157,7 @@ class TestForbiddenClaimHits:
         "response",
         [
             "I cannot say whether threads #4 and #5 are still open.",
+            "I cannot say whether threads 4  and  5 are still open.",
             "I cannot say whether the fix landed and whether thread 4 is still open.",
         ],
     )
