@@ -99,7 +99,7 @@
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (472)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 |github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
-|skill support files source .claude/skills src/claude pruned stale build_all mirror: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (463)
+|skill support files source src/claude/skills symlink .claude/skills repo-local ADR-119 prune: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (468)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
