@@ -986,7 +986,7 @@ _FULL_SUITE_INVOCATION = re.compile(
     r"(?:^|[;&|(])\s*(?:(?:then|do|else)\s+)?"
     r"(?:\w+=\S+\s+)*"
     r"(?:uv\s+run\s+(?:[^\n;&|]*?\s)?)?"
-    r"python3?(?:\.\d+)?\s+(?:-\S+\s+)*" + re.escape(_FULL_SUITE_RUNNER) + r"(?!\S)",
+    r"python3?(?:\.\d+)?\s+(?:-\S+\s+)*" + re.escape(_FULL_SUITE_RUNNER) + r"(?![^\s;&|)])",
     re.MULTILINE,
 )
 
