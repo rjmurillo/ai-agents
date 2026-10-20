@@ -62,11 +62,24 @@ def test_adr_083_item_4_states_the_script_assertion_as_unmet() -> None:
     assert "The test also asserts a real shipped skill script" not in flat
 
 
-def test_copilot_smoke_test_still_has_no_script_assertion() -> None:
-    """If this fails, the gap closed: update ADR-083 item 4 and the amendment."""
-    body = _function_body(SMOKE, "test_copilot_plugin_loads_expected_skills")
-    assert "EXPECTED_SKILLS" in body
-    assert not re.search(r"script", body, re.I)
+def test_no_copilot_smoke_test_asserts_script_resolution() -> None:
+    """Scans every Copilot-named test for the Codex and Grok script runner.
+
+    If this fails, the gap closed: update ADR-083 item 4 and the amendment.
+    A script check written without that runner, or in a test not named for
+    Copilot, is not seen here.
+    """
+    names = re.findall(r"^def (test_\w*copilot\w*)\(", SMOKE, re.M)
+    assert "test_copilot_plugin_loads_expected_skills" in names
+    for name in names:
+        assert "_run_installed_script(" not in _function_body(SMOKE, name), name
+
+
+def test_script_resolution_checks_exist_for_codex_and_grok() -> None:
+    """Negative control: the same scan finds script checks where the ADR says they exist."""
+    for harness in ("codex", "grok"):
+        names = re.findall(rf"^def (test_\w*{harness}\w*)\(", SMOKE, re.M)
+        assert any("_run_installed_script(" in _function_body(SMOKE, n) for n in names), harness
 
 
 # Finding 3: the cross-citation runs both ways.

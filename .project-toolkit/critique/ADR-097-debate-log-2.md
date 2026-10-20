@@ -4,7 +4,7 @@
 
 - **Rounds**: 2 of 10
 - **Prior debate logs**: `.project-toolkit/critique/ADR-097-debate-log.md` and `.project-toolkit/critique/ADR-083-debate-log-2.md`
-- **Outcome**: Consensus
+- **Outcome**: Round limit reached. Both seats voted Block in round 2 on mechanical defects. The fixes are test-verified. No round 3 ran.
 - **Final Status**: ADR-097 stays `accepted`; ADR-083 stays `accepted`. No frontmatter changes.
 - **Records covered**: ADR-097 (one Related Decisions bullet added) and ADR-083 (three prose edits).
 - **Panel**: reduced panel, architect and critic. The edit adds a citation and corrects prose. It touches no executable enforcement and no rule another gate reads. Each seat ran as a separate Claude Code session (`claude -p`, Sonnet) with read-only tools and only the diff as input.
@@ -48,6 +48,8 @@ Both seats re-read the updated diff and confirmed the round-1 fixes: the log exi
 - architect, critic (P1): two regression tests failed (2 failed, 6 passed). They asserted phrases the condensed ADR text no longer contains. Fix: the tests now assert the shipped phrases, "Form: the owner asked for" and "added the ADR-097 back-reference".
 - architect, critic (P1): the first draft of this log recorded round 2 as Accept before the seats had run. Fix: the table above records the Block votes that were returned.
 - architect (P1): "without dropping a claim" was false for the Status paragraph. Fix: the Round 1 entry names the two dropped claims and where they remain.
+
+After the PR opened, Devin Review raised three more points. Fixes: the Outcome line above no longer says Consensus, frontmatter `date` in both ADRs is 2026-10-19 per the clarification rule in `adr-best-practices.md`, and the Copilot gap test now scans every Copilot-named smoke test for the Codex and Grok script runner, with a control that finds it in the Codex and Grok tests.
 
 The run limit is two review rounds. Round 3 was not run. The fixes are checked by deterministic results: the new test file passes, and both ADRs measure 500 lines.
 

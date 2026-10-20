@@ -1,7 +1,7 @@
 ---
 id: ADR-097
 status: accepted
-date: 2026-08-19
+date: 2026-10-19
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
