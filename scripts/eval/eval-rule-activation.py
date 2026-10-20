@@ -2762,7 +2762,8 @@ def _evaluate_load_bearing(
     positive, negative = (
         {m: _mechanism_summary(pools[name], m) for m in arms} for name in ("positive", "negative")
     )
-    return _load_bearing.evaluate(spec, positive, negative)
+    contract: dict[str, Any] = _load_bearing.evaluate(spec, positive, negative)
+    return contract
 
 
 def _apply_decision_gate(summary: dict[str, Any], decision_check: dict[str, Any]) -> None:

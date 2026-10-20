@@ -129,7 +129,7 @@ def _fully_graded(cell: Mapping[str, Any]) -> bool:
 def _score(cell: Mapping[str, Any]) -> float | None:
     exact = cell.get("avg_score_exact")
     value = cell.get("avg_score") if exact is None else exact
-    return float(value) if _is_number(value) else None
+    return float(value) if isinstance(value, (int, float)) and _is_number(value) else None
 
 
 def _check_concision(
