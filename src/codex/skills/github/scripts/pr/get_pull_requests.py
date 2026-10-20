@@ -84,8 +84,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--search",
         default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-        "--state still applies and combines with any is: qualifier in the query; "
-        "use --state all when the query carries its own is: qualifier. "
+        "--state closed or merged combines with an is: qualifier in the query. "
+        "--state open (the default) and all let the query's is: qualifier decide. "
         "--label/--author/--base/--head are ignored.",
     )
     parser.add_argument(

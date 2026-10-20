@@ -125,13 +125,20 @@ class TestBuildParser:
         args = build_parser().parse_args(["--output-format", "json"])
         assert args.output_format == "json"
 
-    def test_search_help_says_is_qualifier_combines_with_state(self):
-        # gh 2.102.0 ANDs --state with an is: qualifier: closed plus is:open
-        # returns nothing. The help must not promise an override.
+    def test_search_help_states_open_and_all_let_the_query_decide(self):
+        # gh 2.102.0: --state closed or merged ANDs with an is: qualifier
+        # (closed plus is:open returns nothing). --state open (the default)
+        # does not combine: is:closed in the query returns closed rows.
         help_text = " ".join(build_parser().format_help().split())
-        assert "combines with any is: qualifier" in help_text
-        assert "use --state all" in help_text
-        assert "overrides" not in help_text
+        assert "--state closed or merged combines with an is: qualifier" in help_text
+        assert (
+            "--state open (the default) and all let the query's is: qualifier decide" in help_text
+        )
+
+    def test_search_help_does_not_promise_state_always_combines(self):
+        help_text = " ".join(build_parser().format_help().split())
+        assert "still applies" not in help_text
+        assert "use --state all" not in help_text
 
 
 # ---------------------------------------------------------------------------
