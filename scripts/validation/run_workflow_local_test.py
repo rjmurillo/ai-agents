@@ -23,6 +23,12 @@ Both act stages skip jobs whose ``runs-on`` is a ``windows-*`` runner, with a
 job cannot be validated there, and ``pytest.yml``'s ``test-windows-pwsh`` ran
 tests past every timeout in the chain (Issue #6412). CI runs those jobs.
 
+The full act stage also skips a job that runs a partition of the whole test
+suite (a step that runs ``scripts/ci/run_pytest_partition.py``), with a
+``[WARN]``. ``pytest.yml``'s ``test`` job starts all of its legs at once and
+measured 9m30s per leg on an idle machine, past ``_ACT_FULL_TIMEOUT`` (Issue
+#6794). CI runs it. The dry run keeps checking that job's wiring.
+
 Tool / environment gaps are reported, not silently skipped: a missing
 actionlint, gh, gh act, or Docker daemon yields exit 3 (external) so the caller
 can block with an actionable message. A documented bypass exists for workflows that
@@ -971,6 +977,32 @@ def _windows_jobs(wf_path: Path) -> dict[str, str]:
     return found
 
 
+# A job that runs this script runs one partition of the whole test suite.
+_FULL_SUITE_RUNNER = "scripts/ci/run_pytest_partition.py"
+
+
+def _runs_full_suite(body: object) -> bool:
+    """Return True when a job has a step that runs a whole-suite pytest partition."""
+    steps = body.get("steps") if isinstance(body, dict) else None
+    if not isinstance(steps, list):
+        return False
+    return any(
+        isinstance(step, dict)
+        and isinstance(step.get("run"), str)
+        and _FULL_SUITE_RUNNER in step["run"]
+        for step in steps
+    )
+
+
+def _full_suite_jobs(wf_path: Path) -> list[str]:
+    """Return the job ids that run a partition of the whole test suite.
+
+    Empty when the file cannot be read or parsed, so a broken workflow falls
+    through to act's own error instead of being silently skipped.
+    """
+    return [name for name, body in _workflow_job_bodies(wf_path).items() if _runs_full_suite(body)]
+
+
 def _job_needs(body: object) -> list[str]:
     """Return the job ids in a job's ``needs``, accepting a string or a list."""
     needs = body.get("needs") if isinstance(body, dict) else None
@@ -1004,7 +1036,9 @@ def _skipped_dependents(bodies: dict[str, object], skipped: Iterable[str]) -> di
     return {name: found[name] for name in bodies if name in found}
 
 
-def _act_job_filters(repo_root: Path, wf: str, warnings: list[str]) -> list[list[str]]:
+def _act_job_filters(
+    repo_root: Path, wf: str, warnings: list[str], *, skip_full_suite: bool = False
+) -> list[list[str]]:
     """Plan the ``-j`` filters for one workflow, skipping Windows jobs.
 
     act maps ``windows-*`` runners to a Linux container (see the "Vanilla
@@ -1014,6 +1048,12 @@ def _act_job_filters(repo_root: Path, wf: str, warnings: list[str]) -> list[list
     Each skipped job adds a ``[WARN]``. A single-job workflow runs unfiltered,
     but once any job is skipped the rest must carry ``-j`` or act would run the
     skipped job again.
+
+    ``skip_full_suite`` also skips a job that runs a partition of the whole test
+    suite (#6794). The full ``pytest.yml`` ``test`` job runs every partition at
+    once and measured 9m30s per leg on an idle machine, past the stage budget.
+    Only the full act stage sets it: the dry run starts no container, so it
+    still checks the job's wiring.
     """
     wf_path = repo_root / wf
     bodies = _workflow_job_bodies(wf_path)
@@ -1023,6 +1063,16 @@ def _act_job_filters(repo_root: Path, wf: str, warnings: list[str]) -> list[list
             f"[WARN] {wf} job {job}: skipped, runs-on {label}. act maps Windows "
             "runners to a Linux container, so the job cannot run locally. CI runs it."
         )
+    if skip_full_suite:
+        for job in _full_suite_jobs(wf_path):
+            if job in skipped:
+                continue
+            skipped[job] = "full-suite"
+            warnings.append(
+                f"[WARN] {wf} job {job}: skipped, it runs the whole test suite "
+                f"({_FULL_SUITE_RUNNER}), which cannot finish inside the "
+                f"{_ACT_FULL_TIMEOUT}s act stage budget. CI runs it."
+            )
     dependents = _skipped_dependents(bodies, skipped)
     for job, need in dependents.items():
         warnings.append(
@@ -1744,6 +1794,7 @@ def _run_act_stage(
     repo_root: Path,
     *,
     linked_git: bool = False,
+    skip_full_suite: bool = False,
 ) -> StageResult:
     """Run an ``act`` invocation per workflow file, with act-limitation downgrade.
 
@@ -1760,13 +1811,24 @@ def _run_act_stage(
 
     ``linked_git`` mounts a writable copy of a linked worktree's git dir into
     the job containers (#6070). It is off for the dry run, which starts none.
+    ``skip_full_suite`` skips jobs that run the whole test suite (#6794).
     """
     if not linked_git:
-        return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, [])
+        return _run_act_workflows(
+            stage, base_cmd, timeout, files, repo_root, [], skip_full_suite=skip_full_suite
+        )
     result = StageResult(stage, False, "")
     try:
         with _worktree_git_mount(repo_root) as mount_args:
-            result = _run_act_workflows(stage, base_cmd, timeout, files, repo_root, mount_args)
+            result = _run_act_workflows(
+                stage,
+                base_cmd,
+                timeout,
+                files,
+                repo_root,
+                mount_args,
+                skip_full_suite=skip_full_suite,
+            )
     except GitCopyCleanupError as exc:
         detail = f"{result.detail}\n{exc}" if result.detail else str(exc)
         return StageResult(stage, False, detail)
@@ -1782,13 +1844,15 @@ def _run_act_workflows(
     files: Sequence[str],
     repo_root: Path,
     mount_args: Sequence[str],
+    *,
+    skip_full_suite: bool = False,
 ) -> StageResult:
     """Run ``base_cmd`` once per workflow file (and job), downgrading act limitations."""
     env = _act_env(repo_root)
     warnings: list[str] = []
     for wf in files:
         event = _select_act_event(repo_root / wf)
-        for job_arg in _act_job_filters(repo_root, wf, warnings):
+        for job_arg in _act_job_filters(repo_root, wf, warnings, skip_full_suite=skip_full_suite):
             cmd = [*base_cmd]
             if event is not None:
                 cmd.append(event)
@@ -1832,7 +1896,13 @@ def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     return _run_act_stage(
-        "gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root, linked_git=True
+        "gh act (full)",
+        ["gh", "act"],
+        _ACT_FULL_TIMEOUT,
+        files,
+        repo_root,
+        linked_git=True,
+        skip_full_suite=True,
     )
 
 
