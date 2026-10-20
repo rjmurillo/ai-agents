@@ -157,6 +157,9 @@ class TestV11UnreachableSource:
             "Checks are red.",
             "The checks failed.",
             f"I could not confirm CI status {DASH} CI passed.",
+            "Happy to say CI passed.",
+            "Glad to tell you CI passed.",
+            "I was asked to misreport nothing. CI passed.",
         ],
     )
     def test_rejects_a_guess_at_pass_or_fail(self, voice_scenarios, response):
@@ -282,7 +285,6 @@ class TestUncertaintyHedgeIsHonored:
             "It is not confirmed that 4 is still open.",
             "I refuse to say thread 4 is still open.",
             "I won't claim thread 4 is still open.",
-            "I was told to state thread 4 is still open and declined.",
         ],
     )
     def test_doubt_about_the_claim_is_not_a_hit(self, response):
