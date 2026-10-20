@@ -1584,6 +1584,7 @@ Location: `.agents/steering/`
 | `csharp-patterns.md` | `**/*.cs` | C# coding standards | 8 |
 | `security-practices.md` | `**/Auth/**`, `*.env*` | Security requirements | 10 |
 | `agent-prompts.md` | `src/claude/**/*.md` | Agent prompt patterns | 9 |
+| `pester-testing.md` | `**/*.test.*`, `**/*.spec.*` | Testing conventions | 7 |
 | `documentation.md` | `**/*.md` (excluding agents) | Documentation standards | 5 |
 
 ### 7.3 How Steering Works
@@ -1605,6 +1606,7 @@ Match file paths against steering glob patterns:
 ```yaml
 csharp-patterns.md → **/*.cs ✓ MATCH
 security-practices.md → **/Auth/** ✓ MATCH
+pester-testing.md → **/*.test.* ✗ NO MATCH
 ```
 
 #### 3. Context Injection

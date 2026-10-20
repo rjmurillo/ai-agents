@@ -58,6 +58,7 @@ in config comments
 
 | Scenario | Action | Example |
 |----------|--------|---------|
+| PSScriptAnalyzer rule fails | Update `.psscriptanalyzerrc.psd1` | Suppress `PSAvoidUsingWriteHost` with rationale |
 | markdownlint rule fails | Update `.markdownlint.yaml` | Disable `MD013` line-length for generated docs |
 | ESLint rule conflicts | Update `.eslintrc` | Override `no-console` for CLI tools |
 | Upstream tool has a bug | Flag the bug to the owner with a repro, add workaround in config | Pin tool version, suppress specific rule |
@@ -203,6 +204,26 @@ After applying this skill:
 - [ ] Reconciliation: paste the validator's exit status line (e.g., `echo "exit=$?"` output after running the validator command) to confirm the updated config passes; a claim of "validation passes" without pasted output does not count
 
 ## Examples
+
+### Example 1: PSScriptAnalyzer Rule Failure
+
+**Problem**: `PSAvoidUsingWriteHost` fails on a CLI script that intentionally uses `Write-Host`.
+
+**Wrong approach**: Modify PSScriptAnalyzer source or remove the rule globally.
+
+**Correct approach**:
+
+```powershell
+# .psscriptanalyzerrc.psd1
+# Rationale: CLI scripts use Write-Host for user-facing output
+@{
+    Rules = @{
+        PSAvoidUsingWriteHost = @{
+            Enable = $false
+        }
+    }
+}
+```
 
 ### Example 2: markdownlint Conflict
 

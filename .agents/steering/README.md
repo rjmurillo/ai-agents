@@ -46,6 +46,7 @@ Orchestrator matches file paths against steering glob patterns:
 ```yaml
 csharp-patterns.md → **/*.cs ✓ MATCH
 security-practices.md → **/Auth/** ✓ MATCH
+pester-testing.md → **/*.test.* ✗ NO MATCH
 ```
 
 ### 3. Context Injection
@@ -77,7 +78,9 @@ By including only relevant guidance, we reduce token usage:
 ├── claude-skills.md         # Claude skill development standards
 ├── csharp-patterns.md       # C# coding standards (Phase 4)
 ├── documentation.md         # Documentation standards (Phase 4)
-└── security-practices.md    # Security requirements (Phase 4)
+├── powershell-patterns.md   # PowerShell coding patterns
+├── security-practices.md    # Security requirements (Phase 4)
+└── pester-testing.md      # Testing conventions (Phase 4)
 ```
 
 ## Steering File Format
@@ -154,7 +157,9 @@ status: [placeholder | draft | published]
 | `agent-prompts.md` | `**/AGENTS.md,src/claude/**/*.md,templates/agents/**/*.md` | Agent prompt standards | `.github/instructions/agent-prompts.instructions.md` |
 | `claude-skills.md` | `.claude/skills/**` | Skill development standards | `.github/instructions/claude-skills.instructions.md` |
 | `security-practices.md` | `**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.*,scripts/validation/git_hook_policy.py` | Security best practices | `.github/instructions/security.instructions.md` |
+| `pester-testing.md` | `**/*.Tests.ps1` | Pester testing conventions | `.github/instructions/testing.instructions.md` |
 | `documentation.md` | `**/*.md` (excluding agents/steering) | Documentation standards | `.github/instructions/documentation.instructions.md` |
+| `powershell-patterns.md` | `**/*.ps1,**/*.psm1` | PowerShell coding patterns | N/A (Phase 4) |
 
 ## Usage Example
 
@@ -165,13 +170,13 @@ User: Write Pester tests for the steering matcher skill
 Orchestrator analyzes:
 - Files: .claude/skills/steering-matcher/Get-ApplicableSteering.Tests.ps1
 - Matches:
-  - testing-approach.md (**/*.Tests.ps1)
+  - pester-testing.md (**/*.Tests.ps1)
 
 Orchestrator to qa:
 "Create test strategy for PowerShell skill.
 
 Context from steering:
-- testing-approach.md: Use Pester AAA pattern, mock dependencies, verify behavior
+- pester-testing.md: Use Pester AAA pattern, mock dependencies, verify behavior
 "
 ```
 
@@ -179,13 +184,13 @@ Context from steering:
 
 **Without steering scoping** (all files):
 - agent-prompts.md: 1,800 tokens
-- testing-approach.md: 2,200 tokens  
+- pester-testing.md: 2,200 tokens  
 - security-practices.md: 3,000 tokens
 - documentation.md: 1,500 tokens
 - **Total**: 8,500 tokens
 
 **With steering scoping** (matched only):
-- testing-approach.md: 2,200 tokens
+- pester-testing.md: 2,200 tokens
 - **Total**: 2,200 tokens
 - **Savings**: 74%
 
