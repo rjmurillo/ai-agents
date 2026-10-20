@@ -34,7 +34,7 @@ def test_summary_line_for_a_split_leg_names_the_split_and_durations_hash(
     digest = hashlib.sha256(b'{"a::t": 1.0}').hexdigest()[:12]
     mod.main(["--partition", "split-3"])
     assert capsys.readouterr().err.strip() == (
-        "partition=split-3 mode=full splits=4 group=3 "
+        "partition=split-3 mode=full splits=5 group=3 "
         f"durations={mod.DURATIONS_RESTORE_PATH} durations_sha256={digest}"
     )
 

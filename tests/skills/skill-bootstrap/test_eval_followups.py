@@ -202,6 +202,40 @@ def test_check_out_path_refuses_a_planted_final_symlink_before_resolving_it(tmp_
     assert not target.exists()
 
 
+def test_check_out_path_stops_at_a_missing_root_instead_of_looping(tmp_path, monkeypatch):
+    """A drive or share root is its own parent; a missing root must raise, not hang."""
+    real_exists = Path.exists
+    monkeypatch.setattr(Path, "exists", lambda self, **kw: False)
+    monkeypatch.setattr(bootstrap_eval, "_is_occupied", lambda out: False)
+
+    with pytest.raises(bootstrap_eval.ConfigError, match="does not exist"):
+        bootstrap_eval._check_out_path(tmp_path / "a" / "b" / "f.json", True)
+
+    monkeypatch.undo()
+    assert real_exists(tmp_path)
+
+
+def test_freeze_exits_2_when_no_ancestor_of_out_exists(tmp_path, monkeypatch, capsys):
+    cases = tmp_path / "cases.json"
+    cases.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(bootstrap_eval, "validate_cases", lambda raw: [])
+    monkeypatch.setattr(Path, "exists", lambda self, **kw: False)
+    monkeypatch.setattr(bootstrap_eval, "_is_occupied", lambda out: False)
+
+    code, payload = _run(
+        capsys, "freeze", "--cases", str(cases), "--out", str(tmp_path / "x" / "f.json")
+    )
+
+    assert code == 2
+    assert "does not exist" in json.dumps(payload)
+
+
+def test_check_out_path_still_accepts_a_missing_nested_dir_under_an_existing_ancestor(tmp_path):
+    out = bootstrap_eval._check_out_path(tmp_path / "a" / "b" / "f.json", True)
+
+    assert out == tmp_path.resolve() / "a" / "b" / "f.json"
+
+
 def test_is_occupied_counts_a_dangling_symlink_and_a_file_but_not_a_gap(tmp_path):
     file = tmp_path / "file"
     file.write_text("x", encoding="utf-8")

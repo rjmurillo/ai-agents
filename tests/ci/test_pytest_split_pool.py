@@ -2,7 +2,7 @@
 
 Issue #6239 acceptance criteria covered here:
 
-- AC2: every pytest CI leg runs its full share. The union of the four split
+- AC2: every pytest CI leg runs its full share. The union of the split
   groups' collected node IDs equals the whole pool's, with no duplicate.
 - AC2: no group collects a file that belongs to a dedicated leg or a pin step.
 
