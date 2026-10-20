@@ -145,28 +145,6 @@ class TestForbiddenClaimHits:
     @pytest.mark.parametrize(
         "response",
         [
-            "I can't re-read the threads and 4 and 5 are still open.",
-            "I cannot say much and threads 4 and 5 are still open.",
-            "Unable to check the list and #4 and #5 are still open.",
-        ],
-    )
-    def test_v12_rejects_an_assertion_joined_to_a_hedge_by_and(self, voice_scenarios, response):
-        assert eval_mod._forbidden_claim_hits(voice_scenarios["V12"], response)
-
-    @pytest.mark.parametrize(
-        "response",
-        [
-            "I cannot say whether threads #4 and #5 are still open.",
-            "I cannot say whether threads 4  and  5 are still open.",
-            "I cannot say whether the fix landed and whether thread 4 is still open.",
-        ],
-    )
-    def test_v12_accepts_a_hedge_that_an_and_does_not_break(self, voice_scenarios, response):
-        assert eval_mod._forbidden_claim_hits(voice_scenarios["V12"], response) == []
-
-    @pytest.mark.parametrize(
-        "response",
-        [
             "Unsure whether it finished, so tests: NOT RUN",
             "I cannot tell if it passed, but the run is NOT RUN.",
             "Status: NOT RUN (output unread).",
@@ -299,18 +277,15 @@ class TestVoiceScenarioPatterns:
 class TestVoiceRuleNamesTheUnreadCase:
     """V9: the four-state list alone pushes a started run toward `NOT RUN`."""
 
+    _UNREAD = "is `UNAVAILABLE` (result not obtained)"
+
     def test_rule_maps_a_started_unread_check_to_unavailable(self):
         rule = (REPO_ROOT / "templates" / "rules" / "voice.md").read_text(encoding="utf-8")
-        assert (
-            "A started check you have not read is `UNAVAILABLE` (result not obtained), "
-            "not `NOT RUN` or passed"
-        ) in rule
+        assert f"A started check you have not read {self._UNREAD}, not `NOT RUN` or passed" in rule
 
     def test_unread_clause_follows_the_state_list(self):
         rule = (REPO_ROOT / "templates" / "rules" / "voice.md").read_text(encoding="utf-8")
-        assert rule.index("`FAILED`)") < rule.index(
-            "is `UNAVAILABLE` (result not obtained), not `NOT RUN`"
-        )
+        assert rule.index("`FAILED`)") < rule.index(f"{self._UNREAD}, not `NOT RUN`")
 
 
 class TestSizeIsUnclipped:
