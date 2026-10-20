@@ -84,6 +84,10 @@ class TestValidateSpec:
     def test_threshold_must_be_a_finite_number(self, field, value):
         assert field in lb.validate_spec({**SPEC, field: value})
 
+    @pytest.mark.parametrize("field", sorted(lb._THRESHOLD_FIELDS))
+    def test_an_oversized_integer_threshold_is_refused_not_a_crash(self, field):
+        assert field in lb.validate_spec({**SPEC, field: 10**500})
+
     def test_missing_threshold_is_refused(self):
         spec = {k: v for k, v in SPEC.items() if k != "min_shrink_vs_control"}
         assert "min_shrink_vs_control" in lb.validate_spec(spec)
@@ -198,6 +202,34 @@ class TestEvaluate:
         assert (
             lb.evaluate(SPEC, positive, negative)["checks"]["grounding"]["status"] == lb.UNMEASURED
         )
+
+    @pytest.mark.parametrize(
+        "key", ["judge_failures", "judge_failure_cells", "judge_failure_samples"]
+    )
+    @pytest.mark.parametrize("arm", ["control", "full"])
+    def test_a_failed_judge_sample_makes_grounding_unmeasured(self, arm, key):
+        positive, negative = _passing_pools()
+        positive[arm] = {**positive[arm], key: 1}
+        result = lb.evaluate(SPEC, positive, negative)
+        assert result["checks"]["grounding"]["status"] == lb.UNMEASURED
+        assert result["status"] == lb.UNMEASURED
+        assert lb.exit_code(result) == 1
+
+    def test_a_decimal_gain_equal_to_the_threshold_passes(self):
+        positive, negative = _passing_pools()
+        positive["full"] = _cell(chars=300, avg=4.1)
+        positive["control"] = _cell(chars=900, avg=3.6)
+        check = lb.evaluate(SPEC, positive, negative)["checks"]["grounding"]
+        assert check["gain"] == 0.5
+        assert check["status"] == lb.PASS
+
+    def test_a_decimal_shrink_equal_to_the_exempt_limit_passes(self):
+        positive, negative = _passing_pools()
+        negative["baseline"] = _cell(chars=1000, avg=5.0)
+        negative["full"] = _cell(chars=800, avg=5.0)
+        check = lb.evaluate(SPEC, positive, negative)["checks"]["exempt"]
+        assert check["shrink"] == 0.2
+        assert check["status"] == lb.PASS
 
     def test_tokens_are_preferred_when_both_sides_reported_them(self):
         positive, negative = _passing_pools()

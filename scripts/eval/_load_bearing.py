@@ -62,8 +62,16 @@ _THRESHOLD_FIELDS = (
 )
 
 
+_TOLERANCE = 1e-9
+
+
 def _is_number(value: object) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    """True for a real int or a finite float. An int is finite and is never converted."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and (not isinstance(value, float) or math.isfinite(value))
+    )
 
 
 def validate_spec(spec: object) -> str | None:
@@ -121,8 +129,17 @@ def _shrink(treated: float, reference: float) -> float | None:
 
 
 def _fully_graded(cell: Mapping[str, Any]) -> bool:
-    return cell.get("avg_score") is not None and cell.get("graded_count") == cell.get(
-        "scenario_count"
+    """Every scenario graded and no judge sample failed.
+
+    A cell with one failed sample keeps the score of the others, so a partial
+    judge failure would otherwise certify the contrast.
+    """
+    return (
+        cell.get("avg_score") is not None
+        and cell.get("graded_count") == cell.get("scenario_count")
+        and not cell.get("judge_failures")
+        and not cell.get("judge_failure_cells")
+        and not cell.get("judge_failure_samples")
     )
 
 
@@ -146,7 +163,7 @@ def _check_concision(
     if shrink is None:
         return check
     check["shrink"] = round(shrink, 3)
-    check["status"] = PASS if shrink >= threshold else FAIL
+    check["status"] = PASS if check["shrink"] >= threshold - _TOLERANCE else FAIL
     return check
 
 
@@ -162,7 +179,7 @@ def _check_grounding(
         return check
     gain = full_avg - control_avg
     check.update(full=round(full_avg, 2), control=round(control_avg, 2), gain=round(gain, 2))
-    check["status"] = PASS if gain >= threshold else FAIL
+    check["status"] = PASS if check["gain"] >= threshold - _TOLERANCE else FAIL
     return check
 
 
@@ -180,7 +197,7 @@ def _check_exempt(
     if shrink is None:
         return check
     check["shrink"] = round(shrink, 3)
-    check["status"] = FAIL if shrink > threshold else PASS
+    check["status"] = FAIL if check["shrink"] > threshold + _TOLERANCE else PASS
     return check
 
 
