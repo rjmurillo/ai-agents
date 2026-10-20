@@ -982,13 +982,25 @@ _FULL_SUITE_RUNNER = "scripts/ci/run_pytest_partition.py"
 # Matches an interpreter invoking the runner at a shell command position, not a
 # command that only names its path (``test -f scripts/ci/run_pytest_partition.py``)
 # or prints it (``echo python scripts/ci/run_pytest_partition.py``, a comment).
+# ``uv run`` may carry options, each with at most one value, but never a command
+# word such as ``echo`` between ``run`` and the interpreter.
 _FULL_SUITE_INVOCATION = re.compile(
     r"(?:^|[;&|(])\s*(?:(?:then|do|else)\s+)?"
     r"(?:\w+=\S+\s+)*"
-    r"(?:uv\s+run\s+(?:[^\n;&|]*?\s)?)?"
+    r"(?:uv\s+run(?:\s+--?[\w-]+(?:=\S+|\s+[^\s-]\S*)?)*\s+)?"
     r"python3?(?:\.\d+)?\s+(?:-\S+\s+)*" + re.escape(_FULL_SUITE_RUNNER) + r"(?![^\s;&|)])",
     re.MULTILINE,
 )
+# A heredoc body is data for the command that reads it, not a command of its own.
+_HEREDOC = re.compile(
+    r"(<<-?[ \t]*(['\"]?)(\w+)\2[^\n]*)\n.*?^[ \t]*\3[ \t]*$", re.MULTILINE | re.DOTALL
+)
+
+
+def _invokes_full_suite_runner(script: str) -> bool:
+    """Return True when a ``run:`` script runs the suite runner as a command."""
+    commands = _HEREDOC.sub(r"\1", script).replace("\\\n", " ")
+    return _FULL_SUITE_INVOCATION.search(commands) is not None
 
 
 def _runs_full_suite(body: object) -> bool:
@@ -999,7 +1011,7 @@ def _runs_full_suite(body: object) -> bool:
     return any(
         isinstance(step, dict)
         and isinstance(step.get("run"), str)
-        and _FULL_SUITE_INVOCATION.search(step["run"]) is not None
+        and _invokes_full_suite_runner(step["run"])
         for step in steps
     )
 
