@@ -72,7 +72,10 @@ _INERT_READERS = frozenset(
     }
 )  # fmt: skip
 
-_SEGMENT_SPLIT_RE = re.compile(r"([;|()`]|(?<![<>])&)")
+_SEGMENT_SPLIT_RE = re.compile(r"(\|\||&&|\|&|[;|()`]|(?<![<>])&)")
+# Separators after which the next command can still receive the body: a pipe, or
+# the close of a substitution whose output becomes command words.
+_CARRY_SEPS = frozenset({"|", "|&", ")", "`"})
 _ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=")
 _REDIRECT_RE = re.compile(r"[0-9]*[<>]")
 
@@ -80,9 +83,9 @@ _REDIRECT_RE = re.compile(r"[0-9]*[<>]")
 def _command_word(segment: str) -> str | None:
     """First word of a segment that is not an assignment or a redirection.
 
-    A bare redirection operator (`>`, `2>>`) also skips its target. Returns
-    None when no command word is visible, as when a quoted command word was
-    blanked by the scrubber.
+    A bare redirection operator (`>`, `2>>`) also skips its target. A redirect
+    glued to the word (`cat<<'`) is cut off it. Returns None when no command
+    word is visible, as when a quoted command word was blanked by the scrubber.
     """
     skip_next = False
     for token in segment.split():
@@ -90,30 +93,34 @@ def _command_word(segment: str) -> str | None:
             skip_next = False
         elif _REDIRECT_RE.fullmatch(token):
             skip_next = True
-        elif token.startswith(("<", ">")) or _REDIRECT_RE.match(token):
-            continue
         elif _ASSIGNMENT_RE.match(token):
             continue
         else:
-            return token.rsplit("/", 1)[-1]
+            head = token.split("<")[0].split(">")[0]
+            if head and not head.isdigit():
+                return head.rsplit("/", 1)[-1]
     return None
 
 
 def _consumers(opener: str) -> list[str]:
-    """Segments that can consume the body: the one holding `<<`, those after it,
-    and the enclosing command of a substitution (`eval $(cat <<'EOF'`).
+    """Segments that can consume the body.
 
-    Commands before a `;`, `&`, or `|` boundary never read the body.
+    That is the segment holding `<<`, later segments joined to it by a pipe or
+    a substitution close, and every earlier segment when `<<` sits inside a
+    substitution (`eval $(true && cat <<'EOF'`). Commands past a `;`, `&&`, or
+    `||` boundary never read the body.
     """
     parts = _SEGMENT_SPLIT_RE.split(opener)
     segments, seps = parts[0::2], parts[1::2]
     owner = next((i for i, seg in enumerate(segments) if "<<" in seg), None)
     if owner is None:
         return []
-    first = owner
-    while first > 0 and seps[first - 1] in ("(", "`"):
-        first -= 1
-    return segments[first:]
+    before = seps[:owner]
+    nested = before.count("(") > before.count(")") or before.count("`") % 2 == 1
+    end = owner + 1
+    while end < len(segments) and seps[end - 1] in _CARRY_SEPS:
+        end += 1
+    return segments[0 if nested else owner : end]
 
 
 def _feeds_shell(opener: str) -> bool:

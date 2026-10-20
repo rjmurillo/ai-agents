@@ -605,6 +605,9 @@ def test_scan_file_does_not_flag_quoted_heredoc_body(tmp_path: Path, opener: str
         "some-unknown-tool <<'EOF'",
         "<<'EOF'",
         "cat <<'EOF' | xargs sh -c",
+        "eval $(true && cat <<'EOF'",
+        "sh -c `date; cat <<'EOF'",
+        "cat <<'EOF' |& bash",
     ],
 )
 def test_scan_file_flags_quoted_heredoc_body_that_a_shell_runs(tmp_path: Path, opener: str) -> None:
@@ -635,6 +638,11 @@ def test_scan_file_flags_quoted_heredoc_body_that_a_shell_runs(tmp_path: Path, o
         "date; cat <<'EOF'",
         "cd /tmp && cat <<'EOF'",
         "sh -c true | cat <<'EOF'",
+        "cat<<'EOF'",
+        "cat<<-'EOF'",
+        "cat <<'EOF'; date",
+        "cat <<'EOF' && date",
+        "cat <<'EOF' || date",
     ],
 )
 def test_scan_file_still_blanks_quoted_heredoc_body_no_shell_reads(
