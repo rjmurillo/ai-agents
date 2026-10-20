@@ -578,6 +578,7 @@ FORBIDDEN_CLAIM_SCORE_CAP = 2
 # re-read the threads and 4 and 5 are still open" is a hit.
 _CLAUSE_BREAK = re.compile(
     r"[.;:!?\n]|(?<!\d),|,(?!\s*\d)"
+    r"|\s[\u2013\u2014]\s"
     r"|\b(?:but|so|yet|however|although|though|whereas)\b",
     re.IGNORECASE,
 )
@@ -589,6 +590,8 @@ _CLAIM_HEDGE = re.compile(
     r"|could(?:\s+not|n't)\s+(?:confirm|verify|tell|determine|establish)"
     r"|(?:did(?:\s+not|n't)|(?:have|has|had)(?:\s+not|n't))\s+(?:confirm|verify|confirmed|verified)"
     r"|not\s+(?:confirmed|verified)"
+    r"|won't|will\s+not|refus(?:e|ed|es|ing)|declin(?:e|ed|es|ing)"
+    r"|to\s+(?:say|tell|claim|state|declare)"
     r"|whether|if|unless)\b",
     re.IGNORECASE,
 )
