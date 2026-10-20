@@ -36,16 +36,12 @@ shipped then; phases 2, 4, and 5 remained, so `implemented: false` reflected
 partial delivery.
 
 Amended (2026-10-19) by issue #6742 after the 90-day review. The owner retired
-the `surface` tag (Decision item 1) and removed the internal overlay (Decision
-items 2 and 6). Decision item 5 now records that the two security hooks are
-retired and that ADR-097 governs the hook surface. Confirmation Criterion 1 now
-uses `skill list` as its primary signal. The dogfood install (item 3) is the
-durable outcome of the tag-and-overlay plan. The base-alone e2e (item 4) stays
-in force with that restated signal. `implemented` is now `true`: ADR-073 flips
-it at the first merged change, and PR #3251 merged on 2026-07-19. The title
-still names the retired ship-versus-internal split, and is kept so existing
-citations resolve. Evidence: the 2026-10-19 amendment below and
-`.project-toolkit/critique/ADR-083-debate-log-2.md`.
+the `surface` tag (item 1) and removed the internal overlay (items 2 and 6).
+Item 5 records that the two security hooks are retired and ADR-097 governs the
+hook surface. Criterion 1 uses `skill list`. `implemented` is now `true`: ADR-073
+flips it at the first merged change, and PR #3251 merged on 2026-07-19. The title
+still names the retired split, and is kept so citations resolve. Evidence: the
+2026-10-19 amendment below and `.project-toolkit/critique/ADR-083-debate-log-2.md`.
 
 ## Amendment 2026-07-27: Security hook absence recorded, authorization not found
 
@@ -119,16 +115,20 @@ Decision items 1, 2, and 6 are marked retired and keep their numbers, so
 existing citations still resolve. Criteria 2, 3, and 5 are retired. Phases 4
 and 5 are retired in the Implementation Notes.
 
-Noticed, not changed: Decision item 4 asks the test to assert that a shipped
-skill script resolves under the Copilot plugin root. On 2026-10-18,
-`tests/e2e/test_plugin_load_smoke.py` asserts that for Codex and Grok, and has
-no such test for Copilot. This amendment records the gap and does not change
-the requirement.
+Noticed, not changed: Decision item 4 requires a script-resolution assertion.
+On 2026-10-18, `tests/e2e/test_plugin_load_smoke.py` has it for Codex and Grok,
+not Copilot. The requirement stays.
 
-Noticed, not changed: ADR-097 does not cite this ADR. The lifecycle checks
-require reciprocal edges for supersession only, and this is not a supersession.
-An ADR-097 edit needs its own review, so this amendment leaves ADR-097 as it is.
-The cross-citation is one-way, from this ADR to ADR-097.
+Cross-citation: owner decision 3 asked to cross-cite ADR-083 and ADR-097. The
+first merge linked one way. A follow-up to #6746 added the ADR-097 back-reference,
+logged in `.project-toolkit/critique/ADR-097-debate-log-2.md`.
+
+Form: the owner asked for "an ADR-083 amendment" (#6742, `adr083-owner-decisions`).
+This amendment rewrote Decision items 1 to 6 and the Criteria in place. The ADR
+best-practices guide (`src/claude/skills/adr-generator/references/adr-best-practices.md`,
+case 4) calls for a superseding ADR after implementation. No owner or debate
+record weighs the two, and the owner has not recorded a choice of the in-place
+form. The first-accepted text is at `7e43f7f89d^` (08994b6190, 2026-10-18).
 
 Debate log: `.project-toolkit/critique/ADR-083-debate-log-2.md`.
 
@@ -242,8 +242,9 @@ existing citations still resolve.
    `source: plugin` record under the base. The base ships zero hooks
    (`src/copilot-cli/hooks/hooks.json` is empty, and ADR-097 forbids tool-use
    hooks), so a fired base hook cannot be the primary signal. A probe plugin's fired hook stays a best-effort check of the hook
-   path, with an empty-plugin negative control. The test also asserts a real
-   shipped skill script resolves under the plugin root. Loading the base alone
+   path, with an empty-plugin negative control. The test must also assert a
+   real shipped skill script resolves under the plugin root. No Copilot test
+   does this yet (see the 2026-10-19 amendment). Loading the base alone
    is what catches base-only form-factor bugs; loading the `.claude` superset
    never exercises the base by itself. The test lives in
    `tests/e2e/test_plugin_load_smoke.py` and runs in
@@ -464,9 +465,9 @@ second "not yet met" with no decision is not an outcome.
 ## Related Decisions
 
 - ADR-097 (zero tool-use hooks, accepted 2026-08-19): the decision of record
-  for the vendored hook surface. It lists `invoke_security_gate` and
-  `invoke_security_commit_gate` as already retired and forbids new tool-use
-  hooks outside its Re-evaluation Triggers. Decision item 5 defers to it.
+  for the vendored hook surface. It cites this ADR back (2026-10-19), lists
+  `invoke_security_gate` and `invoke_security_commit_gate` as already retired,
+  and forbids new tool-use hooks outside its Re-evaluation Triggers. Decision item 5 defers to it.
 - ADR-084 (vendored-hook ROI bar): its security carve-out bars retiring a
   security control by ROI alone. Its rule 6 and `tool-use-hook-bar.md` govern
   any proposal to restore one.
