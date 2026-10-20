@@ -72,6 +72,8 @@ def _git_apply_check(tmp_path: Path, before: Path, patch: str) -> subprocess.Com
         cwd=target,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
