@@ -205,9 +205,24 @@ def test_durable_artifact_handoff_reproduces_verified_from_the_handoff_pair() ->
         for event in plan_writer_events
     )
     read_back_text = codex_frames.message_texts(_frames("fresh-session-handoff.trace.log"))[-1]
+    reader_text = (CODEX_FIXTURES / "fresh-session-handoff.stdout.jsonl").read_text(
+        encoding="utf-8"
+    )
+    reader_events = [json.loads(line) for line in reader_text.splitlines() if line.strip()]
+    disk_reads = [
+        event["item"]
+        for event in reader_events
+        if event.get("type") == "item.completed"
+        and event.get("item", {}).get("type") == "command_execution"
+        and "implementation-plan.md" in event["item"].get("command", "")
+    ]
 
     assert creation_command["item"]["changes"][0]["kind"] == "add"
     assert write_completed, "the writer session never completed the implementation-plan.md write"
+    assert any(
+        read["exit_code"] == 0 and "TOKEN: PLAN-4417" in read["aggregated_output"]
+        for read in disk_reads
+    ), "the fresh session never read TOKEN: PLAN-4417 from implementation-plan.md"
     assert "plan=PLAN-4417" in read_back_text
 
 
