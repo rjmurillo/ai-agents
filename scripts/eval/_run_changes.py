@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import difflib
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 
 CHANGES_DIR = "changes"
@@ -94,6 +94,17 @@ def _lines(root: Path, relative: str) -> tuple[list[str] | None, str]:
     return data.decode("utf-8", errors="replace").splitlines(keepends=True), ""
 
 
+def _with_eof_markers(diff: Iterable[str]) -> Iterator[str]:
+    """Yield diff lines, marking each content line that lacks a trailing newline.
+
+    `difflib` ends every header and hunk line with a newline, so a line without
+    one is a file line cut short. It can sit mid-hunk (the old side) or last
+    (the new side). Either way it needs the marker, or it runs into the next line.
+    """
+    for line in diff:
+        yield line if line.endswith("\n") else line + "\n\\ No newline at end of file\n"
+
+
 def _file_diff(relative: str, before_root: Path, after_root: Path) -> str:
     before, after = before_root / relative, after_root / relative
     old, old_why = _lines(before_root, relative)
@@ -106,8 +117,7 @@ def _file_diff(relative: str, before_root: Path, after_root: Path) -> str:
         fromfile=f"a/{relative}" if before.is_file() else "/dev/null",
         tofile=f"b/{relative}" if after.is_file() else "/dev/null",
     )
-    text = "".join(diff)
-    return text if text.endswith("\n") or not text else text + "\n\\ No newline at end of file\n"
+    return "".join(_with_eof_markers(diff))
 
 
 def change_patch(initial_dir: Path, workdir: Path, changed: Sequence[str]) -> str:

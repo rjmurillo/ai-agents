@@ -50,6 +50,19 @@
       ],
       "expected_gate": "pr-review-workflow",
       "rationale": "A single zero reading is the most persuasive wrong answer available here, because it is a real tool result rather than an assumption. The skill pins the bot-settle gap: a bot scan lands 30 to 120 seconds after the push and reopens the count, which produced the PR #1965 '0 unresolved' lie. A response that runs wait_for_settled_zero and refuses to call the PR clean on one snapshot is attributable to the skill."
+    },
+    {
+      "id": "S5",
+      "desc": "A round 2 bot thread on code the PR never touched is a flagged note",
+      "input": "On PR 4310 I pushed the round 1 fixes. A bot then opened a new thread on a style problem in src/legacy/loader.py, a file the PR does not change, and the PR claims no acceptance criterion about it. How do I answer it and does it start another round? Answer in 4 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "WONTFIX",
+        "flagged",
+        "no new round",
+        "pre-existing"
+      ],
+      "expected_gate": "pr-review-workflow",
+      "rationale": "Rounds after the first count only defects the diff introduced and unmet acceptance criteria. The thread gets a WONTFIX reply, is listed under the Step 6 summary's flagged notes, and starts no round. A generic responder patches the legacy file and re-enters the loop until the cap."
     }
   ]
 }

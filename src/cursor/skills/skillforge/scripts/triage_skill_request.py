@@ -531,15 +531,38 @@ MIN_PARTIAL_NAME_LENGTH = 4
 NAME_LOOKUP_CATEGORIES = frozenset({InputCategory.SKILL_QUESTION, InputCategory.EXPLICIT_IMPROVE})
 
 
+# A CamelCase error class name: "TypeError", "NullPointerException". Whole-word
+# matching cannot find the debugging synonym "error" inside the fused name, so the
+# name is split before domain detection and term counting.
+_ERROR_CLASS_NAME = re.compile(r"\b([A-Za-z]+)(Error|Exception)\b")
+
+
+def split_error_class_names(query: str) -> str:
+    """Split CamelCase error class names so "TypeError" reads as "Type Error"."""
+    return _ERROR_CLASS_NAME.sub(r"\1 \2", query)
+
+
+# The frame of a skill question: "which skill handles X?" asks about X, so the frame
+# must not dilute the coverage of X. Only a skill question is stripped: "handles" is
+# a content word elsewhere ("inspect file handles").
+_QUESTION_FRAME = re.compile(r"\b(?:which|what)\s+skills?\s+(?:handles?|covers?)\b")
+
+
+def strip_question_frame(query: str) -> str:
+    """Drop the "which skill handles" frame from a skill question."""
+    return _QUESTION_FRAME.sub(" ", query.lower())
+
+
 def tokenize_for_scoring(query: str) -> list[str]:
     """
     Split a query into lowercase content terms, dropping request scaffolding.
 
     Order is kept and duplicates are removed. Single characters are dropped.
+    CamelCase error class names are split first ("TypeError" gives "type", "error").
     """
     seen: set[str] = set()
     tokens: list[str] = []
-    for token in _TOKEN_PATTERN.findall(query.lower()):
+    for token in _TOKEN_PATTERN.findall(split_error_class_names(query).lower()):
         if len(token) < 2 or token in SCAFFOLDING_WORDS or token in seen:
             continue
         seen.add(token)
@@ -629,7 +652,7 @@ def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
     Returns:
         List of (domain_name, matched_terms) tuples, sorted by match count
     """
-    query_lower = query.lower()
+    query_lower = split_error_class_names(query).lower()
     detected = []
 
     for domain, synonyms in DOMAIN_SYNONYMS.items():
@@ -717,10 +740,13 @@ def score_skill_detail(
         ScoreDetail with the score (0-100), match reasons, score ceiling, whether
         the query names the skill exactly, and the share of query terms explained.
     """
-    query_lower = query.lower()
+    query_lower = split_error_class_names(query).lower()
     # Content terms only: "create", "skill", "with" and similar scaffolding
     # words would otherwise match meta-skills for every creation request.
-    content_tokens = tokenize_for_scoring(query)
+    scored_query = (
+        strip_question_frame(query) if category == InputCategory.SKILL_QUESTION else query
+    )
+    content_tokens = tokenize_for_scoring(scored_query)
     query_words = set(content_tokens)
 
     skill_name = skill.get("name", "").lower()
@@ -786,12 +812,14 @@ def score_skill_detail(
 
     # Step 4: Direct skill name match (works for any skill name). Whole words
     # only, hyphens read as spaces, so "test" never matches inside "attest". A
-    # name made only of scaffolding words ("build", "make") is skipped when the
-    # user creates something: "build a skill for X" frames the request, it does not
-    # ask for the skill named build. In a name lookup ("do I have a skill for
-    # build?") the exact name still matches.
+    # name made only of scaffolding words ("build", "make") is skipped in every
+    # category except a name lookup: "build a skill for X" and "build this feature"
+    # frame the request, they do not ask for the skill named build. In a name
+    # lookup ("do I have a skill for build?") the exact name still matches.
     spaced_name = re.sub(r"[-_\s]+", " ", skill_name).strip()
-    spaced_query = re.sub(r"[-_\s]+", " ", query_lower)
+    # The unsplit text stays matchable so a skill named after an error class
+    # ("typeerror") still matches the query "TypeError".
+    spaced_query = re.sub(r"[-_\s]+", " ", f"{query_lower} {query.lower()}")
     is_lookup = category in NAME_LOOKUP_CATEGORIES
     scaffolding_named = is_scaffolding_phrase(spaced_name)
     name_pattern = "(?<![a-z0-9])" + re.escape(spaced_name) + "(?![a-z0-9])"
@@ -916,6 +944,10 @@ def find_matching_skills(
         if signals.get("has_error") and "debugging" in skill_domains:
             score += 25
             reasons.append("error context boost")
+            # The error pattern is the evidence: a stack trace or "SyntaxError:
+            # unexpected token" shares one word with a debugging skill, and the
+            # single-term cap would hold it under the ERROR_MESSAGE threshold.
+            ceiling = None
 
         # Code context + code quality domain boost
         if signals.get("has_code") and "code_quality" in skill_domains:
@@ -973,6 +1005,25 @@ def has_recall_gap(query: str, indexed_name_words: frozenset[str]) -> bool:
     )
 
 
+def covering_skills(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Matches that name themselves exactly or explain at least TOPIC_COVERAGE_MIN of the terms."""
+    return [
+        m for m in matches if m.get("names_skill") or m.get("coverage", 0.0) >= TOPIC_COVERAGE_MIN
+    ]
+
+
+def covered_topic_clarification(
+    details: dict[str, Any], matches: list[dict[str, Any]]
+) -> tuple[str, dict[str, Any]]:
+    """CLARIFY result that lists the skills covering a topic a low score would send to CREATE_NEW."""
+    return Action.CLARIFY, {
+        **details,
+        "reason": "An existing skill covers this topic at a low score. Confirm it fits before creating a new one.",
+        "suggested_action": "Ask user whether one of the covering skills fits",
+        "recommended_skills": [m["name"] for m in covering_skills(matches)[:3]],
+    }
+
+
 def topic_is_covered(matches: list[dict[str, Any]]) -> bool:
     """
     True when a match shows an existing skill covers the topic despite a low score.
@@ -982,9 +1033,7 @@ def topic_is_covered(matches: list[dict[str, Any]]) -> bool:
     is explained by the merge-resolver name and description). One shared word in
     a long request explains too little to count.
     """
-    return any(
-        m.get("names_skill") or m.get("coverage", 0.0) >= TOPIC_COVERAGE_MIN for m in matches
-    )
+    return bool(covering_skills(matches))
 
 
 def make_triage_decision(
@@ -1044,6 +1093,10 @@ def make_triage_decision(
                 "reason": f"Existing skill '{top_match['name']}' ({top_score}%) is similar. Create new or improve existing?",
                 "suggested_action": "Ask if user wants new skill or to enhance existing",
             }
+        elif topic_is_covered(matches):
+            # A skill that names itself or explains half the terms covers the
+            # topic even at a low score: confirm before creating a duplicate.
+            return covered_topic_clarification(details, matches)
         else:
             # Low/no match - proceed with creation
             return Action.CREATE_NEW, {
@@ -1088,6 +1141,8 @@ def make_triage_decision(
                 "suggested_action": "Ask user whether one of the named skills fits",
                 "recommended_skills": [m["name"] for m in matches[:3]],
             }
+        elif topic_is_covered(matches):
+            return covered_topic_clarification(details, matches)
         else:
             return Action.CREATE_NEW, {
                 **details,
@@ -1144,6 +1199,8 @@ def make_triage_decision(
                 "reason": f"Partial match: {top_match['name']} ({top_score}%) could be enhanced for this use case",
                 "target_skill": top_match["name"],
             }
+        elif category == InputCategory.TASK_REQUEST and topic_is_covered(matches):
+            return covered_topic_clarification(details, matches)
         else:
             return Action.CREATE_NEW, {
                 **details,

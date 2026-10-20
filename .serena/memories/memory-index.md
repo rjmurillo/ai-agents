@@ -54,7 +54,7 @@
 |triage issue close single-pass skeptic refute acceptance criteria closing keyword Refs security audit FAIL verdict post-merge fail-open: [pr-review/triage-004-single-pass-close-verdicts-need-skeptic](pr-review/triage-004-single-pass-close-verdicts-need-skeptic.md) (672)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
-|adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
+|adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2714)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution get_pr_checks wait MISSING why_pr_blocked Run Python Tests aggregator merge UNKNOWN: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (1755)
 |CHANGES_REQUESTED COMMENTED dismissed review reviewDecision stale bot review auto-merge blocked: [github/github-dismissed-reviews-block-automerge](github/github-dismissed-reviews-block-automerge.md) (632)
 |em dash en dash guard scope pre_pr checks_dash .py .md staged-dash-policy: [unicode-dash-guard-scope-gap](unicode-dash-guard-scope-gap.md) (1438)
@@ -99,7 +99,7 @@
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (472)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 |github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
-|skill support files source .claude/skills src/claude pruned stale build_all mirror: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (349)
+|skill support files source src/claude/skills symlink .claude/skills repo-local ADR-119 prune: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (468)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
