@@ -145,9 +145,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Always forward --state. Omitting it makes gh fall back to its open-only
     # default, which silently drops merged and closed PRs for --state all and
-    # --state merged (issue #6670). Under --search, gh combines --state with any
-    # is: qualifier in the query (closed plus is:open returns nothing), so a
-    # caller whose query carries is: should pass --state all.
+    # --state merged (issue #6670). Under --search, gh combines closed and merged
+    # with an is: qualifier in the query (closed plus is:open returns nothing).
+    # With open or all, the query's is: qualifier decides, so a caller whose
+    # query carries is: should pass --state all.
     list_args.extend(["--state", args.state])
 
     if args.search:

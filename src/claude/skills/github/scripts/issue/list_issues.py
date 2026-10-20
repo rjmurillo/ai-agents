@@ -174,8 +174,9 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
 
     # Always forward --state. Omitting it makes gh fall back to its open-only
     # default, which silently drops closed issues when the caller asked for
-    # --state all. Under --search, gh combines --state with any is: qualifier in
-    # the query (closed plus is:open returns nothing); use --state all then.
+    # --state all. Under --search, gh combines closed with an is: qualifier in
+    # the query (closed plus is:open returns nothing). With open or all, the
+    # query's is: qualifier decides; use --state all then.
     list_args.extend(["--state", args.state])
 
     if args.search:
