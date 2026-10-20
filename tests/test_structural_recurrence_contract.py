@@ -406,11 +406,27 @@ def test_dates_fix_check_accepts_every_form_that_removes_the_crash_line(body: st
         assert re.search(pattern, _DATES_HEAD + body), body
 
 
+def test_dates_fix_check_accepts_a_fix_made_on_the_unpack_line() -> None:
+    """The crashing call stays `int(seconds)` when the unpack line strips the suffix."""
+    fixed = (
+        "# timestamp helpers\n\n\ndef parse_stamp(value: str) -> int:\n"
+        '    hours, minutes, seconds = value.rstrip("Z").split(":")\n'
+        "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)\n"
+    )
+    assert DATES_FIX_PATTERNS
+    for _path, pattern in DATES_FIX_PATTERNS:
+        assert re.search(pattern, fixed)
+
+
 @pytest.mark.parametrize(
     "content",
     [
         _DATES_HEAD
         + "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: ends in 'Z'\n",
+        # Comment deleted, call untouched: the check keys on the crashing call, not the comment.
+        _DATES_HEAD + "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)\n",
+        _DATES_HEAD
+        + "    return int(hours) * 3600 + int(minutes) * 60 + int( seconds )  # reworded\n",
         "",
         "# dates.py was emptied\n",
     ],
