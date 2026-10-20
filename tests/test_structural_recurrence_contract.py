@@ -397,6 +397,8 @@ _DATES_HEAD = (
         '    return int(hours) * 3600 + int(minutes) * 60 + int(re.sub(r"Z$", "", seconds))\n',
         "    return int(hours) * 3600 + int(minutes) * 60 + _seconds(seconds)\n",
         '    seconds = seconds.rstrip("Z")\n    return int(hours) * 3600 + int(seconds)\n',
+        '    value = value.rstrip("Z")\n    return int(hours) * 3600 + int(seconds)\n',
+        "    value = value[:-1]\n    return int(hours) * 3600 + int(seconds)\n",
     ],
 )
 def test_dates_fix_check_accepts_every_form_that_removes_the_crash_line(body: str) -> None:
@@ -427,6 +429,17 @@ def test_dates_fix_check_accepts_a_fix_made_on_the_unpack_line() -> None:
         _DATES_HEAD + "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)\n",
         _DATES_HEAD
         + "    return int(hours) * 3600 + int(minutes) * 60 + int( seconds )  # reworded\n",
+        # Cosmetic edit and an unrelated assignment leave the crash in place.
+        _DATES_HEAD.replace('":"', "':'")
+        + "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)\n",
+        _DATES_HEAD
+        + '    seconds = "unused"\n'
+        + "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)\n",
+        # The shipped docstring mentions HH:MM:SSZ; that Z is not a fix.
+        _DATES_HEAD.replace(
+            "-> int:\n", '-> int:\n    """Return seconds since midnight for HH:MM:SSZ."""\n'
+        )
+        + "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)\n",
         "",
         "# dates.py was emptied\n",
     ],
