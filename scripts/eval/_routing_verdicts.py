@@ -56,6 +56,8 @@ HARNESS_FAILURE_LIMIT = Fraction(1, 5)  # line 66
 EVIDENCE_FLOOR = 8  # line 58
 FALLBACK_MIN_REPS = 2  # line 63
 REPETITIONS = (1, 2, 3)  # line 29
+COMPARED_ARMS = ("A", "B", "C", "D", "E")  # H1 to H4
+FALLBACK_COMPARED_ARMS = ("A", "C", "D", "E")  # H2 and H4
 DECISION_ORDINARY_ACCEPTED_FLOOR = 12  # line 143
 
 INTERPRETATIONS: tuple[dict[str, object], ...] = (
@@ -85,8 +87,11 @@ INTERPRETATIONS: tuple[dict[str, object], ...] = (
             "Per accepted task = total over the arm's non-harness-failed runs in the class "
             "divided by the accepted count. Wall-clock of a run = latest invocation window end "
             "minus earliest start, so parallel fan-out is not double counted. Uncached tokens = "
-            "sum over invocations of (input_tokens - cached_input_tokens) + output_tokens. Current "
-            "rows carry no cached count, so input_tokens is taken as already uncached. "
+            "sum over invocations of input_tokens + output_tokens. Row input_tokens is already "
+            "Codex input minus cached_input_tokens (_durable_codex.py:45-46,197, the cached part "
+            "is cache_read_tokens). The routing live path writes rows through that parser: "
+            "_routing_live.py:325 parse_codex_run, :329 facts.input_tokens into the observation, "
+            "_routing_result.py:193 into the row. "
             "'At least 25 percent lower' = candidate <= 0.75 x comparator on both measures. "
             "Zero accepted: economics undefined, never 'materially better'. A run with unknown "
             "time or tokens makes the arm's economics unmeasured and any verdict needing it "
@@ -146,10 +151,11 @@ INTERPRETATIONS: tuple[dict[str, object], ...] = (
         "id": "I9",
         "predictions_lines": "143-145",
         "reading": (
-            "'Fewer than 12 accepted ordinary runs' counts accepted ordinary_bounded runs over "
-            "all input rows. 'The fallback rule for any compared arm' = arms A, C, D, E each "
-            "need at least 2 non-harness-failed runs in each fallback scenario and a fallback "
-            "harness-failure share of at most 1/5."
+            "'For any compared arm' (line 144) governs both clauses. Each of arms A, B, C, D, "
+            "E needs at least 12 accepted ordinary_bounded runs AND, for arms compared on the "
+            "fallback class (A, C, D, E), the fallback rule: at least 2 non-harness-failed runs "
+            "in each fallback scenario and a fallback harness-failure share of at most 1/5. "
+            "Any arm short makes the decision INSUFFICIENT_EVIDENCE."
         ),
     },
     {
@@ -271,7 +277,7 @@ def _uncached_tokens(invocations: Sequence[Mapping[str, Any]]) -> int | None:
         tokens_in, tokens_out = item.get("input_tokens"), item.get("output_tokens")
         if tokens_in is None or tokens_out is None:
             return None
-        total += int(tokens_in) - int(item.get("cached_input_tokens") or 0) + int(tokens_out)
+        total += int(tokens_in) + int(tokens_out)
     return total
 
 
@@ -576,24 +582,31 @@ def evaluate_h4(runs: Sequence[Run], fallback: Sequence[str]) -> dict[str, objec
 # -------------------------------------------------------------------------- decision
 
 
-def decide(runs: Sequence[Run], fallback: Sequence[str], *, superseded: bool) -> dict[str, object]:
-    """Floor check only. The H-status to decision-value mapping is not pre-registered."""
-    ordinary_accepted = sum(1 for r in runs if r.klass == CLASS_ORDINARY and r.accepted)
-    unmet = [arm for arm in ("A", "C", "D", "E") if not fallback_rule_met(runs, arm, fallback)]
-    floor = {
-        "ordinary_accepted_runs": ordinary_accepted,
-        "ordinary_accepted_required": DECISION_ORDINARY_ACCEPTED_FLOOR,
-        "arms_without_fallback_rule": unmet,
-        "pre_amendment_inputs": superseded,
+def _arm_floor(runs: Sequence[Run], arm: str, fallback: Sequence[str]) -> dict[str, object]:
+    accepted = sum(1 for r in runs if r.arm == arm and r.klass == CLASS_ORDINARY and r.accepted)
+    on_fallback = arm in FALLBACK_COMPARED_ARMS
+    rule = fallback_rule_met(runs, arm, fallback) if on_fallback else None
+    meets = accepted >= DECISION_ORDINARY_ACCEPTED_FLOOR and rule is not False
+    return {
+        "accepted_ordinary_runs": accepted,
+        "accepted_ordinary_required": DECISION_ORDINARY_ACCEPTED_FLOOR,
+        "fallback_rule_met": rule,
+        "meets_floor": meets,
     }
-    insufficient = superseded or ordinary_accepted < DECISION_ORDINARY_ACCEPTED_FLOOR or bool(unmet)
-    if insufficient:
+
+
+def decide(runs: Sequence[Run], fallback: Sequence[str], *, superseded: bool) -> dict[str, object]:
+    """Per-arm floor check (I9). The H-status to decision-value mapping is not pre-registered."""
+    per_arm = {arm: _arm_floor(runs, arm, fallback) for arm in COMPARED_ARMS}
+    short = [arm for arm, item in per_arm.items() if not item["meets_floor"]]
+    floor = {"per_arm": per_arm, "arms_short": short, "pre_amendment_inputs": superseded}
+    if superseded or short:
         return {
             "decision": INSUFFICIENT,
             "decision_basis": "evidence floor unmet (PREDICTIONS.md decision output)",
-            "floor": floor,
+            "decision_floor": floor,
         }
-    return {"decision": None, "decision_basis": DECISION_NOT_REGISTERED, "floor": floor}
+    return {"decision": None, "decision_basis": DECISION_NOT_REGISTERED, "decision_floor": floor}
 
 
 def _superseded_hypotheses() -> dict[str, dict[str, object]]:

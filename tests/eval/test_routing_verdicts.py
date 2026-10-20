@@ -432,37 +432,48 @@ def test_h4_insufficient_with_missing_arm() -> None:
 # ------------------------------------------------------------------------- decision
 
 
-def test_decision_insufficient_when_ordinary_accepted_below_twelve() -> None:
-    rows = [
-        r
-        for arm in "ABCDEF"
-        for r in arm_rows(arm, ORDINARY, accept_first(2)) + arm_rows(arm, FALLBACK)
-    ]
+def test_one_arm_short_forces_insufficient_even_when_total_is_at_least_twelve() -> None:
+    rows = full_dataset(A=arm_rows("A", ALL_IDS, accept_first(11)))
     report = v.score(runs_of(rows), CLASSES)
-    assert report["floor"]["ordinary_accepted_runs"] == 12  # type: ignore[index]
-    assert report["decision"] is None
-    rows = [
-        r
-        for arm in "ABCDEF"
-        for r in arm_rows(arm, ORDINARY, accept_first(1) if arm != "A" else fail_all)
-        + arm_rows(arm, FALLBACK)
-    ]
-    report = v.score(runs_of(rows), CLASSES)
-    assert report["floor"]["ordinary_accepted_runs"] == 5  # type: ignore[index]
+    floor = report["decision_floor"]
+    assert sum(a["accepted_ordinary_runs"] for a in floor["per_arm"].values()) >= 12  # type: ignore[index]
+    assert floor["per_arm"]["A"]["accepted_ordinary_runs"] == 11  # type: ignore[index]
+    assert floor["arms_short"] == ["A"]  # type: ignore[index]
     assert report["decision"] == v.INSUFFICIENT
+
+
+def test_arm_b_is_held_to_the_ordinary_floor_but_not_the_fallback_rule() -> None:
+    rows = [r for r in full_dataset() if not (r["arm"] == "B" and r["scenario_id"] in FALLBACK)]
+    floor = v.score(runs_of(rows), CLASSES)["decision_floor"]
+    assert floor["per_arm"]["B"]["fallback_rule_met"] is None  # type: ignore[index]
+    assert floor["arms_short"] == []  # type: ignore[index]
+    short = full_dataset(B=arm_rows("B", ALL_IDS, fail_all))
+    floor = v.score(runs_of(short), CLASSES)["decision_floor"]
+    assert floor["arms_short"] == ["B"]  # type: ignore[index]
 
 
 def test_decision_insufficient_when_fallback_rule_unmet_for_an_arm() -> None:
     rows = [r for r in full_dataset() if not (r["arm"] == "E" and r["scenario_id"] in FALLBACK)]
     report = v.score(runs_of(rows), CLASSES)
-    assert report["floor"]["arms_without_fallback_rule"] == ["E"]  # type: ignore[index]
+    floor = report["decision_floor"]
+    assert floor["per_arm"]["E"]["fallback_rule_met"] is False  # type: ignore[index]
+    assert floor["per_arm"]["E"]["accepted_ordinary_runs"] == 12  # type: ignore[index]
+    assert floor["arms_short"] == ["E"]  # type: ignore[index]
     assert report["decision"] == v.INSUFFICIENT
+
+
+def test_arm_f_does_not_affect_the_decision_floor() -> None:
+    rows = full_dataset(F=arm_rows("F", ALL_IDS, fail_all))
+    report = v.score(runs_of(rows), CLASSES)
+    assert set(report["decision_floor"]["per_arm"]) == set("ABCDE")  # type: ignore[index]
+    assert report["decision"] is None
 
 
 def test_decision_is_null_with_basis_when_floor_met() -> None:
     report = v.score(runs_of(full_dataset()), CLASSES)
     assert report["decision"] is None
     assert report["decision_basis"] == v.DECISION_NOT_REGISTERED
+    assert report["decision_floor"]["arms_short"] == []  # type: ignore[index]
     assert set(report["hypotheses"]) == {"H1", "H2", "H3", "H4"}  # type: ignore[arg-type]
 
 
@@ -514,17 +525,13 @@ def test_wall_clock_uses_window_span_not_sum_of_invocations() -> None:
     assert runs_of([item])[0].seconds == 70
 
 
-def test_cached_input_tokens_are_subtracted_when_present() -> None:
+def test_uncached_tokens_are_input_plus_output_per_invocation() -> None:
     item = row(ORDINARY[0], "A", 1)
     item["invocations"] = [
-        {
-            "window": {"start": 0, "end": 1},
-            "input_tokens": 1000,
-            "cached_input_tokens": 400,
-            "output_tokens": 50,
-        }
+        {"window": {"start": 0, "end": 1}, "input_tokens": 1000, "output_tokens": 50},
+        {"window": {"start": 1, "end": 2}, "input_tokens": 200, "output_tokens": 5},
     ]
-    assert runs_of([item])[0].tokens == 650
+    assert runs_of([item])[0].tokens == 1255
 
 
 def test_parse_rejects_unknown_scenario() -> None:
@@ -648,7 +655,7 @@ def test_superseded_alone_is_scored_but_every_verdict_is_insufficient(
     printed = json.loads(capsys.readouterr().out)
     assert {h["status"] for h in printed["hypotheses"].values()} == {v.INSUFFICIENT}
     assert printed["decision"] == v.INSUFFICIENT
-    assert printed["floor"]["pre_amendment_inputs"] is True
+    assert printed["decision_floor"]["pre_amendment_inputs"] is True
 
 
 def test_real_results_2026_10_03_are_insufficient_for_all_four(
