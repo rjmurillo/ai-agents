@@ -12,11 +12,11 @@ import pytest
 
 from scripts.ci import run_pytest_partition as mod
 
-_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4")
+_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5")
 
 
-def test_split_count_is_four_and_names_follow_it() -> None:
-    assert mod.SPLIT_COUNT == 4
+def test_split_count_is_five_and_names_follow_it() -> None:
+    assert mod.SPLIT_COUNT == 5
     assert mod.split_names() == list(_SPLIT_PARTITIONS)
 
 

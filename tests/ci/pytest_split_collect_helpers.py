@@ -66,5 +66,5 @@ def without_parallel_flags(args: list[str]) -> list[str]:
 
 
 def pool_args() -> list[str]:
-    """The pool with no split flags: what the four groups must add up to."""
+    """The pool with no split flags: what the split groups must add up to."""
     return [*runner._POOL_IGNORES, "tests/"]

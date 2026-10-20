@@ -2,7 +2,8 @@
 
 Extracted from ``scan_patterns.py`` to keep that module under the file-size
 limit. ``scrub_bash_line`` and ``scrub_bash_lines`` hide text that cannot be an
-unquoted expansion: comments, quoted spans, and quoted here-document bodies.
+unquoted expansion: comments, quoted spans, and quoted here-document bodies
+that only inert readers (cat, tee, python, and the like) consume.
 ``scan_patterns`` re-exports both names.
 """
 
@@ -401,7 +402,7 @@ def scrub_bash_line(line: str) -> str:
 
 
 def _scrub_heredoc_body(line: str, heredoc: Heredoc) -> str:
-    """Blank an inert body line (quoted delimiter, no shell reader). Else scrub per line."""
+    """Blank an inert body line (quoted delimiter, inert readers only). Else scrub per line."""
     if heredoc.inert and not is_terminator(line, heredoc):
         body = line.rstrip("\n")
         return " " * len(body) + line[len(body) :]

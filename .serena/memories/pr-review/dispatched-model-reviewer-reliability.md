@@ -36,6 +36,15 @@ three of them prescribe a fix the file under review had already applied.
   `templates/platforms/copilot-cli.yaml:39-40`. The enumeration it was
   correcting has never existed in that file.
 
+Correction, verified 2026-10-19: the reviewer's premise about
+`keepInternalGlobsFor` is stale after ADR-119 (PR #6718). In
+`build/scripts/generate_rules.py` (`keep_internal` at line 656), internal globs
+survive only for destinations named in `keepInternalGlobsFor`. In
+`templates/platforms/copilot-cli.yaml:44-47` that list names `.github/instructions`,
+and `repoOnlyOutputDirs` names it too. There, shipped rules are links to the
+filtered copies in `src/copilot-cli/instructions`, and only repo-only rules are
+real files that keep their internal globs.
+
 ## The dangerous shape: a reviewer that reviews the motivation, not the result
 
 Those six are not random noise. They are internally consistent with a

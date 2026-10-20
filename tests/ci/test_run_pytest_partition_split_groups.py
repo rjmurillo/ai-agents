@@ -11,7 +11,7 @@ import pytest
 
 from scripts.ci import run_pytest_partition as mod
 
-_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4")
+_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5")
 
 _POOL_EXCLUDED = {
     "tests/test_ai_review.py",
@@ -28,11 +28,11 @@ def _flag_value(args: list[str], flag: str) -> str:
     return args[args.index(flag) + 1]
 
 
-@pytest.mark.parametrize("index", range(1, 5))
+@pytest.mark.parametrize("index", range(1, 6))
 def test_split_group_flags(index: int) -> None:
     """AC2: group i of N runs the shared pool by recorded duration."""
     args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
-    assert _flag_value(args, "--splits") == "4"
+    assert _flag_value(args, "--splits") == "5"
     assert _flag_value(args, "--group") == str(index)
     assert _flag_value(args, "--splitting-algorithm") == "duration_based_chunks"
     assert _flag_value(args, "--durations-path") == f"artifacts/durations-split-{index}.json"
@@ -63,7 +63,7 @@ def test_split_groups_ignore_exactly_the_dedicated_and_pinned_files(partition: s
 def test_each_split_leg_stores_to_its_own_path() -> None:
     args = [mod._PARTITION_FULL_ARGS[n] for n in _SPLIT_PARTITIONS]
     paths = {_flag_value(a, "--durations-path") for a in args}
-    assert len(paths) == 4
+    assert len(paths) == 5
 
 
 def test_dedicated_legs_run_only_their_files() -> None:

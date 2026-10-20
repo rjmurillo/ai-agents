@@ -81,6 +81,10 @@ Frozen weights do not stop the agent system from gaining useful, retrievable ext
 2. For a value a model would estimate, show the program or instrument that computes it, or say why none exists.
 3. For a model judgment, name the ambiguity a computation cannot settle.
 
+### Reframing before automating
+
+Rule 5 rejects new control surfaces. It does not ask whether an inherited human workflow should exist. For open architecture, the `spec` skill's Step 0 reframing check owns that question: workflow automation (same work, faster) versus capability invention (new work). This file does not restate it. A frozen spec or accepted ADR skips the check.
+
 ### Scope
 
 This section changes no authority tier, safety constraint, model routing, or skill routing. It adds no skill, evaluator, or registration system.

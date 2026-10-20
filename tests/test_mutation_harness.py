@@ -26,7 +26,9 @@ from scripts.testing.mutation_harness import (
 )
 from scripts.testing.mutation_workspace import MutationWorkspaceError
 
-_WORKSPACE = Path(".pytest_tmp/mutation_harness")
+# One directory per xdist worker: the fixture below removes the whole tree, so a
+# shared path lets one worker delete files another worker's test is using.
+_WORKSPACE = Path(f".pytest_tmp/mutation_harness-{os.environ.get('PYTEST_XDIST_WORKER', 'main')}")
 
 
 @pytest.fixture(autouse=True)

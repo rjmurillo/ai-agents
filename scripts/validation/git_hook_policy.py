@@ -682,7 +682,8 @@ _PYTEST_NO_TESTS_COLLECTED = 5
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 # The third flag loads `testmon_scoped_sync` (issue #6406): without it a partition
 # that shares a database and collects after a sibling saved deletes the sibling's
-# records. It is one token (`-pNAME`) so `pytest_deferral.collect_only_command`
+# records. It also gives every xdist worker the controller's deselection (issue
+# #6747). It is one token (`-pNAME`) so `pytest_deferral.collect_only_command`
 # drops it whole.
 _TESTMON_FLAGS = (
     "--testmon",

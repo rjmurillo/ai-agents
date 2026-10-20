@@ -5,13 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
 
 import pytest
 
-from scripts.testing import mutation_workspace, mutation_workspace_git
+from scripts.testing import mutation_workspace, mutation_workspace_git, mutation_workspace_recovery
 from scripts.testing.mutation_workspace import (
     EXIT_BLOCKED,
     EXIT_OK,
@@ -197,3 +198,247 @@ def test_recover_keeps_a_lock_reason_that_only_contains_initializing(
     assert marker.exists()
     assert scratch.exists()
     subprocess.run(["git", "worktree", "unlock", str(scratch)], cwd=repo, check=True)
+
+
+def _add_half_created_worktree(repo: Path, name: str) -> tuple[Path, Path]:
+    """Add a worktree, then strip the admin files git writes last (issue #6717)."""
+    scratch = scratch_directory(repo) / name
+    mutation_workspace_git.add_worktree(repo, scratch)
+    pointer = (scratch / ".git").read_text(encoding="utf-8").strip()
+    admin = Path(pointer.removeprefix("gitdir:").strip())
+    for leftover in ("commondir", "index", "ORIG_HEAD"):
+        (admin / leftover).unlink(missing_ok=True)
+    return scratch, admin
+
+
+def _registered(repo: Path) -> str:
+    return subprocess.run(
+        ["git", "worktree", "list", "--porcelain"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
+def test_recover_clears_a_half_created_worktree_and_names_what_it_removed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "half")
+    marker = _write_marker_for(repo, target, scratch, "half")
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_OK
+
+    error = capsys.readouterr().err
+    assert str(scratch) in error
+    assert str(admin) in error
+    assert not marker.exists()
+    assert not scratch.exists()
+    assert not admin.exists()
+    assert str(scratch) not in _registered(repo)
+    assert mutation_workspace.check_markers(repo) == EXIT_OK
+
+
+def test_recover_clears_a_half_created_worktree_whose_directory_is_gone(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "gone")
+    marker = _write_marker_for(repo, target, scratch, "gone")
+    shutil.rmtree(scratch)
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_OK
+
+    error = capsys.readouterr().err
+    assert str(admin) in error
+    assert not marker.exists()
+    assert not admin.exists()
+
+
+def test_recover_refuses_a_modified_target_for_a_half_created_worktree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "modified")
+    marker = _write_marker_for(repo, target, scratch, "modified")
+    target.write_text("VALUE = 2\n", encoding="utf-8")
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_BLOCKED
+
+    assert "MODIFIED" in capsys.readouterr().err
+    assert marker.exists()
+    assert scratch.exists()
+    assert admin.exists()
+
+
+def test_recover_waits_while_a_half_created_worktree_marker_is_young(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "young-half")
+    marker = _write_marker_for(repo, target, scratch, "young-half", age_seconds=1)
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_BLOCKED
+
+    assert "half created" in capsys.readouterr().err
+    assert marker.exists()
+    assert scratch.exists()
+    assert admin.exists()
+
+
+def test_discard_half_created_worktree_leaves_a_healthy_worktree_alone(
+    tmp_path: Path,
+) -> None:
+    repo, _target = _create_repository(tmp_path / "repo")
+    scratch = scratch_directory(repo) / "healthy"
+    mutation_workspace_git.add_worktree(repo, scratch)
+
+    assert mutation_workspace_recovery.discard_half_created_worktree(repo, scratch, 0.0) == ()
+
+    assert scratch.exists()
+    assert str(scratch) in _registered(repo)
+    mutation_workspace_git.remove_worktree(repo, scratch)
+
+
+def test_discard_half_created_worktree_leaves_a_locked_entry_alone(
+    tmp_path: Path,
+) -> None:
+    repo, _target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "locked-half")
+    subprocess.run(
+        ["git", "worktree", "lock", "--reason", "held by another tool", str(scratch)],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+
+    assert mutation_workspace_recovery.discard_half_created_worktree(repo, scratch, 0.0) == ()
+
+    assert scratch.exists()
+    assert admin.exists()
+
+
+def test_discard_half_created_worktree_never_touches_a_path_outside_scratch(
+    tmp_path: Path,
+) -> None:
+    repo, _target = _create_repository(tmp_path / "repo")
+    outside = tmp_path / "outside-worktree"
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(outside), "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    pointer = (outside / ".git").read_text(encoding="utf-8").strip()
+    admin = Path(pointer.removeprefix("gitdir:").strip())
+    (admin / "commondir").unlink()
+
+    with pytest.raises(MutationWorkspaceError, match="outside"):
+        mutation_workspace_recovery.discard_half_created_worktree(repo, outside, 0.0)
+
+    assert outside.exists()
+    assert admin.exists()
+
+
+def test_recover_leaves_an_unrelated_prunable_worktree_entry_alone(
+    tmp_path: Path,
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "half-with-neighbor")
+    other = scratch_directory(repo) / "other"
+    mutation_workspace_git.add_worktree(repo, other)
+    other_admin = Path(
+        (other / ".git").read_text(encoding="utf-8").strip().removeprefix("gitdir:").strip()
+    )
+    shutil.rmtree(other)
+    marker = _write_marker_for(repo, target, scratch, "half-with-neighbor")
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_OK
+
+    assert not marker.exists()
+    assert not admin.exists()
+    assert other_admin.exists()
+
+
+def test_recover_refuses_a_replacement_directory_at_the_scratch_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "replaced")
+    marker = _write_marker_for(repo, target, scratch, "replaced")
+    shutil.rmtree(scratch)
+    scratch.mkdir()
+    (scratch / "notes.txt").write_text("unrelated work\n", encoding="utf-8")
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_BLOCKED
+
+    assert "not the interrupted checkout" in capsys.readouterr().err
+    assert (scratch / "notes.txt").exists()
+    assert admin.exists()
+    assert marker.exists()
+
+
+def test_recover_refuses_a_replacement_repository_at_the_scratch_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "replaced-repo")
+    marker = _write_marker_for(repo, target, scratch, "replaced-repo")
+    shutil.rmtree(scratch)
+    (scratch / ".git").mkdir(parents=True)
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_BLOCKED
+
+    assert "not the interrupted checkout" in capsys.readouterr().err
+    assert (scratch / ".git").is_dir()
+    assert admin.exists()
+    assert marker.exists()
+
+
+def test_recover_clears_an_empty_directory_left_at_the_scratch_path(
+    tmp_path: Path,
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "empty")
+    marker = _write_marker_for(repo, target, scratch, "empty")
+    shutil.rmtree(scratch)
+    scratch.mkdir()
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_OK
+
+    assert not marker.exists()
+    assert not scratch.exists()
+    assert not admin.exists()
+
+
+def test_recover_clears_a_half_created_worktree_with_a_relative_backlink(
+    tmp_path: Path,
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "relative")
+    marker = _write_marker_for(repo, target, scratch, "relative")
+    relative = os.path.relpath(scratch / ".git", admin)
+    (admin / "gitdir").write_text(f"{relative}\n", encoding="utf-8")
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_OK
+
+    assert not marker.exists()
+    assert not scratch.exists()
+    assert not admin.exists()
+
+
+def test_recover_clears_a_half_created_worktree_with_a_relative_git_pointer(
+    tmp_path: Path,
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch, admin = _add_half_created_worktree(repo, "relative-pointer")
+    marker = _write_marker_for(repo, target, scratch, "relative-pointer")
+    relative = os.path.relpath(admin, scratch)
+    (scratch / ".git").write_text(f"gitdir: {relative}\n", encoding="utf-8")
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_OK
+
+    assert not scratch.exists()
+    assert not admin.exists()
+    assert not marker.exists()

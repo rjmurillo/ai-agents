@@ -154,6 +154,7 @@ class TestLinkInTheHeadOnly:
 
         assert report.symlinks == [DEMO_LINK]
         assert TARGET_HELPER not in report.changed
+        assert report.added == []
         assert not report.clean
 
 

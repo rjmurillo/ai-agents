@@ -229,6 +229,7 @@ for the threads that remain.
 
 1. Every comment carries a terminal status: `[COMPLETE]`, `[WONTFIX]`, `[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`. The agent's `Comment Map Status Vocabulary` table is the only definition; do not restate it here. `[DEFERRED]` counts only with the tracking reference, and the issue number matches `#[1-9][0-9]*`, so `Refs #0` stays pending.
 2. No new comments after 45s wait
+   A new comment after round 1 counts only when the diff introduced the defect or a claimed acceptance criterion is unmet. Otherwise it is a flagged note: reply `[WONTFIX]`, list it in the summary, start no new round (protocol "Bounded loops and handoff").
 3. CI checks passing, all threads resolved, commits pushed
 
 See [references/workflow.md](references/workflow.md) for full phase details.
@@ -298,7 +299,8 @@ See [references/templates.md](references/templates.md) for:
 ### Bot Handling
 
 Conduct, pushback, deferral, and escalation rules for every reply live in
-[references/review-conversation.md](references/review-conversation.md).
+[references/review-conversation.md](references/review-conversation.md), as does
+the frozen finding contract for rounds after the first.
 
 See [references/bots.md](references/bots.md) for:
 

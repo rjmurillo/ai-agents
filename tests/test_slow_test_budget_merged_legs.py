@@ -53,7 +53,7 @@ class TestTheWorkflowWiring:
         assert names.index("Download partition artifacts") < steps.index(gate[0])
         legs = jobs["test"]["strategy"]["matrix"]["include"]
         expected = [leg["junit_file"] for leg in legs]
-        assert len(expected) == 6
+        assert len(expected) == 7
         assert sorted(inputs) == sorted(expected)
 
 

@@ -1,7 +1,7 @@
 ---
 id: ADR-097
 status: accepted
-date: 2026-08-19
+date: 2026-10-19
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -475,6 +475,8 @@ rule 6), push, and confirm the draft PR.
   `.github/hooks/require-subagent-model.json` surface this ADR also
   retires. Decision 8's resolution method for the ADR-084 carve-out is what
   Decision section 4 above follows.
+- ADR-083 (Copilot dogfood base, amended 2026-10-19): its Decision item 5
+  defers the hook surface to this ADR. This back-reference changes no decision.
 - ADR-071 (Plugin Hook Runtime Contract Verification, accepted, amended
   2026-08-11 for the `require_subagent_model` gate contract). That
   contract no longer exists after this ADR; ADR-071 needs its own amendment

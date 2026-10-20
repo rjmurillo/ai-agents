@@ -160,8 +160,8 @@ trees. Update the table when the supported membership changes.
 `build/scripts/generate_rules.py` reaches `applyTo: "**"` from four different source situations. Only the first is visible in the source file:
 
 1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`. <!-- citation-freshness: ignore -- the two backtick spans in this sentence are illustrative YAML example values, not a verbatim reproduction of line 24's docstring prose ("rename paths: to applyTo: (verbatim value)"); the checker judges them as anchors against that line regardless; content verified present and correct at line 24, 2026-09-14 -->
-2. **The source declares `alwaysApply: true` and no path scope.** Line 25 drops `alwaysApply:`, leaving no scope, so situation 3 applies. `_has_path_scope` at line 209 reads only the path-scope keys, so `alwaysApply` never counts as a scope.
-3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:345-348`: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 345-348, 2026-09-14 -->
+2. **The source declares `alwaysApply: true` and no path scope.** Line 25 drops `alwaysApply:`, leaving no scope, so situation 3 applies. `_has_path_scope` at line 228 reads only the path-scope keys, so `alwaysApply` never counts as a scope.
+3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:363-366`: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 363-366, 2026-10-19 -->
 
    ```python
    if not had_scope and "applyTo" not in result:
@@ -170,7 +170,7 @@ trees. Update the table when the supported membership changes.
        result = {"applyTo": _UNIVERSAL_SCOPE, **result}
    ```
 
-4. **The source declares a scope whose globs are all filtered as internal-only.** This case no longer reaches `**`. `build/scripts/generate_rules.py:342-344` skips the rule instead: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 342-344, 2026-09-14 -->
+4. **The source declares a scope whose globs are all filtered as internal-only.** This case no longer reaches `**`. `build/scripts/generate_rules.py:360-362` skips the rule instead: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 360-362, 2026-10-19 -->
 
    ```python
    applyto_value = result.get("applyTo")
