@@ -28,7 +28,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.testing import mutation_workspace_git  # noqa: E402
+from scripts.testing import mutation_workspace_git, mutation_workspace_recovery  # noqa: E402
 
 scratch_directory = mutation_workspace_git.scratch_directory
 _allowed_scratch_roots = mutation_workspace_git.allowed_scratch_roots
@@ -40,6 +40,7 @@ _git_root = mutation_workspace_git.git_root
 _relative_target = mutation_workspace_git.relative_target
 _remove_worktree = mutation_workspace_git.remove_worktree
 _unlock_stale_worktree = mutation_workspace_git.unlock_stale_worktree
+_discard_half_created_worktree = mutation_workspace_recovery.discard_half_created_worktree
 _require_git_stdout = mutation_workspace_git.require_git_stdout
 _run_git = mutation_workspace_git.run_git
 
@@ -445,7 +446,10 @@ def recover_marker(
         targets = _read_target_snapshots(payload, resolved_marker)
         _require_active_targets_unchanged(root, targets)
         scratch = _scratch_root_from_marker(root, payload, resolved_marker)
-        _unlock_stale_worktree(root, scratch, resolved_marker.stat().st_mtime)
+        marker_mtime = resolved_marker.stat().st_mtime
+        _unlock_stale_worktree(root, scratch, marker_mtime)
+        for discarded in _discard_half_created_worktree(root, scratch, marker_mtime):
+            print(f"removed half-created worktree state: {discarded}", file=output)
         _remove_worktree(root, scratch)
         resolved_marker.unlink(missing_ok=True)
         print(f"recovered mutation workspace: {scratch}", file=output)

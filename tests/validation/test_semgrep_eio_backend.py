@@ -16,10 +16,8 @@ Coverage:
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -60,19 +58,30 @@ def test_caller_io_uring_setting_is_overridden(
     assert result.stdout.strip() == "posix"
 
 
-def test_version_probe_passes_the_posix_backend(
+def _fake_semgrep(directory: Path) -> str:
+    """Write an executable that prints the EIO_BACKEND it sees for `--version`."""
+    script = directory / "fake-semgrep"
+    script.write_text(f"#!{sys.executable}\n{_PRINT_BACKEND}\n", encoding="utf-8")
+    script.chmod(0o755)
+    return str(script)
+
+
+@_LINUX_ONLY
+def test_version_probe_child_sees_posix_backend(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    seen: list[Any] = []
+    monkeypatch.delenv("EIO_BACKEND", raising=False)
 
-    def record(*_a: object, **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        seen.append(kwargs.get("extra_env"))
-        return subprocess.CompletedProcess([], 0, "1.0.0\n", "")
+    assert policy._probe_semgrep_version(_fake_semgrep(tmp_path), tmp_path) == "posix"
 
-    monkeypatch.setattr(policy, "_run_command", record)
 
-    assert policy._probe_semgrep_version("semgrep", tmp_path) == "1.0.0"
-    assert seen == [policy.SEMGREP_ENV]
+@_LINUX_ONLY
+def test_version_probe_overrides_caller_io_uring_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("EIO_BACKEND", "io-uring")
+
+    assert policy._probe_semgrep_version(_fake_semgrep(tmp_path), tmp_path) == "posix"
 
 
 @pytest.mark.parametrize(

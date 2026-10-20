@@ -20,13 +20,28 @@ and of every linked worktree is checked, so an unborn branch keeps its
 settings. It never touches
 `branch.*` keys without a subsection, such as `branch.autoSetupMerge`.
 
-`--apply` copies `config` to `config.before-prune` (with a numeric suffix when
-that exists), runs `git config --remove-section` for each stale branch, and
-checks that git still parses the config. On any failure it restores the copy.
+`--apply` takes a lock file, copies `config` to `config.before-prune` (with a
+numeric suffix when that exists), runs `git config --remove-section` for each
+stale branch, and checks that git still parses the config.
+
+The lock is `config.prune-lock`, beside `config`. It keeps two `--apply` runs
+apart. It does not stop `git branch --track` or `git config`, which never check
+it. The stale set is computed again under the lock, so a branch created before the
+lock was taken keeps its section. A branch created after that second look can
+still lose its section. A normal exit removes the
+lock. A prune that was killed leaves it behind, and the next `--apply` exits `3`
+and names the file. Remove `config.prune-lock` once no prune is running.
+
+On any failure, including an interrupt, only the sections this run removed are
+written back from the backup, so a concurrent `git config` write to another
+section survives. When the live config no longer parses, the whole backup is
+copied back instead. When the section restore fails on a config git can still
+read, the live file is left in place and the error names the backup.
 
 Exit codes: `0` success (including nothing to prune, a dry-run report, and a
 successful `--apply`), `1` stale sections remain and `--fail-on-stale` was
-passed, `2` not a git repository, `3` git failed or timed out.
+passed, `2` not a git repository, `3` git failed or timed out, or another prune
+holds `config.prune-lock`.
 
 ## Periodic report
 

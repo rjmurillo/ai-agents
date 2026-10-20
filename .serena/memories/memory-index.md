@@ -55,7 +55,7 @@
 |triage issue close single-pass skeptic refute acceptance criteria closing keyword Refs security audit FAIL verdict post-merge fail-open: [pr-review/triage-004-single-pass-close-verdicts-need-skeptic](pr-review/triage-004-single-pass-close-verdicts-need-skeptic.md) (672)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
-|adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
+|adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2714)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution get_pr_checks wait MISSING why_pr_blocked Run Python Tests aggregator merge UNKNOWN: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (1755)
 |CHANGES_REQUESTED COMMENTED dismissed review reviewDecision stale bot review auto-merge blocked: [github/github-dismissed-reviews-block-automerge](github/github-dismissed-reviews-block-automerge.md) (632)
 |em dash en dash guard scope pre_pr checks_dash .py .md staged-dash-policy: [unicode-dash-guard-scope-gap](unicode-dash-guard-scope-gap.md) (1438)
@@ -100,7 +100,7 @@
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (472)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 |github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
-|skill support files source .claude/skills src/claude pruned stale build_all mirror: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (349)
+|skill support files source src/claude/skills symlink .claude/skills repo-local ADR-119 prune: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (468)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
@@ -213,7 +213,7 @@
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (1019)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure semgrep io_uring ENOMEM EIO_BACKEND: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2739), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1813)
 |github pr stack base branch delete-branch merge_pr dependent closed retarget sidecar: [github-observations](github-observations.md) (253)
-|orchestrator subagent owner approval relayed refuse approve-untrusted-config sidecar mid-turn message fan-out label duplicate credits quota reviewer review-loop convergence frozen-contract eureka review-date pre-written-amendment adr-083 decision-option gate baseline verifier security-review: [orchestrator-observations](orchestrator-observations.md) (1230)
+|orchestrator subagent owner approval relayed refuse approve-untrusted-config sidecar mid-turn message fan-out label duplicate credits quota reviewer review-loop convergence frozen-contract eureka review-date pre-written-amendment adr-083 decision-option gate baseline verifier security-review: [orchestrator-observations](orchestrator-observations.md) (1238)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1660)
 |eval keyword grader verbatim phrase prompt wording behavior text-pinning ADR-057 false failure: [eval/eval-keyword-graders-test-wording-not-behavior](eval/eval-keyword-graders-test-wording-not-behavior.md) (358)

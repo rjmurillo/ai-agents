@@ -18,7 +18,15 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _FORGE = Path("skills") / "skillforge" / "scripts"
 _SCRIPT_NAMES = ("quick_validate.py", "validate-skill.py")
-_TREES = (".claude", "src/claude", "src/copilot-cli")
+# One entry per real copy. ``.claude/skills/*`` is a symlink into ``src/claude``
+# since ADR-119, so listing it would run the same files twice.
+_TREES = (
+    "src/claude",
+    "src/codex",
+    "src/copilot-cli",
+    "src/cursor",
+    "src/hermes/project-toolkit-knowledge",
+)
 _SCRIPTS = [_REPO_ROOT / tree / _FORGE / name for tree in _TREES for name in _SCRIPT_NAMES]
 
 _TRAVERSAL_MARKER = "Path traversal detected"
@@ -59,6 +67,29 @@ license: MIT
 """
 
 
+def test_trees_cover_every_real_skillforge_copy() -> None:
+    """Every on-disk skillforge validator copy under src/ is exercised here."""
+    found = {
+        path.relative_to(_REPO_ROOT).as_posix()
+        for path in (_REPO_ROOT / "src").glob("**/skills/skillforge/scripts/quick_validate.py")
+    }
+    covered = {
+        (_REPO_ROOT / tree / _FORGE / "quick_validate.py").relative_to(_REPO_ROOT).as_posix()
+        for tree in _TREES
+    }
+    assert found, "no skillforge copies found under src/"
+    assert found == covered, (
+        f"untested: {sorted(found - covered)}; stale: {sorted(covered - found)}"
+    )
+
+
+def test_trees_do_not_repeat_a_symlinked_copy() -> None:
+    """No tree resolves to the same files as another tree (the ADR-119 symlink trap)."""
+    resolved = [(_REPO_ROOT / tree / _FORGE).resolve() for tree in _TREES]
+    assert len(set(resolved)) == len(resolved), [str(p) for p in resolved]
+    assert all(not (_REPO_ROOT / tree).is_symlink() for tree in _TREES)
+
+
 def _script_id(script: Path) -> str:
     return f"{script.parts[-5]}-{script.name}"
 
@@ -87,7 +118,7 @@ _OK_SCRIPT = (
 
 def _run(script: Path, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(script), *args],
+        [sys.executable, "-B", str(script), *args],
         cwd=str(cwd),
         capture_output=True,
         text=True,
@@ -384,6 +415,8 @@ def _load_validator(script: Path):
     """Import validate-skill.py as a module; restore sys.path afterwards."""
     # Evict the cached ``_path_guard`` so each tree imports its own sibling copy.
     saved = list(sys.path)
+    saved_bytecode = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True  # a __pycache__ in src/ reads as drift to build_all.py --check
     sys.modules.pop("_path_guard", None)
     try:
         spec = importlib.util.spec_from_file_location(f"validate_skill_{script.parts[-5]}", script)
@@ -392,6 +425,7 @@ def _load_validator(script: Path):
         spec.loader.exec_module(module)
         return module
     finally:
+        sys.dont_write_bytecode = saved_bytecode
         sys.path[:] = saved
         sys.modules.pop("_path_guard", None)
 

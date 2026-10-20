@@ -477,6 +477,9 @@ def _check_out_path(requested: Path, allow_in_repo: bool) -> Path:
         raise _already_exists(out)
     ancestor = out.parent
     while not ancestor.exists():
+        if ancestor.parent == ancestor:
+            # A drive or share root is its own parent, so the walk must stop here.
+            raise ConfigError(f"{out} cannot be created: {ancestor} does not exist")
         ancestor = ancestor.parent
     if not ancestor.is_dir():
         raise ConfigError(f"{out} cannot be created: {ancestor} is a file, not a directory")
