@@ -67,6 +67,7 @@ from check_serena_memory_worktree_scope import (
 )
 from check_skill_adr_bindings import validate_skill_adr_bindings
 from check_skill_output_envelopes import validate_skill_output_envelopes
+from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
@@ -636,6 +637,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Skill Tree Layout (.claude/skills)",
         _root_only(validate_skill_tree_layout),
+    ),
+    # The skill loader rewrites a bare $<digit> in a shell fence into the
+    # invocation arguments, e.g. awk substr($0, 10) (issue #6743).
+    _Gate(
+        "Skill Shell Placeholders (.claude/skills)",
+        _root_only(validate_skill_shell_placeholders),
     ),
     # Each root host marketplace file must name a real plugin tree whose manifest
     # name matches the listing (ADR-115 Decision 11).

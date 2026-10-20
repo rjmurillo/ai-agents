@@ -32,7 +32,6 @@ def _find_hooks_dir() -> Path | None:
     Tries:
     1. Development layout (source tree)
     2. Installed shared data location
-    3. Package data via importlib.resources
 
     Returns:
         Path to hooks directory or None if not found.

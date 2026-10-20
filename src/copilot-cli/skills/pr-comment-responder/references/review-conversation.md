@@ -129,6 +129,18 @@ pressure.
   (3 rounds) is a separate counter, local to one invocation and not persisted.
 - A resolved thread reopens only with new contradicting evidence cited in the
   reopening comment.
+- **Freeze the finding contract after round 1.** The round caps bound cost,
+  not scope, so a later round must not raise new scope. In round 2 and later
+  a new thread or finding counts only when the diff introduced the defect (the
+  fix commits since round 1 included) or an acceptance criterion the PR claims
+  is unmet. Anything else is a flagged note: a pre-existing defect, a
+  nice-to-have, or new scope. Answer it once with `[WONTFIX]` and a reply that
+  says it is outside this PR's contract and flagged for the owner, list it
+  under the summary's flagged notes, and do not start another round for it. It
+  never blocks and never counts toward the verdict. File an issue and use
+  `[DEFERRED] Refs #<issue>` only when the owner asks. The `review` skill's
+  "Frozen finding contract" section owns the counting rules; the caps above
+  stay as the backstop.
 
 ## Scenario checklist
 
@@ -152,3 +164,4 @@ Each scenario names the section that decides it.
 16. Existing adjacent debt: tracked only when worth fixing, else no work item (Debt).
 17. Repeated replies, no new evidence: escalate (Bounded loops).
 18. Duplicate AI comments: deduplicated (Exemplary AI standard).
+19. Round 2 or later, thread on a pre-existing defect: flagged note, no new round (Bounded loops).

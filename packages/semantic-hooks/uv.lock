@@ -834,7 +834,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
 ]
-provides-extras = ["dev", "serena"]
+provides-extras = ["dev"]
 
 [[package]]
 name = "sniffio"

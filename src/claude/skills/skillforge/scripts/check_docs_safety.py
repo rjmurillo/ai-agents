@@ -17,7 +17,7 @@ references/**/*.md (recursive). A file argument scans that file.
 Exit codes:
     0 - no unsafe patterns found (the scanned file count is printed)
     1 - unsafe patterns found
-    2 - bad input: unreadable path, or a directory with no markdown to scan
+    2 - bad input: unreadable path, or a directory with no SKILL.md
 """
 
 from __future__ import annotations

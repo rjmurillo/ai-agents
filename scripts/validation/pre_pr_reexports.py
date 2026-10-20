@@ -31,6 +31,7 @@ from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
 from check_required_context_conditions import validate_required_context_conditions
 from check_serena_memory_worktree_scope import validate_serena_memory_worktree_scope
+from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_worktree_recipes import validate_worktree_recipes
@@ -112,6 +113,7 @@ __all__ = [
     "validate_skill_description_budget",
     "validate_skill_memory_references",
     "validate_skill_routing_roles_declarations",
+    "validate_skill_shell_placeholders",
     "validate_skill_skip_clauses",
     "validate_host_marketplaces",
     "validate_skill_tree_layout",

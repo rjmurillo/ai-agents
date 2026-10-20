@@ -66,11 +66,11 @@ def test_protocol_forbids_severity_mutation() -> None:
     assert "technical severity" in text
 
 
-def test_scenario_checklist_covers_all_eighteen() -> None:
+def test_scenario_checklist_covers_all_nineteen() -> None:
     _head, marker, section = _text().partition("## Scenario checklist")
     assert marker, "the '## Scenario checklist' header is missing from the protocol"
     numbers = re.findall(r"^(\d+)\. ", section, flags=re.MULTILINE)
-    assert numbers == [str(n) for n in range(1, 19)]
+    assert numbers == [str(n) for n in range(1, 20)]
 
 
 def test_protocol_states_round_count_survives_handoff() -> None:

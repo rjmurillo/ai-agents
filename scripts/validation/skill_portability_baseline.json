@@ -72,7 +72,6 @@
     "skills/skillforge/scripts/quick_validate.py": 1,
     "skills/skillforge/scripts/skill_modularity_audit.py": 1,
     "skills/skillforge/scripts/validate-skill.py": 1,
-    "skills/steering-matcher/get_applicable_steering.py": 2,
     "skills/steering-matcher/scripts/get_applicable_steering.py": 2,
     "skills/taste-lints/scripts/taste_lints.py": 3
   }

@@ -1,18 +1,22 @@
-# Skill support files are sourced in .claude/skills/<name>/, and src/ copies are pruned
+# Skill support files: shipped skills are edited in src/claude/skills/<name>/
+
+Correction, verified 2026-10-19: this note once said support files are sourced in `.claude/skills/<name>/` and pruned from `src/`. ADR-119 (PR #6718) reversed that. The filename keeps the old wording so existing links resolve.
 
 ## The source of truth
 
-Every skill file except `SKILL.md` is hand-maintained under `.claude/skills/<name>/`. `SKILL.md` renders from `templates/skills/<name>.SKILL.md.tmpl`. `build/scripts/skill_support_mirror.py` states this in its module docstring.
+A shipped skill keeps its support files (scripts, references, tests) in `src/claude/skills/<name>/`, hand-maintained. `.claude/skills/<name>` is a git symlink to that directory. `SKILL.md` renders from `templates/skills/<name>.SKILL.md.tmpl`.
 
-## What the build does to the copies
+Repo-local skills are the exception. A skill flagged `distribution: repo-local` keeps real files in `.claude/skills/<name>/` and appears in no plugin tree. The flag decides this, not the name prefix: `ai-agents-external-claims` is shipped and is a symlink, while most other `ai-agents-*` skills and the `repository-*` skills are repo-local. `repo_local_names` in `build/scripts/skill_distribution.py` computes the set.
 
-`build_all.py` mirrors support files (scripts, references, tests) into `src/claude/skills/<name>/` and the Copilot tree. For the Claude tree, `_prune_stale_support_files` (called at lines 478 and 482) removes any file that exists only under `src/`. In check mode it reports the extra file as drift without deleting it.
+## What the build does
 
-So a file created only under `src/claude/skills/<name>/` disappears on the next build, and an edit to a mirrored file is overwritten. `src/claude/AGENTS.md` says the same: edit the `.claude/skills/<name>/` source.
+There is no mirror of support files into the Claude tree. `prune_stale_claude_skill_support` in `build/scripts/skill_support_mirror.py` only removes a leftover `src/claude/skills/<name>/` copy after a skill becomes repo-local. It refuses while `.claude/skills/<name>` is still a symlink.
+
+So edit shipped support files in `src/claude/skills/<name>/`, and never replace a link with a real file. A file created under `src/claude/skills/<name>/` survives the build.
 
 ## Sources
 
-- `build/scripts/skill_support_mirror.py`: module docstring, `_prune_stale_support_files` (line 291), call sites at lines 478 and 482.
-- `src/claude/AGENTS.md`, the `skills/<name>/` line under Matters.
-- Verified for the Claude tree only. The Copilot tree pruning was not read.
+- `build/scripts/skill_support_mirror.py`: module docstring and `prune_stale_claude_skill_support`.
+- `build/scripts/skill_distribution.py`: `repo_local_names`.
+- Verified for the Claude tree only. The Copilot tree mirror was not re-read.
 - Related: `generator-skill-references-mirror-only-through-build-all`, which covers the Copilot copy and the missed-rebuild cost.

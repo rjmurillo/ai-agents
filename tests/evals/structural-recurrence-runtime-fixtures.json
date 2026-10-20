@@ -28,7 +28,7 @@
         {
           "kind": "file_regex",
           "path": "dates.py",
-          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!.*\\bint\\(\\s*seconds\\s*\\)\\s*#\\s*crash)"
+          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!(?=.*\\bint\\(\\s*seconds\\s*\\))(?!.*(?m:^)(?![^\\n]*\"\"\")[^#\\n]*(?:[\"'][^\"'\\n]*Z[^\"'\\n]*[\"']|\\[\\s*:\\s*-\\s*1\\s*\\])))"
         },
         {
           "kind": "file_regex",
@@ -87,7 +87,7 @@
         {
           "kind": "file_regex",
           "path": "dates.py",
-          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!.*\\bint\\(\\s*seconds\\s*\\)\\s*#\\s*crash)"
+          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!(?=.*\\bint\\(\\s*seconds\\s*\\))(?!.*(?m:^)(?![^\\n]*\"\"\")[^#\\n]*(?:[\"'][^\"'\\n]*Z[^\"'\\n]*[\"']|\\[\\s*:\\s*-\\s*1\\s*\\])))"
         },
         {
           "kind": "file_regex",
@@ -179,7 +179,7 @@
         {
           "kind": "file_regex",
           "path": "dates.py",
-          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!.*\\bint\\(\\s*seconds\\s*\\)\\s*#\\s*crash)"
+          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!(?=.*\\bint\\(\\s*seconds\\s*\\))(?!.*(?m:^)(?![^\\n]*\"\"\")[^#\\n]*(?:[\"'][^\"'\\n]*Z[^\"'\\n]*[\"']|\\[\\s*:\\s*-\\s*1\\s*\\])))"
         },
         {
           "kind": "file_regex",
