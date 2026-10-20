@@ -272,3 +272,43 @@ def test_an_indented_item_does_not_borrow_or_lend_provenance() -> None:
     """Provenance on a nested line still sources only the decision above it."""
     decisions = "1. First\n   1. Nested step\n   - Provenance: a\n2. Second\n"
     assert _unsourced(decisions) == ["Second"]
+
+
+_PROVENANCE_TABLE = "| Decision | Provenance |\n|---|---|\n| Use A | PR #1 |\n| Use B |  |\n"
+
+
+@pytest.mark.parametrize(
+    "stray",
+    [
+        "- Provenance: unrelated note\n",
+        "  - Provenance: unrelated note\n",
+        "\n- Provenance: unrelated note\n",
+    ],
+)
+def test_a_stray_provenance_bullet_does_not_source_the_last_table_row(stray: str) -> None:
+    """A blank Provenance cell stays unsourced when a bullet follows the table."""
+    assert _unsourced(_PROVENANCE_TABLE + stray) == ["Use B"]
+
+
+def test_a_stray_provenance_bullet_after_a_sourced_table_changes_nothing() -> None:
+    table = "| Decision | Provenance |\n|---|---|\n| Use A | PR #1 |\n"
+    assert _unsourced(table + "- Provenance: unrelated note\n") == []
+
+
+def test_a_decision_after_a_table_is_sourced_by_its_own_provenance() -> None:
+    """The table guard clears once a new decision starts."""
+    decisions = _PROVENANCE_TABLE + "\n- Use C\n  - Provenance: ADR-2\n"
+    assert _unsourced(decisions) == ["Use B"]
+
+
+def test_a_numbered_decision_after_a_table_takes_attribute_bullets() -> None:
+    decisions = _PROVENANCE_TABLE + "\n1. Use C\n- Provenance: ADR-2\n"
+    assert _unsourced(decisions) == ["Use B"]
+
+
+@pytest.mark.parametrize("decision", ["### Use X\n", "1. Use X\n"])
+def test_an_empty_table_leaves_the_decision_above_it_sourceable(decision: str) -> None:
+    """An empty table replaces no decision, so a later Provenance bullet still sources it."""
+    empty = "\n| Decision | Provenance |\n|---|---|\n\n"
+    assert _unsourced(decision + empty + "- Provenance: ADR-1\n") == []
+    assert _unsourced(decision + empty) == ["Use X"]
