@@ -1694,16 +1694,69 @@ def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     return hint
 
 
+# act prints ``[Workflow/Job] <glyph> Run Main <step>`` when a job step starts
+# and ``[Workflow/Job]   <glyph>  Success|Failure - Main <step> [<elapsed>]``
+# when it ends. ``Set up job`` and ``Run Pre`` lines come before any ``Run Main``
+# line, so a ``Run Main`` line means action setup is over.
+_ACT_STEP_START = re.compile(r"^(?P<scope>\[[^\]]+\])\s+\S+\s+Run Main (?P<step>.+?)\s*$")
+_ACT_STEP_END = re.compile(
+    r"^(?P<scope>\[[^\]]+\])\s+\S+\s+(?P<verdict>Success|Failure) - Main "
+    r"(?P<step>.+?)(?: \[(?P<elapsed>[^\]]+)\])?\s*$"
+)
+_ACT_TIMEOUT_SECONDS = re.compile(r"timed out after (\d+) seconds")
+
+
+def _timeout_step_hint(combined: str) -> str | None:
+    """Name the job step a stage timeout interrupted, else None before any step ran.
+
+    A step that started and has no end line was running when the kill landed.
+    A step that ended in ``Failure`` with an elapsed time was cut by the job's
+    own timeout just before it (#6793). The last such step is the one named.
+    """
+    started: dict[tuple[str, str], int] = {}
+    ended: dict[tuple[str, str], tuple[str, str | None]] = {}
+    for position, line in enumerate(combined.splitlines()):
+        start = _ACT_STEP_START.match(line.strip())
+        if start is not None:
+            started[(start["scope"], start["step"])] = position
+            ended.pop((start["scope"], start["step"]), None)
+            continue
+        end = _ACT_STEP_END.match(line.strip())
+        if end is not None:
+            ended[(end["scope"], end["step"])] = (end["verdict"], end["elapsed"])
+    if not started:
+        return None
+    candidates = [key for key in started if key not in ended or ended[key][0] == "Failure"]
+    key = max(candidates or started, key=started.__getitem__)
+    scope, step = key
+    verdict, elapsed = ended.get(key, ("", None))
+    if verdict == "Success":
+        state = f"which had finished in {elapsed or 'an unreported time'}; no later step reported"
+    elif elapsed is not None:
+        state = f"which act reported as failed after {elapsed}"
+    else:
+        limit = _ACT_TIMEOUT_SECONDS.search(combined)
+        suffix = f" when the {limit.group(1)}s stage timeout fired" if limit else ""
+        state = f"which was still running{suffix}"
+    return (
+        f"[cause] the stage timeout fired while the job ran step '{step}' {scope}, {state}. "
+        "The run was past action setup, so a cold gh act action cache is not the cause: "
+        "the job needs a quieter machine or a larger stage budget, not a re-run."
+    )
+
+
 def _stage_timeout_hint(combined: str) -> str | None:
     """Return the cause-and-remedy line when ``combined`` shows a killed run.
 
     ``_run`` reports a timeout as ``TimeoutExpired: ...``, which on its own names
     no cause: the operator sees a correct workflow blamed for a wall-clock
-    deadline (Issue #3949). Counting the ``git clone`` lines the child emitted
-    before the kill separates the two cases that matter. Clone lines mean ``act``
-    was still populating its ref-keyed ``~/.cache/act``, which a re-run turns
-    into a warm-cache run of seconds. No clone lines mean the run itself was
-    slow, and claiming a cold cache there would point at the wrong suspect.
+    deadline (Issue #3949). Three cases matter. Once any job step has started,
+    action setup is over, so the hint names the step that was running (#6793);
+    ``git clone`` lines from the first minute of such a run say nothing about
+    the cause. Before any step started, clone lines mean ``act`` was still
+    populating its ref-keyed ``~/.cache/act``, which a re-run turns into a
+    warm-cache run of seconds. No clone lines mean the run itself was slow, and
+    claiming a cold cache there would point at the wrong suspect.
     Returns None when the output carries no timeout marker.
 
     Every stage routes its failure detail through this, not the act stages only.
@@ -1712,6 +1765,9 @@ def _stage_timeout_hint(combined: str) -> str | None:
     """
     if _ACT_TIMEOUT_MARKER not in combined:
         return None
+    step_hint = _timeout_step_hint(combined)
+    if step_hint is not None:
+        return step_hint
     clones = sum(1 for line in combined.splitlines() if _ACT_CLONE_MARKER in line)
     if clones == 0:
         return (
@@ -1721,10 +1777,11 @@ def _stage_timeout_hint(combined: str) -> str | None:
         )
     return (
         f"[cause] act was still cloning actions when the stage timeout fired: {clones} "
-        f"'git clone' line(s) in the partial output. This is a cold gh act action cache, not a "
-        f"workflow defect. act clones every referenced action into ~/.cache/act before it can "
-        f"plan, and that cache is keyed by action ref, so a bumped action digest re-pays the "
-        f"clone. Re-run: the second run reuses the cache and finishes in seconds."
+        f"'git clone' line(s) in the partial output, and no job step had started. This is a "
+        f"cold gh act action cache, not a workflow defect. act clones every referenced action "
+        f"into ~/.cache/act before it can plan, and that cache is keyed by action ref, so a "
+        f"bumped action digest re-pays the clone. Re-run: the second run reuses the cache and "
+        f"finishes in seconds."
     )
 
 
