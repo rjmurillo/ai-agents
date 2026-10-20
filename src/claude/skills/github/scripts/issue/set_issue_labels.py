@@ -354,23 +354,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.priority:
         all_labels.append({"name": f"priority:{args.priority}", "color": args.priority_color})
 
-    # Enforce priority mutual exclusivity in the incoming set (Issue #2623).
-    # If multiple priority labels are specified, keep only the last one.
-    # --priority is added last, so it takes precedence over --labels.
-    priority_indices = [
-        i
-        for i, label_info in enumerate(all_labels)
-        if label_info["name"].lower().startswith(PRIORITY_PREFIX)
-    ]
-    if len(priority_indices) > 1:
-        for i in reversed(priority_indices[:-1]):
-            all_labels.pop(i)
-
-    remove_names = expand_labels(args.remove_labels or [])
-
-    if not all_labels and not remove_names:
-        print("No labels to apply.", file=sys.stderr)
-        return 0
+    remove_names: list[str] = []
+    seen_remove: set[str] = set()
+    for name in expand_labels(args.remove_labels or []):
+        if name.lower() not in seen_remove:
+            seen_remove.add(name.lower())
+            remove_names.append(name)
 
     conflict = sorted(
         {n.lower() for n in remove_names} & {info["name"].lower() for info in all_labels}
@@ -384,6 +373,22 @@ def main(argv: list[str] | None = None) -> int:
             script_name="set_issue_labels.py",
         )
         raise SystemExit(1)
+
+    # Enforce priority mutual exclusivity in the incoming set (Issue #2623).
+    # If multiple priority labels are specified, keep only the last one.
+    # --priority is added last, so it takes precedence over --labels.
+    priority_indices = [
+        i
+        for i, label_info in enumerate(all_labels)
+        if label_info["name"].lower().startswith(PRIORITY_PREFIX)
+    ]
+    if len(priority_indices) > 1:
+        for i in reversed(priority_indices[:-1]):
+            all_labels.pop(i)
+
+    if not all_labels and not remove_names:
+        print("No labels to apply.", file=sys.stderr)
+        return 0
 
     current_labels: list[str] = []
     if remove_names:

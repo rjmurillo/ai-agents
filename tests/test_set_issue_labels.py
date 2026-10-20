@@ -334,3 +334,35 @@ def test_remove_skips_label_already_removed_by_priority(mock_run, capsys):
 
     assert rc == 0
     assert json.loads(capsys.readouterr().out)["Data"]["removed"] == ["priority:P2"]
+
+
+@patch("subprocess.run")
+def test_repeated_remove_name_removed_once(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _view("bug"), _completed(rc=0)]
+
+    rc = main(["--issue", "7", "--remove-labels", "bug", "Bug", "bug"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["Data"]["removed"] == ["bug"]
+    assert mock_run.call_count == 4
+
+
+@patch("subprocess.run")
+def test_conflict_checked_before_priority_discard(mock_run):
+    mock_run.side_effect = list(_PRE)
+
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "--issue",
+                "7",
+                "--labels",
+                "priority:P2",
+                "--priority",
+                "P1",
+                "--remove-labels",
+                "priority:P2",
+            ]
+        )
+
+    assert exc.value.code == 1
