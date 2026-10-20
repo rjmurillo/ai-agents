@@ -152,13 +152,31 @@ def _run_in_process_group(
     return subprocess.CompletedProcess(list(argv), proc.returncode, stdout, stderr)
 
 
+# A fixture tool name expands to every CLI tool it needs. `write` means "create or
+# modify a file": Claude's Edit only replaces text in an existing file, so a
+# fixture whose pass condition is a new file also needs Write (issue #6710).
+_CLAUDE_TOOLS: dict[str, tuple[str, ...]] = {
+    "question": ("AskUserQuestion",),
+    "read": ("Read",),
+    "write": ("Write", "Edit"),
+}
+_COPILOT_TOOLS: dict[str, tuple[str, ...]] = {
+    "question": ("ask_user",),
+    "read": ("view",),
+    "write": ("edit", "create"),
+}
+
+
+def _expand_tools(tools: Sequence[str], names: Mapping[str, tuple[str, ...]]) -> list[str]:
+    """Map fixture tool names to CLI tool names, in order, without duplicates."""
+    return list(dict.fromkeys(cli for name in tools for cli in names[name]))
+
+
 def _tool_args(tools: Sequence[str], harness: str) -> list[str]:
     if harness == "claude":
-        names = {"question": "AskUserQuestion", "read": "Read", "write": "Edit"}
-        selected = [names[name] for name in tools]
+        selected = _expand_tools(tools, _CLAUDE_TOOLS)
         return ["--tools", ",".join(selected)] if selected else ["--tools", ""]
-    names = {"question": "ask_user", "read": "view", "write": "edit"}
-    selected = [names[name] for name in tools]
+    selected = _expand_tools(tools, _COPILOT_TOOLS)
     args = [f"--available-tools={','.join(selected)}"]
     args.extend(f"--allow-tool={tool}" for tool in selected)
     return args

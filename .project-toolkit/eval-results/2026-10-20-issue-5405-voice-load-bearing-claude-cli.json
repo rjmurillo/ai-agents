@@ -1,0 +1,361 @@
+{
+  "schema_version": 1,
+  "issue": 5405,
+  "note": "Three live runs of voice.json with the load_bearing contract. Provider claude-cli counts thinking tokens in output_tokens. One sample per cell, three judge samples reduced by median. Per-cell detail stays in the local run files; this record keeps the contract and pool summaries.",
+  "runs": [
+    {
+      "run": {
+        "provider": "claude-cli",
+        "requested_model": "claude-sonnet-5",
+        "timestamp_utc": "2026-10-20T06:01:17.441993+00:00",
+        "git_commit": "7b7abfcdca807f0c14c25b1061b210dddab362cb",
+        "scenario_hash": "36c20f08aae39641"
+      },
+      "verdict": "FAIL_NEGATIVE_INCOMPLETE",
+      "positive": {
+        "baseline": {
+          "avg_score_exact": 4.58974358974359,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 194.69230769230768,
+          "mean_response_chars_exact": 458.15384615384613
+        },
+        "full": {
+          "avg_score_exact": 4.282051282051282,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 144.92307692307693,
+          "mean_response_chars_exact": 347.2307692307692
+        }
+      },
+      "negative": {
+        "baseline": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 493.25,
+          "mean_response_chars_exact": 1563.0
+        },
+        "full": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 727.75,
+          "mean_response_chars_exact": 1761.25
+        }
+      },
+      "load_bearing": {
+        "status": "FAIL",
+        "checks": {
+          "concision": {
+            "threshold": 0.25,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 144.92307692307693,
+            "control": 436.61538461538464,
+            "shrink": 0.668
+          },
+          "grounding": {
+            "threshold": 0.5,
+            "status": "FAIL",
+            "full": 4.28,
+            "control": 4.26,
+            "gain": 0.03
+          },
+          "exempt": {
+            "threshold": 0.2,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 727.75,
+            "baseline": 493.25,
+            "shrink": -0.475
+          }
+        }
+      },
+      "coverage_and_means": {
+        "positive": {
+          "baseline": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 194.7,
+            "mean_response_chars": 458.2
+          },
+          "full": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 144.9,
+            "mean_response_chars": 347.2
+          },
+          "control": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 436.6,
+            "mean_response_chars": 755.6
+          }
+        },
+        "negative": {
+          "baseline": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 493.2,
+            "mean_response_chars": 1563.0
+          },
+          "full": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 727.8,
+            "mean_response_chars": 1761.2
+          },
+          "control": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 878.8,
+            "mean_response_chars": 1519.8
+          }
+        }
+      }
+    },
+    {
+      "run": {
+        "provider": "claude-cli",
+        "requested_model": "claude-sonnet-5",
+        "timestamp_utc": "2026-10-20T06:27:56.385352+00:00",
+        "git_commit": "7b7abfcdca807f0c14c25b1061b210dddab362cb",
+        "scenario_hash": "36c20f08aae39641"
+      },
+      "verdict": "FAIL_NEGATIVE_INCOMPLETE",
+      "positive": {
+        "baseline": {
+          "avg_score_exact": 4.256410256410256,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 159.92307692307693,
+          "mean_response_chars_exact": 459.15384615384613
+        },
+        "full": {
+          "avg_score_exact": 4.410256410256411,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 129.76923076923077,
+          "mean_response_chars_exact": 361.61538461538464
+        }
+      },
+      "negative": {
+        "baseline": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 514.5,
+          "mean_response_chars_exact": 1605.5
+        },
+        "full": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 602.0,
+          "mean_response_chars_exact": 1324.75
+        }
+      },
+      "load_bearing": {
+        "status": "PASS",
+        "checks": {
+          "concision": {
+            "threshold": 0.25,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 129.76923076923077,
+            "control": 391.2307692307692,
+            "shrink": 0.668
+          },
+          "grounding": {
+            "threshold": 0.5,
+            "status": "PASS",
+            "full": 4.41,
+            "control": 3.31,
+            "gain": 1.1
+          },
+          "exempt": {
+            "threshold": 0.2,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 602.0,
+            "baseline": 514.5,
+            "shrink": -0.17
+          }
+        }
+      },
+      "coverage_and_means": {
+        "positive": {
+          "baseline": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 159.9,
+            "mean_response_chars": 459.2
+          },
+          "full": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 129.8,
+            "mean_response_chars": 361.6
+          },
+          "control": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 391.2,
+            "mean_response_chars": 704.6
+          }
+        },
+        "negative": {
+          "baseline": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 514.5,
+            "mean_response_chars": 1605.5
+          },
+          "full": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 602.0,
+            "mean_response_chars": 1324.8
+          },
+          "control": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 620.5,
+            "mean_response_chars": 1680.8
+          }
+        }
+      }
+    },
+    {
+      "run": {
+        "provider": "claude-cli",
+        "requested_model": "claude-sonnet-5",
+        "timestamp_utc": "2026-10-20T06:27:56.385340+00:00",
+        "git_commit": "7b7abfcdca807f0c14c25b1061b210dddab362cb",
+        "scenario_hash": "36c20f08aae39641"
+      },
+      "verdict": "FAIL_NEGATIVE_INCOMPLETE",
+      "positive": {
+        "baseline": {
+          "avg_score_exact": 4.153846153846154,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 199.69230769230768,
+          "mean_response_chars_exact": 471.6923076923077
+        },
+        "full": {
+          "avg_score_exact": 4.435897435897436,
+          "scenario_count": 13,
+          "graded_count": 13,
+          "mean_output_tokens_exact": 146.76923076923077,
+          "mean_response_chars_exact": 345.6923076923077
+        }
+      },
+      "negative": {
+        "baseline": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 455.5,
+          "mean_response_chars_exact": 1403.0
+        },
+        "full": {
+          "avg_score_exact": 5.0,
+          "scenario_count": 4,
+          "graded_count": 4,
+          "mean_output_tokens_exact": 458.75,
+          "mean_response_chars_exact": 1206.75
+        }
+      },
+      "load_bearing": {
+        "status": "FAIL",
+        "checks": {
+          "concision": {
+            "threshold": 0.25,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 146.76923076923077,
+            "control": 508.15384615384613,
+            "shrink": 0.711
+          },
+          "grounding": {
+            "threshold": 0.5,
+            "status": "FAIL",
+            "full": 4.44,
+            "control": 4.15,
+            "gain": 0.28
+          },
+          "exempt": {
+            "threshold": 0.2,
+            "status": "PASS",
+            "metric": "output_tokens",
+            "full": 458.75,
+            "baseline": 455.5,
+            "shrink": -0.007
+          }
+        }
+      },
+      "coverage_and_means": {
+        "positive": {
+          "baseline": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 199.7,
+            "mean_response_chars": 471.7
+          },
+          "full": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 146.8,
+            "mean_response_chars": 345.7
+          },
+          "control": {
+            "cells": 13,
+            "graded": 13,
+            "with_output_tokens": 13,
+            "mean_output_tokens": 508.2,
+            "mean_response_chars": 855.2
+          }
+        },
+        "negative": {
+          "baseline": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 455.5,
+            "mean_response_chars": 1403.0
+          },
+          "full": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 458.8,
+            "mean_response_chars": 1206.8
+          },
+          "control": {
+            "cells": 4,
+            "graded": 4,
+            "with_output_tokens": 4,
+            "mean_output_tokens": 996.0,
+            "mean_response_chars": 1833.8
+          }
+        }
+      }
+    }
+  ]
+}

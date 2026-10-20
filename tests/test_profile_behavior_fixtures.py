@@ -48,6 +48,7 @@ def test_profile_scope_note_denies_the_regex_backstop_semantic_authority() -> No
     assert "NOT the semantic authority" in note
     assert "tools: []" in note
     assert "#6710" in note
+    assert "Claude Write and Edit" in note
 
 
 def _not_regexes(fixture_id: str) -> list[re.Pattern[str]]:
