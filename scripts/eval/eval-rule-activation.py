@@ -586,6 +586,9 @@ _DIGIT_BEFORE = re.compile(r"\d\s*$")
 _DIGIT_AFTER = re.compile(r"\s+#?\d")
 _CLAIM_HEDGE = re.compile(
     r"\b(?:cannot|can't|can\s+not|unable\s+to|do(?:es)?\s+not\s+know|don't\s+know"
+    r"|could(?:\s+not|n't)\s+(?:confirm|verify|tell|determine|establish)"
+    r"|(?:did(?:\s+not|n't)|(?:have|has|had)(?:\s+not|n't))\s+(?:confirm|verify|confirmed|verified)"
+    r"|not\s+(?:confirmed|verified)"
     r"|whether|if|unless)\b",
     re.IGNORECASE,
 )
