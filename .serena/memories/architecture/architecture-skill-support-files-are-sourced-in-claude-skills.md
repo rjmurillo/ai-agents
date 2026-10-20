@@ -2,6 +2,8 @@
 
 ## The source of truth
 
+Correction, verified 2026-10-19: ADR-119 (PR #6718) moved the source. Shipped skill support files are hand-maintained in `src/claude/skills/<name>/`, and `.claude/skills/<name>` is a git symlink to that directory. Only repo-local skills (`ai-agents-*`, `repository-*`) keep real files in `.claude/skills/`. Read the rest of this note with the paths swapped. Edit at the source and never replace a link with a real file.
+
 Every skill file except `SKILL.md` is hand-maintained under `.claude/skills/<name>/`. `SKILL.md` renders from `templates/skills/<name>.SKILL.md.tmpl`. `build/scripts/skill_support_mirror.py` states this in its module docstring.
 
 ## What the build does to the copies
