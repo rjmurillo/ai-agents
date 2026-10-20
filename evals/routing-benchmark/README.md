@@ -25,3 +25,7 @@ Each scenario directory holds `scenario.json`, `initial/` (driver-visible),
 `hidden/` (grader-only), `known_good/`, and `known_bad/`. Files inside those
 directories end in `.fixture`. The loader and grader are
 `scripts/eval/_routing_scenario.py` and `scripts/eval/_routing_grader.py`.
+
+## Scoring results
+
+`uv run python scripts/eval/eval_routing_verdicts.py --results <jsonl> [<jsonl> ...]` applies `PREDICTIONS.md` (`predictions-v1` plus Amendment 1) to result rows and prints the H1 to H4 statuses, per arm and class tables, and the evidence-floor check as JSON. It refuses to pool `results-2026-10-03/` with later runs, and it leaves `decision` null with a stated basis when the floor is met, because the predictions do not map H statuses to a strategy value.
