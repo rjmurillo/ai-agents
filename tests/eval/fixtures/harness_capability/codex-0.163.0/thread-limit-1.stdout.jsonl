@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"01a159c3-4175-74b2-8c7a-d6f6a421c264"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Spawning both children in order without waiting between calls."}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"- Spawn 1 result: `{\"task_name\":\"/root/index_1\"}`. Child finished with `1`.\n- Spawn 2 error: `collab spawn failed: agent thread limit reached`"}}
+{"type":"turn.completed","usage":{"input_tokens":60806,"cached_input_tokens":40064,"cache_write_input_tokens":0,"output_tokens":176,"reasoning_output_tokens":32}}
