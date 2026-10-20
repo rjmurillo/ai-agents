@@ -29,8 +29,10 @@ def _foreign_states(sentence: str) -> list[str]:
     return [t for t in _STATE_TOKEN.findall(sentence) if t not in classify_lineage.STATES]
 
 
-def test_started_unread_check_maps_to_a_skill_state() -> None:
+def test_started_unread_check_names_only_skill_states() -> None:
     sentence = _sentence(VOICE_RULE.read_text(encoding="utf-8"), STARTED_UNREAD)
+    assert "its result unread" in sentence
+    assert "only when a state label is required" in sentence
     assert "`UNAVAILABLE`" in sentence
     assert _foreign_states(sentence) == []
 

@@ -277,15 +277,15 @@ class TestVoiceScenarioPatterns:
 class TestVoiceRuleNamesTheUnreadCase:
     """V9: the four-state list alone pushes a started run toward `NOT RUN`."""
 
-    _UNREAD = "is `UNAVAILABLE` (result not obtained)"
+    _UNREAD = "is not `NOT RUN` or passed: report it as started with its result unread"
 
-    def test_rule_maps_a_started_unread_check_to_unavailable(self):
+    def test_rule_reports_a_started_unread_check_as_unread(self):
         rule = (REPO_ROOT / "templates" / "rules" / "voice.md").read_text(encoding="utf-8")
-        assert f"A started check you have not read {self._UNREAD}, not `NOT RUN` or passed" in rule
+        assert f"A started check you have not read {self._UNREAD}" in rule
 
     def test_unread_clause_follows_the_state_list(self):
         rule = (REPO_ROOT / "templates" / "rules" / "voice.md").read_text(encoding="utf-8")
-        assert rule.index("`FAILED`)") < rule.index(f"{self._UNREAD}, not `NOT RUN`")
+        assert rule.index("`FAILED`)") < rule.index(self._UNREAD)
 
 
 class TestSizeIsUnclipped:
