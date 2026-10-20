@@ -7,9 +7,9 @@ import importlib.util
 import json
 import os
 import runpy
+import select
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -700,43 +700,60 @@ def test_command_runs_in_its_own_session(capsys, repo, skills):
 # --- review fixes: group kill, skipped status, name rule, unlistable root ----
 
 
+GROUP_KILL_GUARD_S = 60  # hang guard only: both waits below return on an event, not on this clock
+
+
 @pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX only")
 def test_command_timeout_kills_the_whole_process_group(capsys, repo, skills, monkeypatch, tmp_path):
-    # 3 s leaves a loaded runner time to start the child and write the grandchild pid.
-    monkeypatch.setattr(bootstrap_drift, "COMMAND_TIMEOUT_S", 3)
-    pid_file = tmp_path / "grandchild.pid"
+    # No wall-clock race. The child and grandchild hold the write end of a FIFO. The
+    # timeout fires only after the grandchild reports its pid on it (a loaded runner
+    # may take seconds to start Python), and EOF on it proves every holder exited.
+    fifo = tmp_path / "ready.fifo"
+    os.mkfifo(fifo)
+    reader = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+    monkeypatch.setattr(subprocess, "Popen", _popen_timing_out_after_ready(reader))
     code_text = (
-        "import subprocess, sys, time\n"
-        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
-        f"open({str(pid_file)!r}, 'w').write(str(child.pid))\n"
+        "import os, subprocess, sys, time\n"
+        f"fd = os.open({str(fifo)!r}, os.O_WRONLY)\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],\n"
+        "                         pass_fds=(fd,))\n"
+        "os.write(fd, b'ready\\n')\n"
         "time.sleep(60)\n"
     )
     check = {"id": "R5", "kind": "command", "argv": [PY, "-c", code_text]}
-
-    code, payload = check_one(capsys, repo, skills, check, "--allow-commands")
-
-    assert code == 1
-    assert "timed out" in only_check(payload)["detail"]
-    grandchild = int(pid_file.read_text(encoding="utf-8"))
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline and _alive(grandchild):
-        time.sleep(0.05)
-    assert not _alive(grandchild)
-
-
-def _alive(pid: int) -> bool:
     try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    # A killed child that nobody reaped is a zombie; treat it as dead.
-    state = Path(f"/proc/{pid}/stat")
-    if not state.exists():
-        return True
-    try:
-        return state.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0] != "Z"
-    except (ProcessLookupError, FileNotFoundError):
-        return False  # exited between the exists check and the read
+        code, payload = check_one(capsys, repo, skills, check, "--allow-commands")
+
+        assert code == 1
+        assert "timed out" in only_check(payload)["detail"]
+        assert _read_until_eof(reader), "group kill left a holder of the FIFO running"
+    finally:
+        os.close(reader)
+
+
+def _popen_timing_out_after_ready(reader: int) -> type[subprocess.Popen[bytes]]:
+    """A Popen whose bounded wait expires only once the grandchild is up."""
+
+    class ReadyPopen(subprocess.Popen[bytes]):
+        def wait(self, timeout=None):
+            if timeout is not None:  # the command's deadline, not the kill path's bare wait()
+                ready, _, _ = select.select([reader], [], [], GROUP_KILL_GUARD_S)
+                assert ready, "grandchild never reported ready"
+                assert os.read(reader, 16) == b"ready\n"
+                timeout = 0  # the deadline has now "passed": take the real timeout path
+            return super().wait(timeout)
+
+    return ReadyPopen
+
+
+def _read_until_eof(fd: int) -> bool:
+    """True once every writer of the FIFO has exited (the kernel closes fds at exit)."""
+    while True:
+        ready, _, _ = select.select([fd], [], [], GROUP_KILL_GUARD_S)
+        if not ready:
+            return False
+        if os.read(fd, 16) == b"":
+            return True
 
 
 def test_skill_with_every_check_skipped_reports_skipped(capsys, repo, skills):
