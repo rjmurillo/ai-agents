@@ -350,11 +350,14 @@ dev = [
 # back to rediscovering the whole repository per test, or to re-sorting the
 # surface manifest once per file, and lands several times over.
 #
-# The portability budget is about 2.4 times its 16.6s sum, not four. That suite
-# cost about 84s before the strip-once cache and the shared fixture, so a 4x
-# budget (65s) would pass a full revert on any runner about 1.3x faster than the
-# dev box (taking 0.76x the time). At 40s a revert fails unless the runner is
-# 2.1x faster, and 2.4x still absorbs ordinary runner load.
+# The portability budget is set against the CI report, which runs with
+# coverage, not against the local serial sum. In CI the suite sums 25.12s (run
+# 39203671065) and 28.93s (run 39207062181) over 303 cases of the main module,
+# so 40s leaves about 1.4x to 1.6x headroom. The slowest test, the real-tree
+# scan, takes 25.30s of that sum in CI; a revert of the strip-once cache runs it
+# about 3x slower, so the suite lands above 60s and fails the 40s budget by
+# 1.5x or more. The fixed code fails only on a runner about 1.4x slower than
+# the two CI runs above.
 #
 # The surface parity budget is set against the CI report, which runs with
 # coverage, not against the local serial sum. In CI the suite summed 60.3s on
