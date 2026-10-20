@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -58,6 +60,59 @@ def test_a_missing_final_newline_does_not_run_into_the_next_file(tmp_path: Path)
     patch = rc.change_patch(before, after, ["a.py", "b.py"])
 
     assert "+2\n\\ No newline at end of file\n--- a/b.py" in patch
+
+
+def _git_apply_check(tmp_path: Path, before: Path, patch: str) -> subprocess.CompletedProcess[str]:
+    target = tmp_path / "apply"
+    shutil.copytree(before, target)
+    patch_file = tmp_path / "change.patch"
+    patch_file.write_text(patch, encoding="utf-8")
+    return subprocess.run(
+        ["git", "apply", "--check", str(patch_file)],
+        cwd=target,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_a_missing_final_newline_on_the_old_side_marks_the_removed_line(tmp_path: Path) -> None:
+    before = _tree(tmp_path / "a", {"f.txt": "x\ny"})
+    after = _tree(tmp_path / "b", {"f.txt": "x\nz\n"})
+
+    patch = rc.change_patch(before, after, ["f.txt"])
+
+    assert "-y\n\\ No newline at end of file\n+z\n" in patch
+    assert "-y+z" not in patch
+
+
+def test_a_patch_with_a_missing_old_side_newline_applies_with_git(tmp_path: Path) -> None:
+    before = _tree(tmp_path / "a", {"f.txt": "x\ny"})
+    after = _tree(tmp_path / "b", {"f.txt": "x\nz\n"})
+    patch = rc.change_patch(before, after, ["f.txt"])
+
+    result = _git_apply_check(tmp_path, before, patch)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_missing_final_newline_on_both_sides_marks_both_lines(tmp_path: Path) -> None:
+    before = _tree(tmp_path / "a", {"f.txt": "x\ny"})
+    after = _tree(tmp_path / "b", {"f.txt": "x\nz"})
+
+    patch = rc.change_patch(before, after, ["f.txt"])
+
+    assert "-y\n\\ No newline at end of file\n+z\n\\ No newline at end of file\n" in patch
+    assert _git_apply_check(tmp_path, before, patch).returncode == 0
+
+
+def test_a_patch_with_newlines_on_both_sides_has_no_marker(tmp_path: Path) -> None:
+    before = _tree(tmp_path / "a", {"f.txt": "x\ny\n"})
+    after = _tree(tmp_path / "b", {"f.txt": "x\nz\n"})
+
+    patch = rc.change_patch(before, after, ["f.txt"])
+
+    assert "No newline" not in patch
 
 
 def test_only_the_named_paths_are_diffed_and_in_sorted_order(tmp_path: Path) -> None:
