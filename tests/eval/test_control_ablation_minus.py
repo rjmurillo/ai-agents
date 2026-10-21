@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -152,7 +153,7 @@ def test_parse_pass_env_without_the_flag_forwards_nothing() -> None:
     assert batch.parse_pass_env(None, {}) == []
 
 
-def test_pass_env_runner_adds_only_the_named_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_child_env_runner_adds_only_the_named_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WANTED", "w")
     monkeypatch.setenv("OTHER", "o")
     seen: dict[str, object] = {}
@@ -161,9 +162,22 @@ def test_pass_env_runner_adds_only_the_named_variables(monkeypatch: pytest.Monke
         seen.update(kwargs)
         return subprocess.CompletedProcess(argv, 0, "", "")
 
-    batch.pass_env_runner(runner, ["WANTED"])(["x"], env={"PATH": "/bin"})
+    batch.child_env_runner(runner, ["WANTED"], "/venv/bin/python")(["x"], env={"PATH": "/bin"})
 
-    assert seen["env"] == {"PATH": "/bin", "WANTED": "w"}
+    assert seen["env"] == {"PATH": os.pathsep.join(["/venv/bin", "/bin"]), "WANTED": "w"}
+
+
+def test_child_env_runner_puts_the_interpreter_first_once() -> None:
+    seen: dict[str, object] = {}
+
+    def runner(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    path = os.pathsep.join(["/usr/bin", "/venv/bin"])
+    batch.child_env_runner(runner, [], "/venv/bin/python")(["x"], env={"PATH": path})
+
+    assert seen["env"] == {"PATH": os.pathsep.join(["/venv/bin", "/usr/bin"])}
 
 
 @pytest.mark.parametrize(
@@ -228,6 +242,7 @@ def test_a_historical_live_run_records_both_arms_with_checks_and_provenance(
     assert VOICE in provenance["controls"]["full"]["files"]
     assert VOICE not in provenance["controls"][MINUS_VOICE]["files"]
     assert provenance["pass_env"] == []
+    assert provenance["agent_path_first"] == str(Path(sys.executable).parent)
 
 
 def test_the_known_bad_fix_fails_only_the_withheld_check_in_a_live_run(
@@ -300,6 +315,8 @@ def test_pass_env_reaches_the_claude_child_and_only_its_name_reaches_the_report(
 
     assert code == cli.EXIT_OK
     assert all(env.get("EVAL_TEST_LOGIN") == "secret-value" for env in envs)
+    python_dir = str(Path(sys.executable).parent)
+    assert all(env["PATH"].split(os.pathsep)[0] == python_dir for env in envs)
     text = (tmp_path / "out" / "report.json").read_text(encoding="utf-8")
     assert "EVAL_TEST_LOGIN" in text
     assert "secret-value" not in text

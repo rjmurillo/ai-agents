@@ -1,7 +1,7 @@
 """Batch bookkeeping for the control-ablation runner (issue #6814).
 
 Records files, the resume guard, the spend cap, provenance, and operator
-environment pass-through: everything about a batch that is not one run.
+environment for the Claude child: everything about a batch that is not one run.
 
 `build_provenance` names everything a reader needs to reproduce or audit a
 batch: the runner commit, the task file and per-task hashes, each historical
@@ -77,6 +77,7 @@ def build_provenance(
     model: str,
     pass_env: Sequence[str],
     max_cost_usd: float | None,
+    interpreter: str,
 ) -> dict[str, object]:
     raw_tasks = payload.get("tasks")
     task_hashes = {
@@ -93,6 +94,7 @@ def build_provenance(
         "controls": {name: control_manifest(control) for name, control in controls.items()},
         "model_requested": model,
         "pass_env": list(pass_env),
+        "agent_path_first": str(Path(interpreter).parent),
         "max_cost_usd": max_cost_usd,
     }
 
@@ -108,20 +110,26 @@ def parse_pass_env(raw: str | None, environ: Mapping[str, str]) -> list[str]:
     return names
 
 
-def pass_env_runner(runner: Runner, names: Sequence[str]) -> Runner:
-    """Wrap `runner` so every call's `env` also carries the named operator variables.
+def child_env_runner(runner: Runner, names: Sequence[str], interpreter: str) -> Runner:
+    """Wrap `runner` so every child env starts PATH at `interpreter`'s directory.
 
-    Some hosts authenticate the Claude CLI through variables `runtime_env`'s
-    allowlist drops. Forwarding is opt-in per name; values are read at call time
-    and never written to the report.
+    The checks run with the runner's interpreter (`{python}`), so the agent's
+    `python3` must be that interpreter too, or the agent cannot run the checks it
+    is graded by: launched outside `uv run`, PATH would resolve a bare system
+    Python without pytest (issue #6814, first pilot). The named operator
+    variables are forwarded too, for hosts whose Claude CLI login needs variables
+    `runtime_env`'s allowlist drops; values are read at call time and never
+    written to the report.
     """
-    if not names:
-        return runner
+    bin_dir = str(Path(interpreter).parent)
 
     def run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         env = kwargs.get("env")
         if isinstance(env, dict):
-            kwargs["env"] = {**env, **{name: os.environ[name] for name in names}}
+            path = env.get("PATH", "")
+            entries = [bin_dir, *(e for e in str(path).split(os.pathsep) if e and e != bin_dir)]
+            forwarded = {name: os.environ[name] for name in names}
+            kwargs["env"] = {**env, **forwarded, "PATH": os.pathsep.join(entries)}
         return runner(argv, **kwargs)
 
     return run

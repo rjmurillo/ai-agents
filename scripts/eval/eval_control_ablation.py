@@ -444,7 +444,7 @@ def _run(
         timeout=args.timeout,
         workspace_root=workspace_root,
         output_dir=output_dir,
-        runner=batch.pass_env_runner(runner, pass_env),
+        runner=batch.child_env_runner(runner, pass_env, sys.executable),
         reviewer_model=args.reviewer_model,
         withheld_markers=history.withheld_markers(sources),
         max_cost_usd=args.max_cost_usd,
@@ -458,6 +458,7 @@ def _run(
         model=args.model,
         pass_env=pass_env,
         max_cost_usd=args.max_cost_usd,
+        interpreter=sys.executable,
     )
     return report, code
 
