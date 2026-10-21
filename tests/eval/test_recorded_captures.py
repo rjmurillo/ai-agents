@@ -28,7 +28,7 @@ PLAN = MATRIX.parent / "harness-capability-recorded-captures.json"
 EXAMPLES = MATRIX.parent
 
 
-PLAN_0_160_0 = MATRIX.parent / "harness-capability-recorded-captures-0.160.0.json"
+PLAN_0_163_0 = MATRIX.parent / "harness-capability-recorded-captures-0.163.0.json"
 
 #: What the codex record held before any rollout capture applied: both
 #: capture-derived cells unverified and one live probe owed. The mechanics
@@ -399,7 +399,7 @@ def test_a_record_with_nothing_owed_omits_the_field() -> None:
 
 
 def test_matrix_context_reset_cells_lead_with_what_the_capture_derives() -> None:
-    plans = {"codex": PLAN_0_160_0, "copilot": PLAN}
+    plans = {"codex": PLAN_0_163_0, "copilot": PLAN}
 
     for record in capability.load_matrix(MATRIX):
         found = _by_key(recorded_cli.run(MATRIX, plans[record.harness]))

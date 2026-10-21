@@ -1,7 +1,7 @@
 """Codex live-evidence re-derivation (issue #5423 reopen).
 
-The checked-in matrix (`MATRIX`) is a claim: codex-cli 0.160.0, probed live
-on 2026-10-03, produced these capability statuses. This file is the check on
+The checked-in matrix (`MATRIX`) is a claim: codex-cli 0.163.0, probed live
+on 2026-10-20, produced these capability statuses. This file is the check on
 that claim. For every codex capability the matrix marks `VERIFIED`, it loads
 the exact fixture the matrix's `detail` field cites and re-derives the same
 verdict from it using only the in-tree parsers (`_codex_frames`,
@@ -35,7 +35,7 @@ from tests.eval._harness_capability_test_support import (
 CapabilityStatus = capability.CapabilityStatus
 EvidenceKind = capability.EvidenceKind
 
-CODEX_FIXTURES = FIXTURES / "codex-0.160.0"
+CODEX_FIXTURES = FIXTURES / "codex-0.163.0"
 
 
 def _frames(name: str):
@@ -193,20 +193,36 @@ def test_durable_artifact_handoff_reproduces_verified_from_the_handoff_pair() ->
         return event.get("type") == "item.started" and item.get("type") == "file_change"
 
     creation_command = next(event for event in plan_writer_events if _is_file_change_start(event))
-    # The write itself carries only the path (`kind: "add"`); the writer
-    # session's own verification command (`wc -l -c ... && sed -n '1,2p'
-    # implementation-plan.md`) is what shows the exact byte content landed,
-    # in a later `item.completed` `command_execution` event.
-    wrote_the_token = any(
+    # The write itself carries only the path (`kind: "add"`). The 0.163.0
+    # writer ran no verification command (0.160.0 did), so the content
+    # evidence is the fresh session below: it has no prior context, so
+    # `plan=PLAN-4417` can only come from the file on disk.
+    write_completed = any(
         event.get("type") == "item.completed"
-        and event.get("item", {}).get("type") == "command_execution"
-        and "TOKEN: PLAN-4417" in event["item"].get("aggregated_output", "")
+        and event.get("item", {}).get("type") == "file_change"
+        and event["item"].get("status") == "completed"
+        and event["item"]["changes"][0]["path"].endswith("implementation-plan.md")
         for event in plan_writer_events
     )
     read_back_text = codex_frames.message_texts(_frames("fresh-session-handoff.trace.log"))[-1]
+    reader_text = (CODEX_FIXTURES / "fresh-session-handoff.stdout.jsonl").read_text(
+        encoding="utf-8"
+    )
+    reader_events = [json.loads(line) for line in reader_text.splitlines() if line.strip()]
+    disk_reads = [
+        event["item"]
+        for event in reader_events
+        if event.get("type") == "item.completed"
+        and event.get("item", {}).get("type") == "command_execution"
+        and "implementation-plan.md" in event["item"].get("command", "")
+    ]
 
     assert creation_command["item"]["changes"][0]["kind"] == "add"
-    assert wrote_the_token, "the writer session's verification command never shows the TOKEN line"
+    assert write_completed, "the writer session never completed the implementation-plan.md write"
+    assert any(
+        read["exit_code"] == 0 and "TOKEN: PLAN-4417" in read["aggregated_output"]
+        for read in disk_reads
+    ), "the fresh session never read TOKEN: PLAN-4417 from implementation-plan.md"
     assert "plan=PLAN-4417" in read_back_text
 
 
@@ -250,7 +266,7 @@ def test_sol_ultra_catalog_lists_ultra_for_gpt_6_sol_and_not_gpt_6_luna() -> Non
 def _recorded_cell(key: str) -> dict[str, Any]:
     from tests.eval._harness_capability_test_support import recorded_cli
 
-    plan = MATRIX.parent / "harness-capability-recorded-captures-0.160.0.json"
+    plan = MATRIX.parent / "harness-capability-recorded-captures-0.163.0.json"
     report = recorded_cli.run(MATRIX, plan)
     codex = next(h for h in report["harnesses"] if h["harness"] == "codex")
     cell: dict[str, Any] = codex["capabilities"][key]
@@ -265,11 +281,16 @@ def test_concurrency_limit_reproduces_verified_from_the_waited_rollouts() -> Non
     assert matrix_cell.status is CapabilityStatus.VERIFIED and matrix_cell.value == 3
 
 
-def test_free_running_children_never_overlap_without_a_cap() -> None:
-    """3 luna children were requested with no cap and the backend never overlapped them."""
+def test_free_running_children_overlap_without_a_cap() -> None:
+    """3 gpt-5.6-luna children were requested with no cap and all 3 overlapped.
+
+    The 0.160.0 capture requested gpt-6-luna children and peaked at 1, so the
+    two captures differ in model as well as version. Without a cap, a requested
+    fan-out of 3 is not serialized by the backend.
+    """
     spans = codex_frames.response_spans(_frames("concurrency-3-requested.trace.log"))
 
-    assert codex_frames.peak_overlap(spans, model="gpt-6-luna") == 1
+    assert codex_frames.peak_overlap(spans, model="gpt-5.6-luna") == 3
 
 
 def test_context_reset_observability_reproduces_verified_from_the_compaction_rollout() -> None:
@@ -328,7 +349,7 @@ def test_checked_in_matrix_verified_cells_cite_real_evidence() -> None:
     """Every VERIFIED cell must carry backend evidence and cite a real fixture.
 
     Replaces the old all-`UNVERIFIED` pin (issue #5423 reopen): live probes
-    against codex-cli 0.160.0 (2026-10-03) and copilot-cli 1.0.89 (2026-09-24) produced
+    against codex-cli 0.163.0 (2026-10-20) and copilot-cli 1.0.89 (2026-09-24) produced
     real `VERIFIED` cells, so pinning "nothing is ever verified" would now
     be false. What still must hold is that a `VERIFIED` cell is never a bare
     assertion: it needs `BACKEND` evidence, a `probe_command`, a `date`, and

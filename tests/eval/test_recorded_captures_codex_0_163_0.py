@@ -1,6 +1,6 @@
-"""Codex 0.160.0 rollout captures against the 0.160.0 pin (issue #5423).
+"""Codex 0.163.0 rollout captures against the 0.163.0 pin (issue #5423).
 
-Captured 2026-10-03 with native codex-cli 0.160.0, the version installed that
+Captured 2026-10-20 with native codex-cli 0.163.0, the version installed that
 day. The pin tracks the installed CLI: a codex auto-update invalidates it.
 """
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 from tests.eval._harness_capability_test_support import MATRIX, recorded_cli
 
-PLAN = MATRIX.parent / "harness-capability-recorded-captures-0.160.0.json"
+PLAN = MATRIX.parent / "harness-capability-recorded-captures-0.163.0.json"
 WAIT, NOWAIT, RESET = 0, 1, 2
 
 
@@ -31,7 +31,7 @@ def _captures(report: dict[str, object]) -> list[dict[str, object]]:
 def test_the_matrix_pins_the_version_the_captures_were_taken_on() -> None:
     document = json.loads(MATRIX.read_text(encoding="utf-8"))
     codex = next(h for h in document["harnesses"] if h["harness"] == "codex")
-    assert codex["version"] == "codex-cli 0.160.0"
+    assert codex["version"] == "codex-cli 0.163.0"
 
 
 def test_the_waited_run_verifies_the_limit_at_the_configured_three() -> None:
@@ -47,7 +47,7 @@ def test_the_compaction_capture_verifies_context_reset_observability() -> None:
     report = recorded_cli.run(MATRIX, PLAN)
 
     assert _captures(report)[RESET]["status"] == "VERIFIED"
-    assert "recorded 4 compaction(s)" in str(_captures(report)[RESET]["detail"])
+    assert "recorded 3 compaction(s)" in str(_captures(report)[RESET]["detail"])
     assert _codex_cell(report, "context_reset_observability")["status"] == "VERIFIED"
 
 
