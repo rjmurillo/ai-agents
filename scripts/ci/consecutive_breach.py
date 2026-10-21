@@ -171,21 +171,32 @@ def gh_fetch(
     endpoint: str,
     timeout: float = FETCH_TIMEOUT_SECONDS,
     sleep: Callable[[float], None] = time.sleep,
+    attempts: int = FETCH_ATTEMPTS,
 ) -> bytes:
     """Read a GitHub REST endpoint through ``gh api``, which follows redirects.
 
     Fixed argument list, no shell. ``GH_TOKEN`` carries the workflow token. A
     502 or a rate-limit blip would turn a first breach into a red main, so a
-    failed call is tried ``FETCH_ATTEMPTS`` times with a short backoff first.
+    failed call is tried ``attempts`` times with a short backoff first.
     """
-    for attempt in range(1, FETCH_ATTEMPTS + 1):
+    for attempt in range(1, attempts + 1):
         try:
             return _gh_once(endpoint, timeout)
         except PriorStateError:
-            if attempt == FETCH_ATTEMPTS:
+            if attempt == attempts:
                 raise
             sleep(FETCH_BACKOFF_SECONDS * attempt)
     raise AssertionError("unreachable")  # pragma: no cover
+
+
+def gh_fetch_once(endpoint: str) -> bytes:
+    """One attempt, no backoff. The wait loop polls with this.
+
+    The loop's next poll is the retry, and a single attempt keeps one poll under
+    ``FETCH_TIMEOUT_SECONDS`` per call, so the wait cannot overrun its cap by the
+    full retry ladder of ``gh_fetch``.
+    """
+    return gh_fetch(endpoint, attempts=1)
 
 
 def _gh_once(endpoint: str, timeout: float) -> bytes:
@@ -256,10 +267,15 @@ def _previous_run(
     )
 
 
-def _record_bytes(fetch: Fetch, repository: str, run_id: int, gate: str) -> bytes:
+def _record_bytes(
+    fetch: Fetch, repository: str, run_id: int, gate: str, list_fetch: Fetch | None = None
+) -> bytes:
+    """Download the run's record. ``list_fetch`` reads the artifact list (default: ``fetch``)."""
     name = artifact_name(gate)
     listing = _json_object(
-        fetch(f"repos/{repository}/actions/runs/{run_id}/artifacts?name={name}&per_page=100"),
+        (list_fetch or fetch)(
+            f"repos/{repository}/actions/runs/{run_id}/artifacts?name={name}&per_page=100"
+        ),
         "artifact list",
     )
     artifacts = listing.get("artifacts")
@@ -295,6 +311,7 @@ def _run_status(fetch: Fetch, repository: str, run_id: int) -> str:
 
 def _record_bytes_waiting(
     fetch: Fetch,
+    poll_fetch: Fetch,
     repository: str,
     run_id: int,
     gate: str,
@@ -309,13 +326,14 @@ def _record_bytes_waiting(
     before a miss cannot upload afterward and the miss is final. The wait is
     measured on ``clock`` and is never less than the time slept, so slow API
     calls count against ``WAIT_CAP_SECONDS`` as well as sleeps. It can overrun
-    by at most the API calls of one poll.
+    by at most the two API calls of one poll, each made through ``poll_fetch``.
     """
     start = clock()
     slept = 0.0
+    read = fetch
     while True:
         try:
-            return _record_bytes(fetch, repository, run_id, gate)
+            return _record_bytes(fetch, repository, run_id, gate, read)
         except RecordNotUploadedError as exc:
             if status not in PENDING_STATUSES:
                 raise
@@ -326,7 +344,8 @@ def _record_bytes_waiting(
                 ) from exc
             sleep(WAIT_POLL_SECONDS)
             slept += WAIT_POLL_SECONDS
-            status = _run_status(fetch, repository, run_id)
+            read = poll_fetch
+            status = _run_status(poll_fetch, repository, run_id)
 
 
 def find_previous_record(
@@ -338,15 +357,19 @@ def find_previous_record(
     current_run_id: int,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    poll_fetch: Fetch | None = None,
 ) -> PriorLookup:
     """Load the previous main run's breach record, never raising.
 
     Every expected failure becomes an unknown :class:`PriorLookup` whose
-    ``breached`` answers True for every key.
+    ``breached`` answers True for every key. ``poll_fetch`` serves the reads
+    made after the first wait (default: ``fetch``).
     """
     try:
         run_id, status = _previous_run(fetch, repository, workflow, current_run_id)
-        raw = _record_bytes_waiting(fetch, repository, run_id, gate, status, sleep, clock)
+        raw = _record_bytes_waiting(
+            fetch, poll_fetch or fetch, repository, run_id, gate, status, sleep, clock
+        )
         record = parse_record(raw, gate)
         if record.run_id != run_id:
             raise ValueError(f"record names run {record.run_id}, not the selected run {run_id}")
@@ -419,6 +442,7 @@ def apply_policy(
     stdout, where the Actions runner reads them.
     """
     label = title or gate
+    poll_fetch = gh_fetch_once if fetch is None else None
     fetch = gh_fetch if fetch is None else fetch
     keys = sorted(breaches)
     mode = policy.mode
@@ -432,6 +456,7 @@ def apply_policy(
             current_run_id=_required(policy.run_id, "run id"),
             sleep=sleep,
             clock=clock,
+            poll_fetch=poll_fetch,
         )
     failing: list[str] = []
     warning: list[str] = []

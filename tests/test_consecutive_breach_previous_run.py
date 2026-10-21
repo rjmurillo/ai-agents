@@ -342,3 +342,59 @@ class TestApiFailureWhileWaiting:
         lookup = _lookup(api)
         assert not lookup.known
         assert len(api.sleeps) == 1
+
+
+class TestPollTransport:
+    def test_only_the_reads_after_the_first_wait_use_the_poll_transport(self) -> None:
+        api = Timeline()
+        api.add_run(PRIOR, status="in_progress", visible_at=1, breached=["m.py"])
+        polled: list[str] = []
+
+        def poll(endpoint: str) -> bytes:
+            polled.append(endpoint)
+            return api(endpoint)
+
+        lookup = cb.find_previous_record(
+            api,
+            repository=REPO,
+            workflow=WORKFLOW,
+            gate=GATE,
+            current_run_id=CURRENT,
+            sleep=api.sleep,
+            clock=api.clock,
+            poll_fetch=poll,
+        )
+        assert lookup.known
+        # The poll reads the run status and the artifact list. The runs listing,
+        # the first artifact list and the archive download use the full transport.
+        assert [e.split("?")[0].rsplit("/", 1)[-1] for e in polled] == [str(PRIOR), "artifacts"]
+        assert polled[0].endswith(f"/runs/{PRIOR}")
+        assert "workflows" not in " ".join(polled)
+        assert not any(e.endswith("/zip") for e in polled)
+
+    def test_the_default_transport_polls_with_a_single_attempt(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        api = Timeline()
+        api.add_run(PRIOR, status="in_progress", visible_at=1, breached=["m.py"])
+        full: list[str] = []
+        once: list[str] = []
+
+        def fake_full(endpoint: str) -> bytes:
+            full.append(endpoint)
+            return api(endpoint)
+
+        def fake_once(endpoint: str) -> bytes:
+            once.append(endpoint)
+            return api(endpoint)
+
+        monkeypatch.setattr(cb, "gh_fetch", fake_full)
+        monkeypatch.setattr(cb, "gh_fetch_once", fake_once)
+        verdict = cb.apply_policy(
+            GATE, {"m.py": "x"}, _policy(tmp_path), sleep=api.sleep, clock=api.clock
+        )
+        assert verdict.failing == ("m.py",)
+        assert [e.split("?")[0].rsplit("/", 1)[-1] for e in once] == [str(PRIOR), "artifacts"]
+        assert any("/workflows/" in e for e in full)
+        assert any(e.endswith("/zip") for e in full)
+        assert not any(e.endswith("/zip") for e in once)
