@@ -111,13 +111,17 @@ def _harness_name(row: Mapping[str, Any]) -> str:
 
 
 def _wall_clock(invocations: Sequence[Mapping[str, Any]]) -> float | None:
-    windows = [item.get("window") for item in invocations]
-    if not windows or any(not isinstance(w, Mapping) for w in windows):
+    windows = [w for w in (item.get("window") for item in invocations) if isinstance(w, Mapping)]
+    if not windows or len(windows) != len(invocations):
         return None
-    starts = [w.get("start") for w in windows]
-    ends = [w.get("end") for w in windows]
-    if any(v is None for v in starts + ends):
-        return None
+    starts: list[float] = []
+    ends: list[float] = []
+    for window in windows:
+        start, end = window.get("start"), window.get("end")
+        if start is None or end is None:
+            return None
+        starts.append(start)
+        ends.append(end)
     return float(max(ends) - min(starts))
 
 
