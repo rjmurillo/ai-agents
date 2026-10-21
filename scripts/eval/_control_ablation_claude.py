@@ -9,6 +9,7 @@ model than requested. `eval_control_ablation.py` owns the run loop.
 
 from __future__ import annotations
 
+import json
 import os
 import stat
 import subprocess
@@ -250,3 +251,55 @@ def tool_results(events: Sequence[Mapping[str, object]]) -> list[Mapping[str, ob
 
 def tool_failures(events: Sequence[Mapping[str, object]]) -> int:
     return sum(1 for block in tool_results(events) if block.get("is_error"))
+
+
+#: A Bash command that runs a test suite: trajectory evidence of a check the agent invoked.
+_TEST_COMMAND_MARKERS = ("pytest", "unittest")
+
+
+def _tool_uses(events: Sequence[Mapping[str, object]]) -> list[Mapping[str, object]]:
+    uses: list[Mapping[str, object]] = []
+    for event in events:
+        message = event.get("message")
+        content = message.get("content") if isinstance(message, Mapping) else None
+        if isinstance(content, list):
+            uses += [b for b in content if isinstance(b, Mapping) and b.get("type") == "tool_use"]
+    return uses
+
+
+def trajectory(
+    events: Sequence[Mapping[str, object]], withheld_markers: Sequence[str] = ()
+) -> dict[str, object]:
+    """Trajectory evidence of one run, kept apart from its output correctness (issue #6814).
+
+    `bash_commands` lists what the agent ran, `test_commands` the subset that ran
+    a test suite, `permission_denials` the tool calls the harness refused, and
+    `withheld_marker_hits` every tool call whose input names a withheld marker
+    (a hidden check path, the fix commit, the fix PR): a non-empty list means the
+    agent may have seen withheld evidence.
+    """
+    uses = _tool_uses(events)
+    commands = [
+        str(tool_input.get("command", ""))
+        for use in uses
+        if use.get("name") == "Bash" and isinstance(tool_input := use.get("input"), Mapping)
+    ]
+    denials: object = None
+    for event in events:
+        if event.get("type") == "result":
+            denials = event.get("permission_denials")
+    hits = sorted(
+        {
+            f"{use.get('name')}: {marker}"
+            for use in uses
+            for marker in withheld_markers
+            if marker and marker in json.dumps(use.get("input"), default=str)
+        }
+    )
+    return {
+        "tool_calls": len(uses),
+        "bash_commands": commands,
+        "test_commands": [c for c in commands if any(m in c for m in _TEST_COMMAND_MARKERS)],
+        "permission_denials": len(denials) if isinstance(denials, list) else None,
+        "withheld_marker_hits": hits,
+    }
