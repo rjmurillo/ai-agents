@@ -119,23 +119,39 @@ def _write_outputs(
             handle.write(report)
 
 
-def _strict_note(args: argparse.Namespace) -> str:
+def _advisory_note(event: str | None, ref: str | None) -> str:
     return (
-        f"\nAdvisory run ({args.event} on {args.ref}): only a push to "
+        f"\nAdvisory run ({event} on {ref}): only a push to "
         f"`{ENFORCED_REF}` fails on a duration regression.\n"
     )
 
 
-def _policy_note(policy: consecutive_breach.Policy) -> str:
+def _report_note(
+    args: argparse.Namespace, policy: consecutive_breach.Policy, regressed: int
+) -> str:
+    """The closing line of the markdown report, naming why a regression may not fail."""
+    if not regressed:
+        return ""
+    if policy.name == consecutive_breach.POLICY_STRICT:
+        return "" if is_enforced(args.event, args.ref) else _advisory_note(args.event, args.ref)
     if policy.mode == consecutive_breach.MODE_CONSECUTIVE:
         return (
             f"\nPush to `{ENFORCED_REF}`: a regression fails the run only when the same "
             "name also regressed on the previous main run (issue #6796).\n"
         )
-    return (
-        f"\nAdvisory run ({policy.event} on {policy.ref}): only a push to "
-        f"`{ENFORCED_REF}` fails on a duration regression.\n"
+    return _advisory_note(policy.event, policy.ref)
+
+
+def _strict_verdict(args: argparse.Namespace, regressed: int) -> int:
+    """The pre-policy contract: any regression fails an enforced run (issue #6244)."""
+    if not regressed or is_enforced(args.event, args.ref):
+        return 1 if regressed else 0
+    print(
+        f"duration: advisory on event={args.event} ref={args.ref}; only a push to "
+        f"{ENFORCED_REF} fails on a regression",
+        file=sys.stderr,
     )
+    return 0
 
 
 def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.Policy) -> int:
@@ -186,21 +202,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = duration_render.render_markdown(snapshot, history, comparison, args.top, note)
     regressions = duration_render.regressions_of(comparison)
     regressed = len(regressions)
-    if policy.name == consecutive_breach.POLICY_STRICT:
-        advisory = bool(regressed) and not is_enforced(args.event, args.ref)
-        report += _strict_note(args) if advisory else ""
-    else:
-        advisory = False
-        report += _policy_note(policy) if regressed else ""
+    report += _report_note(args, policy, regressed)
     try:
         _write_outputs(args, snapshot, history, report)
     except OSError as exc:
         print(f"::error title=Test duration report::could not write output: {exc}")
         return 3
     print(report)
-    if policy.name == consecutive_breach.POLICY_STRICT:
-        for line in duration_render.warning_commands(comparison):
-            print(line)
     print(
         f"duration: {regressed} regressions in {comparison.comparable} comparable "
         f"modules, {len(snapshot.modules)} modules measured",
@@ -208,14 +216,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if policy.name != consecutive_breach.POLICY_STRICT:
         return _apply_policy(regressions, policy)
-    if not advisory:
-        return 1 if regressed else 0
-    print(
-        f"duration: advisory on event={args.event} ref={args.ref}; only a push to "
-        f"{ENFORCED_REF} fails on a regression",
-        file=sys.stderr,
-    )
-    return 0
+    for line in duration_render.warning_commands(comparison):
+        print(line)
+    return _strict_verdict(args, regressed)
 
 
 if __name__ == "__main__":
