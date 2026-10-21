@@ -95,6 +95,10 @@ def _api(
     return FakeApi(routes)
 
 
+def _out(tmp_path: Path) -> Path:
+    return tmp_path / "out" / cb.RECORD_FILE
+
+
 def _policy(tmp_path: Path, event: str = "push", ref: str = cb.MAIN_REF) -> cb.Policy:
     return cb.Policy(
         name=cb.POLICY_CONSECUTIVE,
@@ -104,7 +108,7 @@ def _policy(tmp_path: Path, event: str = "push", ref: str = cb.MAIN_REF) -> cb.P
         sha="deadbeef",
         repository=REPO,
         workflow=WORKFLOW,
-        record_out=tmp_path / "out" / cb.RECORD_FILE,
+        record_out=_out(tmp_path),
     )
 
 
@@ -149,7 +153,7 @@ class TestMainRuns:
     ) -> None:
         policy = _policy(tmp_path)
         _apply(policy, _api([]))
-        written = json.loads(policy.record_out.read_text(encoding="utf-8"))  # type: ignore[union-attr]
+        written = json.loads(_out(tmp_path).read_text(encoding="utf-8"))
         assert written == {
             "schema": 1,
             "gate": GATE,
@@ -164,17 +168,17 @@ class TestMainRuns:
         verdict = _apply(policy, api, {})
         assert verdict == cb.Verdict()
         assert api.calls == []
-        assert json.loads(policy.record_out.read_text(encoding="utf-8"))["breached"] == []  # type: ignore[union-attr]
+        assert json.loads(_out(tmp_path).read_text(encoding="utf-8"))["breached"] == []
 
     def test_the_record_is_written_when_the_gate_fails(self, tmp_path: Path) -> None:
         policy = _policy(tmp_path)
         assert _apply(policy, _api(["m.py"])).failing == ("m.py",)
-        assert policy.record_out.exists()  # type: ignore[union-attr]
+        assert _out(tmp_path).exists()
 
     def test_the_record_round_trips_through_the_parser(self, tmp_path: Path) -> None:
         policy = _policy(tmp_path)
         _apply(policy, _api([]), {"b.py": "1", "a.py": "2"})
-        parsed = cb.parse_record(policy.record_out.read_bytes(), GATE)  # type: ignore[union-attr]
+        parsed = cb.parse_record(_out(tmp_path).read_bytes(), GATE)
         assert parsed.breached == ("a.py", "b.py")
 
 
@@ -345,7 +349,7 @@ class TestPullRequestsAndOtherEvents:
         assert verdict.failing == ()
         assert verdict.warning == ("m.py",)
         assert api.calls == []
-        assert not policy.record_out.exists()  # type: ignore[union-attr]
+        assert not _out(tmp_path).exists()
         assert "::warning" in capsys.readouterr().out
 
     def test_a_pull_request_with_no_breach_prints_nothing(
