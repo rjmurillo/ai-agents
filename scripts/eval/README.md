@@ -1457,8 +1457,9 @@ Without one the run exits 4 before a process starts. It then reads
 `<cli> --version` for every planned harness and exits 2 unless each equals the
 capability matrix pin, because every result row stamps that pin as its harness
 version. It reads the version again before every row: a CLI that auto-updates
-mid-run stops the run, and that row and every later row are written `NOT_RUN`
-with the reason. The live backend runs one
+between rows stops the run, and that row and every later row are written
+`NOT_RUN` with the reason. An update during a row is caught at the next row, so
+at most one row can carry a stale label. The live backend runs one
 harness process per invocation, one at a time, so fan-out workers never overlap.
 Each planned row gets a fresh scratch copy of its scenario. Codex invocations
 read the backend's own model and effort from its response frames; Copilot

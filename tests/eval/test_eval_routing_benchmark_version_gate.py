@@ -227,12 +227,15 @@ def test_drift_mid_run_writes_that_row_and_every_later_row_not_run_and_exits_2(
     tmp_path: Path,
     scripted_live: type[ScriptedLive],
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     probe = _install(monkeypatch, _codex_drifts_after(5, drifting))
     output = tmp_path / "results.jsonl"
 
     exit_code = cli.main(_live_args(verified, small_config, output))
 
+    err = capsys.readouterr().err
+    assert err.count("live run stopped at") == 1 and DRIFTED in err
     lines = _lines(output)
     cut = [line for line in lines if line["status"] == "NOT_RUN"]
     ran = [line for line in lines if line["status"] != "NOT_RUN"]
@@ -290,7 +293,14 @@ def test_probe_failure_mid_run_writes_not_run_rows_and_exits_3(
     assert cut and all("version probe failed" in line["reason"] for line in cut)
 
 
-def test_a_drift_stop_exit_code_wins_over_an_earlier_row_failure(
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [(_codex_drifts_after(5), cli.EXIT_CONFIG), (_probe_fails_after(5), cli.EXIT_HARNESS_FAILURE)],
+    ids=["drift", "probe-failure"],
+)
+def test_a_version_stop_exit_code_wins_over_an_earlier_row_failure(
+    answer: Callable[[str, int], str],
+    expected: int,
     verified: Path,
     small_config: Path,
     tmp_path: Path,
@@ -299,14 +309,14 @@ def test_a_drift_stop_exit_code_wins_over_an_earlier_row_failure(
 ) -> None:
     down = {"failure": result_mod.FailureKind.HARNESS, "failure_detail": "exit code 1"}
     scripted_live.script = backend_mod.Script(overrides={"role:orchestrator": down})
-    _install(monkeypatch, _codex_drifts_after(5))
+    _install(monkeypatch, answer)
     output = tmp_path / "results.jsonl"
 
     exit_code = cli.main(_live_args(verified, small_config, output))
 
     statuses = {line["status"] for line in _lines(output)}
     assert statuses == {"HARNESS_FAILED", "NOT_RUN"}
-    assert exit_code == cli.EXIT_CONFIG
+    assert exit_code == expected
 
 
 def test_after_the_budget_is_spent_no_further_probe_runs(

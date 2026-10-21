@@ -12,8 +12,10 @@ a backend exists or a process starts. `require_pinned_versions` raises
 `VersionDriftError` on a version mismatch; `installed_version` raises
 `VersionProbeError` when `<cli> --version` cannot be read. The CLI checks the
 versions before the run and again before every row, because a CLI auto-update
-during a long run would otherwise mislabel every later row. None of these gates
-falls back to a dry run or to a different harness. Credential names come from
+during a long run would otherwise mislabel every later row. An update that lands
+while a row runs is caught at the next row, so at most that one row carries the
+pin without having run on it. None of these gates falls back to a dry run or to
+a different harness. Credential names come from
 `_runtime_harness.HARNESS_AUTH_ENV`, the same allowlist the runtime isolation
 uses, minus the provider settings that are not secrets.
 
@@ -83,7 +85,7 @@ _NON_CREDENTIAL_ENV = frozenset(
 )
 _SANDBOX_LABEL = {"codex": "codex:-s workspace-write", "copilot": "copilot:--allow-all-tools"}
 
-VERSION_PROBE_TIMEOUT_SECONDS = 60.0
+VERSION_PROBE_TIMEOUT_SECONDS = 15.0
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 VersionProbe = Callable[[str], str]
@@ -96,7 +98,7 @@ class LiveGateError(RuntimeError):
 class VersionGateError(RuntimeError):
     """A live run may not spend on this harness CLI. `exit_code` follows AGENTS.md."""
 
-    exit_code = 1
+    exit_code: int
 
 
 class VersionDriftError(VersionGateError):

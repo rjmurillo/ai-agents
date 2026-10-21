@@ -17,8 +17,8 @@ starts, and it never falls back to the dry run's output as a result. It then
 reads `<cli> --version` for every planned harness and refuses unless each one
 equals the capability matrix pin, because every result row stamps that pin as
 its harness version. It reads the version again before every row, so a CLI that
-auto-updates mid-run stops the run: that row and every later row are written
-`NOT_RUN` with the reason.
+auto-updates between rows stops the run: that row and every later row are written
+`NOT_RUN` with the reason. An update during a row is caught at the next row.
 
 Exit codes (AGENTS.md): 0 the plan holds at least one planned combination, or a
 live run finished with no harness failure. 1 nothing is plannable, or the plan
@@ -180,6 +180,7 @@ def _run_live(
                         require_pinned_versions({row.harness: row.harness_version}, probe)
                 except VersionGateError as exc:
                     stop = exc
+                    print(f"error: live run stopped at {row.scenario_id}, {exc}", file=sys.stderr)
                 if spent_out:
                     item = _not_run(row, repetition, "invocation budget spent")
                 elif stop is not None:
