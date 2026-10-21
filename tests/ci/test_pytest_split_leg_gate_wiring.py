@@ -1,4 +1,8 @@
-"""The 480 s leg gate is blocking: it runs in a job the required check needs."""
+"""The 480 s leg gate runs in a job the required check needs.
+
+On main it fails that job after two consecutive breaches; pull requests only warn
+(issue #6751). tests/test_duration_gate_check_consecutive.py pins the policy flags.
+"""
 
 from __future__ import annotations
 

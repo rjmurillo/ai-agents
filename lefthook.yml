@@ -226,7 +226,7 @@ pre-commit:
           - name: agents-write-targets
             timeout: 2m
             run: uv run --frozen python scripts/validation/check_agents_write_targets.py
-            glob: "**/*.{md,py,ps1,psm1,sh,yml,yaml,json,toml,txt}"
+            glob: "**/*.{md,py,sh,yml,yaml,json,toml,txt}"
 
           - name: planning-advisory
             timeout: 5m
@@ -250,7 +250,7 @@ pre-commit:
           - name: taste-advisory
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py taste {staged_files}
-            glob: "**/*.{py,ps1,psm1,sh,bash,yml,yaml,md,json}"
+            glob: "**/*.{py,sh,bash,yml,yaml,md,json}"
             skip:
               - merge
 

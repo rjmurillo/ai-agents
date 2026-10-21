@@ -58,7 +58,6 @@ jobs:
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
-          enable-pester: false
           enable-git-hooks: false
 
       # Exits 1 on an unresolved edge: an omitted edge and a verified one would
@@ -118,7 +117,6 @@ jobs:
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
-          enable-pester: false
           enable-git-hooks: false
 
       # Reports, and exits 1 on a difference: a legitimate verifier change reports

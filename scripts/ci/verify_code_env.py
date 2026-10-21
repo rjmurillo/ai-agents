@@ -25,7 +25,7 @@ _MODULE_NAME = re.compile(r"\A[A-Za-z][A-Za-z0-9-]*\Z")
 _HEADER = "=== Setup Verification ==="
 _COMPLETE = (
     "[PASS] Setup complete. Development tools ready: Node.js, markdownlint-cli2, "
-    "Python (if enabled), GitHub CLI (if available), Pester (if enabled), "
+    "Python (if enabled), GitHub CLI (if available), "
     "git hooks (if configured)."
 )
 
@@ -76,7 +76,7 @@ def _module_version(name: str) -> str | None:
     return version or None
 
 
-def report_tools(*, python: bool, pester: bool) -> None:
+def report_tools(*, python: bool) -> None:
     """Print the availability report. Nothing here can fail the job."""
     if shutil.which("npx") is not None:
         print("[PASS] npx is available")
@@ -96,11 +96,6 @@ def report_tools(*, python: bool, pester: bool) -> None:
         if shutil.which("pytest") is not None:
             print("[PASS] pytest is available for Python testing")
 
-    if pester:
-        pester_version = _module_version("Pester")
-        if pester_version:
-            print(f"[PASS] Pester {pester_version} is installed")
-
     yaml_version = _module_version("powershell-yaml")
     if yaml_version:
         print(f"[PASS] powershell-yaml {yaml_version} is installed")
@@ -115,7 +110,6 @@ def main(argv: list[str] | None = None) -> int:
 
     git_hooks = _enabled("ENABLE_GIT_HOOKS")
     python = _enabled("ENABLE_PYTHON")
-    pester = _enabled("ENABLE_PESTER")
 
     print("")
     print(_HEADER)
@@ -129,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"SKIP_AUTOFIX: {autofix} (0=enabled, 1=disabled)")
     print("")
 
-    report_tools(python=python, pester=pester)
+    report_tools(python=python)
 
     print("")
     print(_COMPLETE)

@@ -100,14 +100,14 @@ def test_the_credential_file_flag_no_longer_exists(tmp_path: Path) -> None:
 def test_record_rows_skips_blank_lines(tmp_path: Path) -> None:
     path = tmp_path / "records.jsonl"
     path.write_text('\n{"task_id": "a", "repeat": 0}\n   \n', encoding="utf-8")
-    assert list(cli._record_rows(path)) == [{"task_id": "a", "repeat": 0}]
+    assert list(cli.batch.record_rows(path)) == [{"task_id": "a", "repeat": 0}]
 
 
 def test_record_rows_refuses_malformed_json_with_the_line_number(tmp_path: Path) -> None:
     path = tmp_path / "records.jsonl"
     path.write_text('{"task_id": "a"}\n{oops\n', encoding="utf-8")
     with pytest.raises(ablation_tasks.ControlAblationConfigError, match="line 2"):
-        list(cli._record_rows(path))
+        list(cli.batch.record_rows(path))
 
 
 def test_full_control_context_bytes_counts_raw_file_bytes(
@@ -130,7 +130,7 @@ def test_default_workspace_root_is_created_private_and_outside_the_repo(
     # The default root comes from `tempfile.mkdtemp`, which follows TMPDIR.
     # Pin it so the result does not depend on where the operator's TMPDIR sits.
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
-    root = cli._resolve_workspace_root(None)
+    root = cli.batch.resolve_workspace_root(None)
     try:
         assert root.is_dir()
         assert root.stat().st_mode & 0o777 == 0o700

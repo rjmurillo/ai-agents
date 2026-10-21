@@ -17,7 +17,7 @@ status: active
 
 **Excludes**:
 
-- `.claude/skills/**/*.Tests.ps1` - Pester test files (see testing-approach.md)
+- `.claude/skills/**/*.Tests.ps1` - Pester test files (see pester-testing.md)
 
 ## Pre-Flight Checks
 
@@ -94,7 +94,7 @@ See `.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md` an
 - Python scripts: pytest tests in `tests/` directory.
 - PowerShell scripts: Pester tests co-located with scripts.
 - Target: 80% code coverage minimum.
-- See `testing-approach.md` steering for Pester conventions.
+- See `pester-testing.md` steering for Pester conventions.
 
 ### Scope Control
 

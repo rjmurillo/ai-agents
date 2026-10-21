@@ -1,0 +1,93 @@
+diff --git a/scripts/eval/_cli_credential_sources.py b/scripts/eval/_cli_credential_sources.py
+index 9b0c1df..3929273 100644
+--- a/scripts/eval/_cli_credential_sources.py
++++ b/scripts/eval/_cli_credential_sources.py
+@@ -160,7 +160,9 @@ def _probe_env(environ: Mapping[str, str]) -> dict[str, str]:
+     return {name: value for name in _PROBE_ENV_NAMES if (value := environ.get(name))}
+ 
+ 
+-def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
++def _probe_output(
++    argv: list[str], environ: Mapping[str, str], *, include_stderr: bool = False
++) -> str | None:
+     try:
+         completed = subprocess.run(
+             argv,
+@@ -175,7 +177,12 @@ def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
+         )
+     except (OSError, subprocess.SubprocessError):
+         return None
+-    return completed.stdout or "" if completed.returncode == 0 else None
++    if completed.returncode != 0:
++        return None
++    output = completed.stdout or ""
++    if include_stderr:
++        output = f"{output}\n{completed.stderr or ''}"
++    return output
+ 
+ 
+ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+@@ -194,7 +201,8 @@ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+ 
+ def codex_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
+     """True when `codex login status` reports the ChatGPT plan login."""
+-    output = _probe_output([executable, "login", "status"], environ)
++    # The real CLI writes this status line to stderr, so match across both streams.
++    output = _probe_output([executable, "login", "status"], environ, include_stderr=True)
+     if output is None:
+         return False
+     return any(line.strip() == "Logged in using ChatGPT" for line in output.splitlines())
+diff --git a/tests/eval/test_cli_credential_sources.py b/tests/eval/test_cli_credential_sources.py
+index 1d90aaf..29c8b58 100644
+--- a/tests/eval/test_cli_credential_sources.py
++++ b/tests/eval/test_cli_credential_sources.py
+@@ -112,15 +112,22 @@ class TestCodexDisk:
+ 
+ 
+ class _FakeRun:
+-    def __init__(self, stdout: str = "", returncode: int = 0, error: BaseException | None = None):
++    def __init__(
++        self,
++        stdout: str = "",
++        returncode: int = 0,
++        error: BaseException | None = None,
++        stderr: str = "",
++    ):
+         self.stdout, self.returncode, self.error = stdout, returncode, error
++        self.stderr = stderr
+         self.calls: list[tuple[list[str], dict[str, Any]]] = []
+ 
+     def __call__(self, argv: list[str], **kwargs: Any) -> Any:
+         self.calls.append((argv, kwargs))
+         if self.error is not None:
+             raise self.error
+-        return subprocess.CompletedProcess(argv, self.returncode, self.stdout, "")
++        return subprocess.CompletedProcess(argv, self.returncode, self.stdout, self.stderr)
+ 
+ 
+ class TestCopilotDisk:
+@@ -205,6 +212,24 @@ class TestLoginProbes:
+         self._probe(monkeypatch, error=OSError())
+         assert not src.codex_login_probe("codex", {})
+ 
++    def test_codex_reads_the_status_line_from_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        self._probe(monkeypatch, stderr="Logged in using ChatGPT\n")
++        assert src.codex_login_probe("codex", {})
++
++        self._probe(monkeypatch, stderr="Logged in using an API key\n")
++        assert not src.codex_login_probe("codex", {})
++
++        self._probe(monkeypatch, returncode=1, stderr="Logged in using ChatGPT\n")
++        assert not src.codex_login_probe("codex", {})
++
++    def test_claude_ignores_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        self._probe(
++            monkeypatch,
++            stdout=json.dumps({"loggedIn": True, "authMethod": "claude.ai"}),
++            stderr="warning: noise",
++        )
++        assert src.claude_login_probe("claude", {})
++
+     def test_copilot_reads_the_last_logged_in_user(self, tmp_path: Path) -> None:
+         body = (
+             '// managed file\n{"lastLoggedInUser": {"host": "https://github.com", "login": "me"}}\n'

@@ -8,8 +8,8 @@ The previous version of this document specified a Pester `*.Tests.ps1` layout un
 
 - `git ls-files '*.ps1'` → 0 files.
 - `git ls-files '*.Tests.ps1'` → 0 files.
-- `git ls-files '*.psd1' '*.psm1'` → one file, [`.PSScriptAnalyzerSettings.psd1`](../../.PSScriptAnalyzerSettings.psd1), linter configuration for CodeQL/PSScriptAnalyzer static analysis (see [`.project-toolkit/security/benchmarks/README.md`](../../.project-toolkit/security/benchmarks/README.md)), not a production or test script.
-- Every workflow under `.github/workflows/` that has a Pester toggle sets `enable-pester: false` (12 occurrences, `grep -rn enable-pester .github/workflows/`). No workflow invokes `Invoke-Pester`.
+- `git ls-files '*.psd1' '*.psm1'` → 0 files.
+- The `setup-code-env` action has no Pester input, and no workflow sets one (`grep -rn enable-pester .github/workflows/` → 0 matches). No workflow invokes `Invoke-Pester`.
 
 Per [`.claude/rules/universal.md`](../../.claude/rules/universal.md) MUST NOT 9, this is an absence claim scoped to the searches above; a PowerShell test file reintroduced later would need its own placement rule, not a revert of this one.
 
@@ -26,7 +26,6 @@ ai-agents/
   .project-toolkit/security/benchmarks/    # second sanctioned test location (security-agent evidence)
   packages/ai-agents-cli/tests/   # live bun/TS suite, unrelated tree
   evals/                          # held-out agent-vs-baseline spikes, NOT pytest input
-  .PSScriptAnalyzerSettings.psd1  # linter config, not a script or test
 ```
 
 Source: `pyproject.toml` `[tool.pytest.ini_options]`. Counts are measurements of a commit, not permanent facts; re-derive with `git ls-files 'tests/**/test_*.py' | wc -l` (629 when this section was written) rather than quoting a number from here.
