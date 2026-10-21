@@ -93,12 +93,22 @@ class LiveGateError(RuntimeError):
     """A live run was requested without the credentials it needs."""
 
 
-class VersionDriftError(RuntimeError):
+class VersionGateError(RuntimeError):
+    """A live run may not spend on this harness CLI. `exit_code` follows AGENTS.md."""
+
+    exit_code = 1
+
+
+class VersionDriftError(VersionGateError):
     """The installed harness CLI is not the version the capability matrix pins."""
 
+    exit_code = 2
 
-class VersionProbeError(RuntimeError):
+
+class VersionProbeError(VersionGateError):
     """The installed harness CLI version could not be read."""
+
+    exit_code = 3
 
 
 class BudgetExhaustedError(RuntimeError):
