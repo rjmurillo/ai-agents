@@ -31,7 +31,7 @@ WORKFLOW = "pytest.yml"
 GATE = "demo-gate"
 RUNS_URL = (
     f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs"
-    "?event=push&branch=main&status=completed&per_page=30&page=1"
+    "?event=push&branch=main&status=completed&per_page=100&page=1"
 )
 
 
@@ -221,6 +221,22 @@ class TestFailClosed:
         monkeypatch.setattr(cb.zipfile.ZipFile, "read", boom)
         assert _apply(_policy(tmp_path), _api(["m.py"])).failing == ("m.py",)
 
+    def test_a_record_naming_another_run_fails_the_gate(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        api = _api(["m.py"], archive=_zip(_record(["m.py"], run_id=85)))
+        assert _apply(_policy(tmp_path), api).failing == ("m.py",)
+        assert "record names run 85, not the selected run 90" in capsys.readouterr().out
+
+    def test_an_unwritable_record_still_prints_the_verdict_first(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        policy = _policy(tmp_path)
+        (tmp_path / "out").write_text("a file where the directory belongs", encoding="utf-8")
+        with pytest.raises(OSError):
+            _apply(policy, _api(["m.py"]))
+        assert "::error title=demo-gate::m.py" in capsys.readouterr().out
+
     def test_an_api_failure_fails_the_gate(self, tmp_path: Path) -> None:
         api = FakeApi({RUNS_URL: cb.PriorStateError("gh api failed: HTTP 502")})
         assert _apply(_policy(tmp_path), api).failing == ("m.py",)
@@ -272,7 +288,7 @@ class TestPreviousRunSelection:
         newer = [_run(1000 + i) for i in range(cb.RUNS_PER_PAGE)]
         api = _api(["m.py"])
         api.routes[RUNS_URL] = json.dumps({"workflow_runs": newer}).encode()
-        api.routes[RUNS_URL.replace("page=1", "page=2")] = json.dumps(
+        api.routes[RUNS_URL.replace("&page=1", "&page=2")] = json.dumps(
             {"workflow_runs": [_run(90)]}
         ).encode()
         lookup = cb.find_previous_record(
@@ -284,7 +300,7 @@ class TestPreviousRunSelection:
     def test_it_gives_up_after_the_page_cap_and_fails_closed(self) -> None:
         full = json.dumps({"workflow_runs": [_run(1000 + i) for i in range(cb.RUNS_PER_PAGE)]})
         routes: dict[str, bytes | Exception] = {
-            RUNS_URL.replace("page=1", f"page={n}"): full.encode()
+            RUNS_URL.replace("&page=1", f"&page={n}"): full.encode()
             for n in range(1, cb.MAX_RUN_PAGES + 1)
         }
         lookup = cb.find_previous_record(
@@ -292,7 +308,7 @@ class TestPreviousRunSelection:
         )
         assert not lookup.known
         assert lookup.breached("anything")
-        assert "within 5 pages" in lookup.reason
+        assert "within 2 pages" in lookup.reason
 
     def test_a_non_integer_or_non_dict_run_entry_is_skipped(self, tmp_path: Path) -> None:
         runs: list[Any] = ["junk", {"id": True, "head_branch": "main", "event": "push"}, _run(90)]
@@ -459,6 +475,10 @@ class TestPolicyFlags:
             cb.apply_policy(GATE, {}, policy, FakeApi({}))
 
 
+def _no_sleep(_seconds: float) -> None:
+    return None
+
+
 class TestGhFetch:
     def test_it_returns_stdout_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         seen: list[list[str]] = []
@@ -468,7 +488,7 @@ class TestGhFetch:
             return subprocess.CompletedProcess(cmd, 0, b"body", b"")
 
         monkeypatch.setattr(cb.subprocess, "run", fake_run)
-        assert cb.gh_fetch("repos/x") == b"body"
+        assert cb.gh_fetch("repos/x", sleep=_no_sleep) == b"body"
         assert seen == [["gh", "api", "repos/x"]]
 
     def test_a_nonzero_exit_raises_with_the_last_stderr_line(
@@ -479,7 +499,7 @@ class TestGhFetch:
 
         monkeypatch.setattr(cb.subprocess, "run", fake_run)
         with pytest.raises(cb.PriorStateError, match="HTTP 403"):
-            cb.gh_fetch("repos/x")
+            cb.gh_fetch("repos/x", sleep=_no_sleep)
 
     def test_a_nonzero_exit_with_no_stderr_still_raises(
         self, monkeypatch: pytest.MonkeyPatch
@@ -490,7 +510,7 @@ class TestGhFetch:
             lambda cmd, **_kw: subprocess.CompletedProcess(cmd, 1, b"", b""),
         )
         with pytest.raises(cb.PriorStateError, match="no output"):
-            cb.gh_fetch("repos/x")
+            cb.gh_fetch("repos/x", sleep=_no_sleep)
 
     @pytest.mark.parametrize(
         "exc", [FileNotFoundError("gh"), subprocess.TimeoutExpired(["gh"], 1.0)]
@@ -503,4 +523,30 @@ class TestGhFetch:
 
         monkeypatch.setattr(cb.subprocess, "run", boom)
         with pytest.raises(cb.PriorStateError, match="did not run"):
-            cb.gh_fetch("repos/x")
+            cb.gh_fetch("repos/x", sleep=_no_sleep)
+
+    def test_a_transient_failure_is_retried_then_succeeds(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        results = [(1, b"", b"HTTP 502"), (1, b"", b"HTTP 502"), (0, b"ok", b"")]
+        naps: list[float] = []
+
+        def fake_run(cmd: list[str], **_kw: Any) -> subprocess.CompletedProcess[bytes]:
+            code, out, err = results.pop(0)
+            return subprocess.CompletedProcess(cmd, code, out, err)
+
+        monkeypatch.setattr(cb.subprocess, "run", fake_run)
+        assert cb.gh_fetch("repos/x", sleep=naps.append) == b"ok"
+        assert naps == [2.0, 4.0]
+
+    def test_it_gives_up_after_the_attempt_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(cmd: list[str], **_kw: Any) -> subprocess.CompletedProcess[bytes]:
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 1, b"", b"HTTP 502")
+
+        monkeypatch.setattr(cb.subprocess, "run", fake_run)
+        with pytest.raises(cb.PriorStateError, match="HTTP 502"):
+            cb.gh_fetch("repos/x", sleep=_no_sleep)
+        assert len(calls) == cb.FETCH_ATTEMPTS

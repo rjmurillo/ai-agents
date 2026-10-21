@@ -31,12 +31,15 @@ import io
 import json
 import os
 import subprocess
+import time
 import zipfile
 import zlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
+
+from scripts.testing.duration_render import escape_command_data
 
 _T = TypeVar("_T")
 
@@ -47,11 +50,13 @@ MAIN_BRANCH = "main"
 MAIN_REF = f"refs/heads/{MAIN_BRANCH}"
 ENFORCED_EVENT = "push"
 
-RUNS_PER_PAGE = 30
-MAX_RUN_PAGES = 5
+RUNS_PER_PAGE = 100
+MAX_RUN_PAGES = 2
 MAX_ZIP_BYTES = 1024 * 1024
 MAX_RECORD_BYTES = 256 * 1024
 FETCH_TIMEOUT_SECONDS = 30.0
+FETCH_ATTEMPTS = 3
+FETCH_BACKOFF_SECONDS = 2.0
 
 POLICY_STRICT = "strict"
 POLICY_CONSECUTIVE = "consecutive-main"
@@ -138,11 +143,28 @@ class PriorLookup:
 _NO_LOOKUP = PriorLookup(None, "no lookup was made")
 
 
-def gh_fetch(endpoint: str, timeout: float = FETCH_TIMEOUT_SECONDS) -> bytes:
+def gh_fetch(
+    endpoint: str,
+    timeout: float = FETCH_TIMEOUT_SECONDS,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bytes:
     """Read a GitHub REST endpoint through ``gh api``, which follows redirects.
 
-    Fixed argument list, no shell. ``GH_TOKEN`` carries the workflow token.
+    Fixed argument list, no shell. ``GH_TOKEN`` carries the workflow token. A
+    502 or a rate-limit blip would turn a first breach into a red main, so a
+    failed call is tried ``FETCH_ATTEMPTS`` times with a short backoff first.
     """
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            return _gh_once(endpoint, timeout)
+        except PriorStateError:
+            if attempt == FETCH_ATTEMPTS:
+                raise
+            sleep(FETCH_BACKOFF_SECONDS * attempt)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _gh_once(endpoint: str, timeout: float) -> bytes:
     try:
         result = subprocess.run(
             ["gh", "api", endpoint],
@@ -245,6 +267,8 @@ def find_previous_record(
     try:
         run_id = _previous_run_id(fetch, repository, workflow, current_run_id)
         record = parse_record(_record_bytes(fetch, repository, run_id, gate), gate)
+        if record.run_id != run_id:
+            raise ValueError(f"record names run {record.run_id}, not the selected run {run_id}")
     except (
         PriorStateError,
         ValueError,
@@ -291,15 +315,11 @@ class Verdict:
     warning: tuple[str, ...] = ()
 
 
-def _escape(value: str) -> str:
-    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-
-
 def annotation(level: str, title: str, message: str) -> str:
     """One GitHub Actions workflow command line."""
     # A property value also ends at ":" and ",", which the message does not.
-    prop = _escape(title).replace(":", "%3A").replace(",", "%2C")
-    return f"::{level} title={prop}::{_escape(message)}"
+    prop = escape_command_data(title).replace(":", "%3A").replace(",", "%2C")
+    return f"::{level} title={prop}::{escape_command_data(message)}"
 
 
 def apply_policy(
@@ -335,8 +355,6 @@ def apply_policy(
             failing.append(key)
         else:
             warning.append(key)
-    if mode == MODE_CONSECUTIVE:
-        _write_record(policy, gate, keys)
     # Strict mode is the pre-policy contract: the caller's own stderr lines
     # report the overrun, so no workflow annotation is added.
     if mode != MODE_STRICT:
@@ -344,6 +362,9 @@ def apply_policy(
             print(annotation("warning", label, _warning_text(key, breaches[key], mode)))
         for key in failing:
             print(annotation("error", label, _failure_text(key, breaches[key], lookup)))
+    # After the annotations, so an unwritable record never hides a real breach.
+    if mode == MODE_CONSECUTIVE:
+        _write_record(policy, gate, keys)
     return Verdict(tuple(failing), tuple(warning))
 
 
