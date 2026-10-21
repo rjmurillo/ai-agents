@@ -116,8 +116,9 @@ pilots, there was no cold penalty left to measure (see Exclusions).
 
 ## Failed repetitions
 
-Each fixture commit is a one-line change that passes every check, so every
-failure below is a gate failing on a clean change.
+Each fixture commit is a one-line change that passes every check when run on
+its own, so no failure below comes from the diff. Why each gate failed is not
+known: the sampler keeps job timings, not job output.
 
 | Hook | Class | Capture | Repetition | Exit | Wall (s) | Load before | Failed job (seconds) |
 |---|---|---|---|---|---|---|---|
@@ -127,18 +128,29 @@ failure below is a gate failing on a clean change.
 | pre-push | workflows | main | 8 | 1 | 90.3 | 1.05 | `count-ratchets` (86.3) |
 | pre-push | workflows | main | 15 | 1 | 89.6 | 0.95 | `count-ratchets` (85.1) |
 
-5 of 70 pre-push runs failed, all in the workflows class main capture, which
-ran first. All 7 top-up repetitions of that cell passed. The
-sampler keeps job timings, not job output, so the failure messages were not
-captured. Whether the class content or the time of the run caused the
-clustering is not established.
+All 5 failures are in one cell: 5 of 28 pre-push workflows runs (21 main plus
+7 top-up), against 0 of 42 pre-push runs in the other two classes. All 5 fell
+in the main capture, which ran first; all 7 top-up runs passed. Whether the
+class content or the time of the run caused the clustering is not
+established, so this record gives no pooled failure rate.
+
+Repetitions run back to back, so a killed run leaves its load on the next
+one. Four repetitions of that cell started under load above 2: rep 3
+(7.16, then failed), rep 6 (8.02), rep 9 (6.60), and rep 16 (4.52). Rep 3's
+failure may be that spillover rather than a gate defect. Rep 6 is the
+cell's 396.6s maximum. Without reps 6, 9 and 16 the cell is n=17, p50 355.1s,
+p95 373.3s, max 373.3s, so the spillover moved the maximum and nothing else.
+The other two pre-push cells had no start above 2.
 
 ## What the numbers say
 
 **`count-ratchets` runs at its own deadline.**
 `scripts/validation/checks_ratchet.py:177` sets an 85s aggregate deadline under
 the 90s lefthook cap (`lefthook.yml:543`). Across the 60 complete warm pre-push
-repetitions, the job measured p50 72.5s, p95 80.5s, and max 82.8s. Four runs crossed 85s and failed the push. The module's own comment
+repetitions, the job measured p50 72.5s, p95 80.5s, and max 82.8s. Those
+figures are censored: the job was killed at its deadline in 4 of 66 warm
+attempts, and a killed run has no finishing time, so its true tail runs to
+85s and beyond. Read the 1.1x headroom below as an upper bound. The module's own comment
 records this failure mode under load average 6.2 and says it is "not
 eliminated". Here it fired with the 1-minute load near 1.0 before each run.
 The readings taken when those four runs stopped, about 90s in, were 4.52 to
@@ -151,7 +163,10 @@ reasons unrelated to the change.
 
 **Pre-push misses ADR-104's 300s target in every class.** Warm p95 is 350.3s
 to 373.3s. ADR-104's re-evaluation trigger, "a real push measures the pre-push
-hook above 300s", fired on this box. The v0.7.0 record measured 124.56s median
+hook above 300s", fired on this box. These are fixture pushes on one
+container with `workflow-local-run` degraded, not a developer's push, and
+ADR-104 names a maintainer comment on #5315 as the mechanism; that comment is
+the owner's call. The v0.7.0 record measured 124.56s median
 for the markdown class on 2026-09-16, also on a 4-CPU container. Hook
 composition changed between the two SHAs, so the ratio says nothing about any
 single job.
@@ -179,7 +194,13 @@ slowest:
 | Generated Artifact Staleness | 11.9 | pre-commit `generate-agents` family |
 
 Its warm p50 sits next to the `PRE_PR_OUTER_CAP_SECONDS=240` run budget that
-`lefthook.yml` declares for it. The headroom wait is not the cause: in the
+`lefthook.yml` declares for it. That budget does not stop the run: it only
+clamps the deadline of the Generated Artifact Staleness gate
+(`scripts/validation/check_generated_staleness.py:84`), which reports
+EXTERNAL instead of starting when too little time is left, and every other
+gate runs to completion. So the 240s figure measures the gates, not the cap.
+Whether the one `pre-pr-validation` failure (rep 3, 268.7s) was that gate is
+unknown. The headroom wait is not the cause: in the
 diagnostic run only semgrep waited for host headroom, 15.0s at load 4.8.
 
 **Pre-commit is one job.** `agents-write-targets` runs on any staged file
@@ -194,10 +215,9 @@ Python commits also pay `subprocess-encoding` (15.3s), which runs again inside
 
 ## Proposed budgets, not enforced
 
-Derived from the warm p95 above, with one caveat stated first: warm figures
-count passing repetitions only. 5 of 70 pre-push runs failed on a clean change
-(one of them after 388.2s at load 7.16), so a push on this box also carries
-about a 7 percent chance of failing for no reason in the diff, and the
+Each row states its basis; not every figure comes from p95. One caveat first:
+warm figures count passing repetitions only, and 5 of 28 pre-push workflows
+runs failed with no cause in the diff (0 of 42 in the other classes), so the
 ceiling below is a floor for a loaded push, not a bound on one. These are
 proposals for the owner, not caps:
 `ci-scripts.md` MUST-16 and ADR-104 both say a cap sized on an idle run is a
@@ -206,10 +226,11 @@ cap a loaded push can exceed. Nothing here changes a `timeout:`.
 | Hook | Measured p95 | Proposed ceiling | Proposed target | Basis |
 |---|---|---|---|---|
 | pre-commit | 35.5s | 60s (ADR-104, unchanged) | 10s, conditional | The ceiling keeps 1.7x headroom over the worst class's p95. The target is not a p95 figure: it assumes the two scans (`agents-write-targets`, `subprocess-encoding`) leave the commit path in slice 3. Outside them no job's p50 exceeds 2s, but their p50s are not additive (most share one parallel group), so the target holds only if a re-measure after slice 3 confirms it. |
-| pre-push | 373.3s | 400s, regression tripwire | 300s (ADR-104, unchanged) | Max-based, not p95-based: 400s sits just above the worst warm run observed (396.6s, 1.06 times the p95), so any regression past today's worst shows. It is not a revised target; ADR-104 rule 5 says a check that exceeds its tier's target is replaced, not given a raised target. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
+| pre-push | 373.3s | 400s, regression tripwire | 300s (ADR-104, unchanged) | Max-based, not p95-based: 400s sits above the worst warm run that started on a quiet box (383.4s, python) and the worst overall (396.6s, which started at load 8.02 after a killed run), so a regression past today's worst shows. A max-of-20 tripwire also trips by chance about once in 21 runs of an unchanged hook, so one trip is a prompt to re-measure, not proof of a regression. It is not a revised target; ADR-104 rule 5 says a check that exceeds its tier's target is replaced, not given a raised target. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
 
-Per-job headroom over warm p95, from the same runs: `count-ratchets` 1.1x
-(85s deadline), `python-unreachable-statements` 1.7x (90s),
+Per-job headroom is the cap over the job's warm p95 pooled across the three
+pre-push classes (or pre-commit classes for `agents-write-targets`):
+`count-ratchets` 1.1x at most (85s deadline, censored as above), `python-unreachable-statements` 1.7x (90s),
 `pre-pr-validation` 2.0x (9m cap), `agents-write-targets` 4.0x (2m),
 `zero-collection-tests` 5.0x (4m), `path-normalization` 5.2x (90s). The first
 two are the ones a loaded push will kill.

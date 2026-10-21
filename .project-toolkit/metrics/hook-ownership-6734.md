@@ -50,11 +50,13 @@ removing the local run removes the enforcement.
 | Hook | Jobs | Unscoped | guard | writer | CI-owned | local only | advisory |
 |---|---|---|---|---|---|---|---|
 | pre-commit | 47 | 6 | 5 | 12 | 3 | 22 | 5 |
-| pre-push | 27 | 17 | 6 | 0 | 2 | 14 | 5 |
+| pre-push | 27 | 17 | 6 | 0 | 1 | 15 | 5 |
 
 "Unscoped" means no `glob`, no `{staged_files}` or `{push_files}`, and no
-`use_stdin`. The five CI-owned jobs are `python-format`, `workflow-validation`,
-`context-output-check`, `python-tests`, and `zero-collection-tests`.
+`use_stdin`. The four CI-owned jobs are `python-format`, `workflow-validation`,
+`context-output-check`, and `zero-collection-tests`. `python-tests` is local
+only by the same rule: CI runs the full suite, which covers more, but the
+hook runs a testmon selection, so the modes differ.
 
 ## Checks retained at more than one boundary
 
@@ -78,7 +80,7 @@ removing the local run removes the enforcement.
   it is absent (`evidence.py` `default_pre_pr_policy`), and `pr-validation.yml`
   keeps actionlint out of CI on purpose. On a host without actionlint, which
   includes this container, no boundary runs it.
-- **36 jobs are local only, and 20 of those have no CI twin at all.** A
+- **37 jobs are local only, and 20 of those have no CI twin at all.** A
   contributor who commits without hooks skips them. That is the existing
   design, and this record does not change it. It is why slice 4 needs a proven
   CI twin before it moves anything.
@@ -163,7 +165,7 @@ not match. Kinds and owners follow the rules above.
 | `pre-pr-validation` | unscoped | 251.6 / 231.5 / 241.0 | local only | pre-push | none (no workflow runs `pre_pr.py`) | Aggregate of 115 gates, run in sequence; on a push, 5 defer to the pre-push job that already ran them. |
 | `worktree-gc-report` | unscoped | 1.1 / 1.2 / 1.3 | advisory | pre-push | none | Reports local worktree state; never blocks. |
 | `branch-config-prune-report` | unscoped | 0.5 / 0.6 / 0.6 | advisory | pre-push | none | Reports local branch config; never blocks. |
-| `python-tests` | unscoped | 30.3 / 15.2 / 15.3 | CI-owned | required CI | pytest partitions in Run Python Tests (required; full suite) | CI runs the full suite; the hook runs a testmon selection. |
+| `python-tests` | unscoped | 30.3 / 15.2 / 15.3 | local only | pre-push | pytest partitions in Run Python Tests (required; full suite, different mode) | The hook runs a testmon selection and CI the full suite, so the modes differ; CI covers more, but equivalence by this table's rule is unproven. |
 | `zero-collection-tests` | unscoped | 42.4 / 42.6 / 44.0 | CI-owned | required CI | zero-collection guard in Run Python Tests (required; same script) | Same script, no path filter. |
 | `python-lint-advisory` | glob, push_files | - / 0.4 / - | advisory | pre-push | ruff ratchet in Run Python Tests (different script) | Findings exit 0; tool errors block. |
 | `python-type-check` | glob, push_files | - / 0.8 / - | local only | pre-push | mypy ratchet in Run Python Tests (required; different script) | Also re-run inside `pre-pr-validation`; equivalence unproven. |

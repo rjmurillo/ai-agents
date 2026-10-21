@@ -86,6 +86,7 @@ The baseline is the metric. Proof it works: every passing repetition reports `jo
 7. Each ownership row shall name exactly one owner boundary. Each job retained at more than one boundary shall state why.
 8. The change shall not modify `lefthook.yml` or any file under `.github/workflows/`.
 9. The baseline shall propose budgets derived from the measured p95. It shall not enforce them.
+   Outcome note: the pre-commit ceiling is anchored to p95 (1.7x). The pre-push 400s figure ended max-based, a regression tripwire, because a p95-based ceiling would sit below runs already observed; the record states that basis per row.
 
 ## Out of scope
 
