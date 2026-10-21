@@ -241,13 +241,13 @@ def test_sol_ultra_backend_effort_is_max_not_the_literal_ultra_request() -> None
 
 
 def test_sol_ultra_catalog_lists_ultra_for_gpt_6_sol_and_not_gpt_6_luna() -> None:
-    """`models-catalog.json` is the real codex-cli 0.156.0 catalog: it names
+    """`models-catalog.json` is the real codex-cli 0.163.0 catalog: it names
 
     the exact models `sol-6-ultra.trace.log` requested, `gpt-6-sol` and
     `gpt-6-luna`, directly (`grep -n '"slug"' models-catalog.json` lists
-    `gpt-6-sol, gpt-6-astra, gpt-6-luna, gpt-reserve, gpt-5.6-sol,
-    gpt-5.6-terra, gpt-5.6-luna, gpt-5.5, codex-auto-review`), so this test
-    asserts the matrix's `sol_ultra` claim against those exact slugs.
+    `gpt-6.1-sol, gpt-6-astra, gpt-6-sol, gpt-6-luna, gpt-reserve,
+    gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, codex-auto-review`), so this
+    test asserts the matrix's `sol_ultra` claim against those exact slugs.
     """
     catalog = json.loads((CODEX_FIXTURES / "models-catalog.json").read_text(encoding="utf-8"))
     by_slug = {entry["slug"]: entry for entry in catalog["models"]}
