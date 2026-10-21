@@ -637,7 +637,11 @@ jobs:
       # reads GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_RUN_ID, GITHUB_SHA and
       # GITHUB_REPOSITORY itself. A main run writes the record file this step
       # names; the upload step below publishes it for the next main run.
+      # !cancelled() keeps the step running when Combine coverage data or the
+      # coverage upload failed, so that run still records its verdict instead
+      # of failing the next one closed.
       - name: Enforce the slow-test budget (issue 5382)
+        if: "!cancelled()"
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-

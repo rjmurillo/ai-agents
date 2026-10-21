@@ -179,15 +179,32 @@ class TestTheWorkflowWiring:
         job = self._coverage_job()
         assert job["permissions"] == {"contents": "read", "actions": "read"}
 
-    def test_the_gate_step_passes_the_policy_and_a_token_and_cannot_be_skipped(self) -> None:
+    def test_the_gate_step_passes_the_policy_and_a_token(self) -> None:
         steps = self._coverage_job()["steps"]
         gate = next(s for s in steps if "slow_test_budget.py" in str(s.get("run", "")))
-        assert "if" not in gate
         assert gate["env"] == {"GH_TOKEN": "${{ github.token }}"}
         run = " ".join(gate["run"].split())
         assert "--breach-policy consecutive-main" in run
         assert "--workflow pytest.yml" in run
         assert "--breach-record-out breach-records/slow-test-budget/breach-record.json" in run
+
+    def test_a_failed_coverage_step_does_not_skip_the_gate_and_lose_its_record(self) -> None:
+        # The default success() would skip this step when Combine coverage data
+        # or the coverage upload before it fails, so no record is written and
+        # the next main breach fails closed.
+        steps = self._coverage_job()["steps"]
+        gate = next(s for s in steps if "slow_test_budget.py" in str(s.get("run", "")))
+        assert gate["if"] == "!cancelled()"
+
+    def test_the_gate_is_not_gated_on_success_of_an_earlier_step(self) -> None:
+        # Negative: a condition that names success(), a step outcome, or a
+        # status of an earlier step would bring the skip back.
+        steps = self._coverage_job()["steps"]
+        gate = next(s for s in steps if "slow_test_budget.py" in str(s.get("run", "")))
+        condition = str(gate["if"])
+        assert "success()" not in condition
+        assert "steps." not in condition
+        assert "outcome" not in condition
 
     def test_the_upload_publishes_the_record_the_lookup_reads(self) -> None:
         steps = self._coverage_job()["steps"]
