@@ -212,9 +212,11 @@ class TestMain:
     ) -> None:
         _env(monkeypatch, "push", cb.MAIN_REF)
         _previous(monkeypatch, [])
-        assert trend.main(_argv(tmp_path, "push", cb.MAIN_REF)) == 0
+        snap = tmp_path / "snap.json"
+        assert trend.main(_argv(tmp_path, "push", cb.MAIN_REF, "--snapshot-out", str(snap))) == 0
         record = json.loads((tmp_path / "rec" / cb.RECORD_FILE).read_text(encoding="utf-8"))
         assert record["head_sha"] == "deadbeef"
+        assert json.loads(snap.read_text(encoding="utf-8"))["sha"] == "deadbeef"
 
     def test_an_explicit_sha_wins_over_the_environment(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -229,7 +231,9 @@ class TestMain:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         calls = _previous(monkeypatch, [])
-        argv = _argv(tmp_path, "push", cb.MAIN_REF)[:7]
+        report = write_junit(tmp_path, "p", {"tests.test_alpha": [20.0, 20.0]}, 40.0)
+        history = write_history(tmp_path, [10.0, 12.0])
+        argv = [str(report), "--history", str(history), "--event", "push", "--ref", cb.MAIN_REF]
         assert trend.main(argv) == 1
         assert calls == []
 
@@ -253,7 +257,9 @@ class TestMain:
         argv = _argv(tmp_path, "push", cb.MAIN_REF, "--write-history", str(out))
         assert trend.main(argv) == 3
         assert out.exists()
-        assert "could not write the breach record" in capsys.readouterr().out
+        assert "::error title=Test duration trend::could not write the breach record" in (
+            capsys.readouterr().out
+        )
 
 
 class TestTheWorkflowWiring:

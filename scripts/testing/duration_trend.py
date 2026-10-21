@@ -27,8 +27,9 @@ different module each run. The regression of a module (or the suite) then fails
 a push to main only when the same name also regressed on the previous completed
 main run (``scripts/ci/consecutive_breach.py``). A first regression on main
 warns and is recorded; an unknown previous run counts as a regression. Every
-other event or ref warns. The default policy, ``strict``, keeps the contract
-above.
+other event or ref warns. The policy reads the event and ref from ``--event``
+and ``--ref``, else from GITHUB_EVENT_NAME and GITHUB_REF, and exits 2 when
+either is missing. The default policy, ``strict``, keeps the contract above.
 
 Exit codes: 0 ok (no regression, no baseline yet, or an advisory run), 1 logic
 (a regression on an enforced run, or no test records), 2 config (bad arguments,
@@ -169,7 +170,11 @@ def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.
             GATE, breaches, policy, title="Test duration trend"
         )
     except OSError as exc:
-        print(f"::error title=Test duration trend::could not write the breach record: {exc}")
+        print(
+            consecutive_breach.annotation(
+                "error", "Test duration trend", f"could not write the breach record: {exc}"
+            )
+        )
         return 3
     if policy.mode == consecutive_breach.MODE_ADVISORY and regressions:
         _print_advisory(policy.event, policy.ref)
@@ -187,7 +192,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"bad breach policy: {exc}", file=sys.stderr)
         return 2
     try:
-        snapshot = build_snapshot(args.inputs, args.sha or "unknown", datetime.now(UTC))
+        snapshot = build_snapshot(args.inputs, args.sha or policy.sha, datetime.now(UTC))
     except (OSError, ET.ParseError) as exc:
         print(f"could not read input: {exc}", file=sys.stderr)
         return 3
