@@ -64,9 +64,9 @@ def _install(monkeypatch: pytest.MonkeyPatch, answer: Callable[[str, int], str])
     return probe
 
 
-def _codex_drifts_after(calls: int) -> Callable[[str, int], str]:
+def _codex_drifts_after(calls: int, drifting: str = "codex") -> Callable[[str, int], str]:
     def answer(harness: str, index: int) -> str:
-        if harness == "codex" and index > calls:
+        if harness == drifting and index > calls:
             return DRIFTED
         return PINS[harness]
 
@@ -187,6 +187,17 @@ def test_no_probe_runs_when_the_credential_gate_refuses(
     assert exit_code == cli.EXIT_AUTH and probe.calls == []
 
 
+def test_the_dry_run_never_probes_a_version(
+    verified: Path, small_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(harness: str) -> str:
+        raise AssertionError(f"dry run probed {harness}")
+
+    monkeypatch.setattr(cli, "installed_version", forbidden)
+
+    assert cli.main(["--matrix", str(verified), "--config", str(small_config)]) == cli.EXIT_OK
+
+
 # --- during the run --------------------------------------------------------
 
 
@@ -208,14 +219,16 @@ def test_matching_versions_probe_once_per_harness_then_once_per_row(
     assert probe.calls[2:] == [line["harness"]["name"] for line in lines]
 
 
+@pytest.mark.parametrize("drifting", ["codex", "copilot"])
 def test_drift_mid_run_writes_that_row_and_every_later_row_not_run_and_exits_2(
+    drifting: str,
     verified: Path,
     small_config: Path,
     tmp_path: Path,
     scripted_live: type[ScriptedLive],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    probe = _install(monkeypatch, _codex_drifts_after(5))
+    probe = _install(monkeypatch, _codex_drifts_after(5, drifting))
     output = tmp_path / "results.jsonl"
 
     exit_code = cli.main(_live_args(verified, small_config, output))
@@ -225,9 +238,39 @@ def test_drift_mid_run_writes_that_row_and_every_later_row_not_run_and_exits_2(
     ran = [line for line in lines if line["status"] != "NOT_RUN"]
     assert exit_code == cli.EXIT_CONFIG and len(lines) == ROWS
     assert ran and cut and lines.index(cut[0]) == len(ran)
-    assert all(DRIFTED in line["reason"] for line in cut)
+    assert cut[0]["harness"] == drifting
+    assert all(DRIFTED in line["reason"] and drifting in line["reason"] for line in cut)
     assert len(scripted_live.created) == len(ran)
     assert len(probe.calls) == 2 + len(ran) + 1
+
+
+@pytest.mark.parametrize(
+    ("drift_after", "cut_repetitions"),
+    [(5, {1, 2}), (2 + ROWS + 3, {2})],
+    ids=["stop-in-repetition-1-carries-into-2", "drift-first-seen-in-repetition-2"],
+)
+def test_a_drift_stop_covers_every_later_repetition(
+    drift_after: int,
+    cut_repetitions: set[int],
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _install(monkeypatch, _codex_drifts_after(drift_after))
+    output = tmp_path / "results.jsonl"
+    args = [*_live_args(verified, small_config, output), "--repetitions", "2"]
+
+    exit_code = cli.main(args)
+
+    lines = _lines(output)
+    cut = [line for line in lines if line["status"] == "NOT_RUN"]
+    assert exit_code == cli.EXIT_CONFIG and len(lines) == 2 * ROWS
+    assert cut and lines.index(cut[0]) == len(lines) - len(cut)
+    assert {line["repetition"] for line in cut} == cut_repetitions
+    assert all(line["repetition"] == 2 for line in lines[ROWS:])
+    assert len(probe.calls) == 2 + (len(lines) - len(cut)) + 1
 
 
 def test_probe_failure_mid_run_writes_not_run_rows_and_exits_3(
