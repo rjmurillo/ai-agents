@@ -8,6 +8,7 @@ Issue #6239 acceptance criteria covered here:
 from __future__ import annotations
 
 import pytest
+from pytest_split.algorithms import Algorithms
 
 from scripts.ci import run_pytest_partition as mod
 
@@ -34,7 +35,7 @@ def test_split_group_flags(index: int) -> None:
     args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
     assert _flag_value(args, "--splits") == "5"
     assert _flag_value(args, "--group") == str(index)
-    assert _flag_value(args, "--splitting-algorithm") == "duration_based_chunks"
+    assert _flag_value(args, "--splitting-algorithm") == "least_duration"
     assert _flag_value(args, "--durations-path") == f"artifacts/durations-split-{index}.json"
     assert args[-1] == "tests/"
 
@@ -74,3 +75,39 @@ def test_dedicated_legs_run_only_their_files() -> None:
     assert mod._PARTITION_FULL_ARGS["pr-autofix"] == [
         "tests/test_pr_autofix_late_live_state_gate.py"
     ]
+
+
+class _Item:
+    """The one attribute pytest-split reads from a collected item."""
+
+    def __init__(self, nodeid: str) -> None:
+        self.nodeid = nodeid
+
+    def __str__(self) -> str:
+        return self.nodeid
+
+
+def test_adjacent_slow_tests_land_on_different_legs() -> None:
+    """Issue #6828: slow tests that sort together must not share one leg.
+
+    Mirrors the tests/ci/ cluster: three long tests side by side, then many
+    short ones. Contiguous chunks put all three on split-1 and pushed it past
+    the job timeout. The configured algorithm must spread them out.
+    """
+    slow = {"tests/ci/test_a.py::t": 180.0, "tests/ci/test_b.py::t": 116.0}
+    slow["tests/ci/test_c.py::t"] = 71.0
+    fast = {f"tests/z/test_{i:03}.py::t": 2.0 for i in range(400)}
+    durations = {**slow, **fast}
+    items = [_Item(node_id) for node_id in durations]
+
+    groups = Algorithms[mod.SPLITTING_ALGORITHM].value(mod.SPLIT_COUNT, items, durations)
+
+    homes = {
+        index
+        for index, group in enumerate(groups)
+        for item in group.selected
+        if item.nodeid in slow
+    }
+    assert len(homes) == len(slow)
+    totals = [group.duration for group in groups]
+    assert max(totals) - min(totals) <= max(slow.values())
