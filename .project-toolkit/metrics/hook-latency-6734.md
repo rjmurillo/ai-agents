@@ -206,7 +206,7 @@ cap a loaded push can exceed. Nothing here changes a `timeout:`.
 | Hook | Measured p95 | Proposed ceiling | Proposed target | Basis |
 |---|---|---|---|---|
 | pre-commit | 35.5s | 60s (ADR-104, unchanged) | 10s, conditional | The ceiling keeps 1.7x headroom over the worst class's p95. The target is not a p95 figure: it assumes the two scans (`agents-write-targets`, `subprocess-encoding`) leave the commit path in slice 3. Outside them no job's p50 exceeds 2s, but their p50s are not additive (most share one parallel group), so the target holds only if a re-measure after slice 3 confirms it. |
-| pre-push | 373.3s | 400s, regression tripwire | 300s (ADR-104, unchanged) | Max-based, not p95-based: 400s sits just above the worst warm run observed (396.6s, 1.07 times the p95), so any regression past today's worst shows. It is not a revised target; ADR-104 rule 5 says a check that exceeds its tier's target is replaced, not given a raised target. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
+| pre-push | 373.3s | 400s, regression tripwire | 300s (ADR-104, unchanged) | Max-based, not p95-based: 400s sits just above the worst warm run observed (396.6s, 1.06 times the p95), so any regression past today's worst shows. It is not a revised target; ADR-104 rule 5 says a check that exceeds its tier's target is replaced, not given a raised target. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
 
 Per-job headroom over warm p95, from the same runs: `count-ratchets` 1.1x
 (85s deadline), `python-unreachable-statements` 1.7x (90s),
