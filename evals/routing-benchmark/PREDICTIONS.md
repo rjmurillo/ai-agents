@@ -165,12 +165,12 @@ only "Complete this requirement in the working tree" and never named the legal
 change surface. The failure came from the prompt, not from an arm, so it could
 not separate arms.
 
-Reporting. The runs in `results-2026-10-03/` used the old prompt. They are
+Reporting. The 21 runs in `results-2026-10-03/` used the old prompt. They are
 reported separately and are never pooled with runs made after this amendment.
 They do not count toward the evidence floor in the decision rules. Every run
 after this amendment uses the amended prompt.
 
-Count correction (2026-10-21). The text first said "The 21 runs". The 21 is
+Count correction (2026-10-21). The sentence above says "The 21 runs". The 21 is
 completed invocations (`results-2026-10-03/README.md`). The directory holds 36
 rows, of which 4 were scored and 32 were `HARNESS_FAILED`. No rule changes.
 
