@@ -53,6 +53,9 @@ override-dependencies = [
 
 [tool.uv.exclude-newer-package]
 anthropic = false
+# PYSEC-2026-4320 affects certifi 2026.7.22 and is fixed in 2026.10.19. The
+# 7-day cooldown holds the fix, so opt this package out like cryptography.
+certifi = false
 click = false
 # CVE-2026-69247 affects cryptography 49.0.0 and is fixed in 50.0.0. The
 # 7-day cooldown held the vulnerable release, so opt this package out to make
