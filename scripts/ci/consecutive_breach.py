@@ -403,7 +403,7 @@ def add_policy_arguments(
     ``--event``, ``--ref`` and ``--sha`` on the duration trend, names them in
     ``already_defined`` so argparse does not see a duplicate.
     """
-    group = parser.add_argument_group("breach policy (issues #6757, #6796)")
+    group = parser.add_argument_group("breach policy (issues #6757, #6796, #6751)")
     group.add_argument(
         "--breach-policy",
         choices=POLICIES,

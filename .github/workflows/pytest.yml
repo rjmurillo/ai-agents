@@ -726,7 +726,8 @@ jobs:
   # any other event or ref, such as a pull request or merge queue run, the
   # script exits 0, because a non-required red check still blocks the merge
   # tool (#6244). A leg slower than 480 s (80 percent of the test job timeout)
-  # fails the coverage job instead, which the required check depends on. The
+  # warns on a pull request and fails the coverage job on main only after two
+  # main runs in a row (issue #6751); the required check depends on that job. The
   # history rides in the
   # Actions cache, saved only from pushes to main, so a pull request reads the
   # main baseline and never writes it. ADR-015 caps artifact retention at
