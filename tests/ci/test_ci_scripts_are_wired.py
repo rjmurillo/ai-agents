@@ -97,10 +97,11 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
     ),
     "consecutive_breach.py": (
         "Library holding the consecutive-main breach policy. "
-        "scripts/testing/slow_test_budget.py and scripts/testing/duration_trend.py "
-        "import it and pytest.yml runs both scripts. It has no main() and no "
-        "shebang; tests/test_consecutive_breach.py and "
-        "tests/test_consecutive_breach_io.py cover it directly (issues #6757, #6796)."
+        "scripts/testing/slow_test_budget.py, scripts/testing/duration_trend.py and "
+        "scripts/testing/duration_gate_check.py import it and pytest.yml runs all "
+        "three scripts. It has no main() and no shebang; "
+        "tests/test_consecutive_breach.py and tests/test_consecutive_breach_io.py "
+        "cover it directly (issues #6757, #6796, #6751)."
     ),
     "lefthook_budget_model.py": (
         "Library holding the lefthook scheduling model shared by "
