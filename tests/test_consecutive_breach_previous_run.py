@@ -85,45 +85,46 @@ class Timeline:
     def __call__(self, endpoint: str) -> bytes:
         self.calls.append(endpoint)
         self.now += self.latency
-        if self.tick >= 1:
-            if endpoint in self.fail_exact:
-                raise self.fail_exact[endpoint]
-            for needle, exc in self.fail.items():
-                if needle in endpoint:
-                    raise exc
+        self._maybe_fail(endpoint)
         if endpoint in self.raw:
             return self.raw[endpoint]
         if "/workflows/" in endpoint:
-            listing = []
-            for run_id in sorted(self.runs, reverse=True):
-                entry: dict[str, Any] = {
-                    "id": run_id,
-                    "head_branch": "main",
-                    "event": "push",
-                }
-                status = self._status(run_id)
-                if status is not None:
-                    entry["status"] = status
-                if "status=completed" in endpoint and status != "completed":
-                    continue
-                listing.append(entry)
-            return json.dumps({"workflow_runs": listing}).encode()
+            return self._run_listing(endpoint)
         parts = endpoint.split("?")[0].split("/")
         if parts[-2] == "runs":
-            run_id = int(parts[-1])
-            status = self._status(run_id)
+            status = self._status(int(parts[-1]))
             return json.dumps({} if status is None else {"status": status}).encode()
         if parts[-1] == "artifacts":
-            run_id = int(parts[-2])
-            found = (
-                [{"id": run_id, "name": NAME, "expired": False}] if self._visible(run_id) else []
-            )
-            return json.dumps({"artifacts": found}).encode()
+            return self._artifact_listing(int(parts[-2]))
         if parts[-1] == "zip":
             run_id = int(parts[-2])
-            breached = self.runs[run_id]["breached"]
-            return _zip(_record(breached, run_id))
+            return _zip(_record(self.runs[run_id]["breached"], run_id))
         raise AssertionError(f"unexpected endpoint {endpoint}")
+
+    def _maybe_fail(self, endpoint: str) -> None:
+        if self.tick < 1:
+            return
+        if endpoint in self.fail_exact:
+            raise self.fail_exact[endpoint]
+        for needle, exc in self.fail.items():
+            if needle in endpoint:
+                raise exc
+
+    def _run_listing(self, endpoint: str) -> bytes:
+        listing = []
+        for run_id in sorted(self.runs, reverse=True):
+            status = self._status(run_id)
+            if "status=completed" in endpoint and status != "completed":
+                continue
+            entry: dict[str, Any] = {"id": run_id, "head_branch": "main", "event": "push"}
+            if status is not None:
+                entry["status"] = status
+            listing.append(entry)
+        return json.dumps({"workflow_runs": listing}).encode()
+
+    def _artifact_listing(self, run_id: int) -> bytes:
+        found = [{"id": run_id, "name": NAME, "expired": False}] if self._visible(run_id) else []
+        return json.dumps({"artifacts": found}).encode()
 
 
 def _policy(tmp_path: Path) -> cb.Policy:

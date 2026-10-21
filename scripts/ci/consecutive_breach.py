@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size. Over 500 lines because of the lookup's wait loop and
+# the module docstring that states the policy. The lookup, the record schema and the
+# policy share one fail-closed contract; splitting them would scatter it across files.
 """Fail a single-sample timing gate only when main breaches twice in a row (issue #6757).
 
 A timing gate that reads one sample from a shared runner fails on noise. The
