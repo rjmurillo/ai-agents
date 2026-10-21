@@ -6,18 +6,26 @@ The owner decision for #6757, #6796 and #6751 is one policy for all three gates:
 
 * On a pull request the gate warns and never fails.
 * On a push to main the gate fails only when the same key breached on the
-  previous completed main run too. A first breach warns and is recorded.
+  immediately previous main run too. A first breach warns and is recorded.
 
-This module answers "did the previous completed main run of this workflow also
-breach <key>?". Each main run writes a small JSON breach record and uploads it
-as the artifact named by :func:`artifact_name`. The next main run lists the
-workflow's completed main push runs, takes the newest one before itself, and
-downloads that run's record through the GitHub REST API with the workflow token
-(``actions: read``).
+This module answers "did the previous main run of this workflow also breach
+<key>?". Each main run writes a small JSON breach record and uploads it as the
+artifact named by :func:`artifact_name`. The next main run lists the workflow's
+main push runs, takes the newest one before itself, and downloads that run's
+record through the GitHub REST API with the workflow token (``actions: read``).
+
+"Previous" ignores run status. A main run stays ``in_progress`` until the
+testmon-seed job ends, about 30 minutes, long after the gate jobs uploaded the
+record (about 10 minutes). Filtering to completed runs would skip the run right
+before this one whenever pushes land closer than that, and compare an older
+run. An artifact is downloadable as soon as its job uploads it, so the lookup
+reads the in-progress run's record. If the record is not uploaded yet, the
+lookup polls for up to ``WAIT_CAP_SECONDS`` and then fails closed.
 
 Unknown prior state fails closed. A missing run, a missing or expired artifact,
-a malformed record, or an API failure counts as "the previous run breached", so
-a real regression is not hidden behind a lookup problem. The reason is printed.
+a record still missing after the wait, a malformed record, or an API failure
+counts as "the previous run breached", so a real regression is not hidden
+behind a lookup problem. The reason is printed.
 
 A gate adopts the policy in three steps: collect its breaches as a key to detail
 mapping, call :func:`apply_policy`, and upload the record file that call writes.
@@ -58,6 +66,14 @@ FETCH_TIMEOUT_SECONDS = 30.0
 FETCH_ATTEMPTS = 3
 FETCH_BACKOFF_SECONDS = 2.0
 
+# Wait for a still-running previous run to upload its record. The gate jobs
+# that call this carry a 10 minute timeout and two gates can share a job, so
+# the cap stays well under half of that. The wait only happens when the current
+# run has a breach to judge and the previous run has not finished.
+WAIT_CAP_SECONDS = 180.0
+WAIT_POLL_SECONDS = 10.0
+PENDING_STATUSES = frozenset({"queued", "in_progress", "waiting", "requested", "pending"})
+
 POLICY_STRICT = "strict"
 POLICY_CONSECUTIVE = "consecutive-main"
 POLICIES = (POLICY_STRICT, POLICY_CONSECUTIVE)
@@ -72,6 +88,10 @@ Fetch = Callable[[str], bytes]
 
 class PriorStateError(RuntimeError):
     """The previous run's record could not be established."""
+
+
+class RecordNotUploadedError(PriorStateError):
+    """The previous run has no live record artifact (yet)."""
 
 
 def artifact_name(gate: str) -> str:
@@ -123,7 +143,7 @@ def parse_record(raw: bytes, gate: str) -> BreachRecord:
 
 @dataclass(frozen=True, slots=True)
 class PriorLookup:
-    """Outcome of looking up the previous completed main run.
+    """Outcome of looking up the previous main run.
 
     ``record`` is ``None`` when the prior state is unknown; ``reason`` says why.
     """
@@ -190,14 +210,20 @@ def _json_object(raw: bytes, what: str) -> dict[str, object]:
 def _runs_endpoint(repository: str, workflow: str, page: int) -> str:
     return (
         f"repos/{repository}/actions/workflows/{workflow}/runs"
-        f"?event={ENFORCED_EVENT}&branch={MAIN_BRANCH}&status=completed"
+        f"?event={ENFORCED_EVENT}&branch={MAIN_BRANCH}"
         f"&per_page={RUNS_PER_PAGE}&page={page}"
     )
 
 
-def _previous_run_id(fetch: Fetch, repository: str, workflow: str, current_run_id: int) -> int:
-    """Newest completed main push run older than ``current_run_id``."""
+def _previous_run(
+    fetch: Fetch, repository: str, workflow: str, current_run_id: int
+) -> tuple[int, str]:
+    """Newest main push run older than ``current_run_id``, whatever its status.
+
+    Returns the run id and its status (``""`` when the listing omits it).
+    """
     best: int | None = None
+    best_status = ""
     for page in range(1, MAX_RUN_PAGES + 1):
         body = _json_object(fetch(_runs_endpoint(repository, workflow, page)), "runs page")
         runs = body.get("workflow_runs")
@@ -215,13 +241,14 @@ def _previous_run_id(fetch: Fetch, repository: str, workflow: str, current_run_i
                 continue
             if best is None or run_id > best:
                 best = run_id
+                status = run.get("status")
+                best_status = status if isinstance(status, str) else ""
         if best is not None:
-            return best
+            return best, best_status
         if len(runs) < RUNS_PER_PAGE:
             break
     raise PriorStateError(
-        f"no completed main push run of {workflow} before run {current_run_id} "
-        f"within {MAX_RUN_PAGES} pages"
+        f"no main push run of {workflow} before run {current_run_id} within {MAX_RUN_PAGES} pages"
     )
 
 
@@ -240,7 +267,7 @@ def _record_bytes(fetch: Fetch, repository: str, run_id: int, gate: str) -> byte
         if isinstance(a, dict) and a.get("name") == name and not a.get("expired")
     ]
     if not live:
-        raise PriorStateError(f"run {run_id} has no live artifact named {name}")
+        raise RecordNotUploadedError(f"run {run_id} has no live artifact named {name}")
     artifact_id = live[0].get("id")
     if not isinstance(artifact_id, int) or isinstance(artifact_id, bool):
         raise ValueError("artifact id is not an integer")
@@ -256,17 +283,61 @@ def _record_bytes(fetch: Fetch, repository: str, run_id: int, gate: str) -> byte
         return zf.read(members[0])
 
 
+def _run_status(fetch: Fetch, repository: str, run_id: int) -> str:
+    body = _json_object(fetch(f"repos/{repository}/actions/runs/{run_id}"), "run")
+    status = body.get("status")
+    return status if isinstance(status, str) else ""
+
+
+def _record_bytes_waiting(
+    fetch: Fetch,
+    repository: str,
+    run_id: int,
+    gate: str,
+    status: str,
+    sleep: Callable[[float], None],
+) -> bytes:
+    """Read the record, polling while the run could still upload it.
+
+    A run that is not finished may not have reached its upload step. Each poll
+    reads the run status before the artifact list, so a run seen as finished
+    before a miss cannot upload afterward and the miss is final. The total
+    sleep stays within ``WAIT_CAP_SECONDS``.
+    """
+    waited = 0.0
+    while True:
+        try:
+            return _record_bytes(fetch, repository, run_id, gate)
+        except RecordNotUploadedError as exc:
+            if status not in PENDING_STATUSES:
+                raise
+            if waited + WAIT_POLL_SECONDS > WAIT_CAP_SECONDS:
+                raise RecordNotUploadedError(
+                    f"{exc} after waiting {waited:.0f}s while the run was {status}"
+                ) from exc
+            sleep(WAIT_POLL_SECONDS)
+            waited += WAIT_POLL_SECONDS
+            status = _run_status(fetch, repository, run_id)
+
+
 def find_previous_record(
-    fetch: Fetch, *, repository: str, workflow: str, gate: str, current_run_id: int
+    fetch: Fetch,
+    *,
+    repository: str,
+    workflow: str,
+    gate: str,
+    current_run_id: int,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> PriorLookup:
-    """Load the previous completed main run's breach record, never raising.
+    """Load the previous main run's breach record, never raising.
 
     Every expected failure becomes an unknown :class:`PriorLookup` whose
     ``breached`` answers True for every key.
     """
     try:
-        run_id = _previous_run_id(fetch, repository, workflow, current_run_id)
-        record = parse_record(_record_bytes(fetch, repository, run_id, gate), gate)
+        run_id, status = _previous_run(fetch, repository, workflow, current_run_id)
+        raw = _record_bytes_waiting(fetch, repository, run_id, gate, status, sleep)
+        record = parse_record(raw, gate)
         if record.run_id != run_id:
             raise ValueError(f"record names run {record.run_id}, not the selected run {run_id}")
     except (
@@ -329,6 +400,7 @@ def apply_policy(
     fetch: Fetch | None = None,
     *,
     title: str | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Verdict:
     """Decide and report. Writes the record on a main run, before returning.
 
@@ -347,6 +419,7 @@ def apply_policy(
             workflow=_required(policy.workflow, "workflow"),
             gate=gate,
             current_run_id=_required(policy.run_id, "run id"),
+            sleep=sleep,
         )
     failing: list[str] = []
     warning: list[str] = []

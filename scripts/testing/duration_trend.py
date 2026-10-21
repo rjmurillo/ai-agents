@@ -24,8 +24,8 @@ Passing only one of them makes the run advisory.
 ``--breach-policy consecutive-main`` applies the owner decision of issue #6796.
 One sample on a shared runner swings 2x to 4x, and the swing lands on a
 different module each run. The regression of a module (or the suite) then fails
-a push to main only when the same name also regressed on the previous completed
-main run (``scripts/ci/consecutive_breach.py``). A first regression on main
+a push to main only when the same name also regressed on the previous main
+run (``scripts/ci/consecutive_breach.py``). A first regression on main
 warns and is recorded; an unknown previous run counts as a regression. Every
 other event or ref warns. The policy reads the event and ref from ``--event``
 and ``--ref``, else from GITHUB_EVENT_NAME and GITHUB_REF, and exits 2 when

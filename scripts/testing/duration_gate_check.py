@@ -12,7 +12,7 @@ split-1 runs, so the limit sits below the job timeout (see
 By default any leg over the limit fails. ``--breach-policy consecutive-main``
 applies the owner decision of issue #6751: one sample on a shared runner swings
 too much to fail on, so a pull request only warns, and a push to main fails only
-when the previous completed main run also had a leg over the limit
+when the previous main run also had a leg over the limit
 (``scripts/ci/consecutive_breach.py``). A first breach on main warns and is
 recorded. Unknown prior state on main fails closed. The policy treats the run as
 the unit: legs trade places between runs, so "any leg over the limit" is one

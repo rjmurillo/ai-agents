@@ -13,7 +13,7 @@ not execute every suite, and the printed counts say which case a green run was.
 By default any overrun fails. ``--breach-policy consecutive-main`` applies the
 owner decision of issue #6757: one sample on a shared runner swings 3x, so an
 overrun only warns on a pull request, and on a push to main it fails only when
-the same module also overran on the previous completed main run
+the same module also overran on the previous main run
 (``scripts/ci/consecutive_breach.py``). A first overrun on main warns and is
 recorded; an unknown previous run counts as an overrun.
 
