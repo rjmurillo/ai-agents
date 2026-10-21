@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -170,9 +171,9 @@ class TestMain:
 
 
 class TestTheWorkflowWiring:
-    def _coverage_job(self) -> dict[str, object]:
+    def _coverage_job(self) -> Any:
         text = (REPO_ROOT / ".github/workflows/pytest.yml").read_text(encoding="utf-8")
-        return yaml.safe_load(text)["jobs"]["coverage"]  # type: ignore[no-any-return]
+        return yaml.safe_load(text)["jobs"]["coverage"]
 
     def test_the_job_may_read_the_previous_run(self) -> None:
         job = self._coverage_job()
@@ -180,7 +181,7 @@ class TestTheWorkflowWiring:
 
     def test_the_gate_step_passes_the_policy_and_a_token_and_cannot_be_skipped(self) -> None:
         steps = self._coverage_job()["steps"]
-        gate = next(s for s in steps if "slow_test_budget.py" in str(s.get("run", "")))  # type: ignore[union-attr]
+        gate = next(s for s in steps if "slow_test_budget.py" in str(s.get("run", "")))
         assert "if" not in gate
         assert gate["env"] == {"GH_TOKEN": "${{ github.token }}"}
         run = " ".join(gate["run"].split())
@@ -190,10 +191,10 @@ class TestTheWorkflowWiring:
 
     def test_the_upload_publishes_the_record_the_lookup_reads(self) -> None:
         steps = self._coverage_job()["steps"]
-        names = [s.get("name") for s in steps]  # type: ignore[union-attr]
-        upload = next(s for s in steps if s.get("name") == "Upload slow-test budget breach record")  # type: ignore[union-attr]
-        gate = next(s for s in steps if "slow_test_budget.py" in str(s.get("run", "")))  # type: ignore[union-attr]
-        assert names.index(upload["name"]) > steps.index(gate)  # type: ignore[union-attr]
+        names = [s.get("name") for s in steps]
+        upload = next(s for s in steps if s.get("name") == "Upload slow-test budget breach record")
+        gate = next(s for s in steps if "slow_test_budget.py" in str(s.get("run", "")))
+        assert names.index(upload["name"]) > steps.index(gate)
         assert upload["if"] == "always()"
         assert upload["with"]["name"] == cb.artifact_name(budget_gate.GATE)
         assert upload["with"]["path"] == "breach-records/slow-test-budget/"
