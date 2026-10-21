@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -121,3 +122,30 @@ def make_historical_document(repo: HistoryRepo, *tasks: dict[str, Any]) -> dict[
 def write_document(path: Path, document: dict[str, Any]) -> Path:
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
+
+
+def tool_use(name: str, **tool_input: object) -> dict[str, object]:
+    """One stream-json `tool_use` block."""
+    return {"type": "tool_use", "name": name, "input": tool_input}
+
+
+def history_tasks(repo: HistoryRepo) -> list[Any]:
+    """The default historical document's tasks, checks bound to this interpreter."""
+    import _control_ablation_history as history
+
+    document = make_historical_document(repo)
+    return history.load_historical_tasks(document, repo.root, sys.executable).tasks
+
+
+def live_args(repo: HistoryRepo, tmp_path: Path, *extra: str) -> list[str]:
+    """CLI args for a live run of the default historical document into `tmp_path`."""
+    tasks_file = write_document(tmp_path / "tasks.json", make_historical_document(repo))
+    return [
+        "--tasks",
+        str(tasks_file),
+        "--workspace-root",
+        str(tmp_path / "ws"),
+        "--output-dir",
+        str(tmp_path / "out"),
+        *extra,
+    ]
