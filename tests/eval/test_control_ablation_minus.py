@@ -471,3 +471,127 @@ def test_provenance_hashes_the_task_file_as_loaded_not_as_edited_mid_batch(
     assert cli.main(args, runner=runner) == cli.EXIT_OK
     report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
     assert report["provenance"]["tasks_file_sha256"] == loaded
+
+
+# ---------------------------------------------------------------------------
+# PR #6819 review fixes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("command", "runs_tests"),
+    [
+        ("python3 -m pytest tests -q", True),
+        ("cd w && python -m unittest tests.test_calc", True),
+        ("uv run --frozen pytest a.py", True),
+        ("python3 - <<'E'\nopen('t.py', 'w').write('import pytest')\nE", False),
+        ("python3 - <<'E'\nx = 1\nE\npython3 -m pytest t.py", True),
+        ("grep -n pytest tests/eval/t.py", False),
+    ],
+)
+def test_only_a_test_invocation_counts_as_a_test_command(command: str, runs_tests: bool) -> None:
+    assert claude_run.is_test_invocation(command) is runs_tests
+
+
+def test_a_withheld_marker_matches_a_raw_string_json_would_escape() -> None:
+    marker = "C:\\repo\\ai-agents"
+    events = [{"message": {"content": [_use("Read", file_path=f"{marker}\\x.py")]}}]
+
+    hits = claude_run.trajectory(events, [marker])["withheld_marker_hits"]
+
+    assert hits == [f"Read: {marker}"]
+
+
+def test_a_resumed_guard_starts_from_the_earlier_spend(tmp_path: Path) -> None:
+    (tmp_path / "records-full.jsonl").write_text(
+        json.dumps({"economics": {"model_cost_usd": 0.8}}) + "\n", encoding="utf-8"
+    )
+
+    guard = batch.SpendGuard.resumed(1.0, tmp_path)
+
+    assert guard.spent == 0.8
+    guard.add_record({"economics": {"model_cost_usd": 0.3}})
+    assert str(guard.blocked_reason()).startswith("spend cap reached")
+
+
+def test_a_resumed_guard_keeps_failed_launch_spend_from_the_earlier_report(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "report.json").write_text(
+        json.dumps({"spent_usd": 1.5, "spend_unmeasured": False}), encoding="utf-8"
+    )
+
+    assert batch.SpendGuard.resumed(1.0, tmp_path).spent == 1.5
+
+
+@pytest.mark.parametrize(
+    "report", ['{"spent_usd": 0.1, "spend_unmeasured": true}', "{not json", "[]"]
+)
+def test_a_resumed_guard_stays_blocked_on_unknown_earlier_spend(
+    tmp_path: Path, report: str
+) -> None:
+    (tmp_path / "report.json").write_text(report, encoding="utf-8")
+
+    assert "unmeasured" in str(batch.SpendGuard.resumed(25.0, tmp_path).blocked_reason())
+
+
+@pytest.mark.parametrize("cap", ["nan", "inf", "-1"])
+def test_a_non_finite_or_negative_spend_cap_refuses(
+    live_repo: HistoryRepo, tmp_path: Path, cap: str
+) -> None:
+    runner = FakeClaudeRunner(_tasks(live_repo))
+
+    code = cli.main(_live_args(live_repo, tmp_path, "--max-cost-usd", cap), runner=runner)
+
+    assert code == cli.EXIT_CONFIG
+    assert runner.calls == []
+
+
+def test_runner_state_counts_an_untracked_file_as_dirty(repo: HistoryRepo) -> None:
+    (repo.root / "new_module.py").write_text("x = 1\n", encoding="utf-8")
+
+    state = batch.runner_state(repo.root)
+
+    assert state["runner_tree_dirty"] is True
+    assert isinstance(state["runner_diff_sha256"], str)
+
+
+def test_secret_literals_include_a_forwarded_token_files_content(tmp_path: Path) -> None:
+    token = tmp_path / "token"
+    token.write_text("tok-SECRET-1234567890\n", encoding="utf-8")
+
+    literals = batch.secret_literals(["TOKEN_FILE"], {"TOKEN_FILE": str(token)})
+
+    assert "tok-SECRET-1234567890" in literals
+    assert str(token) in literals
+
+
+def test_redact_scrubs_literals_everywhere_and_keeps_commit_shas() -> None:
+    sha = "a" * 40
+    entry = {"reply": "cat tok-SECRET-1234567890", "t": {"cmds": [f"git show {sha}"]}}
+
+    scrubbed = batch.redact(entry, ["tok-SECRET-1234567890"])
+
+    assert "tok-SECRET" not in json.dumps(scrubbed)
+    assert sha in json.dumps(scrubbed)
+
+
+def test_a_forwarded_secret_echoed_by_the_agent_never_reaches_the_report(
+    live_repo: HistoryRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("EVAL_TEST_LOGIN", "tok-SECRET-1234567890")
+    fake = FakeClaudeRunner(_tasks(live_repo), reply="I ran echo tok-SECRET-1234567890")
+    args = _live_args(live_repo, tmp_path, "--controls", "full", "--pass-env", "EVAL_TEST_LOGIN")
+
+    assert cli.main(args, runner=fake) == cli.EXIT_OK
+
+    out = tmp_path / "out"
+    texts = [p.read_text(encoding="utf-8") for p in out.rglob("*") if p.is_file()]
+    assert texts and not any("tok-SECRET-1234567890" in text for text in texts)
+
+
+def test_a_dry_run_leaves_no_base_tree_behind(live_repo: HistoryRepo, tmp_path: Path) -> None:
+    code = cli.main(_live_args(live_repo, tmp_path, "--dry-run"))
+
+    assert code == cli.EXIT_OK
+    assert not list((tmp_path / "ws").glob("_base-*"))

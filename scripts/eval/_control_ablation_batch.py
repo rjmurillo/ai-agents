@@ -25,11 +25,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from _control_ablation import ControlFiles
+from _control_ablation import CONTROL_NAMES, ControlFiles, is_control_name
 from _control_ablation_history import TaskSource
 from _control_ablation_tasks import ControlAblationConfigError, Task
 from _run_changes import path_safe
 from _runtime_harness import require_isolated_workspace_root
+
+from scripts.redact_secrets import redact as redact_text
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -60,17 +62,35 @@ def _git_text(repo_root: Path, *args: str) -> str | None:
 
 
 def runner_state(repo_root: Path) -> dict[str, object]:
-    """The runner code's commit, and whether tracked files differed from it.
+    """The runner code's commit, and whether the checkout differed from it.
 
-    A dirty tree means the code that ran is not the named commit, so the diff's
-    hash is recorded too; `None` fields mean git could not say.
+    Dirty means a tracked change or an untracked file: either can change the
+    code that ran, so the named commit alone would not reproduce it. The hash
+    covers the tracked diff plus each untracked file's path and bytes. `None`
+    fields mean git could not say.
     """
     head = _git_text(repo_root, "rev-parse", "HEAD")
     diff = _git_text(repo_root, "diff", "HEAD")
+    untracked = _git_text(repo_root, "ls-files", "--others", "--exclude-standard", "-z")
+    if diff is None or untracked is None:
+        return {
+            "runner_commit": head.strip() or None if head is not None else None,
+            "runner_tree_dirty": None,
+            "runner_diff_sha256": None,
+        }
+    digest = hashlib.sha256(diff.encode("utf-8"))
+    paths = sorted(path for path in untracked.split("\0") if path)
+    for path in paths:
+        digest.update(path.encode("utf-8") + b"\0")
+        try:
+            digest.update((repo_root / path).read_bytes())
+        except OSError:
+            digest.update(b"<unreadable>")
+    dirty = bool(diff) or bool(paths)
     return {
         "runner_commit": head.strip() or None if head is not None else None,
-        "runner_tree_dirty": None if diff is None else bool(diff),
-        "runner_diff_sha256": sha256_text(diff) if diff else None,
+        "runner_tree_dirty": dirty,
+        "runner_diff_sha256": digest.hexdigest() if dirty else None,
     }
 
 
@@ -185,6 +205,33 @@ class SpendGuard:
         self.spent = 0.0
         self.unmeasured = False
 
+    @classmethod
+    def resumed(cls, cap: float | None, output_dir: Path) -> SpendGuard:
+        """A guard that starts from what earlier invocations into `output_dir` spent.
+
+        A resumed batch (`--start-repeat` into the same directory) must not get a
+        fresh cap. The start is the larger of the previous report's `spent_usd`
+        (which counts failed launches too) and the sum of recorded costs, and an
+        earlier unmeasured cost, or an unreadable record, keeps blocking.
+        """
+        guard = cls(cap)
+        recorded = 0.0
+        for path in sorted(output_dir.glob("records-*.jsonl")):
+            try:
+                rows = list(record_rows(path))
+            except (OSError, ControlAblationConfigError):
+                guard.unmeasured = True
+                continue
+            for row in rows:
+                cost = record_cost(row)
+                guard.unmeasured |= cost is None
+                recorded += cost or 0.0
+        previous = _previous_report(output_dir / "report.json")
+        reported = previous.get("spent_usd")
+        guard.spent = max(recorded, float(reported) if isinstance(reported, (int, float)) else 0.0)
+        guard.unmeasured |= previous.get("spend_unmeasured") is True
+        return guard
+
     def add_record(self, record: Mapping[str, object]) -> None:
         cost = record_cost(record)
         if cost is None:
@@ -209,6 +256,16 @@ class SpendGuard:
         return None
 
 
+def _previous_report(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        return {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"spend_unmeasured": True}
+    return loaded if isinstance(loaded, dict) else {"spend_unmeasured": True}
+
+
 def budget_entry(task_id: str, control: str, repeat: int, reason: str) -> dict[str, object]:
     """A cell the spend cap kept from launching: reported, never recorded as a result."""
     return {"task_id": task_id, "control": control, "repeat": repeat, "skipped": reason}
@@ -216,6 +273,52 @@ def budget_entry(task_id: str, control: str, repeat: int, reason: str) -> dict[s
 
 def remove_tree(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=True)
+
+
+def remove_base_trees(workspace_root: Path) -> None:
+    """Delete every extracted `_base-<sha>` tree, whatever path left the run."""
+    for path in workspace_root.glob("_base-*"):
+        remove_tree(path)
+
+
+#: A forwarded value naming a file at most this large is read so the file's
+#: content (a token file) can be redacted too; larger files are not secrets.
+_SECRET_FILE_MAX_BYTES = 16_384
+
+
+def secret_literals(names: Sequence[str], environ: Mapping[str, str]) -> list[str]:
+    """Literal strings to scrub from a report: each forwarded value, and a token file's content."""
+    literals: list[str] = []
+    for name in names:
+        value = environ.get(name, "")
+        if not value:
+            continue
+        literals.append(value)
+        path = Path(value)
+        try:
+            if path.is_file() and path.stat().st_size <= _SECRET_FILE_MAX_BYTES:
+                literals.append(path.read_text(encoding="utf-8", errors="replace").strip())
+        except OSError:
+            continue
+    return sorted({item for item in literals if len(item) >= 8}, key=len, reverse=True)
+
+
+def redact(value: object, literals: Sequence[str]) -> object:
+    """Scrub forwarded secrets and known token shapes from every string in `value`.
+
+    Agent replies, commands, and tool inputs are agent-written text that can echo
+    a credential, so they pass through `scripts/redact_secrets.py` (hex kept, so
+    commit SHAs survive) after the exact forwarded literals are replaced.
+    """
+    if isinstance(value, str):
+        for literal in literals:
+            value = value.replace(literal, "[redacted: forwarded secret]")
+        return redact_text(value, include_hex=False).text
+    if isinstance(value, Mapping):
+        return {key: redact(item, literals) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact(item, literals) for item in value]
+    return value
 
 
 def remove_cell(workspace: Path) -> None:
@@ -294,3 +397,29 @@ def resolve_workspace_root(raw: Path | None) -> Path:
     require_isolated_workspace_root(root)
     root.mkdir(mode=0o700)
     return root
+
+
+def requested_controls(raw: str) -> list[str]:
+    names = [name.strip() for name in raw.split(",") if name.strip()]
+    if not names:
+        raise ControlAblationConfigError("--controls must name at least one control")
+    unknown = [name for name in names if not is_control_name(name)]
+    if unknown:
+        raise ControlAblationConfigError(
+            f"--controls names unknown control(s) {unknown}; "
+            f"expected one of {sorted(CONTROL_NAMES)} or minus:<path>"
+        )
+    return names
+
+
+def select_tasks(tasks: list[Task], raw: str | None) -> list[Task]:
+    """Keep only `--only-tasks` ids, in corpus order; an unknown id refuses."""
+    if raw is None:
+        return tasks
+    wanted = {item.strip() for item in raw.split(",") if item.strip()}
+    unknown = sorted(wanted - {task.id for task in tasks})
+    if not wanted or unknown:
+        raise ControlAblationConfigError(
+            f"--only-tasks names unknown or no task id(s): {unknown or raw!r}"
+        )
+    return [task for task in tasks if task.id in wanted]

@@ -9,12 +9,12 @@ model than requested. `eval_control_ablation.py` owns the run loop.
 
 from __future__ import annotations
 
-import json
 import os
+import re
 import stat
 import subprocess
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 
 import _control_ablation_tasks as ablation_tasks
@@ -253,8 +253,48 @@ def tool_failures(events: Sequence[Mapping[str, object]]) -> int:
     return sum(1 for block in tool_results(events) if block.get("is_error"))
 
 
-#: A Bash command that runs a test suite: trajectory evidence of a check the agent invoked.
-_TEST_COMMAND_MARKERS = ("pytest", "unittest")
+#: A shell segment that invokes a test runner: `pytest ...`, or `python -m pytest|unittest`
+#: (any `python`, `python3`, or interpreter path), optionally after `uv run` or `cd x &&`.
+_TEST_INVOCATION = re.compile(
+    r"(?:^|[;&|(]\s*)(?:uv\s+run\s+(?:--\S+\s+)*)?"
+    r"(?:pytest\b|\S*python[\d.]*\s+(?:-\S+\s+)*-m\s+(?:pytest|unittest)\b)",
+    re.MULTILINE,
+)
+#: A heredoc opener (`<<'E'`, `<<-EOF`, `<< "X"`): its body is data, not commands.
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+
+
+def _without_heredoc_bodies(command: str) -> str:
+    """Drop each heredoc body, so code a heredoc writes is never read as a command."""
+    kept: list[str] = []
+    terminator: str | None = None
+    for line in command.split("\n"):
+        if terminator is not None:
+            if line.strip() == terminator:
+                terminator = None
+            continue
+        kept.append(line)
+        opener = _HEREDOC.search(line)
+        if opener:
+            terminator = opener.group(2)
+    return "\n".join(kept)
+
+
+def is_test_invocation(command: str) -> bool:
+    """True when a Bash command runs a test suite, not merely mentions one."""
+    return _TEST_INVOCATION.search(_without_heredoc_bodies(command)) is not None
+
+
+def _strings(value: object) -> Iterator[str]:
+    """Every raw string inside a tool input, so a marker is matched before any escaping."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, Mapping):
+        for item in value.values():
+            yield from _strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _strings(item)
 
 
 def _tool_uses(events: Sequence[Mapping[str, object]]) -> list[Mapping[str, object]]:
@@ -317,15 +357,13 @@ def trajectory(
         for use in uses
         if use.get("name") == "Bash" and isinstance(tool_input := use.get("input"), Mapping)
     ]
-    tests = [
-        (c, was_denied) for c, was_denied in bash if any(m in c for m in _TEST_COMMAND_MARKERS)
-    ]
+    tests = [(c, was_denied) for c, was_denied in bash if is_test_invocation(c)]
     hits = sorted(
         {
             f"{use.get('name')}: {marker}"
             for use in uses
             for marker in withheld_markers
-            if marker and marker in json.dumps(use.get("input"), default=str)
+            if marker and any(marker in text for text in _strings(use.get("input")))
         }
     )
     return {

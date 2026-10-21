@@ -1607,20 +1607,31 @@ files, so no history reveals the fix. A shallow clone needs the commits:
 `git fetch --depth=N origin main`.
 
 `--controls full,minus:<path>` compares the full control with the same set
-minus one file. A path the full control does not load, `universal.md`, and any
+minus one file. A path the full control does not load, `universal.md`, `AGENTS.md`,
+root `CLAUDE.md` (it imports `AGENTS.md`), and any
 path naming `security`, `secret`, or `permission` refuse (exit 2).
 
-`--max-cost-usd USD` stops launching once recorded spend reaches the cap; a
-skipped cell is listed in `report.json` and the batch exits 3. `--pass-env
-NAME,...` forwards named variables to the Claude child for hosts whose CLI
-login needs variables `runtime_env` drops; an unset name refuses, and the report
-lists names, never values.
+`--max-cost-usd USD` (finite, above 0) stops launching once recorded spend
+reaches the cap, or once any cell's cost is unmeasured (a timeout, a failure
+that reported no cost, or a record with no cost). A resumed batch starts from
+what earlier invocations into the same `--output-dir` spent. A skipped cell is
+listed in `report.json` and the batch exits 3. `--pass-env NAME,...` forwards
+named variables to the Claude child for hosts whose CLI login needs variables
+`runtime_env` drops; an unset or harness-owned name (`HOME`, `PATH`,
+`CLAUDE_CONFIG_DIR`, `XDG_*`, ...) refuses. The report lists names, never
+values: each forwarded value, a small file it names (a token file), and known
+token shapes are redacted from replies, trajectories, failures, and patches.
 
 A live run entry also carries `checks` (each check's argv and exit code) and
-`trajectory` (Bash commands, the subset that ran tests, permission denials, and
-`withheld_marker_hits`, any tool call naming a withheld path, the fix commit, or
-`/pull/<fix_pr>`). `report.json` carries `provenance`: runner commit, task file
-and per-task SHA-256, each task's source, and each control's files by SHA-256.
+`trajectory` (Bash commands; other tool inputs, clipped; test-runner
+invocations executed and refused; permission denials; and
+`withheld_marker_hits`, any tool call naming a withheld path, the abbreviated
+fix commit, `/pull/<fix_pr>`, or the runner's checkout). A graded historical
+cell, and the extracted base tree, are deleted before the next launch.
+`report.json` carries `provenance`, taken before the first launch: runner
+commit, whether tracked or untracked files differed from it (with a hash),
+task file and per-task SHA-256, each task's source, and each control's files
+by SHA-256.
 
 ```bash
 uv run python scripts/eval/eval_control_ablation.py --dry-run \

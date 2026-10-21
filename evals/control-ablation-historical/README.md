@@ -27,8 +27,10 @@ correctness in general. It is one task, one model, one harness.
 
 ### Per-run evidence (v3)
 
-"Test runs" counts test commands the agent executed / test commands the
-permission layer refused. "Withheld hits" counts tool calls that named a
+"Test runs" counts Bash commands that invoked a test runner and executed /
+ones the permission layer refused, classified by
+`_control_ablation_claude.is_test_invocation` (heredoc bodies excluded, so code a
+heredoc writes is not a test run). "Withheld hits" counts tool calls that named a
 withheld path, the fix commit, the fix PR, or the runner's checkout.
 
 | Arm | Repeat | Acceptance exit | Withheld exit | Scope violations | Cost USD | Wall s | Tool calls | Test runs | Denials | Withheld hits | Pass |
@@ -37,7 +39,7 @@ withheld path, the fix commit, the fix PR, or the runner's checkout.
 | minus voice.md | 0 | 0 | 0 | 0 | 0.1285 | 29 | 14 | 0/3 | 3 | 0 | PASS |
 | full | 1 | 0 | 0 | 0 | 0.1396 | 27 | 7 | 2/1 | 1 | 0 | PASS |
 | minus voice.md | 1 | 0 | 0 | 0 | 0.0986 | 20 | 6 | 1/0 | 0 | 0 | PASS |
-| full | 2 | 0 | 0 | 0 | 0.1396 | 27 | 8 | 2/1 | 1 | 0 | PASS |
+| full | 2 | 0 | 0 | 0 | 0.1396 | 27 | 8 | 1/1 | 1 | 0 | PASS |
 | minus voice.md | 2 | 0 | 1 | 0 | 0.1056 | 23 | 8 | 1/1 | 2 | 0 | FAIL |
 | full | 3 | 0 | 0 | 0 | 0.1408 | 28 | 7 | 2/1 | 1 | 0 | PASS |
 | minus voice.md | 3 | 0 | 0 | 0 | 0.1432 | 33 | 15 | 0/3 | 4 | 0 | PASS |
@@ -70,9 +72,9 @@ through the Edit tool. This is the observation a follow-up would test.
 
 ### Trajectory differences worth naming
 
-- Test commands executed: `full` 7, `minus` 2. `full`'s 3 refusals were all
-  `python3` heredoc edits (counted because their text mentions pytest), and
-  each of those agents then ran the tests. 6 of `minus`'s 7 refusals were
+- Test commands executed: `full` 6, `minus` 2. `full`'s 3 refusals were
+  `python3` heredocs that edited the source and then ran the tests in one
+  command; each of those agents then ran the tests in a separate command. 6 of `minus`'s 7 refusals were
   commands that start with `python`, which the `python3`-only Bash allowlist
   does not cover. In `minus` repeats 0 and 3 every test command was refused,
   and both agents said they could not run the tests. Both fixes passed the
@@ -125,7 +127,8 @@ Total model spend for all three batches: $3.27 ($1.1333 + $1.1145 + $1.0195).
 ## Reproduce
 
 ```bash
-git fetch --depth=2000 origin main   # the base and fix commits must be present
+git fetch origin main   # the base and fix commits must be present
+# in a shallow clone, use `git fetch --deepen=2000 origin main` instead
 uv run python scripts/eval/eval_control_ablation.py --dry-run \
   --tasks scripts/eval/examples/control-ablation-historical-tasks.json \
   --workspace-root "$(mktemp -d)" --output-dir /tmp/historical-dry
