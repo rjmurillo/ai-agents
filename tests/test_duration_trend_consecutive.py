@@ -204,8 +204,26 @@ class TestMain:
         summary = tmp_path / "summary.md"
         assert trend.main(_argv(tmp_path, "push", cb.MAIN_REF, "--summary", str(summary))) == 0
         text = summary.read_text(encoding="utf-8")
-        assert "previous main run (issue #6796)" in text
+        assert "cannot be established (issue #6796)" in text
         assert "Advisory run" not in text
+
+    def test_the_record_takes_its_sha_from_the_environment_when_no_flag_is_given(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _env(monkeypatch, "push", cb.MAIN_REF)
+        _previous(monkeypatch, [])
+        assert trend.main(_argv(tmp_path, "push", cb.MAIN_REF)) == 0
+        record = json.loads((tmp_path / "rec" / cb.RECORD_FILE).read_text(encoding="utf-8"))
+        assert record["head_sha"] == "deadbeef"
+
+    def test_an_explicit_sha_wins_over_the_environment(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _env(monkeypatch, "push", cb.MAIN_REF)
+        _previous(monkeypatch, [])
+        assert trend.main(_argv(tmp_path, "push", cb.MAIN_REF, "--sha", "c0ffee")) == 0
+        record = json.loads((tmp_path / "rec" / cb.RECORD_FILE).read_text(encoding="utf-8"))
+        assert record["head_sha"] == "c0ffee"
 
     def test_without_the_flag_a_regression_on_main_still_exits_one(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

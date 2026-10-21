@@ -80,7 +80,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=30,
         help="Snapshots kept by --write-history (default: 30).",
     )
-    parser.add_argument("--sha", default="unknown", help="Commit this run measured.")
+    parser.add_argument(
+        "--sha", help="Commit this run measured (default: GITHUB_SHA under a breach policy)."
+    )
     parser.add_argument("--summary", type=Path, help="Append the markdown report here.")
     parser.add_argument("--snapshot-out", type=Path, help="Write this run's snapshot JSON here.")
     parser.add_argument("--top", type=int, default=15, help="Slowest modules listed.")
@@ -126,6 +128,14 @@ def _advisory_note(event: str | None, ref: str | None) -> str:
     )
 
 
+def _print_advisory(event: str | None, ref: str | None) -> None:
+    print(
+        f"duration: advisory on event={event} ref={ref}; only a push to "
+        f"{ENFORCED_REF} fails on a regression",
+        file=sys.stderr,
+    )
+
+
 def _report_note(
     args: argparse.Namespace, policy: consecutive_breach.Policy, regressed: int
 ) -> str:
@@ -137,7 +147,8 @@ def _report_note(
     if policy.mode == consecutive_breach.MODE_CONSECUTIVE:
         return (
             f"\nPush to `{ENFORCED_REF}`: a regression fails the run only when the same "
-            "name also regressed on the previous main run (issue #6796).\n"
+            "name also regressed on the previous main run, or that run cannot be established "
+            "(issue #6796).\n"
         )
     return _advisory_note(policy.event, policy.ref)
 
@@ -146,11 +157,7 @@ def _strict_verdict(args: argparse.Namespace, regressed: int) -> int:
     """The pre-policy contract: any regression fails an enforced run (issue #6244)."""
     if not regressed or is_enforced(args.event, args.ref):
         return 1 if regressed else 0
-    print(
-        f"duration: advisory on event={args.event} ref={args.ref}; only a push to "
-        f"{ENFORCED_REF} fails on a regression",
-        file=sys.stderr,
-    )
+    _print_advisory(args.event, args.ref)
     return 0
 
 
@@ -165,11 +172,7 @@ def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.
         print(f"::error title=Test duration trend::could not write the breach record: {exc}")
         return 3
     if policy.mode == consecutive_breach.MODE_ADVISORY and regressions:
-        print(
-            f"duration: advisory on event={policy.event} ref={policy.ref}; only a push to "
-            f"{ENFORCED_REF} fails on a regression",
-            file=sys.stderr,
-        )
+        _print_advisory(policy.event, policy.ref)
     return 1 if verdict.failing else 0
 
 
@@ -184,7 +187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"bad breach policy: {exc}", file=sys.stderr)
         return 2
     try:
-        snapshot = build_snapshot(args.inputs, args.sha, datetime.now(UTC))
+        snapshot = build_snapshot(args.inputs, args.sha or "unknown", datetime.now(UTC))
     except (OSError, ET.ParseError) as exc:
         print(f"could not read input: {exc}", file=sys.stderr)
         return 3
