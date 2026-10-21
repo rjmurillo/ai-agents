@@ -33,6 +33,16 @@ from _durable_review import NO_REVIEWER, parse_review
 from scripts.metrics.control_plane_baseline import always_loaded
 
 CONTROL_NAMES: frozenset[str] = frozenset({"full", "reduced"})
+#: `minus:<path>` is the full control without one file (issue #6814).
+MINUS_PREFIX = "minus:"
+#: Files a `minus:` control may never remove: removing a security or
+#: permission safeguard is an abort condition of issue #6814, not an arm.
+#: `AGENTS.md` carries the Never list builder-ethos.md names as mandatory policy,
+#: and root `CLAUDE.md` imports it, so removing either drops that policy.
+PROTECTED_CONTROL_PATHS: frozenset[str] = frozenset(
+    {".claude/rules/universal.md", "AGENTS.md", "CLAUDE.md"}
+)
+_PROTECTED_NAME_PARTS = ("security", "secret", "permission")
 
 #: DESIGN-044 "Grade to record": reply text matching this, with a failed
 #: acceptance command, sets risk.unsupported_claims.
@@ -121,14 +131,52 @@ def resolve_full_control(repo_root: Path) -> ControlFiles:
     return ControlFiles(name="full", files=files, context_bytes=context_bytes)
 
 
+def is_protected_control_path(relative: str) -> bool:
+    lowered = relative.lower()
+    return relative in PROTECTED_CONTROL_PATHS or any(
+        part in lowered for part in _PROTECTED_NAME_PARTS
+    )
+
+
+def resolve_minus_control(name: str, repo_root: Path) -> ControlFiles:
+    """The `full` control without the one file `name` names after `minus:` (issue #6814).
+
+    Refuses a path the full control does not install, and any protected path
+    (`is_protected_control_path`), so the arm differs from `full` by exactly one
+    non-security file.
+    """
+    removed = name[len(MINUS_PREFIX) :]
+    if is_protected_control_path(removed):
+        raise ControlAblationConfigError(
+            f"control {name!r} would remove a security or permission file; refused"
+        )
+    full = resolve_full_control(repo_root)
+    if removed not in full.files:
+        raise ControlAblationConfigError(
+            f"control {name!r} names a file the full control does not load: "
+            f"expected one of {sorted(full.files)}"
+        )
+    files = {path: text for path, text in full.files.items() if path != removed}
+    removed_bytes = len((repo_root / removed).read_bytes())
+    return ControlFiles(name=name, files=files, context_bytes=full.context_bytes - removed_bytes)
+
+
+def is_control_name(name: str) -> bool:
+    return name in CONTROL_NAMES or (
+        name.startswith(MINUS_PREFIX) and len(name) > len(MINUS_PREFIX)
+    )
+
+
 def resolve_control(name: str, repo_root: Path) -> ControlFiles:
-    """Resolve one named control (REQ-046 ontology: `full` or `reduced`)."""
+    """Resolve one named control: `full`, `reduced`, or `minus:<path>`."""
+    if name.startswith(MINUS_PREFIX):
+        return resolve_minus_control(name, repo_root)
     if name == "reduced":
         return ControlFiles(name="reduced", files={}, context_bytes=0)
     if name == "full":
         return resolve_full_control(repo_root)
     raise ControlAblationConfigError(
-        f"unknown control: {name!r}; expected one of {sorted(CONTROL_NAMES)}"
+        f"unknown control: {name!r}; expected one of {sorted(CONTROL_NAMES)} or minus:<path>"
     )
 
 

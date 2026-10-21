@@ -559,6 +559,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # The budget and leg wall-time gates read the previous main run's breach
+      # records (issues #6757, #6751).
+      actions: read
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -621,7 +624,16 @@ jobs:
       # already turns `Run Python Tests` red.
       # The step name carries no "#": a plain scalar treats it as a comment
       # (ci-scripts.md item 20).
+      #
+      # Issue 6757: one sample on a shared runner swings 3x, so the budget warns
+      # on pull requests and fails on main only when a module overruns on two
+      # main runs in a row. scripts/ci/consecutive_breach.py owns the policy and
+      # reads GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_RUN_ID, GITHUB_SHA and
+      # GITHUB_REPOSITORY itself. A main run writes the record file this step
+      # names; the upload step below publishes it for the next main run.
       - name: Enforce the slow-test budget (issue 5382)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >-
           uv run --frozen python scripts/testing/slow_test_budget.py
           artifacts/pytest-results-split-1.xml
@@ -632,9 +644,24 @@ jobs:
           artifacts/pytest-results-safe-push.xml
           artifacts/pytest-results-pr-autofix.xml
           --budget pyproject.toml
+          --breach-policy consecutive-main
+          --workflow pytest.yml
+          --breach-record-out breach-records/slow-test-budget/breach-record.json
 
-      # Blocking leg wall-time gate. `test-result` (the required "Run Python
-      # Tests") needs this job, so a leg over the limit blocks the merge. The
+      # Only a push to main writes the record, so a pull request finds no file
+      # and uploads nothing. always() keeps the record when the gate fails.
+      - name: Upload slow-test budget breach record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: breach-record-slow-test-budget
+          path: breach-records/slow-test-budget/
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
+
+      # Leg wall-time gate. `test-result` (the required "Run Python Tests")
+      # needs this job, so a failure here blocks the merge. The
       # test-durations job is not required and cannot carry this gate. The
       # limit is duration_gates.PARTITION_WALL_LIMIT_SECONDS (480 s). Each
       # leg's wall_seconds is the JUnit testsuite time, which is pytest time
@@ -643,7 +670,21 @@ jobs:
       # limit. A split imbalance above 1.5x is only a ::warning annotation.
       # "Re-run failed jobs" re-reads the same leg artifacts and so repeats the
       # same wall time; only a full re-run measures the legs again (issue #6751).
+      #
+      # Issue 6751: one sample on a shared runner swings a leg past the limit
+      # with no code change (494.1s on a docs-only PR), so the gate warns on
+      # pull requests and fails on main only when a leg is over the limit on
+      # two main runs in a row. The 600 s job timeout still kills a leg that
+      # truly hangs. scripts/ci/consecutive_breach.py owns the policy and reads
+      # GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_RUN_ID, GITHUB_SHA and
+      # GITHUB_REPOSITORY itself. A main run writes the record file this step
+      # names; the upload step below publishes it for the next main run.
+      # !cancelled() keeps the step running when the budget step above failed, so
+      # that run still records its verdict instead of failing the next one closed.
       - name: Gate pytest leg wall time
+        if: "!cancelled()"
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >-
           uv run --frozen python scripts/testing/duration_gate_check.py
           artifacts/pytest-results-split-1.xml
@@ -653,6 +694,21 @@ jobs:
           artifacts/pytest-results-split-5.xml
           artifacts/pytest-results-safe-push.xml
           artifacts/pytest-results-pr-autofix.xml
+          --breach-policy consecutive-main
+          --workflow pytest.yml
+          --breach-record-out breach-records/leg-wall-time/breach-record.json
+
+      # Only a push to main writes the record, so a pull request finds no file
+      # and uploads nothing. always() keeps the record when the gate fails.
+      - name: Upload leg wall time breach record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: breach-record-leg-wall-time
+          path: breach-records/leg-wall-time/
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
 
   # Test duration trend and pytest-split timings. Merges the per-leg durations
   # files into the cache the split legs restore (saved only on a push to main),
@@ -664,7 +720,8 @@ jobs:
   # any other event or ref, such as a pull request or merge queue run, the
   # script exits 0, because a non-required red check still blocks the merge
   # tool (#6244). A leg slower than 480 s (80 percent of the test job timeout)
-  # fails the coverage job instead, which the required check depends on. The
+  # warns on a pull request and fails the coverage job on main only after two
+  # main runs in a row (issue #6751); the required check depends on that job. The
   # history rides in the
   # Actions cache, saved only from pushes to main, so a pull request reads the
   # main baseline and never writes it. ADR-015 caps artifact retention at
@@ -680,6 +737,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # The trend gate reads the previous main run's breach record (issue #6796).
+      actions: read
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -740,6 +799,14 @@ jobs:
           key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
 
       # `!cancelled()` so a failed merge above still gets a duration report.
+      #
+      # Issue 6796: one sample on a shared runner swings 2x to 4x, so a
+      # regression warns on pull requests and fails on main only when the same
+      # module (or the suite) regressed on two main runs in a row.
+      # scripts/ci/consecutive_breach.py owns the policy and reads
+      # GITHUB_RUN_ID and GITHUB_REPOSITORY itself. A main run writes the record
+      # file this step names; the upload step below publishes it for the next
+      # main run.
       - name: Report test duration trend
         id: duration-trend
         if: "!cancelled()"
@@ -748,6 +815,7 @@ jobs:
           RUN_EVENT: ${{ github.event_name }}
           RUN_REF: ${{ github.ref }}
           HISTORY_KEY: ${{ steps.restore-history.outputs.cache-matched-key }}
+          GH_TOKEN: ${{ github.token }}
         run: >-
           echo "history restored from cache key: ${HISTORY_KEY:-none}" &&
           uv run --frozen python scripts/testing/duration_trend.py
@@ -759,6 +827,21 @@ jobs:
           --event "$RUN_EVENT"
           --ref "$RUN_REF"
           --summary "$GITHUB_STEP_SUMMARY"
+          --breach-policy consecutive-main
+          --workflow pytest.yml
+          --breach-record-out breach-records/duration-trend/breach-record.json
+
+      # Only a push to main writes the record, so a pull request finds no file
+      # and uploads nothing. always() keeps the record when the gate fails.
+      - name: Upload duration trend breach record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: breach-record-duration-trend
+          path: breach-records/duration-trend/
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
 
       # The script writes the history even when it reports a regression, so
       # a slowdown that lands on main joins the baseline instead of failing

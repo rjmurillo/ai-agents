@@ -365,6 +365,12 @@ dev = [
 # it (run 39161002142). Locally without coverage the same sums are 49.6s and
 # 12.5s. A 25s budget failed the fixed code in CI. At 45s the fixed code has
 # about 1.4x headroom and a revert fails by about 1.3x.
+#
+# One sample on a shared runner swings about 3x (issue #6757: the portability
+# module summed 14.9s to 47.2s on identical code). CI therefore warns on a pull
+# request and fails on main only when the same module is over budget on two main
+# runs in a row (scripts/ci/consecutive_breach.py). The limits below are not
+# raised for that noise.
 [tool.slow-test-budget]
 "tests/test_validate_session_json.py" = 120.0
 "tests/test_guard_diff.py" = 35.0

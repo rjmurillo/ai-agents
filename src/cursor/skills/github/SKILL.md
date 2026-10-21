@@ -215,7 +215,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment` |
-| `set_issue_labels.py` | Apply labels (auto-create) | `--issue`, `--labels`, `--priority` |
+| `set_issue_labels.py` | Labels | `--issue`, `--labels`, `--remove-labels`, `--priority` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone` |
 | `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker` |
 | `invoke_copilot_assignment.py` | Synthesize context for Copilot | `--issue-number`, `--what-if` |

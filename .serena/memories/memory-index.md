@@ -160,6 +160,7 @@
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT file mentioned not in diff bullet bold rerun stale payload body edit: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3617)
 |workspace WSL native worktree uv network handshake mutation harness /mnt/c: [workspace/wsl-native-worktree-for-uv-network-access](workspace/wsl-native-worktree-for-uv-network-access.md) (352)
 |linking an issue Closes Fixes Resolves Implements Refs: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1723)
+|combine job re-run slow-test budget stored timings JUnit rerun --failed: [ci/ci-combine-rerun-reuses-stored-test-timings](ci/ci-combine-rerun-reuses-stored-test-timings.md) (319)
 |QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1227)
 |job name collision duplicate check name ambiguous red push pull_request event rerun Run Python Tests: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1729)
 |AI quality gate Aggregate Results all agents NEEDS_REVIEW: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2000)

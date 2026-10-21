@@ -175,3 +175,194 @@ def test_whitespace_labels_stripped(mock_run, capsys):
 
     rc = main(["--issue", "1", "--labels", "  ", ""])
     assert rc == 0
+
+
+def _view(*names: str):
+    return _completed(stdout=json.dumps({"labels": [{"name": n} for n in names]}))
+
+
+_PRE = [_completed(rc=0), _completed(stdout="https://github.com/o/r\n")]
+
+
+@patch("subprocess.run")
+def test_remove_label_present(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _view("bug", "blocked:human"), _completed(rc=0)]
+
+    rc = main(["--issue", "7", "--remove-labels", "blocked:human"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)["Data"]
+    assert data["removed"] == ["blocked:human"]
+    assert data["absent"] == []
+    assert "--remove-label" in mock_run.call_args_list[-1].args[0]
+
+
+@patch("subprocess.run")
+def test_remove_label_absent_is_noop(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _view("bug")]
+
+    rc = main(["--issue", "7", "--remove-labels", "gone"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)["Data"]
+    assert data["absent"] == ["gone"]
+    assert data["removed"] == []
+    assert "not on #7" in captured.err
+    assert mock_run.call_count == 3  # no edit call
+
+
+@patch("subprocess.run")
+def test_remove_label_case_insensitive(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _view("Bug"), _completed(rc=0)]
+
+    rc = main(["--issue", "7", "--remove-labels", "bug"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["Data"]["removed"] == ["Bug"]
+    assert mock_run.call_args_list[-1].args[0][-1] == "Bug"
+
+
+@patch("subprocess.run")
+def test_remove_comma_and_repeat_syntax(mock_run, capsys):
+    mock_run.side_effect = [
+        *_PRE,
+        _view("a", "b", "c"),
+        _completed(rc=0),
+        _completed(rc=0),
+        _completed(rc=0),
+    ]
+
+    rc = main(["--issue", "7", "--remove-labels", "a,b", "--remove-labels", "c"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["Data"]["removed"] == ["a", "b", "c"]
+
+
+@patch("subprocess.run")
+def test_mixed_add_and_remove(mock_run, capsys):
+    mock_run.side_effect = [
+        *_PRE,
+        _view("old"),  # strict fetch
+        _completed(rc=0),  # label exists
+        _completed(rc=0),  # add
+        _completed(rc=0),  # remove
+    ]
+
+    rc = main(["--issue", "7", "--labels", "new", "--remove-labels", "old"])
+
+    assert rc == 0
+    data = json.loads(capsys.readouterr().out)["Data"]
+    assert data["applied"] == ["new"]
+    assert data["removed"] == ["old"]
+
+
+@patch("subprocess.run")
+def test_remove_empty_list_is_noop(mock_run, capsys):
+    mock_run.side_effect = list(_PRE)
+
+    rc = main(["--issue", "7", "--remove-labels", " , "])
+
+    assert rc == 0
+    assert "No labels to apply" in capsys.readouterr().err
+    assert mock_run.call_count == 2
+
+
+@patch("subprocess.run")
+def test_remove_nonexistent_issue_exits_3(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _completed(rc=1, stderr="Could not resolve")]
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "999999", "--remove-labels", "bug"])
+
+    assert exc.value.code == 3
+
+
+@patch("subprocess.run")
+def test_remove_view_timeout_exits_3(mock_run):
+    mock_run.side_effect = [*_PRE, subprocess.TimeoutExpired(cmd="gh", timeout=15)]
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "7", "--remove-labels", "bug"])
+
+    assert exc.value.code == 3
+
+
+@patch("subprocess.run")
+def test_remove_view_bad_json_exits_3(mock_run):
+    mock_run.side_effect = [*_PRE, _completed(stdout="not json")]
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "7", "--remove-labels", "bug"])
+
+    assert exc.value.code == 3
+
+
+@patch("subprocess.run")
+def test_remove_edit_failure_exits_3(mock_run):
+    mock_run.side_effect = [*_PRE, _view("bug"), _completed(rc=1)]
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "7", "--remove-labels", "bug"])
+
+    assert exc.value.code == 3
+
+
+@patch("subprocess.run")
+def test_add_and_remove_same_label_exits_1(mock_run):
+    mock_run.side_effect = list(_PRE)
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "7", "--labels", "Bug", "--remove-labels", "bug"])
+
+    assert exc.value.code == 1
+    assert mock_run.call_count == 2
+
+
+@patch("subprocess.run")
+def test_remove_skips_label_already_removed_by_priority(mock_run, capsys):
+    mock_run.side_effect = [
+        *_PRE,
+        _view("priority:P2"),  # strict snapshot
+        _completed(rc=0),  # priority exists
+        _completed(rc=0),  # add priority:P1
+        _view("priority:P2", "priority:P1"),  # reconcile fetch
+        _completed(rc=0),  # remove priority:P2
+    ]
+
+    rc = main(["--issue", "7", "--priority", "P1", "--remove-labels", "priority:P2"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["Data"]["removed"] == ["priority:P2"]
+
+
+@patch("subprocess.run")
+def test_repeated_remove_name_removed_once(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _view("bug"), _completed(rc=0)]
+
+    rc = main(["--issue", "7", "--remove-labels", "bug", "Bug", "bug"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["Data"]["removed"] == ["bug"]
+    assert mock_run.call_count == 4
+
+
+@patch("subprocess.run")
+def test_conflict_checked_before_priority_discard(mock_run):
+    mock_run.side_effect = list(_PRE)
+
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "--issue",
+                "7",
+                "--labels",
+                "priority:P2",
+                "--priority",
+                "P1",
+                "--remove-labels",
+                "priority:P2",
+            ]
+        )
+
+    assert exc.value.code == 1
