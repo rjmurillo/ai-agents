@@ -43,6 +43,9 @@ eval = [
 # work with the fixed releases and reviewed exact overrides below.
 exclude-newer = "7 days"
 override-dependencies = [
+    # certifi skips the cooldown below for PYSEC-2026-4320, so pin it exactly.
+    # A later `uv lock` must not take an unreviewed CA bundle release.
+    "certifi==2026.10.19",
     "click==8.3.3",
     "cryptography==50.0.0",
     "mcp==1.30.0",
