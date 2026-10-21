@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import io
 import sys
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -265,3 +267,30 @@ def test_notes_are_accepted_and_change_nothing_graded(repo: HistoryRepo) -> None
     noted = _load(repo, make_historical_task(repo, notes="why the prompt cites old lines")).tasks[0]
 
     assert noted == plain
+
+
+def _tar_with(name: str) -> tarfile.TarFile:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as tar:
+        info = tarfile.TarInfo(name)
+        info.size = 2
+        tar.addfile(info, io.BytesIO(b"x\n"))
+    buffer.seek(0)
+    return tarfile.open(fileobj=buffer)
+
+
+def test_extract_refuses_a_member_that_escapes_the_tree(tmp_path: Path) -> None:
+    with (
+        _tar_with("../escaped.txt") as tar,
+        pytest.raises(ablation_tasks.ControlAblationConfigError, match="escapes"),
+    ):
+        history.extract_regular_files(tar, tmp_path / "tree")
+
+    assert not (tmp_path / "escaped.txt").exists()
+
+
+def test_extract_writes_a_regular_member_inside_the_tree(tmp_path: Path) -> None:
+    with _tar_with("a/b.txt") as tar:
+        history.extract_regular_files(tar, tmp_path / "tree")
+
+    assert (tmp_path / "tree" / "a" / "b.txt").read_text(encoding="utf-8") == "x\n"

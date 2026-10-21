@@ -150,8 +150,28 @@ def materialize_tree(repo_root: Path, sha: str, destination: Path) -> Path:
     archive = _git_bytes(repo_root, ["archive", "--format=tar", sha])
     destination.mkdir(parents=True, exist_ok=True)
     with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-        tar.extractall(destination, filter="data")
+        extract_regular_files(tar, destination)
     return destination
+
+
+def extract_regular_files(tar: tarfile.TarFile, destination: Path) -> None:
+    """Write each regular file member under `destination`, refusing any that escapes it.
+
+    Links and special files are skipped: control resolution reads regular files
+    only, and a link is the other way a member can point outside the tree (CWE-22).
+    """
+    root = destination.resolve()
+    for member in tar.getmembers():
+        if not member.isfile():
+            continue
+        target = (root / member.name).resolve()
+        if not target.is_relative_to(root):
+            raise ControlAblationConfigError(f"archive member escapes the tree: {member.name!r}")
+        handle = tar.extractfile(member)
+        if handle is None:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(handle.read())
 
 
 # ---------------------------------------------------------------------------
