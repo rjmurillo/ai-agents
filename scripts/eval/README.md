@@ -1591,6 +1591,57 @@ its `--output-dir` already records. The task file is trusted repository data: it
 under test can read your `~/.claude` by absolute path while it runs, so keep
 live workspaces and reports out of the repository.
 
+### Historical issue-to-fix tasks and one-file subtraction (issue #6814)
+
+A `schema_version: 2` task file replaces fixture files with a real, shipped
+issue from this repository. Each task names `source.base_sha` (the pre-fix
+commit), `source.fix_sha` (the shipped fix), `seed_paths` copied from the base
+into the agent's workspace, and `withheld_files` (`{workspace path: path at the
+fix}`) written only after the agent exits. `controls.known_good` takes
+`files_from_fix`; `controls.known_bad` takes `edits` (`{path, old, new}`, each
+`old` unique in the base file). An argv element `{python}` becomes the runner's
+interpreter, so checks run with the locked environment. Every task in one file
+shares one base commit, and the controls are read from that commit's tree, not
+from the current checkout. The workspace is a fresh `git init` of the seeded
+files, so no history reveals the fix. A shallow clone needs the commits:
+`git fetch --depth=N origin main`.
+
+`--controls full,minus:<path>` compares the full control with the same set
+minus one file. A path the full control does not load, `universal.md`, `AGENTS.md`,
+root `CLAUDE.md` (it imports `AGENTS.md`), and any
+path naming `security`, `secret`, or `permission` refuse (exit 2).
+
+`--max-cost-usd USD` (finite, above 0) stops launching once recorded spend
+reaches the cap, or once any cell's cost is unmeasured (a timeout, a failure
+that reported no cost, or a record with no cost). A resumed batch starts from
+what earlier invocations into the same `--output-dir` spent. A skipped cell is
+listed in `report.json` and the batch exits 3. `--pass-env NAME,...` forwards
+named variables to the Claude child for hosts whose CLI login needs variables
+`runtime_env` drops; an unset or harness-owned name (`HOME`, `PATH`,
+`CLAUDE_CONFIG_DIR`, `XDG_*`, ...) refuses. The report lists names, never
+values: each forwarded value, a small file it names (a token file), and known
+token shapes are redacted from replies, trajectories, failures, and patches.
+
+A live run entry also carries `checks` (each check's argv and exit code) and
+`trajectory` (Bash commands; other tool inputs, clipped; test-runner
+invocations executed and refused; permission denials; and
+`withheld_marker_hits`, any tool call naming a withheld path, the abbreviated
+fix commit, `/pull/<fix_pr>`, or the runner's checkout). A graded historical
+cell, and the extracted base tree, are deleted before the next launch.
+`report.json` carries `provenance`, taken before the first launch: runner
+commit, whether tracked or untracked files differed from it (with a hash),
+task file and per-task SHA-256, each task's source, and each control's files
+by SHA-256.
+
+```bash
+uv run python scripts/eval/eval_control_ablation.py --dry-run \
+  --tasks scripts/eval/examples/control-ablation-historical-tasks.json \
+  --workspace-root "$(mktemp -d)" --output-dir /tmp/historical-dry
+```
+
+The frozen protocol and result of the first experiment are in
+`evals/control-ablation-historical/`.
+
 ## Held-Out-Gated Optimization
 
 `optimize-artifact.py` adds the piece the rest of this directory is missing: a

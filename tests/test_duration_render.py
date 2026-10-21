@@ -6,7 +6,12 @@ from pathlib import Path
 
 from scripts.testing import duration_trend as trend
 from scripts.testing.duration_compare import Comparison, Regression
-from scripts.testing.duration_render import ratio_text, warning_commands
+from scripts.testing.duration_render import (
+    ratio_text,
+    regression_text,
+    regressions_of,
+    warning_commands,
+)
 from tests.duration_test_helpers import write_history, write_junit
 
 
@@ -22,6 +27,20 @@ def test_warning_data_escapes_newlines_and_percent() -> None:
 
     assert "a%25b%0Ac took 30.0s" in line
     assert "\n" not in line
+
+
+def test_regression_text_names_seconds_baseline_ratio_and_samples() -> None:
+    assert regression_text(Regression("m", 30.0, 10.0, 2)) == (
+        "took 30.0s against a 10.0s median baseline (3.00x, 2 samples)"
+    )
+
+
+def test_regressions_of_lists_the_suite_before_the_modules() -> None:
+    suite, module = Regression("suite", 90.0, 30.0, 2), Regression("m", 30.0, 10.0, 2)
+
+    assert regressions_of(Comparison(modules=[module], suite=suite)) == [suite, module]
+    assert regressions_of(Comparison(modules=[module])) == [module]
+    assert regressions_of(Comparison()) == []
 
 
 def test_the_trend_table_lists_history_then_this_run(tmp_path: Path) -> None:

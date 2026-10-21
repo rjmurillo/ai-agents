@@ -3,8 +3,9 @@
 Two checks over the per-leg wall seconds that ``duration_snapshot`` reads from
 the JUnit reports:
 
-* a leg that runs longer than ``PARTITION_WALL_LIMIT_SECONDS`` fails the report,
-  which leaves headroom before the job timeout kills a leg without a report;
+* a leg that runs longer than ``PARTITION_WALL_LIMIT_SECONDS`` is a breach,
+  which leaves headroom before the job timeout kills a leg without a report.
+  ``duration_gate_check.py`` decides whether a breach fails or warns (issue #6751);
 * split legs whose slowest takes more than ``SPLIT_IMBALANCE_RATIO`` times the
   fastest raise a warning, because pytest-split is meant to keep them level.
 """

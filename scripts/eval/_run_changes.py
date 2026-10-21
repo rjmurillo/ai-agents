@@ -21,13 +21,14 @@ MAX_FILE_BYTES = 1_000_000
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
 
 
-def _safe(part: str) -> str:
+def path_safe(part: str) -> str:
+    """`part` with every character outside `[A-Za-z0-9._-]` replaced by `_`."""
     return _UNSAFE.sub("_", part) or "_"
 
 
 def patch_relpath(control: str, task_id: str, repeat: int) -> str:
     """The patch's path under the output directory, with every name part made path-safe."""
-    return f"{CHANGES_DIR}/{_safe(control)}/{_safe(task_id)}-r{repeat}.patch"
+    return f"{CHANGES_DIR}/{path_safe(control)}/{path_safe(task_id)}-r{repeat}.patch"
 
 
 def write_patch(out_dir: Path, control: str, task_id: str, repeat: int, patch: str) -> str:

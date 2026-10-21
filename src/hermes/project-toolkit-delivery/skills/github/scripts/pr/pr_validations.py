@@ -249,7 +249,7 @@ def _extract_validatable_session_logs(
 
 
 # Issue #4764: /push-pr must not execute repository-controlled Python to decide
-# whether to create a pull request. All three detectors named below live under
+# whether to create a pull request. The detectors named below live under
 # scripts/, which any branch can rewrite, so this script never runs them and
 # reports them as not run. CI runs them from a trusted checkout.
 #
@@ -262,7 +262,6 @@ def _extract_validatable_session_logs(
 _UNTRUSTED_REPOSITORY_VALIDATORS = (
     "Session End (scripts/validate_session_json.py)",
     "skill violation (scripts/detect_skill_violation.py)",
-    "test coverage (scripts/detect_test_coverage_gaps.py)",
 )
 _UNTRUSTED_REPOSITORY_REASON = "repository-local Python is outside the trusted push-pr boundary"
 
@@ -340,7 +339,7 @@ def run_validations(
     print()
 
     # Validation 1: Session End (if .project-toolkit/ files changed)
-    print("[1/6] Checking Session End protocol...")
+    print("[1/5] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
@@ -386,7 +385,7 @@ def run_validations(
 
     # Validation 2: Skill violation detection (WARNING)
     print()
-    print("[2/6] Checking for skill violations...")
+    print("[2/5] Checking for skill violations...")
     scannable_files = [f for f in changed_files if Path(f).suffix in _SKILL_SCAN_EXTENSIONS]
     _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[1])
     if diff_failed:
@@ -399,14 +398,9 @@ def run_validations(
     else:
         print(f"  Scope: {len(scannable_files)} changed file(s) would have been scanned.")
 
-    # Validation 3: Test coverage detection (WARNING)
-    print()
-    print("[3/6] Checking test coverage...")
-    _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[2])
-
     # Validation 4: PR Description validation (WARNING)
     print()
-    print("[4/6] Validating PR description...")
+    print("[3/5] Validating PR description...")
     validate_script = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "validate_pr_description.py",
@@ -448,7 +442,7 @@ def run_validations(
     # in the description despite local dash checks.
     # Rule: .claude/rules/universal.md MUST NOT entry 4. Refs Issue #1923.
     print()
-    print("[5/6] Em/en-dash check on title and body...")
+    print("[4/5] Em/en-dash check on title and body...")
     body_content = body or ""
     if not body_content and body_file and os.path.exists(body_file):
         try:
@@ -491,7 +485,7 @@ def run_validations(
     print("  No prohibited characters in title or body.")
 
     print()
-    print("[6/6] Escaped-newline check on body...")
+    print("[5/5] Escaped-newline check on body...")
     validate_no_escaped_newlines(body_content)
     print("  Body line breaks are real newlines.")
 

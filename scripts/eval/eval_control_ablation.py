@@ -18,13 +18,11 @@ stream, missing cost, model mismatch).
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
+import math
 import os
 import subprocess
 import sys
-import tempfile
-import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import TextIO
@@ -37,18 +35,19 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import _control_ablation as ablation  # noqa: E402
+import _control_ablation_batch as batch  # noqa: E402
 import _control_ablation_claude as claude_run  # noqa: E402
 import _control_ablation_dry_run as dry_run  # noqa: E402
 import _control_ablation_grade as grade  # noqa: E402
+import _control_ablation_history as history  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _durable_review as durable_review  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
-from _run_changes import write_patch  # noqa: E402
+from _run_changes import path_safe, write_patch  # noqa: E402
 from _runtime_harness import (  # noqa: E402
     REAL_HOME_ENV,
     probe_version,
     real_home_enabled,
-    require_isolated_workspace_root,
 )
 from _runtime_output import redacted_argv  # noqa: E402
 from _runtime_parity import ParityConfigError  # noqa: E402
@@ -136,10 +135,13 @@ def _grade_live_run(
     timeout: float,
     runner: claude_run.Runner,
     reviewer_model: str | None = None,
-) -> tuple[dict[str, object], list[str], str, str, str]:
+    withheld_markers: Sequence[str] = (),
+) -> tuple[dict[str, object], list[str], str, str, str, dict[str, object]]:
     """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8).
 
-    Returns (record, producer argv, reply, reviewer note, change patch). The patch
+    Returns (record, producer argv, reply, reviewer note, change patch, details).
+    `details` holds the check commands with their exit codes and the run's
+    trajectory evidence (issue #6814), apart from the record's verdicts. The patch
     is the agent's change against the seed, taken before the hidden follow-up files
     exist. With `reviewer_model` set, an accepted change gets one independent review
     before any revert. A change that passes acceptance but fails the follow-up is
@@ -150,6 +152,7 @@ def _grade_live_run(
     events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
         workspace, task, model, timeout, runner
     )
+    details: dict[str, object] = {"trajectory": claude_run.trajectory(events, withheld_markers)}
     # Measure the agent's changes before hidden follow-up files exist, so an
     # agent edit at a follow-up path is not overwritten out of the diff.
     changed = grade.changed_paths(workspace)
@@ -164,6 +167,10 @@ def _grade_live_run(
     acceptance = grade.run_acceptance(workspace, task)
     followup = grade.run_followup(workspace, task)
     marker = grade.external_marker_exists(workspace, task)
+    details["checks"] = {
+        "acceptance": {"argv": list(task.acceptance), "exit_code": acceptance.returncode},
+        "followup": {"argv": list(task.followup), "exit_code": followup.returncode},
+    }
     review_reply: str | None = None
     if reviewer_model is not None and review_copy is not None:
         review_note = REVIEW_SKIPPED
@@ -202,7 +209,7 @@ def _grade_live_run(
     )
     record = ablation.build_record(evidence)
     outcome_record.parse_record(record)  # AC-11: refuse before it is ever written
-    return record, argv, reply, review_note, patch
+    return record, argv, reply, review_note, patch, details
 
 
 def _run_plan(
@@ -240,21 +247,32 @@ def _run_live(
     output_dir: Path,
     runner: claude_run.Runner,
     reviewer_model: str | None = None,
+    withheld_markers: Mapping[str, Sequence[str]] | None = None,
+    max_cost_usd: float | None = None,
+    secret_literals: Sequence[str] = (),
 ) -> tuple[dict[str, object], int]:
     harness_version = probe_version(
         claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
     )
     writers: dict[str, TextIO] = {
-        name: (output_dir / f"records-{name}.jsonl").open("a", encoding="utf-8")
+        name: (output_dir / batch.records_filename(name)).open("a", encoding="utf-8")
         for name in controls
     }
     runs: list[dict[str, object]] = []
     any_harness_failure = False
+    guard = batch.SpendGuard.resumed(max_cost_usd, output_dir)
     try:
         for task, repeat, name, control in _run_plan(tasks, repeats, controls):
+            blocked = guard.blocked_reason()
+            if blocked is not None:
+                any_harness_failure = True
+                runs.append(batch.budget_entry(task.id, name, repeat, blocked))
+                continue
+            workspace = workspace_root / path_safe(f"{task.id}-{name}-{repeat}")
+            markers = (withheld_markers or {}).get(task.id, ())
             try:
-                record, argv, reply, review_note, patch = _grade_live_run(
-                    workspace_root / f"{task.id}-{name}-{repeat}",
+                record, argv, reply, review_note, patch, details = _grade_live_run(
+                    workspace,
                     task,
                     control,
                     repeat,
@@ -263,16 +281,26 @@ def _run_live(
                     timeout,
                     runner,
                     reviewer_model,
+                    markers,
                 )
             except _HARNESS_ERRORS as exc:
                 any_harness_failure = True
-                runs.append(_failure_entry(task, name, repeat, model, exc))
+                guard.add_failure(exc)
+                runs.append(
+                    batch.redact(_failure_entry(task, name, repeat, model, exc), secret_literals)
+                )
                 continue
+            finally:
+                if markers:  # a graded historical cell holds withheld evidence
+                    batch.remove_cell(workspace)
             if review_note not in ("", REVIEW_OFF, REVIEW_SKIPPED):
                 any_harness_failure = True
+            guard.add_record(record)
             writers[name].write(json.dumps(record) + "\n")
-            patch_file = write_patch(output_dir, name, task.id, repeat, patch)
-            runs.append(
+            patch_file = write_patch(
+                output_dir, name, task.id, repeat, str(batch.redact(patch, secret_literals))
+            )
+            entry = batch.redact(
                 {
                     "task_id": task.id,
                     "control": name,
@@ -282,8 +310,11 @@ def _run_live(
                     "reviewer_note": review_note,
                     "change_patch": patch_file,
                     "record": record,
-                }
+                    **details,
+                },
+                secret_literals,
             )
+            runs.append(entry)
     finally:
         for handle in writers.values():
             handle.close()
@@ -291,6 +322,8 @@ def _run_live(
         "mode": "live",
         "harness_version": harness_version,
         "real_home": real_home_enabled(),
+        "spent_usd": guard.spent,
+        "spend_unmeasured": guard.unmeasured,
         "runs": runs,
     }
     if real_home_enabled():
@@ -302,95 +335,6 @@ def _run_live(
 
 
 # CLI
-
-
-def _requested_controls(raw: str) -> list[str]:
-    names = [name.strip() for name in raw.split(",") if name.strip()]
-    if not names:
-        raise ablation_tasks.ControlAblationConfigError("--controls must name at least one control")
-    unknown = [name for name in names if name not in ablation.CONTROL_NAMES]
-    if unknown:
-        raise ablation_tasks.ControlAblationConfigError(
-            f"--controls names unknown control(s) {unknown}; "
-            f"expected one of {sorted(ablation.CONTROL_NAMES)}"
-        )
-    return names
-
-
-def _select_tasks(tasks: list[ablation_tasks.Task], raw: str | None) -> list[ablation_tasks.Task]:
-    """Keep only `--only-tasks` ids, in corpus order; an unknown id refuses."""
-    if raw is None:
-        return tasks
-    wanted = {item.strip() for item in raw.split(",") if item.strip()}
-    unknown = sorted(wanted - {task.id for task in tasks})
-    if not wanted or unknown:
-        raise ablation_tasks.ControlAblationConfigError(
-            f"--only-tasks names unknown or no task id(s): {unknown or raw!r}"
-        )
-    return [task for task in tasks if task.id in wanted]
-
-
-def _refuse_recorded_cells(
-    output_dir: Path,
-    control_names: Sequence[str],
-    tasks: Sequence[ablation_tasks.Task],
-    repeats: range,
-) -> None:
-    """Refuse a batch that would append a (task, repeat) its records already hold.
-
-    Records append, so a rerun into the same `--output-dir` would duplicate a
-    cell and `eval_durable_outcome.py` would refuse the file. Resume with
-    `--only-tasks` and `--start-repeat` instead.
-    """
-    planned = {(task.id, repeat) for task in tasks for repeat in repeats}
-    for name in control_names:
-        path = output_dir / f"records-{name}.jsonl"
-        if not path.is_file():
-            continue
-        recorded = {(row["task_id"], row["repeat"]) for row in _record_rows(path)}
-        clash = sorted(planned & recorded)
-        if clash:
-            raise ablation_tasks.ControlAblationConfigError(
-                f"{path} already records {clash}; use a new --output-dir or --start-repeat"
-            )
-
-
-def _default_output_dir() -> Path:
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    run_id = f"{stamp}-{uuid.uuid4().hex[:8]}"
-    return REPO_ROOT / "artifacts" / "control-ablation" / run_id
-
-
-def _record_rows(path: Path) -> Iterator[dict[str, object]]:
-    """Yield each JSON row of a records file; blank lines are skipped, bad JSON refuses."""
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            yield json.loads(line)
-        except ValueError as exc:
-            raise ablation_tasks.ControlAblationConfigError(
-                f"{path} line {number} is not valid JSON: {exc}"
-            ) from exc
-
-
-def _resolve_workspace_root(raw: Path | None) -> Path:
-    """Resolve and validate `--workspace-root` before creating anything.
-
-    `require_isolated_workspace_root` runs before `mkdir` (not after): a
-    refused root must not leave a stray directory behind in a location the
-    check just said is unsafe, such as inside this repository's own tree.
-    """
-    if raw is not None:
-        root = raw.resolve()
-        require_isolated_workspace_root(root)
-        root.mkdir(parents=True, exist_ok=True)
-        return root
-    parent = Path(tempfile.gettempdir()).resolve()
-    root = parent / f"control-ablation-{uuid.uuid4().hex}"
-    require_isolated_workspace_root(root)
-    root.mkdir(mode=0o700)
-    return root
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -425,6 +369,18 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="Comma-separated task ids to run; the rest of the corpus is skipped.",
     )
+    parser.add_argument(
+        "--max-cost-usd",
+        type=float,
+        default=None,
+        help="stop launching once recorded model spend reaches this many USD (issue #6814)",
+    )
+    parser.add_argument(
+        "--pass-env",
+        default=None,
+        help="comma-separated variable names forwarded to the Claude child, for hosts whose "
+        "CLI login needs them; names are reported, values never",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -432,13 +388,17 @@ def _parser() -> argparse.ArgumentParser:
 def _run(
     args: argparse.Namespace, workspace_root: Path, output_dir: Path, runner: claude_run.Runner
 ) -> tuple[dict[str, object], int]:
-    tasks = _select_tasks(ablation_tasks.load_tasks_file(args.tasks.resolve()), args.only_tasks)
+    tasks_file = args.tasks.resolve()
+    payload, loaded, sources, control_root = history.load_corpus(
+        tasks_file, REPO_ROOT, workspace_root, sys.executable
+    )
+    tasks = batch.select_tasks(loaded, args.only_tasks)
     if args.dry_run:
         report, ok = dry_run.run_dry_run(tasks, workspace_root)
         return report, (EXIT_OK if ok else EXIT_LOGIC)
     if args.real_home:
         os.environ[REAL_HOME_ENV] = "1"
-    control_names = _requested_controls(args.controls)
+    control_names = batch.requested_controls(args.controls)
     if args.start_repeat < 0 or args.repeats < 1:
         raise ablation_tasks.ControlAblationConfigError(
             "--start-repeat must be >= 0 and --repeats >= 1"
@@ -459,9 +419,28 @@ def _run(
             f"--max-runs {args.max_runs}; refusing before any model call (AC-3)"
         )
     repeats = range(args.start_repeat, args.start_repeat + args.repeats)
-    _refuse_recorded_cells(output_dir, control_names, tasks, repeats)
-    controls = {name: ablation.resolve_control(name, REPO_ROOT) for name in control_names}
-    return _run_live(
+    batch.refuse_recorded_cells(output_dir, control_names, tasks, repeats)
+    cap = args.max_cost_usd
+    if cap is not None and (not math.isfinite(cap) or cap <= 0):
+        raise ablation_tasks.ControlAblationConfigError("--max-cost-usd must be finite and > 0")
+    pass_env = batch.parse_pass_env(args.pass_env, os.environ)
+    controls = {name: ablation.resolve_control(name, control_root) for name in control_names}
+    if control_root != REPO_ROOT:
+        # Controls now hold their bytes; no agent should find the base tree on disk.
+        batch.remove_tree(control_root)
+    # Before the first launch: a mid-batch edit or commit is never attributed to it.
+    provenance = batch.build_provenance(
+        repo_root=REPO_ROOT,
+        tasks_file=tasks_file,
+        payload=payload,
+        sources=sources,
+        controls=controls,
+        model=args.model,
+        pass_env=pass_env,
+        max_cost_usd=args.max_cost_usd,
+        interpreter=sys.executable,
+    )
+    report, code = _run_live(
         tasks,
         controls,
         repeats=repeats,
@@ -469,16 +448,23 @@ def _run(
         timeout=args.timeout,
         workspace_root=workspace_root,
         output_dir=output_dir,
-        runner=runner,
+        runner=batch.child_env_runner(runner, pass_env, sys.executable),
         reviewer_model=args.reviewer_model,
+        withheld_markers=history.withheld_markers(sources, REPO_ROOT),
+        max_cost_usd=args.max_cost_usd,
+        secret_literals=batch.secret_literals(pass_env, os.environ),
     )
+    report["provenance"] = provenance
+    return report, code
 
 
 def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subprocess.run) -> int:
     args = _parser().parse_args(argv)
     try:
-        workspace_root = _resolve_workspace_root(args.workspace_root)
-        output_dir = args.output_dir.resolve() if args.output_dir else _default_output_dir()
+        workspace_root = batch.resolve_workspace_root(args.workspace_root)
+        output_dir = (
+            args.output_dir.resolve() if args.output_dir else batch.default_output_dir(REPO_ROOT)
+        )
         output_dir.mkdir(parents=True, exist_ok=True)
         report, code = _run(args, workspace_root, output_dir, runner)
     except (ablation_tasks.ControlAblationConfigError, ParityConfigError) as exc:
@@ -487,6 +473,9 @@ def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subpr
     except (*_HARNESS_ERRORS, RuntimeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
+    finally:
+        if "workspace_root" in locals():  # a refusal or dry run can leave the base tree
+            batch.remove_base_trees(workspace_root)
     report_path = output_dir / "report.json"
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
