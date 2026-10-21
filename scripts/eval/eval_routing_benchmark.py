@@ -259,6 +259,33 @@ def _live_budget(args: argparse.Namespace) -> InvocationBudget | None:
     return InvocationBudget(args.max_invocations)
 
 
+def _live_plan(plan: Plan, args: argparse.Namespace) -> Plan | int:
+    """The plan a live run may spend on, or the exit code that refuses the run.
+
+    Gates in order: credentials, the `--arms` selection, then each planned
+    harness CLI against its matrix pin. Nothing is spent before all three pass.
+    """
+    try:
+        require_live_authorization(
+            sorted({row.harness for row in plan.planned}), os.environ, real_home=args.real_home
+        )
+    except LiveGateError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_AUTH
+    if args.arms is not None:
+        plan = _only_arms(plan, args.arms)
+        if not plan.planned:
+            print(f"error: --arms {args.arms} selects no planned row", file=sys.stderr)
+            return EXIT_NOTHING_PLANNED
+    stop = _version_stop(
+        {row.harness: row.harness_version for row in plan.planned}, installed_version
+    )
+    if stop is not None:
+        print(f"error: live run refused, {stop[0]}", file=sys.stderr)
+        return stop[1]
+    return plan
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.live and args.output is None:
@@ -286,26 +313,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.live:
         print(json.dumps(plan_report(plan, "dry-run"), indent=2))
         return EXIT_OK
-    try:
-        require_live_authorization(
-            sorted({row.harness for row in plan.planned}), os.environ, real_home=args.real_home
-        )
-    except LiveGateError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return EXIT_AUTH
-    if args.arms is not None:
-        plan = _only_arms(plan, args.arms)
-        if not plan.planned:
-            print(f"error: --arms {args.arms} selects no planned row", file=sys.stderr)
-            return EXIT_NOTHING_PLANNED
-    stop = _version_stop(
-        {row.harness: row.harness_version for row in plan.planned}, installed_version
-    )
-    if stop is not None:
-        print(f"error: live run refused, {stop[0]}", file=sys.stderr)
-        return stop[1]
+    live = _live_plan(plan, args)
+    if isinstance(live, int):
+        return live
     return _run_live(
-        plan,
+        live,
         config,
         {s.scenario_id: s for s in scenarios},
         args.output,
