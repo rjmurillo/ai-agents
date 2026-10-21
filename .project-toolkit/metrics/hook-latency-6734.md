@@ -154,8 +154,8 @@ attempts, and a killed run has no finishing time, so its true tail runs to
 records this failure mode under load average 6.2 and says it is "not
 eliminated". Here it fired with the 1-minute load near 1.0 before each run.
 The readings taken when those four runs stopped, about 90s in, were 4.52 to
-8.02 on 4 CPUs, while every complete run read 1.11 or less at its end, about
-six minutes in. So the load at the deadline is the push's own fast stage:
+8.02 on 4 CPUs, while every complete run of that cell read 1.11 or less at its
+end, about six minutes in. So the load at the deadline is the push's own fast stage:
 `count-ratchets` shares a `parallel: true` group with six other jobs
 (`lefthook.yml:540`). INFERRED, since no reading was taken inside the run.
 This is the gate #6734 item 5 describes: a check that fails a clean change for
@@ -226,7 +226,7 @@ cap a loaded push can exceed. Nothing here changes a `timeout:`.
 | Hook | Measured p95 | Proposed ceiling | Proposed target | Basis |
 |---|---|---|---|---|
 | pre-commit | 35.5s | 60s (ADR-104, unchanged) | 10s, conditional | The ceiling keeps 1.7x headroom over the worst class's p95. The target is not a p95 figure: it assumes the two scans (`agents-write-targets`, `subprocess-encoding`) leave the commit path in slice 3. Outside them no job's p50 exceeds 2s, but their p50s are not additive (most share one parallel group), so the target holds only if a re-measure after slice 3 confirms it. |
-| pre-push | 373.3s | 400s, regression tripwire | 300s (ADR-104, unchanged) | Max-based, not p95-based: 400s sits above the worst warm run that started on a quiet box (383.4s, python) and the worst overall (396.6s, which started at load 8.02 after a killed run), so a regression past today's worst shows. A max-of-20 tripwire also trips by chance about once in 21 runs of an unchanged hook, so one trip is a prompt to re-measure, not proof of a regression. It is not a revised target; ADR-104 rule 5 says a check that exceeds its tier's target is replaced, not given a raised target. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
+| pre-push | 373.3s | 400s, regression tripwire | 300s (ADR-104, unchanged) | Max-based, not p95-based: 400s sits above the worst warm run that started on a quiet box (383.4s, python) and the worst overall (396.6s, which started at load 8.02 after a killed run), so a regression past today's worst shows. A tripwire near the max of 20 runs also trips by chance, at most about once in 21 runs of an unchanged hook, so one trip is a prompt to re-measure, not proof of a regression. It is not a revised target; ADR-104 rule 5 says a check that exceeds its tier's target is replaced, not given a raised target. Reaching the target at p95 needs about 50s to 75s out of `pre-pr-validation`. The two duplicated scans above are 39.9s of it. |
 
 Per-job headroom is the cap over the job's warm p95 pooled across the three
 pre-push classes (or pre-commit classes for `agents-write-targets`):

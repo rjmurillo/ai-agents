@@ -19,15 +19,16 @@ Nothing moves in this change. Latency figures come from
 
 ## How the owner is assigned
 
-Each job gets exactly one owner boundary, by the first rule that fits:
+Each job gets exactly one owner boundary, by the first rule that fits, in this
+order: guard, writer, advisory, CI-owned, local only.
 
 | Kind | Rule | Owner |
 |---|---|---|
 | guard | Protects the local git action or local machine state (`.git/config`, push lock, pushed refs). CI never sees that state. | the hook it runs in |
 | writer | Rewrites or stages content in the commit being made. Only a commit-time hook can do that. | pre-commit |
+| advisory | Never blocks on findings. | the hook it runs in |
 | CI-owned | A required CI context runs the same script or tool, in the same mode, over a superset of the content, with no path filter that can skip it. | required CI |
 | local only | Anything else: no CI twin, a CI twin that is not a required check, a twin behind a path filter, or a twin whose equivalence is unproven. | the hook it runs in |
-| advisory | Never blocks on findings. | the hook it runs in |
 
 "Required" means one of the 9 contexts pinned in
 `scripts/ci/ruleset_required_contexts.py` for ruleset 11104075, or a job that

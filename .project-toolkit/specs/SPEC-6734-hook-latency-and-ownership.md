@@ -86,7 +86,7 @@ The baseline is the metric. Proof it works: every passing repetition reports `jo
 7. Each ownership row shall name exactly one owner boundary. Each job retained at more than one boundary shall state why.
 8. The change shall not modify `lefthook.yml` or any file under `.github/workflows/`.
 9. The baseline shall propose budgets derived from the measured p95. It shall not enforce them.
-   Outcome note: the pre-commit ceiling is anchored to p95 (1.7x). The pre-push 400s figure ended max-based, a regression tripwire, because a p95-based ceiling would sit below runs already observed; the record states that basis per row.
+   Outcome note: met for pre-commit (60s, 1.7x the measured p95). Not met as written for pre-push: the same 1.7x rule would give about 634s, too loose to catch a regression, and a ceiling at the p95 itself would sit below runs already observed. The record proposes a max-based 400s tripwire instead and states that basis in its row.
 
 ## Out of scope
 
@@ -102,7 +102,7 @@ The baseline is the metric. Proof it works: every passing repetition reports `jo
 
 ## Open questions
 
-- Which CI contexts are required checks? The ruleset is not readable from this session. The table marks any context not recorded in the repo as UNKNOWN. Owner: Richard Murillo.
+- Which CI contexts are required checks? The live ruleset was not read from this session. The table uses the nine contexts pinned in `scripts/ci/ruleset_required_contexts.py` and says so. Owner: Richard Murillo.
 
 ## CVA summary
 
