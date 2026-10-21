@@ -271,6 +271,14 @@ def test_secret_literals_include_a_forwarded_token_files_content(tmp_path: Path)
     assert str(token) in literals
 
 
+def test_secret_literals_include_the_claude_auth_runtime_env_forwards() -> None:
+    environ = {"ANTHROPIC_API_KEY": "key-abcdefghijk", "CLAUDE_CODE_OAUTH_TOKEN": "oauth-1234567"}
+
+    literals = batch.secret_literals([], environ)
+
+    assert {"key-abcdefghijk", "oauth-1234567"} <= set(literals)
+
+
 def test_redact_scrubs_literals_everywhere_and_keeps_commit_shas() -> None:
     sha = "a" * 40
     entry = {"reply": "cat tok-SECRET-1234567890", "t": {"cmds": [f"git show {sha}"]}}

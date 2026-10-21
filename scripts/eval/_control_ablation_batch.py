@@ -29,7 +29,7 @@ from _control_ablation import CONTROL_NAMES, ControlFiles, is_control_name
 from _control_ablation_history import TaskSource
 from _control_ablation_tasks import ControlAblationConfigError, Task
 from _run_changes import path_safe
-from _runtime_harness import require_isolated_workspace_root
+from _runtime_harness import HARNESS_AUTH_ENV, require_isolated_workspace_root
 
 from scripts.redact_secrets import redact as redact_text
 
@@ -287,9 +287,14 @@ _SECRET_FILE_MAX_BYTES = 16_384
 
 
 def secret_literals(names: Sequence[str], environ: Mapping[str, str]) -> list[str]:
-    """Literal strings to scrub from a report: each forwarded value, and a token file's content."""
+    """Literal strings to scrub from a report: each forwarded value, and a token file's content.
+
+    The Claude auth variables `runtime_env` forwards on its own
+    (`HARNESS_AUTH_ENV["claude"]`) are scrubbed too, since a token shape rule
+    may not match every credential format.
+    """
     literals: list[str] = []
-    for name in names:
+    for name in dict.fromkeys([*names, *HARNESS_AUTH_ENV["claude"]]):
         value = environ.get(name, "")
         if not value:
             continue

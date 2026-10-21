@@ -100,14 +100,15 @@ def test_is_control_name(name: str, known: bool) -> None:
 
 
 def test_the_cli_refuses_a_bare_minus_prefix_before_any_model_call(
-    repo: HistoryRepo, tmp_path: Path
+    live_repo: HistoryRepo, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    runner = FakeClaudeRunner(history_tasks(repo))
+    runner = FakeClaudeRunner(history_tasks(live_repo))
 
-    code = cli.main(live_args(repo, tmp_path, "--controls", "full,minus:"), runner=runner)
+    code = cli.main(live_args(live_repo, tmp_path, "--controls", "full,minus:"), runner=runner)
 
     assert code == cli.EXIT_CONFIG
     assert runner.calls == []
+    assert "unknown control" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
