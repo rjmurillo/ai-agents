@@ -44,7 +44,8 @@ class TestTheWorkflowWiring:
         steps = jobs["coverage"]["steps"]
         gate = [s for s in steps if "slow_test_budget.py" in str(s.get("run", ""))]
         assert len(gate) == 1, "the slow-test budget gate is not wired into the coverage job"
-        assert "if" not in gate[0], "the gate must not be skippable"
+        # "Not skippable" means no condition other than a cancelled run stops it.
+        assert gate[0].get("if", "!cancelled()") == "!cancelled()", "the gate must not be skippable"
         tokens = shlex.split(gate[0]["run"])
         assert tokens[tokens.index("--budget") + 1] == "pyproject.toml"
         inputs = [t for t in tokens if t.endswith(".xml")]
