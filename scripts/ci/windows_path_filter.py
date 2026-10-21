@@ -223,8 +223,20 @@ def _references(path: str, repo_root: Path, inventory: Inventory) -> set[str]:
     return found
 
 
-def reach(repo_root: Path, root: str, inventory: Inventory) -> set[str]:
-    """``root`` plus everything it names, transitively through Python files."""
+def reach(
+    repo_root: Path,
+    root: str,
+    inventory: Inventory,
+    references: dict[str, set[str]] | None = None,
+) -> set[str]:
+    """``root`` plus everything it names, transitively through Python files.
+
+    ``references`` caches each file's names across calls. The marked modules
+    share most of their reach, so without it every shared file is parsed once
+    per module.
+    """
+    if references is None:
+        references = {}
     seen: set[str] = set()
     queue: deque[str] = deque([root])
     while queue:
@@ -233,7 +245,9 @@ def reach(repo_root: Path, root: str, inventory: Inventory) -> set[str]:
             continue
         seen.add(path)
         if path.endswith(".py"):
-            queue.extend(_references(path, repo_root, inventory) - seen)
+            if path not in references:
+                references[path] = _references(path, repo_root, inventory)
+            queue.extend(references[path] - seen)
     return seen
 
 
@@ -253,8 +267,9 @@ def filter_patterns(repo_root: Path, files: Iterable[str] | None = None) -> dict
     """
     inventory = Inventory(tracked_files(repo_root) if files is None else files)
     patterns: dict[str, list[str]] = {}
+    references: dict[str, set[str]] = {}
     for root in run_pytest_windows.marked_files(repo_root):
-        globs = {_glob_for(path) for path in reach(repo_root, root, inventory)}
+        globs = {_glob_for(path) for path in reach(repo_root, root, inventory, references)}
         globs.update(ALWAYS_AFFECTED)
         patterns[root] = sorted(globs)
     return patterns

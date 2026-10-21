@@ -128,9 +128,12 @@ class TestAgainstTheRepository:
     ) -> None:
         """A reach that grows to the whole repository narrows nothing."""
         tracked = wpf.tracked_files(REPO_ROOT)
-        reached = {
-            path for path in tracked if any(_matches(path, globs) for globs in patterns.values())
-        }
+        # One pooled set and glob list: per-module lists repeat most entries, and
+        # scanning each list for every tracked file dominated this test.
+        pooled = sorted({glob for globs in patterns.values() for glob in globs})
+        plain = {glob for glob in pooled if "*" not in glob}
+        starred = [glob for glob in pooled if "*" in glob]
+        reached = {path for path in tracked if path in plain or _matches(path, starred)}
 
         assert len(reached) < len(tracked) * 0.25, (
             f"{len(reached)} of {len(tracked)} tracked files reach a Windows module"
