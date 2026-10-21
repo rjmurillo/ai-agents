@@ -246,10 +246,25 @@ def evaluate_h2(runs: Sequence[Run], fallback: Sequence[str]) -> dict[str, Any]:
     return verdict(INSUFFICIENT, "fallback evidence rule not met either way", cells=detail)
 
 
-def evaluate_h3(runs: Sequence[Run]) -> dict[str, Any]:
+def _h3_coverage_gap(runs: Sequence[Run], scenarios: Sequence[str]) -> str | None:
+    """I12: H3 pools all six scenarios, so each arm needs a scored run in every one."""
+    for arm in ("A", "B"):
+        covered = {r.scenario_id for r in runs if r.arm == arm and r.eligible}
+        missing = [sid for sid in scenarios if sid not in covered]
+        if missing:
+            names = ", ".join(missing)
+            return f"arm {arm} has no scored run in {names}, so H3 is not pooled over all six"
+    return None
+
+
+def evaluate_h3(runs: Sequence[Run], scenarios: Sequence[str]) -> dict[str, Any]:
     a, b = cell_for(runs, "A", None), cell_for(runs, "B", None)
     detail = cell_summary(a, b)
-    reason = gate_reason([a, b], floor=True) or economics_unmeasured([a, b])
+    reason = (
+        gate_reason([a, b], floor=True)
+        or _h3_coverage_gap(runs, scenarios)
+        or economics_unmeasured([a, b])
+    )
     if reason:
         return verdict(INSUFFICIENT, reason, cells=detail)
     if non_inferior(a, b) and materially_better(a, b):
@@ -367,7 +382,7 @@ def score(
         hypotheses = {
             "H1": evaluate_h1(runs),
             "H2": evaluate_h2(runs, fallback),
-            "H3": evaluate_h3(runs),
+            "H3": evaluate_h3(runs, sorted(classes)),
             "H4": evaluate_h4(runs, fallback),
         }
     return {

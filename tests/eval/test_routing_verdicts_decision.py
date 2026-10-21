@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from tests.eval._routing_verdicts_test_support import (
@@ -246,6 +248,32 @@ def test_parse_rejects_missing_repetition() -> None:
     del item["repetition"]
     with pytest.raises(v.VerdictInputError, match="repetition"):
         runs_of([item])
+
+
+@pytest.mark.parametrize("repetition", [0, 4, 12, -1])
+def test_parse_rejects_repetition_outside_registered_design(repetition: int) -> None:
+    with pytest.raises(v.VerdictInputError, match="registered design"):
+        runs_of([row(ORDINARY[0], "A", repetition)])
+
+
+def test_extra_repetitions_cannot_fill_the_decision_floor() -> None:
+    extra = [row(ORDINARY[0], arm, rep) for arm in "ABCDE" for rep in range(1, 13)]
+    with pytest.raises(v.VerdictInputError, match="registered design"):
+        runs_of(extra)
+
+
+@pytest.mark.parametrize(
+    "windows",
+    [[{}], [{"start": 0}], [{"end": 5}], [{"start": 0, "end": 5}, {}], [{"start": None, "end": 5}]],
+)
+def test_wall_clock_is_unknown_for_a_window_missing_start_or_end(
+    windows: list[dict[str, Any]],
+) -> None:
+    item = row(ORDINARY[0], "A", 1)
+    item["invocations"] = [
+        {"window": window, "input_tokens": 1, "output_tokens": 1} for window in windows
+    ]
+    assert runs_of([item])[0].seconds is None
 
 
 def test_parse_rejects_duplicate_key() -> None:

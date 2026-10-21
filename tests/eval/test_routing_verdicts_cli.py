@@ -81,6 +81,37 @@ def test_cli_exit_1_when_every_row_is_not_run(tmp_path: Path) -> None:
     assert run_cli("--results", str(results)) == 1
 
 
+def test_cli_exit_1_when_every_row_is_a_harness_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rows = [row(ORDINARY[0], "A", 1, "HARNESS_FAILED"), row(ORDINARY[0], "C", 1, "NOT_RUN")]
+    results = write_jsonl(tmp_path / "r.jsonl", rows)
+    assert run_cli("--results", str(results)) == 1
+    captured = capsys.readouterr()
+    assert "no scorable rows" in captured.err
+    assert captured.out == ""
+
+
+def test_cli_exit_2_when_output_path_is_unwritable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    results = write_jsonl(tmp_path / "r.jsonl", full_dataset())
+    missing = tmp_path / "no-such-dir" / "report.json"
+    assert run_cli("--results", str(results), "--output", str(missing)) == 2
+    captured = capsys.readouterr()
+    assert str(missing) in captured.err
+    assert captured.out == ""
+
+
+def test_cli_writes_the_report_to_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    results = write_jsonl(tmp_path / "r.jsonl", full_dataset())
+    out = tmp_path / "report.json"
+    assert run_cli("--results", str(results), "--output", str(out)) == 0
+    assert json.loads(out.read_text(encoding="utf-8")) == json.loads(capsys.readouterr().out)
+
+
 def test_cli_blank_lines_are_skipped(tmp_path: Path) -> None:
     path = tmp_path / "r.jsonl"
     path.write_text("\n" + json.dumps(row(ORDINARY[0], "A", 1)) + "\n\n", encoding="utf-8")

@@ -26,6 +26,7 @@ from _routing_verdict_constants import (
     NOT_RUN,
     POOLED,
     QUALITY_MARGIN,
+    REPETITIONS,
 )
 
 
@@ -113,8 +114,8 @@ def _wall_clock(invocations: Sequence[Mapping[str, Any]]) -> float | None:
     windows = [item.get("window") for item in invocations]
     if not windows or any(not isinstance(w, Mapping) for w in windows):
         return None
-    starts = [w["start"] for w in windows if w]
-    ends = [w["end"] for w in windows if w]
+    starts = [w.get("start") for w in windows]
+    ends = [w.get("end") for w in windows]
     if any(v is None for v in starts + ends):
         return None
     return float(max(ends) - min(starts))
@@ -153,6 +154,11 @@ def _parse_row(row: Mapping[str, Any], classes: Mapping[str, str]) -> Run:
     repetition = row.get("repetition")
     if not isinstance(repetition, int) or isinstance(repetition, bool):
         raise VerdictInputError(f"{scenario_id}/{row.get('arm')}: row has no integer repetition")
+    if repetition not in REPETITIONS:
+        raise VerdictInputError(
+            f"{scenario_id}/{row.get('arm')}: repetition {repetition} is outside the "
+            f"registered design {list(REPETITIONS)}"
+        )
     invocations = row.get("invocations") or []
     return Run(
         scenario_id=str(scenario_id),

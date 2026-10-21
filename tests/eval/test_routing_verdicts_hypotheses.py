@@ -185,6 +185,35 @@ def test_h3_insufficient_when_arm_missing() -> None:
     assert status_of(runs_of(arm_rows("A", ALL_IDS)), "H3") == v.INSUFFICIENT
 
 
+def test_h3_insufficient_when_b_has_no_fallback_scenarios() -> None:
+    runs = runs_of(
+        arm_rows("A", ALL_IDS, seconds=50, tokens=500),
+        arm_rows("B", ORDINARY, seconds=100, tokens=1000),
+    )
+    h3 = v.score(runs, CLASSES)["hypotheses"]["H3"]
+    assert h3["status"] == v.INSUFFICIENT
+    assert "arm B has no scored run in" in h3["reason"]
+    assert FALLBACK[0] in h3["reason"]
+
+
+def test_h3_insufficient_when_a_has_no_fallback_scenarios() -> None:
+    runs = runs_of(arm_rows("A", ORDINARY), arm_rows("B", ALL_IDS))
+    h3 = v.score(runs, CLASSES)["hypotheses"]["H3"]
+    assert h3["status"] == v.INSUFFICIENT
+    assert "arm A has no scored run in" in h3["reason"]
+
+
+def test_h3_coverage_ignores_harness_failed_runs() -> None:
+    b_rows = arm_rows("B", ALL_IDS, seconds=100, tokens=1000)
+    for item in b_rows:
+        if item["scenario_id"] == FALLBACK[1]:
+            item["status"] = "HARNESS_FAILED"
+    runs = runs_of(arm_rows("A", ALL_IDS, seconds=50, tokens=500), b_rows)
+    h3 = v.score(runs, CLASSES)["hypotheses"]["H3"]
+    assert h3["status"] == v.INSUFFICIENT
+    assert FALLBACK[1] in h3["reason"]
+
+
 # ----------------------------------------------------------------------------- H2
 
 

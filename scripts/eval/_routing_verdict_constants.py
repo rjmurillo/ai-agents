@@ -40,7 +40,7 @@ ECONOMICS_FACTOR = Fraction(3, 4)  # line 50: at least 25 percent lower
 HARNESS_FAILURE_LIMIT = Fraction(1, 5)  # line 66
 EVIDENCE_FLOOR = 8  # line 58
 FALLBACK_MIN_REPS = 2  # line 63
-REPETITIONS = (1, 2, 3)  # line 29
+REPETITIONS = (1, 2, 3)  # line 30
 COMPARED_ARMS = ("A", "B", "C", "D", "E")  # H1 to H4
 FALLBACK_COMPARED_ARMS = ("A", "C", "D", "E")  # H2 and H4
 DECISION_ORDINARY_SCORED_FLOOR = 12  # Amendment 2 item 1
@@ -53,7 +53,10 @@ INTERPRETATIONS: tuple[dict[str, object], ...] = (
             "Residual defects per run = scope violations + missing expected files from the "
             "stored validation, plus 1 when validation is FAIL with neither itemized (a failed "
             "follow-up check exists but rows do not list it). A run with no validation counts 0. "
-            "Counts are lower bounds."
+            "Counts are lower bounds: the stored validation keeps the grader verdict and the "
+            "itemized path lists but no count of failed follow-up checks, so a FAIL that also "
+            "itemizes paths adds nothing for its failed checks. The 0.5 margin is compared on "
+            "these lower bounds for every arm alike."
         ),
     },
     {
@@ -160,6 +163,26 @@ INTERPRETATIONS: tuple[dict[str, object], ...] = (
         "reading": (
             "Only Codex rows are scorable. Any other harness name is refused, because H1 to H4 "
             "name Codex model families."
+        ),
+    },
+    {
+        "id": "I12",
+        "predictions_lines": "103-105",
+        "reading": (
+            "H3 compares A and B 'on all six scenarios pooled'. A and B each need at least one "
+            "scored run in every corpus scenario before H3 can leave INSUFFICIENT_EVIDENCE. "
+            "Amendment 2 sets no fallback requirement for B, so this check is H3's own and is "
+            "separate from the decision floor."
+        ),
+    },
+    {
+        "id": "I13",
+        "predictions_lines": "30",
+        "reading": (
+            "The run design fixes 3 repetitions per scenario, arm, and harness. A row whose "
+            "repetition is not 1, 2, or 3 is refused, so extra repetitions cannot stand in for "
+            "a scenario that did not run. With unique (scenario, arm, repetition) keys, 12 "
+            "scored ordinary runs for an arm then cover all 4 ordinary scenarios x 3 repetitions."
         ),
     },
 )

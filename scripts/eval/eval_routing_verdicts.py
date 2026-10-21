@@ -16,9 +16,10 @@ evidence floor. Mixing them with any other file is refused. The rule is by path
 because rows do not record which prompt produced them; moving the files out of
 that directory defeats the guard.
 
-Exit codes (AGENTS.md): 0 scored. 1 no scorable rows (all NOT_RUN or empty).
-2 invalid arguments, unreadable input, unknown scenario or harness, duplicate
-rows, or the Amendment 1 pooling refusal.
+Exit codes (AGENTS.md): 0 scored. 1 no scorable rows (empty, or every row NOT_RUN
+or HARNESS_FAILED). 2 invalid arguments, unreadable input, unwritable `--output`,
+unknown scenario or harness, repetition outside 1 to 3, duplicate rows, or the
+Amendment 1 pooling refusal.
 """
 
 from __future__ import annotations
@@ -32,7 +33,6 @@ from typing import Any
 
 from _routing_scenario import RoutingCorpusError, load_corpus
 from _routing_verdicts import (
-    NOT_RUN,
     SUPERSEDED_DIR,
     VerdictInputError,
     parse_runs,
@@ -110,13 +110,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     except VerdictInputError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_CONFIG
-    if not any(run.status != NOT_RUN for run in runs):
+    if not any(run.eligible for run in runs):
         print("error: no scorable rows", file=sys.stderr)
         return EXIT_NO_ROWS
     report = score(runs, classes, superseded=superseded)
     text = json.dumps(report, indent=2, sort_keys=False)
     if args.output is not None:
-        args.output.write_text(text + "\n", encoding="utf-8")
+        try:
+            args.output.write_text(text + "\n", encoding="utf-8")
+        except OSError as error:
+            print(f"error: cannot write {args.output}: {error}", file=sys.stderr)
+            return EXIT_CONFIG
     print(text)
     return EXIT_OK
 
