@@ -34,7 +34,7 @@ import subprocess
 import time
 import zipfile
 import zlib
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
@@ -394,9 +394,16 @@ def _write_record(policy: Policy, gate: str, keys: Sequence[str]) -> None:
     policy.record_out.write_text(record.to_json() + "\n", encoding="utf-8")
 
 
-def add_policy_arguments(parser: argparse.ArgumentParser) -> None:
-    """Register the flags every gate shares. Defaults read the Actions environment."""
-    group = parser.add_argument_group("breach policy (issue #6757)")
+def add_policy_arguments(
+    parser: argparse.ArgumentParser, *, already_defined: Collection[str] = ()
+) -> None:
+    """Register the flags every gate shares. Defaults read the Actions environment.
+
+    A gate that already owns some of these flags with the same meaning, such as
+    ``--event``, ``--ref`` and ``--sha`` on the duration trend, names them in
+    ``already_defined`` so argparse does not see a duplicate.
+    """
+    group = parser.add_argument_group("breach policy (issues #6757, #6796)")
     group.add_argument(
         "--breach-policy",
         choices=POLICIES,
@@ -405,10 +412,13 @@ def add_policy_arguments(parser: argparse.ArgumentParser) -> None:
         "requests and fails on main only after two main runs in a row breach. Only a "
         "push to refs/heads/main is enforced; any other event or ref warns.",
     )
-    group.add_argument("--event", help="Event name (default: GITHUB_EVENT_NAME).")
-    group.add_argument("--ref", help="Ref (default: GITHUB_REF).")
+    if "--event" not in already_defined:
+        group.add_argument("--event", help="Event name (default: GITHUB_EVENT_NAME).")
+    if "--ref" not in already_defined:
+        group.add_argument("--ref", help="Ref (default: GITHUB_REF).")
     group.add_argument("--run-id", type=int, help="Run id (default: GITHUB_RUN_ID).")
-    group.add_argument("--sha", help="Commit SHA (default: GITHUB_SHA).")
+    if "--sha" not in already_defined:
+        group.add_argument("--sha", help="Commit SHA (default: GITHUB_SHA).")
     group.add_argument("--repository", help="owner/repo (default: GITHUB_REPOSITORY).")
     group.add_argument("--workflow", help="Workflow file name, e.g. pytest.yml.")
     group.add_argument(

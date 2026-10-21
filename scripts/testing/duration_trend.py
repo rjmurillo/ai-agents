@@ -21,10 +21,19 @@ regression as a warning and exits 0, because runner timing noise must not block
 a merge (issue #6244). With neither flag the run is enforced, as on main.
 Passing only one of them makes the run advisory.
 
+``--breach-policy consecutive-main`` applies the owner decision of issue #6796.
+One sample on a shared runner swings 2x to 4x, and the swing lands on a
+different module each run. The regression of a module (or the suite) then fails
+a push to main only when the same name also regressed on the previous completed
+main run (``scripts/ci/consecutive_breach.py``). A first regression on main
+warns and is recorded; an unknown previous run counts as a regression. Every
+other event or ref warns. The default policy, ``strict``, keeps the contract
+above.
+
 Exit codes: 0 ok (no regression, no baseline yet, or an advisory run), 1 logic
 (a regression on an enforced run, or no test records), 2 config (bad arguments,
 or a report declaring a DTD or entity), 3 external (unreadable input, or an
-output that cannot be written).
+output or breach record that cannot be written).
 """
 
 from __future__ import annotations
@@ -42,8 +51,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scripts.ci import consecutive_breach  # noqa: E402
 from scripts.testing import duration_history, duration_render  # noqa: E402
-from scripts.testing.duration_compare import Thresholds, compare  # noqa: E402
+from scripts.testing.duration_compare import Regression, Thresholds, compare  # noqa: E402
 from scripts.testing.duration_snapshot import Snapshot, build_snapshot  # noqa: E402
 
 
@@ -80,9 +90,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--suite-min-delta", type=_positive, default=60.0)
     parser.add_argument("--event", help="Event that started the run (GITHUB_EVENT_NAME).")
     parser.add_argument("--ref", help="Ref the run measured (GITHUB_REF).")
+    consecutive_breach.add_policy_arguments(parser, already_defined=("--event", "--ref", "--sha"))
     return parser
 
 
+GATE = "duration-trend"
 ENFORCED_EVENT = "push"
 ENFORCED_REF = "refs/heads/main"
 
@@ -107,10 +119,53 @@ def _write_outputs(
             handle.write(report)
 
 
+def _strict_note(args: argparse.Namespace) -> str:
+    return (
+        f"\nAdvisory run ({args.event} on {args.ref}): only a push to "
+        f"`{ENFORCED_REF}` fails on a duration regression.\n"
+    )
+
+
+def _policy_note(policy: consecutive_breach.Policy) -> str:
+    if policy.mode == consecutive_breach.MODE_CONSECUTIVE:
+        return (
+            f"\nPush to `{ENFORCED_REF}`: a regression fails the run only when the same "
+            "name also regressed on the previous main run (issue #6796).\n"
+        )
+    return (
+        f"\nAdvisory run ({policy.event} on {policy.ref}): only a push to "
+        f"`{ENFORCED_REF}` fails on a duration regression.\n"
+    )
+
+
+def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.Policy) -> int:
+    """Warn or fail per the policy. A main run also writes its breach record."""
+    breaches = {r.name: duration_render.regression_text(r) for r in regressions}
+    try:
+        verdict = consecutive_breach.apply_policy(
+            GATE, breaches, policy, title="Test duration trend"
+        )
+    except OSError as exc:
+        print(f"::error title=Test duration trend::could not write the breach record: {exc}")
+        return 3
+    if policy.mode == consecutive_breach.MODE_ADVISORY and regressions:
+        print(
+            f"duration: advisory on event={policy.event} ref={policy.ref}; only a push to "
+            f"{ENFORCED_REF} fails on a regression",
+            file=sys.stderr,
+        )
+    return 1 if verdict.failing else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
     if args.max_history < 1 or args.top < 1:
         print("--max-history and --top must be at least 1", file=sys.stderr)
+        return 2
+    try:
+        policy = consecutive_breach.policy_from_args(args)
+    except ValueError as exc:
+        print(f"bad breach policy: {exc}", file=sys.stderr)
         return 2
     try:
         snapshot = build_snapshot(args.inputs, args.sha, datetime.now(UTC))
@@ -129,26 +184,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     comparison = compare(snapshot, history, limits)
     report = duration_render.render_markdown(snapshot, history, comparison, args.top, note)
-    regressed = len(comparison.modules) + (1 if comparison.suite else 0)
-    advisory = bool(regressed) and not is_enforced(args.event, args.ref)
-    if advisory:
-        report += (
-            f"\nAdvisory run ({args.event} on {args.ref}): only a push to "
-            f"`{ENFORCED_REF}` fails on a duration regression.\n"
-        )
+    regressions = duration_render.regressions_of(comparison)
+    regressed = len(regressions)
+    if policy.name == consecutive_breach.POLICY_STRICT:
+        advisory = bool(regressed) and not is_enforced(args.event, args.ref)
+        report += _strict_note(args) if advisory else ""
+    else:
+        advisory = False
+        report += _policy_note(policy) if regressed else ""
     try:
         _write_outputs(args, snapshot, history, report)
     except OSError as exc:
         print(f"::error title=Test duration report::could not write output: {exc}")
         return 3
     print(report)
-    for line in duration_render.warning_commands(comparison):
-        print(line)
+    if policy.name == consecutive_breach.POLICY_STRICT:
+        for line in duration_render.warning_commands(comparison):
+            print(line)
     print(
         f"duration: {regressed} regressions in {comparison.comparable} comparable "
         f"modules, {len(snapshot.modules)} modules measured",
         file=sys.stderr,
     )
+    if policy.name != consecutive_breach.POLICY_STRICT:
+        return _apply_policy(regressions, policy)
     if not advisory:
         return 1 if regressed else 0
     print(

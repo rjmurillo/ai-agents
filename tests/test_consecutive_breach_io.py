@@ -25,6 +25,17 @@ class TestPolicyFlags:
         cb.add_policy_arguments(parser)
         return parser.parse_args(list(argv))
 
+    def test_flags_a_gate_already_owns_are_not_registered_twice(self) -> None:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--event")
+        parser.add_argument("--ref")
+        parser.add_argument("--sha", default="unknown")
+        cb.add_policy_arguments(parser, already_defined=("--event", "--ref", "--sha"))
+        args = parser.parse_args(["--event", "push", "--breach-policy", "consecutive-main"])
+        assert args.event == "push"
+        assert args.sha == "unknown"
+        assert args.breach_policy == cb.POLICY_CONSECUTIVE
+
     def test_strict_is_the_default_and_needs_nothing(self) -> None:
         assert cb.policy_from_args(self._args(), {}).mode == cb.MODE_STRICT
 

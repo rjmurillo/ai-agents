@@ -105,14 +105,23 @@ def escape_command_data(text: str) -> str:
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
+def regression_text(regression: Regression) -> str:
+    """One line naming how far a module, partition, or the suite ran over its baseline."""
+    return (
+        f"took {regression.seconds:.1f}s against a {regression.baseline:.1f}s median baseline "
+        f"({ratio_text(regression)}, {regression.samples} samples)"
+    )
+
+
+def regressions_of(comparison: Comparison) -> list[Regression]:
+    """The suite regression first, then each module, as the report lists them."""
+    return ([comparison.suite] if comparison.suite else []) + comparison.modules
+
+
 def warning_commands(comparison: Comparison) -> list[str]:
     """GitHub Actions warning commands, one per regression."""
-    regressions = ([comparison.suite] if comparison.suite else []) + comparison.modules
     return [
         "::warning title=Test duration regression::"
-        + escape_command_data(
-            f"{r.name} took {r.seconds:.1f}s against a {r.baseline:.1f}s median baseline "
-            f"({ratio_text(r)}, {r.samples} samples)"
-        )
-        for r in regressions
+        + escape_command_data(f"{r.name} {regression_text(r)}")
+        for r in regressions_of(comparison)
     ]

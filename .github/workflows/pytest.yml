@@ -712,6 +712,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # The trend gate reads the previous main run's breach record (issue #6796).
+      actions: read
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -773,6 +775,14 @@ jobs:
           key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
 
       # `!cancelled()` so a failed merge above still gets a duration report.
+      #
+      # Issue 6796: one sample on a shared runner swings 2x to 4x, so a
+      # regression warns on pull requests and fails on main only when the same
+      # module (or the suite) regressed on two main runs in a row.
+      # scripts/ci/consecutive_breach.py owns the policy and reads
+      # GITHUB_RUN_ID and GITHUB_REPOSITORY itself. A main run writes the record
+      # file this step names; the upload step below publishes it for the next
+      # main run.
       - name: Report test duration trend
         id: duration-trend
         if: "!cancelled()"
@@ -781,6 +791,7 @@ jobs:
           RUN_EVENT: ${{ github.event_name }}
           RUN_REF: ${{ github.ref }}
           HISTORY_KEY: ${{ steps.restore-history.outputs.cache-matched-key }}
+          GH_TOKEN: ${{ github.token }}
         run: >-
           echo "history restored from cache key: ${HISTORY_KEY:-none}" &&
           uv run --frozen python scripts/testing/duration_trend.py
@@ -792,6 +803,21 @@ jobs:
           --event "$RUN_EVENT"
           --ref "$RUN_REF"
           --summary "$GITHUB_STEP_SUMMARY"
+          --breach-policy consecutive-main
+          --workflow pytest.yml
+          --breach-record-out breach-records/duration-trend/breach-record.json
+
+      # Only a push to main writes the record, so a pull request finds no file
+      # and uploads nothing. always() keeps the record when the gate fails.
+      - name: Upload duration trend breach record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: breach-record-duration-trend
+          path: breach-records/duration-trend/
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
 
       # The script writes the history even when it reports a regression, so
       # a slowdown that lands on main joins the baseline instead of failing
