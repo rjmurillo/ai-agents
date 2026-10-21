@@ -18,6 +18,7 @@ import io
 import json
 import subprocess
 import zipfile
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -207,6 +208,19 @@ class TestFailClosed:
         assert "failing closed" in out
         assert reason in out
 
+    @pytest.mark.parametrize(
+        "exc",
+        [EOFError("truncated"), zlib.error("bad data"), NotImplementedError("compression")],
+    )
+    def test_an_unreadable_archive_member_fails_the_gate_instead_of_raising(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, exc: Exception
+    ) -> None:
+        def boom(*_a: Any, **_kw: Any) -> bytes:
+            raise exc
+
+        monkeypatch.setattr(cb.zipfile.ZipFile, "read", boom)
+        assert _apply(_policy(tmp_path), _api(["m.py"])).failing == ("m.py",)
+
     def test_an_api_failure_fails_the_gate(self, tmp_path: Path) -> None:
         api = FakeApi({RUNS_URL: cb.PriorStateError("gh api failed: HTTP 502")})
         assert _apply(_policy(tmp_path), api).failing == ("m.py",)
@@ -336,9 +350,19 @@ class TestStrictPolicy:
         assert verdict.failing == ("a", "b")
         assert api.calls == []
 
-    def test_a_strict_failure_message_is_plain(self, capsys: pytest.CaptureFixture[str]) -> None:
-        cb.apply_policy(GATE, {"a": "1\n2%"}, cb.Policy(), FakeApi({}))
-        assert capsys.readouterr().out == "::error title=demo-gate::a: 1%0A2%25.\n"
+    def test_strict_mode_adds_no_workflow_annotation(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cb.apply_policy(GATE, {"a": "1"}, cb.Policy(), FakeApi({}))
+        assert capsys.readouterr().out == ""
+
+
+class TestAnnotationEscaping:
+    def test_message_escapes_percent_and_newlines(self) -> None:
+        assert cb.annotation("error", "t", "1\n2%\r") == "::error title=t::1%0A2%25%0D"
+
+    def test_title_also_escapes_colon_and_comma(self) -> None:
+        assert cb.annotation("warning", "Wall: a,b", "m") == "::warning title=Wall%3A a%2Cb::m"
 
 
 class TestPolicyFlags:

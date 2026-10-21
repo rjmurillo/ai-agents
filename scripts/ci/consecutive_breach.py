@@ -32,6 +32,7 @@ import json
 import os
 import subprocess
 import zipfile
+import zlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,7 +51,7 @@ RUNS_PER_PAGE = 30
 MAX_RUN_PAGES = 5
 MAX_ZIP_BYTES = 1024 * 1024
 MAX_RECORD_BYTES = 256 * 1024
-FETCH_TIMEOUT_SECONDS = 60.0
+FETCH_TIMEOUT_SECONDS = 30.0
 
 POLICY_STRICT = "strict"
 POLICY_CONSECUTIVE = "consecutive-main"
@@ -132,6 +133,9 @@ class PriorLookup:
     def breached(self, key: str) -> bool:
         """True when ``key`` breached last run, or when that is unknown (fail closed)."""
         return self.record is None or key in self.record.breached
+
+
+_NO_LOOKUP = PriorLookup(None, "no lookup was made")
 
 
 def gh_fetch(endpoint: str, timeout: float = FETCH_TIMEOUT_SECONDS) -> bytes:
@@ -241,7 +245,18 @@ def find_previous_record(
     try:
         run_id = _previous_run_id(fetch, repository, workflow, current_run_id)
         record = parse_record(_record_bytes(fetch, repository, run_id, gate), gate)
-    except (PriorStateError, ValueError, OSError, zipfile.BadZipFile, KeyError) as exc:
+    except (
+        PriorStateError,
+        ValueError,
+        OSError,
+        KeyError,
+        EOFError,
+        zlib.error,
+        NotImplementedError,
+        RuntimeError,
+        zipfile.BadZipFile,
+        zipfile.LargeZipFile,
+    ) as exc:
         return PriorLookup(None, f"{type(exc).__name__}: {exc}")
     return PriorLookup(record, f"run {run_id}")
 
@@ -282,7 +297,9 @@ def _escape(value: str) -> str:
 
 def annotation(level: str, title: str, message: str) -> str:
     """One GitHub Actions workflow command line."""
-    return f"::{level} title={_escape(title)}::{_escape(message)}"
+    # A property value also ends at ":" and ",", which the message does not.
+    prop = _escape(title).replace(":", "%3A").replace(",", "%2C")
+    return f"::{level} title={prop}::{_escape(message)}"
 
 
 def apply_policy(
@@ -302,7 +319,7 @@ def apply_policy(
     fetch = gh_fetch if fetch is None else fetch
     keys = sorted(breaches)
     mode = policy.mode
-    lookup: PriorLookup | None = None
+    lookup = _NO_LOOKUP
     if mode == MODE_CONSECUTIVE and keys:
         lookup = find_previous_record(
             fetch,
@@ -314,16 +331,19 @@ def apply_policy(
     failing: list[str] = []
     warning: list[str] = []
     for key in keys:
-        if mode == MODE_STRICT or (lookup is not None and lookup.breached(key)):
+        if mode == MODE_STRICT or (mode == MODE_CONSECUTIVE and lookup.breached(key)):
             failing.append(key)
         else:
             warning.append(key)
     if mode == MODE_CONSECUTIVE:
         _write_record(policy, gate, keys)
-    for key in warning:
-        print(annotation("warning", label, _warning_text(key, breaches[key], mode)))
-    for key in failing:
-        print(annotation("error", label, _failure_text(key, breaches[key], mode, lookup)))
+    # Strict mode is the pre-policy contract: the caller's own stderr lines
+    # report the overrun, so no workflow annotation is added.
+    if mode != MODE_STRICT:
+        for key in warning:
+            print(annotation("warning", label, _warning_text(key, breaches[key], mode)))
+        for key in failing:
+            print(annotation("error", label, _failure_text(key, breaches[key], lookup)))
     return Verdict(tuple(failing), tuple(warning))
 
 
@@ -333,9 +353,7 @@ def _warning_text(key: str, detail: str, mode: str) -> str:
     return f"{key}: {detail}. First breach on main; the previous main run did not breach it."
 
 
-def _failure_text(key: str, detail: str, mode: str, lookup: PriorLookup | None) -> str:
-    if mode == MODE_STRICT or lookup is None:
-        return f"{key}: {detail}."
+def _failure_text(key: str, detail: str, lookup: PriorLookup) -> str:
     if lookup.known:
         return f"{key}: {detail}. Breached on {lookup.reason} too, two main runs in a row."
     return f"{key}: {detail}. Previous main run unknown ({lookup.reason}); failing closed."
@@ -363,7 +381,8 @@ def add_policy_arguments(parser: argparse.ArgumentParser) -> None:
         choices=POLICIES,
         default=POLICY_STRICT,
         help="strict fails on any breach (default). consecutive-main warns on pull "
-        "requests and fails on main only after two main runs in a row breach.",
+        "requests and fails on main only after two main runs in a row breach. Only a "
+        "push to refs/heads/main is enforced; any other event or ref warns.",
     )
     group.add_argument("--event", help="Event name (default: GITHUB_EVENT_NAME).")
     group.add_argument("--ref", help="Ref (default: GITHUB_REF).")
