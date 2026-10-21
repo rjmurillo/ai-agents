@@ -102,7 +102,9 @@ probe) passes the visible tests and fails the withheld check:
 | Removed configuration | `provenance.controls` in `report.json` names each file and its SHA-256. Nothing in the repository's control plane changed, so no rollback is needed |
 
 Every task, control, and source hash is in `provenance` in each run's
-`report.json`. Each run's change is in `changes/<arm>/`. The existing
+`report.json`. The archived `report.json` and `durable-outcome.json` files are
+the runner's output re-serialized without indentation (same JSON values), so
+they stay under the repository's 500-line file ceiling. Each run's change is in `changes/<arm>/`. The existing
 durable-outcome report is in `durable-outcome.json`: `UNVERIFIED` for both arms,
 because `human_correction_minutes` is unmeasured, as the protocol expected.
 
