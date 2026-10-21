@@ -17,7 +17,7 @@ because rows do not record which prompt produced them; moving the files out of
 that directory defeats the guard.
 
 Exit codes (AGENTS.md): 0 scored. 1 no scorable rows (empty, or every row NOT_RUN
-or HARNESS_FAILED). 2 invalid arguments, unreadable input, unwritable `--output`,
+or HARNESS_FAILED). 2 invalid arguments, unreadable or non-UTF-8 input, unwritable `--output`,
 unknown scenario or harness, repetition outside 1 to 3, duplicate rows, or the
 Amendment 1 pooling refusal.
 """
@@ -75,7 +75,7 @@ def read_rows(paths: Sequence[Path]) -> list[dict[str, Any]]:
     for path in paths:
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError as error:
+        except (OSError, UnicodeDecodeError) as error:
             raise VerdictInputError(f"cannot read {path}: {error}") from error
         for number, line in enumerate(lines, start=1):
             if not line.strip():

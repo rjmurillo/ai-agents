@@ -71,6 +71,17 @@ def test_cli_exit_2_on_unknown_scenario(tmp_path: Path) -> None:
     assert run_cli("--results", str(results)) == 2
 
 
+def test_cli_exit_2_on_non_utf8_results_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bad = tmp_path / "latin1.jsonl"
+    bad.write_bytes(b'{"scenario_id": "caf\xe9"}\n')
+    assert run_cli("--results", str(bad)) == 2
+    captured = capsys.readouterr()
+    assert "cannot read" in captured.err
+    assert captured.out == ""
+
+
 def test_cli_exit_2_on_bad_corpus(tmp_path: Path) -> None:
     results = write_jsonl(tmp_path / "r.jsonl", full_dataset())
     assert run_cli("--results", str(results), "--corpus", str(tmp_path / "missing")) == 2
