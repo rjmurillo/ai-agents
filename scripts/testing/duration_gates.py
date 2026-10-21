@@ -78,18 +78,6 @@ def split_imbalance(partitions: Mapping[str, PartitionEntry], ratio: float) -> I
     return found if found.ratio > ratio else None
 
 
-def leg_breaches(key: str, over_limit: Sequence[tuple[str, float]], limit: float) -> dict[str, str]:
-    """The consecutive-main policy input: every slow leg under one run-level ``key``.
-
-    Legs trade places between runs, so the leg name is not a stable identity. A
-    run with any leg over ``limit`` is one breach, and the detail names the legs.
-    """
-    if not over_limit:
-        return {}
-    legs = ", ".join(f"{name} took {seconds:.1f}s" for name, seconds in over_limit)
-    return {key: f"{legs}, above the {limit:.0f}s limit"}
-
-
 def gate_commands(
     over_limit: Sequence[tuple[str, float]], imbalance: Imbalance | None, limit: float
 ) -> list[str]:

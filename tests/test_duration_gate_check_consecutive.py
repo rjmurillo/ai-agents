@@ -188,6 +188,9 @@ class TestMain:
         assert gate.main(_argv(tmp_path, split_1=480.0, split_2=470.0)) == 0
         assert calls == []
 
+    def test_no_slow_leg_gives_no_breach(self) -> None:
+        assert gate._breaches([], 480.0) == {}
+
     def test_every_slow_leg_is_named_once_in_one_annotation(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -231,6 +234,15 @@ class TestMain:
         assert gate.main(_slow(tmp_path)) == 3
         assert "could not write the breach record" in capsys.readouterr().err
 
+    def test_a_bad_policy_exits_two_even_when_an_input_is_unreadable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        for name in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_RUN_ID", "GITHUB_REPOSITORY"):
+            monkeypatch.delenv(name, raising=False)
+        argv = [str(tmp_path / "absent.xml"), "--breach-policy", "consecutive-main"]
+        assert gate.main(argv) == 2
+        assert "bad breach policy" in capsys.readouterr().err
+
     def test_a_report_with_no_test_records_exits_one_before_the_policy(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -255,14 +267,18 @@ class TestTheWorkflowWiring:
     def test_the_job_may_read_the_previous_run(self) -> None:
         assert self._job()["permissions"] == {"contents": "read", "actions": "read"}
 
-    def test_the_gate_step_passes_the_policy_and_a_token_and_cannot_be_skipped(self) -> None:
+    def test_the_gate_step_passes_the_policy_and_a_token(self) -> None:
         step = self._step()
-        assert "if" not in step
         assert step["env"] == {"GH_TOKEN": "${{ github.token }}"}
         run = " ".join(step["run"].split())
         assert "--breach-policy consecutive-main" in run
         assert "--workflow pytest.yml" in run
         assert "--breach-record-out breach-records/leg-wall-time/breach-record.json" in run
+
+    def test_a_failed_budget_step_does_not_skip_the_gate_and_lose_its_record(self) -> None:
+        # The default success() would skip this step when the budget step before
+        # it fails, so no record is written and the next breach fails closed.
+        assert self._step()["if"] == "!cancelled()"
 
     def test_the_upload_publishes_the_record_the_lookup_reads(self) -> None:
         steps = self._job()["steps"]

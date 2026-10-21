@@ -44,7 +44,6 @@ from scripts.testing.duration_gates import (  # noqa: E402
     PARTITION_WALL_LIMIT_SECONDS,
     SPLIT_IMBALANCE_RATIO,
     gate_commands,
-    leg_breaches,
     legs_over_limit,
     split_imbalance,
 )
@@ -53,6 +52,18 @@ from scripts.testing.duration_snapshot import build_snapshot  # noqa: E402
 # Its own key, so the record does not collide with slow-test-budget or
 # duration-trend. The artifact is breach-record-leg-wall-time.
 LEG_WALL_TIME_GATE = "leg-wall-time"
+
+
+def _breaches(over_limit: Sequence[tuple[str, float]], limit: float) -> dict[str, str]:
+    """The policy input: every slow leg under one run-level key.
+
+    Legs trade places between runs, so the leg name is not a stable identity. A
+    run with any leg over ``limit`` is one breach, and the detail names the legs.
+    """
+    if not over_limit:
+        return {}
+    legs = ", ".join(f"{name} took {seconds:.1f}s" for name, seconds in over_limit)
+    return {LEG_WALL_TIME_GATE: f"{legs}, above the {limit:.0f}s limit"}
 
 
 def _positive(value: str) -> float:
@@ -74,6 +85,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
     try:
+        policy = consecutive_breach.policy_from_args(args)
+    except ValueError as exc:
+        print(f"bad breach policy: {exc}", file=sys.stderr)
+        return 2
+    try:
         snapshot = build_snapshot(args.inputs, "unknown", datetime.now(UTC))
     except (OSError, ET.ParseError) as exc:
         print(f"could not read input: {exc}", file=sys.stderr)
@@ -84,15 +100,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not snapshot.modules:
         print("no test records in the given inputs", file=sys.stderr)
         return 1
-    try:
-        policy = consecutive_breach.policy_from_args(args)
-    except ValueError as exc:
-        print(f"bad breach policy: {exc}", file=sys.stderr)
-        return 2
     over_limit = legs_over_limit(snapshot.partitions, args.leg_limit)
     imbalance = split_imbalance(snapshot.partitions, args.imbalance_ratio)
     strict = policy.name == consecutive_breach.POLICY_STRICT
-    # Under a policy the verdict, not this list, reports the slow legs.
+    # Under a policy the verdict, not gate_commands, reports the slow legs.
     for line in gate_commands(over_limit if strict else (), imbalance, args.leg_limit):
         print(line)
     print(
@@ -105,7 +116,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         verdict = consecutive_breach.apply_policy(
             LEG_WALL_TIME_GATE,
-            leg_breaches(LEG_WALL_TIME_GATE, over_limit, args.leg_limit),
+            _breaches(over_limit, args.leg_limit),
             policy,
             title="Test leg wall time",
         )
