@@ -68,7 +68,8 @@ FETCH_BACKOFF_SECONDS = 2.0
 
 # Wait for a still-running previous run to upload its record. The gate jobs
 # that call this carry a 10 minute timeout and two gates can share a job, so
-# the cap stays well under half of that. The wait only happens when the current
+# the cap, which counts API time as well as sleeping,
+# stays well under half of that. The wait only happens when the current
 # run has a breach to judge and the previous run has not finished.
 WAIT_CAP_SECONDS = 180.0
 WAIT_POLL_SECONDS = 10.0
@@ -296,27 +297,32 @@ def _record_bytes_waiting(
     gate: str,
     status: str,
     sleep: Callable[[float], None],
+    clock: Callable[[], float],
 ) -> bytes:
     """Read the record, polling while the run could still upload it.
 
     A run that is not finished may not have reached its upload step. Each poll
     reads the run status before the artifact list, so a run seen as finished
-    before a miss cannot upload afterward and the miss is final. The total
-    sleep stays within ``WAIT_CAP_SECONDS``.
+    before a miss cannot upload afterward and the miss is final. The wait is
+    measured on ``clock`` and is never less than the time slept, so slow API
+    calls count against ``WAIT_CAP_SECONDS`` as well as sleeps. It can overrun
+    by at most the API calls of one poll.
     """
-    waited = 0.0
+    start = clock()
+    slept = 0.0
     while True:
         try:
             return _record_bytes(fetch, repository, run_id, gate)
         except RecordNotUploadedError as exc:
             if status not in PENDING_STATUSES:
                 raise
+            waited = max(clock() - start, slept)
             if waited + WAIT_POLL_SECONDS > WAIT_CAP_SECONDS:
                 raise RecordNotUploadedError(
                     f"{exc} after waiting {waited:.0f}s while the run was {status}"
                 ) from exc
             sleep(WAIT_POLL_SECONDS)
-            waited += WAIT_POLL_SECONDS
+            slept += WAIT_POLL_SECONDS
             status = _run_status(fetch, repository, run_id)
 
 
@@ -328,6 +334,7 @@ def find_previous_record(
     gate: str,
     current_run_id: int,
     sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
 ) -> PriorLookup:
     """Load the previous main run's breach record, never raising.
 
@@ -336,7 +343,7 @@ def find_previous_record(
     """
     try:
         run_id, status = _previous_run(fetch, repository, workflow, current_run_id)
-        raw = _record_bytes_waiting(fetch, repository, run_id, gate, status, sleep)
+        raw = _record_bytes_waiting(fetch, repository, run_id, gate, status, sleep, clock)
         record = parse_record(raw, gate)
         if record.run_id != run_id:
             raise ValueError(f"record names run {record.run_id}, not the selected run {run_id}")
@@ -401,6 +408,7 @@ def apply_policy(
     *,
     title: str | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
 ) -> Verdict:
     """Decide and report. Writes the record on a main run, before returning.
 
@@ -420,6 +428,7 @@ def apply_policy(
             gate=gate,
             current_run_id=_required(policy.run_id, "run id"),
             sleep=sleep,
+            clock=clock,
         )
     failing: list[str] = []
     warning: list[str] = []

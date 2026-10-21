@@ -36,6 +36,8 @@ class Timeline:
 
     def __init__(self) -> None:
         self.tick = 0
+        self.now = 0.0
+        self.latency = 0.0
         self.sleeps: list[float] = []
         self.calls: list[str] = []
         # run id -> (status, tick the record is visible at or None, breached keys)
@@ -64,6 +66,10 @@ class Timeline:
     def sleep(self, seconds: float) -> None:
         self.sleeps.append(seconds)
         self.tick += 1
+        self.now += seconds
+
+    def clock(self) -> float:
+        return self.now
 
     def _status(self, run_id: int) -> str | None:
         run = self.runs[run_id]
@@ -78,6 +84,7 @@ class Timeline:
 
     def __call__(self, endpoint: str) -> bytes:
         self.calls.append(endpoint)
+        self.now += self.latency
         if self.tick >= 1:
             if endpoint in self.fail_exact:
                 raise self.fail_exact[endpoint]
@@ -133,7 +140,9 @@ def _policy(tmp_path: Path) -> cb.Policy:
 
 
 def _apply(tmp_path: Path, api: Timeline) -> cb.Verdict:
-    return cb.apply_policy(GATE, {"m.py": "9s vs 5s"}, _policy(tmp_path), api, sleep=api.sleep)
+    return cb.apply_policy(
+        GATE, {"m.py": "9s vs 5s"}, _policy(tmp_path), api, sleep=api.sleep, clock=api.clock
+    )
 
 
 def _lookup(api: Timeline) -> cb.PriorLookup:
@@ -144,6 +153,7 @@ def _lookup(api: Timeline) -> cb.PriorLookup:
         gate=GATE,
         current_run_id=CURRENT,
         sleep=api.sleep,
+        clock=api.clock,
     )
 
 
@@ -232,6 +242,17 @@ class TestWaitingForTheRecord:
         # The poll count is bounded, so the API call count is too.
         assert len(api.calls) <= 2 + 2 * len(api.sleeps) + 1
 
+    def test_slow_api_calls_count_against_the_cap(self) -> None:
+        # Each poll costs 10s of sleep plus two 12s calls, so far fewer polls fit.
+        api = Timeline()
+        api.latency = 12.0
+        api.add_run(PRIOR, status="in_progress", visible_at=None)
+        lookup = _lookup(api)
+        assert not lookup.known
+        per_poll = cb.WAIT_POLL_SECONDS + 2 * api.latency
+        assert len(api.sleeps) <= int(cb.WAIT_CAP_SECONDS // per_poll) + 1
+        assert api.now <= cb.WAIT_CAP_SECONDS + per_poll
+
     def test_a_record_that_lands_on_the_last_allowed_poll_is_read(self) -> None:
         last = int(cb.WAIT_CAP_SECONDS / cb.WAIT_POLL_SECONDS)
         api = Timeline()
@@ -276,7 +297,9 @@ class TestWaitingForTheRecord:
     def test_no_wait_happens_when_the_current_run_has_no_breach(self, tmp_path: Path) -> None:
         api = Timeline()
         api.add_run(PRIOR, status="in_progress", visible_at=None)
-        verdict = cb.apply_policy(GATE, {}, _policy(tmp_path), api, sleep=api.sleep)
+        verdict = cb.apply_policy(
+            GATE, {}, _policy(tmp_path), api, sleep=api.sleep, clock=api.clock
+        )
         assert verdict == cb.Verdict()
         assert api.calls == []
         assert api.sleeps == []
