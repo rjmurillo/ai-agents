@@ -267,27 +267,59 @@ def _tool_uses(events: Sequence[Mapping[str, object]]) -> list[Mapping[str, obje
     return uses
 
 
+#: Longest string kept per tool-input field: enough to audit which path a
+#: Read, Grep, or Glob touched, without copying whole edited files into the report.
+_INPUT_CLIP = 200
+
+
+def _clip(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(k): _clip(v) for k, v in value.items()}
+    if isinstance(value, str) and len(value) > _INPUT_CLIP:
+        return value[:_INPUT_CLIP] + "..."
+    return value
+
+
+def _denied_ids(denials: object) -> set[str]:
+    if not isinstance(denials, list):
+        return set()
+    return {
+        str(item["tool_use_id"])
+        for item in denials
+        if isinstance(item, Mapping) and item.get("tool_use_id")
+    }
+
+
 def trajectory(
     events: Sequence[Mapping[str, object]], withheld_markers: Sequence[str] = ()
 ) -> dict[str, object]:
     """Trajectory evidence of one run, kept apart from its output correctness (issue #6814).
 
-    `bash_commands` lists what the agent ran, `test_commands` the subset that ran
-    a test suite, `permission_denials` the tool calls the harness refused, and
-    `withheld_marker_hits` every tool call whose input names a withheld marker
-    (a hidden check path, the fix commit, the fix PR): a non-empty list means the
+    `bash_commands` lists every Bash command the agent issued and
+    `other_tool_inputs` every other tool call's input, clipped, so a leak audit
+    can see which paths a Read, Grep, or Glob touched. `test_commands` lists the
+    Bash commands that ran a test suite, and `denied_test_commands` the ones the
+    harness refused (matched on the denial's `tool_use_id`), so an attempted check
+    is never read as an executed one. `permission_denials` counts every refused
+    call (`None` when the stream reports none), and `withheld_marker_hits` lists
+    each tool call whose input names a withheld marker (a hidden check path, the
+    fix commit, the fix PR, the runner's checkout): a non-empty list means the
     agent may have seen withheld evidence.
     """
     uses = _tool_uses(events)
-    commands = [
-        str(tool_input.get("command", ""))
-        for use in uses
-        if use.get("name") == "Bash" and isinstance(tool_input := use.get("input"), Mapping)
-    ]
     denials: object = None
     for event in events:
         if event.get("type") == "result":
             denials = event.get("permission_denials")
+    denied = _denied_ids(denials)
+    bash = [
+        (str(tool_input.get("command", "")), str(use.get("id", "")) in denied)
+        for use in uses
+        if use.get("name") == "Bash" and isinstance(tool_input := use.get("input"), Mapping)
+    ]
+    tests = [
+        (c, was_denied) for c, was_denied in bash if any(m in c for m in _TEST_COMMAND_MARKERS)
+    ]
     hits = sorted(
         {
             f"{use.get('name')}: {marker}"
@@ -298,8 +330,14 @@ def trajectory(
     )
     return {
         "tool_calls": len(uses),
-        "bash_commands": commands,
-        "test_commands": [c for c in commands if any(m in c for m in _TEST_COMMAND_MARKERS)],
+        "other_tool_inputs": [
+            {"name": str(use.get("name")), "input": _clip(use.get("input"))}
+            for use in uses
+            if use.get("name") != "Bash"
+        ],
+        "bash_commands": [c for c, _ in bash],
+        "test_commands": [c for c, was_denied in tests if not was_denied],
+        "denied_test_commands": [c for c, was_denied in tests if was_denied],
         "permission_denials": len(denials) if isinstance(denials, list) else None,
         "withheld_marker_hits": hits,
     }

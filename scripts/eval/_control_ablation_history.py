@@ -16,6 +16,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import subprocess
 import tarfile
 from collections.abc import Mapping, Sequence
@@ -31,6 +32,8 @@ CASE = "historical_fix"
 #: a check runs with the same locked environment (pytest included) as the runner.
 PYTHON_TOKEN = "{python}"
 GIT_TIMEOUT = 120.0
+#: A full SHA-1 or SHA-256 object name: never a ref that can move, never an option.
+_FULL_SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 _TASK_KEYS = frozenset(
     {
@@ -44,6 +47,7 @@ _TASK_KEYS = frozenset(
         "external_marker",
         "response_checks",
         "controls",
+        "notes",
     }
 )
 _SOURCE_KEYS = frozenset(
@@ -187,6 +191,9 @@ def _load_source(raw: object, path: str) -> TaskSource:
         raise ControlAblationConfigError(f"{path}.seed_paths must be a non-empty array")
     if not isinstance(withheld, dict) or not withheld:
         raise ControlAblationConfigError(f"{path}.withheld_files must be a non-empty object")
+    for key in ("base_sha", "fix_sha"):
+        if not _FULL_SHA.fullmatch(_require_text(raw, key, path)):
+            raise ControlAblationConfigError(f"{path}.{key} must be a full hex commit SHA")
     return TaskSource(
         repository=_require_text(raw, "repository", path),
         issue=_require_int(raw, "issue", path),
@@ -268,7 +275,7 @@ def _load_one(raw: object, index: int, repo_root: Path, python: str) -> tuple[Ta
         for name, value in raw_controls.items()
     }
     resolved = {
-        **{key: value for key, value in raw.items() if key != "source"},
+        **{key: value for key, value in raw.items() if key not in ("source", "notes")},
         "setup_files": base,
         "followup_files": withheld,
         "acceptance": substitute_python(raw.get("acceptance"), python),
@@ -310,10 +317,19 @@ def load_historical_tasks(
     return HistoricalCorpus(tasks=tasks, sources=sources)
 
 
-def withheld_markers(sources: Mapping[str, TaskSource]) -> dict[str, list[str]]:
-    """Strings whose appearance in a tool call means the agent reached withheld evidence."""
+def withheld_markers(sources: Mapping[str, TaskSource], repo_root: Path) -> dict[str, list[str]]:
+    """Strings whose appearance in a tool call means the agent reached withheld evidence.
+
+    The hidden check paths, the fix commit (abbreviated too, as `git` prints it),
+    the fix PR, and the runner's own checkout, which holds the shipped fix.
+    """
     return {
-        task_id: [*source.withheld_files, source.fix_sha, f"/pull/{source.fix_pr}"]
+        task_id: [
+            *source.withheld_files,
+            source.fix_sha[:7],
+            f"/pull/{source.fix_pr}",
+            str(repo_root),
+        ]
         for task_id, source in sources.items()
     }
 

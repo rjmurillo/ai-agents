@@ -37,7 +37,11 @@ CONTROL_NAMES: frozenset[str] = frozenset({"full", "reduced"})
 MINUS_PREFIX = "minus:"
 #: Files a `minus:` control may never remove: removing a security or
 #: permission safeguard is an abort condition of issue #6814, not an arm.
-PROTECTED_CONTROL_PATHS: frozenset[str] = frozenset({".claude/rules/universal.md"})
+#: `AGENTS.md` carries the Never list builder-ethos.md names as mandatory policy,
+#: and root `CLAUDE.md` imports it, so removing either drops that policy.
+PROTECTED_CONTROL_PATHS: frozenset[str] = frozenset(
+    {".claude/rules/universal.md", "AGENTS.md", "CLAUDE.md"}
+)
 _PROTECTED_NAME_PARTS = ("security", "secret", "permission")
 
 #: DESIGN-044 "Grade to record": reply text matching this, with a failed

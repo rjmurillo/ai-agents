@@ -1,0 +1,117 @@
+{
+  "baseline": {
+    "status": "UNVERIFIED",
+    "config": {
+      "model": "claude-sonnet-5-5",
+      "harness": "claude",
+      "harness_version": "2.1.305 (Claude Code)",
+      "context_bytes": 41354,
+      "retry_budget": 0,
+      "reviewer": "none",
+      "control": "full"
+    },
+    "verdict_counts": {
+      "ACCEPTED_DURABLE": 0,
+      "ACCEPTED_NOT_DURABLE": 0,
+      "REJECTED": 0,
+      "UNVERIFIED": 4
+    },
+    "per_task": [
+      {
+        "task_id": "issue-6169-codex-login-stderr",
+        "repeats": 4,
+        "durable_accepts": 0,
+        "verdicts": [
+          "UNVERIFIED",
+          "UNVERIFIED",
+          "UNVERIFIED",
+          "UNVERIFIED"
+        ]
+      }
+    ],
+    "zero_success_tasks": [
+      "issue-6169-codex-login-stderr"
+    ],
+    "all_success_tasks": [],
+    "cost_percentiles_usd": {
+      "p10": 0.1347,
+      "p50": 0.1635,
+      "p90": 0.1706
+    },
+    "correction_minutes_percentiles": {
+      "p10": 0.0,
+      "p50": 0.0,
+      "p90": 0.0
+    },
+    "durable_signals": {
+      "review_findings_total": 0,
+      "review_findings_unmeasured": 4,
+      "rollback_events_total": 0,
+      "rollback_events_unmeasured": 0,
+      "human_correction_unmeasured": 4
+    },
+    "headline": {
+      "cost_per_accepted_durable_task_usd": null,
+      "correction_minutes_per_accepted_durable_task": null,
+      "residual_risk": 0
+    }
+  },
+  "candidate": {
+    "status": "UNVERIFIED",
+    "config": {
+      "model": "claude-sonnet-5-5",
+      "harness": "claude",
+      "harness_version": "2.1.305 (Claude Code)",
+      "context_bytes": 26520,
+      "retry_budget": 0,
+      "reviewer": "none",
+      "control": "minus:.claude/rules/voice.md"
+    },
+    "verdict_counts": {
+      "ACCEPTED_DURABLE": 0,
+      "ACCEPTED_NOT_DURABLE": 0,
+      "REJECTED": 0,
+      "UNVERIFIED": 4
+    },
+    "per_task": [
+      {
+        "task_id": "issue-6169-codex-login-stderr",
+        "repeats": 4,
+        "durable_accepts": 0,
+        "verdicts": [
+          "UNVERIFIED",
+          "UNVERIFIED",
+          "UNVERIFIED",
+          "UNVERIFIED"
+        ]
+      }
+    ],
+    "zero_success_tasks": [
+      "issue-6169-codex-login-stderr"
+    ],
+    "all_success_tasks": [],
+    "cost_percentiles_usd": {
+      "p10": 0.1044,
+      "p50": 0.1267,
+      "p90": 0.1382
+    },
+    "correction_minutes_percentiles": {
+      "p10": 0.0,
+      "p50": 0.0,
+      "p90": 0.0
+    },
+    "durable_signals": {
+      "review_findings_total": 0,
+      "review_findings_unmeasured": 4,
+      "rollback_events_total": 0,
+      "rollback_events_unmeasured": 0,
+      "human_correction_unmeasured": 4
+    },
+    "headline": {
+      "cost_per_accepted_durable_task_usd": null,
+      "correction_minutes_per_accepted_durable_task": null,
+      "residual_risk": 0
+    }
+  },
+  "result": "UNVERIFIED"
+}

@@ -66,7 +66,14 @@ def test_minus_removes_exactly_the_named_file_and_its_bytes(repo: HistoryRepo) -
 
 
 @pytest.mark.parametrize(
-    "path", [".claude/rules/universal.md", ".claude/rules/security.md", "x/Secret-redaction.md"]
+    "path",
+    [
+        ".claude/rules/universal.md",
+        ".claude/rules/security.md",
+        "x/Secret-redaction.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+    ],
 )
 def test_minus_refuses_a_security_or_permission_file(repo: HistoryRepo, path: str) -> None:
     with pytest.raises(ablation_tasks.ControlAblationConfigError, match="security or permission"):
@@ -121,6 +128,29 @@ def test_trajectory_separates_test_commands_and_counts_denials() -> None:
     assert seen["test_commands"] == ["python3 -m pytest"]
     assert seen["permission_denials"] == 1
     assert seen["withheld_marker_hits"] == []
+
+
+def test_a_denied_test_command_is_attempted_not_executed() -> None:
+    ran = {**_use("Bash", command="python3 -m pytest"), "id": "t1"}
+    refused = {**_use("Bash", command="python -m pytest"), "id": "t2"}
+    events: list[dict[str, Any]] = [
+        {"type": "assistant", "message": {"content": [ran, refused]}},
+        {"type": "result", "permission_denials": [{"tool_name": "Bash", "tool_use_id": "t2"}]},
+    ]
+
+    seen = claude_run.trajectory(events)
+
+    assert seen["test_commands"] == ["python3 -m pytest"]
+    assert seen["denied_test_commands"] == ["python -m pytest"]
+
+
+def test_trajectory_keeps_other_tool_inputs_clipped_for_a_leak_audit() -> None:
+    events = [{"message": {"content": [_use("Write", file_path="a.py", content="x" * 500)]}}]
+
+    inputs = claude_run.trajectory(events)["other_tool_inputs"]
+
+    assert inputs[0]["input"]["file_path"] == "a.py"
+    assert len(inputs[0]["input"]["content"]) == 203
 
 
 def test_trajectory_reports_unknown_denials_as_null_not_zero() -> None:
@@ -182,10 +212,82 @@ def test_child_env_runner_puts_the_interpreter_first_once() -> None:
 
 @pytest.mark.parametrize(
     ("economics", "cost"),
-    [({"model_cost_usd": 0.5}, 0.5), ({"model_cost_usd": None}, 0.0), ({}, 0.0), (None, 0.0)],
+    [({"model_cost_usd": 0.5}, 0.5), ({"model_cost_usd": None}, None), ({}, None), (None, None)],
 )
-def test_record_cost(economics: object, cost: float) -> None:
+def test_record_cost_is_null_when_unreported(economics: object, cost: float | None) -> None:
     assert batch.record_cost({"economics": economics}) == cost
+
+
+def test_spend_guard_without_a_cap_never_blocks() -> None:
+    guard = batch.SpendGuard(None)
+    guard.add_failure(claude_run.HarnessFailureError("timed out"))
+
+    assert guard.blocked_reason() is None
+    assert guard.unmeasured
+
+
+@pytest.mark.parametrize(
+    "spend",
+    [
+        lambda g: g.add_failure(claude_run.HarnessFailureError("timed out")),
+        lambda g: g.add_failure(OSError("seed failed")),
+        lambda g: g.add_record({"economics": {}}),
+    ],
+)
+def test_spend_guard_fails_closed_once_a_cost_is_unmeasured(spend: Any) -> None:
+    guard = batch.SpendGuard(25.0)
+
+    spend(guard)
+
+    assert "unmeasured" in str(guard.blocked_reason())
+
+
+def test_spend_guard_counts_a_failed_launchs_reported_cost() -> None:
+    guard = batch.SpendGuard(1.0)
+
+    guard.add_failure(claude_run.HarnessFailureError("exit 1", cost_usd=1.25))
+
+    assert guard.spent == 1.25
+    assert str(guard.blocked_reason()).startswith("spend cap reached")
+
+
+@pytest.mark.parametrize("name", ["HOME", "CLAUDE_CONFIG_DIR", "PATH", "XDG_CONFIG_HOME"])
+def test_parse_pass_env_refuses_a_harness_owned_name(name: str) -> None:
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="harness-owned"):
+        batch.parse_pass_env(name, {name: "x"})
+
+
+def test_runner_state_reports_a_dirty_tree_and_hashes_its_diff(repo: HistoryRepo) -> None:
+    clean = batch.runner_state(repo.root)
+    (repo.root / "calc.py").write_text("changed\n", encoding="utf-8")
+
+    dirty = batch.runner_state(repo.root)
+
+    assert clean == {
+        "runner_commit": repo.fix_sha,
+        "runner_tree_dirty": False,
+        "runner_diff_sha256": None,
+    }
+    assert dirty["runner_tree_dirty"] is True
+    assert isinstance(dirty["runner_diff_sha256"], str)
+
+
+def test_runner_state_is_null_outside_a_repository(tmp_path: Path) -> None:
+    assert batch.runner_state(tmp_path) == {
+        "runner_commit": None,
+        "runner_tree_dirty": None,
+        "runner_diff_sha256": None,
+    }
+
+
+def test_remove_cell_deletes_the_workspace_and_its_siblings(tmp_path: Path) -> None:
+    cell = tmp_path / "cell"
+    for path in (cell, tmp_path / "cell.review", tmp_path / "cell.claude-config"):
+        (path / "f").mkdir(parents=True)
+
+    batch.remove_cell(cell)
+
+    assert list(tmp_path.iterdir()) == []
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +345,28 @@ def test_a_historical_live_run_records_both_arms_with_checks_and_provenance(
     assert VOICE not in provenance["controls"][MINUS_VOICE]["files"]
     assert provenance["pass_env"] == []
     assert provenance["agent_path_first"] == str(Path(sys.executable).parent)
+
+
+def test_no_graded_cell_or_base_tree_is_left_for_a_later_agent_to_read(
+    live_repo: HistoryRepo, tmp_path: Path
+) -> None:
+    listings: list[list[str]] = []
+    fake = FakeClaudeRunner(_tasks(live_repo))
+
+    def runner(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "--version" not in argv:
+            listings.append(sorted(p.name for p in (tmp_path / "ws").iterdir()))
+        return fake(argv, **kwargs)
+
+    args = _live_args(live_repo, tmp_path, "--controls", f"full,{MINUS_VOICE}", "--repeats", "2")
+    assert cli.main(args, runner=runner) == cli.EXIT_OK
+
+    assert len(listings) == 4
+    for listing in listings:
+        cells = [name for name in listing if name.startswith("half-odd")]
+        assert len(cells) <= 2  # the launching cell and its .claude-config profile
+        assert not any(name.startswith("_base-") for name in listing)
+    assert not [p for p in (tmp_path / "ws").iterdir() if p.name.startswith("half-odd")]
 
 
 def test_the_known_bad_fix_fails_only_the_withheld_check_in_a_live_run(
@@ -330,3 +454,20 @@ def test_an_unset_pass_env_name_refuses_before_any_model_call(
 
     assert cli.main(args, runner=runner) == cli.EXIT_CONFIG
     assert runner.calls == []
+
+
+def test_provenance_hashes_the_task_file_as_loaded_not_as_edited_mid_batch(
+    live_repo: HistoryRepo, tmp_path: Path
+) -> None:
+    args = _live_args(live_repo, tmp_path, "--controls", "full")
+    tasks_file = Path(args[1])
+    loaded = batch.sha256_text(tasks_file.read_text(encoding="utf-8"))
+    fake = FakeClaudeRunner(_tasks(live_repo))
+
+    def runner(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        tasks_file.write_text("{}", encoding="utf-8")  # an edit while the batch runs
+        return fake(argv, **kwargs)
+
+    assert cli.main(args, runner=runner) == cli.EXIT_OK
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
+    assert report["provenance"]["tasks_file_sha256"] == loaded

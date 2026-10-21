@@ -6,7 +6,7 @@ environment for the Claude child: everything about a batch that is not one run.
 `build_provenance` names everything a reader needs to reproduce or audit a
 batch: the runner commit, the task file and per-task hashes, each historical
 task's source commits, and each control's exact files by hash, so a removed
-configuration can be restored byte for byte. `pass_env_runner` forwards named
+configuration can be restored byte for byte. `child_env_runner` forwards named
 operator variables to the Claude child; only the names reach the report.
 """
 
@@ -16,6 +16,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import uuid
@@ -42,11 +43,10 @@ def canonical_sha256(value: object) -> str:
     return sha256_text(json.dumps(value, sort_keys=True, ensure_ascii=False))
 
 
-def runner_commit(repo_root: Path) -> str | None:
-    """The commit the runner code was read from, or `None` when git cannot say."""
+def _git_text(repo_root: Path, *args: str) -> str | None:
     try:
         done = subprocess.run(
-            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+            ["git", "-C", str(repo_root), *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -56,8 +56,22 @@ def runner_commit(repo_root: Path) -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    sha = done.stdout.strip()
-    return sha if done.returncode == 0 and sha else None
+    return done.stdout if done.returncode == 0 else None
+
+
+def runner_state(repo_root: Path) -> dict[str, object]:
+    """The runner code's commit, and whether tracked files differed from it.
+
+    A dirty tree means the code that ran is not the named commit, so the diff's
+    hash is recorded too; `None` fields mean git could not say.
+    """
+    head = _git_text(repo_root, "rev-parse", "HEAD")
+    diff = _git_text(repo_root, "diff", "HEAD")
+    return {
+        "runner_commit": head.strip() or None if head is not None else None,
+        "runner_tree_dirty": None if diff is None else bool(diff),
+        "runner_diff_sha256": sha256_text(diff) if diff else None,
+    }
 
 
 def control_manifest(control: ControlFiles) -> dict[str, object]:
@@ -86,7 +100,7 @@ def build_provenance(
         if isinstance(task, dict)
     }
     return {
-        "runner_commit": runner_commit(repo_root),
+        **runner_state(repo_root),
         "tasks_file": str(tasks_file),
         "tasks_file_sha256": hashlib.sha256(tasks_file.read_bytes()).hexdigest(),
         "task_sha256": task_hashes,
@@ -99,11 +113,27 @@ def build_provenance(
     }
 
 
+#: Variables the harness sets to isolate the child's profile, or that steer the
+#: run itself. Forwarding one would silently undo that isolation.
+_HARNESS_OWNED_ENV = frozenset(
+    {"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PATH", "TEMP", "TMP", "TMPDIR"}
+)
+_HARNESS_OWNED_PREFIXES = ("XDG_", "CLAUDE_CONFIG", "COPILOT_", "CODEX_", "EVAL_RUNTIME_")
+
+
 def parse_pass_env(raw: str | None, environ: Mapping[str, str]) -> list[str]:
-    """Names to forward; each must be set, so a typo cannot silently drop auth."""
+    """Names to forward; each must be set, and none may be one the harness owns.
+
+    An unset name refuses so a typo cannot silently drop auth; a harness-owned
+    name (HOME, CLAUDE_CONFIG_DIR, PATH, ...) refuses so forwarding cannot point
+    the child back at the operator's real profile behind the report's back.
+    """
     if raw is None:
         return []
     names = [name.strip() for name in raw.split(",") if name.strip()]
+    owned = [n for n in names if n in _HARNESS_OWNED_ENV or n.startswith(_HARNESS_OWNED_PREFIXES)]
+    if owned:
+        raise ControlAblationConfigError(f"--pass-env may not forward harness-owned {owned}")
     missing = [name for name in names if name not in environ]
     if not names or missing:
         raise ControlAblationConfigError(f"--pass-env names unset or no variable(s): {missing}")
@@ -135,23 +165,67 @@ def child_env_runner(runner: Runner, names: Sequence[str], interpreter: str) -> 
     return run
 
 
-def record_cost(record: Mapping[str, object]) -> float:
-    """The model cost a written record reports, for the batch's running spend."""
+def record_cost(record: Mapping[str, object]) -> float | None:
+    """The model cost a written record reports, or `None` when it reports none."""
     economics = record.get("economics")
     cost = economics.get("model_cost_usd") if isinstance(economics, Mapping) else None
-    return float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else 0.0
+    return float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None
 
 
-def budget_entry(
-    task_id: str, control: str, repeat: int, spent: float, cap: float
-) -> dict[str, object]:
+class SpendGuard:
+    """Running spend against `--max-cost-usd`, failing closed on unmeasured cost.
+
+    A cell whose cost is unknown (a timeout, a failure that reported no cost, a
+    record with no cost) may have spent anything, so once one happens under a cap
+    no further cell launches. Without a cap nothing is ever blocked.
+    """
+
+    def __init__(self, cap: float | None) -> None:
+        self.cap = cap
+        self.spent = 0.0
+        self.unmeasured = False
+
+    def add_record(self, record: Mapping[str, object]) -> None:
+        cost = record_cost(record)
+        if cost is None:
+            self.unmeasured = True
+        else:
+            self.spent += cost
+
+    def add_failure(self, exc: BaseException) -> None:
+        cost = getattr(exc, "cost_usd", 0.0)
+        if isinstance(cost, (int, float)) and cost > 0:
+            self.spent += float(cost)
+        else:
+            self.unmeasured = True
+
+    def blocked_reason(self) -> str | None:
+        if self.cap is None:
+            return None
+        if self.unmeasured:
+            return "spend cap: an earlier cell's cost is unmeasured, so spend is unknown"
+        if self.spent >= self.cap:
+            return f"spend cap reached: {self.spent:.4f} >= {self.cap:.4f} USD"
+        return None
+
+
+def budget_entry(task_id: str, control: str, repeat: int, reason: str) -> dict[str, object]:
     """A cell the spend cap kept from launching: reported, never recorded as a result."""
-    return {
-        "task_id": task_id,
-        "control": control,
-        "repeat": repeat,
-        "skipped": f"spend cap reached: {spent:.4f} >= {cap:.4f} USD",
-    }
+    return {"task_id": task_id, "control": control, "repeat": repeat, "skipped": reason}
+
+
+def remove_tree(path: Path) -> None:
+    shutil.rmtree(path, ignore_errors=True)
+
+
+def remove_cell(workspace: Path) -> None:
+    """Delete a graded cell's workspace and its siblings (review copy, Claude profile).
+
+    A graded historical cell holds the withheld check and the agent's change, so
+    it must be gone before the next cell's agent could list or read it.
+    """
+    for path in (workspace, Path(f"{workspace}.review"), Path(f"{workspace}.claude-config")):
+        remove_tree(path)
 
 
 def records_filename(control: str) -> str:

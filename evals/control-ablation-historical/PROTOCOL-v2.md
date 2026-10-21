@@ -5,7 +5,7 @@ before any v2 live launch.
 
 ## Why v1 was not enough
 
-The v1 batch (`2026-10-21-pilot-v1-invalid/`) ran under a harness defect. The
+The v1 batch (`runs/2026-10-21-pilot-v1-invalid/`) ran under a harness defect. The
 runner was launched as `.venv/bin/python` instead of under `uv run`, so the
 agent's `PATH` did not hold the runner's interpreter. Its `python3` resolved to a
 system Python with no pytest, and `uv` is outside the Bash allowlist. In all 8

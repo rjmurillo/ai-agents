@@ -212,9 +212,18 @@ def test_load_corpus_refuses_unreadable_json(repo: HistoryRepo, tmp_path: Path) 
 def test_withheld_markers_name_the_hidden_paths_the_fix_commit_and_the_fix_pr(
     repo: HistoryRepo,
 ) -> None:
-    markers = history.withheld_markers(_load(repo).sources)
+    markers = history.withheld_markers(_load(repo).sources, repo.root)
 
-    assert markers == {"half-odd": [WITHHELD_PATH, repo.fix_sha, "/pull/8"]}
+    assert markers == {"half-odd": [WITHHELD_PATH, repo.fix_sha[:7], "/pull/8", str(repo.root)]}
+
+
+@pytest.mark.parametrize("sha", ["main", "--output=/tmp/x", "abc123", "G" * 40])
+def test_a_source_commit_must_be_a_full_hex_sha(repo: HistoryRepo, sha: str) -> None:
+    raw = make_historical_task(repo)
+    raw["source"]["fix_sha"] = sha
+
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="full hex commit SHA"):
+        _load(repo, raw)
 
 
 def test_the_dry_run_proves_the_fix_passes_and_the_plausible_bug_fails(
@@ -248,3 +257,11 @@ def test_the_dry_run_fails_when_the_withheld_check_cannot_tell_them_apart(
     _, ok = dry_run.run_dry_run(tasks, tmp_path / "ws")
 
     assert not ok
+
+
+def test_notes_are_accepted_and_change_nothing_graded(repo: HistoryRepo) -> None:
+    plain = _load(repo).tasks[0]
+
+    noted = _load(repo, make_historical_task(repo, notes="why the prompt cites old lines")).tasks[0]
+
+    assert noted == plain

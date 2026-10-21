@@ -258,16 +258,19 @@ def _run_live(
     }
     runs: list[dict[str, object]] = []
     any_harness_failure = False
-    spent = 0.0
+    guard = batch.SpendGuard(max_cost_usd)
     try:
         for task, repeat, name, control in _run_plan(tasks, repeats, controls):
-            if max_cost_usd is not None and spent >= max_cost_usd:
+            blocked = guard.blocked_reason()
+            if blocked is not None:
                 any_harness_failure = True
-                runs.append(batch.budget_entry(task.id, name, repeat, spent, max_cost_usd))
+                runs.append(batch.budget_entry(task.id, name, repeat, blocked))
                 continue
+            workspace = workspace_root / path_safe(f"{task.id}-{name}-{repeat}")
+            markers = (withheld_markers or {}).get(task.id, ())
             try:
                 record, argv, reply, review_note, patch, details = _grade_live_run(
-                    workspace_root / path_safe(f"{task.id}-{name}-{repeat}"),
+                    workspace,
                     task,
                     control,
                     repeat,
@@ -276,17 +279,19 @@ def _run_live(
                     timeout,
                     runner,
                     reviewer_model,
-                    (withheld_markers or {}).get(task.id, ()),
+                    markers,
                 )
             except _HARNESS_ERRORS as exc:
                 any_harness_failure = True
-                if isinstance(exc, claude_run.HarnessFailureError):
-                    spent += exc.cost_usd
+                guard.add_failure(exc)
                 runs.append(_failure_entry(task, name, repeat, model, exc))
                 continue
+            finally:
+                if markers:  # a graded historical cell holds withheld evidence
+                    batch.remove_cell(workspace)
             if review_note not in ("", REVIEW_OFF, REVIEW_SKIPPED):
                 any_harness_failure = True
-            spent += batch.record_cost(record)
+            guard.add_record(record)
             writers[name].write(json.dumps(record) + "\n")
             patch_file = write_patch(output_dir, name, task.id, repeat, patch)
             runs.append(
@@ -309,7 +314,8 @@ def _run_live(
         "mode": "live",
         "harness_version": harness_version,
         "real_home": real_home_enabled(),
-        "spent_usd": spent,
+        "spent_usd": guard.spent,
+        "spend_unmeasured": guard.unmeasured,
         "runs": runs,
     }
     if real_home_enabled():
@@ -436,20 +442,11 @@ def _run(
         raise ablation_tasks.ControlAblationConfigError("--max-cost-usd must be > 0")
     pass_env = batch.parse_pass_env(args.pass_env, os.environ)
     controls = {name: ablation.resolve_control(name, control_root) for name in control_names}
-    report, code = _run_live(
-        tasks,
-        controls,
-        repeats=repeats,
-        model=args.model,
-        timeout=args.timeout,
-        workspace_root=workspace_root,
-        output_dir=output_dir,
-        runner=batch.child_env_runner(runner, pass_env, sys.executable),
-        reviewer_model=args.reviewer_model,
-        withheld_markers=history.withheld_markers(sources),
-        max_cost_usd=args.max_cost_usd,
-    )
-    report["provenance"] = batch.build_provenance(
+    if control_root != REPO_ROOT:
+        # Controls now hold their bytes; no agent should find the base tree on disk.
+        batch.remove_tree(control_root)
+    # Before the first launch: a mid-batch edit or commit is never attributed to it.
+    provenance = batch.build_provenance(
         repo_root=REPO_ROOT,
         tasks_file=tasks_file,
         payload=payload,
@@ -460,6 +457,20 @@ def _run(
         max_cost_usd=args.max_cost_usd,
         interpreter=sys.executable,
     )
+    report, code = _run_live(
+        tasks,
+        controls,
+        repeats=repeats,
+        model=args.model,
+        timeout=args.timeout,
+        workspace_root=workspace_root,
+        output_dir=output_dir,
+        runner=batch.child_env_runner(runner, pass_env, sys.executable),
+        reviewer_model=args.reviewer_model,
+        withheld_markers=history.withheld_markers(sources, REPO_ROOT),
+        max_cost_usd=args.max_cost_usd,
+    )
+    report["provenance"] = provenance
     return report, code
 
 
