@@ -663,7 +663,7 @@ jobs:
           path: breach-records/slow-test-budget/
           if-no-files-found: ignore
           overwrite: true
-          retention-days: 14
+          retention-days: 7
 
       # Blocking leg wall-time gate. `test-result` (the required "Run Python
       # Tests") needs this job, so a leg over the limit blocks the merge. The
