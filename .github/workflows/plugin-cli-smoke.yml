@@ -496,7 +496,7 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
-      PI_CLI_VERSION: '1.2.0'
+      PI_CLI_VERSION: '1.3.0'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
