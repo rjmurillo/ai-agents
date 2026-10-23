@@ -63,7 +63,8 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # ratchet steps in pytest.yml, so its share must leave room for them.
 #
 # The split places the longest module first, each on the least loaded group,
-# then runs each group in collection order. Two earlier choices failed.
+# then runs each group longest module first, so a long test cannot start late
+# and set the leg's tail (issue #6846). Two earlier choices failed.
 # pytest-split `duration_based_chunks` cut the pool into contiguous runs, so the
 # whole-repo scans clustered under tests/ci/ (180s, 116s, and 71s alone) all
 # landed on split-1 and pushed it past the job timeout; a cancelled leg never

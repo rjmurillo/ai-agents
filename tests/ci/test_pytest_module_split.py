@@ -145,13 +145,32 @@ def test_split_by_module_covers_every_item_once_and_keeps_modules_whole() -> Non
         assert sorted(map(repr, leg.selected + leg.deselected)) == sorted(map(repr, items))
 
 
-def test_split_by_module_runs_each_leg_in_collection_order() -> None:
+def test_split_by_module_keeps_collection_order_between_equal_modules() -> None:
     items = _items("tests/a.py::1", "tests/b.py::1", "tests/a.py::2", "tests/b.py::2")
 
     (only,) = split.split_by_module(1, items, {})
 
     assert only.selected == items
     assert only.deselected == []
+
+
+def test_split_by_module_runs_the_longest_module_first() -> None:
+    """Issue #6846: a 209s test collected late started 270s in and set the leg's tail."""
+    items = _items(
+        "tests/a.py::1", "tests/a.py::2", "tests/b.py::1", "tests/long.py::1", "tests/long.py::2"
+    )
+    durations = {"tests/long.py::1": 200.0, "tests/long.py::2": 9.0, "tests/b.py::1": 5.0}
+    durations |= {"tests/a.py::1": 1.0, "tests/a.py::2": 1.0}
+
+    (only,) = split.split_by_module(1, items, durations)
+
+    assert [item.nodeid for item in only.selected] == [
+        "tests/long.py::1",
+        "tests/long.py::2",
+        "tests/b.py::1",
+        "tests/a.py::1",
+        "tests/a.py::2",
+    ]
 
 
 def test_split_by_module_reports_each_legs_estimated_seconds() -> None:

@@ -16,6 +16,10 @@ different legs, the property issue #6828 needed. A module's cost is the sum of
 its tests' recorded durations. A test with no recorded duration costs the mean
 of the recorded ones, or one second when none are recorded.
 
+Each leg then runs its longest module first. xdist hands each worker a run of
+the leg's items in order, so a long test placed late sets the leg's tail: on
+run 39922254198 a 209s test started 270s in and split-1 took 487.6s.
+
 pytest-split still records the durations: the legs keep `--store-durations`
 and `--durations-path`, and this plugin reads the same `--durations-path`.
 """
@@ -98,13 +102,18 @@ def assign_modules(costs: Mapping[str, float], splits: int) -> dict[str, int]:
 def split_by_module(
     splits: int, items: Sequence[ItemT], durations: Mapping[str, float]
 ) -> list[Leg[ItemT]]:
-    """Every leg's share of ``items``, each module whole, each leg in collection order."""
+    """Every leg's share of ``items``, each module whole, the longest module first.
+
+    The sort is stable, so tests keep collection order inside a module, and
+    modules of equal cost keep collection order between them.
+    """
     nodeids = [item.nodeid for item in items]
     costs = module_costs(nodeids, durations)
     homes = assign_modules(costs, splits)
     legs: list[Leg[ItemT]] = []
     for leg in range(splits):
         selected = [item for item in items if homes[module_of(item.nodeid)] == leg]
+        selected.sort(key=lambda item: -costs[module_of(item.nodeid)])
         deselected = [item for item in items if homes[module_of(item.nodeid)] != leg]
         cost = sum(costs[module] for module, home in homes.items() if home == leg)
         legs.append(Leg(selected, deselected, cost))
