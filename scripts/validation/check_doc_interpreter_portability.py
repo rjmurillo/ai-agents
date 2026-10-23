@@ -201,6 +201,10 @@ INVOCATION_PATTERN = re.compile(
     r"(?P<path>\.{0,2}/?[A-Za-z0-9_][A-Za-z0-9_./-]*\.py)"
     r"(?![\w./-])"
 )
+# Cheap prefilter for the pattern above: every match contains this literal, so a
+# line without it has no offense. Keep it in step with INVOCATION_PATTERN; a test
+# fails if the pattern stops requiring it.
+INVOCATION_LITERAL = "python"
 TOKEN_PATTERN = re.compile(r"(?<![\w./-])[\w./-]+(?![\w./-])")
 
 
@@ -466,8 +470,11 @@ def third_party_imports(
 ) -> set[str]:
     """Return non-stdlib, non-repo modules reachable at import time from ``rel_path``.
 
-    With a ``cache`` each file is parsed once per run and each root's closure is
-    computed once. Without one, every call parses afresh. The result is identical.
+    With a ``cache`` and no ``seen``, each file is parsed once per run and each root's
+    closure is computed once, with the same result as an uncached call. A caller that
+    passes ``seen`` keeps the old meaning (the walk skips what ``seen`` holds) and
+    only shares the per-file parse. A cache belongs to one run, one ``repo_root``,
+    and one ``tracked_py``.
     """
     if cache is None or seen is not None:
         walked = set() if seen is None else seen
@@ -489,7 +496,7 @@ def find_offenses(
 ) -> list[tuple[str, list[str]]]:
     """Return (script, third-party modules) for each unportable invocation on ``line``."""
     offenses: list[tuple[str, list[str]]] = []
-    if "python" not in line:
+    if INVOCATION_LITERAL not in line:
         return offenses
     for match in INVOCATION_PATTERN.finditer(line):
         if is_uv_run_prefixed(line[: match.start()]):
@@ -547,9 +554,8 @@ def _scan_file(
 
     scripts: list[str] = []
     for index, line in enumerate(lines):
-        # INVOCATION_PATTERN needs the literal "python"; a line without it has no
-        # offense, so skip the declaration lookup and the regex for it.
-        if "python" not in line or is_declared(lines, index):
+        # A line without the literal has no offense, so skip the declaration lookup.
+        if INVOCATION_LITERAL not in line or is_declared(lines, index):
             continue
         for script, modules in find_offenses(line, repo_root, tracked_py, cache):
             scripts.append(script)
