@@ -9,7 +9,6 @@ and an unresolvable load is still reported when the scan comes from the cache.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -18,14 +17,20 @@ import pytest
 from tests.skills.github.dynamic_load_helpers import gate, write
 
 _VALIDATION_DIR = Path(__file__).resolve().parents[3] / "scripts" / "validation"
-if str(_VALIDATION_DIR) not in sys.path:
-    sys.path.insert(0, str(_VALIDATION_DIR))
 
 LOAD_SIBLING = (
     "from importlib.util import spec_from_file_location\n"
     "from pathlib import Path\n"
     "spec_from_file_location('s', Path(__file__).parent / 'sibling.py')\n"
 )
+
+
+def _link_real_dir(tmp_path: Path) -> None:
+    """Make ``link`` a directory symlink to ``real``, or skip where links are denied."""
+    try:
+        (tmp_path / "link").symlink_to(tmp_path / "real", target_is_directory=True)
+    except OSError:
+        pytest.skip("filesystem does not support symlinks")
 
 
 @pytest.fixture
@@ -95,7 +100,7 @@ class TestCacheKey:
         # would hand the second spelling the first spelling's path.
         real = write(tmp_path, "real/verify.py", LOAD_SIBLING)
         write(tmp_path, "real/sibling.py", "X = 1\n")
-        (tmp_path / "link").symlink_to(tmp_path / "real", target_is_directory=True)
+        _link_real_dir(tmp_path)
         linked = tmp_path / "link" / "verify.py"
         assert linked.resolve() == real.resolve()
         source = real.read_bytes()
@@ -111,7 +116,7 @@ class TestCacheKey:
     def test_the_link_spelling_is_still_reported_with_a_shared_cache(self, tmp_path: Path) -> None:
         write(tmp_path, "real/verify.py", LOAD_SIBLING)
         write(tmp_path, "real/sibling.py", "X = 1\n")
-        (tmp_path / "link").symlink_to(tmp_path / "real", target_is_directory=True)
+        _link_real_dir(tmp_path)
         paths = ["real/verify.py", "link/verify.py"]
         cache: dict[Any, Any] = {}
 
@@ -150,6 +155,7 @@ class TestClosureManifestCacheLifetime:
     def test_each_build_passes_one_fresh_cache_to_both_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.syspath_prepend(str(_VALIDATION_DIR))
         import closure_manifest as cm
 
         from tests.validation.closure_helpers import make_repo, workflow
