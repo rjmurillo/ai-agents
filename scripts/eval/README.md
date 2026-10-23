@@ -865,6 +865,13 @@ Both arms need `EVAL_PROVIDER=claude-cli`, so the judge runs on the same
 transport. `skill-routed` needs a `skill_path` target. Each harness cell
 records `input_tokens_total`, which shows whether the skill body was loaded.
 
+A scenario may declare `proof_points`: a list of `{id, desc, pattern}`. The
+loader refuses an empty list, a repeated id, or a pattern that does not
+compile. Each graded cell then records `proof_points`, one boolean per id, from
+a case-insensitive search of the response. No judge reads it and no gate uses
+it. Fix the pattern before the run, so the read is decided before any response
+exists.
+
 ```bash
 EVAL_PROVIDER=claude-cli uv run python scripts/eval/eval-rule-activation.py \
   --scenarios tests/evals/skill-scenarios/spec.json --scenario-id S7 \
