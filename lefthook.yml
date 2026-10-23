@@ -3,7 +3,10 @@ min_version: 2.1.10
 no_auto_install: true
 lefthook: python3 scripts/validation/lefthook_runner.py
 glob_matcher: doublestar
-output: false
+# Failure output only: Lefthook then lists each failed job by name, which
+# lefthook_runner.py turns into the failed-stage and rerun-command report.
+output:
+  - failure
 
 commit-msg:
   jobs:
@@ -634,7 +637,7 @@ pre-push:
           # the pre-push declared total does not move.
           - name: pre-pr-validation
             timeout: 9m
-            run: uv run --frozen python scripts/validation/pre_pr.py
+            run: uv run --frozen python scripts/validation/pre_pr.py --compact
             env:
               SKIP_AUTOFIX: "1"
               # The five deferral targets are unconditional fast-stage jobs.

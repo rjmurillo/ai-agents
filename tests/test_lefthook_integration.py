@@ -1005,7 +1005,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "python3 scripts/validation/lefthook_runner.py"
-    assert config["output"] is False
+    assert config["output"] == ["failure"]
     assert version.stdout.splitlines()[0] == _pinned_lefthook_version()
     assert validated.returncode == 0
     assert "All good" in validated.stdout
@@ -1215,7 +1215,9 @@ def test_installed_shim_runs_the_first_binary_in_runner_order(
     _copy_runtime_config(repo)
     runner = Path("scripts/validation/lefthook_runner.py")
     (repo / runner).parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(PROJECT_ROOT / runner, repo / runner)
+    # The runner imports lefthook_failure_report by bare name from its own directory.
+    for module in (runner, runner.with_name("lefthook_failure_report.py")):
+        shutil.copy2(PROJECT_ROOT / module, repo / module)
     _run_lefthook(repo, "install", "--reset-hooks-path")
 
     tools = tmp_path / "bin"

@@ -30,8 +30,16 @@ uv run --frozen python scripts/validation/pre_pr.py
 uv run --frozen python scripts/validation/pre_pr.py --quick
 ```
 
-`--quick` and `--markdown-lint-only` are the only flags. The runner reads every
-argument it declares.
+`--quick`, `--markdown-lint-only`, `--compact`, and `--summary-json` are the
+flags. The runner reads every argument it declares.
+
+`--compact` prints only the gates that did not pass. A gate that passes, or that
+the pre-push fast stage already ran, prints nothing. Any other skip, and every
+failing gate, keeps its own output (file and line), name, and verdict. A gate still running after 30 seconds prints one `[SLOW]` line with its
+name, so a job that Lefthook kills at its timeout still leaves the hung gate's name
+in the log. A child process a gate starts writes to the terminal directly, so its
+output can print above that gate's `=== name ===` header. The pre-push
+`pre-pr-validation` job passes `--compact`.
 
 `--quick` skips YAML Style Validation, Path Normalization, Planning Artifacts,
 and Agent Drift Detection. Measured 2026-08-19, those four gates cost 1.89s of
@@ -256,6 +264,43 @@ A job's standalone wall clock does not predict its wall clock inside the hook.
 See `.claude/rules/ci-scripts.md` MUST-16 for the measured gap and why timeouts
 must be sized against a real push.
 
+### Failed hook output
+
+`lefthook.yml` used to set `output: false`, so Lefthook printed a failed job's own
+output and nothing else. It now sets `output: [failure]`, which lists each failed job.
+`scripts/validation/lefthook_runner.py` hands `run <hook>` to
+`scripts/validation/lefthook_failure_report.py`, which closes a failed run with a
+block that names the hook, each failed job, and the command that reruns it:
+
+```text
+lefthook_runner: pre-commit FAILED (exit 1)
+  job: python-format
+  rerun: uv run --frozen lefthook run pre-commit --job python-format
+  rerun hook: uv run --frozen lefthook run pre-commit
+```
+
+The job's own output comes first and keeps its file and line. A passing hook
+prints nothing. The report lists every failed job. A job rerun skips the jobs that
+ran before it, and `pre-pr-validation` assumes the fast-stage jobs passed, so run
+the `rerun hook` line before you push. A pre-push rerun starts with
+`printf` because the hook reads its ref lines from stdin; without them the rerun
+runs no job and exits 0. The report drops credentials from a remote URL
+argument (`https://user:token@host` prints as `https://host`). Output streams as
+Lefthook writes it. Setting `LEFTHOOK_OUTPUT` yourself turns the report off.
+
+Measured at `68cf87ef34` (2026-10-23) with one planted failure per hook. Counts are
+lines on stdout and stderr. The report for one failed job adds 4 lines:
+
+| Hook and job | Lines before | Lines after | Stage named | Rerun command |
+|---|---|---|---|---|
+| pre-commit, `python-format` | 13 | 17 | no, then yes | no, then yes |
+| pre-push, `pre-pr-validation` | 1007 | 76, then the report | no, then yes | no, then yes |
+
+The before count for `pre-pr-validation` held 231 PASS, 110 RUNNING, and 17 SKIP
+lines, and the failing gate's file and line sat at line 97. The pre-push
+`python-tests` job still prints its whole pytest log on a failure (69459 lines
+in one run at the same SHA). This change leaves it as it was.
+
 ### CI pipeline
 
 No workflow runs `pre_pr.py`. CI repeats individual validators through
@@ -434,8 +479,8 @@ runs fed a stdin ref line for a scratch branch (`HEAD` against `HEAD~1`) and the
 hook arguments `origin <url>`. The raw reports are in
 `.project-toolkit/metrics/gate-latency-2026-10-23/`, one file per row.
 
-`lefthook.yml` sets `output: false`, which hides the per-job summary the sampler
-parses. Every run set `LEFTHOOK_OUTPUT=summary,success,failure` so jobs parse.
+`lefthook.yml` set `output: false` when the sampler ran, which hid the per-job summary the
+sampler parses. Every run set `LEFTHOOK_OUTPUT=summary,success,failure` so jobs parse.
 Without it the report has a hook wall clock and no per-job rows.
 
 | Hook | Change class | n | Status | p50 s | p95 s | max s | Load range (48 CPUs) | Slowest jobs by p50 |
@@ -471,7 +516,7 @@ Exclusions:
   about 88 minutes per class at n=20.
 - Every sampled input was clean and passed. Failing inputs, partial staging, and
   first or deleting pushes were not sampled.
-- Diagnostic volume was not measured. `output: false` suppresses it.
+- Diagnostic volume was not measured. `output: [failure]` suppresses it (it was `output: false` when the sampler ran).
 - The stdin ref line is a fixed one-commit range. A larger outgoing range is not
   covered.
 - No row sets a budget. The p50 and p95 values above are the input for setting

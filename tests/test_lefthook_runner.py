@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 import shutil
 import subprocess
@@ -14,6 +15,9 @@ import yaml
 
 from scripts.validation import lefthook_runner as runner
 from tests.support.lefthook_binary import resolve_lefthook
+
+# The runner imports its sibling by bare name; patch the module object it holds.
+report_module = importlib.import_module(runner.run_hook_with_report.__module__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 POSIX_ONLY = pytest.mark.skipif(sys.platform == "win32", reason="POSIX sh shim")
@@ -103,6 +107,7 @@ def test_local_binary_is_none_when_absent(tmp_path: Path) -> None:
 
 def test_main_forwards_arguments_and_returns_child_status() -> None:
     with (
+        mock.patch.dict(os.environ, {report_module.OUTPUT_ENV: "failure"}),
         mock.patch.object(runner, "resolve_command", return_value=["/x/lefthook"]),
         mock.patch.object(runner.subprocess, "run", return_value=_completed(7)) as run,
     ):
@@ -166,10 +171,10 @@ def _shim_repo(tmp_path: Path, tools: Path) -> Path:
     (repo / "scripts/validation").mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     shutil.copy2(PROJECT_ROOT / "lefthook.yml", repo / "lefthook.yml")
-    shutil.copy2(
-        PROJECT_ROOT / "scripts/validation/lefthook_runner.py",
-        repo / "scripts/validation/lefthook_runner.py",
-    )
+    for module in ("lefthook_runner.py", "lefthook_failure_report.py"):
+        shutil.copy2(
+            PROJECT_ROOT / "scripts/validation" / module, repo / "scripts/validation" / module
+        )
     subprocess.run(
         [_LEFTHOOK, "install", "--reset-hooks-path"],
         cwd=repo,
