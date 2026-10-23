@@ -136,6 +136,11 @@ class HarnessCapabilityRecord:
     #: cells stay as history, it is never a peer for a matched comparison, and
     #: every arm reads UNSUPPORTED for it.
     dropped: bool = False
+    #: Owner decision (2026-10-23, Amendment 3): results per harness are never pooled, so a
+    #: standalone harness is not a peer for a matched comparison and has no peer. It is
+    #: still classified against itself, so an arm it cannot run is not eligible, and the
+    #: best it reaches is `ELIGIBLE_UNMATCHED`.
+    standalone: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,14 +318,29 @@ def classify_reviewer_isolation(
     return CapabilityStatus.VERIFIED
 
 
+#: Claude model segments and the Sol, Luna, or Terra role each one fills in the routing
+#: benchmark (Amendment 3 of `evals/routing-benchmark/PREDICTIONS.md`, owner decision D10
+#: on 2026-10-23). A mapping of roles, never of capability: it lets the arm definitions,
+#: which name roles, apply to `claude-opus-5-5`, `claude-haiku-5-5`, and
+#: `claude-sonnet-5-5`. It applies only to ids that start with `claude-`.
+_CLAUDE_ROLE_FAMILY: Mapping[str, str] = {"opus": "sol", "haiku": "luna", "sonnet": "terra"}
+
+
 def _model_family_tokens(model_id: str) -> frozenset[str]:
-    """Split a model id into its `-`-separated path segments.
+    """Split a model id into its `-`-separated path segments, plus a Claude role alias.
 
     Whole-segment membership, not substring search: `"solar-1".split("-")`
     is `{"solar", "1"}`, which does not contain `"sol"`, so a model named
     `solar-1` cannot satisfy a `"sol"` family requirement by aliasing.
+
+    A `claude-` id also carries the role its model segment fills (`opus` is `sol`),
+    so `claude-opus-5-5` satisfies a `"sol"` requirement. An id such as `opus-5-5`
+    with no `claude-` prefix gets no alias.
     """
-    return frozenset(model_id.split("-"))
+    tokens = frozenset(model_id.split("-"))
+    if not model_id.startswith("claude-"):
+        return tokens
+    return tokens | {role for segment, role in _CLAUDE_ROLE_FAMILY.items() if segment in tokens}
 
 
 def _satisfies_model_group(models: Sequence[str], tokens: Sequence[str]) -> bool:
@@ -481,7 +501,8 @@ def _load_record(value: object, index: int) -> HarnessCapabilityRecord:
         ),
         date=_string(raw.get("date"), f"{field}.date"),
         pending_live_probes=_pending_probes(raw, field),
-        dropped=_dropped_flag(raw, field),
+        dropped=_bool_field(raw, "dropped", field),
+        standalone=_bool_field(raw, "standalone", field),
     )
     validate_record(record)
     return record
@@ -611,10 +632,10 @@ def _capability_dict(capability: Capability) -> dict[str, object]:
     return result
 
 
-def _dropped_flag(raw: Mapping[str, object], field: str) -> bool:
-    value = raw.get("dropped", False)
+def _bool_field(raw: Mapping[str, object], key: str, field: str) -> bool:
+    value = raw.get(key, False)
     if not isinstance(value, bool):
-        raise HarnessCapabilityError(f"{field}.dropped must be a boolean")
+        raise HarnessCapabilityError(f"{field}.{key} must be a boolean")
     return value
 
 
@@ -638,6 +659,8 @@ def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
         result["pending_live_probes"] = [p.as_dict() for p in record.pending_live_probes]
     if record.dropped:
         result["dropped"] = True
+    if record.standalone:
+        result["standalone"] = True
     return result
 
 
@@ -670,14 +693,22 @@ def _record_eligibility(
 ) -> ArmEligibility:
     """Eligibility of one harness for one arm against the active peers.
 
-    A dropped harness is UNSUPPORTED and is nobody's peer. An active harness
-    with no active peer is checked against itself: capabilities and models must
-    still be VERIFIED, but a comparison across harnesses is impossible, so the
-    best it reaches is `ELIGIBLE_UNMATCHED` (a within-harness comparison only).
+    A dropped harness is UNSUPPORTED and is nobody's peer. A standalone harness
+    has no peer and is nobody's peer. An active harness with no active peer is
+    checked against itself: capabilities and models must still be VERIFIED, but a
+    comparison across harnesses is impossible, so the best it reaches is
+    `ELIGIBLE_UNMATCHED` (a within-harness comparison only).
     """
     if harness.dropped:
         return ArmEligibility.UNSUPPORTED
-    peers = [r for r in records if r.harness != harness.harness and not r.dropped]
+    peers = [
+        r
+        for r in records
+        if r.harness != harness.harness
+        and not r.dropped
+        and not r.standalone
+        and not harness.standalone
+    ]
     if not peers:
         alone = derive_arm_eligibility(arm, harness, harness)
         matched = alone is ArmEligibility.ELIGIBLE_MATCHED

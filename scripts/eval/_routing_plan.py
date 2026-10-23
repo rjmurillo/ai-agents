@@ -256,6 +256,12 @@ def _classify_group(
     ]
 
 
+def _comparison_scope(harness: str, by_harness: Mapping[str, HarnessCapabilityRecord]) -> str:
+    """Rows compare only inside one scope. A standalone harness is its own scope."""
+    record = by_harness.get(harness)
+    return harness if record is not None and record.standalone else ""
+
+
 def build_plan(
     config: BenchmarkConfig,
     records: Sequence[HarnessCapabilityRecord],
@@ -272,7 +278,7 @@ def build_plan(
     rows: list[PlanRow] = []
     for scenario in scenarios:
         for strategy in config.strategies:
-            group: list[PlanRow] = []
+            groups: dict[str, list[PlanRow]] = {}
             contracts: dict[str, Mapping[str, object]] = {}
             for ref in config.harnesses:
                 resolved = config.strategy_for(strategy.arm, ref.harness)
@@ -284,6 +290,10 @@ def build_plan(
                     eligibility.get(strategy.arm, {}),
                 )
                 contracts[ref.harness] = semantic_contract(resolved, scenario)
-                (group if row.status is RowStatus.PLANNED else rows).append(row)
-            rows.extend(_classify_group(group, contracts))
+                if row.status is not RowStatus.PLANNED:
+                    rows.append(row)
+                    continue
+                groups.setdefault(_comparison_scope(ref.harness, by_harness), []).append(row)
+            for group in groups.values():
+                rows.extend(_classify_group(group, contracts))
     return Plan(tuple(rows), problems)
