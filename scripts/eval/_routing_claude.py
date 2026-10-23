@@ -19,14 +19,16 @@ a credential file.
 Permission mode. Workers need to edit files in the scenario workdir and run
 Python checks, and nothing else. The argv uses `--restricted` with
 `--permission-mode acceptEdits`, an explicit `--tools` list, an `--allowedTools`
-list, and `--permission-prompts none`. Measured on 2.1.309: `--restricted`
-refused a `Write` to `../outside.txt`, `acceptEdits` alone did not, and a
+list, and `--permission-prompts none`. Measured on 2.1.309, workdir under `/tmp`:
+`acceptEdits` alone wrote `../outside.txt` (`acceptedits-outside-write` fixture),
+`--restricted` refused the same write (`restricted-writes` fixture), and a
 command outside the allowlist (`ls /`) was denied with no prompt.
 `--restricted` also refuses `bypassPermissions`. Weaker than Codex
 `-s workspace-write`: there is no OS sandbox, and an allowed `python3 -c` call
-wrote `../outside2.txt` outside the workdir. The Claude
-sandbox setting (`--settings` with `sandbox.enabled`) failed on the probe host
-with `nested userns is capability-restricted`, so it is not used.
+wrote `../outside2.txt` outside the workdir. The Claude sandbox setting
+(`--settings` with `sandbox.enabled` and `failIfUnavailable`) failed every command
+on the probe host with `nested userns is capability-restricted`
+(`sandbox-unavailable` fixture), so it is not used.
 
 Ambient context. `--setting-sources ""` and `--restricted` drop user, project,
 and local settings and their hooks. `--strict-mcp-config` with no MCP config
@@ -38,7 +40,11 @@ built-in system prompt, and the account email and display name that the
 `userEmail` and `gitStatus` reminders carry. Setting `GIT_CONFIG_GLOBAL` to
 `/dev/null` did not remove the name, so the name comes from the login, not git.
 
-Effort. The stream names no reasoning effort. `system/init` carries only
+Effort. An unknown `--effort` value is not an error: the CLI prints a warning to
+stderr, ignores the value, and runs at its default effort with exit 0
+(`effort-ultra-ignored` fixture). The argv builder refuses a value outside
+`CLAUDE_EFFORTS`, and the parser fails a run whose stderr carries that warning.
+The stream names no reasoning effort. `system/init` carries only
 `per_turn_effort_active`, and a debug log of the same run named none. This
 adapter therefore never reports an observed effort, so the runner records the
 requested effort as `UNVERIFIED`, never as honored.
@@ -77,6 +83,9 @@ CLAUDE_ALLOWED_TOOLS = (
     "Bash(python3:*)",
 )
 CLAUDE_SANDBOX_LABEL = "claude:--restricted acceptEdits"
+#: `claude --help` on 2.1.309: "--effort <level> (low, medium, high, xhigh, max)".
+CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+IGNORED_EFFORT_WARNING = "Unknown --effort value"
 SUBSCRIPTION_KEY_SOURCE = "none"
 #: Recorded on every Claude result row: what the run could not isolate. Measured by an
 #: audit run on 2.1.309 (2026-10-23) that listed each other source as absent.
@@ -109,6 +118,8 @@ def claude_routing_argv(model: str, effort: str, prompt: str) -> list[str]:
     """
     if not prompt or prompt.startswith("-"):
         raise ValueError("claude prompt must be non-empty and must not start with '-'")
+    if effort not in CLAUDE_EFFORTS:
+        raise ValueError(f"claude effort {effort!r} is not one of {CLAUDE_EFFORTS}")
     model_flag = TRUSTED_REQUEST_TEMPLATES[("claude", "model_override")]
     effort_flag = TRUSTED_REQUEST_TEMPLATES[("claude", "effort_override")]
     return [
@@ -210,6 +221,8 @@ def _failure(init: Mapping[str, Any] | None, result: Mapping[str, Any] | None, s
             f"billing guard: init apiKeySource is {source!r}, expected "
             f"{SUBSCRIPTION_KEY_SOURCE!r} (subscription login)"
         )
+    if IGNORED_EFFORT_WARNING in stderr:
+        return f"effort not applied: {clean_detail(stderr)}"
     if result.get("is_error") is True:
         status = result.get("api_error_status")
         terminal = result.get("terminal_reason")

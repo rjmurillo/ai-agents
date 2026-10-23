@@ -127,6 +127,19 @@ def test_argv_refuses_a_prompt_that_is_empty_or_parses_as_an_option(prompt: str)
         claude_mod.claude_routing_argv("claude-opus-5-5", "low", prompt)
 
 
+@pytest.mark.parametrize("effort", ["ultra", "", "High", "minimal"])
+def test_argv_refuses_an_effort_the_cli_would_silently_ignore(effort: str) -> None:
+    with pytest.raises(ValueError, match="effort"):
+        claude_mod.claude_routing_argv("claude-opus-5-5", effort, "PROMPT")
+
+
+@pytest.mark.parametrize("effort", claude_mod.CLAUDE_EFFORTS)
+def test_argv_accepts_every_effort_the_cli_documents(effort: str) -> None:
+    argv = claude_mod.claude_routing_argv("claude-opus-5-5", effort, "PROMPT")
+
+    assert argv[argv.index("--effort") + 1] == effort
+
+
 def test_live_argv_dispatches_claude_to_the_adapter() -> None:
     assert live_mod.live_argv("claude", "claude-haiku-5-5", "low", "P") == (
         claude_mod.claude_routing_argv("claude-haiku-5-5", "low", "P")
@@ -247,6 +260,19 @@ def test_the_usage_limit_text_reaches_the_failure() -> None:
     assert not facts.completed
     assert "api_error_status=429" in facts.failure
     assert "You've hit your usage limit. Your limit resets at 3pm." in facts.failure
+
+
+def test_an_ignored_effort_warning_fails_a_run_that_exited_zero() -> None:
+    stderr = (FIXTURES / "effort-ultra-ignored.stderr.txt").read_text(encoding="utf-8")
+
+    facts = claude_mod.parse_claude_run(_stream("effort-ultra-ignored"), stderr)
+
+    assert not facts.completed
+    assert facts.failure.startswith("effort not applied: Warning: Unknown --effort value 'ultra'")
+
+
+def test_the_same_stream_without_the_warning_completes() -> None:
+    assert claude_mod.parse_claude_run(_stream("effort-ultra-ignored")).completed
 
 
 def test_an_empty_stream_fails_and_carries_stderr() -> None:
