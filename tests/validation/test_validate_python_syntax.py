@@ -318,7 +318,7 @@ def test_parallel_clean_tree_passes(tmp_path: Path, fan_out: list[int]) -> None:
     assert validate_python_syntax(tmp_path) is True
 
 
-@pytest.mark.parametrize("failure", ["oserror", "crash", "short", "garbage"])
+@pytest.mark.parametrize("failure", ["oserror", "runtime", "crash", "short", "garbage"])
 def test_worker_failure_falls_back_to_the_serial_verdict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fan_out: list[int], failure: str
 ) -> None:
@@ -327,6 +327,8 @@ def test_worker_failure_falls_back_to_the_serial_verdict(
     def broken_worker(payload: str) -> list[str | None]:
         if failure == "oserror":
             raise OSError("cannot start interpreter")
+        if failure == "runtime":
+            raise RuntimeError("can't start new thread")
         if failure == "crash":
             raise subprocess.CalledProcessError(1, ["python"])
         if failure == "short":

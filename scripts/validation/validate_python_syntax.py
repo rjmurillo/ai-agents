@@ -199,7 +199,7 @@ def _parse_all(items: list[tuple[str, str]], floor: tuple[int, int]) -> list[str
     if workers > 1:
         try:
             return _parse_in_workers(items, floor, workers)
-        except (OSError, ValueError, subprocess.SubprocessError):
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError):
             # Worker start-up, crash, timeout, or malformed output: the serial
             # path below parses the same inputs and decides the verdict.
             pass
