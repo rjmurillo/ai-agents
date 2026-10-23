@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Container
 from functools import lru_cache
 from pathlib import Path
 
@@ -240,15 +241,80 @@ def _collected_test_names(body: list[ast.stmt]) -> list[str]:
     ]
 
 
-def _names_defined_test(text: str, tests: frozenset[str]) -> bool:
+@lru_cache(maxsize=8)
+def _test_sources(repo_root: Path) -> tuple[str, ...]:
+    """Return the decoded text of every readable `.py` file under `repo_root/tests`.
+
+    Unreadable files are skipped, as `defined_tests` skips them. One read per
+    file per run lets each token lookup filter on text before it parses.
+    """
+    tests_dir = repo_root / "tests"
+    if not tests_dir.is_dir():
+        return ()
+    sources: list[str] = []
+    for path in tests_dir.rglob("*.py"):
+        try:
+            sources.append(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            continue
+    return tuple(sources)
+
+
+@lru_cache(maxsize=512)
+def is_test_defined(repo_root: Path, name: str) -> bool:
+    """Return True when `name` is in `defined_tests(repo_root)`, parsing only what can matter.
+
+    The answer is the same as `name in defined_tests(repo_root)`. A file whose
+    text is pure ASCII and does not contain `name` cannot define it, because an
+    ASCII identifier appears in the source exactly as spelled. Every other file
+    is parsed: a non-ASCII file can spell `name` through Unicode normalization,
+    and a non-ASCII `name` can match a differently spelled definition.
+    """
+    ascii_name = name.isascii()
+    for text in _test_sources(repo_root):
+        if ascii_name and text.isascii() and name not in text:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        if name in _test_function_names(tree):
+            return True
+    return False
+
+
+class LazyTestNames:
+    """Container of the test names defined under `repo_root/tests`, built on demand.
+
+    `name in LazyTestNames(root)` equals `name in defined_tests(root)`. It
+    answers each lookup with `is_test_defined`, so a run whose claims name no
+    test token never parses the test tree.
+    """
+
+    def __init__(self, repo_root: Path) -> None:
+        self._repo_root = repo_root
+
+    def __contains__(self, name: object) -> bool:
+        return isinstance(name, str) and is_test_defined(self._repo_root, name)
+
+
+def clear_test_caches() -> None:
+    """Drop every cached view of the tests tree."""
+    defined_tests.cache_clear()
+    _test_sources.cache_clear()
+    is_test_defined.cache_clear()
+
+
+def _names_defined_test(text: str, tests: Container[str]) -> bool:
     return any(match.group(0) in tests for match in _CONFORMANCE_TEST.finditer(text))
 
 
-def structural_evidence(text: str, imported: frozenset[str], tests: frozenset[str]) -> str | None:
+def structural_evidence(text: str, imported: frozenset[str], tests: Container[str]) -> str | None:
     """Name the structural evidence the text carries, or None.
 
-    `tests` is the set of test names defined under the repository's tests tree;
-    a conformance token that is not in it is not evidence.
+    `tests` holds the test names defined under the repository's tests tree (a
+    frozenset, or `LazyTestNames` to defer the parse); a conformance token that
+    is not in it is not evidence.
     """
     if _names_defined_test(text, tests):
         return "conformance-test"
