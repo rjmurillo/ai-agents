@@ -94,8 +94,15 @@ class MarkdownNestingError(ValueError):
     """
 
 
-def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
+def _create_parser(max_nesting: int | None = None, *, parse_inline: bool = True) -> MarkdownIt:
     """Create a configured markdown-it parser with table support.
+
+    ``parse_inline=False`` drops the inline core rule. Block tokens, their
+    ``map`` line ranges, and their ``level`` are produced before that rule runs
+    and do not depend on it; only each ``inline`` token's ``children`` are left
+    empty. A caller that reads block structure alone (the code-block blanking
+    below) skips the span, emphasis, and link tokenizing that took about a third
+    of the parse time (issue #6734).
 
     ``max_nesting`` overrides the CommonMark default only for the bounded
     second parse in :func:`_raise_if_nesting_truncated`. The primary parse keeps
@@ -104,6 +111,8 @@ def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
     the primary parse would reintroduce that denial-of-service vector.
     """
     md = MarkdownIt("commonmark").enable("table")
+    if not parse_inline:
+        md.disable("inline")
     if max_nesting is not None:
         md.options["maxNesting"] = max_nesting
     return md
@@ -212,7 +221,7 @@ def _blank_block_lines(markdown: str, token_types: frozenset[str]) -> str:
     ``maxNesting`` limit raises :class:`MarkdownNestingError` rather than
     being scanned from a silently truncated token stream.
     """
-    md = _create_parser()
+    md = _create_parser(parse_inline=False)
     tokens = md.parse(markdown)
     _raise_if_nesting_truncated(markdown, tokens, md)
     lines = markdown.split("\n")

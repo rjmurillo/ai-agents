@@ -9,6 +9,7 @@ ceiling. This module provides:
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 from collections.abc import Callable
@@ -44,6 +45,30 @@ _HTML_COMMENT_PATTERN = re.compile(
     r"<!--(?!\s*vendor-portability\s*:).*?-->",
     re.IGNORECASE | re.DOTALL,
 )
+
+
+# The literal text every upstream-path pattern needs, in this module's
+# extractor and in ``UPSTREAM_PATTERNS`` of check_skill_md_portability.py. Both
+# families anchor a prefix literal first and add boundary, separator, and path
+# characters around it, so a text with none of these literals cannot match
+# either. The search is IGNORECASE although the extractor's own patterns are
+# case-sensitive: a case-insensitive search finds everything a case-sensitive
+# one does, so it can only let more text through to the full scan, never less.
+# Used as a fast reject so most files skip patterns that try three lookbehind
+# alternatives at every position (issue #6734). ``UPSTREAM_CORE_SOURCES`` keeps
+# the cores one per ``UPSTREAM_PATTERNS`` entry, in the same order, so the
+# portability scan can also skip each pattern whose own core is absent.
+UPSTREAM_CORE_SOURCES: tuple[str, ...] = (
+    r"\.agents",
+    r"\.project-toolkit",
+    r"\.claude[\\/]+lib",
+    r"\.claude[\\/]+review-axes",
+    r"build[\\/]",
+    r"templates[\\/]+agents",
+    r"templates[\\/]+platforms",
+    r"scripts[\\/]",
+)
+UPSTREAM_CORES = re.compile("|".join(UPSTREAM_CORE_SOURCES), re.IGNORECASE)
 
 
 def _strip_html_comments(text: str) -> str:
@@ -86,6 +111,23 @@ _KNOWN_SUBDIRS = frozenset(
 def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = None) -> set[str]:
     """Return the set of upstream path strings found in text.
 
+    Thin wrapper over the cached :func:`_extract_path_sets`. Each call returns
+    a fresh ``set`` and adds the unsafe paths to ``unsafe_collector``, so a
+    caller cannot mutate the cached value and the collector contract is the
+    same as before the cache (issue #6734). See that function for the rules.
+    """
+    paths, unsafe = _extract_path_sets(text)
+    if unsafe_collector is not None:
+        unsafe_collector.update(unsafe)
+    return set(paths)
+
+
+# Bounded like the strip cache in check_skill_md_portability.py: mirrored
+# plugin trees repeat marker text, and the result is a pure function of it.
+@functools.lru_cache(maxsize=2048)
+def _extract_path_sets(text: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Return ``(paths, unsafe_paths)`` found in text.
+
     Uses dedicated full-path regexes. Single-segment prefixes (build, scripts,
     .agents) require a separator plus continuation to avoid matching bare English
     words. Multi-segment prefixes (.claude/lib, templates/agents) can match alone.
@@ -95,14 +137,18 @@ def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = N
     none match a known subdirectory name.
 
     Paths with '..' components or absolute paths (leading /) are collected into
-    unsafe_collector (if provided) rather than silently dropped, so callers can
+    unsafe_collector rather than silently dropped, so callers can
     report them as invalid declarations.
     """
+    if UPSTREAM_CORES.search(text) is None:
+        return frozenset(), frozenset()
+
     path_char = _PATH_CHAR
     simple_anchor = _SIMPLE_ANCHOR
     known_subdirs = _KNOWN_SUBDIRS
 
     paths: set[str] = set()
+    unsafe_collector: set[str] = set()
 
     def _clean_match(raw: str) -> str:
         cleaned = re.sub(r'^[\s(\[<>"\'`|,;*]+', "", raw)
@@ -125,8 +171,8 @@ def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = N
     def _is_valid_path(normalized: str) -> bool:
         """Reject absolute paths, '..' traversal, and placeholder templates.
 
-        If unsafe_collector is provided, rejected paths are added there
-        so callers can report them as invalid declarations. Placeholder
+        Rejected paths are added to unsafe_collector so callers can report
+        them as invalid declarations. Placeholder
         paths (containing < or >) are excluded silently: they are
         templates, not filesystem references.
         """
@@ -135,13 +181,11 @@ def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = N
         if "<" in normalized or ">" in normalized:
             return False
         if normalized.startswith("/"):
-            if unsafe_collector is not None:
-                unsafe_collector.add(normalized)
+            unsafe_collector.add(normalized)
             return False
         parts = PurePosixPath(normalized).parts
         if ".." in parts:
-            if unsafe_collector is not None:
-                unsafe_collector.add(normalized)
+            unsafe_collector.add(normalized)
             return False
         return True
 
@@ -153,6 +197,10 @@ def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = N
     # if they began at "scripts", so _is_valid_path never saw the ".." and the
     # reference escaped the plugin unreported. Refs #4116.
     for prefix in (r"\.agents", r"\.project-toolkit", r"build", r"scripts"):
+        # The pattern below cannot match without ``prefix`` plus a separator in
+        # the text, so a text without it skips the lazy-quantifier scan.
+        if re.search(prefix + r"[\\/]", text) is None:
+            continue
         pat = re.compile(
             simple_anchor + r"[\\/]?(?:[\w.\-]+[\\/])*?" + prefix + r"[\\/]" + path_char + r"+",
             re.MULTILINE,
@@ -169,6 +217,9 @@ def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = N
         r"templates[\\/]+agents",
         r"templates[\\/]+platforms",
     ):
+        # The pattern below starts with ``prefix``; skip it when absent.
+        if re.search(prefix, text) is None:
+            continue
         pat = re.compile(
             simple_anchor
             + r"[\\/]?(?:[\w.\-]+[\\/])*?"
@@ -183,7 +234,7 @@ def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = N
             if normalized and _is_valid_path(normalized):
                 paths.add(normalized)
 
-    return paths
+    return frozenset(paths), frozenset(unsafe_collector)
 
 
 def marker_declared_paths(

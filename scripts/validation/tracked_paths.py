@@ -45,16 +45,18 @@ class _IndexSnapshot:
     symlinks: dict[str, str]
 
 
-def _run_git(repo_root: Path, args: list[str]) -> str | None:
-    """Run a git command under repo_root. None means "not a repository".
+def _run_git_bytes(repo_root: Path, args: list[str], stdin: bytes | None = None) -> bytes | None:
+    """Run a git command under repo_root and return raw stdout.
 
-    Any other failure raises GitQueryError. Degrading to a filesystem answer on
-    an operational failure would restore the machine-dependence this module
-    exists to remove.
+    None means "not a repository". Any other failure raises GitQueryError.
+    Degrading to a filesystem answer on an operational failure would restore
+    the machine-dependence this module exists to remove. ``stdin`` feeds a
+    command that reads its object list from standard input.
     """
     try:
         completed = subprocess.run(
             ["git", "-C", str(repo_root), *args],
+            input=stdin,
             capture_output=True,
             timeout=_GIT_TIMEOUT_SECONDS,
             check=False,
@@ -71,7 +73,16 @@ def _run_git(repo_root: Path, args: list[str]) -> str | None:
         raise GitQueryError(
             f"git {args[0]} failed for {repo_root} (exit {completed.returncode}): {stderr.strip()}"
         )
-    return completed.stdout.decode("utf-8", "replace")
+    return completed.stdout
+
+
+def _run_git(repo_root: Path, args: list[str]) -> str | None:
+    """Run a git command under repo_root and return decoded stdout.
+
+    None means "not a repository"; see :func:`_run_git_bytes` for the rest.
+    """
+    raw = _run_git_bytes(repo_root, args)
+    return None if raw is None else raw.decode("utf-8", "replace")
 
 
 @lru_cache(maxsize=8)
@@ -98,12 +109,55 @@ def _index_snapshot(repo_root: Path) -> _IndexSnapshot | None:
         if fields[0] == _SYMLINK_MODE:
             blobs[path] = fields[1]
 
-    links: dict[str, str] = {}
-    for path, sha in blobs.items():
-        target = _run_git(repo_root, ["cat-file", "blob", sha])
-        if target is not None:
-            links[path] = target.strip()
-    return _IndexSnapshot(frozenset(paths), links)
+    return _IndexSnapshot(frozenset(paths), _read_link_targets(repo_root, blobs))
+
+
+def _read_link_targets(repo_root: Path, blobs: dict[str, str]) -> dict[str, str]:
+    """Read every tracked symlink's target with one ``git cat-file --batch``.
+
+    The index lists a few hundred symlinks (ADR-119 links the dogfood trees to
+    the shipped plugin trees), and a ``git cat-file blob`` process per link cost
+    about a second of fork and exec time on every gate that checks path
+    existence (issue #6734). One batch process answers all of them.
+
+    Each object is requested as ``<sha>^{blob}``, which peels an annotated tag
+    to its blob the way ``git cat-file blob <sha>`` did; a bare sha would return
+    the tag object itself. Each reply is a ``<oid> blob <size>`` header line,
+    then the blob bytes, then one line feed, in request order. A reply that is
+    ``missing`` (absent object, or one that does not peel to a blob), a header
+    of any other shape, or a stream that ends early raises, matching the
+    per-blob call, which exited non-zero in those cases. A repository the first
+    ``ls-files`` call could read but this one reports as not a repository yields
+    no links, as the per-blob call did.
+    """
+    if not blobs:
+        return {}
+    shas = list(dict.fromkeys(blobs.values()))
+    request = "".join(f"{sha}^{{blob}}\n" for sha in shas).encode("ascii")
+    completed = _run_git_bytes(repo_root, ["cat-file", "--batch"], request)
+    if completed is None:
+        return {}
+    targets: dict[str, str] = {}
+    offset = 0
+    for sha in shas:
+        newline = completed.find(b"\n", offset)
+        header = (
+            completed[offset:newline].decode("utf-8", "replace").split() if newline >= 0 else []
+        )
+        if len(header) != 3 or header[1] != "blob" or not header[2].isdigit():
+            raise GitQueryError(
+                f"git cat-file --batch failed for {repo_root}: unexpected reply for {sha}: "
+                f"{' '.join(header) or 'truncated output'}"
+            )
+        start = newline + 1
+        end = start + int(header[2])
+        if end > len(completed):
+            raise GitQueryError(
+                f"git cat-file --batch failed for {repo_root}: truncated blob for {sha}"
+            )
+        targets[sha] = completed[start:end].decode("utf-8", "replace").strip()
+        offset = end + 1
+    return {path: targets[sha] for path, sha in blobs.items()}
 
 
 def clear_tracked_path_cache() -> None:
