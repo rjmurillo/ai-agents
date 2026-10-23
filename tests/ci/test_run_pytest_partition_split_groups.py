@@ -8,8 +8,8 @@ Issue #6239 acceptance criteria covered here:
 from __future__ import annotations
 
 import pytest
-from pytest_split.algorithms import Algorithms
 
+from scripts.ci import pytest_module_split as module_split
 from scripts.ci import run_pytest_partition as mod
 
 _SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5")
@@ -31,20 +31,29 @@ def _flag_value(args: list[str], flag: str) -> str:
 
 @pytest.mark.parametrize("index", range(1, 6))
 def test_split_group_flags(index: int) -> None:
-    """AC2: group i of N runs the shared pool by recorded duration."""
+    """AC2: group i of N runs the shared pool by recorded duration, whole modules at a time."""
     args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
-    assert _flag_value(args, "--splits") == "5"
-    assert _flag_value(args, "--group") == str(index)
-    assert _flag_value(args, "--splitting-algorithm") == "least_duration"
+    assert _flag_value(args, "-p") == "scripts.ci.pytest_module_split"
+    assert _flag_value(args, "--module-splits") == "5"
+    assert _flag_value(args, "--module-group") == str(index)
     assert _flag_value(args, "--durations-path") == f"artifacts/durations-split-{index}.json"
+    assert "--store-durations" in args
+    assert "--clean-durations" in args
     assert args[-1] == "tests/"
+
+
+@pytest.mark.parametrize("index", range(1, 6))
+def test_split_group_does_not_also_run_the_pytest_split_split(index: int) -> None:
+    """Issue #6846: pytest-split's own split would deselect again by single test."""
+    args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
+    assert not {"--splits", "--group", "--splitting-algorithm"} & set(args)
 
 
 def test_split_groups_differ_only_in_the_group_number() -> None:
     """AC2: one pool, so no group can leave a file out or take it twice."""
 
     def without_group(args: list[str]) -> list[str]:
-        for flag in ("--group", "--durations-path"):
+        for flag in ("--module-group", "--durations-path"):
             position = args.index(flag)
             args = args[:position] + args[position + 2 :]
         return args
@@ -78,7 +87,7 @@ def test_dedicated_legs_run_only_their_files() -> None:
 
 
 class _Item:
-    """The one attribute pytest-split reads from a collected item."""
+    """The one attribute the module split reads from a collected item."""
 
     def __init__(self, nodeid: str) -> None:
         self.nodeid = nodeid
@@ -100,7 +109,7 @@ def test_adjacent_slow_tests_land_on_different_legs() -> None:
     durations = {**slow, **fast}
     items = [_Item(node_id) for node_id in durations]
 
-    groups = Algorithms[mod.SPLITTING_ALGORITHM].value(mod.SPLIT_COUNT, items, durations)
+    groups = module_split.split_by_module(mod.SPLIT_COUNT, items, durations)
 
     homes = {
         index
@@ -111,3 +120,27 @@ def test_adjacent_slow_tests_land_on_different_legs() -> None:
     assert len(homes) == len(slow)
     totals = [group.duration for group in groups]
     assert max(totals) - min(totals) <= max(slow.values())
+
+
+def test_tests_that_share_a_module_stay_on_one_leg() -> None:
+    """Issue #6846: a module's slow tests share one leg, and so share one scan.
+
+    Mirrors tests/test_guard_diff.py: three tests that each pay a cached
+    whole-repo scan on a cold worker, recorded at about 14s apiece, beside many
+    short modules. Placing single tests put them on three legs, so the scan ran
+    three times.
+    """
+    shared = {f"tests/test_guard_diff.py::test_corpus_{name}": 14.0 for name in "abc"}
+    fast = {f"tests/z/test_{i:03}.py::t": 2.0 for i in range(400)}
+    durations = {**shared, **fast}
+    items = [_Item(node_id) for node_id in durations]
+
+    groups = module_split.split_by_module(mod.SPLIT_COUNT, items, durations)
+
+    homes = {
+        index
+        for index, group in enumerate(groups)
+        for item in group.selected
+        if item.nodeid in shared
+    }
+    assert len(homes) == 1
