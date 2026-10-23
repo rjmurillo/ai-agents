@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 
 import yaml
+from yaml_text_cache import load_yaml_text
 
 _SKILL_SPLIT_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 _FRONTMATTER_FENCE_RE = re.compile(r"\A---\r?\n|^---\r?\n\Z", re.MULTILINE)
@@ -97,7 +98,7 @@ def _drop_key_lines(frontmatter: str, keys: frozenset[str]) -> str:
 
 
 def _frontmatter_mapping(frontmatter: str) -> object:
-    return yaml.safe_load(_FRONTMATTER_FENCE_RE.sub("", frontmatter))
+    return load_yaml_text(_FRONTMATTER_FENCE_RE.sub("", frontmatter))
 
 
 def _check_only_keys_dropped(before: str, after: str, keys: frozenset[str]) -> None:
