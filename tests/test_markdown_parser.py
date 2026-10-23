@@ -961,7 +961,7 @@ class TestBlankNonProseBlockLinesCached:
     """`blank_non_prose_block_lines_cached` returns what the uncached call returns.
 
     The memo exists so the ADR lifecycle gate parses each record body once
-    instead of three to four times (issue #6734). It must not change a result
+    instead of up to five times (issue #6734). It must not change a result
     or swallow a parse failure.
     """
 

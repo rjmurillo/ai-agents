@@ -307,8 +307,8 @@ def blank_non_prose_block_lines_cached(markdown: str) -> str:
     """Memoized `blank_non_prose_block_lines`: same result, one parse per distinct parseable text.
 
     `check_adr_lifecycle.py` and `adr_cited_paths.py` blank the same record body
-    three to four times per run (status prose, status section, section structure,
-    cited paths), and the markdown-it parse dominates the gate's runtime
+    up to five times per run (status prose, status section, section structure,
+    cited paths, review-by prose date), and the markdown-it parse dominates the gate's runtime
     (issue #6734). The input and the result are both immutable ``str`` values and
     the wrapped function is pure, so a hit returns exactly what a fresh call
     would. `functools.lru_cache` never stores a raised exception: an unparseable

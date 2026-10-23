@@ -1,7 +1,7 @@
 """Parse-once equivalence tests for the ADR lifecycle gate (issue #6734).
 
 `check_adr_lifecycle.scan` blanks each record body through a memoized helper so
-the markdown-it parse runs once per distinct body instead of three to four
+the markdown-it parse runs once per distinct body instead of up to five
 times. The gate's verdict must not move. Each test compares `scan` with the memo
 against `scan` with the original uncached function swapped in.
 """
@@ -63,7 +63,7 @@ def _write(adr_dir: Path, number: int, status: str, body: str, extra: str = "") 
 
 
 def _corpus(tmp_path: Path) -> Path:
-    """Records that exercise all four callers of the blanking helper."""
+    """Records that exercise all five callers of the blanking helper."""
     adr_dir = _adr_dir(tmp_path)
     # Clean record with a restating status section, a missing cited path, and a
     # review-by date that the prose does not state.
@@ -153,7 +153,7 @@ def test_identical_bodies_with_different_frontmatter_keep_separate_verdicts(tmp_
 def test_each_body_is_parsed_exactly_once_per_scan(tmp_path, monkeypatch):
     adr_dir = _adr_dir(tmp_path)
     # Accepted, with a status section, cited paths, structure, and a review-by:
-    # all four callers read this one body.
+    # all five callers read this one body.
     body = "\n## Status\n\nAccepted\n" + _SECTIONS.replace("What.", "Use `scripts/x.py`.")
     _write(adr_dir, 1, "accepted", body, "review-by: 2026-12-01")
     calls: list[str] = []
@@ -170,7 +170,7 @@ def test_each_body_is_parsed_exactly_once_per_scan(tmp_path, monkeypatch):
 
 
 def test_a_refused_body_is_reported_for_every_check_that_reads_it(tmp_path):
-    # Not cached on failure, so each of the four callers sees the refusal and
+    # Not cached on failure, so each of the five callers sees the refusal and
     # reports it rather than inheriting a clean result from an earlier call.
     adr_dir = _adr_dir(tmp_path)
     quote = ">" * 20 + " "
