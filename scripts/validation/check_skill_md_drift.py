@@ -217,7 +217,8 @@ def _extract_path_sets(text: str) -> tuple[frozenset[str], frozenset[str]]:
         r"templates[\\/]+agents",
         r"templates[\\/]+platforms",
     ):
-        # The pattern below starts with ``prefix``; skip it when absent.
+        # The pattern below cannot match without ``prefix`` in the text, so a
+        # text without it skips the lazy-quantifier scan.
         if re.search(prefix, text) is None:
             continue
         pat = re.compile(

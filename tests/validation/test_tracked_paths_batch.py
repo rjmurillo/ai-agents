@@ -26,6 +26,14 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
 
 
+def _symlink(link: Path, target: str) -> None:
+    """Create a symlink, or skip where the platform refuses (Windows without privilege)."""
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"cannot create symlinks here: {exc}")
+
+
 def _repo_with_links(tmp_path: Path, count: int) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -37,7 +45,7 @@ def _repo_with_links(tmp_path: Path, count: int) -> Path:
         target = repo / f"real{index}" / "mod.py"
         target.parent.mkdir(parents=True)
         target.write_text(f"code {index}", encoding="utf-8")
-        (repo / f"link{index}").symlink_to(f"real{index}")
+        _symlink(repo / f"link{index}", f"real{index}")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "links")
     clear_tracked_path_cache()
@@ -87,7 +95,7 @@ class TestBatchedRead:
     def test_links_to_one_target_share_a_blob(self, tmp_path: Path) -> None:
         """Two links with the same target text are one blob; both still resolve."""
         repo = _repo_with_links(tmp_path, 1)
-        (repo / "second").symlink_to("real0")
+        _symlink(repo / "second", "real0")
         _git(repo, "add", "second")
         _git(repo, "commit", "-qm", "second link")
         clear_tracked_path_cache()
@@ -104,7 +112,7 @@ class TestBatchedRead:
         real = repo / "réel" / "mod.py"
         real.parent.mkdir()
         real.write_text("x", encoding="utf-8")
-        (repo / "alias").symlink_to("réel")
+        _symlink(repo / "alias", "réel")
         _git(repo, "add", ".")
         _git(repo, "commit", "-qm", "unicode")
         clear_tracked_path_cache()
