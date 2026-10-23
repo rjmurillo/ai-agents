@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, the scanners and the index reader share one Finding schema.
 """Reject stale ``.agents/<sub>`` references and writes below ``.agents/``.
 
 Issue #5420 moved every agent write target from ``.agents/<sub>`` to
@@ -32,17 +33,15 @@ from __future__ import annotations
 
 import argparse
 import ast
-import multiprocessing
-import os
 import re
 import subprocess
 import sys
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass
 from pathlib import Path
 
 from agents_install_roots import names_codex_skills_root
+from agents_spelling_prefilter import may_name_agents
+from ordered_process_pool import scan_in_processes, worker_count
 
 # plugins: the hand-maintained Codex marketplace file (ADR-115 Decision 7).
 _KEEP_DIRS = frozenset(
@@ -100,24 +99,6 @@ _READ_CONTEXT = re.compile(
 _MARKER_WITH_REASON = re.compile(r"agents-write-target:\s*historical\s*--\s*\S")
 _MARKER_BARE = re.compile(r"agents-write-target:\s*historical\b")
 _WRITE_METHODS = frozenset({"mkdir", "touch", "write_bytes", "write_text"})
-
-# Prefilter for scan_python. A finding needs a string constant whose decoded value holds
-# ".agents" (or the opt-out marker text). Source can spell such a constant without the
-# literal substring in two ways, so a bare ``".agents" in text`` check would be unsound:
-#   - an escape that decodes to one of the characters ``. a g e n t s``, such as
-#     ``"\x2eagents/x"``, ``\u``, ``\U``, ``\N{...}``, or an octal escape, and
-#   - implicit concatenation of adjacent literals such as ``".age" "nts/x"``, or a backslash
-#     line continuation inside one literal, with string prefixes, parentheses, or
-#     comments between the pieces.
-# Both patterns over-approximate: a false match only costs the full scan, never a verdict.
-_AGENTS_CHARS_HEX = r"(?:2[eE]|61|65|67|6[eE]|73|74)"
-_DECODING_ESCAPE = re.compile(
-    rf"\\(?:x{_AGENTS_CHARS_HEX}|u00{_AGENTS_CHARS_HEX}|U000000{_AGENTS_CHARS_HEX}"
-    r"|N|0?(?:56|141|145|147|156|163|164))"
-)
-_PIECE_GAP = r"(?:(?:\\(?:\r\n|\r|\n))+|[\"'](?:[\s\\()rRuUfF\"']|#[^\n]*)*[\"'])?"
-_SPLIT_AGENTS = re.compile(_PIECE_GAP.join(re.escape(ch) for ch in ".agents"))
-_MARKER_TEXT = "agents-write-target"
 
 
 @dataclass(frozen=True, slots=True)
@@ -365,7 +346,7 @@ def scan_python(path: str, text: str) -> list[Finding]:
     way it does for text files.
     """
     tree = ast.parse(text, filename=path)
-    if not _may_name_agents(text):
+    if not may_name_agents(text):
         return []
     variables = _single_assigned_paths(tree)
     visitor = _PythonAgentsScan(path, variables)
@@ -376,19 +357,6 @@ def scan_python(path: str, text: str) -> list[Finding]:
     for item in literal_findings:
         unique.setdefault((item.line, item.reason), item)
     return [item for item in unique.values() if not _line_opted_out(lines, item.line)]
-
-
-def _may_name_agents(text: str) -> bool:
-    """False only when no finding is possible, so the walks can be skipped.
-
-    ``ast.parse`` still runs first: a syntax error must keep failing the gate.
-    """
-    return (
-        ".agents" in text
-        or _MARKER_TEXT in text
-        or _DECODING_ESCAPE.search(text) is not None
-        or _SPLIT_AGENTS.search(text) is not None
-    )
 
 
 def _stale_line_findings(path: str, lines: list[str]) -> list[Finding]:
@@ -484,62 +452,15 @@ def _is_scanned(relative: str) -> bool:
     return "/" not in relative and relative.endswith(".md")
 
 
-# Parsing 4,500 Python files dominates the run (about 10s serial), so the scan fans out to
-# worker processes once the input is large. Smaller inputs stay in-process: a pool costs
-# more than it saves, and temporary test repositories never start workers.
-_PARALLEL_MIN_BYTES = 4_000_000
-_MAX_WORKERS = 8
-_BATCHES_PER_WORKER = 4
-
-
 def _scan_candidates(items: list[tuple[str, str]]) -> list[Finding]:
     """Scan ``(relative path, text)`` pairs in order and drop the Codex skills root."""
-    findings: list[Finding] = []
-    for relative, text in items:
-        scan = scan_python if relative.endswith(".py") else scan_text
-        for f in scan(relative, text):
-            if not (f.reason == _STALE_REASON and names_codex_skills_root(f.path, f.target)):
-                findings.append(f)
-    return findings
-
-
-def _batches(items: list[tuple[str, str]], count: int) -> list[list[tuple[str, str]]]:
-    """Split ``items`` into at most ``count`` contiguous batches of similar byte size."""
-    target = max(1, sum(len(text) for _, text in items) // count)
-    batches: list[list[tuple[str, str]]] = [[]]
-    size = 0
-    for item in items:
-        if size >= target and len(batches) < count:
-            batches.append([])
-            size = 0
-        batches[-1].append(item)
-        size += len(item[1])
-    return batches
-
-
-def _scan_parallel(items: list[tuple[str, str]], workers: int) -> list[Finding]:
-    """Run ``_scan_candidates`` over batches in worker processes.
-
-    Results are read in submission order, so the first failing batch raises the same
-    ``SyntaxError`` the serial loop would raise first. A pool that cannot start or dies
-    falls back to the serial scan, which gives the same findings.
-    """
-    batches = _batches(items, workers * _BATCHES_PER_WORKER)
-    try:
-        # forkserver, not fork: the caller may hold threads, and fork would copy their locks.
-        context = multiprocessing.get_context("forkserver")
-    except ValueError:
-        return _scan_candidates(items)
-    try:
-        with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
-            futures = [pool.submit(_scan_candidates, batch) for batch in batches]
-            try:
-                return [f for future in futures for f in future.result()]
-            finally:
-                for future in futures:
-                    future.cancel()
-    except (BrokenProcessPool, OSError):
-        return _scan_candidates(items)
+    scans = [(scan_python if r.endswith(".py") else scan_text)(r, text) for r, text in items]
+    return [
+        f
+        for found in scans
+        for f in found
+        if not (f.reason == _STALE_REASON and names_codex_skills_root(f.path, f.target))
+    ]
 
 
 def check_repository(repo_root: Path) -> tuple[list[Finding], int]:
@@ -550,11 +471,7 @@ def check_repository(repo_root: Path) -> tuple[list[Finding], int]:
     }
     contents = _read_blobs(repo_root, list(candidates.values()))
     items = [(relative, contents[blob]) for relative, blob in candidates.items()]
-    workers = min(os.process_cpu_count() or 1, _MAX_WORKERS)
-    if workers > 1 and sum(len(text) for _, text in items) >= _PARALLEL_MIN_BYTES:
-        findings = _scan_parallel(items, workers)
-    else:
-        findings = _scan_candidates(items)
+    findings = scan_in_processes(_scan_candidates, items, worker_count(items))
     return sorted(findings, key=lambda item: (item.path, item.line, item.target)), len(candidates)
 
 
