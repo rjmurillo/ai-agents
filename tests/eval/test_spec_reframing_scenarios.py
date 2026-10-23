@@ -213,6 +213,80 @@ class TestEvidenceProbes:
         assert result.reason == dg.REASON_EVIDENCE_MISMATCH, (scenario_id, evidence, result)
 
 
+class TestOptionFreeVariant:
+    """S7 is S5 without option names, for measuring an unprompted call (issue #6737)."""
+
+    @staticmethod
+    def _by_id(scenario_id: str) -> dict[str, Any]:
+        return next(s for s in DATA["scenarios"] if s["id"] == scenario_id)
+
+    def test_variant_is_judge_scored_and_positive(self) -> None:
+        s7 = self._by_id("S7")
+        assert "decision" not in s7
+        assert s7["expected_gate"] == self._by_id("S5")["expected_gate"]
+        assert s7["expected_signals"] == ["api/v1/failures"]
+
+    def test_prompt_names_no_option_and_no_output_contract(self) -> None:
+        text = self._by_id("S7")["input"].lower()
+        for token in ("automate_ui", "interface", "decision", "evidence", "choose"):
+            assert token not in text, f"S7 prompt cues the answer with {token!r}"
+
+    def test_prompt_keeps_the_s5_fixture_so_only_the_framing_differs(self) -> None:
+        s5 = " ".join(self._by_id("S5")["input"].split())
+        s7 = " ".join(self._by_id("S7")["input"].split())
+        shared = s5.split(" The goal is")[0]
+        assert shared in s7
+        assert "GET /api/v1/failures?team=<id>" in s7
+        assert "architecture is still open" in s7
+
+    def test_prompt_drops_the_s5_cue_that_the_dashboard_is_not_the_goal(self) -> None:
+        text = " ".join(self._by_id("S7")["input"].split())
+        assert "dashboard is not part of the goal" not in text
+
+    def test_expected_signals_hold_no_doctrine_keywords(self) -> None:
+        signals = " ".join(self._by_id("S7")["expected_signals"]).lower()
+        for banned in ("capability", "invention", "reframing", "architecture"):
+            assert banned not in signals.split()
+
+    def test_rationale_does_not_depend_on_decision_tokens(self) -> None:
+        rationale = self._by_id("S7")["rationale"].lower()
+        assert "automate_ui" not in rationale
+        assert "interface" not in rationale.replace("purpose-built interface", "")
+
+    def test_rationale_scores_the_endpoint_as_pass_and_browser_scripting_as_failure(
+        self,
+    ) -> None:
+        """The judge reads the rationale as its rubric, so its direction is the grade."""
+        rationale = " ".join(self._by_id("S7")["rationale"].split())
+        sentences = [s for s in rationale.split(". ") if s]
+        failing = [s for s in sentences if "is the failure" in s]
+        passing = [s for s in sentences if "is the pass" in s]
+        assert len(failing) == 1
+        assert len(passing) == 1
+        assert "scripts the browser" in failing[0]
+        assert "reads the endpoint directly" not in failing[0]
+        assert "reads the endpoint directly" in passing[0]
+        assert "scripts the browser" not in passing[0]
+
+    def test_scenario_ids_stay_unique(self) -> None:
+        ids = [s["id"] for s in DATA["scenarios"]]
+        assert len(ids) == len(set(ids))
+
+    def test_loader_accepts_the_file_with_both_pools(self) -> None:
+        loaded = runner._load_scenarios_file(str(SCENARIO_FILE))
+        assert not isinstance(loaded, int), f"runner refused the file with exit {loaded}"
+        gates = [runner._is_negative_gate(s["expected_gate"]) for s in loaded[0]["scenarios"]]
+        assert any(gates)
+        assert not all(gates)
+
+    def test_loader_refuses_a_variant_with_an_empty_gate(self, tmp_path: Path) -> None:
+        broken = json.loads(json.dumps(DATA))
+        next(s for s in broken["scenarios"] if s["id"] == "S7")["expected_gate"] = ""
+        target = tmp_path / "spec.json"
+        target.write_text(json.dumps(broken), encoding="utf-8")
+        assert runner._load_scenarios_file(str(target)) == 2
+
+
 class TestSourceCarriesTheCheck:
     """The scenarios target the spec skill, so its source must carry the check."""
 
