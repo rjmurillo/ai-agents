@@ -288,9 +288,11 @@ Python files, which is narrower than the pre-push `python-type-check` job.
 
 ### Job ownership table
 
-Each row is one job in `lefthook.yml` at `0e98cb2d12` (2026-10-23): 47
-pre-commit jobs and 27 pre-push jobs. The Hook column names the owner. A job
-has one owner unless the Also runs at column says otherwise.
+Each row is one pre-commit or pre-push job in `lefthook.yml` at `0e98cb2d12`
+(2026-10-23): 47 pre-commit jobs and 27 pre-push jobs. The `commit-msg` job
+(`commit-message-policy`) and the `pre-merge-commit` jobs are not rows. The Hook
+column names the owner. A job has one owner unless the Also runs at column says
+otherwise.
 
 The CI counterpart column names a check that runs the same validator or the
 count form of it. "Required" means the check is in the required status checks
@@ -348,7 +350,7 @@ a security gate.
 | pre-commit | `infrastructure-advisory` | glob | Flags infrastructure files that need security review, advisory | - | adjacent | None found |
 | pre-commit | `adr-review-policy` | glob | ADR edits need the review record | - | no | None found |
 | pre-commit | `taste-advisory` | glob | Taste lint report, blocks only if the lint cannot run | - | no | Required: Validate PR, step Run taste-lint error-count ratchet (count form) |
-| pre-commit | `security-suppressions-staged` | glob | Security suppression markers in staged changes | - | yes | Required: Run Python Tests, step Check security suppressions in diff (pull request, issue 4061) |
+| pre-commit | `security-suppressions-staged` | glob | Security suppression markers in staged changes | pre-merge-commit | yes | Required: Run Python Tests, step Check security suppressions in diff (pull request, issue 4061) |
 | pre-commit | `subprocess-encoding` | glob | Subprocess encoding convention | - | no | Required: Run Python Tests, step Run subprocess encoding count ratchet (whole tree), count form |
 | pre-commit | `generate-mcp-config` | glob | Regenerates MCP config (writes) | - | no | Not mapped to one step. Required: Validate Generated Files requires job Build-all Staleness, step Build-all staleness check (REQ-003-005), which runs build_all.py --check |
 | pre-commit | `stage-mcp-config` | glob | Stages regenerated MCP config | - | no | Not applicable, git staging |
@@ -366,7 +368,7 @@ a security gate.
 | pre-commit | `memory-placement` | glob | Memory file placement | - | no | Required: Validate PR, step Run memory-placement check |
 | pre-commit | `memory-skill-format` | glob | Skill format validation, staged only | - | no | None found |
 | pre-commit | `extract-session-episodes` | glob | Extracts episodes from staged session logs | - | no | None found |
-| pre-commit | `context-output-check` | staged files | Context output manifest is complete | - | no | Required: Run Python Tests, step Check complete context-output manifest (blocking) |
+| pre-commit | `context-output-check` | staged files | Context output manifest is complete | pre-merge-commit | no | Required: Run Python Tests, step Check complete context-output manifest (blocking) |
 | pre-commit | `github-bash-policy` | glob | Bash in GitHub skill scripts | - | no | None found |
 | pre-push | `repo-health` | unscoped | core.bare and shared git config sanity | pre-commit | no | Local state, no CI analogue |
 | pre-push | `repair-packed-refs` | unscoped | Repairs packed-refs damage in the local clone (writes) | pre-commit | no | Local state, no CI analogue |
@@ -399,7 +401,9 @@ a security gate.
 ### Checks that run at more than one boundary
 
 Three jobs run at both hooks: `repo-health`, `repair-packed-refs`, and
-`branch-context-policy`. Each costs under 0.3s per run (see the baseline
+`branch-context-policy`. Two pre-commit jobs, `security-suppressions-staged` and
+`context-output-check`, also run in the `pre-merge-commit` hook so that merge
+commits get the same check. Each costs under 0.3s per run (see the baseline
 below). A commit can happen with no push, and a push can carry commits made in
 another clone or worktree, so neither hook can rely on the other having run.
 `branch-context-policy` also reads the session log, which can change between

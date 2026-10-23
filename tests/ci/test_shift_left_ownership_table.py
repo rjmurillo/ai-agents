@@ -13,8 +13,9 @@ Coverage:
 - negative: a job missing from the table, a row for a job that does not exist,
   and a row filed under the wrong hook each fail the comparison.
 - edge: jobs nested inside ``group`` blocks are counted; a job declared in both
-  hooks needs two rows; the "Also runs at" cell agrees with the config; the
-  Security and CI cells hold only declared values.
+  hooks needs two rows; the "Also runs at" cell agrees with the config,
+  including the ``pre-merge-commit`` hook; the Security and CI cells hold only
+  declared values.
 """
 
 from __future__ import annotations
@@ -56,6 +57,16 @@ def _walk(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _config_jobs(config: dict[str, Any]) -> dict[str, list[str]]:
     return {hook: [job["name"] for job in _walk(config[hook]["jobs"])] for hook in _HOOKS}
+
+
+def _also_runs_at(config: dict[str, Any], hook: str, name: str) -> str:
+    """The other hooks that declare ``name``, in table order, or ``-``."""
+    others = [
+        other
+        for other in (*_HOOKS, "pre-merge-commit")
+        if other != hook and name in [job["name"] for job in _walk(config[other]["jobs"])]
+    ]
+    return ", ".join(others) or "-"
 
 
 def _table_rows(markdown: str) -> list[dict[str, str]]:
@@ -101,8 +112,13 @@ def _compare(jobs: dict[str, list[str]], rows: list[dict[str, str]]) -> list[str
 
 
 @pytest.fixture(scope="module")
-def real_jobs() -> dict[str, list[str]]:
-    return _config_jobs(yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8")))
+def real_config() -> dict[str, Any]:
+    return yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
+def real_jobs(real_config) -> dict[str, list[str]]:
+    return _config_jobs(real_config)
 
 
 @pytest.fixture(scope="module")
@@ -125,12 +141,29 @@ def test_security_and_ci_cells_hold_only_declared_values(real_rows):
         assert row["CI counterpart"].startswith(_CI_PREFIXES), row
 
 
-def test_also_runs_at_agrees_with_the_config(real_jobs, real_rows):
+def test_also_runs_at_agrees_with_the_config(real_config, real_rows):
     for row in real_rows:
         hook, name = row["Hook"], row["Job"].strip("`")
-        other = "pre-push" if hook == "pre-commit" else "pre-commit"
-        expected = other if name in real_jobs[other] else "-"
-        assert row["Also runs at"] == expected, row
+        assert row["Also runs at"] == _also_runs_at(real_config, hook, name), row
+
+
+def test_pre_merge_commit_overlap_is_recorded(real_rows):
+    by_job = {(row["Hook"], row["Job"].strip("`")): row["Also runs at"] for row in real_rows}
+    assert by_job[("pre-commit", "security-suppressions-staged")] == "pre-merge-commit"
+    assert by_job[("pre-commit", "context-output-check")] == "pre-merge-commit"
+    assert by_job[("pre-commit", "repo-health")] == "pre-push"
+
+
+def test_also_runs_at_lists_every_other_hook_in_table_order():
+    config = {
+        "pre-commit": {"jobs": [{"name": "x"}]},
+        "pre-push": {"jobs": [{"group": {"jobs": [{"name": "x"}]}}]},
+        "pre-merge-commit": {"jobs": [{"name": "x"}, {"name": "y"}]},
+    }
+    assert _also_runs_at(config, "pre-commit", "x") == "pre-push, pre-merge-commit"
+    assert _also_runs_at(config, "pre-push", "x") == "pre-commit, pre-merge-commit"
+    assert _also_runs_at(config, "pre-commit", "y") == "pre-merge-commit"
+    assert _also_runs_at(config, "pre-commit", "absent") == "-"
 
 
 def test_a_job_missing_from_the_table_is_reported(real_jobs, real_rows):
