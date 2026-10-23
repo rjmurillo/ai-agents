@@ -1,8 +1,10 @@
 # Shift-Left Validation Strategy
 
+<!-- # taste-lint: ignore file-size, the job ownership table and latency baseline sit beside the hook and CI sections they correct -->
+
 **Status**: Active
 **Version**: 2.0
-**Last Updated**: 2026-08-19
+**Last Updated**: 2026-10-23
 
 ## Overview
 
