@@ -2,7 +2,7 @@
 
 ## Statement
 
-Run `uv lock` with `exclude-newer = "7 days"` and a fix newer than 7 days stays invisible. The lock keeps the vulnerable version.
+The repo sets `exclude-newer = "7 days"`. A fix newer than 7 days stays invisible to `uv lock`. The lock keeps the vulnerable version.
 
 Opt the package out with `[tool.uv.exclude-newer-package] <pkg> = false` in `pyproject.toml`. Add the package to `COOLDOWN_EXEMPT_PACKAGES` in `tests/test_pyproject_dev_deps_parity.py`. Skip either step and `uv lock --check` or the parity test fails.
 

@@ -92,7 +92,7 @@
 |security vulnerability TOCTOU secret injection: [skills-security-index](skills-security-index.md) (508)
 |filesystem redirect symlink junction ancestor parent swap descriptor: [security/filesystem-redirect-boundaries](security/filesystem-redirect-boundaries.md) (154)
 |integrity gate noise stale outcome exemption merge base fail-open verifier: [security/integrity-gate-noise-needs-stale-class-not-exemption](security/integrity-gate-noise-needs-stale-class-not-exemption.md) (202)
-|uv exclude-newer cooldown security dependency bump certifi opentelemetry semgrep override-dependencies SAFE_SEMGREP_OVERRIDES parity test: [python/uv-cooldown-security-dependency-bumps](python/uv-cooldown-security-dependency-bumps.md) (367)
+|uv exclude-newer cooldown security dependency bump certifi opentelemetry semgrep override-dependencies SAFE_SEMGREP_OVERRIDES parity test: [python/uv-cooldown-security-dependency-bumps](python/uv-cooldown-security-dependency-bumps.md) (368)
 
 [Architecture and Design]
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (627)
