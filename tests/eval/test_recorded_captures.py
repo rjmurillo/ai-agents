@@ -367,7 +367,7 @@ def test_every_owed_live_probe_names_its_blocker_and_command() -> None:
 
     owed = {r.harness: r.pending_live_probes for r in records}
 
-    assert {h: len(p) for h, p in owed.items()} == {"codex": 0, "copilot": 0}
+    assert {h: len(p) for h, p in owed.items()} == {"codex": 0, "copilot": 0, "claude": 0}
 
 
 def test_a_baseline_record_still_names_its_blocker_and_command(tmp_path: Path) -> None:
@@ -402,6 +402,8 @@ def test_matrix_context_reset_cells_lead_with_what_the_capture_derives() -> None
     plans = {"codex": PLAN_0_163_0, "copilot": PLAN}
 
     for record in capability.load_matrix(MATRIX):
+        if record.harness not in plans:
+            continue  # Claude cites a stream-json capture, not a recorded-capture plan.
         found = _by_key(recorded_cli.run(MATRIX, plans[record.harness]))
         cell = record.capabilities["context_reset_observability"]
         derived = found[(record.harness, "context_reset_observability")]

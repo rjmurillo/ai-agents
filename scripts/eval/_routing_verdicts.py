@@ -1,7 +1,7 @@
 """Deterministic H1 to H4 scorer for the #5426 routing comparison.
 
 Applies `evals/routing-benchmark/PREDICTIONS.md` (`predictions-v1` plus
-Amendment 1) to routing-benchmark result rows. Pure functions, no model
+Amendments 1, 2, and 3) to routing-benchmark result rows. Pure functions, no model
 judgment, no I/O. The CLI is `eval_routing_verdicts.py`.
 
 This module was written before any post-amendment result existed so that no
@@ -19,9 +19,10 @@ Canonical sources:
 * Status values: `RunStatus` in `_routing_result.py` plus `NOT_RUN`.
 
 Stricter than canonical: `parse_runs` rejects a duplicate
-(scenario, arm, harness, repetition) key and a non-Codex harness, because
-pooling duplicates or reporting a Claude run against H1 to H4 is forbidden
-(PREDICTIONS.md lines 126 to 130 and 169).
+(scenario, arm, repetition) key within a harness, a harness that is neither Codex
+nor Claude, and rows from more than one harness in one verdict. Amendment 3 scores
+each harness under its own verdict and never pools them; `score_by_harness` is the
+only entry that sees more than one, and it scores each alone.
 """
 
 from __future__ import annotations
@@ -42,12 +43,14 @@ from _routing_verdict_constants import (
     DECISION_ORDINARY_SCORED_FLOOR,
     DECISION_ORIGINAL_ROUTING,
     DECISION_RULE,
+    DECISION_RULE_BY_HARNESS,
     DECISION_SOL_FANOUT,
     DECISION_SOL_WITH_LUNA,
     DEFECT_MARGIN,
     ECONOMICS_FACTOR,
     EDGE_SOL_SINGLE,
     EDGE_TERRA,
+    EFFORT_EVIDENCE,
     EVIDENCE_FLOOR,
     FALLBACK_COMPARED_ARMS,
     FALLBACK_MIN_REPS,
@@ -62,6 +65,7 @@ from _routing_verdict_constants import (
     PREDICTIONS_VERSION,
     QUALITY_MARGIN,
     REPETITIONS,
+    ROLE_MODELS,
     SUPERSEDED_DIR,
     SUPPORTED,
     SUPPORTED_FOR_FALLBACK,
@@ -80,6 +84,7 @@ from _routing_verdict_tables import (
     materially_better,
     non_inferior,
     parse_runs,
+    partition_rows,
     rate_gap_at_least_sixth,
     rate_gap_under_sixth,
 )
@@ -144,10 +149,12 @@ __all__ = [
     "materially_better",
     "non_inferior",
     "parse_runs",
+    "partition_rows",
     "rate_gap_at_least_sixth",
     "rate_gap_under_sixth",
     "rep_directions",
     "score",
+    "score_by_harness",
 ]
 
 
@@ -343,8 +350,13 @@ def decide(
     statuses: Mapping[str, str],
     *,
     superseded: bool,
+    rule: str = DECISION_RULE,
 ) -> dict[str, Any]:
-    """Decision floor (Amendment 2 item 1) and mapping (item 2); no judgment."""
+    """Decision floor (Amendment 2 item 1) and mapping (item 2); no judgment.
+
+    Amendment 3 keeps both unchanged for Claude, so `rule` only names which amendment
+    the harness is scored under.
+    """
     per_arm = {arm: _arm_floor(runs, arm, fallback) for arm in COMPARED_ARMS}
     short = [arm for arm, item in per_arm.items() if not item["meets_floor"]]
     floor = {"per_arm": per_arm, "arms_short": short, "pre_amendment_inputs": superseded}
@@ -354,7 +366,7 @@ def decide(
         "decision": DECISION_CONDITIONAL if edges else base,
         "base_decision": base,
         "conditional_edges": edges,
-        "decision_rule": DECISION_RULE,
+        "decision_rule": rule,
         "decision_floor": floor,
     }
 
@@ -364,10 +376,27 @@ def _superseded_hypotheses() -> dict[str, dict[str, Any]]:
     return {name: verdict(INSUFFICIENT, reason) for name in ("H1", "H2", "H3", "H4")}
 
 
+def _refuse_mixed_harnesses(runs: Sequence[Run], harness: str) -> None:
+    foreign = sorted({run.harness for run in runs} - {harness})
+    if foreign:
+        raise VerdictInputError(
+            f"cannot score {foreign} rows in the {harness!r} verdict: "
+            "a verdict is per harness and harnesses are never pooled"
+        )
+
+
 def score(
-    runs: Sequence[Run], classes: Mapping[str, str], *, superseded: bool = False
+    runs: Sequence[Run],
+    classes: Mapping[str, str],
+    *,
+    superseded: bool = False,
+    harness: str = CODEX,
 ) -> dict[str, Any]:
-    """Full report: cell tables, H1 to H4 statuses, decision, interpretations."""
+    """Full report for one harness: cell tables, H1 to H4 statuses, decision, interpretations.
+
+    Raises `VerdictInputError` when `runs` holds a row of another harness.
+    """
+    _refuse_mixed_harnesses(runs, harness)
     fallback = sorted(sid for sid, klass in classes.items() if klass == CLASS_FALLBACK)
     arms = sorted({run.arm for run in runs})
     tables = [
@@ -387,6 +416,9 @@ def score(
         }
     return {
         "predictions_version": PREDICTIONS_VERSION,
+        "harness": harness,
+        "role_models": dict(ROLE_MODELS[harness]),
+        "effort_evidence": EFFORT_EVIDENCE[harness],
         "rows_scored": sum(1 for run in runs if run.status != NOT_RUN),
         "rows_not_run": sum(1 for run in runs if run.status == NOT_RUN),
         "tables": tables,
@@ -396,6 +428,31 @@ def score(
             fallback,
             {k: str(h["status"]) for k, h in hypotheses.items()},
             superseded=superseded,
+            rule=DECISION_RULE_BY_HARNESS[harness],
         ),
+        "interpretations": list(INTERPRETATIONS),
+    }
+
+
+def score_by_harness(
+    runs_by_harness: Mapping[str, Sequence[Run]],
+    classes: Mapping[str, str],
+    *,
+    superseded: bool = False,
+) -> dict[str, Any]:
+    """One report keyed by harness. Each harness is scored alone, never pooled (Amendment 3).
+
+    Each block is the harness's own H1 to H4, decision, and floor. The interpretations are
+    listed once at the top, because they are the same for every harness.
+    """
+    blocks: dict[str, dict[str, Any]] = {}
+    for harness in sorted(runs_by_harness):
+        report = score(runs_by_harness[harness], classes, superseded=superseded, harness=harness)
+        del report["interpretations"]
+        blocks[harness] = report
+    return {
+        "predictions_version": PREDICTIONS_VERSION,
+        "pooled_across_harnesses": False,
+        "harnesses": blocks,
         "interpretations": list(INTERPRETATIONS),
     }

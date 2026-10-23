@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "Live capability state for issue #5423, Codex cells re-probed on 2026-10-20 with codex-cli 0.163.0 on the ChatGPT subscription login (OPENAI_API_KEY, CODEX_API_KEY, and OPENAI_BASE_URL unset); Copilot cells are from GitHub Copilot CLI 1.0.89 (probed 2026-09-24) and Copilot is dropped from eval support. The Codex pin tracks the installed CLI: a codex auto-update invalidates it, and every Codex cell must then be re-probed before a run. scripts/eval/examples/harness-capability-probes.json holds the single-agent override plan; the topology, isolation, and handoff probes are recorded per cell. Every VERIFIED cell cites a trimmed backend capture under tests/eval/fixtures/harness_capability/, and tests/eval/test_harness_capability_live_evidence.py re-derives each VERIFIED cell from that capture. Codex backend model and effort come from websocket response frames logged with RUST_LOG=tungstenite::protocol=trace; codex --json stdout carries neither. GitHub-routed Copilot calls returned HTTP 402 (monthly quota exceeded), so Copilot behavioral cells were probed through the documented BYOK Anthropic provider and GitHub-routed Sol, Luna, and Terra models remain unobserved. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry. On 2026-10-03 the owner dropped Copilot from eval support, so no Copilot live probe is owed and its cells stay as last observed. Earlier Codex captures (codex-0.157.1 and codex-0.160.0 under tests/eval/fixtures/harness_capability/) are history: this matrix pins 0.163.0 and every Codex cell cites a codex-0.163.0 capture.",
+  "note": "Live capability state for issue #5423, Codex cells re-probed on 2026-10-20 with codex-cli 0.163.0 on the ChatGPT subscription login (OPENAI_API_KEY, CODEX_API_KEY, and OPENAI_BASE_URL unset); Copilot cells are from GitHub Copilot CLI 1.0.89 (probed 2026-09-24) and Copilot is dropped from eval support. The Codex pin tracks the installed CLI: a codex auto-update invalidates it, and every Codex cell must then be re-probed before a run. scripts/eval/examples/harness-capability-probes.json holds the single-agent override plan; the topology, isolation, and handoff probes are recorded per cell. Every VERIFIED cell cites a trimmed backend capture under tests/eval/fixtures/harness_capability/, and tests/eval/test_harness_capability_live_evidence.py re-derives each VERIFIED cell from that capture. Codex backend model and effort come from websocket response frames logged with RUST_LOG=tungstenite::protocol=trace; codex --json stdout carries neither. GitHub-routed Copilot calls returned HTTP 402 (monthly quota exceeded), so Copilot behavioral cells were probed through the documented BYOK Anthropic provider and GitHub-routed Sol, Luna, and Terra models remain unobserved. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry. On 2026-10-03 the owner dropped Copilot from eval support, so no Copilot live probe is owed and its cells stay as last observed. Earlier Codex captures (codex-0.157.1 and codex-0.160.0 under tests/eval/fixtures/harness_capability/) are history: this matrix pins 0.163.0 and every Codex cell cites a codex-0.163.0 capture. Claude Code cells were probed on 2026-10-23 with claude 2.1.309 on the operator's stored claude.ai subscription login (system/init apiKeySource none; ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, and the Bedrock, Vertex, and Foundry switches removed). The CLI auto-updated from 2.1.307 to 2.1.309 during the session, so the pin is 2.1.309 and the runner sets DISABLE_AUTOUPDATER. Claude is standalone: results per harness are never pooled, so it is no peer for Codex and Codex is none for it. Claude stream-json names the served model on every assistant message and names no reasoning effort, so effort_override stays UNVERIFIED. Claude effort rests on behavioral evidence (Amendment 4, D12): per-model thinking-token counts in effort_behavioral, valid for the claude harness only.",
   "harnesses": [
     {
       "harness": "codex",
@@ -249,6 +249,154 @@
         }
       },
       "dropped": true
+    },
+    {
+      "harness": "claude",
+      "version": "2.1.309 (Claude Code)",
+      "version_evidence": "backend",
+      "supported_models": [
+        "claude-haiku-5-5",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5"
+      ],
+      "supported_efforts": [
+        "high",
+        "low",
+        "max",
+        "medium"
+      ],
+      "capabilities": {
+        "model_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "Top-level runs requested claude-opus-5-5, claude-sonnet-5-5, and claude-haiku-5-5, and the assistant messages in each stream name the requested id (claude-2.1.309/plan-writer.stdout.jsonl opus, claude-2.1.309/fresh-reader.stdout.jsonl sonnet, claude-2.1.309/effort-low.stdout.jsonl haiku). A parent on claude-opus-5-5 spawned a worker whose agent definition set model claude-haiku-5-5, and the child's messages and the result modelUsage name claude-haiku-5-5 (claude-2.1.309/subagent-haiku-child.stdout.jsonl). The ids carry no date suffix. An unknown id is not silently replaced: --model claude-nonexistent-9-9 returned a 404 error result (claude-2.1.309/invalid-model.stdout.jsonl).",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model <model> --effort <effort> --permission-mode acceptEdits --restricted --tools Read,Edit,Write,Glob,Grep,Bash --allowedTools Read Edit Write Glob Grep 'Bash(python:*)' 'Bash(python3:*)' --permission-prompts none --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose",
+          "date": "2026-10-23"
+        },
+        "effort_override": {
+          "status": "UNVERIFIED",
+          "evidence": "behavioral",
+          "detail": "Not verified for every model. The stream never names a reasoning effort, so the owner accepted behavioral evidence for Claude (D12, Amendment 4): a model's effort control is verified when its thinking tokens strictly increase across low, medium, and high on one fixed prompt, one claude -p call per level, on the pinned CLI. Measured thinking tokens (low, medium, high), one call each on 2.1.309: claude-opus-5-5 100, 106, 134 (strictly increasing, verified); claude-sonnet-5-5 105, 103, 105 (inversion and tie, not verified); claude-haiku-5-5 285, 233, 337 (inversion, not verified). Fixtures: claude-2.1.309/effort-opus-low.stdout.jsonl, claude-2.1.309/effort-opus-medium.stdout.jsonl, claude-2.1.309/effort-opus-high.stdout.jsonl, claude-2.1.309/effort-sonnet-low.stdout.jsonl, claude-2.1.309/effort-sonnet-medium.stdout.jsonl, claude-2.1.309/effort-sonnet-high.stdout.jsonl, claude-2.1.309/effort-haiku-low.stdout.jsonl, claude-2.1.309/effort-haiku-medium.stdout.jsonl, claude-2.1.309/effort-haiku-high.stdout.jsonl. The cell stays UNVERIFIED because two of three models fail, and the arm gate reads the per-model counts, so an arm that needs only claude-opus-5-5 is eligible. The rule shows the flag changes behavior, never which value was served. An earlier haiku low and max pair read 73 and 279 (claude-2.1.309/effort-low.stdout.jsonl, claude-2.1.309/effort-max.stdout.jsonl) and is not part of the rule. An unknown value is ignored, not refused: --effort ultra warned on stderr, ran at the default effort, and exited 0 (claude-2.1.309/effort-ultra-ignored.stdout.jsonl, claude-2.1.309/effort-ultra-ignored.stderr.txt).",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model <model> --effort <effort> --permission-mode acceptEdits --restricted --tools Read,Edit,Write,Glob,Grep,Bash --allowedTools Read Edit Write Glob Grep 'Bash(python:*)' 'Bash(python3:*)' --permission-prompts none --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose",
+          "date": "2026-10-23"
+        },
+        "subagent_support": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The parent issued an Agent tool call (listed as Task in system/init tools) with subagent_type worker. Forwarded child messages carry parent_tool_use_id, and the result subagent_stats read spawned 1, completed 1, by_type worker 1 (claude-2.1.309/subagent-haiku-child.stdout.jsonl). The routing runner never uses this: each runner invocation is its own claude process whose --tools list omits the Agent tool, so fan-out is the runner's.",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model claude-opus-5-5 --effort low --permission-mode acceptEdits --agents '{\"worker\":{\"description\":\"...\",\"prompt\":\"...\",\"model\":\"claude-haiku-5-5\",\"tools\":[]}}' --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose --forward-subagent-text",
+          "date": "2026-10-23"
+        },
+        "concurrency_limit": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "With CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 a parent asked for 5 workers at once. Workers 1 to 3 launched and ran in the background, worker 1 finished and worker 4 launched, and the call for worker 5 was refused with 'Concurrent subagent limit reached. You can run 3 subagents at once.', and the final subagent_stats read refused.concurrency_limit 1 (claude-2.1.309/concurrency-cap3.stdout.jsonl). Without the variable the same request ran 5 workers with refused.concurrency_limit 0 (claude-2.1.309/concurrency-uncapped.stdout.jsonl). The control is an environment variable, not a flag. The runner does not set it and never overlaps its own invocations, so a runner row peaks at concurrency 1.",
+          "value": 3,
+          "probe_command": "claude -p <prompt> --model claude-opus-5-5 --effort low --permission-mode acceptEdits --agents '{\"worker\":{\"description\":\"...\",\"prompt\":\"...\",\"model\":\"claude-haiku-5-5\",\"tools\":[]}}' --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose --forward-subagent-text  # env CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3",
+          "date": "2026-10-23"
+        },
+        "parent_child_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "In one run the parent's assistant messages name claude-opus-5-5 and the child's name claude-haiku-5-5, and the result modelUsage lists both ids, so the child did not inherit the parent's model (claude-2.1.309/subagent-haiku-child.stdout.jsonl). A child effort override cannot be observed for the reason given under effort_override.",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model claude-opus-5-5 --effort low --permission-mode acceptEdits --agents '{\"worker\":{\"description\":\"...\",\"prompt\":\"...\",\"model\":\"claude-haiku-5-5\",\"tools\":[]}}' --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose --forward-subagent-text",
+          "date": "2026-10-23"
+        },
+        "reviewer_isolation": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The parent held the private word ZEBRA-7731 in its own prompt. A reviewer subagent whose prompt did not contain it answered NONE, and a control subagent whose prompt did contain it answered ZEBRA-7731 (claude-2.1.309/reviewer-isolation.stdout.jsonl). The forwarded child input is only the prompt the parent wrote, so a subagent sees no producer context unless the parent copies it in.",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model claude-opus-5-5 --effort low --permission-mode acceptEdits --agents '{\"worker\":{\"description\":\"...\",\"prompt\":\"...\",\"model\":\"claude-haiku-5-5\",\"tools\":[]}}' --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose --forward-subagent-text",
+          "date": "2026-10-23"
+        },
+        "single_agent": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "With --tools Read,Edit,Write,Glob,Grep,Bash the init tools list has no Agent or Task tool, subagent_stats read spawned 0, and the model answered NO_AGENT_TOOL (claude-2.1.309/fresh-reader.stdout.jsonl, claude-2.1.309/plan-writer.stdout.jsonl). The tool is absent, so no-child execution is enforced, not instructed.",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model <model> --effort <effort> --permission-mode acceptEdits --restricted --tools Read,Edit,Write,Glob,Grep,Bash --allowedTools Read Edit Write Glob Grep 'Bash(python:*)' 'Bash(python3:*)' --permission-prompts none --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose",
+          "date": "2026-10-23"
+        },
+        "fresh_session": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "A writer run held the private ticket ZEBRA-7731. A second claude -p in the same workdir started a new session (different session_id) and answered A=NONE for any ticket from an earlier conversation (claude-2.1.309/plan-writer.stdout.jsonl, claude-2.1.309/fresh-reader.stdout.jsonl). --no-session-persistence writes no transcript, so there is nothing to resume.",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model <model> --effort <effort> --permission-mode acceptEdits --restricted --tools Read,Edit,Write,Glob,Grep,Bash --allowedTools Read Edit Write Glob Grep 'Bash(python:*)' 'Bash(python3:*)' --permission-prompts none --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose",
+          "date": "2026-10-23"
+        },
+        "durable_artifact_handoff": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The writer session completed a Write tool call that created implementation-plan.md containing 'TOKEN: PLAN-4417' under --restricted acceptEdits (claude-2.1.309/plan-writer.stdout.jsonl). A separate fresh session read the file with the Read tool and answered B=PLAN-4417 (claude-2.1.309/fresh-reader.stdout.jsonl). The file on disk was checked after the run.",
+          "value": null,
+          "probe_command": "claude -p <prompt> --model <model> --effort <effort> --permission-mode acceptEdits --restricted --tools Read,Edit,Write,Glob,Grep,Bash --allowedTools Read Edit Write Glob Grep 'Bash(python:*)' 'Bash(python3:*)' --permission-prompts none --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose",
+          "date": "2026-10-23"
+        },
+        "context_reset_observability": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "With --autocompact 100k and seven 73 KB files read one at a time, the stream carried 4 system/compact_boundary events (trigger auto, pre_tokens 73871 to 77026, post_tokens 9779 to 12644) and 4 compaction status events that all read success, 0 failed (claude-2.1.309/compaction.stdout.jsonl). A single 1.3 MB prompt could not compact: the status event read compact_result failed, compact_error too_few_groups (claude-2.1.309/compaction-single-prompt.stdout.jsonl).",
+          "value": null,
+          "probe_command": "claude -p <read f1.txt to f7.txt one at a time> --model claude-haiku-5-5 --effort low --autocompact 100k --permission-mode acceptEdits --restricted --tools Read --permission-prompts none --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose",
+          "date": "2026-10-23"
+        },
+        "sol_ultra": {
+          "status": "UNSUPPORTED",
+          "evidence": "config",
+          "detail": "Claude has no ultra tier. claude --help lists --effort levels low, medium, high, xhigh, max. The CLI does not refuse the value: it prints a warning that it is ignoring an unknown --effort value, and runs at the default effort with exit 0. Evidence: claude-2.1.309/effort-ultra-ignored.stderr.txt, claude-2.1.309/effort-ultra-ignored.stdout.jsonl.",
+          "value": null,
+          "probe_command": "claude -p 'Reply with ok.' --model claude-opus-5-5 --effort ultra --output-format stream-json --verbose",
+          "date": "2026-10-23"
+        }
+      },
+      "tool_sandbox_constraints": "No OS sandbox is in use. Workers run with --restricted --permission-mode acceptEdits, which confines the file tools to the workdir (a Write to ../outside.txt was refused, claude-2.1.309/restricted-writes.stdout.jsonl) and denies any command outside the allowlist (ls / was denied). acceptEdits alone did not confine a write (claude-2.1.309/acceptedits-outside-write.stdout.jsonl). Bash is limited to python and python3, and an allowed python3 -c call wrote ../outside2.txt outside the workdir, so a model-generated Python command can write anywhere the user can. The Claude sandbox setting failed every command on the probe host with 'nested userns is capability-restricted' (claude-2.1.309/sandbox-unavailable.stdout.jsonl) and is not used. Ambient context: CLAUDE.md, rules, memory, skills, and hooks listed as absent in an audit run (claude-2.1.309/ambient-audit.stdout.jsonl); the built-in system prompt and the account email and display name still load.",
+      "telemetry_fields": [
+        "system.init.apiKeySource",
+        "system.init.claude_code_version",
+        "system.init.model",
+        "system.init.per_turn_effort_active",
+        "assistant.message.model",
+        "result.usage.input_tokens",
+        "result.usage.cache_creation_input_tokens",
+        "result.usage.cache_read_input_tokens",
+        "result.usage.output_tokens",
+        "result.usage.output_tokens_details.thinking_tokens",
+        "result.modelUsage",
+        "result.subagent_stats",
+        "result.duration_ms",
+        "result.total_cost_usd"
+      ],
+      "failure_retry_behavior": "A bad model id produced a result event with is_error true, subtype success, api_error_status 404, terminal_reason api_error, and the message text in result, and the process exited 1 (claude-2.1.309/invalid-model.stdout.jsonl). subtype stays success on an error, so the parser reads is_error and the result text. A usage-limit refusal was not captured; the committed usage-limit fixture is synthetic and copies the error shape above. No retry was observed. total_cost_usd is a notional list price on a subscription login, never a charge, and the runner does not read it.",
+      "probe_command": "claude -p <prompt> --model <model> --effort <effort> --permission-mode acceptEdits --restricted --tools Read,Edit,Write,Glob,Grep,Bash --allowedTools Read Edit Write Glob Grep 'Bash(python:*)' 'Bash(python3:*)' --permission-prompts none --setting-sources '' --strict-mcp-config --disable-slash-commands --no-session-persistence --output-format stream-json --verbose",
+      "date": "2026-10-23",
+      "standalone": true,
+      "effort_behavioral": {
+        "cli_version": "2.1.309 (Claude Code)",
+        "prompt": "A bag holds 7 red, 5 blue, and 3 green balls. Three balls are drawn without replacement. What is the probability that exactly two of the three share a color? Work it out carefully, then reply with the reduced fraction only. No tools.",
+        "thinking_tokens": {
+          "claude-opus-5-5": {
+            "low": 100,
+            "medium": 106,
+            "high": 134
+          },
+          "claude-sonnet-5-5": {
+            "low": 105,
+            "medium": 103,
+            "high": 105
+          },
+          "claude-haiku-5-5": {
+            "low": 285,
+            "medium": 233,
+            "high": 337
+          }
+        }
+      }
     }
   ]
 }

@@ -36,7 +36,8 @@ def test_cli_scores_and_writes_output(tmp_path: Path, capsys: pytest.CaptureFixt
     assert run_cli("--results", str(results), "--output", str(out)) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed == json.loads(out.read_text(encoding="utf-8"))
-    assert printed["decision"] == v.DECISION_KEEP
+    assert list(printed["harnesses"]) == ["codex"]
+    assert printed["harnesses"]["codex"]["decision"] == v.DECISION_KEEP
 
 
 def test_cli_accepts_several_result_files(tmp_path: Path) -> None:
@@ -150,10 +151,10 @@ def test_superseded_alone_is_scored_but_every_verdict_is_insufficient(
 ) -> None:
     old = write_jsonl(tmp_path / v.SUPERSEDED_DIR / "old.jsonl", full_dataset())
     assert run_cli("--results", str(old)) == 0
-    printed = json.loads(capsys.readouterr().out)
-    assert {h["status"] for h in printed["hypotheses"].values()} == {v.INSUFFICIENT}
-    assert printed["decision"] == v.INSUFFICIENT
-    assert printed["decision_floor"]["pre_amendment_inputs"] is True
+    block = json.loads(capsys.readouterr().out)["harnesses"]["codex"]
+    assert {h["status"] for h in block["hypotheses"].values()} == {v.INSUFFICIENT}
+    assert block["decision"] == v.INSUFFICIENT
+    assert block["decision_floor"]["pre_amendment_inputs"] is True
 
 
 def test_real_results_2026_10_03_are_insufficient_for_all_four(
@@ -162,7 +163,7 @@ def test_real_results_2026_10_03_are_insufficient_for_all_four(
     files = sorted(REAL_RESULTS.glob("*.jsonl"))
     assert len(files) == 3
     assert run_cli("--results", *map(str, files)) == 0
-    printed = json.loads(capsys.readouterr().out)
+    printed = json.loads(capsys.readouterr().out)["harnesses"]["codex"]
     assert {k: h["status"] for k, h in printed["hypotheses"].items()} == dict.fromkeys(
         ("H1", "H2", "H3", "H4"), v.INSUFFICIENT
     )

@@ -1,0 +1,43 @@
+# Routing benchmark Codex partial run, attempt 2026-10-23 (issues #5424 and #5426)
+
+Harness: native `codex-cli 0.163.0`. The matrix is pinned to 0.163.0 (PR #6811). Predictions: `../PREDICTIONS.md` (`predictions-v1` with Amendments 1 and 2, merged in PR #6812 before any run). Owner decision D9 on 2026-10-23: publish the partial Codex results and make no more Codex runs.
+
+**Result: INSUFFICIENT_EVIDENCE for H1, H2, H3, H4 and for the strategy decision.** The attempt stopped on an external failure. A probe `codex exec` right after the stop printed `ERROR: Your workspace is out of credits. Add credits to continue.` Nothing was substituted for a row that did not run.
+
+Launch: three processes, one per arm pair (A and E, B and F, C and D), capped by `--max-invocations` (AE 102, BF 147, CD 151; total 400), with `--real-home` and `--repetitions 3`. The ChatGPT subscription login was used. `OPENAI_API_KEY`, `CODEX_API_KEY`, and `OPENAI_BASE_URL` were unset. The attempt was stopped by a monitor guard after 4 or more consecutive HARNESS_FAILED rows in one process. It restarted from scratch, so it is a separate run. It is not pooled with the other attempts or with `../results-2026-10-03/`.
+
+Files: `arms-AE.jsonl`, `arms-BF.jsonl`, `arms-CD.jsonl` (one JSON line per row) and `verdicts.json` (scorer output, stored on one line to stay under the repository file-size lint; the content is unchanged). The runner logs were empty and are not kept.
+
+## What ran
+
+All 20 rows are repetition 1. No row reached repetition 2 or 3. Row statuses: ACCEPTED 3, HARNESS_FAILED 16, TASK_FAILED 1. Scenarios and arms with no row never started.
+
+| Scenario | A | B | C | D | E | F |
+|---|---|---|---|---|---|---|
+| RB-01 | ACCEPTED | TASK_FAILED | ACCEPTED | HARNESS_FAILED | ACCEPTED | HARNESS_FAILED |
+| RB-02 | HARNESS_FAILED | HARNESS_FAILED | HARNESS_FAILED | HARNESS_FAILED | HARNESS_FAILED | HARNESS_FAILED |
+| RB-03 | no row | HARNESS_FAILED | HARNESS_FAILED | HARNESS_FAILED | no row | HARNESS_FAILED |
+| RB-04 | no row | HARNESS_FAILED | no row | no row | no row | HARNESS_FAILED |
+| RB-05 | no row | HARNESS_FAILED | no row | no row | no row | HARNESS_FAILED |
+| RB-06 | no row | no row | no row | no row | no row | no row |
+
+A harness failure is not a task failure. As the predictions require, harness-failed rows are excluded from the acceptance rate, the mean residual defects, and the economics per accepted task. The scorer counts them in `harness_failure_share`, which divides harness-failed rows by all attempted rows. Per the predictions, a cell with more than 20 percent harness failures is `INSUFFICIENT_EVIDENCE`.
+
+Completed work: 15 successful invocations, 439,848 uncached input tokens plus 38,037 output tokens, 788 seconds of wall time on those invocations. Of 31 recorded invocations, 16 failed with `exit code 1`. The backend confirmed the requested model and effort on 18 invocations (`HONORED`). The rest returned nothing and read `UNVERIFIED`.
+
+## Scorer verdicts
+
+Command: `uv run python scripts/eval/eval_routing_verdicts.py --results <the three jsonl files> --output verdicts.json`. Decision: `INSUFFICIENT_EVIDENCE`. Rows scored: 20.
+
+| Hypothesis | Status | Reason from the scorer |
+|---|---|---|
+| H1 | INSUFFICIENT_EVIDENCE | arm C in ordinary_bounded has 1 scored runs, below the floor of 8 |
+| H2 | INSUFFICIENT_EVIDENCE | fallback class: arm D in fallback_reasoning has 2 of 2 harness failures (>20%) |
+| H3 | INSUFFICIENT_EVIDENCE | arm A in pooled_all_six has 1 of 2 harness failures (>20%) |
+| H4 | INSUFFICIENT_EVIDENCE | arm E in fallback_reasoning has 1 of 1 harness failures (>20%) |
+
+## Confounds
+
+- Codex ran on the operator's real `CODEX_HOME` (`--real-home`). Each row records `ambient_home`.
+- Cost is unpriced. `cost_usd` is null. Tokens are the economics measure.
+- The credit stop began mid-run, so the point where it began is not a property of any arm.

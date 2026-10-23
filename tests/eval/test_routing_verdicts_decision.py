@@ -281,6 +281,6 @@ def test_parse_rejects_duplicate_key() -> None:
         runs_of([row(ORDINARY[0], "A", 1), row(ORDINARY[0], "A", 1)])
 
 
-def test_parse_rejects_non_codex_harness() -> None:
+def test_parse_rejects_a_harness_that_is_neither_codex_nor_claude() -> None:
     with pytest.raises(v.VerdictInputError, match="not scorable"):
-        runs_of([row(ORDINARY[0], "A", 1, harness="claude")])
+        runs_of([row(ORDINARY[0], "A", 1, harness="copilot")])

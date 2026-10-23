@@ -211,3 +211,141 @@ H1 to H4 to a decision value, which the text above leaves open.
 
 A case this mapping handles badly is reported as such. It is changed only in a
 new versioned file, as lines 5 and 6 require.
+
+## Amendment 3 (2026-10-23): Claude arms
+
+Decided by the owner on 2026-10-23 (D9, D10, D11), before any Claude benchmark
+result exists. D9: "ensure you have Claude results". The hypotheses H1 to H4,
+the task classes, the thresholds, the evidence floor, and the Amendment 2
+decision floor and decision mapping are unchanged. The version stays
+`predictions-v1`. This amendment defines the Claude arms that the "Claude
+harness restatement" (line 124) said did not exist, and it changes one row of
+the table at lines 132 to 136.
+
+1. Role mapping. Haiku 5.5 replaces `claude-haiku-4-5` in the default worker
+   row of that table. The reason is one model generation across all three
+   roles. The mapping is of roles and not of capability.
+
+   | Role | Codex | Claude |
+   |---|---|---|
+   | frontier parent | gpt-5.6-sol | claude-opus-5-5 |
+   | default worker | gpt-5.6-luna | claude-haiku-5-5 |
+   | conditional fallback | gpt-5.6-terra | claude-sonnet-5-5 |
+
+2. Claude arms A to F. Each arm is the Codex arm with Sol read as
+   `claude-opus-5-5`, Luna as `claude-haiku-5-5`, and Terra as
+   `claude-sonnet-5-5`. Efforts are unchanged. The work packages,
+   concurrency ceiling, correction budget, reviewer isolation, and
+   fresh-context boundary are the Codex values. They live in
+   `scripts/eval/examples/routing-benchmark-config.json`.
+
+   | Arm | Claude definition |
+   |---|---|
+   | A | Opus 5.5 medium parent, Opus low and medium workers |
+   | B | Opus 5.5 medium orchestrator, Haiku 5.5 medium and Sonnet 5.5 high workers, isolated Opus 5.5 medium reviewer |
+   | C | Arm A with Haiku 5.5 high for ordinary bounded work |
+   | D | Arm A with Sonnet 5.5 high for ordinary bounded work |
+   | E | One Opus 5.5 high agent, no subagents |
+   | F | Opus 5.5 high plan, then a fresh Opus 5.5 high implementer |
+
+3. The hypotheses as role hypotheses for Claude. The thresholds, floors,
+   evidence rules, and the Amendment 2 mapping from H1 to H4 to a decision are
+   the ones above, read with the Claude models.
+   - H1: default worker. Haiku 5.5 high (arm C) against Opus 5.5 low (arm A),
+     class `ordinary_bounded`.
+   - H2: conditional fallback. Sonnet 5.5 high (arm D) against Opus 5.5 low
+     (arm A) and Haiku 5.5 high (arm C), class `fallback_reasoning`, with
+     ordinary work reported apart.
+   - H3: Opus-only fan-out. Arm A against arm B, all six scenarios pooled.
+   - H4: single agent. Arm E against arm A, class `fallback_reasoning`.
+
+   The decision values keep their names and are read with these roles.
+   `ADOPT_SOL_FANOUT` means Opus-only fan-out. `ADOPT_SOL_PARENT_WITH_LUNA_WORKERS`
+   means an Opus parent with Haiku workers. The conditional edges read "Sonnet
+   5.5 high for fallback_reasoning" and "single-agent Opus 5.5 for
+   fallback_reasoning".
+
+4. Results are scored per harness and never pooled. A Codex run and a Claude
+   run are never counted in one cell, one verdict, or one decision. The scorer
+   reports each harness under its own H1 to H4, decision, and floor, and
+   refuses rows from two harnesses in one verdict. This amendment changes no
+   Codex verdict. The owner states that the Codex verdicts stay
+   `INSUFFICIENT_EVIDENCE` on its partial runs, and no Claude result changes
+   them.
+
+5. Run design for Claude. 3 repetitions per scenario and arm, in the order of
+   the Run design table: scenarios RB-01 to RB-06, arms A to F, repetition
+   outermost. The shared cap is 400 paid invocations, as for Codex. A row the
+   cap cuts off is `NOT_RUN`. A usage-limit stop, an auth error, and a stream
+   that does not report `apiKeySource: none` are harness failures. They are
+   counted and excluded from rates.
+
+6. Cost basis. Claude runs on the operator's subscription login, never an API
+   key, and is unpriced. Economics is latency and tokens. Uncached tokens are
+   the prompt tokens not read from the cache, plus output tokens, matching the
+   Codex measure. No verdict reads `cost_usd`.
+
+7. Effort and eligibility on 2026-10-23. The Claude stream names no reasoning
+   effort, so the requested effort is recorded and never confirmed. The #5423
+   capability matrix therefore classifies Claude arms A, C, D, and E as
+   `UNVERIFIED`, because they require a verified effort override, and
+   classifies arms B and F as `ELIGIBLE_UNMATCHED`
+   (`evals/harness-capability/claude-2.1.309-2026-10-23.md`). The Run design
+   rule applies as written: a row the runner rejects is not run and not
+   substituted. H1, H2, and H4 need arms that are rejected, and H3 needs arm A,
+   so each stays `INSUFFICIENT_EVIDENCE` on Claude until the matrix classifies
+   those arms eligible. Relaxing that evidence rule is the owner's decision and
+   would go in a new versioned file.
+
+## Amendment 4 (2026-10-23): behavioral effort evidence for Claude
+
+Decided by the owner on 2026-10-23 (D12), before any Claude benchmark result
+exists. H1 to H4, the task classes, the thresholds, the floors, and Amendments 1
+to 3 are unchanged, except that this amendment replaces the effort rule in item
+7 of Amendment 3. The version stays `predictions-v1`.
+
+1. The rule. The Claude stream names no reasoning effort, so the owner accepts
+   behavioral evidence for Claude. A Claude model's effort control is verified
+   only when its thinking tokens strictly increase across `low`, `medium`, and
+   `high`. Each count is measured on the same fixed prompt, in a separate
+   `claude -p` call, on the pinned CLI version. A tie, an inversion, a missing
+   level, or a CLI version mismatch gives `UNVERIFIED`.
+
+2. Weaker than Codex. Codex effort is named by the backend and must equal the
+   request. Behavioral evidence shows that the effort flag changes the model's
+   behavior. It never shows which value was served. A Claude arm that "uses high
+   effort" means it requested high.
+
+3. Labeling. Every Claude result row and every Claude block of the verdict report
+   labels its effort evidence `behavioral`. Codex rows and blocks read `backend`.
+
+4. Scope. The rule applies only to the Claude harness. The capability matrix
+   refuses behavioral evidence on any other harness, and Codex stays `backend`
+   only.
+
+5. Arm eligibility. An arm that requires an effort override is eligible on Claude
+   when every model it needs is verified. The `effort_override` cell as a whole
+   stays `UNVERIFIED` while any supported model fails.
+
+6. Measured on 2026-10-23, claude 2.1.309, one call per cell, nine calls. The
+   counts are thinking tokens at low, medium, and high. The fixtures are
+   `tests/eval/fixtures/harness_capability/claude-2.1.309/effort-<model>-<level>.stdout.jsonl`
+   and the matrix record `effort_behavioral`.
+
+   | Model | low | medium | high | Result |
+   |---|---|---|---|---|
+   | claude-opus-5-5 | 100 | 106 | 134 | verified |
+   | claude-sonnet-5-5 | 105 | 103 | 105 | not verified |
+   | claude-haiku-5-5 | 285 | 233 | 337 | not verified |
+
+   No call was repeated to look for a monotonic result.
+
+7. Consequence. Claude arms A, B, E, and F are planned. Arm C needs
+   `claude-haiku-5-5` and arm D needs `claude-sonnet-5-5`, so both are rejected
+   and not substituted. H1 and H2 stay `INSUFFICIENT_EVIDENCE` on Claude. H3 and
+   H4 can be scored. A different result for Sonnet 5.5 or Haiku 5.5 needs a new
+   measurement on a pinned version, recorded in a new versioned file.
+
+8. Run stops. A live run stops spending at a usage-limit or credit-exhaustion
+   failure. Every remaining planned row is `NOT_RUN` with the limit as the
+   reason, as the Run design says for a row the cap cuts off.

@@ -1,7 +1,7 @@
 """Pre-registered constants and interpretation notes for the routing verdict scorer.
 
 Values come from `evals/routing-benchmark/PREDICTIONS.md` (`predictions-v1`, Amendments
-1 and 2); the comment on each threshold names the line it reads.
+1, 2, and 3); the comment on each threshold names the line it reads.
 """
 
 from __future__ import annotations
@@ -18,7 +18,22 @@ FALSIFIED = "FALSIFIED"
 INSUFFICIENT = "INSUFFICIENT_EVIDENCE"
 SUPERSEDED_DIR = "results-2026-10-03"
 CODEX = "codex"
+CLAUDE = "claude"
+#: Harnesses whose rows can be scored. Each is scored alone: results are never pooled
+#: across harnesses (Amendment 3).
+SCORABLE_HARNESSES = (CODEX, CLAUDE)
 DECISION_RULE = "predictions-v1 amendment 2"
+DECISION_RULE_CLAUDE = "predictions-v1 amendment 3"
+DECISION_RULE_BY_HARNESS = {CODEX: DECISION_RULE, CLAUDE: DECISION_RULE_CLAUDE}
+#: How each harness's requested effort is evidenced. Claude names no effort, so its effort
+#: rests on behavioral evidence (Amendment 4). Every report states it.
+EFFORT_EVIDENCE = {CODEX: "backend", CLAUDE: "behavioral"}
+#: The model each role names on each harness. The hypothesis and decision names (Sol, Luna,
+#: Terra) are read with these models: a mapping of roles, never of capability.
+ROLE_MODELS = {
+    CODEX: {"sol": "gpt-5.6-sol", "luna": "gpt-5.6-luna", "terra": "gpt-5.6-terra"},
+    CLAUDE: {"sol": "claude-opus-5-5", "luna": "claude-haiku-5-5", "terra": "claude-sonnet-5-5"},
+}
 DECISION_KEEP = "KEEP_CURRENT_POLICY"
 DECISION_SOL_FANOUT = "ADOPT_SOL_FANOUT"
 DECISION_ORIGINAL_ROUTING = "ADOPT_ORIGINAL_SOL_LUNA_TERRA_ROUTING"
@@ -159,10 +174,14 @@ INTERPRETATIONS: tuple[dict[str, object], ...] = (
     },
     {
         "id": "I11",
-        "predictions_lines": "126-130",
+        "predictions_lines": "126-130, Amendment 3",
         "reading": (
-            "Only Codex rows are scorable. Any other harness name is refused, because H1 to H4 "
-            "name Codex model families."
+            "Rows are scored per harness and never pooled. Codex rows score under Amendment 2 "
+            "and Claude rows under Amendment 3, which keeps the same thresholds, floors, and "
+            "decision mapping and reads Sol, Luna, and Terra as claude-opus-5-5, "
+            "claude-haiku-5-5, and claude-sonnet-5-5. Any other harness name is refused. One "
+            "verdict refuses rows from more than one harness. The report is keyed by harness, "
+            "each with its own H1 to H4, decision, and floor, and states the role models."
         ),
     },
     {
@@ -183,6 +202,17 @@ INTERPRETATIONS: tuple[dict[str, object], ...] = (
             "repetition is not 1, 2, or 3 is refused, so extra repetitions cannot stand in for "
             "a scenario that did not run. With unique (scenario, arm, repetition) keys, 12 "
             "scored ordinary runs for an arm then cover all 4 ordinary scenarios x 3 repetitions."
+        ),
+    },
+    {
+        "id": "I14",
+        "predictions_lines": "Amendment 3",
+        "reading": (
+            "Claude rows carry input_tokens = usage.input_tokens + cache_creation_input_tokens, "
+            "with cache reads excluded, so 'uncached' means the same as for Codex (prompt "
+            "tokens not read from the cache). output_tokens includes thinking tokens. Cost is "
+            "unpriced on a subscription login, and no verdict reads cost_usd. The stream names "
+            "no reasoning effort, so a Claude row's effort is the request, never an observation."
         ),
     },
 )

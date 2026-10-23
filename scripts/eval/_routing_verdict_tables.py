@@ -27,6 +27,7 @@ from _routing_verdict_constants import (
     POOLED,
     QUALITY_MARGIN,
     REPETITIONS,
+    SCORABLE_HARNESSES,
 )
 
 
@@ -44,6 +45,7 @@ class Run:
     seconds: float | None
     tokens: int | None
     residual: int
+    harness: str = CODEX
 
     @property
     def accepted(self) -> bool:
@@ -149,7 +151,7 @@ def _residual_defects(row: Mapping[str, Any]) -> int:
     return itemized
 
 
-def _parse_row(row: Mapping[str, Any], classes: Mapping[str, str]) -> Run:
+def _parse_row(row: Mapping[str, Any], classes: Mapping[str, str], harness: str) -> Run:
     scenario_id, status = row.get("scenario_id"), row.get("status")
     if scenario_id not in classes:
         raise VerdictInputError(f"scenario {scenario_id!r} is not in the corpus")
@@ -173,18 +175,38 @@ def _parse_row(row: Mapping[str, Any], classes: Mapping[str, str]) -> Run:
         seconds=_wall_clock(invocations),
         tokens=_uncached_tokens(invocations),
         residual=_residual_defects(row),
+        harness=harness,
     )
 
 
+def partition_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, list[Mapping[str, Any]]]:
+    """Rows grouped by harness name, in name order. Refuses a harness that is not scorable."""
+    groups: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        harness = _harness_name(row)
+        if harness not in SCORABLE_HARNESSES:
+            allowed = ", ".join(repr(name) for name in SCORABLE_HARNESSES)
+            raise VerdictInputError(f"harness {harness!r} is not scorable; only {allowed} rows are")
+        groups.setdefault(harness, []).append(row)
+    return dict(sorted(groups.items()))
+
+
 def parse_runs(rows: Sequence[Mapping[str, Any]], classes: Mapping[str, str]) -> list[Run]:
-    """Rows to `Run`s. Refuses non-Codex harnesses and duplicate keys."""
+    """Rows to `Run`s for one verdict. Refuses an unscorable harness, a mix, and duplicates.
+
+    One verdict covers one harness: harnesses are never pooled (Amendment 3). Split mixed
+    rows with `partition_rows` and parse each group.
+    """
+    groups = partition_rows(rows)
+    if len(groups) > 1:
+        raise VerdictInputError(
+            f"rows from more than one harness cannot form one verdict: {sorted(groups)}; "
+            "a verdict is per harness and harnesses are never pooled"
+        )
     seen: set[tuple[str, str, int]] = set()
     runs: list[Run] = []
     for row in rows:
-        harness = _harness_name(row)
-        if harness != CODEX:
-            raise VerdictInputError(f"harness {harness!r} is not scorable; only {CODEX!r} rows are")
-        run = _parse_row(row, classes)
+        run = _parse_row(row, classes, _harness_name(row))
         key = (run.scenario_id, run.arm, run.repetition)
         if key in seen:
             raise VerdictInputError(f"duplicate row for scenario/arm/repetition {key}")

@@ -1,14 +1,21 @@
 """Gated live backend for the routing benchmark (issue #5424).
 
-The live path is wired and stays closed unless two things hold:
+The live path is wired and stays closed unless three things hold:
 
 1. the caller passed the explicit `--live` flag (the CLI decides, not this
-   module), and
-2. every harness in the plan has a credential in the environment.
+   module),
+2. every harness in the plan has a credential in the environment, and
+3. every installed harness CLI reports the version the capability matrix pins.
 
-`require_live_authorization` raises `LiveGateError` on any miss, before a
-backend exists or a process starts. It never falls back to a dry run or to a
-different harness. Credential names come from
+`require_live_authorization` raises `LiveGateError` on a credential miss, before
+a backend exists or a process starts. `require_pinned_versions` raises
+`VersionDriftError` on a version mismatch; `installed_version` raises
+`VersionProbeError` when `<cli> --version` cannot be read. The CLI checks the
+versions before the run and again before every row, because a CLI auto-update
+during a long run would otherwise mislabel every later row. An update that lands
+while a row runs is caught at the next row, so at most that one row carries the
+pin without having run on it. None of these gates falls back to a dry run or to
+a different harness. Credential names come from
 `_runtime_harness.HARNESS_AUTH_ENV`, the same allowlist the runtime isolation
 uses, minus the provider settings that are not secrets.
 
@@ -29,9 +36,18 @@ frames: its observations stay `None` and `UNVERIFIED`, and Copilot is dropped
 from eval support. The backend runs invocations one at a time, so a live run
 proves no concurrency behavior and fan-out workers never overlap.
 
+Claude invocations (`_routing_claude`) run `claude -p --output-format stream-json`
+on the operator's stored subscription login. The stream names the model the backend
+served, so a Claude invocation is `EvidenceKind.BACKEND` when it names one. It names
+no reasoning effort, so the observed effort stays `None` and the requested effort is
+`UNVERIFIED`, never honored. A stream whose init event does not read
+`apiKeySource: none` is a harness failure.
+
 `real_home` (the CLI's `--real-home`) runs Codex on the operator's own
-`CODEX_HOME` and login. Nothing is linked, copied, or read. `~/.codex/AGENTS.md`
-and skills then load in every invocation, a confound the results record.
+`CODEX_HOME` and login, and is the only way to run Claude, on its own login.
+Nothing is linked, copied, or read. `~/.codex/AGENTS.md` and skills then load in
+every Codex invocation, a confound the results record. Claude drops user and
+project instruction files, and the results record what it could not drop.
 
 Plan handoff: after a planning invocation the backend hashes the plan file in the
 scratch copy, and before the implementation invocation it hashes the file again.
@@ -61,11 +77,17 @@ from _capability_probes import TRUSTED_REQUEST_TEMPLATES
 from _durable_codex import codex_env, parse_codex_run
 from _harness_capability import EvidenceKind
 from _routing_backend import IMPLEMENT_INVOCATION_ID, PLAN_INVOCATION_ID
+from _routing_claude import (
+    CLAUDE_SANDBOX_LABEL,
+    claude_routing_argv,
+    claude_routing_env,
+    parse_claude_run,
+)
 from _routing_config import HANDOFF_ARTIFACT
 from _routing_grader import GradeResult, grade, materialize
 from _routing_result import SESSION_MARKER_FRESH, FailureKind, InvocationRequest, Observation
 from _routing_scenario import Scenario
-from _runtime_harness import HARNESS_AUTH_ENV, runtime_env
+from _runtime_harness import HARNESS_AUTH_ENV, probe_version, runtime_env
 
 DEFAULT_TIMEOUT_SECONDS = 900.0
 _NON_CREDENTIAL_ENV = frozenset(
@@ -76,13 +98,42 @@ _NON_CREDENTIAL_ENV = frozenset(
         "COPILOT_PROVIDER_WIRE_MODEL",
     }
 )
-_SANDBOX_LABEL = {"codex": "codex:-s workspace-write", "copilot": "copilot:--allow-all-tools"}
+_SANDBOX_LABEL = {
+    "codex": "codex:-s workspace-write",
+    "copilot": "copilot:--allow-all-tools",
+    "claude": CLAUDE_SANDBOX_LABEL,
+}
+#: Harnesses that run on the operator's own stored login, so the operator must opt in
+#: with `real_home`. Claude has no other mode: its billing guard needs the subscription
+#: login, and an API key in the environment is removed, never used.
+_STORED_LOGIN_HARNESSES = frozenset({"codex", "claude"})
+
+VERSION_PROBE_TIMEOUT_SECONDS = 15.0
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
+VersionProbe = Callable[[str], str]
 
 
 class LiveGateError(RuntimeError):
     """A live run was requested without the credentials it needs."""
+
+
+class VersionGateError(RuntimeError):
+    """A live run may not spend on this harness CLI. `exit_code` follows AGENTS.md."""
+
+    exit_code: int
+
+
+class VersionDriftError(VersionGateError):
+    """The installed harness CLI is not the version the capability matrix pins."""
+
+    exit_code = 2
+
+
+class VersionProbeError(VersionGateError):
+    """The installed harness CLI version could not be read."""
+
+    exit_code = 3
 
 
 class BudgetExhaustedError(RuntimeError):
@@ -115,21 +166,66 @@ def credential_names(harness: str) -> tuple[str, ...]:
     return tuple(sorted(HARNESS_AUTH_ENV[harness] - _NON_CREDENTIAL_ENV))
 
 
+def _missing_credential(harness: str, env: Mapping[str, str], real_home: bool) -> str | None:
+    """Why `harness` may not spend, or `None` when it may."""
+    names = credential_names(harness)
+    if real_home and harness in _STORED_LOGIN_HARNESSES:
+        return None
+    if harness == "claude":
+        return (
+            "claude (pass --real-home: it bills the stored subscription login, and "
+            "ANTHROPIC_API_KEY is removed from its environment, never used)"
+        )
+    if any(env.get(name, "").strip() for name in names):
+        return None
+    return f"{harness} (set one of {', '.join(names)})"
+
+
+def installed_version(harness: str, runner: Runner = subprocess.run) -> str:
+    """Read `<harness> --version` through a throwaway isolated profile.
+
+    Raises `VersionProbeError` when the CLI is missing, times out, or reports
+    no version.
+    """
+    with tempfile.TemporaryDirectory(prefix=f"routing-version-{harness}-") as profile:
+        try:
+            version: str = probe_version(
+                harness, harness, Path(profile), runner, VERSION_PROBE_TIMEOUT_SECONDS
+            )
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+            raise VersionProbeError(f"{harness} version probe failed: {exc}") from exc
+    return version
+
+
+def require_pinned_versions(pins: Mapping[str, str], probe: VersionProbe) -> None:
+    """Raise `VersionDriftError` unless each installed CLI equals its matrix pin.
+
+    Result rows stamp the pin as `harness.version` (`_routing_plan._row`), so a
+    run on any other CLI would carry a false label.
+    """
+    drifted = [
+        f"{harness} installed {observed!r}, matrix pins {pinned!r}"
+        for harness, pinned in sorted(pins.items())
+        if (observed := probe(harness)) != pinned
+    ]
+    if drifted:
+        raise VersionDriftError(
+            "harness version drift: "
+            + "; ".join(drifted)
+            + ". Re-probe the capability matrix and re-pin before a live run"
+        )
+
+
 def require_live_authorization(
     harnesses: Sequence[str], env: Mapping[str, str], *, real_home: bool = False
 ) -> None:
     """Raise `LiveGateError` unless each harness may spend.
 
-    A harness may spend with a non-empty credential in `env`, or, for Codex only,
-    when the operator passed `--real-home` and so accepts the CLI's own login.
+    A harness may spend with a non-empty credential in `env`, or, for Codex, when
+    the operator passed `--real-home` and so accepts the CLI's own login. Claude
+    spends only with `--real-home`: an environment key never counts for it.
     """
-    missing: list[str] = []
-    for harness in harnesses:
-        names = credential_names(harness)
-        if real_home and harness == "codex":
-            continue
-        if not any(env.get(name, "").strip() for name in names):
-            missing.append(f"{harness} (set one of {', '.join(names)})")
+    missing = [m for h in harnesses if (m := _missing_credential(h, env, real_home))]
     if missing:
         raise LiveGateError("live run refused, no credential for: " + "; ".join(missing))
 
@@ -180,6 +276,9 @@ def live_argv(harness: str, model: str, effort: str, prompt: str) -> list[str]:
         effort_flag.flag,
         effort_flag.render(effort),
     ]
+    if harness == "claude":
+        claude: list[str] = claude_routing_argv(model, effort, prompt)
+        return claude
     if harness == "codex":
         head = [
             "codex",
@@ -205,6 +304,18 @@ class _BackendEvidence:
     failure: str = ""
 
 
+def _claude_evidence(stdout: str, stderr: str) -> _BackendEvidence:
+    """Claude backend facts. The stream names no effort, so `effort` stays `None`."""
+    facts = parse_claude_run(stdout, stderr)
+    return _BackendEvidence(
+        model="+".join(facts.models) or None,
+        effort=None,
+        input_tokens=facts.input_tokens if facts.completed else None,
+        output_tokens=facts.output_tokens if facts.completed else None,
+        failure=facts.failure,
+    )
+
+
 class LiveBackend:
     """One scratch scenario copy per scenario id. Use as a context manager."""
 
@@ -218,7 +329,9 @@ class LiveBackend:
         budget: InvocationBudget | None = None,
     ) -> None:
         credential_names(harness)
-        self._real_home = real_home and harness == "codex"
+        if harness == "claude" and not real_home:
+            raise LiveGateError("claude runs on the stored subscription login: pass real_home")
+        self._real_home = real_home and harness in _STORED_LOGIN_HARNESSES
         self._budget = budget
         self._harness = harness
         self._runner = runner
@@ -251,6 +364,9 @@ class LiveBackend:
         return profile
 
     def _env(self) -> dict[str, str]:
+        if self._harness == "claude":
+            claude: dict[str, str] = claude_routing_env()
+            return claude
         env: dict[str, str] = (
             codex_env() if self._real_home else runtime_env(self._profile(), self._harness)
         )
@@ -300,7 +416,7 @@ class LiveBackend:
         code, detail, stdout, stderr = self._run(argv, workdir)
         produced = self._plan_sha(workdir) if request.invocation_id == PLAN_INVOCATION_ID else None
         evidence = self._backend_evidence(stdout, stderr)
-        failure = detail or evidence.failure
+        failure = "; ".join(part for part in (detail, evidence.failure) if part)
         return Observation(
             session_id=request.session_id,
             start_offset_seconds=start - self._started,
@@ -319,7 +435,9 @@ class LiveBackend:
         )
 
     def _backend_evidence(self, stdout: str, stderr: str) -> _BackendEvidence:
-        """What the backend said it served. Codex only: other harnesses read none."""
+        """What the backend said it served. Codex and Claude: other harnesses read none."""
+        if self._harness == "claude":
+            return _claude_evidence(stdout, stderr)
         if self._harness != "codex" or not stdout:
             return _BackendEvidence()
         facts = parse_codex_run(stdout, stderr)

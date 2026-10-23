@@ -1486,16 +1486,22 @@ named. Nothing is normalized away.
 
 `--live` is the only way to spend. It needs a credential in the environment for
 every planned harness, taken from `HARNESS_AUTH_ENV` in `_runtime_harness.py`.
-Without one the run exits 4 before a process starts. The live backend runs one
+Without one the run exits 4 before a process starts. It then reads
+`<cli> --version` for every planned harness and exits 2 unless each equals the
+capability matrix pin, because every result row stamps that pin as its harness
+version. It reads the version again before every row: a CLI that auto-updates
+between rows stops the run, and that row and every later row are written
+`NOT_RUN` with the reason. An update during a row is caught at the next row, so
+at most one row can carry a stale label. The live backend runs one
 harness process per invocation, one at a time, so fan-out workers never overlap.
-Each planned row gets a fresh scratch copy of its scenario. It records observed
-model and effort as unverified, because it does not yet read backend evidence,
-and it hashes the plan file for the arm F handoff. It has not run
-against a real harness; its tests use a fake process runner.
+Each planned row gets a fresh scratch copy of its scenario. Codex invocations
+read the backend's own model and effort from its response frames; Copilot
+observations stay unverified. It hashes the plan file for the arm F handoff.
 
 Exit codes: `0` a plan with at least one planned row, or a live run with no
-harness failure. `1` nothing is plannable. `2` invalid input. `3` a live run hit
-a harness failure. `4` `--live` without credentials.
+harness failure. `1` nothing is plannable. `2` invalid input, or an installed
+harness CLI that differs from its matrix pin. `3` a live run hit a harness
+failure, or a CLI version could not be read. `4` `--live` without credentials.
 
 The deterministic fake, `_routing_backend.ScriptedBackend`, grades with the real
 corpus and detects model and effort mismatch, silent inheritance from the
