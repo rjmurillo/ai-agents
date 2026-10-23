@@ -4856,7 +4856,7 @@ def _cpu_growth(run, small_input, large_input, tries: int = 3):
     noise that only ever adds time. The two sides are interleaved so a slow
     stretch of the host hits both. The clock is CPU time
     (`time.process_time`), not wall time, so load average does not matter.
-    The large result comes back so a caller can check it without a fifth run.
+    The large result comes back so a caller can check it without another run.
 
     Raises ``AssertionError`` when the small run is too fast to measure: a
     zero denominator would make any workload look infinitely slow or, with a
