@@ -232,6 +232,19 @@ def _only_arms(plan: Plan, arms: str) -> Plan:
     return Plan(kept, plan.problems)
 
 
+def _select(plan: Plan, args: argparse.Namespace) -> tuple[Plan, str]:
+    """Apply `--harnesses` then `--arms`. Returns (plan, flag text that selected nothing or '')."""
+    if args.harnesses is not None:
+        plan = _only_harnesses(plan, args.harnesses)
+        if not plan.planned:
+            return plan, f"--harnesses {args.harnesses}"
+    if args.arms is not None:
+        plan = _only_arms(plan, args.arms)
+        if not plan.planned:
+            return plan, f"--arms {args.arms}"
+    return plan, ""
+
+
 def _live_budget(args: argparse.Namespace) -> InvocationBudget | None:
     """The run's invocation budget, `None` when not live. Raises `ValueError` on a bad mix."""
     if not args.live:
@@ -278,11 +291,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.live:
         print(json.dumps(plan_report(plan, "dry-run"), indent=2))
         return EXIT_OK
-    if args.harnesses is not None:
-        plan = _only_harnesses(plan, args.harnesses)
-        if not plan.planned:
-            print(f"error: --harnesses {args.harnesses} selects no planned row", file=sys.stderr)
-            return EXIT_NOTHING_PLANNED
+    plan, empty = _select(plan, args)
+    if empty:
+        print(f"error: {empty} selects no planned row", file=sys.stderr)
+        return EXIT_NOTHING_PLANNED
     try:
         require_live_authorization(
             sorted({row.harness for row in plan.planned}), os.environ, real_home=args.real_home
@@ -290,11 +302,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     except LiveGateError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_AUTH
-    if args.arms is not None:
-        plan = _only_arms(plan, args.arms)
-        if not plan.planned:
-            print(f"error: --arms {args.arms} selects no planned row", file=sys.stderr)
-            return EXIT_NOTHING_PLANNED
     return _run_live(
         plan,
         config,

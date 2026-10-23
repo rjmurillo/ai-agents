@@ -2,7 +2,8 @@
   "schema_version": 1,
   "harnesses": [
     {"harness": "codex", "version": "codex-cli 0.163.0"},
-    {"harness": "copilot", "version": "GitHub Copilot CLI 1.0.89-1."}
+    {"harness": "copilot", "version": "GitHub Copilot CLI 1.0.89-1."},
+    {"harness": "claude", "version": "2.1.309 (Claude Code)"}
   ],
   "strategies": [
     {
@@ -14,7 +15,16 @@
         "fallback_reasoning": {"model": "gpt-5.6-sol", "effort": "medium"}
       },
       "max_concurrency": 3,
-      "max_correction_rounds": 2
+      "max_correction_rounds": 2,
+      "harness_overrides": {
+        "claude": {
+          "orchestrator": {"model": "claude-opus-5-5", "effort": "medium"},
+          "workers": {
+            "ordinary_bounded": {"model": "claude-opus-5-5", "effort": "low"},
+            "fallback_reasoning": {"model": "claude-opus-5-5", "effort": "medium"}
+          }
+        }
+      }
     },
     {
       "arm": "B",
@@ -26,7 +36,17 @@
       },
       "reviewer": {"model": "gpt-5.6-sol", "effort": "medium", "isolated": true},
       "max_concurrency": 3,
-      "max_correction_rounds": 2
+      "max_correction_rounds": 2,
+      "harness_overrides": {
+        "claude": {
+          "orchestrator": {"model": "claude-opus-5-5", "effort": "medium"},
+          "workers": {
+            "ordinary_bounded": {"model": "claude-haiku-5-5", "effort": "medium"},
+            "fallback_reasoning": {"model": "claude-sonnet-5-5", "effort": "high"}
+          },
+          "reviewer": {"model": "claude-opus-5-5", "effort": "medium", "isolated": true}
+        }
+      }
     },
     {
       "arm": "C",
@@ -37,7 +57,16 @@
         "fallback_reasoning": {"model": "gpt-5.6-sol", "effort": "medium"}
       },
       "max_concurrency": 3,
-      "max_correction_rounds": 2
+      "max_correction_rounds": 2,
+      "harness_overrides": {
+        "claude": {
+          "orchestrator": {"model": "claude-opus-5-5", "effort": "medium"},
+          "workers": {
+            "ordinary_bounded": {"model": "claude-haiku-5-5", "effort": "high"},
+            "fallback_reasoning": {"model": "claude-opus-5-5", "effort": "medium"}
+          }
+        }
+      }
     },
     {
       "arm": "D",
@@ -48,13 +77,27 @@
         "fallback_reasoning": {"model": "gpt-5.6-sol", "effort": "medium"}
       },
       "max_concurrency": 3,
-      "max_correction_rounds": 2
+      "max_correction_rounds": 2,
+      "harness_overrides": {
+        "claude": {
+          "orchestrator": {"model": "claude-opus-5-5", "effort": "medium"},
+          "workers": {
+            "ordinary_bounded": {"model": "claude-sonnet-5-5", "effort": "high"},
+            "fallback_reasoning": {"model": "claude-opus-5-5", "effort": "medium"}
+          }
+        }
+      }
     },
     {
       "arm": "E",
       "topology": "single_agent",
       "orchestrator": {"model": "gpt-5.6-sol", "effort": "high"},
-      "max_correction_rounds": 2
+      "max_correction_rounds": 2,
+      "harness_overrides": {
+        "claude": {
+          "orchestrator": {"model": "claude-opus-5-5", "effort": "high"}
+        }
+      }
     },
     {
       "arm": "F",
@@ -63,7 +106,13 @@
       "implementer": {"model": "gpt-5.6-sol", "effort": "high"},
       "fresh_context_boundary": true,
       "handoff_artifact": "implementation-plan.md",
-      "max_correction_rounds": 2
+      "max_correction_rounds": 2,
+      "harness_overrides": {
+        "claude": {
+          "orchestrator": {"model": "claude-opus-5-5", "effort": "high"},
+          "implementer": {"model": "claude-opus-5-5", "effort": "high"}
+        }
+      }
     }
   ]
 }

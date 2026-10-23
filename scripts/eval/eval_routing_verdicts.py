@@ -2,12 +2,16 @@
 """Score the pre-registered H1 to H4 verdicts for the #5426 routing comparison.
 
 Reads routing-benchmark result JSONL files and applies
-`evals/routing-benchmark/PREDICTIONS.md` (`predictions-v1` plus Amendment 1)
+`evals/routing-benchmark/PREDICTIONS.md` (`predictions-v1` plus Amendments 1, 2, and 3)
 through `_routing_verdicts.py`. Deterministic: no model call, no network.
 
     eval_routing_verdicts.py --results a.jsonl [b.jsonl ...] [--corpus DIR] [--output OUT.json]
 
 The JSON report goes to stdout and, with `--output`, to that file.
+
+The report is keyed by harness. Rows are split by harness name and each harness is scored
+alone, with its own H1 to H4, decision, and floor. Codex rows score under Amendment 2 and
+Claude rows under Amendment 3. Nothing is pooled across harnesses.
 
 Amendment 1 guard. A path with a `results-2026-10-03` component holds
 pre-amendment runs (old role prompt). Such files may be scored alone, where
@@ -18,8 +22,8 @@ that directory defeats the guard.
 
 Exit codes (AGENTS.md): 0 scored. 1 no scorable rows (empty, or every row NOT_RUN
 or HARNESS_FAILED). 2 invalid arguments, unreadable or non-UTF-8 input, unwritable `--output`,
-unknown scenario or harness, repetition outside 1 to 3, duplicate rows, or the
-Amendment 1 pooling refusal.
+unknown scenario, a harness that is neither codex nor claude, repetition outside 1 to 3,
+duplicate rows, or the Amendment 1 pooling refusal.
 """
 
 from __future__ import annotations
@@ -36,7 +40,8 @@ from _routing_verdicts import (
     SUPERSEDED_DIR,
     VerdictInputError,
     parse_runs,
-    score,
+    partition_rows,
+    score_by_harness,
 )
 
 EXIT_OK = 0
@@ -106,14 +111,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         superseded = check_pooling(args.results)
         classes = _classes(args.corpus)
-        runs = parse_runs(read_rows(args.results), classes)
+        groups = partition_rows(read_rows(args.results))
+        runs_by_harness = {name: parse_runs(rows, classes) for name, rows in groups.items()}
     except VerdictInputError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_CONFIG
-    if not any(run.eligible for run in runs):
+    if not any(run.eligible for runs in runs_by_harness.values() for run in runs):
         print("error: no scorable rows", file=sys.stderr)
         return EXIT_NO_ROWS
-    report = score(runs, classes, superseded=superseded)
+    report = score_by_harness(runs_by_harness, classes, superseded=superseded)
     text = json.dumps(report, indent=2, sort_keys=False)
     if args.output is not None:
         try:

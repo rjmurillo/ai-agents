@@ -50,6 +50,13 @@ def verified(tmp_path: Path) -> Path:
     return write_matrix(tmp_path / "matrix.json", matched_records())
 
 
+def _two_harness_config(directory: Path) -> str:
+    """Path of the example config restricted to codex and copilot, the generic tests' harnesses."""
+    path = directory / "two-harness-config.json"
+    path.write_text(json.dumps(config_dict()), encoding="utf-8")
+    return str(path)
+
+
 @pytest.fixture
 def small_config(tmp_path: Path) -> Path:
     """Arms E and F only, so a scripted live run stays fast."""
@@ -107,11 +114,14 @@ def _forbid_processes(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_dry_run_expands_the_matrix_with_zero_model_calls(
-    verified: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    verified: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     _forbid_processes(monkeypatch)
 
-    exit_code = cli.main(["--matrix", str(verified)])
+    exit_code = cli.main(["--matrix", str(verified), "--config", _two_harness_config(tmp_path)])
 
     report = json.loads(capsys.readouterr().out)
     assert exit_code == cli.EXIT_OK
@@ -132,7 +142,9 @@ def test_dry_run_lists_unmatched_and_rejected_combinations_before_spend(
         "copilot", concurrency=2, statuses={"reviewer_isolation": cap.CapabilityStatus.UNSUPPORTED}
     )
 
-    exit_code = cli.main(["--matrix", str(write_matrix(tmp_path / "m.json", records))])
+    matrix = str(write_matrix(tmp_path / "m.json", records))
+
+    exit_code = cli.main(["--matrix", matrix, "--config", _two_harness_config(tmp_path)])
 
     report = json.loads(capsys.readouterr().out)
     by_arm: dict[str, set[str]] = {}
@@ -152,7 +164,7 @@ def test_checked_in_matrix_plans_only_what_it_classifies_eligible(
 
     report = json.loads(capsys.readouterr().out)
     eligible = {"ELIGIBLE_MATCHED", "ELIGIBLE_UNMATCHED"}
-    assert report["examined"] == 72 and report["model_calls"] == 0
+    assert report["examined"] == 6 * 6 * 3 and report["model_calls"] == 0
     assert report["planned"] == sum(1 for r in report["rows"] if r["eligibility"] in eligible)
     assert exit_code == (cli.EXIT_OK if report["planned"] else cli.EXIT_NOTHING_PLANNED)
 
@@ -169,7 +181,9 @@ def test_exit_1_when_nothing_is_plannable(
         make_record("copilot", statuses=unverified),
     ]
 
-    exit_code = cli.main(["--matrix", str(write_matrix(tmp_path / "m.json", records))])
+    matrix = str(write_matrix(tmp_path / "m.json", records))
+
+    exit_code = cli.main(["--matrix", matrix, "--config", _two_harness_config(tmp_path)])
 
     report = json.loads(capsys.readouterr().out)
     assert exit_code == cli.EXIT_NOTHING_PLANNED
@@ -181,7 +195,7 @@ def test_exit_1_when_the_config_names_a_harness_the_matrix_does_not_classify(
 ) -> None:
     matrix = write_matrix(tmp_path / "m.json", [make_record("codex")])
 
-    exit_code = cli.main(["--matrix", str(matrix)])
+    exit_code = cli.main(["--matrix", str(matrix), "--config", _two_harness_config(tmp_path)])
 
     report = json.loads(capsys.readouterr().out)
     assert exit_code == cli.EXIT_NOTHING_PLANNED

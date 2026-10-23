@@ -50,6 +50,7 @@ __all__ = [
     "config_dict",
     "config_mod",
     "dag_mod",
+    "full_config_dict",
     "live_mod",
     "make_record",
     "matched_records",
@@ -60,6 +61,7 @@ __all__ = [
     "scenario_mod",
     "scenarios",
     "strategy",
+    "without_harness",
     "write_matrix",
 ]
 
@@ -111,9 +113,29 @@ def write_matrix(path: Path, records: list[cap.HarnessCapabilityRecord]) -> Path
     return path
 
 
-def config_dict() -> dict[str, Any]:
-    """A fresh copy of the checked-in example config."""
+def full_config_dict() -> dict[str, Any]:
+    """A fresh copy of the checked-in example config, every harness it names."""
     return copy.deepcopy(json.loads(EXAMPLE_CONFIG.read_text(encoding="utf-8")))
+
+
+def without_harness(document: dict[str, Any], harness: str) -> dict[str, Any]:
+    """`document` with `harness` removed from the harness list and every strategy override."""
+    document["harnesses"] = [h for h in document["harnesses"] if h["harness"] != harness]
+    for item in document["strategies"]:
+        item.get("harness_overrides", {}).pop(harness, None)
+        if not item.get("harness_overrides", True):
+            del item["harness_overrides"]
+    return document
+
+
+def config_dict() -> dict[str, Any]:
+    """The checked-in example config on the codex and copilot harnesses.
+
+    The generic runner tests classify those two harnesses with `matched_records()`. Claude is
+    a standalone harness with its own tests (`test_routing_claude_config.py`), so it is left
+    out here. `full_config_dict()` keeps every harness.
+    """
+    return without_harness(full_config_dict(), "claude")
 
 
 def parse(document: dict[str, Any]) -> config_mod.BenchmarkConfig:
