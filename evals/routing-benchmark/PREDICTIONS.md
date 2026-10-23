@@ -296,3 +296,56 @@ the table at lines 132 to 136.
    so each stays `INSUFFICIENT_EVIDENCE` on Claude until the matrix classifies
    those arms eligible. Relaxing that evidence rule is the owner's decision and
    would go in a new versioned file.
+
+## Amendment 4 (2026-10-23): behavioral effort evidence for Claude
+
+Decided by the owner on 2026-10-23 (D12), before any Claude benchmark result
+exists. H1 to H4, the task classes, the thresholds, the floors, and Amendments 1
+to 3 are unchanged, except that this amendment replaces the effort rule in item
+7 of Amendment 3. The version stays `predictions-v1`.
+
+1. The rule. The Claude stream names no reasoning effort, so the owner accepts
+   behavioral evidence for Claude. A Claude model's effort control is verified
+   only when its thinking tokens strictly increase across `low`, `medium`, and
+   `high`. Each count is measured on the same fixed prompt, in a separate
+   `claude -p` call, on the pinned CLI version. A tie, an inversion, a missing
+   level, or a CLI version mismatch gives `UNVERIFIED`.
+
+2. Weaker than Codex. Codex effort is named by the backend and must equal the
+   request. Behavioral evidence shows that the effort flag changes the model's
+   behavior. It never shows which value was served. A Claude arm that "uses high
+   effort" means it requested high.
+
+3. Labeling. Every Claude result row and every Claude block of the verdict report
+   labels its effort evidence `behavioral`. Codex rows and blocks read `backend`.
+
+4. Scope. The rule applies only to the Claude harness. The capability matrix
+   refuses behavioral evidence on any other harness, and Codex stays `backend`
+   only.
+
+5. Arm eligibility. An arm that requires an effort override is eligible on Claude
+   when every model it needs is verified. The `effort_override` cell as a whole
+   stays `UNVERIFIED` while any supported model fails.
+
+6. Measured on 2026-10-23, claude 2.1.309, one call per cell, nine calls. The
+   counts are thinking tokens at low, medium, and high. The fixtures are
+   `tests/eval/fixtures/harness_capability/claude-2.1.309/effort-<model>-<level>.stdout.jsonl`
+   and the matrix record `effort_behavioral`.
+
+   | Model | low | medium | high | Result |
+   |---|---|---|---|---|
+   | claude-opus-5-5 | 100 | 106 | 134 | verified |
+   | claude-sonnet-5-5 | 105 | 103 | 105 | not verified |
+   | claude-haiku-5-5 | 285 | 233 | 337 | not verified |
+
+   No call was repeated to look for a monotonic result.
+
+7. Consequence. Claude arms A, B, E, and F are planned. Arm C needs
+   `claude-haiku-5-5` and arm D needs `claude-sonnet-5-5`, so both are rejected
+   and not substituted. H1 and H2 stay `INSUFFICIENT_EVIDENCE` on Claude. H3 and
+   H4 can be scored. A different result for Sonnet 5.5 or Haiku 5.5 needs a new
+   measurement on a pinned version, recorded in a new versioned file.
+
+8. Run stops. A live run stops spending at a usage-limit or credit-exhaustion
+   failure. Every remaining planned row is `NOT_RUN` with the limit as the
+   reason, as the Run design says for a row the cap cuts off.

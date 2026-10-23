@@ -123,15 +123,15 @@ def test_codex_keeps_36_planned_unmatched_rows() -> None:
     assert {(r.status.value, r.eligibility) for r in codex} == {("PLANNED", "ELIGIBLE_UNMATCHED")}
 
 
-def test_claude_plans_only_the_arms_that_do_not_need_a_verified_effort() -> None:
+def test_claude_plans_the_arms_whose_models_have_verified_effort_behavior() -> None:
     claude = _rows(_plan(), "claude")
     planned = [r for r in claude if r.status is plan_mod.RowStatus.PLANNED]
     rejected = [r for r in claude if r.status is plan_mod.RowStatus.REJECTED]
 
-    assert len(claude) == 36 and len(planned) == 12 and len(rejected) == 24
-    assert {r.arm for r in planned} == {"B", "F"}
+    assert len(claude) == 36 and len(planned) == 24 and len(rejected) == 12
+    assert {r.arm for r in planned} == {"A", "B", "E", "F"}
     assert {r.eligibility for r in planned} == {"ELIGIBLE_UNMATCHED"}
-    assert {r.arm for r in rejected} == {"A", "C", "D", "E"}
+    assert {r.arm for r in rejected} == {"C", "D"}
     assert {r.eligibility for r in rejected} == {"UNVERIFIED"}
     assert all("classifies arm" in r.reason for r in rejected)
 
@@ -165,7 +165,7 @@ def test_a_claude_version_the_matrix_does_not_pin_rejects_every_claude_row() -> 
     assert all("differs from matrix version" in r.reason for r in claude if r.arm in "BF")
 
 
-def test_the_dry_run_cli_reports_48_planned_rows_across_codex_and_claude(
+def test_the_dry_run_cli_reports_60_planned_rows_across_codex_and_claude(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     exit_code = cli.main([])
@@ -173,10 +173,10 @@ def test_the_dry_run_cli_reports_48_planned_rows_across_codex_and_claude(
     report = json.loads(capsys.readouterr().out)
     planned = [r for r in report["rows"] if r["status"] == "PLANNED"]
     assert exit_code == cli.EXIT_OK and report["model_calls"] == 0
-    assert report["planned"] == 48 == len(planned)
+    assert report["planned"] == 60 == len(planned)
     assert {h: sum(1 for r in planned if r["harness"] == h) for h in ("codex", "claude")} == {
         "codex": 36,
-        "claude": 12,
+        "claude": 24,
     }
     assert report["matched_pairs"] == []
 

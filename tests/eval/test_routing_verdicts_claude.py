@@ -233,3 +233,14 @@ def test_a_claude_arm_that_never_accepts_is_scored_on_claude_alone(
         )
 
     assert code == 0 and c_ordinary("codex") == 1.0 and c_ordinary("claude") == 0.0
+
+
+def test_every_harness_block_labels_its_effort_evidence(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rows = full_dataset() + as_harness(full_dataset(), "claude")
+
+    _, report = _run_cli(capsys, "--results", str(write_jsonl(tmp_path / "r.jsonl", rows)))
+
+    labels = {name: block["effort_evidence"] for name, block in report["harnesses"].items()}
+    assert labels == {"codex": "backend", "claude": "behavioral"}

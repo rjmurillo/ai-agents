@@ -37,6 +37,14 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 
+from _behavioral_effort import (
+    BEHAVIORAL_HARNESS,
+    BehavioralEffort,
+    BehavioralEffortError,
+    behavioral_effort_dict,
+    models_verified,
+    parse_behavioral_effort,
+)
 from _pending_live_probes import PendingLiveProbe, PendingProbeError, load_pending_probes
 
 SCHEMA_VERSION = 1
@@ -70,6 +78,10 @@ class EvidenceKind(str, Enum):
     """
 
     BACKEND = "backend"
+    #: Thinking tokens rise with the requested effort (`_behavioral_effort`). Valid only for
+    #: the Claude harness's `effort_override`: it shows the flag changes behavior, never
+    #: which value the backend served. Weaker than `BACKEND`, and labeled so in every report.
+    BEHAVIORAL = "behavioral"
     CLIENT_ECHO = "client_echo"
     CONFIG = "config"
     NONE = "none"
@@ -141,6 +153,8 @@ class HarnessCapabilityRecord:
     #: still classified against itself, so an arm it cannot run is not eligible, and the
     #: best it reaches is `ELIGIBLE_UNMATCHED`.
     standalone: bool = False
+    #: Per-model thinking-token counts behind a `behavioral` effort claim (Claude only).
+    effort_behavioral: BehavioralEffort | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,6 +313,20 @@ def classify_override(
     return CapabilityStatus.VERIFIED
 
 
+def classify_behavioral_effort(
+    evidence: BehavioralEffort | None, pinned_version: str, models: Sequence[str]
+) -> CapabilityStatus:
+    """Claude effort control from thinking tokens (Amendment 4). Never invents `UNSUPPORTED`.
+
+    `VERIFIED` only when every model in `models` has thinking tokens strictly increasing
+    across low, medium, and high on `pinned_version`. A tie, an inversion, a missing level
+    or model, or a version mismatch gives `UNVERIFIED`. It shows the flag changes behavior,
+    not which value was served, so the evidence kind is `BEHAVIORAL`, never `BACKEND`.
+    """
+    verified = models_verified(evidence, pinned_version, models)
+    return CapabilityStatus.VERIFIED if verified else CapabilityStatus.UNVERIFIED
+
+
 def classify_reviewer_isolation(
     reviewer_context: str,
     producer_private: Sequence[str],
@@ -354,6 +382,27 @@ def _satisfies_model_groups(
     return all(_satisfies_model_group(record.supported_models, group) for group in groups)
 
 
+def _arm_status(record: HarnessCapabilityRecord, key: str, arm: Arm) -> CapabilityStatus:
+    """The cell status, except behavioral effort is judged per model the arm needs.
+
+    A Claude effort cell stays `UNVERIFIED` when any model fails, yet an arm that needs only
+    models that passed is still eligible. For each of the arm's model groups, some
+    supported model in the group must be behaviorally verified. Never applies to Codex.
+    """
+    status = record.capabilities[key].status
+    if key != "effort_override" or status is CapabilityStatus.VERIFIED:
+        return status
+    if record.harness != BEHAVIORAL_HARNESS or record.effort_behavioral is None:
+        return status
+    for group in arm.required_models:
+        candidates = [m for m in record.supported_models if _model_family_tokens(m) & set(group)]
+        if not any(
+            models_verified(record.effort_behavioral, record.version, [m]) for m in candidates
+        ):
+            return status
+    return CapabilityStatus.VERIFIED if arm.required_models else status
+
+
 def derive_arm_eligibility(
     arm: Arm,
     harness: HarnessCapabilityRecord,
@@ -382,8 +431,8 @@ def derive_arm_eligibility(
     reporting the same model but an `UNVERIFIED` required capability still
     resolve to `UNVERIFIED`, not matched.
     """
-    statuses = [harness.capabilities[key].status for key in arm.required]
-    statuses += [peer.capabilities[key].status for key in arm.required]
+    statuses = [_arm_status(harness, key, arm) for key in arm.required]
+    statuses += [_arm_status(peer, key, arm) for key in arm.required]
     if CapabilityStatus.UNSUPPORTED in statuses:
         return ArmEligibility.UNSUPPORTED
     if CapabilityStatus.UNVERIFIED in statuses:
@@ -503,9 +552,33 @@ def _load_record(value: object, index: int) -> HarnessCapabilityRecord:
         pending_live_probes=_pending_probes(raw, field),
         dropped=_bool_field(raw, "dropped", field),
         standalone=_bool_field(raw, "standalone", field),
+        effort_behavioral=_behavioral(raw, field),
     )
     validate_record(record)
     return record
+
+
+def _validate_behavioral(record: HarnessCapabilityRecord) -> None:
+    """Behavioral evidence is valid only for the Claude harness's effort_override (D12)."""
+    for key, capability in record.capabilities.items():
+        if capability.evidence is not EvidenceKind.BEHAVIORAL:
+            continue
+        if record.harness != BEHAVIORAL_HARNESS or key != "effort_override":
+            raise HarnessCapabilityError(
+                f"{record.harness}.{key} uses behavioral evidence, which only the "
+                f"{BEHAVIORAL_HARNESS} effort_override may use"
+            )
+        if capability.status is CapabilityStatus.VERIFIED and not models_verified(
+            record.effort_behavioral, record.version, record.supported_models
+        ):
+            raise HarnessCapabilityError(
+                f"{record.harness}.{key} is VERIFIED(behavioral) but not every supported model "
+                "has strictly increasing thinking tokens on the pinned version"
+            )
+    if record.effort_behavioral is not None and record.harness != BEHAVIORAL_HARNESS:
+        raise HarnessCapabilityError(
+            f"{record.harness} carries behavioral effort data, which only {BEHAVIORAL_HARNESS} may"
+        )
 
 
 def validate_record(record: HarnessCapabilityRecord) -> None:
@@ -522,9 +595,11 @@ def validate_record(record: HarnessCapabilityRecord) -> None:
     if not record.harness:
         raise HarnessCapabilityError("record harness must be non-empty")
     has_identity = bool(record.version) and record.version_evidence is EvidenceKind.BACKEND
+    _validate_behavioral(record)
     for key, capability in record.capabilities.items():
         verified = capability.status is CapabilityStatus.VERIFIED
-        if verified and capability.evidence is not EvidenceKind.BACKEND:
+        behavioral = capability.evidence is EvidenceKind.BEHAVIORAL
+        if verified and capability.evidence is not EvidenceKind.BACKEND and not behavioral:
             raise HarnessCapabilityError(
                 f"{record.harness}.{key} is VERIFIED without backend evidence"
             )
@@ -632,6 +707,13 @@ def _capability_dict(capability: Capability) -> dict[str, object]:
     return result
 
 
+def _behavioral(raw: Mapping[str, object], field: str) -> BehavioralEffort | None:
+    try:
+        return parse_behavioral_effort(raw.get("effort_behavioral"), f"{field}.effort_behavioral")
+    except BehavioralEffortError as exc:
+        raise HarnessCapabilityError(str(exc)) from exc
+
+
 def _bool_field(raw: Mapping[str, object], key: str, field: str) -> bool:
     value = raw.get(key, False)
     if not isinstance(value, bool):
@@ -661,6 +743,8 @@ def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
         result["dropped"] = True
     if record.standalone:
         result["standalone"] = True
+    if record.effort_behavioral is not None:
+        result["effort_behavioral"] = behavioral_effort_dict(record.effort_behavioral)
     return result
 
 

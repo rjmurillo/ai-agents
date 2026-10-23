@@ -41,22 +41,23 @@ def test_the_checked_in_matrix_classifies_claude_alone_and_leaves_codex_unchange
 
     assert {row["codex"] for row in table.values()} == {"ELIGIBLE_UNMATCHED"}
     assert {arm: table[arm]["claude"] for arm in "ABCDEF"} == {
-        "A": "UNVERIFIED",
+        "A": "ELIGIBLE_UNMATCHED",
         "B": "ELIGIBLE_UNMATCHED",
         "C": "UNVERIFIED",
         "D": "UNVERIFIED",
-        "E": "UNVERIFIED",
+        "E": "ELIGIBLE_UNMATCHED",
         "F": "ELIGIBLE_UNMATCHED",
     }
 
 
-def test_the_arms_claude_misses_are_exactly_the_arms_that_need_a_verified_effort() -> None:
+def test_the_arms_claude_misses_are_exactly_the_arms_that_need_an_unverified_model() -> None:
     record = next(r for r in capability.load_matrix(MATRIX) if r.harness == "claude")
-    needs_effort = {a.arm_id for a in capability.ARMS if "effort_override" in a.required}
     table = _eligibility([record])
 
     assert record.capabilities["effort_override"].status is capability.CapabilityStatus.UNVERIFIED
-    assert {arm for arm, row in table.items() if row["claude"] == "UNVERIFIED"} == needs_effort
+    # C needs claude-haiku-5-5 and D needs claude-sonnet-5-5, whose thinking tokens are not
+    # strictly increasing. A, E need only claude-opus-5-5. B and F need no effort control.
+    assert {arm for arm, row in table.items() if row["claude"] == "UNVERIFIED"} == {"C", "D"}
 
 
 def test_the_standalone_flag_round_trips_into_the_report() -> None:

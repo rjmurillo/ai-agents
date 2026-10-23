@@ -252,13 +252,39 @@ def test_no_stream_names_a_reasoning_effort() -> None:
     assert names == {"per_turn_effort_active"}
 
 
-def test_effort_override_is_unverified_and_not_backend_evidence() -> None:
+def test_effort_override_cell_is_unverified_and_labeled_behavioral() -> None:
     cell = _claude_record().capabilities["effort_override"]
 
-    assert cell.status is CapabilityStatus.UNVERIFIED and cell.evidence is EvidenceKind.CLIENT_ECHO
+    assert cell.status is CapabilityStatus.UNVERIFIED and cell.evidence is EvidenceKind.BEHAVIORAL
     assert capability.classify_override("low", None, EvidenceKind.BACKEND) is (
         CapabilityStatus.UNVERIFIED
     )
+
+
+def _thinking(name: str) -> int:
+    return _last_result(name)["usage"]["output_tokens_details"]["thinking_tokens"]
+
+
+@pytest.mark.parametrize("model", ["opus", "sonnet", "haiku"])
+def test_the_matrix_counts_are_the_thinking_tokens_in_the_fixtures(model: str) -> None:
+    recorded = _claude_record().effort_behavioral.thinking_tokens[f"claude-{model}-5-5"]
+
+    assert recorded == {
+        level: _thinking(f"effort-{model}-{level}") for level in ("low", "medium", "high")
+    }
+
+
+def test_the_nine_measured_counts_give_opus_verified_and_sonnet_and_haiku_not() -> None:
+    record = _claude_record()
+    evidence = record.effort_behavioral
+
+    def verdict(model: str) -> Any:
+        return capability.classify_behavioral_effort(evidence, record.version, [model])
+
+    assert verdict("claude-opus-5-5") is CapabilityStatus.VERIFIED
+    assert verdict("claude-sonnet-5-5") is CapabilityStatus.UNVERIFIED
+    assert verdict("claude-haiku-5-5") is CapabilityStatus.UNVERIFIED
+    assert evidence.cli_version == record.version
 
 
 def test_a_lower_effort_used_fewer_thinking_tokens_but_that_is_not_the_served_value() -> None:

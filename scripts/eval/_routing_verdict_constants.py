@@ -25,6 +25,9 @@ SCORABLE_HARNESSES = (CODEX, CLAUDE)
 DECISION_RULE = "predictions-v1 amendment 2"
 DECISION_RULE_CLAUDE = "predictions-v1 amendment 3"
 DECISION_RULE_BY_HARNESS = {CODEX: DECISION_RULE, CLAUDE: DECISION_RULE_CLAUDE}
+#: How each harness's requested effort is evidenced. Claude names no effort, so its effort
+#: rests on behavioral evidence (Amendment 4). Every report states it.
+EFFORT_EVIDENCE = {CODEX: "backend", CLAUDE: "behavioral"}
 #: The model each role names on each harness. The hypothesis and decision names (Sol, Luna,
 #: Terra) are read with these models: a mapping of roles, never of capability.
 ROLE_MODELS = {

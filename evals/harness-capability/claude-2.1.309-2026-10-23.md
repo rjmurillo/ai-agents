@@ -10,7 +10,7 @@ An update can happen again. The runner sets `DISABLE_AUTOUPDATER=1`, and every r
 
 ## Runs
 
-23 top-level `claude -p` invocations, of a budget of 25. Retries and discarded runs count. No run returned a usage-limit or auth error. Children count inside their parent.
+23 top-level `claude -p` invocations for the capability cells, of a budget of 25, plus 9 for the behavioral effort rule, of a budget of 12. Retries and discarded runs count. No run returned a usage-limit or auth error. Children count inside their parent.
 
 | Fixture (`tests/eval/fixtures/harness_capability/claude-2.1.309/`) | Cells it supports |
 |---|---|
@@ -20,7 +20,8 @@ An update can happen again. The runner sets `DISABLE_AUTOUPDATER=1`, and every r
 | `plan-writer`, `fresh-reader` | fresh_session, single_agent, durable_artifact_handoff |
 | `concurrency-cap3`, `concurrency-uncapped` | concurrency_limit VERIFIED at 3, 1 spawn refused; uncapped, 0 refused |
 | `compaction`, `compaction-single-prompt` | context_reset_observability VERIFIED, 4 compactions; one oversized prompt cannot compact |
-| `effort-low`, `effort-max`, `effort-ultra-ignored` | effort_override stays UNVERIFIED; sol_ultra UNSUPPORTED |
+| `effort-<model>-<level>` (9 fixtures) | effort_override behavioral counts |
+| `effort-low`, `effort-max`, `effort-ultra-ignored` | an earlier effort pair; sol_ultra UNSUPPORTED |
 | `restricted-writes`, `acceptedits-outside-write`, `sandbox-unavailable` | permission mode choice (see below) |
 | `ambient-audit` | ambient context audit |
 | `invalid-model`, `usage-limit.synthetic` | failure shape, parser tests |
@@ -32,7 +33,7 @@ An update can happen again. The runner sets `DISABLE_AUTOUPDATER=1`, and every r
 | Cell | Status | Evidence |
 |---|---|---|
 | model_override | VERIFIED | Assistant messages name the requested id for opus, sonnet, and haiku. A haiku child under an opus parent names haiku. |
-| effort_override | UNVERIFIED | The stream names no effort. See "How effort is observed". |
+| effort_override | UNVERIFIED, behavioral | The stream names no effort. Behavioral rule: opus verified, sonnet and haiku not. See "How effort is observed". |
 | subagent_support | VERIFIED | `Agent` call, forwarded child messages, `subagent_stats` spawned 1, completed 1. |
 | concurrency_limit | VERIFIED, value 3 | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3`: the fifth of five spawns was refused. Uncapped: none refused. |
 | parent_child_override | VERIFIED | Parent opus, child haiku, `modelUsage` lists both. |
@@ -47,11 +48,25 @@ Two cells need a caveat. subagent_support, parent_child_override, reviewer_isola
 
 ## How effort is observed
 
-It is not. The stream carries no effort field. `system/init` has `per_turn_effort_active` (true for a valid model, false for the unknown model in `invalid-model`), and a debug log of a run with `--debug-file` named none. The `result` event, `usage`, and `modelUsage` carry no effort either.
+It is not named. The stream carries no effort field. `system/init` has `per_turn_effort_active` (true for a valid model, false for the unknown model in `invalid-model`), and a debug log of a run with `--debug-file` named none. The `result` event, `usage`, and `modelUsage` carry no effort either.
 
-One observed effect, one run each, `claude-haiku-5-5`, same arithmetic prompt, 2.1.309: 73 thinking tokens at `--effort low` and 279 at `--effort max`. An earlier pair on 2.1.307 read 77 and 228. The flag reaches the model. A token count does not show which value the backend served, so the cell is UNVERIFIED with `client_echo` evidence, and the runner records the requested effort as `UNVERIFIED`.
+Owner decision D12 (2026-10-23, Amendment 4) accepts behavioral evidence for Claude only. A model's effort control is verified when its thinking tokens strictly increase across `low`, `medium`, and `high`. Each count comes from the same fixed prompt, one `claude -p` call per level, on the pinned CLI. A tie, an inversion, a missing level, or a version mismatch gives UNVERIFIED. This is weaker than Codex, where the backend names the effort. It shows the flag changes behavior, never which value was served. Every Claude row and report labels the evidence `behavioral`.
 
-An unknown value is a trap. `--effort ultra` printed `Warning: Unknown --effort value 'ultra'` to stderr, then ran at the default effort and exited 0 (`effort-ultra-ignored`). The runner refuses any value outside `low`, `medium`, `high`, `xhigh`, `max`, and the parser fails a run whose stderr carries that warning.
+The prompt, the same for all nine calls: "A bag holds 7 red, 5 blue, and 3 green balls. Three balls are drawn without replacement. What is the probability that exactly two of the three share a color? Work it out carefully, then reply with the reduced fraction only. No tools." The CLI read 2.1.309 before and after the nine calls. 9 of the 12 budgeted calls were used, none errored.
+
+| Model | low | medium | high | Verdict |
+|---|---|---|---|---|
+| claude-opus-5-5 | 100 | 106 | 134 | verified (strictly increasing) |
+| claude-sonnet-5-5 | 105 | 103 | 105 | not verified (inversion, then a tie) |
+| claude-haiku-5-5 | 285 | 233 | 337 | not verified (inversion) |
+
+Fixtures: `effort-<model>-<level>` for opus, sonnet, and haiku at low, medium, and high. The counts are `usage.output_tokens_details.thinking_tokens` in each `result` event. No call was repeated to look for a monotonic result.
+
+The effort_override cell stays UNVERIFIED with `behavioral` evidence, because two of three models fail. The arm gate reads the per-model counts, so an arm that needs only `claude-opus-5-5` is eligible.
+
+An earlier pair on `claude-haiku-5-5` read 73 thinking tokens at `--effort low` and 279 at `--effort max` (`effort-low`, `effort-max`). It is not part of the rule.
+
+An unknown value is a trap. `--effort ultra` printed a warning to stderr, then ran at the default effort and exited 0 (`effort-ultra-ignored`). The runner refuses any value outside `low`, `medium`, `high`, `xhigh`, `max`, and the parser fails a run whose stderr carries that warning.
 
 ## Permission mode
 
@@ -81,10 +96,12 @@ Claude is `"standalone": true` in the matrix. It is no peer for Codex and Codex 
 
 | Arm | claude | Why |
 |---|---|---|
-| A, C, D, E | UNVERIFIED | They require a verified `effort_override`. |
-| B, F | ELIGIBLE_UNMATCHED | They do not require it. |
+| A, E | ELIGIBLE_UNMATCHED | They need only `claude-opus-5-5`, whose effort control is verified behaviorally. |
+| B, F | ELIGIBLE_UNMATCHED | They do not require an effort override. |
+| C | UNVERIFIED | Needs `claude-haiku-5-5`, whose thinking tokens are not strictly increasing. |
+| D | UNVERIFIED | Needs `claude-sonnet-5-5`, whose thinking tokens are not strictly increasing. |
 
-A lone Claude harness cannot reach A, C, D, or E until effort is observed.
+H1 needs arm C and H2 needs arm D, so both stay INSUFFICIENT_EVIDENCE on Claude. H3 (A against B) and H4 (E against A) can be scored.
 
 ## Findings outside this change
 
