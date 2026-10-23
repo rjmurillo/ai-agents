@@ -21,8 +21,11 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import ast
+import json
+import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 _SKIP_DIRS = frozenset(
@@ -30,12 +33,34 @@ _SKIP_DIRS = frozenset(
 )
 
 
+# Below this many files the worker start-up cost outweighs the saving, so the
+# scan stays in-process. The repository's own tree is well above it.
+_PARALLEL_MIN_FILES = 128
+_MAX_WORKERS = 8
+_WORKER_TIMEOUT_SECONDS = 600
+
+_WORKER_BOOTSTRAP = (
+    "import sys; sys.path.insert(0, sys.argv[1]); "
+    "import check_nested_tests; raise SystemExit(check_nested_tests._worker_main())"
+)
+
+
 class _NestedTestFinder(ast.NodeVisitor):
-    """Walk an AST and record ``test_*`` functions nested inside functions."""
+    """Walk an AST and record ``test_*`` functions nested inside functions.
+
+    Expression subtrees are skipped: Python grammar allows a ``def`` only as a
+    statement, so no function definition can sit under an ``ast.expr`` node. The
+    skip removes most of the visited nodes without changing any verdict.
+    """
 
     def __init__(self) -> None:
         self.findings: list[tuple[int, str]] = []
         self._func_depth = 0
+
+    def generic_visit(self, node: ast.AST) -> None:
+        for child in ast.iter_child_nodes(node):
+            if not isinstance(child, ast.expr):
+                self.visit(child)
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         if node.name.startswith("test_") and self._func_depth > 0:
@@ -79,27 +104,111 @@ def _walk_test_files(repo_root: Path) -> list[Path]:
     return found
 
 
-def find_nested_tests(repo_root: Path) -> list[tuple[Path, int, str]]:
+def _scan_file(path: Path) -> list[tuple[int, str]] | None:
+    """Return the nested ``test_*`` findings in one file, or None when skipped.
+
+    A file that is not a regular file, cannot be read as UTF-8, or does not
+    parse is skipped, exactly as the gate has always done.
+    """
+    if not path.is_file():
+        return None
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
+    except (OSError, UnicodeError, SyntaxError):
+        return None
+    finder = _NestedTestFinder()
+    finder.visit(tree)
+    return finder.findings
+
+
+def _scan_serial(paths: list[Path]) -> list[list[tuple[int, str]] | None]:
+    return [_scan_file(path) for path in paths]
+
+
+def _worker_count(file_count: int) -> int:
+    try:
+        available = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        available = os.cpu_count() or 1
+    return max(1, min(available, _MAX_WORKERS, file_count))
+
+
+def _scan_chunk_in_worker(paths: list[Path]) -> list[list[tuple[int, str]] | None]:
+    """Scan ``paths`` in a child interpreter; fall back to in-process on any failure.
+
+    The fallback re-runs the unmodified serial scan, so a worker that crashes,
+    times out, or returns malformed output yields the same result and the same
+    exceptions the serial gate would have produced.
+    """
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", _WORKER_BOOTSTRAP, str(Path(__file__).resolve().parent)],
+            input=json.dumps([str(path) for path in paths]),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=_WORKER_TIMEOUT_SECONDS,
+        )
+        if completed.returncode == 0:
+            decoded = json.loads(completed.stdout)
+            if isinstance(decoded, list) and len(decoded) == len(paths):
+                return [
+                    None if entry is None else [(int(line), str(name)) for line, name in entry]
+                    for entry in decoded
+                ]
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        pass
+    return _scan_serial(paths)
+
+
+def _scan_parallel(paths: list[Path], workers: int) -> list[list[tuple[int, str]] | None]:
+    """Scan ``paths`` across ``workers`` child interpreters, keeping input order."""
+    slices = [list(range(index, len(paths), workers)) for index in range(workers)]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        chunk_results = list(
+            pool.map(lambda indices: _scan_chunk_in_worker([paths[i] for i in indices]), slices)
+        )
+    ordered: list[list[tuple[int, str]] | None] = [None] * len(paths)
+    for indices, chunk in zip(slices, chunk_results, strict=True):
+        for index, result in zip(indices, chunk, strict=True):
+            ordered[index] = result
+    return ordered
+
+
+def _worker_main() -> int:
+    """Child entry point: read a JSON path list on stdin, write findings as JSON."""
+    paths = [Path(raw) for raw in json.load(sys.stdin)]
+    json.dump(_scan_serial(paths), sys.stdout)
+    return 0
+
+
+def find_nested_tests(
+    repo_root: Path, *, workers: int | None = None
+) -> list[tuple[Path, int, str]]:
     """Return ``(path, lineno, func_name)`` for every uncollectable test function.
 
     A test function is uncollectable when it is defined inside the body of
     another function. Nested classes (``ClassDef`` enclosing ``test_*``) are
     NOT flagged because pytest collects them.
+
+    Every tracked file is scanned. Large trees are split across child
+    interpreters; the findings and their order match a serial scan. ``workers``
+    overrides the automatic worker count (1 forces the in-process scan).
     """
-    results: list[tuple[Path, int, str]] = []
-    for path in _tracked_test_files(repo_root):
-        if not path.is_file():
-            continue
-        try:
-            source = path.read_text(encoding="utf-8")
-            tree = ast.parse(source, filename=str(path))
-        except (OSError, UnicodeError, SyntaxError):
-            continue
-        finder = _NestedTestFinder()
-        finder.visit(tree)
-        for lineno, name in finder.findings:
-            results.append((path, lineno, name))
-    return results
+    paths = _tracked_test_files(repo_root)
+    if workers is None:
+        count = _worker_count(len(paths)) if len(paths) >= _PARALLEL_MIN_FILES else 1
+    else:
+        count = max(1, min(workers, len(paths)))
+    per_file = _scan_parallel(paths, count) if count > 1 else _scan_serial(paths)
+    return [
+        (path, lineno, name)
+        for path, findings in zip(paths, per_file, strict=True)
+        for lineno, name in (findings or [])
+    ]
 
 
 def validate_no_nested_tests(repo_root: Path) -> bool:

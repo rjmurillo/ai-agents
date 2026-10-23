@@ -18,9 +18,12 @@ green, and the regression guard is silently absent.
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "validation" / "check_nested_tests.py"
@@ -28,6 +31,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
+import check_nested_tests
 from check_nested_tests import (
     _NestedTestFinder,
     _walk_test_files,
@@ -317,3 +321,228 @@ def test_walk_test_files_skips_venv(tmp_path: Path) -> None:
     paths = [p.name for p in found]
     assert "test_real.py" in paths
     assert "test_vendored.py" not in paths
+
+
+# ---------------------------------------------------------------------------
+# Equivalence: the pruned finder and the parallel scan keep the old verdicts
+# (issue #6734)
+# ---------------------------------------------------------------------------
+
+
+class _ReferenceFinder(ast.NodeVisitor):
+    """The pre-#6734 finder, verbatim: visits every node, expressions included."""
+
+    def __init__(self) -> None:
+        self.findings: list[tuple[int, str]] = []
+        self._func_depth = 0
+
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        if node.name.startswith("test_") and self._func_depth > 0:
+            self.findings.append((node.lineno, node.name))
+        self._func_depth += 1
+        self.generic_visit(node)
+        self._func_depth -= 1
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+
+def _findings(finder_type: type, source: str) -> list[tuple[int, str]]:
+    finder = finder_type()
+    finder.visit(ast.parse(source))
+    return finder.findings
+
+
+_SHAPES = {
+    "direct": "def f():\n    def test_a(): pass\n",
+    "async": "async def f():\n    async def test_a(): pass\n",
+    "in-if": (
+        "def f():\n    if x:\n        def test_a(): pass\n    else:\n        def test_b(): pass\n"
+    ),
+    "in-for-else": (
+        "def f():\n    for i in x:\n        pass\n    else:\n        def test_a(): pass\n"
+    ),
+    "in-while": "def f():\n    while x:\n        def test_a(): pass\n",
+    "in-with": "def f():\n    with x:\n        def test_a(): pass\n",
+    "in-try": (
+        "def f():\n    try:\n        def test_a(): pass\n    except E:\n"
+        "        def test_b(): pass\n    else:\n        def test_c(): pass\n"
+        "    finally:\n        def test_d(): pass\n"
+    ),
+    "in-try-star": (
+        "def f():\n    try:\n        pass\n    except* E:\n        def test_a(): pass\n"
+    ),
+    "in-match": (
+        "def f(v):\n    match v:\n        case 1:\n            def test_a(): pass\n"
+        "        case _:\n            def test_b(): pass\n"
+    ),
+    "class-inside-function": ("def f():\n    class C:\n        def test_method(self): pass\n"),
+    "function-in-method": ("class C:\n    def test_ok(self):\n        def test_inner(): pass\n"),
+    "lambda-default-arg": ("def f(g=lambda: 1):\n    def test_a(): pass\n"),
+    "lambda-in-decorator": (
+        "@deco(lambda: 1)\ndef f():\n    @deco(key=lambda: [1])\n    def test_a(): pass\n"
+    ),
+    "comprehension-then-def": (
+        "def f():\n    xs = [lambda: i for i in range(3)]\n    def test_a(): pass\n"
+    ),
+    "type-params": "def f[T: int]():\n    def test_a[U: str](): pass\n",
+    "walrus-and-fstring": (
+        "def f():\n    y = (z := 1)\n    s = f'{y!r:>{z}}'\n    def test_a(): pass\n"
+    ),
+    "clean-class": (
+        "class T:\n    def test_a(self): pass\n    class I:\n        def test_b(self): pass\n"
+    ),
+    "clean-module": "def test_a(): pass\nasync def test_b(): pass\n",
+    "helper-only": "def f():\n    def helper(): pass\n",
+}
+
+
+@pytest.mark.parametrize("shape", sorted(_SHAPES))
+def test_pruned_finder_matches_reference(shape: str) -> None:
+    """Skipping expression subtrees must not change any verdict."""
+    source = _SHAPES[shape]
+    assert _findings(_NestedTestFinder, source) == _findings(_ReferenceFinder, source)
+
+
+@pytest.mark.parametrize(
+    ("shape", "expected_count"),
+    [
+        ("direct", 1),
+        ("in-if", 2),
+        ("in-try", 4),
+        ("in-match", 2),
+        ("lambda-default-arg", 1),
+        ("lambda-in-decorator", 1),
+        ("comprehension-then-def", 1),
+        ("clean-class", 0),
+        ("clean-module", 0),
+        ("helper-only", 0),
+    ],
+)
+def test_pruned_finder_still_flags_nested_tests(shape: str, expected_count: int) -> None:
+    """Pins absolute counts so a pruning bug cannot hide behind a matching reference."""
+    assert len(_findings(_NestedTestFinder, _SHAPES[shape])) == expected_count
+
+
+def test_pruned_finder_matches_reference_on_real_code() -> None:
+    """Every function in real repo code, renamed test_*, gives the same findings.
+
+    Renaming makes each nested function a finding, so this exercises the walk on
+    thousands of real constructs instead of the handful in ``_SHAPES``.
+    """
+    paths = sorted((REPO_ROOT / "scripts" / "validation").glob("*.py"))[:60]
+    assert paths
+    compared = 0
+    for path in paths:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                node.name = "test_" + node.name
+        pruned = _NestedTestFinder()
+        pruned.visit(tree)
+        reference = _ReferenceFinder()
+        reference.visit(tree)
+        assert pruned.findings == reference.findings, path
+        compared += len(reference.findings)
+    assert compared > 0
+
+
+_NESTED = "def helper():\n    def test_nested_{n}(): pass\n"
+_CLEAN = "def test_ok_{n}(): pass\n"
+
+
+def _build_tree(root: Path, count: int, nested_every: int) -> None:
+    """Write ``count`` tracked test files; every ``nested_every``-th one is bad.
+
+    Also writes one file that does not parse and one that is not UTF-8, both of
+    which the gate has always skipped.
+    """
+    tests_dir = root / "tests" / "pkg"
+    tests_dir.mkdir(parents=True)
+    for n in range(count):
+        template = _NESTED if n % nested_every == 0 else _CLEAN
+        (tests_dir / f"test_f{n:04d}.py").write_text(template.format(n=n), encoding="utf-8")
+    (tests_dir / "test_broken.py").write_text("def broken(:\n", encoding="utf-8")
+    (tests_dir / "test_latin1.py").write_bytes(b"# \xe9\ndef f():\n    def test_x(): pass\n")
+    _git_repo(root)
+
+
+def test_parallel_scan_matches_serial_scan(tmp_path: Path) -> None:
+    """Same findings, same order, for 1, 2, 3, and 7 workers.
+
+    Interleaved chunking reorders work, so a missing reassembly step would
+    return findings grouped by worker instead of by file.
+    """
+    _build_tree(tmp_path, count=150, nested_every=7)
+
+    serial = find_nested_tests(tmp_path, workers=1)
+
+    assert len(serial) == 22
+    assert [path.name for path, _, _ in serial] == sorted(path.name for path, _, _ in serial)
+    for workers in (2, 3, 7):
+        assert find_nested_tests(tmp_path, workers=workers) == serial
+
+
+def test_automatic_worker_count_matches_serial_scan(tmp_path: Path) -> None:
+    """Above the file threshold the default path runs in workers and agrees."""
+    _build_tree(tmp_path, count=check_nested_tests._PARALLEL_MIN_FILES + 5, nested_every=11)
+
+    assert find_nested_tests(tmp_path) == find_nested_tests(tmp_path, workers=1)
+
+
+def test_parallel_scan_reports_only_the_one_bad_file(tmp_path: Path) -> None:
+    """One bad file among clean ones is the only finding: chunking invents none."""
+    _build_tree(tmp_path, count=140, nested_every=10**9)
+
+    findings = find_nested_tests(tmp_path, workers=4)
+
+    assert [name for _, _, name in findings] == ["test_nested_0"]  # n=0 is always nested
+
+
+def test_parallel_scan_keeps_line_numbers(tmp_path: Path) -> None:
+    """Line numbers and names survive the JSON round trip through workers."""
+    _build_tree(tmp_path, count=140, nested_every=1)
+
+    findings = find_nested_tests(tmp_path, workers=4)
+
+    assert len(findings) == 140  # test_broken.py and test_latin1.py are skipped
+    first = findings[0]
+    assert first[1:] == (2, "test_nested_0")
+
+
+@pytest.mark.parametrize("failure", ["raises", "nonzero", "garbage", "short"])
+def test_worker_failure_falls_back_to_serial_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    """A dead, wrong, or truncated worker never drops files from the scan."""
+    _build_tree(tmp_path, count=140, nested_every=5)
+    expected = find_nested_tests(tmp_path, workers=1)
+    real_run = subprocess.run
+
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if "-I" not in cmd:
+            return real_run(cmd, *args, **kwargs)
+        if failure == "raises":
+            raise OSError("cannot spawn")
+        stdout = {"nonzero": "[]", "garbage": "not json", "short": "[]"}[failure]
+        returncode = 1 if failure == "nonzero" else 0
+        return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(check_nested_tests.subprocess, "run", fake_run)
+
+    assert find_nested_tests(tmp_path, workers=4) == expected
+
+
+def test_cli_verdict_unchanged_for_large_tree(tmp_path: Path) -> None:
+    """End to end: exit 1 and every offending file named when the tree is large."""
+    _build_tree(tmp_path, count=140, nested_every=20)
+
+    result = _run_cli(tmp_path)
+
+    assert result.returncode == 1
+    assert "test_f0000.py:2  test_nested_0()" in result.stderr
+    assert "test_f0120.py:2  test_nested_120()" in result.stderr
+    assert "test_f0001.py" not in result.stderr
