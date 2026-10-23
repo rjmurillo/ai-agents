@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
@@ -94,8 +95,15 @@ class MarkdownNestingError(ValueError):
     """
 
 
-def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
+def _create_parser(max_nesting: int | None = None, *, parse_inline: bool = True) -> MarkdownIt:
     """Create a configured markdown-it parser with table support.
+
+    ``parse_inline=False`` drops the inline core rule. Block tokens, their
+    ``map`` line ranges, and their ``level`` are produced before that rule runs
+    and do not depend on it; only each ``inline`` token's ``children`` are left
+    empty. A caller that reads block structure alone (the code-block blanking
+    below) skips the span, emphasis, and link tokenizing that took about a third
+    of the parse time (issue #6734).
 
     ``max_nesting`` overrides the CommonMark default only for the bounded
     second parse in :func:`_raise_if_nesting_truncated`. The primary parse keeps
@@ -104,6 +112,8 @@ def _create_parser(max_nesting: int | None = None) -> MarkdownIt:
     the primary parse would reintroduce that denial-of-service vector.
     """
     md = MarkdownIt("commonmark").enable("table")
+    if not parse_inline:
+        md.disable("inline")
     if max_nesting is not None:
         md.options["maxNesting"] = max_nesting
     return md
@@ -212,7 +222,7 @@ def _blank_block_lines(markdown: str, token_types: frozenset[str]) -> str:
     ``maxNesting`` limit raises :class:`MarkdownNestingError` rather than
     being scanned from a silently truncated token stream.
     """
-    md = _create_parser()
+    md = _create_parser(parse_inline=False)
     tokens = md.parse(markdown)
     _raise_if_nesting_truncated(markdown, tokens, md)
     lines = markdown.split("\n")
@@ -299,6 +309,24 @@ def blank_non_prose_block_lines(markdown: str) -> str:
     lines = "".join(characters).split("\n")
     _blank_matching_token_lines(lines, tokens, _NON_PROSE_BLOCK_TOKEN_TYPES)
     return "\n".join(lines)
+
+
+@lru_cache(maxsize=512)
+def blank_non_prose_block_lines_cached(markdown: str) -> str:
+    """Memoized `blank_non_prose_block_lines`: same result, one parse per distinct parseable text.
+
+    `check_adr_lifecycle.py` and `adr_cited_paths.py` blank the same record body
+    up to five times per run (status prose, status section, section structure,
+    cited paths, review-by prose date), and the markdown-it parse dominates the gate's runtime
+    (issue #6734). The input and the result are both immutable ``str`` values and
+    the wrapped function is pure, so a hit returns exactly what a fresh call
+    would. `functools.lru_cache` never stores a raised exception: an unparseable
+    or over-nested body re-parses and re-raises on every call, so the fail-closed
+    contract of `_blank_block_lines` holds. That body keeps its old cost; the
+    saving applies to bodies that parse. The cache is bounded and lives for
+    the process.
+    """
+    return blank_non_prose_block_lines(markdown)
 
 
 def _cell_text(content: str) -> str:

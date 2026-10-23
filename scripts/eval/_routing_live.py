@@ -1,14 +1,21 @@
 """Gated live backend for the routing benchmark (issue #5424).
 
-The live path is wired and stays closed unless two things hold:
+The live path is wired and stays closed unless three things hold:
 
 1. the caller passed the explicit `--live` flag (the CLI decides, not this
-   module), and
-2. every harness in the plan has a credential in the environment.
+   module),
+2. every harness in the plan has a credential in the environment, and
+3. every installed harness CLI reports the version the capability matrix pins.
 
-`require_live_authorization` raises `LiveGateError` on any miss, before a
-backend exists or a process starts. It never falls back to a dry run or to a
-different harness. Credential names come from
+`require_live_authorization` raises `LiveGateError` on a credential miss, before
+a backend exists or a process starts. `require_pinned_versions` raises
+`VersionDriftError` on a version mismatch; `installed_version` raises
+`VersionProbeError` when `<cli> --version` cannot be read. The CLI checks the
+versions before the run and again before every row, because a CLI auto-update
+during a long run would otherwise mislabel every later row. An update that lands
+while a row runs is caught at the next row, so at most that one row carries the
+pin without having run on it. None of these gates falls back to a dry run or to
+a different harness. Credential names come from
 `_runtime_harness.HARNESS_AUTH_ENV`, the same allowlist the runtime isolation
 uses, minus the provider settings that are not secrets.
 
@@ -80,7 +87,7 @@ from _routing_config import HANDOFF_ARTIFACT
 from _routing_grader import GradeResult, grade, materialize
 from _routing_result import SESSION_MARKER_FRESH, FailureKind, InvocationRequest, Observation
 from _routing_scenario import Scenario
-from _runtime_harness import HARNESS_AUTH_ENV, runtime_env
+from _runtime_harness import HARNESS_AUTH_ENV, probe_version, runtime_env
 
 DEFAULT_TIMEOUT_SECONDS = 900.0
 _NON_CREDENTIAL_ENV = frozenset(
@@ -101,11 +108,32 @@ _SANDBOX_LABEL = {
 #: login, and an API key in the environment is removed, never used.
 _STORED_LOGIN_HARNESSES = frozenset({"codex", "claude"})
 
+VERSION_PROBE_TIMEOUT_SECONDS = 15.0
+
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
+VersionProbe = Callable[[str], str]
 
 
 class LiveGateError(RuntimeError):
     """A live run was requested without the credentials it needs."""
+
+
+class VersionGateError(RuntimeError):
+    """A live run may not spend on this harness CLI. `exit_code` follows AGENTS.md."""
+
+    exit_code: int
+
+
+class VersionDriftError(VersionGateError):
+    """The installed harness CLI is not the version the capability matrix pins."""
+
+    exit_code = 2
+
+
+class VersionProbeError(VersionGateError):
+    """The installed harness CLI version could not be read."""
+
+    exit_code = 3
 
 
 class BudgetExhaustedError(RuntimeError):
@@ -151,6 +179,41 @@ def _missing_credential(harness: str, env: Mapping[str, str], real_home: bool) -
     if any(env.get(name, "").strip() for name in names):
         return None
     return f"{harness} (set one of {', '.join(names)})"
+
+
+def installed_version(harness: str, runner: Runner = subprocess.run) -> str:
+    """Read `<harness> --version` through a throwaway isolated profile.
+
+    Raises `VersionProbeError` when the CLI is missing, times out, or reports
+    no version.
+    """
+    with tempfile.TemporaryDirectory(prefix=f"routing-version-{harness}-") as profile:
+        try:
+            version: str = probe_version(
+                harness, harness, Path(profile), runner, VERSION_PROBE_TIMEOUT_SECONDS
+            )
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+            raise VersionProbeError(f"{harness} version probe failed: {exc}") from exc
+    return version
+
+
+def require_pinned_versions(pins: Mapping[str, str], probe: VersionProbe) -> None:
+    """Raise `VersionDriftError` unless each installed CLI equals its matrix pin.
+
+    Result rows stamp the pin as `harness.version` (`_routing_plan._row`), so a
+    run on any other CLI would carry a false label.
+    """
+    drifted = [
+        f"{harness} installed {observed!r}, matrix pins {pinned!r}"
+        for harness, pinned in sorted(pins.items())
+        if (observed := probe(harness)) != pinned
+    ]
+    if drifted:
+        raise VersionDriftError(
+            "harness version drift: "
+            + "; ".join(drifted)
+            + ". Re-probe the capability matrix and re-pin before a live run"
+        )
 
 
 def require_live_authorization(

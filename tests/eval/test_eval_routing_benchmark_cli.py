@@ -16,6 +16,8 @@ from typing import Any
 import pytest
 
 from tests.eval._routing_runner_test_support import (
+    CODEX_VERSION,
+    COPILOT_VERSION,
     CORPUS,
     EVAL_DIR,
     REAL_MATRIX,
@@ -43,6 +45,15 @@ SCRIPT = EVAL_DIR / "eval_routing_benchmark.py"
 def _no_ambient_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in CREDENTIALS:
         monkeypatch.delenv(name, raising=False)
+
+
+PINS = {"codex": CODEX_VERSION, "copilot": COPILOT_VERSION}
+
+
+@pytest.fixture(autouse=True)
+def _installed_matches_pin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stand in for `<cli> --version` so no test starts a real harness CLI."""
+    monkeypatch.setattr(cli, "installed_version", PINS.__getitem__)
 
 
 @pytest.fixture

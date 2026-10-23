@@ -11,6 +11,7 @@ import pytest
 from tests.eval._routing_runner_test_support import backend_mod, cli, result_mod
 from tests.eval.test_eval_routing_benchmark_cli import (  # noqa: F401
     ScriptedLive,
+    _installed_matches_pin,
     _live_args,
     _no_ambient_credentials,
     scripted_live,

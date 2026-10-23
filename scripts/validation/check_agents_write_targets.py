@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, the scanners and the index reader share one Finding schema.
 """Reject stale ``.agents/<sub>`` references and writes below ``.agents/``.
 
 Issue #5420 moved every agent write target from ``.agents/<sub>`` to
@@ -39,6 +40,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agents_install_roots import names_codex_skills_root
+from agents_spelling_prefilter import may_name_agents
+from ordered_process_pool import scan_in_processes, worker_count
 
 # plugins: the hand-maintained Codex marketplace file (ADR-115 Decision 7).
 _KEEP_DIRS = frozenset(
@@ -343,6 +346,8 @@ def scan_python(path: str, text: str) -> list[Finding]:
     way it does for text files.
     """
     tree = ast.parse(text, filename=path)
+    if not may_name_agents(text):
+        return []
     variables = _single_assigned_paths(tree)
     visitor = _PythonAgentsScan(path, variables)
     visitor.visit(tree)
@@ -447,6 +452,17 @@ def _is_scanned(relative: str) -> bool:
     return "/" not in relative and relative.endswith(".md")
 
 
+def _scan_candidates(items: list[tuple[str, str]]) -> list[Finding]:
+    """Scan ``(relative path, text)`` pairs in order and drop the Codex skills root."""
+    scans = [(scan_python if r.endswith(".py") else scan_text)(r, text) for r, text in items]
+    return [
+        f
+        for found in scans
+        for f in found
+        if not (f.reason == _STALE_REASON and names_codex_skills_root(f.path, f.target))
+    ]
+
+
 def check_repository(repo_root: Path) -> tuple[list[Finding], int]:
     candidates = {
         relative: blob
@@ -454,13 +470,8 @@ def check_repository(repo_root: Path) -> tuple[list[Finding], int]:
         if _is_candidate(relative)
     }
     contents = _read_blobs(repo_root, list(candidates.values()))
-    findings: list[Finding] = []
-    for relative, blob in candidates.items():
-        text = contents[blob]
-        scan = scan_python if relative.endswith(".py") else scan_text
-        for f in scan(relative, text):
-            if not (f.reason == _STALE_REASON and names_codex_skills_root(f.path, f.target)):
-                findings.append(f)
+    items = [(relative, contents[blob]) for relative, blob in candidates.items()]
+    findings = scan_in_processes(_scan_candidates, items, worker_count(items))
     return sorted(findings, key=lambda item: (item.path, item.line, item.target)), len(candidates)
 
 

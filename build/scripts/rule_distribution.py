@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 from typing import Protocol
 
-import yaml
+from yaml_text_cache import load_yaml_text
 
 INTERNAL_PATH_PREFIXES = (".agents/", ".project-toolkit/", ".claude/", ".serena/")
 
@@ -44,7 +44,7 @@ def scope_globs(text: str) -> list[str]:
     match = _FRONTMATTER.match(text)
     if match is None:
         return []
-    frontmatter = yaml.safe_load(match.group(1))
+    frontmatter = load_yaml_text(match.group(1))
     if not isinstance(frontmatter, dict):
         return []
     value = frontmatter.get("paths")

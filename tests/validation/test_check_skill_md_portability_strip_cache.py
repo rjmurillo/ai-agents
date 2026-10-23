@@ -88,7 +88,34 @@ class TestParseCount:
         assert len(parse_calls) == 2
 
     def test_cache_is_bounded(self) -> None:
-        assert cmp._strip_code.cache_info().maxsize == 128
+        """Sized to hold the whole corpus, not one file's working set (issue #6734)."""
+        assert cmp._strip_code.cache_info().maxsize == cmp._STRIP_CACHE_SIZE
+        assert cmp._STRIP_CACHE_SIZE >= 1024
+
+    def test_mirrored_files_in_different_roots_share_one_parse(
+        self, parse_calls: list[str], tmp_path: Path
+    ) -> None:
+        """Two roots holding byte-identical text parse once, not once per root.
+
+        With the old 128-entry cache the entry for the first root was evicted by
+        the time the mirror root repeated it, so the second copy parsed again.
+        """
+        text = "Run .agents/tool.py first.\n"
+        for root in (".claude", "src/claude", "src/copilot-cli"):
+            skill = tmp_path / root / "skills" / "a"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(text, encoding="utf-8")
+            for index in range(200):
+                filler = tmp_path / root / "skills" / f"f{index}"
+                filler.mkdir()
+                (filler / "SKILL.md").write_text(f"Filler {index}\n", encoding="utf-8")
+
+        ref_counts, _, _, _ = cmp.scan_all(tmp_path)
+
+        assert ref_counts[".claude/skills/a/SKILL.md"] == 1
+        assert ref_counts["src/claude/skills/a/SKILL.md"] == 1
+        assert ref_counts["src/copilot-cli/skills/a/SKILL.md"] == 1
+        assert parse_calls.count(text) == 1
 
 
 class TestParserFailure:

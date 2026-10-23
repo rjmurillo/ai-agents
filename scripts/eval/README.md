@@ -845,6 +845,32 @@ and the API failed, while 4 says the run never got that far. A caller that
 branches on these should treat 4 as "nothing ran" rather than as a worse 3.
 A dry run skips credential loading entirely and so cannot return 4.
 
+### One scenario, repeated
+
+`--scenario-id S7 --repeats 12` runs one scenario of one file twelve times.
+`--arms` picks the arms and their order. Such a run measures one scenario, so
+it cannot certify the target. It reports `NOT_GATED` (exit 0) when every cell
+was graded, and `NOT_GATED_INCOMPLETE` (exit 3) when a cell errored or the
+judge failed. Each repeat keeps the whole response text in `response`. The
+file must still hold both pools, because that check costs no call: an
+unselected scenario is never sent.
+
+Two harness arms run Claude Code itself, through `_claude_skill_harness.py`
+(issue #6737). `skill-routed` copies the target skill under
+`.claude/skills/<name>/` in a fresh workspace and sends `/<name> <input>`. The
+CLI discovers the skill and expands it, as it does for a user. `harness-baseline`
+sends the bare input to the same argv in an empty workspace. Neither turn is
+wrapped in the text-eval envelope, and `--tools ""` leaves no tool to call.
+Both arms need `EVAL_PROVIDER=claude-cli`, so the judge runs on the same
+transport. `skill-routed` needs a `skill_path` target. Each harness cell
+records `input_tokens_total`, which shows whether the skill body was loaded.
+
+```bash
+EVAL_PROVIDER=claude-cli uv run python scripts/eval/eval-rule-activation.py \
+  --scenarios tests/evals/skill-scenarios/spec.json --scenario-id S7 \
+  --repeats 12 --arms harness-baseline skill-routed --judge-repeats 1 --dry-run
+```
+
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
 `rule_id` names the population every number in that file is published under, and one run refuses two files that claim the same id rather than letting the second overwrite the first. Omitting it is safe but not free: a reference target then defaults to the reference filename, so two references under one skill router stay distinct only as long as their filenames do. When present, `rule_id` and `skill_id` MUST be non-empty strings. The published record is a JSON object keyed by this value, and JSON keys are strings, so a declared `1` and a declared `"1"` are two distinct keys in memory that clear the duplicate check and then collapse to one key on serialization, dropping a measured target from the record without a word. The loader refuses the type before any API call rather than losing the result after all of them.
@@ -1453,16 +1479,22 @@ named. Nothing is normalized away.
 
 `--live` is the only way to spend. It needs a credential in the environment for
 every planned harness, taken from `HARNESS_AUTH_ENV` in `_runtime_harness.py`.
-Without one the run exits 4 before a process starts. The live backend runs one
+Without one the run exits 4 before a process starts. It then reads
+`<cli> --version` for every planned harness and exits 2 unless each equals the
+capability matrix pin, because every result row stamps that pin as its harness
+version. It reads the version again before every row: a CLI that auto-updates
+between rows stops the run, and that row and every later row are written
+`NOT_RUN` with the reason. An update during a row is caught at the next row, so
+at most one row can carry a stale label. The live backend runs one
 harness process per invocation, one at a time, so fan-out workers never overlap.
-Each planned row gets a fresh scratch copy of its scenario. It records observed
-model and effort as unverified, because it does not yet read backend evidence,
-and it hashes the plan file for the arm F handoff. It has not run
-against a real harness; its tests use a fake process runner.
+Each planned row gets a fresh scratch copy of its scenario. Codex invocations
+read the backend's own model and effort from its response frames; Copilot
+observations stay unverified. It hashes the plan file for the arm F handoff.
 
 Exit codes: `0` a plan with at least one planned row, or a live run with no
-harness failure. `1` nothing is plannable. `2` invalid input. `3` a live run hit
-a harness failure. `4` `--live` without credentials.
+harness failure. `1` nothing is plannable. `2` invalid input, or an installed
+harness CLI that differs from its matrix pin. `3` a live run hit a harness
+failure, or a CLI version could not be read. `4` `--live` without credentials.
 
 The deterministic fake, `_routing_backend.ScriptedBackend`, grades with the real
 corpus and detects model and effort mismatch, silent inheritance from the
