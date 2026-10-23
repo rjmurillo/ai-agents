@@ -50,11 +50,11 @@ def _judge(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
 
 
 class _FakeReply:
-    def __init__(self, text: str, invocation: str | None) -> None:
+    def __init__(self, text: str, invocation: str | None, usage: bool = True) -> None:
         self.text = text
         self.model = "claude-sonnet-5"
-        self.input_tokens_total = 9000 if invocation else 5000
-        self.output_tokens = 40
+        self.input_tokens_total: int | None = (9000 if invocation else 5000) if usage else None
+        self.output_tokens: int | None = 40 if usage else None
         self.cli_version = "2.1.307"
         self.tool_calls = ()
         self.invocation = invocation
@@ -400,10 +400,7 @@ class TestReviewFixes:
         self, monkeypatch: pytest.MonkeyPatch, harness_calls: list[dict[str, Any]]
     ) -> None:
         def no_usage(text: str, **kwargs: Any) -> Any:
-            reply = _FakeReply("a", None)
-            reply.output_tokens = None  # type: ignore[assignment]
-            reply.input_tokens_total = None  # type: ignore[assignment]
-            return reply
+            return _FakeReply("a", None, usage=False)
 
         monkeypatch.setattr(HARNESS, "run_harness", no_usage)
         loaded = eval_mod._load_scenarios_file(str(SPEC_SCENARIOS))
