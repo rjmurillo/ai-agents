@@ -62,6 +62,15 @@ SAFE_SEMGREP_OVERRIDES = frozenset(
         "cryptography==50.0.0",
         "mcp==1.30.0",
         "opentelemetry-api==1.45.1",
+        "opentelemetry-exporter-otlp-proto-common==1.45.1",
+        "opentelemetry-exporter-otlp-proto-http==1.45.1",
+        "opentelemetry-instrumentation==0.66b1",
+        "opentelemetry-instrumentation-requests==0.66b1",
+        "opentelemetry-instrumentation-threading==0.66b1",
+        "opentelemetry-proto==1.45.1",
+        "opentelemetry-sdk==1.45.1",
+        "opentelemetry-semantic-conventions==0.66b1",
+        "opentelemetry-util-http==0.66b1",
         "pyjwt[crypto]==2.15.0",
     }
 )
