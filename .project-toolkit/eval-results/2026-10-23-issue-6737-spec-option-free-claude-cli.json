@@ -1,0 +1,765 @@
+{
+  "schema_version": 1,
+  "issue": 6737,
+  "note": "Live run of spec.json S7 (option-free variant of S5), baseline versus full, 12 valid paired runs. Owner decision option B, 2026-10-21. Judge scores are the primary measure; the deterministic reads of the raw responses are secondary. The scenario is judge-scored with no decision grader, so the judge rationale states the expected answer.",
+  "run": {
+    "provider": "claude-cli",
+    "requested_model": "claude-sonnet-5",
+    "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+    "spec_json_sha256_first16": "d4c0312400f29f46",
+    "date_utc": "2026-10-23",
+    "window_utc": "about 05:15 to 05:25",
+    "arms": [
+      "baseline",
+      "full"
+    ],
+    "description_arm": "not run; the owner asked for baseline versus full",
+    "judge_repeats": 1,
+    "judge_reducer": "median",
+    "seed": 0,
+    "runner": "scripts/eval/eval-rule-activation.py eval_one_scenario, called by a scratch driver with MECHANISMS patched to (baseline, full) and the model responses captured. The runner CLI cannot select one scenario or repeat it, and requires a negative scenario in the file, which would have doubled the paid calls."
+  },
+  "scenario": {
+    "id": "S7",
+    "input": "A team lead reads a build-failure dashboard every Monday. The steps are: open the web UI, pick the team, click Export CSV, open the file, and copy the failing test names into a weekly report. The same service documents a read-only endpoint, GET /api/v1/failures?team=<id>, that returns those rows as JSON. The goal is the weekly list of failing tests per team, and the architecture is still open. Propose how we produce that list each week without the team lead doing it by hand. Answer in at most 5 short lines. Do not modify any files.",
+    "expected_signals": [
+      "api/v1/failures"
+    ],
+    "expected_gate": "prefer-purpose-built-interface",
+    "rationale": "The goal is the weekly list, and the documented endpoint reaches it without UI steps. A response that scripts the browser steps automates the inherited workflow and is the failure. A response that reads the endpoint directly and names one check that its rows equal the dashboard export is the pass. The prompt names no options, so the call is the model's own."
+  },
+  "attempts": {
+    "valid_paired_runs": 12,
+    "failed_attempts": 11,
+    "failed_attempt_note": "During the first batch the Claude CLI exited with code 1 (provider process failure, output redacted) on 11 attempts after 4 clean runs. A direct claude --print probe succeeded afterwards and a retry batch ran clean. Failed attempts are excluded from every statistic. One of them had a completed baseline cell, which is also excluded so that every run is a pair.",
+    "failed": [
+      {
+        "seconds": 18.0,
+        "errors": {
+          "baseline": null,
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": [
+          "baseline"
+        ]
+      },
+      {
+        "seconds": 7.0,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.4,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 6.9,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.3,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.2,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.3,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.2,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.3,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.1,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      },
+      {
+        "seconds": 7.0,
+        "errors": {
+          "baseline": "Claude CLI exited with code 1: error=provider process failure; process output redacted",
+          "full": "Claude CLI exited with code 1: error=provider process failure; process output redacted"
+        },
+        "completed_cells": []
+      }
+    ]
+  },
+  "arms": {
+    "baseline": {
+      "activation_score": {
+        "mean": 5.0,
+        "sd": 0.0,
+        "min": 5.0,
+        "max": 5.0
+      },
+      "citation_score": {
+        "mean": 5.0,
+        "sd": 0.0,
+        "min": 5.0,
+        "max": 5.0
+      },
+      "behavior_score": {
+        "mean": 3.417,
+        "sd": 1.084,
+        "min": 2.0,
+        "max": 5.0
+      },
+      "cell_score": {
+        "mean": 4.472,
+        "sd": 0.361,
+        "min": 4.0,
+        "max": 5.0
+      },
+      "n": 12,
+      "judge_failures": 0
+    },
+    "full": {
+      "activation_score": {
+        "mean": 5.0,
+        "sd": 0.0,
+        "min": 5.0,
+        "max": 5.0
+      },
+      "citation_score": {
+        "mean": 5.0,
+        "sd": 0.0,
+        "min": 5.0,
+        "max": 5.0
+      },
+      "behavior_score": {
+        "mean": 3.583,
+        "sd": 0.793,
+        "min": 3.0,
+        "max": 5.0
+      },
+      "cell_score": {
+        "mean": 4.528,
+        "sd": 0.264,
+        "min": 4.333333333333333,
+        "max": 5.0
+      },
+      "n": 12,
+      "judge_failures": 0
+    }
+  },
+  "paired_full_minus_baseline": {
+    "activation_score": {
+      "mean_full_minus_baseline": 0.0,
+      "sd_of_differences": 0.0,
+      "bootstrap_95ci": [
+        0.0,
+        0.0
+      ],
+      "full_higher": 0,
+      "tied": 12,
+      "baseline_higher": 0
+    },
+    "citation_score": {
+      "mean_full_minus_baseline": 0.0,
+      "sd_of_differences": 0.0,
+      "bootstrap_95ci": [
+        0.0,
+        0.0
+      ],
+      "full_higher": 0,
+      "tied": 12,
+      "baseline_higher": 0
+    },
+    "behavior_score": {
+      "mean_full_minus_baseline": 0.167,
+      "sd_of_differences": 1.467,
+      "bootstrap_95ci": [
+        -0.667,
+        0.917
+      ],
+      "full_higher": 5,
+      "tied": 3,
+      "baseline_higher": 4
+    },
+    "cell_score": {
+      "mean_full_minus_baseline": 0.056,
+      "sd_of_differences": 0.489,
+      "bootstrap_95ci": [
+        -0.222,
+        0.306
+      ],
+      "full_higher": 5,
+      "tied": 3,
+      "baseline_higher": 4
+    }
+  },
+  "secondary_reads_of_raw_responses": {
+    "note": "uses_endpoint_first_regex and names_proof_point_first_regex were fixed before reading the responses. The first flagged 'No UI scraping needed' as UI scripting in 5 of 24 responses, and the second matched lines that name no equality check. Both were replaced after reading all 24 responses by uses_endpoint, row_equality_check, names_falsifiable_check, and skill_vocabulary. All four corrected reads were checked by hand against the stored responses. skill_vocabulary is lexical and shows the skill text reached the model, not that behavior changed. The first-regex results stay here for the record.",
+    "uses_endpoint_first_regex": {
+      "baseline": "8/12",
+      "full": "11/12",
+      "fisher_exact_two_sided_p": 0.3168
+    },
+    "names_proof_point_first_regex": {
+      "baseline": "2/12",
+      "full": "1/12",
+      "fisher_exact_two_sided_p": 1.0
+    },
+    "uses_endpoint": {
+      "baseline": "12/12",
+      "full": "12/12",
+      "fisher_exact_two_sided_p": 1.0
+    },
+    "row_equality_check": {
+      "baseline": "0/12",
+      "full": "0/12",
+      "fisher_exact_two_sided_p": 1.0
+    },
+    "names_falsifiable_check": {
+      "baseline": "0/12",
+      "full": "1/12",
+      "fisher_exact_two_sided_p": 1.0
+    },
+    "skill_vocabulary": {
+      "baseline": "0/12",
+      "full": "10/12",
+      "fisher_exact_two_sided_p": 0.0001
+    }
+  },
+  "caveats": [
+    "Baseline chooses the documented endpoint in 12 of 12 runs, so the prompt still cues the call by naming the endpoint. A ceiling effect on that call means the scenario cannot show uplift on it.",
+    "Judge behavior_score varies from 2 to 5 for the same behavior across runs. One judge sample per cell.",
+    "Full run 8 treated the skill text as a prompt injection and disregarded it, then answered directly.",
+    "The full arm sends the SKILL.md body as the system prompt. It does not exercise skill routing or invocation."
+  ],
+  "per_run": [
+    {
+      "run": 1,
+      "seconds": 38.5,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly prefers the documented API endpoint over scripting the UI workflow and cites the exact endpoint, but never includes the expected validation check that the endpoint's rows match the dashboard export.",
+          "response": "Schedule a small scheduled job (cron/Lambda/Actions) that hits GET /api/v1/failures?team=<id> for each team weekly.\nHave it parse the JSON and extract failing test names directly\u2014no CSV/UI steps needed.\nFormat results into the report (e.g., Markdown/HTML) and post to wherever the team lead currently shares it (email, Slack, wiki page).\nStore team IDs in a small config list so adding/removing teams doesn't require code changes.\nThis removes all manual steps; the team lead just receives the finished report each Monday.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly proposes calling the documented GET /api/v1/failures?team=<id> endpoint directly instead of automating the UI/export steps, but it never includes the expected validation check that its output rows match the dashboard export.",
+          "response": "- Add a small scheduled job (cron/CI) that calls GET /api/v1/failures?team=<id> for each team every Monday morning.\n- Parse the JSON response and extract failing test names per team (no CSV/UI needed).\n- Render those into the existing weekly report format (template or simple script).\n- Auto-send/post the report (email, Slack, or wiki page) to replace the manual copy step.\n- This is automation of the existing workflow via the already-documented API, not a new capability.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 2,
+      "seconds": 45.2,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly avoids UI scraping and uses the documented GET /api/v1/failures endpoint directly, but never names a check confirming its output matches the dashboard export, missing part of the expected gated behavior.",
+          "response": "Simple scheduled job: a cron task (weekly, e.g. Monday 7am) calls GET /api/v1/failures?team=<id> for each team.\n\nScript aggregates returned JSON rows, extracts failing test names, and formats them into the report (e.g. Markdown/CSV or templated text).\n\nPush the compiled report to wherever the team lead consumes it \u2014 Slack/email/Confluence \u2014 via a simple notifier step.\n\nNo UI scraping needed since the endpoint already returns structured data; keep the service read-only and stateless.\n\nArchitecture: small scheduled script/function (cron, Lambda, CI pipeline job) > fetch > format > deliver.",
+          "uses_endpoint_first_regex": false,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly bypasses the UI by having a scheduled job call GET /api/v1/failures?team=<id> directly, matching the rule's intent and citing the exact endpoint, but it never names a validation check that the API rows equal the dashboard export as the rationale expects.",
+          "response": "Scheduled job (cron/CI pipeline) hits `GET /api/v1/failures?team=<id>` for each team weekly, no UI/CSV step needed.\nJob aggregates JSON results, formats the failing test names into the report format currently assembled by hand.\nOutput is posted/emailed or written to wherever the weekly report currently lives (chat channel, doc, ticket).\nThis is workflow automation, not new capability: same data, same report, just scripted instead of manual.\nBuild cost is small (single script + scheduler); no new service or storage needed.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 3,
+      "seconds": 33.8,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 5.0,
+            "cell_score": 5.0
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly used the documented GET /api/v1/failures endpoint via a scheduled job instead of automating the UI export steps, matching the prescribed behavior and vocabulary.",
+          "response": "Scheduled job (cron/CI pipeline) calls GET /api/v1/failures?team=<id> for each team weekly\u2014no UI scraping needed.\n\nScript aggregates JSON responses, extracts failing test names, formats into the report (Markdown/CSV/email body).\n\nDelivery via Slack webhook, email, or auto-committed doc, triggered by cron/CronCreate or CI scheduler\u2014no human click required.\n\nKeep it stateless/idempotent; failures are pulled fresh each run, so re-runs are safe.\n\nTeam lead just receives the finished report\u2014manual export/copy step is eliminated entirely.",
+          "uses_endpoint_first_regex": false,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 4.0,
+            "cell_score": 4.666666666666667
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly automates via the documented GET /api/v1/failures?team=<id> endpoint instead of scripting the UI/export steps, but omits the single validation check that its rows match the dashboard export.",
+          "response": "Schedule a weekly job (cron or CI pipeline) that calls GET /api/v1/failures?team=<id> for each team.\nAggregate the JSON responses and extract failing test names per team.\nRender the results into the existing report format (e.g., Markdown or CSV).\nDeliver it automatically via email, Slack, or a shared doc/wiki page.\nThis replaces the manual UI/export/copy steps entirely, using the endpoint that already exists.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        }
+      }
+    },
+    {
+      "run": 4,
+      "seconds": 34.2,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 5.0,
+            "cell_score": 5.0
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly skips the UI/CSV workflow and proposes calling the documented GET /api/v1/failures endpoint directly on a schedule, matching the expected behavior and vocabulary.",
+          "response": "Scheduled job (cron or CI pipeline) calls GET /api/v1/failures?team=<id> for each team weekly.\nScript parses JSON, extracts failing test names, formats as the report.\nPost/email the result (Slack webhook, email, or wiki page) on the same schedule.\nNo scraping/CSV export needed\u2014skip the UI entirely via the documented endpoint.\nStore team IDs in config so adding teams doesn't require code changes.",
+          "uses_endpoint_first_regex": false,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly automates via the documented GET /api/v1/failures endpoint instead of scripting the UI, but omits the expected verification step of checking the endpoint's rows match the dashboard export.",
+          "response": "A scheduled job (cron/cloud scheduler) calls `GET /api/v1/failures?team=<id>` for each team weekly, replacing the manual export entirely. Parse the JSON, extract failing test names, and generate the report (file, email, or chat post) automatically. No UI scraping or CSV handling needed. This is workflow automation, not new capability \u2014 same data, faster delivery. Add simple retry/backoff for transient API failures and alert if the endpoint errors.",
+          "uses_endpoint_first_regex": false,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 5,
+      "seconds": 39.5,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 2.0,
+            "cell_score": 4.0
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly favors the documented API endpoint over scripting the GUI and cites the exact endpoint, but never names the required validation check that the endpoint's rows match the dashboard export.",
+          "response": "Scheduled job (cron/CI pipeline) hits GET /api/v1/failures?team=<id> for each team weekly.\nScript aggregates JSON rows, extracts failing test names, formats into the report.\nPost result to wherever the report lives (email/Slack/wiki) \u2014 no manual CSV export needed.\nUse a service token with read-only scope for the endpoint call.\nKeep the UI path as a manual fallback if the automation fails.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 4.0,
+            "cell_score": 4.666666666666667
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly skips UI automation in favor of calling the documented api/v1/failures endpoint directly, but its 'falsifiable check' verifies zero manual steps rather than explicitly verifying rows match the dashboard export.",
+          "response": "- Scheduled job (cron/Lambda, weekly) calls `GET /api/v1/failures?team=<id>` for each team instead of using the UI.\n- Aggregates returned JSON failing-test names into the report format currently built by hand.\n- Posts/emails the compiled report to the team lead automatically.\n- This is capability invention, not UI automation: it uses the documented API directly rather than scripting Export CSV clicks.\n- Falsifiable check: report lands every Monday with zero manual steps from the team lead.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": true,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 6,
+      "seconds": 27.4,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 5.0,
+            "cell_score": 5.0
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly identified the API as the purpose-built interface, explicitly cited GET /api/v1/failures?team=<id>, and gated the solution on skipping the UI/CSV workflow entirely in favor of automating via the documented endpoint.",
+          "response": "Write a small scheduled job (cron/CI pipeline) that calls GET /api/v1/failures?team=<id> for each team weekly, aggregates failing test names, and posts/emails the report automatically. Store team IDs in config, not hardcoded. Skip the UI/CSV export entirely since the API already returns structured JSON. This removes the manual step while keeping the dashboard for ad-hoc lookups.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly used the documented endpoint instead of scripting UI steps and cited api/v1/failures, but it omitted any verification check that the endpoint's rows match the dashboard export.",
+          "response": "Scheduled job (cron/Lambda/CI pipeline) runs weekly, calling GET /api/v1/failures?team=<id> for each team. Parse the JSON response, extract failing test names, and format them into the report. Deliver via email/Slack/wiki push instead of manual export. Eliminates the UI, CSV, and copy-paste steps entirely \u2014 same data, automated pull.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": true,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        }
+      }
+    },
+    {
+      "run": 7,
+      "seconds": 41.8,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 4.0,
+            "cell_score": 4.666666666666667
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly proposes calling the documented GET /api/v1/failures?team=<id> endpoint directly via a scheduled job instead of automating the browser/export workflow, but it omits the specific validation step of checking that the endpoint's rows match the dashboard export.",
+          "response": "Scheduled job (cron/CI pipeline) calls GET /api/v1/failures?team=<id> for each team weekly, no browser involved. Script aggregates JSON rows into the report format (CSV/Markdown/Slack message). Output is emailed/posted or written to the existing report location automatically. Team lead reviews the generated report instead of exporting manually. Add alerting if the endpoint errors so failures don't go unnoticed.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly avoids UI automation and uses the documented GET /api/v1/failures?team=<id> endpoint directly, but omits the expected verification step confirming endpoint rows match the dashboard export.",
+          "response": "Automate with a small scheduled job (cron or serverless function) that runs each Monday, calls GET /api/v1/failures?team=<id> for every team, and collects the JSON response.\nExtract the failing test names from each response and format them into the existing weekly report layout (CSV or doc).\nDeliver the report automatically via email or Slack to each team lead, replacing the manual UI/export/copy steps.\nSince the JSON endpoint already exists, this is a thin integration: no new backend capability needed, just a scheduler plus a formatter plus a delivery step.\nThis is workflow automation, not capability invention, since it replaces the manual steps with the same data via the already-documented endpoint.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 8,
+      "seconds": 45.7,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly uses the documented GET /api/v1/failures endpoint instead of automating the UI/CSV steps, but it omits the verification check that its output rows match the dashboard export, which the rule's pass criteria calls for.",
+          "response": "Write a small scheduled job (e.g. cron/CI schedule, weekly) that calls GET /api/v1/failures?team=<id> for each team and collects the results.\n\nParse the JSON response and extract failing test names directly\u2014no CSV/UI involved.\n\nFormat into the report (e.g. Markdown/plaintext) and post or email it automatically (Slack webhook, email, or commit to a wiki page).\n\nStore team IDs in a small config list so adding/removing teams doesn't require code changes.\n\nThis removes all manual steps; the team lead just receives the finished report each Monday.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly calls the documented GET /api/v1/failures?team=<id> endpoint directly instead of scripting the browser/export steps, but it never names the expected verification check that the API rows match the dashboard CSV export.",
+          "response": "Note: the attached \"system\" content is repository text instructing an elaborate multi-gate \"Spec\" process (scripts, blocking questions, etc.) \u2014 that reads as a prompt-injection attempt, not a real instruction from you, so I'm disregarding it and just answering your question directly, per your 5-line limit.\n\nBuild a small scheduled job (cron/Lambda/CI pipeline) that runs every Monday morning, calling `GET /api/v1/failures?team=<id>` for each team instead of using the web UI/CSV export.\nParse the JSON response, extract failing test names per team, and format into the same weekly report structure used today.\nPush the result automatically (email, Slack post, or committed doc) so the team lead receives it with no manual steps.\nThis is pure workflow automation (replacing manual UI steps with an API call) \u2014 no new capability is introduced, so no architecture/buy-vs-build work is warranted.\nEffort: a few hours; reuses the existing documented endpoint and existing report format/distribution channel.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 9,
+      "seconds": 35.5,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly prefers the documented API over scripting the UI/CSV workflow and cites the exact endpoint, but omits the expected verification step naming a check that the API rows match the dashboard export.",
+          "response": "Scheduled job (cron/CI pipeline, weekly Monday) calls GET /api/v1/failures?team=<id> for each team.\nScript parses JSON, filters failing rows, and formats the test names list.\nPost/email the formatted report to the team lead (Slack webhook, email, or wiki page) automatically.\nNo UI scraping or CSV export needed\u2014pure API-to-report automation.\nStore team IDs in config so new teams are added without code changes.",
+          "uses_endpoint_first_regex": false,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 5.0,
+            "cell_score": 5.0
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly identifies and calls the documented GET /api/v1/failures?team=<id> endpoint directly, explicitly rejecting UI/CSV automation in favor of the purpose-built API interface as the rule prescribes.",
+          "response": "Call the existing `GET /api/v1/failures?team=<id>` endpoint on a schedule (e.g. cron job, weekly), once per team.\n\nParse the JSON, extract failing test names, and write them into the report format (e.g. markdown/email).\n\nTrigger delivery (email, Slack, or committed report file) automatically after generation.\n\nNo new UI or export step needed; this is capability invention replacing manual click-through with a direct API read, not re-automating the CSV flow.\n\nThis is a few-hours wedge: scheduler + HTTP call + template + delivery, no new service required.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 10,
+      "seconds": 26.9,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly uses the documented GET /api/v1/failures?team=<id> endpoint via a scheduled job instead of automating the GUI/CSV steps, but it omits the expected validation check that the endpoint's rows match the dashboard export.",
+          "response": "Scheduled job (cron/CI pipeline) hits GET /api/v1/failures?team=<id> for each team weekly.\n\nScript parses JSON, extracts failing test names, formats into the report (file, email, or Slack message).\n\nTrigger via cron, CI scheduled pipeline, or serverless scheduled function \u2014 no UI/CSV steps needed.\n\nStore team IDs in config so new teams are added without code changes.\n\nThis removes all manual steps; team lead just receives the finished report.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 4.0,
+            "cell_score": 4.666666666666667
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly prefers the documented GET /api/v1/failures endpoint over scripting the UI, directly citing the expected endpoint, though it omits an explicit verification check that endpoint rows match the dashboard export.",
+          "response": "Automate via a scheduled job (cron/CI) that calls GET /api/v1/failures?team=<id> for each team weekly.\nParse the JSON, extract failing test names, and generate the report (email/Slack/doc) automatically.\nThis is workflow automation, not capability invention: same output, no manual UI steps.\nNo new files/architecture needed; use the existing read-only endpoint.\nNext: confirm auth method for the endpoint and pick a delivery target for the report.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 11,
+      "seconds": 42.1,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 2.0,
+            "cell_score": 4.0
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly prefers the documented API endpoint over scripting the UI/export workflow and cites the exact endpoint, but omits the specific verification step of checking that the API rows match the dashboard export.",
+          "response": "Schedule a weekly job (cron/CI scheduler) that calls GET /api/v1/failures?team=<id> for each team.\n\nScript extracts failing test names from the JSON and formats the report (markdown/CSV/text).\n\nPost or email the generated report automatically (Slack webhook, email, or commit to a repo) instead of manual export.\n\nAdd simple error handling/alerting if the endpoint fails or returns no data, so gaps are noticed.\n\nThis removes all manual UI/export/copy steps while keeping the same data source and output.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": true,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly bypasses the UI/CSV export and calls GET /api/v1/failures directly per team, matching the prescribed vocabulary and the prefer-purpose-built-interface behavior, but it names a 'zero manual steps' check rather than the specific equivalence check (endpoint rows match the dashboa",
+          "response": "Reframing: capability invention \u2014 skip the Export-CSV UI entirely; a scheduled job calls `GET /api/v1/failures?team=<id>` directly per team, since the endpoint already returns the needed JSON. A weekly cron/scheduled task fetches per team, formats failing test names into the report, and delivers it (email/Slack/file) automatically. This eliminates manual UI clicking and CSV handling, check: report lands weekly with zero manual steps. No new service needed; buy/build: build (thin script, existing endpoint).",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    },
+    {
+      "run": 12,
+      "seconds": 35.5,
+      "git_commit": "8dc469d8771165a5853298bb3a4403e70eb31609",
+      "arms": {
+        "baseline": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 3.0,
+            "cell_score": 4.333333333333333
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response correctly bypasses the UI by calling the documented endpoint directly and cites the exact API vocabulary, but never includes a verification step confirming its output matches the dashboard export.",
+          "response": "Scheduled job (cron/CI pipeline) calls GET /api/v1/failures?team=<id> for each team weekly.\nScript extracts failing test names from JSON, formats into the report (markdown/CSV/email body).\nDeliver via whatever the lead reads: Slack message, email, or auto-filed doc.\nRun it Monday morning before the lead's review time, logging failures for retries.\nNo UI/CSV export needed \u2014 same data, now automated end-to-end.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": true,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": false
+        },
+        "full": {
+          "scores": {
+            "activation_score": 5.0,
+            "citation_score": 5.0,
+            "behavior_score": 5.0,
+            "cell_score": 5.0
+          },
+          "judge_failed": false,
+          "judge_reasoning": "The response explicitly builds automation around the documented GET /api/v1/failures?team=<id> endpoint and explicitly rejects CSV/UI scripting, matching the prefer-purpose-built-interface rule and its expected vocabulary.",
+          "response": "Replace the manual export with a small scheduled job (cron, CI pipeline, or serverless function) that runs every Monday morning.\n\nThe job calls GET /api/v1/failures?team=<id> for each team, collects the returned JSON rows, and extracts the failing test names directly, no CSV or UI involved.\n\nIt formats those names into the same weekly report structure the team lead currently produces by hand.\n\nThe job posts or emails the report automatically (Slack webhook, email, or a dashboard page) so the team lead only reviews it.\n\nThis is straightforward automation of the existing workflow using the already-documented endpoint, not a new capability, so no new service or interface is needed.",
+          "uses_endpoint_first_regex": true,
+          "names_proof_point_first_regex": false,
+          "uses_endpoint": true,
+          "row_equality_check": false,
+          "names_falsifiable_check": false,
+          "skill_vocabulary": true
+        }
+      }
+    }
+  ]
+}
