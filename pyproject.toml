@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==1.13.0",
+    "anthropic==2.0.0",
     "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
@@ -23,7 +23,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.180.0",
+    "semgrep==1.181.0",
     "lefthook==2.2.2",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
@@ -43,6 +43,9 @@ eval = [
 # work with the fixed releases and reviewed exact overrides below.
 exclude-newer = "7 days"
 override-dependencies = [
+    # certifi skips the cooldown below for PYSEC-2026-4320, so pin it exactly.
+    # A later `uv lock` must not take an unreviewed CA bundle release.
+    "certifi==2026.10.19",
     "click==8.3.3",
     "cryptography==50.0.0",
     "mcp==1.30.0",
@@ -331,7 +334,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.180.0",
+    "semgrep==1.181.0",
     "lefthook==2.2.2",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
