@@ -227,8 +227,8 @@ class TestOptionFreeVariant:
         assert s7["expected_signals"] == ["api/v1/failures"]
 
     def test_prompt_names_no_option_and_no_output_contract(self) -> None:
-        text = self._by_id("S7")["input"]
-        for token in ("AUTOMATE_UI", "INTERFACE", "DECISION", "EVIDENCE", "Choose"):
+        text = self._by_id("S7")["input"].lower()
+        for token in ("automate_ui", "interface", "decision", "evidence", "choose"):
             assert token not in text, f"S7 prompt cues the answer with {token!r}"
 
     def test_prompt_keeps_the_s5_fixture_so_only_the_framing_differs(self) -> None:
@@ -249,9 +249,24 @@ class TestOptionFreeVariant:
             assert banned not in signals.split()
 
     def test_rationale_does_not_depend_on_decision_tokens(self) -> None:
-        rationale = self._by_id("S7")["rationale"]
-        assert "AUTOMATE_UI" not in rationale
-        assert "INTERFACE" not in rationale
+        rationale = self._by_id("S7")["rationale"].lower()
+        assert "automate_ui" not in rationale
+        assert "interface" not in rationale.replace("purpose-built interface", "")
+
+    def test_rationale_scores_the_endpoint_as_pass_and_browser_scripting_as_failure(
+        self,
+    ) -> None:
+        """The judge reads the rationale as its rubric, so its direction is the grade."""
+        rationale = " ".join(self._by_id("S7")["rationale"].split())
+        sentences = [s for s in rationale.split(". ") if s]
+        failing = [s for s in sentences if "is the failure" in s]
+        passing = [s for s in sentences if "is the pass" in s]
+        assert len(failing) == 1
+        assert len(passing) == 1
+        assert "scripts the browser" in failing[0]
+        assert "reads the endpoint directly" not in failing[0]
+        assert "reads the endpoint directly" in passing[0]
+        assert "scripts the browser" not in passing[0]
 
     def test_scenario_ids_stay_unique(self) -> None:
         ids = [s["id"] for s in DATA["scenarios"]]
@@ -264,7 +279,7 @@ class TestOptionFreeVariant:
         assert any(gates)
         assert not all(gates)
 
-    def test_loader_refuses_a_variant_with_a_near_miss_gate(self, tmp_path: Path) -> None:
+    def test_loader_refuses_a_variant_with_an_empty_gate(self, tmp_path: Path) -> None:
         broken = json.loads(json.dumps(DATA))
         next(s for s in broken["scenarios"] if s["id"] == "S7")["expected_gate"] = ""
         target = tmp_path / "spec.json"
