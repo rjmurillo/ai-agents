@@ -49,7 +49,10 @@ def _unstaged_diff(repo: HookRepo) -> str:
 def test_partial_staging_commits_the_staged_fix_and_keeps_the_unstaged_edit(
     hook_repo: HookRepo,
 ) -> None:
-    """python-autofix rewrites the staged copy only (lefthook stage_fixed)."""
+    """python-autofix fixes the staged hunk and stage_fixed re-stages it.
+
+    The unstaged line survives on top of the fixed file.
+    """
     hook_repo.write("src/app.py", "VALUE = 1\n")
     hook_repo.commit_all("feat: add app")
     hook_repo.write("src/app.py", "import os\nVALUE = 1\n")
