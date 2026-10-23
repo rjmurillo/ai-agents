@@ -21,7 +21,7 @@ All 20 rows are repetition 1. No row reached repetition 2 or 3. Row statuses: AC
 | RB-05 | no row | HARNESS_FAILED | no row | no row | no row | HARNESS_FAILED |
 | RB-06 | no row | no row | no row | no row | no row | no row |
 
-A harness failure is not a task failure. It is excluded from every rate, as the predictions require. Per the predictions, a cell with more than 20 percent harness failures is `INSUFFICIENT_EVIDENCE`.
+A harness failure is not a task failure. As the predictions require, harness-failed rows are excluded from the acceptance rate, the mean residual defects, and the economics per accepted task. The scorer counts them in `harness_failure_share`, which divides harness-failed rows by all attempted rows. Per the predictions, a cell with more than 20 percent harness failures is `INSUFFICIENT_EVIDENCE`.
 
 Completed work: 15 successful invocations, 439,848 uncached input tokens plus 38,037 output tokens, 788 seconds of wall time on those invocations. Of 31 recorded invocations, 16 failed with `exit code 1`. The backend confirmed the requested model and effort on 18 invocations (`HONORED`). The rest returned nothing and read `UNVERIFIED`.
 

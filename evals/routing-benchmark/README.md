@@ -36,7 +36,7 @@ Codex has produced four attempts at the routing benchmark: 2026-10-03, 2026-10-2
 
 The Codex decision is `INSUFFICIENT_EVIDENCE` for H1, H2, H3, and H4. Each attempt was scored alone with `scripts/eval/eval_routing_verdicts.py`. The three new attempts are in `results-2026-10-20-partial/`, `results-2026-10-21-partial/`, and `results-2026-10-23-partial/`. Each has a README and a `verdicts.json`. They ran `codex-cli 0.163.0` with `predictions-v1` plus Amendments 1 and 2. The first attempt, `results-2026-10-03/`, ran `codex-cli 0.160.0` under the old prompt. No attempt is pooled with another.
 
-Counts as of 2026-10-23, rows by status per attempt (every row is repetition 1):
+Counts as of 2026-10-23 for the three new partial attempts only (every row is repetition 1). The 2026-10-03 attempt is reported in `results-2026-10-03/`. A row is one scenario and arm, and it holds several runner invocations: the orchestrator plan, each worker, and the integration step. `Successful invocations` counts invocations with no `failure` record, across all rows of the attempt. The status columns count rows.
 
 | Attempt | Successful invocations | ACCEPTED | TASK_FAILED | HARNESS_FAILED | Rows |
 |---|---|---|---|---|---|
