@@ -181,6 +181,10 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+    except KeyboardInterrupt:
+        # A second interrupt during the grace period must not leave the child running.
+        process.kill()
+        raise
 
 
 def run_hook_with_report(command: Sequence[str], arguments: Sequence[str]) -> int:

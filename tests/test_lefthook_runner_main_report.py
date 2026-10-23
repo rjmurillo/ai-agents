@@ -1,16 +1,15 @@
 """`lefthook_runner.main` closes a failed hook with the report (issue #6734, item 5).
 
 A fake Lefthook child process stands in for the binary, so each test pins what the
-runner does with its output: forward the job text, drop the job lines, add the
-report to stderr, replay pre-push stdin, and clean up on an interrupt.
+runner does with its output and how it ends the child.
 
 Coverage:
 
 - positive: job output reaches stdout and the report reaches stderr.
 - negative: a passing hook prints nothing extra; a caller-set LEFTHOOK_OUTPUT and a
   non-hook command keep Lefthook's own behavior.
-- edge: pre-push stdin is replayed, a missing or interactive stdin is not, a child
-  that cannot start gets the runner diagnosis, and an interrupt ends the child.
+- edge: pre-push stdin is replayed, a start failure gets the runner diagnosis, and
+  an interrupt ends the child without a hang.
 """
 
 from __future__ import annotations
@@ -63,7 +62,7 @@ class _FakeProcess:
 
 
 def _completed(returncode: int, stdout: str) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout.encode())
+    return subprocess.CompletedProcess([], returncode, stdout=stdout.encode())
 
 
 def test_main_prints_job_output_then_the_report(
@@ -208,12 +207,17 @@ class _Failing(io.BytesIO):
 class _RunningProcess(_FakeProcess):
     """A child that is still running when its stdout fails."""
 
-    def __init__(self, error: BaseException, *, ignores_sigterm: bool = False) -> None:
+    def __init__(
+        self,
+        error: BaseException,
+        *,
+        ignores_sigterm: bool = False,
+        second_interrupt: bool = False,
+    ) -> None:
         super().__init__(1, "")
         self.stdout = _Failing(error)
-        self._ignores_sigterm = ignores_sigterm
-        self._terminated = False
-        self._killed = False
+        self._ignores_sigterm, self._second_interrupt = ignores_sigterm, second_interrupt
+        self._terminated = self._killed = False
 
     def poll(self) -> int | None:
         return None
@@ -225,6 +229,8 @@ class _RunningProcess(_FakeProcess):
         self._killed = True
 
     def wait(self, timeout: float | None = None) -> int:
+        if timeout is not None and self._second_interrupt and not self._killed:
+            raise KeyboardInterrupt
         if timeout is not None and self._ignores_sigterm and not self._killed:
             raise subprocess.TimeoutExpired("lefthook", timeout)
         return 1
@@ -245,6 +251,22 @@ def test_an_interrupt_ends_the_child_without_hanging_and_still_propagates(
 
     assert process._terminated is True
     assert process._killed is ignores_sigterm
+
+
+def test_a_second_interrupt_during_the_grace_period_still_kills_the_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
+    process = _RunningProcess(KeyboardInterrupt(), second_interrupt=True)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.object(runner.subprocess, "Popen", return_value=process),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        runner.main(["run", "pre-commit"])
+
+    assert process._terminated is True
+    assert process._killed is True
 
 
 def test_an_io_error_while_forwarding_output_is_not_reported_as_lefthook_unavailable(
