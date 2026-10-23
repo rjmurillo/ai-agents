@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size. The per-scan imports cache (issue #6854) took the file
+# from exactly 500 lines to just over; splitting one validator to save them would not help.
 """Blocking validator: plugin-root skill invocations must use bare ``python3`` (issue #5949).
 
 A skill invokes its own scripts through a plugin-root path so the same
@@ -155,6 +157,7 @@ _PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 _PLUGIN_ROOTS = (".claude/", "src/claude/", "src/copilot-cli/")
 _YAML_SUFFIXES = (".yaml", ".yml")
 _Key = tuple[str, str, str, str]
+_Imports = dict[str, frozenset[str]] | None  # script to its third-party imports, per scan (#6854)
 _MUST_2 = ".claude/rules/plugin-self-containment.md MUST 2"
 _SCAN_PATTERNS = ("*.md", "*.py", "*.tmpl", "*.mustache", "*.yaml", "*.yml")
 
@@ -343,7 +346,7 @@ def _form_message(rel: str, lineno: int, interp: str) -> str:
 
 
 def _dependency_message(
-    rel: str, lineno: int, tail: str, repo_root: Path, tracked_py: set[str]
+    rel: str, lineno: int, tail: str, repo_root: Path, tracked_py: set[str], imports: _Imports
 ) -> str | None:
     """Return rule-2's message for one canonical-form invocation, or ``None``."""
     mapped = f"{_PLUGIN_ROOT_FALLBACK}/{tail}"
@@ -352,7 +355,10 @@ def _dependency_message(
             f"{rel}:{lineno}: {mapped} is not a tracked file "
             f"(dangling plugin-root target, issue #5949)"
         )
-    external = sorted(third_party_imports(mapped, repo_root, tracked_py))
+    imports = {} if imports is None else imports
+    if mapped not in imports:  # 976 invocations named 45 scripts on 2026-10-23
+        imports[mapped] = frozenset(third_party_imports(mapped, repo_root, tracked_py))
+    external = sorted(imports[mapped])
     if not external:
         return None
     return (
@@ -375,7 +381,7 @@ def _undeclared(
 
 
 def _plugin_root_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str]
+    text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
 ) -> list[_Offense]:
     offenses: list[_Offense] = []
     for lineno, invocation in _undeclared(text, _find_invocations):
@@ -384,7 +390,7 @@ def _plugin_root_offenses(
             message = _form_message(rel, lineno, invocation.interp)
             offenses.append(_Offense(lineno, "form", tail, message))
             continue
-        dependency = _dependency_message(rel, lineno, tail, repo_root, tracked_py)
+        dependency = _dependency_message(rel, lineno, tail, repo_root, tracked_py, imports)
         if dependency is not None:
             offenses.append(_Offense(lineno, "dependency", tail, dependency))
     return offenses
@@ -404,10 +410,11 @@ def _bare_path_offenses(text: str, rel: str) -> list[_Offense]:
 
 
 def find_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str]
+    text: str, rel: str, repo_root: Path, tracked_py: set[str], imports: _Imports = None
 ) -> list[tuple[int, str]]:
-    """Return (line, message) for every offense in one file's already-read text."""
-    return [(o.lineno, o.message) for o in _plugin_root_offenses(text, rel, repo_root, tracked_py)]
+    """Return (line, message) per offense in one file; ``imports`` caches across files."""
+    found = _plugin_root_offenses(text, rel, repo_root, tracked_py, imports)
+    return [(o.lineno, o.message) for o in found]
 
 
 def find_yaml_offenses(
@@ -431,6 +438,7 @@ def scan(repo_root: Path, used_allowances: set[_Key] | None = None) -> list[str]
     """Return one message per offense across the tree; record allowances used."""
     used = set() if used_allowances is None else used_allowances
     tracked_py = tracked_py_with_links(repo_root)
+    imports: dict[str, frozenset[str]] = {}
     all_offenses: list[tuple[str, int, str]] = []
     for rel in tracked_files(repo_root, *_SCAN_PATTERNS):
         if not is_in_scope(rel):
@@ -443,7 +451,7 @@ def scan(repo_root: Path, used_allowances: set[_Key] | None = None) -> list[str]
         if _is_yaml(rel):
             found = find_yaml_offenses(text, rel, repo_root, tracked_py, used)
         else:
-            found = find_offenses(text, rel, repo_root, tracked_py)
+            found = find_offenses(text, rel, repo_root, tracked_py, imports)
         all_offenses.extend((rel, lineno, message) for lineno, message in found)
     all_offenses.sort(key=lambda item: (item[0], item[1]))
     return [message for _, _, message in all_offenses]
