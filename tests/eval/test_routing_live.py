@@ -119,7 +119,7 @@ def test_credential_names_exclude_provider_settings_that_are_not_secrets() -> No
 
 def test_a_harness_with_no_live_backend_is_refused() -> None:
     with pytest.raises(live_mod.LiveGateError, match="no live backend"):
-        live_mod.credential_names("claude")
+        live_mod.credential_names("gemini")
     with pytest.raises(live_mod.LiveGateError):
         live_mod.LiveBackend("gemini")
 

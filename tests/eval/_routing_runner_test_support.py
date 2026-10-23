@@ -14,6 +14,7 @@ if str(EVAL_DIR) not in sys.path:
 
 import _harness_capability as cap  # noqa: E402
 import _routing_backend as backend_mod  # noqa: E402
+import _routing_claude as claude_mod  # noqa: E402
 import _routing_config as config_mod  # noqa: E402
 import _routing_dag as dag_mod  # noqa: E402
 import _routing_live as live_mod  # noqa: E402
@@ -44,6 +45,7 @@ __all__ = [
     "REAL_MATRIX",
     "backend_mod",
     "cap",
+    "claude_mod",
     "cli",
     "config_dict",
     "config_mod",

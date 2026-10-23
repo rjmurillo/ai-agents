@@ -25,6 +25,7 @@ a harness failure. 4 `--live` without the credentials it needs.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import sys
@@ -33,6 +34,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from _harness_capability import HarnessCapabilityError, load_matrix
+from _routing_claude import CLAUDE_AMBIENT_HOME
 from _routing_config import BenchmarkConfig, RoutingConfigError, load_config
 from _routing_live import (
     BudgetExhaustedError,
@@ -104,7 +106,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--real-home",
         action="store_true",
-        help="run Codex on the real CODEX_HOME and its own login (ambient instructions load)",
+        help="run Codex on the real CODEX_HOME and its own login (ambient instructions load); "
+        "required for Claude, which runs on the stored subscription login",
+    )
+    parser.add_argument(
+        "--harnesses",
+        default=None,
+        help="live only: run just these harnesses, comma separated (for example claude). "
+        "Results are per harness and never pooled",
     )
     parser.add_argument(
         "--max-invocations",
@@ -195,11 +204,25 @@ def _run_row(
     item = result_to_dict(result)
     item["repetition"] = repetition
     if real_home:
-        item["ambient_home"] = {
-            "codex_home": "real",
-            "confound": "~/.codex AGENTS.md and skills load in every invocation",
-        }
+        item["ambient_home"] = _ambient_home(row.harness)
     return item, result.status is RunStatus.HARNESS_FAILED, False
+
+
+def _ambient_home(harness: str) -> dict[str, object]:
+    """What the run could not isolate from the operator's own home, per harness."""
+    if harness == "claude":
+        return copy.deepcopy(dict(CLAUDE_AMBIENT_HOME))
+    return {
+        "codex_home": "real",
+        "confound": "~/.codex AGENTS.md and skills load in every invocation",
+    }
+
+
+def _only_harnesses(plan: Plan, harnesses: str) -> Plan:
+    """The plan with only the rows of the named harnesses kept, in plan order."""
+    wanted = frozenset(name.strip() for name in harnesses.split(",") if name.strip())
+    kept = tuple(row for row in plan.rows if row.harness in wanted)
+    return Plan(kept, plan.problems)
 
 
 def _only_arms(plan: Plan, arms: str) -> Plan:
@@ -217,8 +240,11 @@ def _live_budget(args: argparse.Namespace) -> InvocationBudget | None:
             or args.max_invocations is not None
             or args.repetitions != 1
             or args.arms is not None
+            or args.harnesses is not None
         ):
-            raise ValueError("--real-home, --max-invocations, --repetitions and --arms need --live")
+            raise ValueError(
+                "--real-home, --max-invocations, --repetitions, --arms and --harnesses need --live"
+            )
         return None
     if args.max_invocations is None or args.max_invocations < 1 or args.repetitions < 1:
         raise ValueError("--live requires --max-invocations >= 1 and --repetitions >= 1")
@@ -252,6 +278,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.live:
         print(json.dumps(plan_report(plan, "dry-run"), indent=2))
         return EXIT_OK
+    if args.harnesses is not None:
+        plan = _only_harnesses(plan, args.harnesses)
+        if not plan.planned:
+            print(f"error: --harnesses {args.harnesses} selects no planned row", file=sys.stderr)
+            return EXIT_NOTHING_PLANNED
     try:
         require_live_authorization(
             sorted({row.harness for row in plan.planned}), os.environ, real_home=args.real_home
