@@ -199,3 +199,33 @@ class TestGhFetch:
         with pytest.raises(cb.PriorStateError, match="HTTP 502"):
             cb.gh_fetch("repos/x", sleep=_no_sleep)
         assert len(calls) == cb.FETCH_ATTEMPTS
+
+
+class TestGhFetchOnce:
+    def test_a_failing_call_is_tried_once_without_backoff(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(cmd: list[str], **_kw: Any) -> subprocess.CompletedProcess[bytes]:
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 1, b"", b"HTTP 502\n")
+
+        monkeypatch.setattr(cb.subprocess, "run", fake_run)
+        with pytest.raises(cb.PriorStateError, match="HTTP 502"):
+            cb.gh_fetch_once("repos/x")
+        assert len(calls) == 1
+
+    def test_the_default_ladder_still_tries_the_full_attempt_count(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(cmd: list[str], **_kw: Any) -> subprocess.CompletedProcess[bytes]:
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 1, b"", b"HTTP 502\n")
+
+        monkeypatch.setattr(cb.subprocess, "run", fake_run)
+        with pytest.raises(cb.PriorStateError):
+            cb.gh_fetch("repos/x", sleep=_no_sleep)
+        assert len(calls) == cb.FETCH_ATTEMPTS

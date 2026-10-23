@@ -1,0 +1,4 @@
+{"timestamp":"2026-10-20T14:41:31.495Z","type":"session_meta","payload":{"id":"01a159c2-a6f8-7872-9d98-34d816d10103","timestamp":"2026-10-20T14:41:31.384Z","cli_version":"0.163.0","source":{"subagent":{"thread_spawn":{"parent_thread_id":"01a159c2-9571-7042-8f2a-7d8013f740a5","depth":1,"agent_path":"/root/river_1","agent_nickname":"Godel","agent_role":null}}},"thread_source":"subagent"}}
+{"timestamp":"2026-10-20T14:41:31.495Z","type":"event_msg","payload":{"type":"task_started","turn_id":"01a159c2-a71f-7f72-902a-14dd79d4b8e6","started_at":1792507291}}
+{"timestamp":"2026-10-20T14:41:32.805Z","type":"turn_context","payload":{"turn_id":"01a159c2-a71f-7f72-902a-14dd79d4b8e6","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-20T14:41:41.247Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"01a159c2-a71f-7f72-902a-14dd79d4b8e6","started_at":1792507291,"reason":"interrupted"}}

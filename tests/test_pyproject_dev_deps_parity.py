@@ -59,8 +59,11 @@ REQUIRED_DEV_TOOLS = frozenset(
 SAFE_SEMGREP_OVERRIDES = frozenset(
     {"click==8.3.3", "cryptography==50.0.0", "mcp==1.30.0", "pyjwt[crypto]==2.15.0"}
 )
+# certifi is exempt from the cooldown for PYSEC-2026-4320, so an exact
+# override keeps a later lock from taking an unreviewed CA bundle.
+CERTIFI_OVERRIDE = "certifi==2026.10.19"
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
-    {"anthropic", "click", "cryptography", "lefthook", "mcp", "semgrep"}
+    {"anthropic", "certifi", "click", "cryptography", "lefthook", "mcp", "semgrep"}
 )
 
 # Splits a PEP 508 requirement string at the first character that ends the
@@ -145,6 +148,15 @@ def test_semgrep_transitive_security_overrides_remain_pinned() -> None:
     overrides = set(data["tool"]["uv"]["override-dependencies"])
 
     assert SAFE_SEMGREP_OVERRIDES <= overrides
+
+
+def test_cooldown_exempt_certifi_is_pinned_exactly() -> None:
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    overrides = data["tool"]["uv"]["override-dependencies"]
+    certifi_overrides = [entry for entry in overrides if normalize_name(entry) == "certifi"]
+
+    assert certifi_overrides == [CERTIFI_OVERRIDE]
 
 
 def test_dependency_cooldown_exempts_only_reviewed_exact_pins() -> None:

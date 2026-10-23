@@ -250,11 +250,11 @@ class TestValidation6EscapedNewlineCheck:
                 f"{mirror}: quote is not verbatim.\nquoted={quoted_lines!r}\nactual={actual!r}"
             )
 
-    def test_chain_is_renumbered_to_six_steps(self, tmp_path, capsys):
+    def test_chain_is_renumbered_to_five_steps(self, tmp_path, capsys):
         self._validate(tmp_path, body="## Summary\n\nDetail\n")
         out = capsys.readouterr().out
-        for step in range(1, 7):
-            assert f"[{step}/6]" in out, f"missing step {step}/6"
+        for step in range(1, 6):
+            assert f"[{step}/5]" in out, f"missing step {step}/5"
 
 
 # ---------------------------------------------------------------------------

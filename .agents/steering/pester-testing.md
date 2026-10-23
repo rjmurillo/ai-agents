@@ -1,12 +1,12 @@
 ---
-name: Testing Approach
+name: Pester Testing
 applyTo: "**/*.Tests.ps1"
 priority: 7
 version: 1.0.0
 status: active
 ---
 
-# Testing Approach Steering
+# Pester Testing Steering
 
 This steering file provides Pester 5.x testing conventions and patterns used in this repository.
 

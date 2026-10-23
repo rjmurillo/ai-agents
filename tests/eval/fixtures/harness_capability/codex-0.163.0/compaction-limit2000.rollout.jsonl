@@ -1,0 +1,10 @@
+{"timestamp":"2026-10-20T14:42:23.708Z","type":"session_meta","payload":{"id":"01a159c3-722f-7091-ab1a-d94227cfb2af","timestamp":"2026-10-20T14:42:23.410Z","cli_version":"0.163.0","source":"exec","thread_source":"user"}}
+{"timestamp":"2026-10-20T14:42:23.708Z","type":"event_msg","payload":{"type":"task_started","turn_id":"01a159c3-735a-76c2-b1f1-762623328d6e","started_at":1792507343}}
+{"timestamp":"2026-10-20T14:42:24.994Z","type":"turn_context","payload":{"turn_id":"01a159c3-735a-76c2-b1f1-762623328d6e","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-20T14:42:39.654Z","type":"compacted","payload":{"message":"","replacement_history":[]}}
+{"timestamp":"2026-10-20T14:42:39.655Z","type":"turn_context","payload":{"turn_id":"01a159c3-735a-76c2-b1f1-762623328d6e","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-20T14:42:50.041Z","type":"compacted","payload":{"message":"","replacement_history":[]}}
+{"timestamp":"2026-10-20T14:42:50.041Z","type":"turn_context","payload":{"turn_id":"01a159c3-735a-76c2-b1f1-762623328d6e","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-20T14:43:03.063Z","type":"compacted","payload":{"message":"","replacement_history":[]}}
+{"timestamp":"2026-10-20T14:43:03.063Z","type":"turn_context","payload":{"turn_id":"01a159c3-735a-76c2-b1f1-762623328d6e","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-20T14:43:09.642Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"01a159c3-735a-76c2-b1f1-762623328d6e","started_at":1792507343}}

@@ -1,6 +1,5 @@
 #!/bin/bash
 # Test harness for is_infrastructure_failure function
-# Used by Pester tests to validate infrastructure failure detection logic
 
 # Function to check if failure is infrastructure-related
 # Extracted from action.yml for testability

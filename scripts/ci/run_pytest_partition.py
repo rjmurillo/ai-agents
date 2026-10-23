@@ -59,13 +59,22 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # split-1 is the `primary` matrix leg and carries the extra pin, lint, and
 # ratchet steps in pytest.yml, so its share must leave room for them.
 #
+# `least_duration` places the longest tests first, each on the least loaded
+# group, then runs each group in collection order. `duration_based_chunks` cut
+# the pool into contiguous runs, so the whole-repo scans clustered under
+# tests/ci/ (180s, 116s, and 71s alone) all landed on split-1 and slowed each
+# other under xdist. Once the cache recorded them cheap, split-1 grew past the
+# job timeout, and a cancelled leg never saves a new map, so every later main
+# run restored the same split (issue #6828). Chunks were picked to keep files
+# whole under `--dist loadfile`; `worksteal` spreads a file's tests anyway.
+#
 # Both paths stay relative on purpose: run_pytest_non_tmp starts pytest with
 # cwd=PROJECT_ROOT, so pytest-split resolves them against the repo root whatever
 # directory this script is launched from (a test pins that).
 SPLIT_COUNT = 5
 DURATIONS_RESTORE_PATH = ".pytest-split/durations.json"
 LEG_DURATIONS_DIR = "artifacts"
-SPLITTING_ALGORITHM = "duration_based_chunks"
+SPLITTING_ALGORITHM = "least_duration"
 _SPLIT_PREFIX = "split-"
 
 _SAFE_PUSH_ARGS = [

@@ -1,0 +1,4 @@
+{"timestamp":"2026-10-20T14:40:53.755Z","type":"session_meta","payload":{"id":"01a159c2-13dc-72a1-b9d8-9d4084d810b1","timestamp":"2026-10-20T14:40:53.724Z","cli_version":"0.163.0","source":{"subagent":{"thread_spawn":{"parent_thread_id":"01a159c1-fa5d-71a0-8aa4-e7750f105fa9","depth":1,"agent_path":"/root/river_2","agent_nickname":"Schrodinger","agent_role":null}}},"thread_source":"subagent"}}
+{"timestamp":"2026-10-20T14:40:53.755Z","type":"event_msg","payload":{"type":"task_started","turn_id":"01a159c2-13f8-7180-9ddc-756488d5e917","started_at":1792507253}}
+{"timestamp":"2026-10-20T14:40:54.797Z","type":"turn_context","payload":{"turn_id":"01a159c2-13f8-7180-9ddc-756488d5e917","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-20T14:41:19.965Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"01a159c2-13f8-7180-9ddc-756488d5e917","started_at":1792507253}}

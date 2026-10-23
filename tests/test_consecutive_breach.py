@@ -6,7 +6,7 @@ Coverage:
 * Pull requests and other events always warn and never fail, never look up.
 * Fail closed: first main run (no prior run), missing or expired artifact, a
   malformed record, a bad archive and an API failure all count as a breach.
-* The lookup picks the newest completed main push run older than this run.
+* The lookup picks the newest main push run older than this run, any status.
 All GitHub I/O is a fake ``fetch``; nothing reaches the network.
 """
 
@@ -27,8 +27,7 @@ REPO = "owner/repo"
 WORKFLOW = "pytest.yml"
 GATE = "demo-gate"
 RUNS_URL = (
-    f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs"
-    "?event=push&branch=main&status=completed&per_page=100&page=1"
+    f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?event=push&branch=main&per_page=100&page=1"
 )
 
 
@@ -186,7 +185,7 @@ class TestFailClosed:
     @pytest.mark.parametrize(
         ("api", "reason"),
         [
-            (_api(None, runs=[_run(100)]), "no completed main push run"),
+            (_api(None, runs=[_run(100)]), "no main push run"),
             (_api(None), "no live artifact"),
             (_api(["m.py"], expired=True), "no live artifact"),
             (_api(["m.py"], archive=b"not a zip"), "BadZipFile"),
