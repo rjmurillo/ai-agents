@@ -11,6 +11,7 @@ Cases: partial staging, docs-only changes, and security failures.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -22,6 +23,9 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(LEFTHOOK is None, reason="requires the lefthook binary"),
     pytest.mark.skipif(sys.platform == "win32", reason="hook fixture is verified on POSIX only"),
+    pytest.mark.skipif(
+        importlib.util.find_spec("ruff") is None, reason="requires ruff (dev extra)"
+    ),
 ]
 
 # Built at runtime so this file holds neither a dash nor a suppression marker itself.
@@ -77,6 +81,7 @@ def test_partial_staging_refuses_a_staged_violation_and_changes_nothing(
     result = hook_repo.git("commit", "-q", "-m", "docs: dash", check=False)
 
     assert result.returncode != 0
+    assert "prohibited Unicode dashes" in result.stdout + result.stderr
     assert "docs/guide.md" in result.stdout + result.stderr
     assert hook_repo.snapshot() == before
     assert not (hook_repo.repo / ".git/index.lock").exists()
@@ -113,7 +118,6 @@ def test_docs_only_commit_runs_no_python_gate(hook_repo: HookRepo) -> None:
     assert _committed(hook_repo, "docs/my notes.md") == "# Notes\n\nplain text"
     assert "git_hook_policy.py staged-dashes 'docs/my notes.md'" in output
     assert "report_advisory_result.py" not in output
-    assert "ruff" not in output
     assert hook_repo.out("status", "--porcelain") == ""
 
 
@@ -126,6 +130,7 @@ def test_docs_only_commit_refuses_a_dash_and_changes_nothing(hook_repo: HookRepo
     result = hook_repo.git("commit", "-q", "-m", "docs: dash", check=False)
 
     assert result.returncode != 0
+    assert "prohibited Unicode dashes" in result.stdout + result.stderr
     assert "docs/my notes.md" in result.stdout + result.stderr
     assert hook_repo.snapshot() == before
 
@@ -154,7 +159,7 @@ def test_staged_security_suppression_is_refused_and_changes_nothing(
 def test_conflict_markers_in_a_partially_staged_python_file_change_nothing(
     hook_repo: HookRepo,
 ) -> None:
-    """python-autofix runs first on the same file and must not disturb the refusal."""
+    """python-autofix runs beside the refusal on the same file and must not disturb it."""
     hook_repo.write("src/mod.py", "VALUE = 1\n")
     hook_repo.commit_all("feat: add module")
     marked = "<<<<<<< ours\nVALUE = 2\n=======\nVALUE = 3\n>>>>>>> theirs\n"

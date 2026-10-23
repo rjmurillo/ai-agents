@@ -56,6 +56,7 @@ PRE_COMMIT_JOBS = (
 PRE_PUSH_JOBS = (
     "repo-health",
     "repair-packed-refs",
+    "push-ref-staleness",
     "push-ref-policy",
     "security-suppression-policy",
     "python-lint-advisory",
@@ -104,6 +105,16 @@ SUPPORT_FILES = (
 _ENV_KEEP = ("PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "VIRTUAL_ENV")
 
 
+def _job_names(items: list[dict[str, Any]]) -> set[str]:
+    names: set[str] = set()
+    for item in items:
+        if "group" in item:
+            names |= _job_names(item["group"]["jobs"])
+        else:
+            names.add(item["name"])
+    return names
+
+
 def _keep_jobs(items: list[dict[str, Any]], names: tuple[str, ...]) -> list[dict[str, Any]]:
     kept: list[dict[str, Any]] = []
     for item in items:
@@ -140,6 +151,8 @@ def runtime_config() -> dict[str, Any]:
         "output": False,
     }
     for hook, names in (("pre-commit", PRE_COMMIT_JOBS), ("pre-push", PRE_PUSH_JOBS)):
+        missing = set(names) - _job_names(config[hook]["jobs"])
+        assert not missing, f"{hook} jobs renamed or removed in lefthook.yml: {sorted(missing)}"
         narrowed[hook] = {
             "piped": config[hook].get("piped", False),
             "jobs": _keep_jobs(config[hook]["jobs"], names),
@@ -215,11 +228,16 @@ class HookRepo:
         return self.out("rev-parse", "HEAD")
 
     def snapshot(self) -> Snapshot:
-        worktree = {
-            path.relative_to(self.repo).as_posix(): (path.read_bytes(), path.stat().st_mode)
-            for path in sorted(self.repo.rglob("*"))
-            if path.is_file() and ".git" not in path.relative_to(self.repo).parts
-        }
+        worktree: dict[str, tuple[bytes, int]] = {}
+        for directory, subdirs, names in os.walk(self.repo):
+            if directory == str(self.repo):
+                subdirs[:] = [name for name in subdirs if name != ".git"]
+            for name in names:
+                path = Path(directory) / name
+                worktree[path.relative_to(self.repo).as_posix()] = (
+                    path.read_bytes(),
+                    path.stat().st_mode,
+                )
         return Snapshot(
             head=self.out("rev-parse", "HEAD"),
             refs=self.out("for-each-ref", "--format=%(refname) %(objectname)"),

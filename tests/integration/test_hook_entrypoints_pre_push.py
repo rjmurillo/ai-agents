@@ -18,6 +18,7 @@ hook to run therefore keeps the checked-out HEAD ahead of its push base.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -34,6 +35,9 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(LEFTHOOK is None, reason="requires the lefthook binary"),
     pytest.mark.skipif(sys.platform == "win32", reason="hook fixture is verified on POSIX only"),
+    pytest.mark.skipif(
+        importlib.util.find_spec("ruff") is None, reason="requires ruff (dev extra)"
+    ),
 ]
 
 # Built at runtime so this file holds no suppression marker itself.
@@ -66,13 +70,19 @@ def _landed(repo: HookRepo, *push_args: str) -> None:
     assert _RAN_SUPPRESSIONS in output
 
 
-def _refused(repo: HookRepo, *push_args: str) -> str:
-    """Push, require refusal, and require that nothing local changed."""
+def _refused(repo: HookRepo, expected: str, *push_args: str) -> str:
+    """Push, require a refusal that names ``expected``, and require no local change.
+
+    The message check keeps a crashed hook (a missing import, a timeout) from
+    passing as a policy refusal.
+    """
     before = repo.snapshot()
     result = repo.git("push", *push_args, check=False)
-    assert result.returncode != 0, result.stdout + result.stderr
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, output
+    assert expected in output, output
     assert repo.snapshot() == before
-    return result.stdout + result.stderr
+    return output
 
 
 def test_first_push_of_a_new_branch_lands_on_the_remote(hook_repo: HookRepo) -> None:
@@ -111,18 +121,23 @@ def test_python_push_runs_the_python_gate(hook_repo: HookRepo) -> None:
 def test_update_of_main_from_a_feature_checkout_is_refused(hook_repo: HookRepo) -> None:
     main_before = hook_repo.remote_ref("refs/heads/main")
 
-    output = _refused(hook_repo, "origin", "HEAD:refs/heads/main")
+    _refused(
+        hook_repo,
+        "cannot delete or update protected branch 'main'",
+        "origin",
+        "HEAD:refs/heads/main",
+    )
 
-    assert "cannot delete or update protected branch 'main'" in output
     assert hook_repo.remote_ref("refs/heads/main") == main_before
 
 
 def test_deleting_main_from_a_feature_checkout_is_refused(hook_repo: HookRepo) -> None:
     main_before = hook_repo.remote_ref("refs/heads/main")
 
-    output = _refused(hook_repo, "origin", "--delete", "main")
+    _refused(
+        hook_repo, "cannot delete or update protected branch 'main'", "origin", "--delete", "main"
+    )
 
-    assert "cannot delete or update protected branch 'main'" in output
     assert hook_repo.remote_ref("refs/heads/main") == main_before
 
 
@@ -149,9 +164,10 @@ def test_a_main_checkout_still_may_not_delete_main(hook_repo: HookRepo) -> None:
     hook_repo.git("merge", "-q", "--ff-only", "feature/work")
     main_before = hook_repo.remote_ref("refs/heads/main")
 
-    output = _refused(hook_repo, "origin", "--delete", "main")
+    _refused(
+        hook_repo, "cannot delete or update protected branch 'main'", "origin", "--delete", "main"
+    )
 
-    assert "cannot delete or update protected branch 'main'" in output
     assert hook_repo.remote_ref("refs/heads/main") == main_before
 
 
@@ -176,9 +192,8 @@ def test_one_protected_ref_refuses_the_whole_multi_ref_push(
     if not main_first:
         refs.reverse()
 
-    output = _refused(hook_repo, "origin", *refs)
+    _refused(hook_repo, "cannot delete or update protected branch 'main'", "origin", *refs)
 
-    assert "cannot delete or update protected branch 'main'" in output
     assert hook_repo.remote_ref("refs/heads/main") == main_before
     assert hook_repo.remote_ref("refs/heads/feature/second") == ""
 
@@ -186,9 +201,8 @@ def test_one_protected_ref_refuses_the_whole_multi_ref_push(
 def test_security_suppression_in_the_pushed_range_is_refused(hook_repo: HookRepo) -> None:
     commit_without_hooks(hook_repo, "src/mod.py", SUPPRESSED, "feat: suppress scanner")
 
-    output = _refused(hook_repo, "origin", "HEAD")
+    output = _refused(hook_repo, _SUPPRESSION_ERROR, "origin", "HEAD")
 
-    assert _SUPPRESSION_ERROR in output
     assert "src/mod.py" in output
     assert hook_repo.remote_ref("refs/heads/feature/work") == ""
 
@@ -201,9 +215,8 @@ def test_security_suppression_added_to_an_existing_remote_branch_is_refused(
     pushed = hook_repo.remote_ref("refs/heads/feature/work")
     commit_without_hooks(hook_repo, "src/mod.py", SUPPRESSED, "feat: suppress scanner")
 
-    output = _refused(hook_repo, "origin", "HEAD")
+    _refused(hook_repo, _SUPPRESSION_ERROR, "origin", "HEAD")
 
-    assert _SUPPRESSION_ERROR in output
     assert hook_repo.remote_ref("refs/heads/feature/work") == pushed
 
 
@@ -220,9 +233,8 @@ def test_one_suppressed_ref_refuses_the_whole_multi_ref_push(
     if not bad_first:
         refs.reverse()
 
-    output = _refused(hook_repo, "origin", *refs)
+    _refused(hook_repo, _SUPPRESSION_ERROR, "origin", *refs)
 
-    assert _SUPPRESSION_ERROR in output
     assert hook_repo.remote_ref("refs/heads/feature/bad") == ""
     assert hook_repo.remote_ref("refs/heads/feature/clean") == ""
 
@@ -235,9 +247,8 @@ def test_the_pushed_ref_decides_the_range_not_the_checked_out_branch(
     commit_without_hooks(hook_repo, "src/bad.py", SUPPRESSED, "feat: suppress scanner")
     hook_repo.git("checkout", "-q", "feature/work")
 
-    output = _refused(hook_repo, "origin", "feature/bad")
+    output = _refused(hook_repo, _SUPPRESSION_ERROR, "origin", "feature/bad")
 
-    assert _SUPPRESSION_ERROR in output
     assert "src/bad.py" in output
     assert hook_repo.remote_ref("refs/heads/feature/bad") == ""
 
@@ -256,6 +267,7 @@ def test_a_suppression_on_the_checked_out_branch_does_not_block_a_clean_ref(
 
 _SKIPPED_WHEN_LEVEL = pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="#6884: lefthook skips every pre-push job when HEAD is level with its push base",
 )
 
@@ -265,9 +277,13 @@ def test_a_branch_level_with_its_upstream_cannot_update_main(hook_repo: HookRepo
     hook_repo.git("push", "-q", "-u", "origin", "HEAD")
     main_before = hook_repo.remote_ref("refs/heads/main")
 
-    output = _refused(hook_repo, "origin", "HEAD:refs/heads/main")
+    _refused(
+        hook_repo,
+        "cannot delete or update protected branch 'main'",
+        "origin",
+        "HEAD:refs/heads/main",
+    )
 
-    assert "cannot delete or update protected branch 'main'" in output
     assert hook_repo.remote_ref("refs/heads/main") == main_before
 
 
@@ -280,7 +296,6 @@ def test_a_branch_level_with_its_upstream_cannot_push_another_ref_with_a_suppres
     commit_without_hooks(hook_repo, "src/bad.py", SUPPRESSED, "feat: suppress scanner")
     hook_repo.git("checkout", "-q", "feature/work")
 
-    output = _refused(hook_repo, "origin", "feature/bad")
+    _refused(hook_repo, _SUPPRESSION_ERROR, "origin", "feature/bad")
 
-    assert _SUPPRESSION_ERROR in output
     assert hook_repo.remote_ref("refs/heads/feature/bad") == ""
