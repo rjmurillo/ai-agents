@@ -212,6 +212,19 @@ def test_load_durations_refuses_a_malformed_file(
         split.load_durations(path)
 
 
+def test_load_durations_refuses_a_file_that_is_not_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "durations.json"
+    path.write_bytes(b'{"tests/a.py::x": 1.0, "\xff": 2.0}')
+
+    with pytest.raises(pytest.UsageError, match="cannot read"):
+        split.load_durations(path)
+
+
+def test_load_durations_refuses_a_path_it_cannot_read(tmp_path: Path) -> None:
+    with pytest.raises(pytest.UsageError, match="cannot read"):
+        split.load_durations(tmp_path)
+
+
 def test_configure_accepts_no_split_options() -> None:
     _configure(None, None)
 

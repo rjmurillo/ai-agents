@@ -115,13 +115,16 @@ def load_durations(path: Path) -> dict[str, float]:
     """The recorded durations at ``path``, or an empty map when the file is absent.
 
     Raises:
-        pytest.UsageError: the file is not JSON, not a map of node IDs, or holds
-            a duration that is not a number.
+        pytest.UsageError: the file cannot be read or decoded as UTF-8, is not
+            JSON, is not a map of node IDs, or holds a duration that is not a
+            number.
     """
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return {}
+    except (OSError, UnicodeDecodeError) as exc:
+        raise pytest.UsageError(f"{path}: cannot read durations file: {exc}") from exc
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
