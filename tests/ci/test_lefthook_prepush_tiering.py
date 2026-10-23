@@ -170,35 +170,61 @@ class TestTheDeferredGatesStillExist:
             self.test_every_formerly_deferred_gate_is_still_in_the_sequence()
 
 
+# Job keys that can stop a lefthook job from running on a push. Source: the
+# lefthook v2.2.2 schema.json (the version pinned in pyproject.toml) and its
+# configuration docs. `glob`, `exclude`, `file_types`, and `files` filter by the
+# staged or pushed file set, `skip` and `only` gate on branch, ref, or run
+# conditions, and `tags` lets `exclude_tags` or LEFTHOOK_EXCLUDE drop the job.
+# A deferral target carrying any of them records the pre_pr gate as passed
+# with nothing run (issue #5317).
+CONDITIONAL_JOB_KEYS = ("glob", "files", "skip", "only", "exclude", "file_types", "tags")
+
+
 def _unsound_deferrals() -> list[str]:
     unsound: list[str] = []
     for gate_name, job_name in _deferrals().items():
         job = _job_named("pre-push", job_name)
         if job is None:
             unsound.append(f"{gate_name} defers to {job_name!r}, which does not exist")
-        elif job.get("glob") is not None:
-            unsound.append(
-                f"{gate_name} defers to {job_name!r}, which carries "
-                f"glob={job['glob']!r} and so does not run on every push"
-            )
+            continue
+        for key in CONDITIONAL_JOB_KEYS:
+            if job.get(key) is not None:
+                unsound.append(
+                    f"{gate_name} defers to {job_name!r}, which carries "
+                    f"{key}={job[key]!r} and so may not run on every push"
+                )
     return unsound
 
 
 class TestEveryDeferralIsSound:
-    def test_a_deferral_target_must_not_be_glob_gated(self) -> None:
+    def test_a_deferral_target_must_not_be_conditional(self) -> None:
         assert _unsound_deferrals() == []
 
-    def test_the_rule_rejects_a_globbed_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize(
+        ("key", "value"),
+        [
+            ("glob", "**/*.py"),
+            ("files", "git diff --name-only"),
+            ("skip", ["merge", "rebase"]),
+            ("only", [{"ref": "main"}]),
+            ("exclude", ["docs/**"]),
+            ("file_types", ["text"]),
+            ("tags", ["slow"]),
+        ],
+    )
+    def test_the_rule_rejects_a_conditional_target(
+        self, monkeypatch: pytest.MonkeyPatch, key: str, value: Any
+    ) -> None:
         real_lookup = _job_named
 
         def lookup(hook: str, name: str) -> dict[str, Any] | None:
             job = real_lookup(hook, name)
             if name == "count-ratchets" and job is not None:
-                return {**job, "glob": "**/*.py"}
+                return {**job, key: value}
             return job
 
         monkeypatch.setattr(sys.modules[__name__], "_job_named", lookup)
-        assert any("Count Ratchets" in item for item in _unsound_deferrals())
+        assert any("Count Ratchets" in item and f"{key}=" in item for item in _unsound_deferrals())
 
 
 # ADR-104 rule 9. A job that cannot fail is not a gate, and pre-push carries six
