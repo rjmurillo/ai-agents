@@ -57,7 +57,13 @@ REQUIRED_DEV_TOOLS = frozenset(
     }
 )
 SAFE_SEMGREP_OVERRIDES = frozenset(
-    {"click==8.3.3", "cryptography==50.0.0", "mcp==1.30.0", "pyjwt[crypto]==2.15.0"}
+    {
+        "click==8.3.3",
+        "cryptography==50.0.0",
+        "mcp==1.30.0",
+        "opentelemetry-api==1.45.1",
+        "pyjwt[crypto]==2.15.0",
+    }
 )
 # certifi is exempt from the cooldown for PYSEC-2026-4320, so an exact
 # override keeps a later lock from taking an unreviewed CA bundle.
