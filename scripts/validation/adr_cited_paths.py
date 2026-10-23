@@ -45,7 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.ci.count_ratchet import git_environment
-from scripts.utils.markdown_parser import blank_non_prose_block_lines
+from scripts.utils.markdown_parser import blank_non_prose_block_lines_cached
 from scripts.validation.tracked_paths import path_exists_in_repo
 
 BINDING_SECTIONS: frozenset[str] = frozenset({"decision", "implementation notes"})
@@ -65,7 +65,7 @@ _GIT_TIMEOUT_SECONDS = 30
 
 def binding_sections(body: str) -> list[str]:
     """Text of each `## Decision` / `## Implementation Notes` section in ``body``."""
-    prose = blank_non_prose_block_lines(body)
+    prose = blank_non_prose_block_lines_cached(body)
     headings = list(_LEVEL_TWO_HEADING.finditer(prose))
     sections: list[str] = []
     for index, heading in enumerate(headings):

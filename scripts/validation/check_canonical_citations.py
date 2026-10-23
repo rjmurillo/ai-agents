@@ -76,8 +76,10 @@ from scripts.validation.evidence import (  # noqa: E402
 )
 from scripts.validation.mirror_evidence import (  # noqa: E402
     REMEDIATION,
+    LazyTestNames,
+    clear_test_caches,  # noqa: F401  (tests clear every cached view of the tests tree)
     copied_contract_marker,
-    defined_tests,
+    defined_tests,  # noqa: F401  (kept importable: tests and callers read this module's name)
     imported_project_names,
     structural_evidence,
 )
@@ -235,6 +237,44 @@ def _has_path_reference(text: str) -> bool:
     return bool(_PATH_REF.search(text))
 
 
+def _read_error_violation(path: Path, exc: Exception) -> Violation:
+    return Violation(
+        path=path,
+        matched_token="read_error",
+        excerpt=f"Unable to read file: {exc}",
+    )
+
+
+def _violation_for(path: Path, source: str, text: str, repo_root: Path) -> Violation | None:
+    """Judge one file's claim text; `text` is `_extract_docstring_and_top_comments(source)`."""
+    if not text:
+        return None
+
+    token = _find_mirror_token(text)
+    if token is None:
+        return None
+
+    if _has_path_reference(text) or structural_evidence(
+        text, imported_project_names(source, repo_root, path.parent), LazyTestNames(repo_root)
+    ):
+        return None
+
+    excerpt = _excerpt_for_token(text, token)
+    return Violation(path=path, matched_token=token, excerpt=excerpt)
+
+
+def _copy_finding_for(path: Path, source: str, text: str, repo_root: Path) -> CopyFinding | None:
+    """Judge one file's copied contract; `text` is the extracted claim text."""
+    if not text or _find_mirror_token(text) is None:
+        return None
+    marker = copied_contract_marker(text)
+    if marker is None or structural_evidence(
+        text, imported_project_names(source, repo_root, path.parent), LazyTestNames(repo_root)
+    ):
+        return None
+    return CopyFinding(path=path, marker=marker)
+
+
 def scan_file(path: Path, repo_root: Path = _PROJECT_ROOT) -> Violation | None:
     """Scan a single file for an uncited mirror-claim.
 
@@ -245,27 +285,8 @@ def scan_file(path: Path, repo_root: Path = _PROJECT_ROOT) -> Violation | None:
     try:
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        return Violation(
-            path=path,
-            matched_token="read_error",
-            excerpt=f"Unable to read file: {exc}",
-        )
-
-    text = _extract_docstring_and_top_comments(source)
-    if not text:
-        return None
-
-    token = _find_mirror_token(text)
-    if token is None:
-        return None
-
-    if _has_path_reference(text) or structural_evidence(
-        text, imported_project_names(source, repo_root, path.parent), defined_tests(repo_root)
-    ):
-        return None
-
-    excerpt = _excerpt_for_token(text, token)
-    return Violation(path=path, matched_token=token, excerpt=excerpt)
+        return _read_error_violation(path, exc)
+    return _violation_for(path, source, _extract_docstring_and_top_comments(source), repo_root)
 
 
 def scan_copied_contract(path: Path, repo_root: Path = _PROJECT_ROOT) -> CopyFinding | None:
@@ -279,15 +300,7 @@ def scan_copied_contract(path: Path, repo_root: Path = _PROJECT_ROOT) -> CopyFin
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
-    text = _extract_docstring_and_top_comments(source)
-    if not text or _find_mirror_token(text) is None:
-        return None
-    marker = copied_contract_marker(text)
-    if marker is None or structural_evidence(
-        text, imported_project_names(source, repo_root, path.parent), defined_tests(repo_root)
-    ):
-        return None
-    return CopyFinding(path=path, marker=marker)
+    return _copy_finding_for(path, source, _extract_docstring_and_top_comments(source), repo_root)
 
 
 def collect_copy_findings(repo_root: Path) -> list[CopyFinding]:
@@ -299,14 +312,26 @@ def collect_copy_findings(repo_root: Path) -> list[CopyFinding]:
 
 
 def collect_all(repo_root: Path) -> tuple[list[Violation], list[CopyFinding]]:
-    """Scan every configured file once and return violations and copy findings."""
+    """Scan every configured file once and return violations and copy findings.
+
+    Each file is read once and its claim text is extracted once (one parse),
+    then both checks judge it, so the result equals `scan_file` plus
+    `scan_copied_contract` on every path. A file with a mirror-claim and no path
+    reference still resolves its imports once per check.
+    """
     violations: list[Violation] = []
     findings: list[CopyFinding] = []
     for path in _iter_python_files(_scan_roots(repo_root)):
-        violation = scan_file(path, repo_root)
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            violations.append(_read_error_violation(path, exc))
+            continue
+        text = _extract_docstring_and_top_comments(source)
+        violation = _violation_for(path, source, text, repo_root)
         if violation is not None:
             violations.append(violation)
-        finding = scan_copied_contract(path, repo_root)
+        finding = _copy_finding_for(path, source, text, repo_root)
         if finding is not None:
             findings.append(finding)
     return violations, findings
