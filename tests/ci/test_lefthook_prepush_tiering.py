@@ -70,6 +70,28 @@ def _all_jobs(hook: str) -> list[dict[str, Any]]:
     return out
 
 
+def _ancestors_of(hook: str, name: str) -> list[dict[str, Any]]:
+    """Group entries enclosing the named job, outermost first. Empty if top level."""
+
+    def walk(entry: dict[str, Any], trail: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        group = entry.get("group")
+        if not isinstance(group, dict):
+            return trail if entry.get("name") == name else None
+        for child in group.get("jobs", []):
+            if isinstance(child, dict):
+                found = walk(child, [*trail, entry])
+                if found is not None:
+                    return found
+        return None
+
+    for entry in _config()[hook]["jobs"]:
+        if isinstance(entry, dict):
+            found = walk(entry, [])
+            if found is not None:
+                return found
+    return []
+
+
 def _job_named(hook: str, name: str) -> dict[str, Any] | None:
     for job in _all_jobs(hook):
         if job.get("name") == name:
@@ -187,12 +209,17 @@ def _unsound_deferrals() -> list[str]:
         if job is None:
             unsound.append(f"{gate_name} defers to {job_name!r}, which does not exist")
             continue
-        for key in CONDITIONAL_JOB_KEYS:
-            if job.get(key) is not None:
-                unsound.append(
-                    f"{gate_name} defers to {job_name!r}, which carries "
-                    f"{key}={job[key]!r} and so may not run on every push"
-                )
+        # A group's conditions apply to every job nested in it, so each
+        # enclosing group counts as well as the target itself.
+        for carrier in [*_ancestors_of("pre-push", job_name), job]:
+            for key in CONDITIONAL_JOB_KEYS:
+                if carrier.get(key) is not None:
+                    unsound.append(
+                        f"{gate_name} defers to {job_name!r}, which carries "
+                        f"{key}={carrier[key]!r} (on "
+                        f"{carrier.get('name', 'an enclosing group')!r}) and so may "
+                        "not run on every push"
+                    )
     return unsound
 
 
@@ -225,6 +252,29 @@ class TestEveryDeferralIsSound:
 
         monkeypatch.setattr(sys.modules[__name__], "_job_named", lookup)
         assert any("Count Ratchets" in item and f"{key}=" in item for item in _unsound_deferrals())
+
+
+@pytest.mark.parametrize("key", ["glob", "skip"])
+def test_the_rule_rejects_a_target_under_a_conditional_group(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    """Negative control: a clean target nested in a group that carries `key`."""
+    config = {
+        "pre-push": {
+            "jobs": [
+                {
+                    "name": "outer",
+                    key: "**/*.py" if key == "glob" else ["merge"],
+                    "group": {"jobs": [{"name": "count-ratchets", "run": "true"}]},
+                }
+            ]
+        }
+    }
+    monkeypatch.setattr(sys.modules[__name__], "_config", lambda: config)
+    assert any(
+        "Count Ratchets" in item and f"{key}=" in item and "'outer'" in item
+        for item in _unsound_deferrals()
+    )
 
 
 # ADR-104 rule 9. A job that cannot fail is not a gate, and pre-push carries six
