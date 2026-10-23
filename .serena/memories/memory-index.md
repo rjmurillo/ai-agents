@@ -252,4 +252,5 @@
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (940)
 |serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1298)
 |codeql scan wrapper delegate python issue 4921: [codeql/codeql-scan-wrapper-python-delegates](codeql/codeql-scan-wrapper-python-delegates.md) (930)
-|pytest-split durations cache frozen cancelled leg split-1 timeout duration_based_chunks least_duration rerun in_progress required check 6828 6830: [ci/pytest-split-cache-freeze-repeats-timeout](ci/pytest-split-cache-freeze-repeats-timeout.md) (253)
+|pytest-split durations cache frozen cancelled leg split-1 timeout duration_based_chunks least_duration module split scatter whole-repo scan 6846 6853 6857 rerun in_progress required check 6828 6830: [ci/pytest-split-cache-freeze-repeats-timeout](ci/pytest-split-cache-freeze-repeats-timeout.md) (545)
+|stale main clone skill script missing flag remove-labels set_issue_labels detached worktree origin/main git pull denied: [git/git-stale-detached-clone-runs-stale-tooling](git/git-stale-detached-clone-runs-stale-tooling.md) (984)

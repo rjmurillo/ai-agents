@@ -67,6 +67,23 @@ Untracked files survive the switch. Tracked modifications do not, so stash or
 commit them to a branch first. If `--is-ancestor` fails, the commit is not on
 `main` and switching away orphans it: branch it before you move.
 
+## Recurrence: skill scripts miss newer flags (2026-10)
+
+The main clone at `~/src/GitHub/rjmurillo/ai-agents` can lag `origin/main` by dozens of commits.
+`git pull` is denied there, so it cannot catch up.
+Between 2026-10-21 and 2026-10-23, agents twice concluded `set_issue_labels.py` has no `--remove-labels`.
+The flag exists on `origin/main`. It removed `blocked:human` from #5405 and #6659 on 2026-10-23.
+The stale copy gave a false absence, and the agents reported it as fact.
+
+Rule: run skill scripts from a detached worktree at fresh `origin/main`.
+
+```bash
+git fetch origin main
+git worktree add --detach ~/worktrees/<repo>/scripts-main origin/main
+```
+
+Never judge what a skill script supports from the main clone's copy.
+
 ## Related
 
 - `git-stale-branch-fails-repo-state-tests.md` covers the adjacent case: a
