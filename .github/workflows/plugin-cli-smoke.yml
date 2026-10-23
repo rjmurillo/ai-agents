@@ -417,7 +417,7 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@openai/codex
-      CODEX_CLI_VERSION: '0.162.1'
+      CODEX_CLI_VERSION: '0.163.0'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
