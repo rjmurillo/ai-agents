@@ -36,6 +36,7 @@ from pathlib import Path
 from _harness_capability import HarnessCapabilityError, load_matrix
 from _routing_claude import CLAUDE_AMBIENT_HOME
 from _routing_config import BenchmarkConfig, RoutingConfigError, load_config
+from _routing_limits import limit_detail
 from _routing_live import (
     BudgetExhaustedError,
     InvocationBudget,
@@ -53,6 +54,11 @@ EXIT_NOTHING_PLANNED = 1
 EXIT_CONFIG = 2
 EXIT_HARNESS_FAILURE = 3
 EXIT_AUTH = 4
+
+BUDGET_SPENT = "invocation budget spent"
+#: How each harness's requested effort is evidenced. Claude names no effort in its stream, so
+#: its effort rests on behavioral evidence (Amendment 4); Codex effort is backend-named.
+EFFORT_EVIDENCE = {"codex": "backend", "claude": "behavioral"}
 
 EXAMPLES = Path(__file__).resolve().parent / "examples"
 DEFAULT_CONFIG = EXAMPLES / "routing-benchmark-config.json"
@@ -157,26 +163,35 @@ def _run_live(
     budget: InvocationBudget,
     repetitions: int,
 ) -> int:
-    """Run the planned rows, repetition outermost, and stop at the budget.
+    """Run the planned rows, repetition outermost, and stop at the budget or a limit.
 
     Each row is appended to `output` as it finishes, so an interrupted run keeps
     what it spent. A row the budget cuts off, and every row after it, is written
-    as `NOT_RUN` with the reason. Nothing is substituted for a row that did not run.
+    as `NOT_RUN` with the reason. A usage-limit or credit-exhaustion failure stops
+    the run the same way: spending ends, every remaining row is `NOT_RUN` with the
+    limit as the reason, and the exit is nonzero. Nothing is substituted for a row
+    that did not run.
     """
     failed = False
-    spent_out = False
+    stop: str | None = None
+    limit_stop: str | None = None
     with output.open("w", encoding="utf-8") as handle:
         for repetition in range(1, repetitions + 1):
             for row in plan.planned:
-                if spent_out:
-                    item = _not_run(row, repetition, "invocation budget spent")
+                if stop is not None:
+                    item = _not_run(row, repetition, stop)
                 else:
-                    item, failed_row, spent_out = _run_row(
+                    item, failed_row, stop = _run_row(
                         row, config, scenarios, budget, repetition, real_home
                     )
                     failed = failed or failed_row
+                    if stop is not None and stop != BUDGET_SPENT:
+                        limit_stop = stop
                 handle.write(json.dumps(item) + "\n")
                 handle.flush()
+    if limit_stop is not None:
+        print(f"error: run stopped, {limit_stop}. Remaining rows are NOT_RUN.", file=sys.stderr)
+        return EXIT_HARNESS_FAILURE
     return EXIT_HARNESS_FAILURE if failed else EXIT_OK
 
 
@@ -187,8 +202,8 @@ def _run_row(
     budget: InvocationBudget,
     repetition: int,
     real_home: bool,
-) -> tuple[dict[str, object], bool, bool]:
-    """Run one row. Returns (result, harness failed, budget spent)."""
+) -> tuple[dict[str, object], bool, str | None]:
+    """Run one row. Returns (result, harness failed, reason to stop the run or None)."""
     # A fresh backend per row gives each arm its own scratch copy of the scenario,
     # so no arm starts from another arm's edits.
     try:
@@ -200,12 +215,15 @@ def _run_row(
                 backend,
             )
     except BudgetExhaustedError:
-        return _not_run(row, repetition, "invocation budget spent mid-row"), False, True
+        return _not_run(row, repetition, f"{BUDGET_SPENT} mid-row"), False, BUDGET_SPENT
     item = result_to_dict(result)
     item["repetition"] = repetition
+    item["effort_evidence"] = EFFORT_EVIDENCE.get(row.harness, "none")
     if real_home:
         item["ambient_home"] = _ambient_home(row.harness)
-    return item, result.status is RunStatus.HARNESS_FAILED, False
+    limit = limit_detail(item)
+    stop = None if limit is None else f"{row.harness} usage or credit limit: {limit}"
+    return item, result.status is RunStatus.HARNESS_FAILED, stop
 
 
 def _ambient_home(harness: str) -> dict[str, object]:
