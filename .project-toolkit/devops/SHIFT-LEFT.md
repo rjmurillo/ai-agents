@@ -274,8 +274,10 @@ dedicated workflows instead:
 | Hook Anchoring | `hook-contract-check.yml` |
 | Memory index count ratchet | `pr-validation.yml` |
 
-Three checks have no CI step: `security-scan` (semgrep, pre-push), and
-`memory-index` (`scripts/validation/memory_index.py`) and `memory-tier`
+The Job ownership table below lists every check with no CI step found. The
+checks earlier versions of this section called out still have none:
+`security-scan` (semgrep, pre-push), and `memory-index`
+(`scripts/validation/memory_index.py`) and `memory-tier`
 (`scripts/validate_memory_tier.py`), both pre-commit since issue #5626 deleted
 `memory-validation.yml`. A local bypass is the only place they are enforced.
 CI runs the unindexed-memory count ratchet, not those two validators. Mypy has a
@@ -305,8 +307,9 @@ The same call lists a `pull_request` rule, a `non_fast_forward` rule, and a
 `deletion` rule for the default branch. Rows cite those rules as "ruleset
 11104075".
 
-"None found" means a search of `.github/workflows` for the script name returned
-no workflow step. It does not rule out coverage by a pytest test.
+"None found" means a search of `.github/workflows` for the script name, and for
+the subcommand when the script is `git_hook_policy.py`, returned no workflow
+step that runs the check. It does not rule out coverage by a pytest test.
 
 Scope is read from the job: `glob`, `staged files`, `push files`, `push range
 (stdin)`, or `unscoped`. An unscoped job runs on every invocation of its hook.
@@ -345,10 +348,10 @@ a security gate.
 | pre-commit | `taste-advisory` | glob | Taste lint report, blocks only if the lint cannot run | - | no | Required: Validate PR, step Run taste-lint error-count ratchet (count form) |
 | pre-commit | `security-suppressions-staged` | glob | Security suppression markers in staged changes | - | yes | Required: Run Python Tests, step Check security suppressions in diff (pull request, issue 4061) |
 | pre-commit | `subprocess-encoding` | glob | Subprocess encoding convention | - | no | Required: Run Python Tests, step Run subprocess encoding count ratchet (whole tree), count form |
-| pre-commit | `generate-mcp-config` | glob | Regenerates MCP config (writes) | - | no | Not mapped to one step. Job Build-all Staleness runs build_all.py --check and Required: Validate Generated Files requires it |
+| pre-commit | `generate-mcp-config` | glob | Regenerates MCP config (writes) | - | no | Not mapped to one step. Required: Validate Generated Files requires job Build-all Staleness, step Build-all staleness check (REQ-003-005), which runs build_all.py --check |
 | pre-commit | `stage-mcp-config` | glob | Stages regenerated MCP config | - | no | Not applicable, git staging |
-| pre-commit | `generate-agents` | glob | Regenerates agent files (writes) | - | no | Not mapped to one step. Job Build-all Staleness runs build_all.py --check and Required: Validate Generated Files requires it |
-| pre-commit | `generate-agent-catalog` | glob | Regenerates the agent catalog (writes) | - | no | Not mapped to one step. Job Build-all Staleness runs build_all.py --check and Required: Validate Generated Files requires it |
+| pre-commit | `generate-agents` | glob | Regenerates agent files (writes) | - | no | Not mapped to one step. Required: Validate Generated Files requires job Build-all Staleness, step Build-all staleness check (REQ-003-005), which runs build_all.py --check |
+| pre-commit | `generate-agent-catalog` | glob | Regenerates the agent catalog (writes) | - | no | Not mapped to one step. Required: Validate Generated Files requires job Build-all Staleness, step Build-all staleness check (REQ-003-005), which runs build_all.py --check |
 | pre-commit | `stage-generated-agents` | glob | Stages regenerated agent files | - | no | Not applicable, git staging |
 | pre-commit | `memory-token-update` | glob | Updates memory index token counts (writes) | - | no | Required: Validate PR, step Run memory-index token ratchet (check form) |
 | pre-commit | `stage-memory-index` | glob | Stages the regenerated memory index | - | no | Not applicable, git staging |
@@ -410,8 +413,8 @@ runs the same command as the `review-axis-drift` job
 `Colocated Skill Tests` wraps the script behind the pre-commit job
 `colocated-skill-tests`. Neither repeat is removed by this change.
 
-A required CI check repeats a local job when the CI counterpart cell says
-`Required`. That repeat is deliberate: CI is the backstop for pushes that skip
+A required CI check repeats a local job, or a count form of it, when the CI
+counterpart cell says `Required`. The repeat is deliberate: CI is the backstop for pushes that skip
 local hooks, such as web edits and bot branches. Moving a local check to CI is
 a separate decision per job and needs a PR that shows the CI check blocking a
 failing case first.
