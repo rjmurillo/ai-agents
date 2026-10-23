@@ -162,7 +162,7 @@
         {
           "id": "row_equality_check",
           "desc": "Names a check that the automated rows equal the dashboard export.",
-          "pattern": "\\b(?:compar\\w*|diff(?:s|ed|ing)?|match(?:es|ed|ing)?|equal(?:s|ity)?|reconcil\\w*|cross-check\\w*|identical)\\b[^\\n.;]{0,80}?\\b(?:dashboard|csv|export\\w*)\\b|\\b(?:dashboard|csv|export\\w*)\\b[^\\n.;]{0,80}?\\b(?:compar\\w*|diff(?:s|ed|ing)?|match(?:es|ed|ing)?|equal(?:s|ity)?|reconcil\\w*|cross-check\\w*|identical)\\b"
+          "pattern": "^(?=[^\\n]*\\b(?:rows?|list|names|output|results?|entries|records|data)\\b)(?=[^\\n]*?(?<!\\bnever\\s)(?<!\\bdon't\\s)(?<!\\bdo not\\s)(?<!\\bno need to\\s)\\b(?:compar\\w*|diff(?:s|ed|ing)?|match(?:es|ed|ing)?|equal(?:s|ity)?|reconcil\\w*|cross-check\\w*|identical)\\b)(?=[^\\n]*\\b(?:dashboard|csv|export\\w*)\\b)"
         }
       ]
     }

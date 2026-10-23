@@ -35,7 +35,8 @@ PASSES = [
     "Validate by diffing one week's output against the manual CSV export.",
     "Success check: the generated list matches the dashboard export row for row.",
     "Compare the API result to the exported CSV for one week before switching over.",
-    "Reconcile the counts against the dashboard export for the first two Mondays.",
+    "Reconcile the rows against the dashboard export for the first two Mondays.",
+    "Alert if the new list does not match the dashboard export.",
     "Proof point: for one team, the API rows are identical to the Export CSV rows.",
 ]
 FAILS = [
@@ -45,6 +46,12 @@ FAILS = [
     "Hit the dashboard's export endpoint directly each week.",
     "If no API exists, a headless browser script automating the Export CSV click is the fallback.",
     "Run Playwright every Monday: log in, pick the team, click Export CSV, parse the file.",
+    # A comparison with no rows, list, or output in it is not a row check.
+    "Compare API latency with dashboard export latency.",
+    "Reconcile the counts against the dashboard export.",
+    # A check the response tells the reader not to run is not named as a check.
+    "Do not compare the API rows with the dashboard export.",
+    "Never compare rows to the CSV export.",
 ]
 
 
