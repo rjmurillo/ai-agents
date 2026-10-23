@@ -290,12 +290,23 @@ has one owner unless the Also runs at column says otherwise.
 
 The CI counterpart column names a check that runs the same validator or the
 count form of it. "Required" means the check is in the required status checks
-of ruleset 11104075 on `main`, read with `gh api repos/rjmurillo/ai-agents/rules/branches/main`
-on 2026-10-23. Those checks are Validate Path Normalization, Validate Generated
-Files, Validate PR, Validate PR title, Analyze (actions), Analyze (python), Run
-Python Tests, Validate Plugin Version Bump, and Check whole-tree count ratchets
-(blocking). "None found" means a search of `.github/workflows` for the script
-name returned no workflow step. It does not rule out coverage by a pytest test.
+of ruleset 11104075 on `main`, read on 2026-10-23 with
+`gh api repos/rjmurillo/ai-agents/rules/branches/main`. Those checks are:
+Validate Path Normalization, Validate Generated Files, Validate PR, Validate PR
+title, Analyze (actions), Analyze (python), Run Python Tests, Validate Plugin
+Version Bump, and Check whole-tree count ratchets (blocking).
+
+Validate Path Normalization and Validate Generated Files run their steps only
+when a path filter matches the change, and report success otherwise
+(`validate-paths.yml`, `validate-generated-agents.yml`). A "Required" row under
+either is enforced only for changes inside that filter.
+
+The same call lists a `pull_request` rule, a `non_fast_forward` rule, and a
+`deletion` rule for the default branch. Rows cite those rules as "ruleset
+11104075".
+
+"None found" means a search of `.github/workflows` for the script name returned
+no workflow step. It does not rule out coverage by a pytest test.
 
 Scope is read from the job: `glob`, `staged files`, `push files`, `push range
 (stdin)`, or `unscoped`. An unscoped job runs on every invocation of its hook.
@@ -317,7 +328,7 @@ a security gate.
 | pre-commit | `staged-dash-policy` | glob | Em and en dash scan of staged files | - | no | None found (branch-wide twin runs at pre-push as dash-prohibition) |
 | pre-commit | `action-pin-policy` | glob | Staged workflow action SHA pins | - | adjacent | Required: Validate Generated Files, step Validate GitHub Actions SHA Pinning |
 | pre-commit | `root-scratch-policy` | staged files | Blocks a new scratch file at the repo root | - | no | None found |
-| pre-commit | `conflict-marker-policy` | staged files | Conflict markers in staged files | - | no | Required: Validate PR, step Check for conflict markers (tracked files) |
+| pre-commit | `conflict-marker-policy` | staged files | Conflict markers in staged files | - | no | Required: Validate PR, step Check for conflict markers (tracked files only) |
 | pre-commit | `python-autofix` | glob | Ruff autofix on staged Python (writes) | - | no | None found |
 | pre-commit | `python-check` | glob | Ruff check on staged Python | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
 | pre-commit | `python-format` | glob | Ruff format check on staged Python | - | no | Required: Run Python Tests, step Run ruff format check (whole tree) |
@@ -332,12 +343,12 @@ a security gate.
 | pre-commit | `infrastructure-advisory` | glob | Flags infrastructure files that need security review, advisory | - | adjacent | None found |
 | pre-commit | `adr-review-policy` | glob | ADR edits need the review record | - | no | None found |
 | pre-commit | `taste-advisory` | glob | Taste lint report, blocks only if the lint cannot run | - | no | Required: Validate PR, step Run taste-lint error-count ratchet (count form) |
-| pre-commit | `security-suppressions-staged` | glob | Security suppression markers in staged changes | - | yes | Required: Run Python Tests, step Check security suppressions in diff |
-| pre-commit | `subprocess-encoding` | glob | Subprocess encoding convention | - | no | Required: Run Python Tests, job Check whole-tree count ratchets, step Run subprocess encoding count ratchet (count form) |
-| pre-commit | `generate-mcp-config` | glob | Regenerates MCP config (writes) | - | no | Not mapped to one step; Required: Validate Generated Files runs build_all.py --check |
+| pre-commit | `security-suppressions-staged` | glob | Security suppression markers in staged changes | - | yes | Required: Run Python Tests, step Check security suppressions in diff (pull request, issue 4061) |
+| pre-commit | `subprocess-encoding` | glob | Subprocess encoding convention | - | no | Required: Run Python Tests, step Run subprocess encoding count ratchet (whole tree), count form |
+| pre-commit | `generate-mcp-config` | glob | Regenerates MCP config (writes) | - | no | Not mapped to one step. Job Build-all Staleness runs build_all.py --check and Required: Validate Generated Files requires it |
 | pre-commit | `stage-mcp-config` | glob | Stages regenerated MCP config | - | no | Not applicable, git staging |
-| pre-commit | `generate-agents` | glob | Regenerates agent files (writes) | - | no | Not mapped to one step; Required: Validate Generated Files runs build_all.py --check |
-| pre-commit | `generate-agent-catalog` | glob | Regenerates the agent catalog (writes) | - | no | Not mapped to one step; Required: Validate Generated Files runs build_all.py --check |
+| pre-commit | `generate-agents` | glob | Regenerates agent files (writes) | - | no | Not mapped to one step. Job Build-all Staleness runs build_all.py --check and Required: Validate Generated Files requires it |
+| pre-commit | `generate-agent-catalog` | glob | Regenerates the agent catalog (writes) | - | no | Not mapped to one step. Job Build-all Staleness runs build_all.py --check and Required: Validate Generated Files requires it |
 | pre-commit | `stage-generated-agents` | glob | Stages regenerated agent files | - | no | Not applicable, git staging |
 | pre-commit | `memory-token-update` | glob | Updates memory index token counts (writes) | - | no | Required: Validate PR, step Run memory-index token ratchet (check form) |
 | pre-commit | `stage-memory-index` | glob | Stages the regenerated memory index | - | no | Not applicable, git staging |
@@ -350,28 +361,28 @@ a security gate.
 | pre-commit | `memory-placement` | glob | Memory file placement | - | no | Required: Validate PR, step Run memory-placement check |
 | pre-commit | `memory-skill-format` | glob | Skill format validation, staged only | - | no | None found |
 | pre-commit | `extract-session-episodes` | glob | Extracts episodes from staged session logs | - | no | None found |
-| pre-commit | `context-output-check` | staged files | Context output manifest is complete | - | no | Required: Run Python Tests, job Check context outputs, step Check complete context-output manifest |
+| pre-commit | `context-output-check` | staged files | Context output manifest is complete | - | no | Required: Run Python Tests, step Check complete context-output manifest (blocking) |
 | pre-commit | `github-bash-policy` | glob | Bash in GitHub skill scripts | - | no | None found |
 | pre-push | `repo-health` | unscoped | core.bare and shared git config sanity | pre-commit | no | Local state, no CI analogue |
 | pre-push | `repair-packed-refs` | unscoped | Repairs packed-refs damage in the local clone (writes) | pre-commit | no | Local state, no CI analogue |
 | pre-push | `mutation-safety` | unscoped | Mutation workspace check | - | no | Local state, no CI analogue |
 | pre-push | `push-ref-staleness` | push range (stdin) | Pushed ref staleness against the remote | - | no | Local state, no CI analogue |
 | pre-push | `push-ref-policy` | push range (stdin) | Pushed ref policy, including a non-fast-forward check | - | no | Required: ruleset 11104075 non_fast_forward rule |
-| pre-push | `security-suppression-policy` | push range (stdin) | Security suppression markers in the pushed range | - | yes | Required: Run Python Tests, step Check security suppressions in diff |
+| pre-push | `security-suppression-policy` | push range (stdin) | Security suppression markers in the pushed range | - | yes | Required: Run Python Tests, step Check security suppressions in diff (pull request, issue 4061) |
 | pre-push | `placeholder-identity` | push range (stdin) | Placeholder author identity in pushed commits | - | no | CI, not required: placeholder-identity-check.yml |
-| pre-push | `count-ratchets` | unscoped | Ten count ratchets from one registry (checks_ratchet.py RATCHETS) | - | no | Required: Validate PR and Run Python Tests run each registry entry |
+| pre-push | `count-ratchets` | unscoped | Ten count ratchets from one registry (checks_ratchet.py RATCHETS) | - | no | Required: Run Python Tests (steps Run ruff ratchet (changed Python files), Run ruff count ratchet (whole tree), Run subprocess encoding count ratchet (whole tree)) and Validate PR (steps Run taste-lint error-count ratchet, Run type-ignore count ratchet, Run unindexed-memory count ratchet, Run memory-index token ratchet, Run CLI exit contract ratchet, Run canonical citations count ratchet, Run merge-tree ratchet) |
 | pre-push | `python-unreachable-statements` | unscoped | No statement after return, raise, continue, break | - | no | None found |
-| pre-push | `path-normalization` | unscoped | Documentation path normalization | - | no | Required: Validate Path Normalization (same script) |
+| pre-push | `path-normalization` | unscoped | Documentation path normalization | - | no | Required: Validate Path Normalization, step Validate documentation paths (same script) |
 | pre-push | `planning-artifacts` | unscoped | Planning artifact validation | - | no | CI, not required: validate-planning-artifacts.yml |
 | pre-push | `branch-context-policy` | unscoped | Blocks when the branch contradicts today's session log | pre-commit | no | None found |
-| pre-push | `review-axis-drift` | unscoped | Review axis prompts match their source | - | no | Required: Validate Generated Files, step Review-axes drift check |
+| pre-push | `review-axis-drift` | unscoped | Review axis prompts match their source | - | no | Required: Validate Generated Files, step Review-axes drift check (REQ-008-03) |
 | pre-push | `dash-prohibition` | unscoped | Em and en dash scan of the whole branch | - | no | None found |
 | pre-push | `security-scan` | push range (stdin) | Semgrep on every pushed head | - | yes | None found |
 | pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 115 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |
 | pre-push | `worktree-gc-report` | unscoped | Reports stale registered worktrees, advisory | - | no | Local state, no CI analogue |
 | pre-push | `branch-config-prune-report` | unscoped | Reports stale branch sections in .git/config, advisory | - | no | Local state, no CI analogue |
-| pre-push | `python-tests` | unscoped | Pytest suite via git_hook_policy pytest | - | no | Required: Run Python Tests (partitioned pytest matrix) |
-| pre-push | `zero-collection-tests` | unscoped | Test files that collect zero tests | - | no | Required: Run Python Tests, job Check for zero-collection test files |
+| pre-push | `python-tests` | unscoped | Pytest suite via git_hook_policy pytest | - | no | Required: Run Python Tests, step Run pytest (partitioned matrix) |
+| pre-push | `zero-collection-tests` | unscoped | Test files that collect zero tests | - | no | Required: Run Python Tests, step Check for zero-collection test files (blocking) |
 | pre-push | `python-lint-advisory` | push files | Ruff on pushed Python, advisory | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
 | pre-push | `python-type-check` | push files | Mypy on pushed Python | - | no | Required: Run Python Tests, step Run mypy ratchet (changed Python files) |
 | pre-push | `workflow-local-run` | push files | Runs changed workflows locally with act | - | no | None found |
@@ -441,7 +452,7 @@ What the numbers show:
   plus that job.
 - Pre-commit costs 25.5s to 27.9s at p50. `agents-write-targets` takes 23.8s to
   24.0s of that in all three classes, including a one-file Markdown change.
-- The first repetition was within 0.6 percent of the median in every row, so
+- The first repetition was within 1 percent of the median in every row, so
   the runs show no separate cold-start cost. No cold machine or cold `uv` cache
   was measured.
 
