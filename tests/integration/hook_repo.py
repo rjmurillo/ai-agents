@@ -13,6 +13,12 @@ lint) would need the whole tree and the network, so the fixture keeps the
 cheap policy jobs and drops the rest. Each kept job keeps its real ``glob``,
 ``stage_fixed``, ``use_stdin``, ``skip`` and ``run`` fields, apart from the
 ``uv run`` prefix, which becomes the running interpreter.
+
+Two differences from a contributor checkout. The ``lefthook:`` runner key is
+dropped and ``LEFTHOOK_BIN`` names the pinned binary, so the runner's own
+fallback order stays with ``tests/test_lefthook_runner.py``. The
+``placeholder-identity`` job is omitted because it skips any repository under
+pytest's ``tmp_path`` by design.
 """
 
 from __future__ import annotations
@@ -52,7 +58,7 @@ PRE_PUSH_JOBS = (
     "repair-packed-refs",
     "push-ref-policy",
     "security-suppression-policy",
-    "placeholder-identity",
+    "python-lint-advisory",
 )
 
 # Every file a kept job imports. A missing sibling fails here with
@@ -72,7 +78,6 @@ SUPPORT_FILES = (
     "scripts/maintenance/__init__.py",
     "scripts/maintenance/repair_packed_refs.py",
     "scripts/validation/__init__.py",
-    "scripts/validation/check_placeholder_identity.py",
     "scripts/validation/check_repo_health.py",
     "scripts/validation/check_repo_health_report.py",
     "scripts/validation/cli_smoke_paths.py",
@@ -146,13 +151,17 @@ def runtime_config() -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Snapshot:
-    """Everything a failed hook must leave exactly as it found it."""
+    """What a failed hook must leave as it found it: refs, index, stash, file bytes and modes."""
 
     head: str
     refs: str
     index: str
     stash: str
-    worktree: dict[str, bytes]
+    worktree: dict[str, tuple[bytes, int]]
+
+    def checkout_state(self) -> tuple[str, str, str, dict[str, tuple[bytes, int]]]:
+        """Everything except refs, which a successful push legitimately moves."""
+        return (self.head, self.index, self.stash, self.worktree)
 
 
 @dataclass
@@ -207,7 +216,7 @@ class HookRepo:
 
     def snapshot(self) -> Snapshot:
         worktree = {
-            path.relative_to(self.repo).as_posix(): path.read_bytes()
+            path.relative_to(self.repo).as_posix(): (path.read_bytes(), path.stat().st_mode)
             for path in sorted(self.repo.rglob("*"))
             if path.is_file() and ".git" not in path.relative_to(self.repo).parts
         }
