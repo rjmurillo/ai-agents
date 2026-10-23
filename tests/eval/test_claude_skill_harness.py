@@ -257,10 +257,27 @@ class TestRunHarness:
         assert (tmp_path / "a" / ".claude").resolve() in found
         assert not [p for p in found if (tmp_path / "a" / "b").resolve() in p.parents]
 
+    def test_home_claude_config_dir_is_not_ambient(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True)
+        (home / "AppData" / "Temp").mkdir(parents=True)
+        monkeypatch.setattr(harness.Path, "home", classmethod(lambda cls: home))
+        found = harness.ambient_instruction_paths(home / "AppData" / "Temp")
+        assert (home / ".claude").resolve() not in [path.resolve() for path in found]
+        (home / "CLAUDE.md").write_text("rules", encoding="utf-8")
+        assert (home / "CLAUDE.md").resolve() in [
+            path.resolve() for path in harness.ambient_instruction_paths(home / "AppData" / "Temp")
+        ]
+
     def test_a_copy_failure_is_a_runtime_error(
         self, claude_env: pytest.MonkeyPatch, skill_dir: Path
     ) -> None:
-        (skill_dir / "broken").symlink_to(skill_dir / "missing-target")
+        try:
+            (skill_dir / "broken").symlink_to(skill_dir / "missing-target")
+        except OSError:
+            pytest.skip("symlinks need a privilege this platform lacks")
         install_runner(claude_env, Recorder(stdout=_stream(), on_call=lambda r: None))
         with pytest.raises(RuntimeError, match="could not install skill"):
             harness.run_harness("do X", model=MODEL, skill_dir=skill_dir, skill_name="demo")

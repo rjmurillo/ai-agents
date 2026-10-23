@@ -142,12 +142,19 @@ _AMBIENT_NAMES = ("CLAUDE.md", "CLAUDE.local.md", ".claude")
 
 
 def ambient_instruction_paths(start: Path) -> list[Path]:
-    """Return instruction files or directories in `start` and its ancestors."""
+    """Return instruction files or directories in `start` and its ancestors.
+
+    The user's own `~/.claude` is skipped. It is the CLI's user config
+    directory, which the transport relocates with `CLAUDE_CONFIG_DIR`, and
+    `--setting-sources project` does not read user settings. A temp directory
+    under the home directory, as on Windows, would otherwise refuse every run.
+    """
+    user_config = (Path.home() / ".claude").resolve()
     return [
         folder / name
         for folder in (start.resolve(), *start.resolve().parents)
         for name in _AMBIENT_NAMES
-        if (folder / name).exists()
+        if (folder / name).exists() and (folder / name).resolve() != user_config
     ]
 
 
