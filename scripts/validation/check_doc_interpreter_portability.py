@@ -104,6 +104,7 @@ import sys
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -374,42 +375,122 @@ def _canonical_tracked(repo_root: Path, rel_path: str, tracked_py: set[str]) -> 
     return canonical if canonical in tracked_py else rel_path
 
 
-def third_party_imports(
-    rel_path: str,
-    repo_root: Path,
-    tracked_py: set[str],
-    seen: set[str] | None = None,
-) -> set[str]:
-    """Return non-stdlib, non-repo modules reachable at import time from ``rel_path``."""
-    rel_path = _canonical_tracked(repo_root, rel_path, tracked_py)
-    seen = set() if seen is None else seen
-    if rel_path in seen:
-        return set()
-    seen.add(rel_path)
+@dataclass(frozen=True)
+class _DirectImports:
+    """Third-party roots a file names itself, plus the tracked files it pulls in, in order."""
+
+    third_party: frozenset[str]
+    targets: tuple[str, ...]
+
+
+@dataclass
+class ImportCache:
+    """Memo for one scan run. Never share it across runs: files may change between them.
+
+    ``canonical`` maps a documented path to its tracked target, ``direct`` holds the
+    one-file parse result, and ``closure`` holds the finished import closure per root.
+    """
+
+    canonical: dict[str, str] = dataclass_field(default_factory=dict)
+    direct: dict[str, _DirectImports] = dataclass_field(default_factory=dict)
+    closure: dict[str, frozenset[str]] = dataclass_field(default_factory=dict)
+
+
+def _canonical(
+    repo_root: Path, rel_path: str, tracked_py: set[str], cache: ImportCache | None
+) -> str:
+    if cache is None:
+        return _canonical_tracked(repo_root, rel_path, tracked_py)
+    canonical = cache.canonical.get(rel_path)
+    if canonical is None:
+        canonical = cache.canonical[rel_path] = _canonical_tracked(repo_root, rel_path, tracked_py)
+    return canonical
+
+
+def _parse_direct_imports(rel_path: str, repo_root: Path, tracked_py: set[str]) -> _DirectImports:
     try:
         source = _tracked_regular_file(repo_root, rel_path).read_text(encoding="utf-8")
         tree = ast.parse(source)
     except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as exc:
         raise ScanError(f"could not analyze {rel_path}: {exc}") from exc
 
-    found: set[str] = set()
+    third_party: set[str] = set()
+    targets: list[str] = []
     for name in _imported_roots(tree):
         if name in sys.stdlib_module_names:
             continue
         local = _local_modules(name, rel_path, tracked_py)
         if local is None:
-            found.add(name)
+            third_party.add(name)
             continue
-        for target in local:
-            found |= third_party_imports(target, repo_root, tracked_py, seen)
-    for target in _python_subprocess_targets(tree, tracked_py):
-        found |= third_party_imports(target, repo_root, tracked_py, seen)
+        targets.extend(local)
+    targets.extend(sorted(_python_subprocess_targets(tree, tracked_py)))
+    return _DirectImports(frozenset(third_party), tuple(targets))
+
+
+def _direct_imports(
+    rel_path: str, repo_root: Path, tracked_py: set[str], cache: ImportCache | None
+) -> _DirectImports:
+    if cache is None:
+        return _parse_direct_imports(rel_path, repo_root, tracked_py)
+    direct = cache.direct.get(rel_path)
+    if direct is None:
+        direct = cache.direct[rel_path] = _parse_direct_imports(rel_path, repo_root, tracked_py)
+    return direct
+
+
+def _walk_imports(
+    rel_path: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    seen: set[str],
+    cache: ImportCache | None,
+) -> set[str]:
+    rel_path = _canonical(repo_root, rel_path, tracked_py, cache)
+    if rel_path in seen:
+        return set()
+    seen.add(rel_path)
+    direct = _direct_imports(rel_path, repo_root, tracked_py, cache)
+    found = set(direct.third_party)
+    for target in direct.targets:
+        found |= _walk_imports(target, repo_root, tracked_py, seen, cache)
     return found
 
 
-def find_offenses(line: str, repo_root: Path, tracked_py: set[str]) -> list[tuple[str, list[str]]]:
+def third_party_imports(
+    rel_path: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    seen: set[str] | None = None,
+    cache: ImportCache | None = None,
+) -> set[str]:
+    """Return non-stdlib, non-repo modules reachable at import time from ``rel_path``.
+
+    With a ``cache`` each file is parsed once per run and each root's closure is
+    computed once. Without one, every call parses afresh. The result is identical.
+    """
+    if cache is None or seen is not None:
+        walked = set() if seen is None else seen
+        return _walk_imports(rel_path, repo_root, tracked_py, walked, cache)
+    root = _canonical(repo_root, rel_path, tracked_py, cache)
+    closure = cache.closure.get(root)
+    if closure is None:
+        closure = cache.closure[root] = frozenset(
+            _walk_imports(root, repo_root, tracked_py, set(), cache)
+        )
+    return set(closure)
+
+
+def find_offenses(
+    line: str,
+    repo_root: Path,
+    tracked_py: set[str],
+    cache: ImportCache | None = None,
+) -> list[tuple[str, list[str]]]:
     """Return (script, third-party modules) for each unportable invocation on ``line``."""
     offenses: list[tuple[str, list[str]]] = []
+    if "python" not in line:
+        return offenses
     for match in INVOCATION_PATTERN.finditer(line):
         if is_uv_run_prefixed(line[: match.start()]):
             continue
@@ -418,7 +499,7 @@ def find_offenses(line: str, repo_root: Path, tracked_py: set[str]) -> list[tupl
             script = script[2:]
         if script not in tracked_py:
             continue
-        external = third_party_imports(script, repo_root, tracked_py)
+        external = third_party_imports(script, repo_root, tracked_py, cache=cache)
         if external:
             offenses.append((script, sorted(external)))
     return offenses
@@ -431,6 +512,7 @@ def scan(
 ) -> dict[str, list[str]]:
     """Return file paths mapped to offending script identities."""
     tracked_py = tracked_py_with_links(repo_root)
+    cache = ImportCache()
     counts: dict[str, list[str]] = {}
     listed = tracked_files(repo_root, "*.md", "*.py")
     listed_set = set(listed)
@@ -441,7 +523,7 @@ def scan(
         # this loop scans under its own path. Scanning both would double-count.
         if _canonical_tracked(repo_root, rel, listed_set) != rel:
             continue
-        scripts = _scan_file(repo_root, rel, tracked_py, details, stats)
+        scripts = _scan_file(repo_root, rel, tracked_py, details, stats, cache)
         if scripts:
             counts[rel] = sorted(scripts)
     return counts
@@ -453,6 +535,7 @@ def _scan_file(
     tracked_py: set[str],
     details: dict[str, list[str]] | None,
     stats: ScanStats | None,
+    cache: ImportCache | None = None,
 ) -> list[str]:
     path = _tracked_regular_file(repo_root, rel)
     try:
@@ -464,9 +547,11 @@ def _scan_file(
 
     scripts: list[str] = []
     for index, line in enumerate(lines):
-        if is_declared(lines, index):
+        # INVOCATION_PATTERN needs the literal "python"; a line without it has no
+        # offense, so skip the declaration lookup and the regex for it.
+        if "python" not in line or is_declared(lines, index):
             continue
-        for script, modules in find_offenses(line, repo_root, tracked_py):
+        for script, modules in find_offenses(line, repo_root, tracked_py, cache):
             scripts.append(script)
             if details is not None:
                 details.setdefault(rel, []).append(
