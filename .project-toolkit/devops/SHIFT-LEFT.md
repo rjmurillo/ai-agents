@@ -225,29 +225,30 @@ evidence-kind distinction that makes only backend evidence able to support
 ### Pre-commit hook
 
 Lefthook filters staged files and runs the pre-commit jobs declared in
-`lefthook.yml` (46 jobs as of 2026-08-19). Consult that file for the current
+`lefthook.yml` (47 jobs at `0e98cb2d12`, 2026-10-23). Consult that file for the current
 list rather than maintaining a second checklist here.
 
 ### Pre-push hook
 
-`lefthook.yml` declares 34 pre-push jobs, staged so cheap gates fail before
-expensive ones start (issue #5066). The hook is `piped: true`, so a failing
+`lefthook.yml` declares 27 pre-push jobs (`0e98cb2d12`, 2026-10-23), staged so
+cheap gates fail before expensive ones start (issue #5066). The hook is `piped: true`, so a failing
 job or group skips everything after it. Stage order:
 
 1. Singleton guards: `repair-packed-refs`, `mutation-safety`,
    `push-ref-staleness`.
 2. Fast stage, stdin half: a piped group of cheap ref-payload policies.
-3. Fast stage, parallel half: ratchets and policy gates. Measured maximum
-   21.05s (`merge-tree-ratchet`) on 2026-08-19.
+3. Fast stage, parallel half: ratchets and policy gates. The slowest job is
+   `count-ratchets`, 40.2s at p50 on 2026-10-23 (see Latency baseline).
 4. `security-scan` (semgrep), a serialized stdin consumer. Measured 6.7s for a
    7-file push.
 5. Expensive stage: `python-tests`, `pre-pr-validation`, mypy,
    `workflow-local-run`, the CLI e2e smokes, and the advisory reporters.
 
-`python-tests` dominates: 475s across four serial partitions on a 4-CPU
-container (bulk 257.9s, mutation 166.6s, safe-push 36.9s, pr-autofix 8.8s).
-Reducing pre-push wall clock means reducing that job; the rest of the hook is
-about 30s combined.
+On a 4-CPU container, `python-tests` took 475s across four serial partitions
+(bulk 257.9s, mutation 166.6s, safe-push 36.9s, pr-autofix 8.8s) in an earlier
+measurement. On the 48-CPU host in the Latency baseline below, `python-tests`
+took 53s at p50 and `pre-pr-validation` took 220s. Which job dominates depends
+on the host, so read the baseline before choosing what to reduce.
 
 A job's standalone wall clock does not predict its wall clock inside the hook.
 See `.claude/rules/ci-scripts.md` MUST-16 for the measured gap and why timeouts
@@ -273,12 +274,191 @@ dedicated workflows instead:
 | Hook Anchoring | `hook-contract-check.yml` |
 | Memory index count ratchet | `pr-validation.yml` |
 
-Four pre-push gates have no CI equivalent, so a local bypass is the only place
-they are enforced: `security-scan` (semgrep), `python-type-check` (mypy), and,
-since issue #5626 deleted `memory-validation.yml`, `memory-index`
-(`scripts/validation/memory_index.py`) and `memory-tier`
-(`scripts/validate_memory_tier.py`). CI runs the type-ignore count ratchet, not
-mypy itself, and the unindexed-memory count ratchet, not those two validators.
+Three checks have no CI step: `security-scan` (semgrep, pre-push), and
+`memory-index` (`scripts/validation/memory_index.py`) and `memory-tier`
+(`scripts/validate_memory_tier.py`), both pre-commit since issue #5626 deleted
+`memory-validation.yml`. A local bypass is the only place they are enforced.
+CI runs the unindexed-memory count ratchet, not those two validators. Mypy has a
+CI form: `Run Python Tests` runs `scripts/ci/mypy_ratchet.py` on changed
+Python files, which is narrower than the pre-push `python-type-check` job.
+
+### Job ownership table
+
+Each row is one job in `lefthook.yml` at `0e98cb2d12` (2026-10-23): 47
+pre-commit jobs and 27 pre-push jobs. The Hook column names the owner. A job
+has one owner unless the Also runs at column says otherwise.
+
+The CI counterpart column names a check that runs the same validator or the
+count form of it. "Required" means the check is in the required status checks
+of ruleset 11104075 on `main`, read with `gh api repos/rjmurillo/ai-agents/rules/branches/main`
+on 2026-10-23. Those checks are Validate Path Normalization, Validate Generated
+Files, Validate PR, Validate PR title, Analyze (actions), Analyze (python), Run
+Python Tests, Validate Plugin Version Bump, and Check whole-tree count ratchets
+(blocking). "None found" means a search of `.github/workflows` for the script
+name returned no workflow step. It does not rule out coverage by a pytest test.
+
+Scope is read from the job: `glob`, `staged files`, `push files`, `push range
+(stdin)`, or `unscoped`. An unscoped job runs on every invocation of its hook.
+The Security column marks jobs that handle secrets, suppressions, or security
+review. `adjacent` marks a job that gates a security-relevant input or contains
+a security gate.
+
+| Hook | Job | Scope | Checks | Also runs at | Security | CI counterpart |
+|---|---|---|---|---|---|---|
+| pre-commit | `repo-health` | unscoped | core.bare and shared git config sanity | pre-push | no | Local state, no CI analogue |
+| pre-commit | `repair-packed-refs` | unscoped | Repairs packed-refs damage in the local clone (writes) | pre-push | no | Local state, no CI analogue |
+| pre-commit | `branch-policy` | unscoped | Blocks a commit on main or master | - | no | Required: ruleset 11104075 pull_request rule on the default branch |
+| pre-commit | `branch-context-policy` | unscoped | Blocks when the branch contradicts today's session log | pre-push | no | None found |
+| pre-commit | `push-lock-commit-guard` | unscoped | Push lock guard before a commit | - | no | Local state, no CI analogue |
+| pre-commit | `markdown-autofix` | glob | Autofixes staged Markdown (writes) | - | no | None found |
+| pre-commit | `markdown-check` | glob | Lints staged Markdown | - | no | None found |
+| pre-commit | `root-hygiene-policy` | staged files | Root directory hygiene for staged paths | - | no | None found |
+| pre-commit | `session-policy` | glob | Staged session log shape | - | no | None found |
+| pre-commit | `staged-dash-policy` | glob | Em and en dash scan of staged files | - | no | None found (branch-wide twin runs at pre-push as dash-prohibition) |
+| pre-commit | `action-pin-policy` | glob | Staged workflow action SHA pins | - | adjacent | Required: Validate Generated Files, step Validate GitHub Actions SHA Pinning |
+| pre-commit | `root-scratch-policy` | staged files | Blocks a new scratch file at the repo root | - | no | None found |
+| pre-commit | `conflict-marker-policy` | staged files | Conflict markers in staged files | - | no | Required: Validate PR, step Check for conflict markers (tracked files) |
+| pre-commit | `python-autofix` | glob | Ruff autofix on staged Python (writes) | - | no | None found |
+| pre-commit | `python-check` | glob | Ruff check on staged Python | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
+| pre-commit | `python-format` | glob | Ruff format check on staged Python | - | no | Required: Run Python Tests, step Run ruff format check (whole tree) |
+| pre-commit | `workflow-validation` | glob | validate_workflows.py on staged workflows | - | no | Required: Validate PR, step Validate workflow YAML (whole tree) |
+| pre-commit | `actionlint` | glob | actionlint on staged workflows | - | no | None found. pr-validation.yml records that actionlint stays out of CI on purpose |
+| pre-commit | `yaml-advisory` | glob | yamllint on staged YAML, advisory | - | no | CI, not required: yaml-lint.yml |
+| pre-commit | `skillforge` | glob | Skillforge policy on staged skills | - | no | None found |
+| pre-commit | `skill-size` | glob | Skill size budget, staged only | - | no | None found |
+| pre-commit | `colocated-skill-tests` | glob | No new colocated skill tests, staged only | - | no | None found |
+| pre-commit | `agents-write-targets` | glob | No writes to legacy .agents paths | - | no | CI, not required: validate-vendor-portability.yml |
+| pre-commit | `planning-advisory` | glob | Planning artifact advisory | - | no | CI, not required: validate-planning-artifacts.yml |
+| pre-commit | `infrastructure-advisory` | glob | Flags infrastructure files that need security review, advisory | - | adjacent | None found |
+| pre-commit | `adr-review-policy` | glob | ADR edits need the review record | - | no | None found |
+| pre-commit | `taste-advisory` | glob | Taste lint report, blocks only if the lint cannot run | - | no | Required: Validate PR, step Run taste-lint error-count ratchet (count form) |
+| pre-commit | `security-suppressions-staged` | glob | Security suppression markers in staged changes | - | yes | Required: Run Python Tests, step Check security suppressions in diff |
+| pre-commit | `subprocess-encoding` | glob | Subprocess encoding convention | - | no | Required: Run Python Tests, job Check whole-tree count ratchets, step Run subprocess encoding count ratchet (count form) |
+| pre-commit | `generate-mcp-config` | glob | Regenerates MCP config (writes) | - | no | Not mapped to one step; Required: Validate Generated Files runs build_all.py --check |
+| pre-commit | `stage-mcp-config` | glob | Stages regenerated MCP config | - | no | Not applicable, git staging |
+| pre-commit | `generate-agents` | glob | Regenerates agent files (writes) | - | no | Not mapped to one step; Required: Validate Generated Files runs build_all.py --check |
+| pre-commit | `generate-agent-catalog` | glob | Regenerates the agent catalog (writes) | - | no | Not mapped to one step; Required: Validate Generated Files runs build_all.py --check |
+| pre-commit | `stage-generated-agents` | glob | Stages regenerated agent files | - | no | Not applicable, git staging |
+| pre-commit | `memory-token-update` | glob | Updates memory index token counts (writes) | - | no | Required: Validate PR, step Run memory-index token ratchet (check form) |
+| pre-commit | `stage-memory-index` | glob | Stages the regenerated memory index | - | no | Not applicable, git staging |
+| pre-commit | `memory-size` | glob | Memory file size limits | - | no | None found |
+| pre-commit | `memory-index` | glob | Memory index consistency, orphan ratchet | - | no | None found |
+| pre-commit | `memory-token-counts` | glob | Memory index token counts are current | - | no | Required: Validate PR, step Run memory-index token ratchet (count form) |
+| pre-commit | `memory-tier` | glob | Memory tier validation | - | no | None found |
+| pre-commit | `memory-cross-reference` | glob | Memory cross references (writes) | - | no | None found |
+| pre-commit | `stage-memory-cross-references` | glob | Stages memory cross reference edits | - | no | Not applicable, git staging |
+| pre-commit | `memory-placement` | glob | Memory file placement | - | no | Required: Validate PR, step Run memory-placement check |
+| pre-commit | `memory-skill-format` | glob | Skill format validation, staged only | - | no | None found |
+| pre-commit | `extract-session-episodes` | glob | Extracts episodes from staged session logs | - | no | None found |
+| pre-commit | `context-output-check` | staged files | Context output manifest is complete | - | no | Required: Run Python Tests, job Check context outputs, step Check complete context-output manifest |
+| pre-commit | `github-bash-policy` | glob | Bash in GitHub skill scripts | - | no | None found |
+| pre-push | `repo-health` | unscoped | core.bare and shared git config sanity | pre-commit | no | Local state, no CI analogue |
+| pre-push | `repair-packed-refs` | unscoped | Repairs packed-refs damage in the local clone (writes) | pre-commit | no | Local state, no CI analogue |
+| pre-push | `mutation-safety` | unscoped | Mutation workspace check | - | no | Local state, no CI analogue |
+| pre-push | `push-ref-staleness` | push range (stdin) | Pushed ref staleness against the remote | - | no | Local state, no CI analogue |
+| pre-push | `push-ref-policy` | push range (stdin) | Pushed ref policy, including a non-fast-forward check | - | no | Required: ruleset 11104075 non_fast_forward rule |
+| pre-push | `security-suppression-policy` | push range (stdin) | Security suppression markers in the pushed range | - | yes | Required: Run Python Tests, step Check security suppressions in diff |
+| pre-push | `placeholder-identity` | push range (stdin) | Placeholder author identity in pushed commits | - | no | CI, not required: placeholder-identity-check.yml |
+| pre-push | `count-ratchets` | unscoped | Ten count ratchets from one registry (checks_ratchet.py RATCHETS) | - | no | Required: Validate PR and Run Python Tests run each registry entry |
+| pre-push | `python-unreachable-statements` | unscoped | No statement after return, raise, continue, break | - | no | None found |
+| pre-push | `path-normalization` | unscoped | Documentation path normalization | - | no | Required: Validate Path Normalization (same script) |
+| pre-push | `planning-artifacts` | unscoped | Planning artifact validation | - | no | CI, not required: validate-planning-artifacts.yml |
+| pre-push | `branch-context-policy` | unscoped | Blocks when the branch contradicts today's session log | pre-commit | no | None found |
+| pre-push | `review-axis-drift` | unscoped | Review axis prompts match their source | - | no | Required: Validate Generated Files, step Review-axes drift check |
+| pre-push | `dash-prohibition` | unscoped | Em and en dash scan of the whole branch | - | no | None found |
+| pre-push | `security-scan` | push range (stdin) | Semgrep on every pushed head | - | yes | None found |
+| pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 115 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |
+| pre-push | `worktree-gc-report` | unscoped | Reports stale registered worktrees, advisory | - | no | Local state, no CI analogue |
+| pre-push | `branch-config-prune-report` | unscoped | Reports stale branch sections in .git/config, advisory | - | no | Local state, no CI analogue |
+| pre-push | `python-tests` | unscoped | Pytest suite via git_hook_policy pytest | - | no | Required: Run Python Tests (partitioned pytest matrix) |
+| pre-push | `zero-collection-tests` | unscoped | Test files that collect zero tests | - | no | Required: Run Python Tests, job Check for zero-collection test files |
+| pre-push | `python-lint-advisory` | push files | Ruff on pushed Python, advisory | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
+| pre-push | `python-type-check` | push files | Mypy on pushed Python | - | no | Required: Run Python Tests, step Run mypy ratchet (changed Python files) |
+| pre-push | `workflow-local-run` | push files | Runs changed workflows locally with act | - | no | None found |
+| pre-push | `additions-advisory` | unscoped | Branch additions against origin/main, advisory | - | no | None found |
+| pre-push | `hook-anchoring-e2e` | push range (stdin) | Hook anchoring CLI smoke on hook file changes | - | no | CI, not required: plugin-cli-smoke.yml (shares globs via cli_smoke_paths.py) |
+| pre-push | `plugin-load-e2e` | push range (stdin) | Plugin load CLI smoke on plugin file changes | - | no | CI, not required: plugin-cli-smoke.yml (shares globs via cli_smoke_paths.py) |
+| pre-push | `bot-cascade-advisory` | unscoped | Bot review cascade on the open PR, needs gh, advisory | - | no | None found |
+
+### Checks that run at more than one boundary
+
+Three jobs run at both hooks: `repo-health`, `repair-packed-refs`, and
+`branch-context-policy`. Each costs under 0.3s per run (see the baseline
+below). A commit can happen with no push, and a push can carry commits made in
+another clone or worktree, so neither hook can rely on the other having run.
+`branch-context-policy` also reads the session log, which can change between
+the commit and the push.
+
+`pre-push` job `pre-pr-validation` runs `pre_pr.py`, which holds 115 gates in
+`_SEQUENCE` (`pre_pr_sequence.py`, 2026-10-23). Five gates carry
+`already_run_by` and skip when the matching unconditional pre-push job passed:
+`count-ratchets`, `python-unreachable-statements`, `dash-prohibition`,
+`path-normalization`, and `planning-artifacts`. The `Review Axis Drift` gate
+runs the same command as the `review-axis-drift` job
+(`generate_pr_quality_prompts.py --dry-run`) and has no `already_run_by`.
+`Colocated Skill Tests` wraps the script behind the pre-commit job
+`colocated-skill-tests`. Neither repeat is removed by this change.
+
+A required CI check repeats a local job when the CI counterpart cell says
+`Required`. That repeat is deliberate: CI is the backstop for pushes that skip
+local hooks, such as web edits and bot branches. Moving a local check to CI is
+a separate decision per job and needs a PR that shows the CI check blocking a
+failing case first.
+
+### Latency baseline
+
+Measured at `0e98cb2d12` (2026-10-23) with `scripts/metrics/gate_latency.py`,
+20 repetitions per row, on one Linux host with 48 CPUs, Python 3.14.8, and
+lefthook 2.2.2. Each repetition ran the whole hook, never `--job`. Pre-push
+runs fed a stdin ref line for a scratch branch (`HEAD` against `HEAD~1`) and the
+hook arguments `origin <url>`. The raw reports are in
+`.project-toolkit/metrics/gate-latency-2026-10-23/`, one file per row.
+
+`lefthook.yml` sets `output: false`, which hides the per-job summary the sampler
+parses. Every run set `LEFTHOOK_OUTPUT=summary,success,failure` so jobs parse.
+Without it the report has a hook wall clock and no per-job rows.
+
+| Hook | Change class | n | Status | p50 s | p95 s | max s | Load range (48 CPUs) | Slowest jobs by p50 |
+|---|---|---|---|---|---|---|---|---|
+| pre-commit | markdown | 20 | complete 20 | 27.9 | 28.1 | 28.1 | 2.8 to 6.7 | `agents-write-targets` 24.0s; `markdown-autofix` 1.1s |
+| pre-commit | python | 20 | complete 20 | 25.5 | 25.8 | 26.1 | 3.1 to 4.9 | `agents-write-targets` 23.8s; `subprocess-encoding` 13.2s |
+| pre-commit | workflows | 20 | complete 20 | 25.5 | 25.8 | 26.2 | 2.8 to 5.8 | `agents-write-targets` 23.8s; `context-output-check` 0.9s |
+| pre-push | markdown | 20 | complete 20 | 263.2 | 280.2 | 388.5 | 2.7 to 12.8 | `pre-pr-validation` 220.4s; `python-tests` 54.2s |
+| pre-push | python | 20 | complete 20 | 263.3 | 265.6 | 266.2 | 2.6 to 6.4 | `pre-pr-validation` 220.3s; `python-tests` 53.1s |
+| pre-push | workflows | 20 | complete 20 | 263.0 | 267.1 | 270.9 | 2.6 to 4.4 | `pre-pr-validation` 220.3s; `python-tests` 53.4s |
+
+Load is the 1-minute load average sampled before and after each repetition.
+Other agents shared the host. One pre-push markdown repetition reached load 12.8
+and took 388.5s; the other 19 took 261.6s to 280.2s. All 120 repetitions
+completed with exit 0 and no truncation. With n=20, p95 is the 19th value of 20.
+
+What the numbers show:
+
+- Pre-push costs 263s at p50 for all three classes. The unscoped jobs set the
+  floor, so a one-line Markdown push pays the same as a Python push.
+- `pre-pr-validation` takes 220s at p50, 84 percent of the pre-push wall clock.
+  It starts after the `count-ratchets` group, so the critical path is the group
+  plus that job.
+- Pre-commit costs 25.5s to 27.9s at p50. `agents-write-targets` takes 23.8s to
+  24.0s of that in all three classes, including a one-file Markdown change.
+- The first repetition was within 0.6 percent of the median in every row, so
+  the runs show no separate cold-start cost. No cold machine or cold `uv` cache
+  was measured.
+
+Exclusions:
+
+- Change classes `none`, `skills`, and `hooks` were not sampled. Pre-push costs
+  about 88 minutes per class at n=20.
+- Every sampled input was clean and passed. Failing inputs, partial staging, and
+  first or deleting pushes were not sampled.
+- Diagnostic volume was not measured. `output: false` suppresses it.
+- The stdin ref line is a fixed one-commit range. A larger outgoing range is not
+  covered.
+- No row sets a budget. The p50 and p95 values above are the input for setting
+  one.
+
+The earlier n=2 baseline in `.project-toolkit/metrics/gate-latency-v0.7.0/` ran
+on a 4-CPU host, so its figures do not compare with these.
 
 ### Developer workflow
 
