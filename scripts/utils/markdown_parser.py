@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
@@ -299,6 +300,23 @@ def blank_non_prose_block_lines(markdown: str) -> str:
     lines = "".join(characters).split("\n")
     _blank_matching_token_lines(lines, tokens, _NON_PROSE_BLOCK_TOKEN_TYPES)
     return "\n".join(lines)
+
+
+@lru_cache(maxsize=512)
+def blank_non_prose_block_lines_cached(markdown: str) -> str:
+    """Memoized `blank_non_prose_block_lines`: same result, one parse per distinct text.
+
+    `check_adr_lifecycle.py` and `adr_cited_paths.py` blank the same record body
+    three to four times per run (status prose, status section, section structure,
+    cited paths), and the markdown-it parse dominates the gate's runtime
+    (issue #6734). The input and the result are both immutable ``str`` values and
+    the wrapped function is pure, so a hit returns exactly what a fresh call
+    would. `functools.lru_cache` never stores a raised exception: an unparseable
+    or over-nested body re-parses and re-raises on every call, so the fail-closed
+    contract of `_blank_block_lines` holds. The cache is bounded and lives for
+    the process.
+    """
+    return blank_non_prose_block_lines(markdown)
 
 
 def _cell_text(content: str) -> str:

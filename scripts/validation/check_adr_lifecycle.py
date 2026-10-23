@@ -150,7 +150,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.ci.count_ratchet import baseline_absent_at_ref, git_environment
-from scripts.utils.markdown_parser import blank_non_prose_block_lines
+from scripts.utils.markdown_parser import blank_non_prose_block_lines_cached
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -655,7 +655,7 @@ def _status_prose(body: str) -> str | None:
     `_check_prose`) and turn it into a violation, not into a skip. Copilot
     found this on PR #5209.
     """
-    prose = blank_non_prose_block_lines(body)
+    prose = blank_non_prose_block_lines_cached(body)
     heading = _STATUS_HEADING_RE.search(prose)
     if heading is not None:
         for line in prose[heading.end() :].splitlines():
@@ -695,7 +695,7 @@ def _status_section_lines(body: str) -> list[str]:
     never disagree about which section is the record's own. The inline
     `**Status**:` form is not a section and returns empty here.
     """
-    prose = blank_non_prose_block_lines(body)
+    prose = blank_non_prose_block_lines_cached(body)
     heading = _STATUS_HEADING_RE.search(prose)
     if heading is None:
         return []
@@ -833,7 +833,7 @@ def _check_structure(record: Record) -> list[Violation]:
     for the reason `_check_prose` gives.
     """
     try:
-        prose = blank_non_prose_block_lines(record.body)
+        prose = blank_non_prose_block_lines_cached(record.body)
     except Exception as exc:
         detail = f"section structure could not be parsed: {exc}"
         return [Violation("section-structure", record.path, detail)]
@@ -913,7 +913,7 @@ def _parse_review_by(value: object) -> date:
 
 def _prose_states_date(body: str, due: date) -> bool:
     """True when the record's prose, outside code and HTML blocks, names ``due``."""
-    prose = blank_non_prose_block_lines(body)
+    prose = blank_non_prose_block_lines_cached(body)
     return re.search(rf"(?<!\d){re.escape(due.isoformat())}(?!\d)", prose) is not None
 
 

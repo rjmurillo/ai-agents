@@ -15,6 +15,7 @@ from scripts.utils.markdown_parser import (
     TableRow,
     blank_code_block_lines,
     blank_non_prose_block_lines,
+    blank_non_prose_block_lines_cached,
     extract_lookup_references,
     find_checklist_item,
     find_section,
@@ -954,3 +955,69 @@ class TestNestingExhaustion:
         # hide a code block, so it must NOT trigger a refusal even at depth 19.
         text = "a " + "*" * 19 + "x" + "*" * 19 + " /keep/a\n"
         assert "/keep/a" in blank_code_block_lines(text)
+
+
+class TestBlankNonProseBlockLinesCached:
+    """`blank_non_prose_block_lines_cached` returns what the uncached call returns.
+
+    The memo exists so the ADR lifecycle gate parses each record body once
+    instead of three to four times (issue #6734). It must not change a result
+    or swallow a parse failure.
+    """
+
+    SAMPLES = (
+        "",
+        "plain prose\n",
+        "## Status\n\nAccepted\n",
+        "```\n## Status\nProposed\n```\n\n## Status\n\nAccepted\n",
+        "<!--\n## Status\nProposed\n-->\n## Status\n\nAccepted\n",
+        "prose <!--\n**Status**: Proposed\n-->\n**Status**: Accepted\n",
+        "    indented code ## Status\n\ntext\n",
+        "`<!--` **Status**: Proposed\n",
+    )
+
+    @pytest.mark.parametrize("text", SAMPLES)
+    def test_matches_uncached_on_every_sample(self, text: str) -> None:
+        blank_non_prose_block_lines_cached.cache_clear()
+        assert blank_non_prose_block_lines_cached(text) == blank_non_prose_block_lines(text)
+        # The second call is a hit and must still equal the fresh result.
+        assert blank_non_prose_block_lines_cached(text) == blank_non_prose_block_lines(text)
+
+    def test_distinct_texts_get_distinct_results(self) -> None:
+        # A cache keyed on length, prefix, or line count would return the first
+        # result for the second text. These two have equal length and line count
+        # and differ only in whether the status line sits inside a fence.
+        fenced = "```\nStatus: A\n```\n"
+        plain = "xxx\nStatus: A\nxxx\n"
+        assert len(fenced) == len(plain)
+        blank_non_prose_block_lines_cached.cache_clear()
+        assert "Status: A" not in blank_non_prose_block_lines_cached(fenced)
+        assert "Status: A" in blank_non_prose_block_lines_cached(plain)
+        assert "Status: A" not in blank_non_prose_block_lines_cached(fenced)
+
+    def test_parses_each_distinct_text_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import scripts.utils.markdown_parser as module
+
+        calls: list[str] = []
+        real = module.blank_non_prose_block_lines
+
+        def spy(markdown: str) -> str:
+            calls.append(markdown)
+            return real(markdown)
+
+        monkeypatch.setattr(module, "blank_non_prose_block_lines", spy)
+        blank_non_prose_block_lines_cached.cache_clear()
+        for _ in range(4):
+            blank_non_prose_block_lines_cached("a\n")
+        blank_non_prose_block_lines_cached("b\n")
+        assert calls == ["a\n", "b\n"]
+
+    def test_refusal_is_not_cached_and_raises_every_time(self) -> None:
+        # Fail-closed contract: a body nested past maxNesting raises on every
+        # call. A cache that stored a result or swallowed the error would let the
+        # second caller treat the record as clean prose.
+        text = TestNestingExhaustion._nested_fence(20)
+        blank_non_prose_block_lines_cached.cache_clear()
+        for _ in range(3):
+            with pytest.raises(MarkdownNestingError):
+                blank_non_prose_block_lines_cached(text)
