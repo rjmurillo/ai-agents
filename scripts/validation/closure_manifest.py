@@ -326,12 +326,15 @@ def _resolve_imports(walker: _Walker, root: Path, python_files: list[str], gate_
         )
         return
     seeds = sorted(python_files)
-    closure = gate._expand_import_closure(seeds, root)
+    # One memo for this call only: both passes below scan the same files for
+    # dynamic loads, so the second pass reads the first pass's results.
+    load_cache: dict[Any, Any] = {}
+    closure = gate._expand_import_closure(seeds, root, load_cache=load_cache)
     for member in closure:
         if member not in seeds and walker.tree.has(member):
             walker.manifest.edges.add(Edge(EDGE_IMPORT, "closure", member))
             walker.add_file(member)
-    for site in gate._unresolvable_dynamic_sites(closure, root):
+    for site in gate._unresolvable_dynamic_sites(closure, root, load_cache=load_cache):
         matched = _SITE.match(site)
         path, line, detail = matched.groups() if matched else (site, "?", "unresolvable load")
         walker.manifest.unresolved.add(Unresolved(EDGE_IMPORT, path, f"line {line}: {detail}"))
