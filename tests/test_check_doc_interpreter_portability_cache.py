@@ -213,3 +213,11 @@ def test_prefilter_literal_is_in_every_pattern_match(text: str) -> None:
     assert match is not None
     assert INVOCATION_LITERAL in match.group(0)
     assert INVOCATION_PATTERN.flags & 2 == 0  # re.IGNORECASE would widen the match set
+
+
+def test_prefilter_literal_is_the_required_head_of_the_pattern() -> None:
+    """Pin the pattern head so a new alternative such as ``py`` fails here, not silently."""
+    head = r"(?<![\w./-])" + INVOCATION_LITERAL + "3?"
+
+    assert INVOCATION_PATTERN.pattern.startswith(head)
+    assert "|" not in INVOCATION_PATTERN.pattern.split(r"(?:[ \t]+-", 1)[0]
