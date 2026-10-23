@@ -138,16 +138,18 @@ def _installer(skill_dir: Path, skill_name: str) -> Callable[[Path], None]:
 
 #: Files the CLI reads from a working directory's ancestors. One of them above
 #: the sandbox would load into both arms, so the control would not be empty.
-_AMBIENT_NAMES = ("CLAUDE.md", "CLAUDE.local.md", ".claude")
+_AMBIENT_NAMES = ("CLAUDE.md", "CLAUDE.local.md", ".claude", ".claude/CLAUDE.md")
 
 
 def ambient_instruction_paths(start: Path) -> list[Path]:
     """Return instruction files or directories in `start` and its ancestors.
 
-    The user's own `~/.claude` is skipped. It is the CLI's user config
-    directory, which the transport relocates with `CLAUDE_CONFIG_DIR`, and
-    `--setting-sources project` does not read user settings. A temp directory
-    under the home directory, as on Windows, would otherwise refuse every run.
+    The user's own `~/.claude` directory is skipped. It is the CLI's user
+    config directory, which the transport relocates with `CLAUDE_CONFIG_DIR`,
+    and `--setting-sources project` does not read user settings. A temp
+    directory under the home directory, as on Windows, would otherwise refuse
+    every run. A `CLAUDE.md` inside it is still refused, since an ancestor's
+    `.claude/CLAUDE.md` can load as project memory.
     """
     user_config = (Path.home() / ".claude").resolve()
     return [

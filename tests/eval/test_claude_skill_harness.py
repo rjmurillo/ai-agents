@@ -266,6 +266,9 @@ class TestRunHarness:
         monkeypatch.setattr(harness.Path, "home", classmethod(lambda cls: home))
         found = harness.ambient_instruction_paths(home / "AppData" / "Temp")
         assert (home / ".claude").resolve() not in [path.resolve() for path in found]
+        (home / ".claude" / "CLAUDE.md").write_text("memory", encoding="utf-8")
+        found = harness.ambient_instruction_paths(home / "AppData" / "Temp")
+        assert (home / ".claude" / "CLAUDE.md").resolve() in [p.resolve() for p in found]
         (home / "CLAUDE.md").write_text("rules", encoding="utf-8")
         assert (home / "CLAUDE.md").resolve() in [
             path.resolve() for path in harness.ambient_instruction_paths(home / "AppData" / "Temp")
