@@ -237,6 +237,10 @@ def _only_arms(plan: Plan, arms: str) -> Plan:
 
 def _live_budget(args: argparse.Namespace) -> InvocationBudget | None:
     """The run's invocation budget, `None` when not live. Raises `ValueError` on a bad mix."""
+    if args.live and args.output is None:
+        raise ValueError("--live requires --output")
+    if args.output is not None and not args.live:
+        raise ValueError("--output is only valid with --live")
     if not args.live:
         if (
             args.real_home
@@ -253,12 +257,6 @@ def _live_budget(args: argparse.Namespace) -> InvocationBudget | None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.live and args.output is None:
-        print("error: --live requires --output", file=sys.stderr)
-        return EXIT_CONFIG
-    if args.output is not None and not args.live:
-        print("error: --output is only valid with --live", file=sys.stderr)
-        return EXIT_CONFIG
     try:
         budget = _live_budget(args)
     except ValueError as exc:
