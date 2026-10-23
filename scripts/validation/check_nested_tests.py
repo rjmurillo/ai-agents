@@ -12,6 +12,11 @@ Discriminator: a ``test_*`` function with any enclosing ``FunctionDef`` in the
 AST ancestor chain. Nested *classes* (``TestSomething.TestInner``) are collected
 by pytest and are NOT flagged.
 
+Speed (issue #6734): the visitor skips expression subtrees, because Python
+allows a ``def`` only as a statement. Trees of ``_PARALLEL_MIN_FILES`` or more
+files are scanned in child interpreters. Every file is still parsed, and the
+findings and their order match a serial scan.
+
 Exit codes (ADR-035):
     0 - Success (no nested test functions found)
     1 - Logic error (one or more uncollectable test functions found)
@@ -37,11 +42,15 @@ _SKIP_DIRS = frozenset(
 # scan stays in-process. The repository's own tree is well above it.
 _PARALLEL_MIN_FILES = 128
 _MAX_WORKERS = 8
-_WORKER_TIMEOUT_SECONDS = 600
+_WORKER_TIMEOUT_SECONDS = 120
 
+# The child loads this file by path instead of putting scripts/validation on
+# sys.path, so a sibling module named like a stdlib module cannot shadow it.
 _WORKER_BOOTSTRAP = (
-    "import sys; sys.path.insert(0, sys.argv[1]); "
-    "import check_nested_tests; raise SystemExit(check_nested_tests._worker_main())"
+    "import importlib.util as u, sys; "
+    "spec = u.spec_from_file_location('check_nested_tests_worker', sys.argv[1]); "
+    "module = u.module_from_spec(spec); spec.loader.exec_module(module); "
+    "raise SystemExit(module._worker_main())"
 )
 
 
@@ -139,11 +148,14 @@ def _scan_chunk_in_worker(paths: list[Path]) -> list[list[tuple[int, str]] | Non
 
     The fallback re-runs the unmodified serial scan, so a worker that crashes,
     times out, or returns malformed output yields the same result and the same
-    exceptions the serial gate would have produced.
+    exceptions the serial gate would have produced. It also prints one
+    ``[WARN]`` line, so a dead worker path shows up as a warning instead of a
+    silent slowdown.
     """
+    reason = "unknown"
     try:
         completed = subprocess.run(
-            [sys.executable, "-I", "-c", _WORKER_BOOTSTRAP, str(Path(__file__).resolve().parent)],
+            [sys.executable, "-I", "-c", _WORKER_BOOTSTRAP, str(Path(__file__).resolve())],
             input=json.dumps([str(path) for path in paths]),
             capture_output=True,
             text=True,
@@ -152,15 +164,28 @@ def _scan_chunk_in_worker(paths: list[Path]) -> list[list[tuple[int, str]] | Non
             check=False,
             timeout=_WORKER_TIMEOUT_SECONDS,
         )
-        if completed.returncode == 0:
+        if completed.returncode != 0:
+            reason = f"exit code {completed.returncode}"
+        else:
             decoded = json.loads(completed.stdout)
             if isinstance(decoded, list) and len(decoded) == len(paths):
-                return [
+                parsed = [
                     None if entry is None else [(int(line), str(name)) for line, name in entry]
                     for entry in decoded
                 ]
-    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
-        pass
+                if completed.stderr:
+                    # Keep parser warnings (for example SyntaxWarning) visible,
+                    # as they are when the scan runs in-process.
+                    sys.stderr.write(completed.stderr)
+                return parsed
+            reason = "malformed result"
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError) as error:
+        reason = f"{type(error).__name__}: {error}"
+    print(
+        f"[WARN] nested-test scan worker failed ({reason}); "
+        f"scanning {len(paths)} file(s) in-process",
+        file=sys.stderr,
+    )
     return _scan_serial(paths)
 
 
