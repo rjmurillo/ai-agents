@@ -42,6 +42,9 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import ast
+import concurrent.futures
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -124,6 +127,94 @@ def _walk_python_files(repo_root: Path) -> list[Path]:
     return found
 
 
+# Parsing is CPU bound (about 10 s for 4.5k files, 55 MB of source, on one core;
+# issue #6734) and every file is independent, so a large tree fans out across
+# worker interpreters. The verdict never depends on the fan-out: every file is
+# parsed either way, results are reassembled in discovery order, and any worker
+# failure falls back to the serial in-process path, which stays authoritative.
+# Below this many files the interpreter start-up costs more than it saves.
+_PARALLEL_MIN_FILES = 256
+_MAX_WORKERS = 32
+_WORKER_TIMEOUT_SECONDS = 300
+_WORKER_FLAG = "--parse-worker"
+
+
+def _parse_message(source: str, filename: str, floor: tuple[int, int]) -> str | None:
+    """Return the failure message for ``source`` at ``floor``, or None when it parses."""
+    try:
+        ast.parse(source, filename=filename, feature_version=floor)
+    except SyntaxError as exc:
+        return f"{exc.msg} (line {exc.lineno})"
+    return None
+
+
+def _worker_count(item_count: int) -> int:
+    """Return how many worker interpreters to use; 1 means stay in-process."""
+    if item_count < _PARALLEL_MIN_FILES:
+        return 1
+    return max(1, min(os.process_cpu_count() or 1, _MAX_WORKERS, item_count))
+
+
+def _run_parse_worker(payload: str) -> list[str | None]:
+    """Run one worker interpreter over a JSON payload; return its messages."""
+    completed = subprocess.run(
+        [sys.executable, "-I", str(Path(__file__).resolve()), _WORKER_FLAG],
+        input=payload,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+        timeout=_WORKER_TIMEOUT_SECONDS,
+    )
+    messages: list[str | None] = json.loads(completed.stdout)
+    return messages
+
+
+def _parse_in_workers(
+    items: list[tuple[str, str]], floor: tuple[int, int], workers: int
+) -> list[str | None]:
+    """Parse ``items`` across ``workers`` interpreters, preserving item order.
+
+    Items are dealt round-robin so large and small files spread evenly.
+    """
+    shards = [list(range(offset, len(items), workers)) for offset in range(workers)]
+    payloads = [
+        json.dumps({"floor": list(floor), "items": [items[i] for i in shard]}) for shard in shards
+    ]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        shard_results = list(pool.map(_run_parse_worker, payloads))
+    messages: list[str | None] = [None] * len(items)
+    for shard, results in zip(shards, shard_results, strict=True):
+        if len(results) != len(shard):
+            raise ValueError("parse worker returned a different number of results")
+        for index, message in zip(shard, results, strict=True):
+            messages[index] = message
+    return messages
+
+
+def _parse_all(items: list[tuple[str, str]], floor: tuple[int, int]) -> list[str | None]:
+    """Return one failure message (or None) per ``(filename, source)`` item."""
+    workers = _worker_count(len(items))
+    if workers > 1:
+        try:
+            return _parse_in_workers(items, floor, workers)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            # Worker start-up, crash, timeout, or malformed output: the serial
+            # path below parses the same inputs and decides the verdict.
+            pass
+    return [_parse_message(source, name, floor) for name, source in items]
+
+
+def _worker_main() -> int:
+    """Worker entry: read a JSON payload on stdin, write one message per item."""
+    payload = json.load(sys.stdin)
+    floor = (int(payload["floor"][0]), int(payload["floor"][1]))
+    messages = [_parse_message(source, name, floor) for name, source in payload["items"]]
+    json.dump(messages, sys.stdout)
+    return 0
+
+
 def find_syntax_errors(
     repo_root: Path, floor: tuple[int, int] | None = None
 ) -> list[tuple[Path, str]]:
@@ -131,16 +222,23 @@ def find_syntax_errors(
     if floor is None:
         floor = support_floor()
     failures: list[tuple[Path, str]] = []
+    # Failures keep discovery order: read errors and parse errors interleave by
+    # file, exactly as the one-file-at-a-time loop reported them.
+    slots: list[tuple[Path, str | None]] = []
+    items: list[tuple[str, str]] = []
     for path in _tracked_python_files(repo_root):
         try:
             source = _read_python_source(repo_root, path)
         except (OSError, UnicodeError, subprocess.SubprocessError) as exc:
-            failures.append((path, f"read error: {exc}"))
+            slots.append((path, f"read error: {exc}"))
             continue
-        try:
-            ast.parse(source, filename=str(path), feature_version=floor)
-        except SyntaxError as exc:
-            failures.append((path, f"{exc.msg} (line {exc.lineno})"))
+        slots.append((path, None))
+        items.append((str(path), source))
+    messages = iter(_parse_all(items, floor))
+    for path, read_error in slots:
+        message = read_error if read_error is not None else next(messages)
+        if message is not None:
+            failures.append((path, message))
     return failures
 
 
@@ -176,6 +274,8 @@ def validate_python_syntax(repo_root: Path) -> bool:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns an ADR-035 exit code."""
     args = argv if argv is not None else sys.argv[1:]
+    if args == [_WORKER_FLAG]:
+        return _worker_main()
     repo_root = Path(args[0]).resolve() if args else Path(__file__).resolve().parents[2]
     if not repo_root.is_dir():
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)

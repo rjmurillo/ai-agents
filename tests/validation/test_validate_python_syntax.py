@@ -11,12 +11,17 @@ parse against the declared support floor, not the host interpreter.
 - neg (classic): an always-invalid syntax error is rejected
 - edge: an invalid repo root returns exit 2 (config error per ADR-035)
 - branch: the git-unavailable filesystem-walk fallback skips vendored dirs
+- parallel (issue #6734): a tree large enough to fan out across worker
+  interpreters yields the same failures, in the same order, as the serial path;
+  a worker failure falls back to the serial verdict
 - floor: ``support_floor`` returns the fixed hook-portability floor, and the
   gate stays at that floor even when ``requires-python`` is higher (issue #3008)
 """
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +35,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
+import validate_python_syntax as syntax_gate
 from validate_python_syntax import (
     _read_python_source,
     _tracked_python_files,
@@ -214,3 +220,175 @@ def test_validate_function_returns_false_on_floor_violation(tmp_path: Path) -> N
 def test_repo_itself_parses_at_floor() -> None:
     # The live repository must pass its own gate.
     assert find_syntax_errors(REPO_ROOT) == []
+
+
+def _mixed_tree(root: Path) -> list[str]:
+    """Build a tree where good and bad files interleave; return bad names in order.
+
+    Ten files so a round-robin deal over three workers puts failures in every
+    shard at non-adjacent positions. A reassembly bug would misattribute them.
+    """
+    (root / "pyproject.toml").write_text(_FLOOR_310, encoding="utf-8")
+    plan = {
+        "f00_ok.py": _CLEAN,
+        "f01_pep758.py": _PEP758,
+        "f02_ok.py": _CLEAN,
+        "f03_ok.py": _CLEAN,
+        "f04_classic.py": _CLASSIC,
+        "f05_pep758.py": _PEP758,
+        "f06_ok.py": _CLEAN,
+        "f07_ok.py": _CLEAN,
+        "f08_ok.py": _CLEAN,
+        "f09_classic.py": _CLASSIC,
+    }
+    for name, text in plan.items():
+        (root / name).write_text(text, encoding="utf-8")
+    (root / "f10_notutf8.py").write_bytes(b"x = '\xff'\n")
+    _git_repo(root)
+    (root / "f05_pep758.py").unlink()  # still indexed, parsed from the index
+    return [
+        "f01_pep758.py",
+        "f04_classic.py",
+        "f05_pep758.py",
+        "f09_classic.py",
+        "f10_notutf8.py",
+    ]
+
+
+@pytest.fixture
+def fan_out(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Force the worker path on a small tree; record each fan-out width."""
+    widths: list[int] = []
+    real = syntax_gate._parse_in_workers
+
+    def spy(items: list[tuple[str, str]], floor: tuple[int, int], workers: int):
+        widths.append(workers)
+        return real(items, floor, workers)
+
+    monkeypatch.setattr(syntax_gate, "_PARALLEL_MIN_FILES", 2)
+    monkeypatch.setattr(os, "process_cpu_count", lambda: 3)
+    monkeypatch.setattr(syntax_gate, "_parse_in_workers", spy)
+    return widths
+
+
+def test_parallel_matches_serial_on_mixed_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fan_out: list[int]
+) -> None:
+    expected_names = _mixed_tree(tmp_path)
+
+    parallel = find_syntax_errors(tmp_path)
+    assert fan_out == [3], "the worker path never ran, so this test proves nothing"
+
+    monkeypatch.setattr(syntax_gate, "_PARALLEL_MIN_FILES", 10_000)
+    serial = find_syntax_errors(tmp_path)
+    assert fan_out == [3], "serial run must not fan out"
+
+    assert parallel == serial
+    assert [p.name for p, _ in parallel] == expected_names
+    by_name = {p.name: m for p, m in parallel}
+    assert "except expressions without parentheses" in by_name["f01_pep758.py"]
+    assert "except expressions without parentheses" in by_name["f05_pep758.py"]
+    assert by_name["f10_notutf8.py"].startswith("read error:")
+
+
+def test_parallel_workers_parse_at_the_floor_not_the_host(
+    tmp_path: Path, fan_out: list[int]
+) -> None:
+    # A worker that fell back to the host grammar (3.14) would accept PEP 758.
+    (tmp_path / "pyproject.toml").write_text(_FLOOR_310, encoding="utf-8")
+    for index in range(4):
+        (tmp_path / f"ok{index}.py").write_text(_CLEAN, encoding="utf-8")
+    (tmp_path / "late.py").write_text(_PEP758, encoding="utf-8")
+    _git_repo(tmp_path)
+
+    failures = find_syntax_errors(tmp_path)
+
+    assert fan_out == [3]
+    assert [p.name for p, _ in failures] == ["late.py"]
+
+
+def test_parallel_clean_tree_passes(tmp_path: Path, fan_out: list[int]) -> None:
+    (tmp_path / "pyproject.toml").write_text(_FLOOR_310, encoding="utf-8")
+    for index in range(6):
+        (tmp_path / f"ok{index}.py").write_text(_CLEAN, encoding="utf-8")
+    _git_repo(tmp_path)
+
+    assert find_syntax_errors(tmp_path) == []
+    assert fan_out == [3]
+    assert validate_python_syntax(tmp_path) is True
+
+
+@pytest.mark.parametrize("failure", ["oserror", "crash", "short", "garbage"])
+def test_worker_failure_falls_back_to_the_serial_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fan_out: list[int], failure: str
+) -> None:
+    expected_names = _mixed_tree(tmp_path)
+
+    def broken_worker(payload: str) -> list[str | None]:
+        if failure == "oserror":
+            raise OSError("cannot start interpreter")
+        if failure == "crash":
+            raise subprocess.CalledProcessError(1, ["python"])
+        if failure == "short":
+            return []
+        raise json.JSONDecodeError("bad", "", 0)
+
+    monkeypatch.setattr(syntax_gate, "_run_parse_worker", broken_worker)
+
+    failures = find_syntax_errors(tmp_path)
+
+    assert fan_out == [3]
+    assert [p.name for p, _ in failures] == expected_names
+
+
+def test_small_tree_stays_in_process(tmp_path: Path, fan_out: list[int], monkeypatch) -> None:
+    monkeypatch.setattr(syntax_gate, "_PARALLEL_MIN_FILES", 256)
+    (tmp_path / "broken.py").write_text(_PEP758, encoding="utf-8")
+    _git_repo(tmp_path)
+
+    assert [p.name for p, _ in find_syntax_errors(tmp_path)] == ["broken.py"]
+    assert fan_out == []
+
+
+@pytest.mark.parametrize(
+    ("files", "cpus", "expected"),
+    [
+        (10, 8, 1),
+        (255, 8, 1),
+        (256, 8, 8),
+        (256, 1, 1),
+        (10_000, 128, 32),
+        (256, None, 1),
+    ],
+)
+def test_worker_count(
+    monkeypatch: pytest.MonkeyPatch, files: int, cpus: int | None, expected: int
+) -> None:
+    monkeypatch.setattr(os, "process_cpu_count", lambda: cpus)
+
+    assert syntax_gate._worker_count(files) == expected
+
+
+def test_worker_entry_point_reports_floor_violations() -> None:
+    payload = json.dumps(
+        {
+            "floor": [3, 10],
+            "items": [["ok.py", _CLEAN], ["pep758.py", _PEP758], ["bad.py", _CLASSIC]],
+        }
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", str(SCRIPT), "--parse-worker"],
+        input=payload,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    messages = json.loads(result.stdout)
+    assert messages[0] is None
+    assert "except expressions without parentheses" in messages[1]
+    assert messages[2] is not None
