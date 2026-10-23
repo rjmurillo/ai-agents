@@ -202,6 +202,28 @@ class TestBatchFailuresStayLoud:
         with pytest.raises(GitQueryError, match="truncated blob"):
             tp._read_link_targets(repo, {"link0": sha})
 
+    def test_body_without_closing_line_feed_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A body that ends exactly at the stream end lacks its separator."""
+        repo = _repo_with_links(tmp_path, 1)
+        sha = "a" * 40
+        monkeypatch.setattr(tp, "_run_git_bytes", lambda *_a, **_k: f"{sha} blob 5\nhello".encode())
+
+        with pytest.raises(GitQueryError, match="truncated blob"):
+            tp._read_link_targets(repo, {"link0": sha})
+
+    def test_well_formed_reply_is_accepted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _repo_with_links(tmp_path, 1)
+        sha = "a" * 40
+        monkeypatch.setattr(
+            tp, "_run_git_bytes", lambda *_a, **_k: f"{sha} blob 5\nhello\n".encode()
+        )
+
+        assert tp._read_link_targets(repo, {"link0": sha}) == {"link0": "hello"}
+
     def test_empty_output_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         repo = _repo_with_links(tmp_path, 1)
         monkeypatch.setattr(tp, "_run_git_bytes", lambda *_a, **_k: b"")

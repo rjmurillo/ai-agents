@@ -126,7 +126,9 @@ def _read_link_targets(repo_root: Path, blobs: dict[str, str]) -> dict[str, str]
     then the blob bytes, then one line feed, in request order. A reply that is
     ``missing`` (absent object, or one that does not peel to a blob), a header
     of any other shape, or a stream that ends early raises, matching the
-    per-blob call, which exited non-zero in those cases. A repository the first
+    per-blob call, which exited non-zero in those cases. A blob body without
+    its closing line feed also raises, so a cut-off reply is never read as a
+    target. A repository the first
     ``ls-files`` call could read but this one reports as not a repository yields
     no links, as the per-blob call did.
     """
@@ -151,7 +153,7 @@ def _read_link_targets(repo_root: Path, blobs: dict[str, str]) -> dict[str, str]
             )
         start = newline + 1
         end = start + int(header[2])
-        if end > len(completed):
+        if end >= len(completed) or completed[end] != 0x0A:
             raise GitQueryError(
                 f"git cat-file --batch failed for {repo_root}: truncated blob for {sha}"
             )
