@@ -314,8 +314,10 @@ def collect_copy_findings(repo_root: Path) -> list[CopyFinding]:
 def collect_all(repo_root: Path) -> tuple[list[Violation], list[CopyFinding]]:
     """Scan every configured file once and return violations and copy findings.
 
-    Each file is read and parsed once and judged by both checks, so the result
-    equals `scan_file` plus `scan_copied_contract` on every path.
+    Each file is read once and its claim text is extracted once (one parse),
+    then both checks judge it, so the result equals `scan_file` plus
+    `scan_copied_contract` on every path. A file with a mirror-claim and no path
+    reference still resolves its imports once per check.
     """
     violations: list[Violation] = []
     findings: list[CopyFinding] = []
