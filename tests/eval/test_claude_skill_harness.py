@@ -38,7 +38,7 @@ def _stream(
 ) -> str:
     content: list[dict[str, Any]] = [{"type": "tool_use", "name": name} for name in tools]
     content.append({"type": "text", "text": text})
-    events = [
+    events: list[dict[str, Any]] = [
         {
             "type": "system",
             "subtype": "init",
