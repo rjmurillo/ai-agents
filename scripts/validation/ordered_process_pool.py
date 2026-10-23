@@ -15,7 +15,8 @@ from concurrent.futures.process import BrokenProcessPool
 from typing import TypeVar
 
 # Parsing thousands of files is CPU bound, so a large input fans out to processes. A small
-# input stays in-process: a pool costs more than it saves, and tests never start workers.
+# input stays in-process: a pool costs more than it saves, so small test fixtures run
+# serially unless a test calls scan_in_processes directly or lowers MIN_BYTES.
 MIN_BYTES = 4_000_000
 MAX_WORKERS = 8
 BATCHES_PER_WORKER = 4
