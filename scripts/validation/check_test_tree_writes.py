@@ -26,6 +26,14 @@ This is an AST-level heuristic. False positives are possible for projects
 that intentionally write to the repo root (e.g., changelog generators).
 Those should use ``tmp_path`` or a gitignored directory and document why.
 
+Speed (issue #6734)
+-------------------
+Parsing dominated the run (about 8s of 8.4s over 2034 files). A lexical
+prefilter skips files that cannot contain a finding, and large batches scan
+in worker interpreters. Neither changes the verdict: the prefilter only skips
+ASCII files missing a root-binding or write-operation token, and any worker
+failure falls back to the serial scan.
+
 Exit codes (ADR-035):
     0 - Success (no suspect writes found)
     1 - Logic error (one or more suspect writes found)
@@ -35,6 +43,9 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import ast
+import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -185,6 +196,41 @@ class _WriteDetector(ast.NodeVisitor):
 # --------------------------------------------------------------------------- #
 
 
+# Cheap lexical prefilter. A finding needs a Name node holding a project-root
+# binding and a Call whose callee names a write operation. Every identifier in
+# an ASCII source file appears verbatim in its text, so a file missing either
+# token cannot produce a finding and the parse can be skipped. Non-ASCII
+# sources always parse: the parser NFKC-normalizes identifiers, so ``ＲＯＯＴ``
+# is the Name ``ROOT`` without containing that text. Both patterns derive from
+# the detector constants above so the two cannot drift apart.
+_ROOT_TOKEN_RE = re.compile(r"\b(?:" + "|".join(sorted(_ROOT_BINDINGS)) + r")\b")
+_WRITE_TOKEN_RE = re.compile(
+    r"\b(?:" + "|".join(sorted(_WRITE_METHODS | _SHUTIL_WRITE_FUNCS)) + r")\b"
+)
+
+
+def _may_have_findings(source: str) -> bool:
+    """False only when *source* provably cannot contain a finding."""
+    if not source.isascii():
+        return True
+    return bool(_ROOT_TOKEN_RE.search(source) and _WRITE_TOKEN_RE.search(source))
+
+
+def _scan_source(source: str, filename: str) -> list[tuple[int, str]]:
+    """Return (lineno, description) findings for *source*."""
+    if not _may_have_findings(source):
+        return []
+
+    try:
+        tree = ast.parse(source, filename=filename)
+    except SyntaxError:
+        return []
+
+    detector = _WriteDetector()
+    detector.visit(tree)
+    return detector.findings
+
+
 def _scan_file(path: Path) -> list[tuple[int, str]]:
     """Return (lineno, description) findings for *path*."""
     try:
@@ -192,14 +238,78 @@ def _scan_file(path: Path) -> list[tuple[int, str]]:
     except (OSError, UnicodeDecodeError):
         return []
 
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return []
+    return _scan_source(source, str(path))
 
-    detector = _WriteDetector()
-    detector.visit(tree)
-    return detector.findings
+
+# Below this many files, starting worker interpreters costs more than it saves.
+_PARALLEL_MIN_FILES = 64
+_MAX_WORKERS = 8
+_WORKER_TIMEOUT_S = 300
+_WORKER_FLAG = "--scan-worker"
+
+
+def _scan_files(paths: list[Path]) -> list[list[tuple[int, str]]]:
+    """Scan *paths* and return one findings list per path, in input order.
+
+    Large batches fan out across worker interpreters. When any worker cannot
+    start, fails, or returns a malformed reply, scanning falls back to the
+    serial loop, which yields the identical result.
+    """
+    workers = min(os.cpu_count() or 1, _MAX_WORKERS)
+    if len(paths) >= _PARALLEL_MIN_FILES and workers > 1:
+        parallel = _scan_files_parallel(paths, workers)
+        if parallel is not None:
+            return parallel
+    return [_scan_file(path) for path in paths]
+
+
+def _scan_files_parallel(paths: list[Path], workers: int) -> list[list[tuple[int, str]]] | None:
+    """Scan *paths* across *workers* interpreters, or return None on any failure."""
+    results: list[list[tuple[int, str]]] = [[] for _ in paths]
+    procs: list[subprocess.Popen[str]] = []
+    try:
+        for i in range(workers):
+            proc = subprocess.Popen(
+                [sys.executable, "-I", str(Path(__file__).resolve()), _WORKER_FLAG],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            procs.append(proc)
+            payload = json.dumps([str(p) for p in paths[i::workers]])
+            assert proc.stdin is not None
+            proc.stdin.write(payload)
+            proc.stdin.close()
+        for i, proc in enumerate(procs):
+            assert proc.stdout is not None
+            out, _ = proc.communicate(timeout=_WORKER_TIMEOUT_S)
+            if proc.returncode != 0:
+                return None
+            chunk = [
+                [(int(lineno), str(desc)) for lineno, desc in file_findings]
+                for file_findings in json.loads(out)
+            ]
+            if len(chunk) != len(paths[i::workers]):
+                return None
+            results[i::workers] = chunk
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+        return None
+    finally:
+        for proc in procs:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+    return results
+
+
+def _run_scan_worker() -> int:
+    """Worker mode: read a JSON path list on stdin, write findings JSON on stdout."""
+    paths = [Path(p) for p in json.load(sys.stdin)]
+    json.dump([_scan_file(p) for p in paths], sys.stdout)
+    return 0
 
 
 def _tracked_test_files(repo_root: Path) -> list[Path]:
@@ -230,9 +340,10 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
 
 def check_test_tree_writes(repo_root: Path) -> list[tuple[Path, int, str]]:
     """Return (file, lineno, description) for every suspect write found."""
+    test_files = _tracked_test_files(repo_root)
     findings: list[tuple[Path, int, str]] = []
-    for test_file in _tracked_test_files(repo_root):
-        for lineno, desc in _scan_file(test_file):
+    for test_file, file_findings in zip(test_files, _scan_files(test_files), strict=True):
+        for lineno, desc in file_findings:
             findings.append((test_file, lineno, desc))
     return findings
 
@@ -264,6 +375,11 @@ def validate_test_tree_writes(repo_root: Path) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
+
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv == [_WORKER_FLAG]:
+        return _run_scan_worker()
 
     parser = argparse.ArgumentParser(
         description="Detect test files that write to the repository working tree."
