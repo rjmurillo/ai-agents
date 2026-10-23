@@ -516,7 +516,7 @@ Exclusions:
   about 88 minutes per class at n=20.
 - Every sampled input was clean and passed. Failing inputs, partial staging, and
   first or deleting pushes were not sampled.
-- Diagnostic volume was not measured. `output: [failure]` suppresses it (it was `output: false` when the sampler ran).
+- Diagnostic volume was not measured. Every sampled input passed, and every run set `LEFTHOOK_OUTPUT`, which overrides the `output` key in `lefthook.yml`. The Failed hook output section measures it for one planted failure per hook.
 - The stdin ref line is a fixed one-commit range. A larger outgoing range is not
   covered.
 - No row sets a budget. The p50 and p95 values above are the input for setting

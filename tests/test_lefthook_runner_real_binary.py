@@ -68,7 +68,8 @@ def _run_runner(
         cwd=repo,
         env=env,
         input=stdin,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -104,7 +105,8 @@ def test_real_pre_commit_failure_names_stage_path_and_a_rerun_that_fails_the_sam
         ["sh", "-c", _rerun_line(first.stderr) + " --force"],
         cwd=repo,
         env=env,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -121,7 +123,12 @@ def test_real_pre_push_failure_rerun_replays_the_pushed_refs(tmp_path: Path) -> 
     )
     repo, env = _hook_repo(tmp_path, "pre-push", jobs)
     head = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True, check=True
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=True,
     ).stdout.strip()
     ref_line = f"refs/heads/topic {head} refs/heads/topic {'0' * 40}\n"
 
@@ -139,7 +146,8 @@ def test_real_pre_push_failure_rerun_replays_the_pushed_refs(tmp_path: Path) -> 
         ["sh", "-c", rerun_command],
         cwd=repo,
         env=env,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -182,7 +190,8 @@ def test_real_failure_text_appears_while_a_slower_job_is_still_running(tmp_path:
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     assert process.stdout is not None
     first_line = process.stdout.readline()

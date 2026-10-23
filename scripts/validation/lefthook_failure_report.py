@@ -26,6 +26,8 @@ from collections.abc import Sequence
 from typing import IO
 
 OUTPUT_ENV = "LEFTHOOK_OUTPUT"
+# Seconds an interrupted Lefthook gets to exit after SIGTERM before it is killed.
+TERMINATE_GRACE_SECONDS = 5.0
 # Lefthook lists each failed job as "<boxing glove> <name> (<n> seconds)"; an
 # unnamed group is "group (<n>)" and is not a job that `--job` can select.
 _FAILED_JOB = re.compile(r"^\s*\U0001F94A (?P<name>.+?) \(\d+(?:\.\d+)? seconds?\)\s*$")
@@ -133,6 +135,10 @@ def failure_report(
     return "\n".join(lines) + "\n"
 
 
+class ChildStartError(Exception):
+    """Lefthook could not be started. Other I/O errors are not start failures."""
+
+
 def _feed_stdin(stream: IO[bytes], data: bytes) -> None:
     """Write the recorded stdin to the child, then close it."""
     try:
@@ -146,41 +152,70 @@ def _feed_stdin(stream: IO[bytes], data: bytes) -> None:
             pass
 
 
+def _recorded_stdin(hook: str) -> bytes | None:
+    """Return the pre-push ref lines git wrote to stdin, else None."""
+    if hook == "pre-push" and sys.stdin is not None and not sys.stdin.isatty():
+        data: bytes = sys.stdin.buffer.read()
+        return data
+    return None
+
+
+def _replace_unencodable_output() -> None:
+    """Make the console replace characters it cannot encode instead of raising.
+
+    Job text may hold characters a non-UTF-8 console cannot encode.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
+
+
+def _stop(process: subprocess.Popen[bytes]) -> None:
+    """End a child that is still running: SIGTERM, then SIGKILL after a grace period."""
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 def run_hook_with_report(command: Sequence[str], arguments: Sequence[str]) -> int:
-    """Run ``run <hook>`` with ``failure`` output and report any failed job.
+    """Run ``run <hook>`` and report any failed job.
 
     Output is forwarded line by line as Lefthook writes it, so a job that fails
     early shows its text while slower jobs still run, and an interrupt keeps
-    what was already printed.
+    what was already printed. Raises :class:`ChildStartError` when Lefthook does
+    not start; any other I/O error propagates.
     """
-    hook = arguments[1]
-    refs: list[str] = []
-    stdin_bytes: bytes | None = None
-    if hook == "pre-push" and sys.stdin is not None and not sys.stdin.isatty():
-        stdin_bytes = sys.stdin.buffer.read()
-        refs = stdin_bytes.decode("utf-8", errors="replace").splitlines()
+    stdin_bytes = _recorded_stdin(arguments[1])
+    refs = stdin_bytes.decode("utf-8", errors="replace").splitlines() if stdin_bytes else []
+    _replace_unencodable_output()
     sys.stdout.flush()
-    process = subprocess.Popen(
-        [*command, *arguments],
-        stdin=subprocess.PIPE if stdin_bytes is not None else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    try:
+        process = subprocess.Popen(
+            [*command, *arguments],
+            stdin=subprocess.PIPE if stdin_bytes is not None else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    except OSError as error:
+        raise ChildStartError(str(error)) from error
     if stdin_bytes is not None and process.stdin is not None:
         threading.Thread(target=_feed_stdin, args=(process.stdin, stdin_bytes), daemon=True).start()
     jobs: list[str] = []
     try:
-        if process.stdout is not None:
-            for raw in process.stdout:
-                shown, found = split_output(raw.decode("utf-8", errors="replace"))
-                jobs.extend(name for name in found if name not in jobs)
-                sys.stdout.write(shown)
-                sys.stdout.flush()
+        for raw in process.stdout or ():
+            shown, found = split_output(raw.decode("utf-8", errors="replace"))
+            jobs.extend(name for name in found if name not in jobs)
+            sys.stdout.write(shown)
+            sys.stdout.flush()
         status = process.wait()
     finally:
-        if process.poll() is None:
-            process.terminate()
-            process.wait()
+        _stop(process)
     if status != 0:
         sys.stderr.write(failure_report(command, arguments, status, jobs, refs))
     return status

@@ -191,36 +191,51 @@ def test_pre_push_without_readable_stdin_runs_the_hook_and_replays_no_refs(
     assert "rerun: uv run --frozen lefthook run pre-push --job a origin url" in err
 
 
-def test_an_interrupt_terminates_the_child_and_still_propagates(
-    monkeypatch: pytest.MonkeyPatch,
+class _Failing(io.BytesIO):
+    """A child stdout whose next read raises ``error``."""
+
+    def __init__(self, error: BaseException) -> None:
+        super().__init__()
+        self._error = error
+
+    def __iter__(self) -> _Failing:
+        return self
+
+    def __next__(self) -> bytes:
+        raise self._error
+
+
+class _RunningProcess(_FakeProcess):
+    """A child that is still running when its stdout fails."""
+
+    def __init__(self, error: BaseException, *, ignores_sigterm: bool = False) -> None:
+        super().__init__(1, "")
+        self.stdout = _Failing(error)
+        self._ignores_sigterm = ignores_sigterm
+        self._terminated = False
+        self._killed = False
+
+    def poll(self) -> int | None:
+        return None
+
+    def terminate(self) -> None:
+        self._terminated = True
+
+    def kill(self) -> None:
+        self._killed = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        if timeout is not None and self._ignores_sigterm and not self._killed:
+            raise subprocess.TimeoutExpired("lefthook", timeout)
+        return 1
+
+
+@pytest.mark.parametrize("ignores_sigterm", [False, True])
+def test_an_interrupt_ends_the_child_without_hanging_and_still_propagates(
+    monkeypatch: pytest.MonkeyPatch, ignores_sigterm: bool
 ) -> None:
     monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
-
-    class _Interrupted(_FakeProcess):
-        terminated = False
-
-        def __init__(self) -> None:
-            super().__init__(1, "")
-            self.stdout = self._raise_on_read()
-
-        @staticmethod
-        def _raise_on_read() -> io.BytesIO:
-            class _Boom(io.BytesIO):
-                def __iter__(self) -> _Boom:
-                    return self
-
-                def __next__(self) -> bytes:
-                    raise KeyboardInterrupt
-
-            return _Boom()
-
-        def poll(self) -> int | None:
-            return None
-
-        def terminate(self) -> None:
-            self.terminated = True
-
-    process = _Interrupted()
+    process = _RunningProcess(KeyboardInterrupt(), ignores_sigterm=ignores_sigterm)
     with (
         mock.patch.object(runner, "resolve_command", return_value=COMMAND),
         mock.patch.object(runner.subprocess, "Popen", return_value=process),
@@ -228,4 +243,35 @@ def test_an_interrupt_terminates_the_child_and_still_propagates(
     ):
         runner.main(["run", "pre-commit"])
 
-    assert process.terminated is True
+    assert process._terminated is True
+    assert process._killed is ignores_sigterm
+
+
+def test_an_io_error_while_forwarding_output_is_not_reported_as_lefthook_unavailable(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
+    process = _RunningProcess(BrokenPipeError("stdout closed"))
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.object(runner.subprocess, "Popen", return_value=process),
+        pytest.raises(BrokenPipeError),
+    ):
+        runner.main(["run", "pre-commit"])
+
+    assert "Lefthook itself is unavailable" not in capsys.readouterr().err
+
+
+def test_the_console_replaces_characters_it_cannot_encode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
+    console = mock.Mock()
+    monkeypatch.setattr(runner.sys, "stdout", console)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.object(runner.subprocess, "Popen", return_value=_FakeProcess(0, "")),
+    ):
+        runner.main(["run", "pre-commit"])
+
+    console.reconfigure.assert_called_with(errors="replace")

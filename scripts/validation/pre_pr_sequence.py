@@ -192,7 +192,7 @@ class _ValidationStateLike(Protocol):
     references ``pre_pr``. ``pre_pr`` imports this module; a back-reference would
     make mypy resolve ``pre_pr`` under two module names (Issue #3073).
 
-    ``record`` is the only write, and the only method. The counters move
+    ``record`` is the only write. The counters move
     with the recorded state inside it, so a row the sequence short-circuits
     still appears in the summary with its reason code instead of incrementing a
     counter and vanishing (issue #5635). Before that, this Protocol also

@@ -43,7 +43,11 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from lefthook_failure_report import run_hook_with_report, should_report  # noqa: E402
+from lefthook_failure_report import (  # noqa: E402
+    ChildStartError,
+    run_hook_with_report,
+    should_report,
+)
 
 EXIT_UNAVAILABLE = 3
 PROBE_TIMEOUT_SECONDS = 60
@@ -94,6 +98,12 @@ def resolve_command(project_root: Path = _PROJECT_ROOT) -> list[str] | None:
     return [binary] if binary is not None else None
 
 
+def _cannot_start(command: list[str], error: Exception) -> int:
+    """Report that the Lefthook child did not start, and return the exit code."""
+    sys.stderr.write(f"lefthook_runner: cannot start {command[0]}: {error}\n{DIAGNOSIS}")
+    return EXIT_UNAVAILABLE
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run Lefthook with ``argv`` through the first working runner."""
     arguments = list(sys.argv[1:] if argv is None else argv)
@@ -101,15 +111,17 @@ def main(argv: list[str] | None = None) -> int:
     if command is None:
         sys.stderr.write(DIAGNOSIS)
         return EXIT_UNAVAILABLE
-    try:
-        if should_report(arguments):
+    if should_report(arguments):
+        try:
             reported: int = run_hook_with_report(command, arguments)
-            return reported
+        except ChildStartError as error:
+            return _cannot_start(command, error)
+        return reported
+    try:
         sys.stdout.flush()
         return subprocess.run([*command, *arguments], check=False).returncode
     except OSError as error:
-        sys.stderr.write(f"lefthook_runner: cannot start {command[0]}: {error}\n{DIAGNOSIS}")
-        return EXIT_UNAVAILABLE
+        return _cannot_start(command, error)
 
 
 if __name__ == "__main__":
