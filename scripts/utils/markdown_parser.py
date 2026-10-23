@@ -304,7 +304,7 @@ def blank_non_prose_block_lines(markdown: str) -> str:
 
 @lru_cache(maxsize=512)
 def blank_non_prose_block_lines_cached(markdown: str) -> str:
-    """Memoized `blank_non_prose_block_lines`: same result, one parse per distinct text.
+    """Memoized `blank_non_prose_block_lines`: same result, one parse per distinct parseable text.
 
     `check_adr_lifecycle.py` and `adr_cited_paths.py` blank the same record body
     three to four times per run (status prose, status section, section structure,
@@ -313,7 +313,8 @@ def blank_non_prose_block_lines_cached(markdown: str) -> str:
     the wrapped function is pure, so a hit returns exactly what a fresh call
     would. `functools.lru_cache` never stores a raised exception: an unparseable
     or over-nested body re-parses and re-raises on every call, so the fail-closed
-    contract of `_blank_block_lines` holds. The cache is bounded and lives for
+    contract of `_blank_block_lines` holds. That body keeps its old cost; the
+    saving applies to bodies that parse. The cache is bounded and lives for
     the process.
     """
     return blank_non_prose_block_lines(markdown)

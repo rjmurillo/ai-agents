@@ -26,6 +26,16 @@ import check_adr_lifecycle
 from scripts.utils import markdown_parser
 
 _TODAY = date(2026, 9, 1)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_memo():
+    """Start and end each test with an empty memo so no test sees another's hits."""
+    markdown_parser.blank_non_prose_block_lines_cached.cache_clear()
+    yield
+    markdown_parser.blank_non_prose_block_lines_cached.cache_clear()
+
+
 _SECTIONS = "\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n\n## Consequences\n\nSo.\n"
 
 
@@ -140,7 +150,7 @@ def test_identical_bodies_with_different_frontmatter_keep_separate_verdicts(tmp_
     assert ("prose-frontmatter-agree", "ADR-004") not in found
 
 
-def test_each_body_is_parsed_at_most_once_per_scan(tmp_path, monkeypatch):
+def test_each_body_is_parsed_exactly_once_per_scan(tmp_path, monkeypatch):
     adr_dir = _adr_dir(tmp_path)
     # Accepted, with a status section, cited paths, structure, and a review-by:
     # all four callers read this one body.
@@ -172,4 +182,9 @@ def test_a_refused_body_is_reported_for_every_check_that_reads_it(tmp_path):
         "review-by: 2026-12-01",
     )
     found = {v.check for v in _scan(tmp_path, adr_dir)}
-    assert {"prose-frontmatter-agree", "section-structure", "cited-paths-exist"} <= found
+    assert {
+        "prose-frontmatter-agree",
+        "section-structure",
+        "cited-paths-exist",
+        "review-by-prose-date",
+    } <= found
