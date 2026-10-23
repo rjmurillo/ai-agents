@@ -58,13 +58,14 @@ class _FakeReply:
         self.cli_version = "2.1.307"
         self.tool_calls = ()
         self.invocation = invocation
+        self.credential_step = "env"
 
 
 @pytest.fixture
 def harness_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
 
-    def fake_run(text: str, **kwargs: Any) -> _FakeReply:
+    def fake_run(text: str, **kwargs: Any) -> Any:
         calls.append({"text": text, **kwargs})
         name = kwargs["skill_name"]
         return _FakeReply(f"answer {len(calls)}", None if name is None else f"/{name}")
@@ -204,6 +205,18 @@ class TestHarnessTarget:
         assert eval_mod._harness_target(rule, eval_mod.parse_rule(rule)) == 2
         assert "needs a skill_path target" in capsys.readouterr().err
 
+    def test_reference_target_is_refused(self, capsys: pytest.CaptureFixture[str]) -> None:
+        skill = REPO_ROOT / ".claude" / "skills" / "spec" / "SKILL.md"
+        reference = skill.parent / "references" / "step-0-5-memory-gate.md"
+        assert eval_mod._harness_target(skill, eval_mod.parse_rule(skill), reference) == 2
+        assert "no reference_path" in capsys.readouterr().err
+
+    def test_quoted_frontmatter_name_is_accepted(self, tmp_path: Path) -> None:
+        skill = tmp_path / "x" / "SKILL.md"
+        rule = {"frontmatter": 'name: "demo"', "description": "", "body": ""}
+        fields = eval_mod._harness_target(skill, rule)
+        assert fields == {"harness_skill_dir": str(skill.parent), "harness_skill_name": "demo"}
+
     def test_a_name_that_is_not_a_slash_command_is_refused(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -326,3 +339,79 @@ class TestEvalOneScenarioArms:
     def test_classify_verdict_for_selected_runs(self) -> None:
         assert eval_mod._classify_verdict("NOT_GATED") == 0
         assert eval_mod._classify_verdict("NOT_GATED_INCOMPLETE") == 3
+
+
+class TestReviewFixes:
+    def test_declined_cell_does_not_make_the_run_incomplete(self) -> None:
+        repeats = [
+            {
+                "id": "S1",
+                "negative_case": False,
+                "mechanisms": {"description": eval_mod._declined_cell("")},
+            }
+        ]
+        summary = eval_mod._selected_summary(repeats, ("description",))
+        assert summary["verdict"] == "NOT_GATED"
+        assert summary["per_arm"]["description"]["declined_count"] == 1
+
+    def test_errored_cell_still_makes_the_run_incomplete(self) -> None:
+        repeats = [
+            {
+                "id": "S1",
+                "negative_case": False,
+                "mechanisms": {"baseline": {"error": "boom", "scores": {}}},
+            }
+        ]
+        assert eval_mod._selected_summary(repeats, ("baseline",))["verdict"] == (
+            "NOT_GATED_INCOMPLETE"
+        )
+
+    def test_harness_arms_read_the_cli_overrides(
+        self, harness_calls: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CLAUDE_CLI_BIN", "/opt/claude/bin/claude")
+        monkeypatch.setenv("CLAUDE_CLI_TIMEOUT", "1800")
+        loaded = eval_mod._load_scenarios_file(str(SPEC_SCENARIOS))
+        assert not isinstance(loaded, int)
+        data, paths = loaded
+        eval_mod._process_selected_scenario("", data, paths, _args(arms=["harness-baseline"]))
+        assert harness_calls[0]["executable"] == "/opt/claude/bin/claude"
+        assert harness_calls[0]["timeout"] == 1800.0
+
+    def test_each_repeat_gets_its_own_seed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        seeds: list[int | None] = []
+
+        def fake_api(*_a: Any, seed: int | None = None, **_k: Any) -> str:
+            seeds.append(seed)
+            return "r"
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_api)
+        monkeypatch.setattr(eval_mod, "score_response", _judge)
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        loaded = eval_mod._load_scenarios_file(str(SPEC_SCENARIOS))
+        assert not isinstance(loaded, int)
+        data, paths = loaded
+        eval_mod._process_selected_scenario(
+            "", data, paths, _args(arms=["baseline"], repeats=3, seed=42)
+        )
+        assert seeds == [42, 44, 46]
+
+    def test_missing_harness_usage_publishes_no_token_count(
+        self, monkeypatch: pytest.MonkeyPatch, harness_calls: list[dict[str, Any]]
+    ) -> None:
+        def no_usage(text: str, **kwargs: Any) -> Any:
+            reply = _FakeReply("a", None)
+            reply.output_tokens = None  # type: ignore[assignment]
+            reply.input_tokens_total = None  # type: ignore[assignment]
+            return reply
+
+        monkeypatch.setattr(HARNESS, "run_harness", no_usage)
+        loaded = eval_mod._load_scenarios_file(str(SPEC_SCENARIOS))
+        assert not isinstance(loaded, int)
+        data, paths = loaded
+        _, result, _ = eval_mod._process_selected_scenario(
+            "", data, paths, _args(arms=["harness-baseline"])
+        )
+        cell = result["repeats"][0]["mechanisms"]["harness-baseline"]
+        assert "output_tokens" not in cell
+        assert cell["harness"]["input_tokens_total"] is None

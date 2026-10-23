@@ -66,7 +66,7 @@ import sys
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import _claude_skill_harness
 import _load_bearing
@@ -1222,11 +1222,22 @@ def _call_harness_arm(
     routed = mechanism == SKILL_ROUTED
     skill_dir = Path(rule["harness_skill_dir"]) if routed else None
     skill_name = rule["harness_skill_name"] if routed else None
+    from _providers import _cli_kwargs
+
+    # The same CLAUDE_CLI_BIN and CLAUDE_CLI_TIMEOUT overrides the judge's
+    # claude-cli provider reads, so arms and judge run one binary.
+    overrides = _cli_kwargs("CLAUDE_CLI_TIMEOUT", "CLAUDE_CLI_BIN")
     reply = _claude_skill_harness.run_harness(
-        scenario["input"], model=model, skill_dir=skill_dir, skill_name=skill_name
+        scenario["input"],
+        model=model,
+        skill_dir=skill_dir,
+        skill_name=skill_name,
+        executable=str(overrides.get("executable", "claude")),
+        timeout=float(cast(float, overrides.get("timeout", 900.0))),
     )
     metadata["termination"] = "unknown"
-    metadata["output_tokens"] = reply.output_tokens
+    if reply.output_tokens is not None:
+        metadata["output_tokens"] = reply.output_tokens
     if reply.model is not None:
         metadata["system_fingerprint"] = reply.model
     facts = {
@@ -1235,6 +1246,7 @@ def _call_harness_arm(
         "input_tokens_total": reply.input_tokens_total,
         "tool_calls": list(reply.tool_calls),
         "cli_version": reply.cli_version,
+        "credential_step": reply.credential_step,
     }
     return reply.text, facts
 
@@ -2898,17 +2910,24 @@ def _process_one_rule(
     )
 
 
-def _harness_target(primary_path: Path, rule: dict[str, str]) -> dict[str, str] | int:
+def _harness_target(
+    primary_path: Path, rule: dict[str, str], reference_path: Path | None = None
+) -> dict[str, str] | int:
     """Return the skill fields the `skill-routed` arm installs, or exit code 2.
 
     The slash name is the frontmatter `name`, else the directory name, and it
     must pass the harness's slash-name check: it is written into the user turn.
+    A reference target is refused: the CLI expands the whole router, and no
+    step would select or check the reference the result is filed under.
     """
-    if primary_path.name != "SKILL.md":
-        print(f"ERROR: {SKILL_ROUTED} needs a skill_path target", file=sys.stderr)
+    if primary_path.name != "SKILL.md" or reference_path is not None:
+        print(
+            f"ERROR: {SKILL_ROUTED} needs a skill_path target with no reference_path",
+            file=sys.stderr,
+        )
         return 2
     match = re.search(r"^name:\s*(.+?)$", rule.get("frontmatter", ""), re.MULTILINE)
-    name = match.group(1).strip() if match else primary_path.parent.name
+    name = match.group(1).strip().strip("\"'") if match else primary_path.parent.name
     error = _claude_skill_harness.skill_name_error(name)
     if error is not None:
         print(f"ERROR: {error}", file=sys.stderr)
@@ -2923,8 +2942,16 @@ def _selected_summary(repeats: list[dict[str, Any]], arms: tuple[str, ...]) -> d
     of a mean and counted, never scored as zero.
     """
     per_arm = {arm: _mechanism_summary(repeats, arm) for arm in arms}
+    # A declined cell (prompt identical to baseline) is a fixed property of the
+    # target, not a failed measurement, so it does not make the run incomplete.
+    declined = {
+        arm: sum(1 for r in repeats if "declined" in r["mechanisms"].get(arm, {})) for arm in arms
+    }
+    for arm, cell in per_arm.items():
+        cell["declined_count"] = declined[arm]
     incomplete = any(
-        cell["judge_failures"] or cell["graded_count"] < cell["scenario_count"]
+        cell["judge_failures"]
+        or cell["graded_count"] + cell["declined_count"] < cell["scenario_count"]
         for cell in per_arm.values()
     )
     return {
@@ -2977,7 +3004,7 @@ def _process_selected_scenario(
         else parse_skill_reference(primary_path, reference_path)
     )
     if SKILL_ROUTED in arms:
-        harness_fields = _harness_target(primary_path, rule)
+        harness_fields = _harness_target(primary_path, rule, reference_path)
         if isinstance(harness_fields, int):
             return harness_fields
         rule = {**rule, **harness_fields}
@@ -3001,7 +3028,10 @@ def _process_selected_scenario(
             scenario,
             args.model,
             dry_run=False,
-            seed=args.seed,
+            # Offset per repeat, so a transport that honors seed draws a new
+            # sample each time instead of copying the first. The judge seeds
+            # derive from this one, so the stride clears them.
+            seed=None if args.seed is None else args.seed + index * (args.judge_repeats + 1),
             judge_repeats=args.judge_repeats,
             judge_reducer=args.judge_reducer,
             arms=arms,

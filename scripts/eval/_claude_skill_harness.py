@@ -21,6 +21,10 @@ Measured 2026-10-23 on claude 2.1.307 with claude-sonnet-5:
 - A bare request in a workspace that held the skill did not invoke it, in 1 of
   1 probe. This arm measures a loaded skill, not whether the model routes to it.
 
+Each run fails loud when the `system/init` event does not list the installed
+skill, or when an instruction file sits above the sandbox, since either one
+would make the pair differ by something other than the skill.
+
 Billing and isolation follow the `claude-cli` transport. The credential order,
 the blocked metered variables, and the relocated config directory all come
 from `_ClaudeCLIProvider`. Only project settings load, and the workspace holds
@@ -29,6 +33,7 @@ nothing but the copied skill. `--tools ""` leaves the model no tool to call.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import tempfile
@@ -40,7 +45,14 @@ from _claude_cli import PROVIDER_LABEL, _ClaudeCLIProvider
 from _claude_stream import parse_stream
 from _cli_transport import run_cli, validate_timeout
 
-__all__ = ["HarnessReply", "build_argv", "harness_prompt", "run_harness", "skill_name_error"]
+__all__ = [
+    "HarnessReply",
+    "ambient_instruction_paths",
+    "build_argv",
+    "harness_prompt",
+    "run_harness",
+    "skill_name_error",
+]
 
 #: A slash command name the CLI resolves. Anything else could carry text into
 #: the user turn, so it is refused before a process starts.
@@ -55,11 +67,13 @@ class HarnessReply:
 
     text: str
     model: str | None
-    input_tokens_total: int
-    output_tokens: int
+    #: None when the result event carried no usage record, never a zero.
+    input_tokens_total: int | None
+    output_tokens: int | None
     cli_version: str
     tool_calls: tuple[str, ...]
     invocation: str | None
+    credential_step: str | None = None
 
 
 def skill_name_error(name: str) -> str | None:
@@ -102,14 +116,61 @@ def build_argv(executable: str, model: str) -> list[str]:
 
 
 def _installer(skill_dir: Path, skill_name: str) -> Callable[[Path], None]:
-    """Return a `run_cli` prepare hook that copies the skill into the workspace."""
+    """Return a `run_cli` prepare hook that copies the skill into the workspace.
+
+    A copy failure (a dangling link, an unreadable file) is raised as
+    RuntimeError, so the runner records the cell as errored instead of dying.
+    """
     source = skill_dir.resolve()
 
     def _install(workspace: Path) -> None:
         target = workspace / ".claude" / "skills" / skill_name
-        shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__"))
+        try:
+            shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__"))
+        except (OSError, shutil.Error) as exc:
+            raise RuntimeError(
+                f"{PROVIDER_LABEL} harness could not install skill {skill_name!r}: "
+                f"{type(exc).__name__}"
+            ) from None
 
     return _install
+
+
+#: Files the CLI reads from a working directory's ancestors. One of them above
+#: the sandbox would load into both arms, so the control would not be empty.
+_AMBIENT_NAMES = ("CLAUDE.md", "CLAUDE.local.md", ".claude")
+
+
+def ambient_instruction_paths(start: Path) -> list[Path]:
+    """Return instruction files or directories in `start` and its ancestors."""
+    return [
+        folder / name
+        for folder in (start.resolve(), *start.resolve().parents)
+        for name in _AMBIENT_NAMES
+        if (folder / name).exists()
+    ]
+
+
+def _stream_extras(stdout: str) -> tuple[list[str] | None, bool]:
+    """Return the skills `system/init` listed, and whether `result` carried usage.
+
+    `parse_stream` reads neither. None for the skills means no init event.
+    """
+    skills: list[str] | None = None
+    usage_present = False
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "system" and event.get("subtype") == "init":
+            listed = event.get("skills")
+            skills = [str(name) for name in listed] if isinstance(listed, list) else []
+        elif event.get("type") == "result":
+            usage_present = isinstance(event.get("usage"), dict)
+    return skills, usage_present
 
 
 def run_harness(
@@ -123,15 +184,23 @@ def run_harness(
 ) -> HarnessReply:
     """Run one turn. With `skill_dir`, install that skill and invoke it by name.
 
-    Raises RuntimeError on a failed process, an incomplete stream, an empty
-    answer, or a served model outside the requested family.
+    Raises RuntimeError on instruction files above the sandbox, a failed
+    install or process, an incomplete or limit-cut stream, a skill the CLI did
+    not list, an empty answer, or a served model outside the requested family.
     """
     if (skill_dir is None) != (skill_name is None):
         raise ValueError("skill_dir and skill_name are set together or not at all")
     if skill_dir is not None and not (skill_dir / "SKILL.md").is_file():
         raise ValueError(f"skill directory has no SKILL.md: {skill_dir}")
     prompt = harness_prompt(text, skill_name)
-    provider = _ClaudeCLIProvider(executable=executable, timeout=validate_timeout(timeout))
+    ambient = ambient_instruction_paths(Path(tempfile.gettempdir()))
+    if ambient:
+        raise RuntimeError(
+            f"{PROVIDER_LABEL} harness sandbox sits under instruction files "
+            f"({', '.join(str(path) for path in ambient)}); set TMPDIR outside any checkout"
+        )
+    seconds = validate_timeout(timeout)
+    provider = _ClaudeCLIProvider(executable=executable, timeout=seconds)
     prepare = None if skill_dir is None or skill_name is None else _installer(skill_dir, skill_name)
     with tempfile.TemporaryDirectory(prefix="eval-claude-harness-") as profile:
         credential = provider._resolve_credential(executable)
@@ -141,14 +210,20 @@ def run_harness(
             prompt,
             provider_label=PROVIDER_LABEL,
             env=env,
-            timeout=validate_timeout(timeout),
+            timeout=seconds,
             prepare=prepare,
         )
     facts = parse_stream(completed.stdout)
-    if not facts.completed:
+    if not facts.completed or facts.limit_hit:
         raise RuntimeError(
             f"{PROVIDER_LABEL} harness run did not complete: "
-            f"error={facts.failure or 'unknown'}; response redacted"
+            f"error={facts.failure or facts.limit_hit or 'unknown'}; response redacted"
+        )
+    skills, usage_present = _stream_extras(completed.stdout)
+    if skill_name is not None and (skills is None or skill_name not in skills):
+        raise RuntimeError(
+            f"{PROVIDER_LABEL} did not list the installed skill {skill_name!r}, "
+            "so the turn did not load it"
         )
     if not facts.final_text.strip():
         raise RuntimeError(f"{PROVIDER_LABEL} harness run returned no answer text")
@@ -157,12 +232,14 @@ def run_harness(
             f"{PROVIDER_LABEL} model attribution mismatch; model identifiers redacted"
         )
     served = sorted(facts.models, key=len, reverse=True)
+    total = facts.input_tokens + facts.cache_read_tokens + facts.cache_write_tokens
     return HarnessReply(
         text=facts.final_text,
         model=served[0] if served else None,
-        input_tokens_total=facts.input_tokens + facts.cache_read_tokens + facts.cache_write_tokens,
-        output_tokens=facts.output_tokens,
+        input_tokens_total=total if usage_present else None,
+        output_tokens=facts.output_tokens if usage_present else None,
         cli_version=facts.cli_version,
         tool_calls=facts.tool_calls,
         invocation=None if skill_name is None else f"/{skill_name}",
+        credential_step=credential.step,
     )

@@ -33,25 +33,33 @@ def _stream(
     model: str = MODEL,
     subtype: str = "success",
     tools: tuple[str, ...] = (),
+    skills: tuple[str, ...] = ("demo", "debug"),
+    usage: bool = True,
 ) -> str:
     content: list[dict[str, Any]] = [{"type": "tool_use", "name": name} for name in tools]
     content.append({"type": "text", "text": text})
     events = [
-        {"type": "system", "subtype": "init", "claude_code_version": "2.1.307"},
+        {
+            "type": "system",
+            "subtype": "init",
+            "claude_code_version": "2.1.307",
+            "skills": list(skills),
+        },
         {"type": "assistant", "message": {"model": model, "content": content}},
         {
             "type": "result",
             "subtype": subtype,
             "is_error": subtype != "success",
             "result": text,
-            "usage": {
-                "input_tokens": 2,
-                "cache_creation_input_tokens": 100,
-                "cache_read_input_tokens": 50,
-                "output_tokens": 7,
-            },
         },
     ]
+    if usage:
+        events[-1]["usage"] = {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 100,
+            "cache_read_input_tokens": 50,
+            "output_tokens": 7,
+        }
     return "\n".join(json.dumps(event) for event in events)
 
 
@@ -135,6 +143,7 @@ class TestRunHarness:
         assert reply.input_tokens_total == 152
         assert reply.output_tokens == 7
         assert reply.cli_version == "2.1.307"
+        assert reply.credential_step is not None
 
     def test_control_gets_an_empty_workspace_and_the_same_argv(
         self, claude_env: pytest.MonkeyPatch, skill_dir: Path
@@ -206,3 +215,52 @@ class TestRunHarness:
     def test_refuses_a_directory_without_skill_md(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="no SKILL.md"):
             harness.run_harness("do X", model=MODEL, skill_dir=tmp_path, skill_name="demo")
+
+    def test_refuses_a_turn_whose_init_does_not_list_the_skill(
+        self, claude_env: pytest.MonkeyPatch, skill_dir: Path
+    ) -> None:
+        install_runner(claude_env, Recorder(stdout=_stream(skills=("debug",))))
+        with pytest.raises(RuntimeError, match="did not list the installed skill"):
+            harness.run_harness("do X", model=MODEL, skill_dir=skill_dir, skill_name="demo")
+
+    def test_control_does_not_need_a_skill_list(self, claude_env: pytest.MonkeyPatch) -> None:
+        install_runner(claude_env, Recorder(stdout=_stream(skills=())))
+        reply = harness.run_harness("do X", model=MODEL, skill_dir=None, skill_name=None)
+        assert reply.text == "ANSWER"
+
+    def test_refuses_a_turn_cut_at_a_limit(self, claude_env: pytest.MonkeyPatch) -> None:
+        install_runner(claude_env, Recorder(stdout=_stream(subtype="error_max_turns")))
+        with pytest.raises(RuntimeError, match="error_max_turns"):
+            harness.run_harness("do X", model=MODEL, skill_dir=None, skill_name=None)
+
+    def test_missing_usage_is_none_not_zero(self, claude_env: pytest.MonkeyPatch) -> None:
+        install_runner(claude_env, Recorder(stdout=_stream(usage=False)))
+        reply = harness.run_harness("do X", model=MODEL, skill_dir=None, skill_name=None)
+        assert reply.input_tokens_total is None
+        assert reply.output_tokens is None
+
+    def test_refuses_instruction_files_above_the_sandbox(
+        self, claude_env: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        checkout = tmp_path / "checkout"
+        (checkout / "scratch").mkdir(parents=True)
+        (checkout / "CLAUDE.md").write_text("rules", encoding="utf-8")
+        claude_env.setattr(harness.tempfile, "gettempdir", lambda: str(checkout / "scratch"))
+        install_runner(claude_env, Recorder(stdout=_stream()))
+        with pytest.raises(RuntimeError, match="sits under instruction files"):
+            harness.run_harness("do X", model=MODEL, skill_dir=None, skill_name=None)
+
+    def test_ambient_scan_walks_up_to_ancestors(self, tmp_path: Path) -> None:
+        (tmp_path / "a" / "b").mkdir(parents=True)
+        (tmp_path / "a" / ".claude").mkdir()
+        found = harness.ambient_instruction_paths(tmp_path / "a" / "b")
+        assert (tmp_path / "a" / ".claude").resolve() in found
+        assert not [p for p in found if (tmp_path / "a" / "b").resolve() in p.parents]
+
+    def test_a_copy_failure_is_a_runtime_error(
+        self, claude_env: pytest.MonkeyPatch, skill_dir: Path
+    ) -> None:
+        (skill_dir / "broken").symlink_to(skill_dir / "missing-target")
+        install_runner(claude_env, Recorder(stdout=_stream(), on_call=lambda r: None))
+        with pytest.raises(RuntimeError, match="could not install skill"):
+            harness.run_harness("do X", model=MODEL, skill_dir=skill_dir, skill_name="demo")
