@@ -132,3 +132,70 @@ def test_crlf_counts_after_newline_translation(repo: Path) -> None:
     body = _body(repo, "\r\n" * 65536)
     for module in _readers():
         assert module.read_body_file_text(str(body)) == "\n" * 65536
+
+
+def _open_descriptors() -> int:
+    return len(os.listdir("/proc/self/fd"))
+
+
+@pytest.mark.skipif(not Path("/proc/self/fd").is_dir(), reason="needs /proc/self/fd")
+@pytest.mark.parametrize("size", [65537, 4 * 65536 + 1], ids=["char-cap", "byte-cap"])
+def test_refusal_closes_the_descriptor(repo: Path, size: int) -> None:
+    body = _body(repo, "x" * size)
+    for module in _readers():
+        before = _open_descriptors()
+        with pytest.raises(ValueError, match="body limit"):
+            module.read_body_file_text(str(body))
+        assert _open_descriptors() == before
+
+
+def test_reads_at_most_one_char_past_the_cap(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    body = _body(repo, "x" * 10)
+    sizes: list[int] = []
+    real_fdopen = os.fdopen
+
+    class _Spy:
+        def __init__(self, handle) -> None:
+            self._handle = handle
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc) -> None:
+            self._handle.close()
+
+        def read(self, size: int = -1) -> str:
+            sizes.append(size)
+            return self._handle.read(size)
+
+    for module in _readers():
+        monkeypatch.setattr(module.os, "fdopen", lambda *a, **k: _Spy(real_fdopen(*a, **k)))
+        try:
+            assert module.read_body_file_text(str(body)) == "x" * 10
+        finally:
+            monkeypatch.setattr(module.os, "fdopen", real_fdopen)
+        assert sizes == [module.MAX_BODY_CHARS + 1]
+        sizes.clear()
+
+
+@pytest.mark.parametrize(
+    ("raw", "accepted"),
+    [
+        (b"\r" * 65536, True),
+        (b"\r\n" * 65537, False),
+        (b"x" * 65536 + b"\xff", False),
+        (b"x" * 100 + b"\xff", False),
+    ],
+    ids=["lone-cr-at-cap", "crlf-one-over", "invalid-utf8-past-cap", "invalid-utf8-under-cap"],
+)
+def test_newline_and_encoding_edges(repo: Path, raw: bytes, accepted: bool) -> None:
+    body = repo / "drafts" / "body.md"
+    body.write_bytes(raw)
+    body.chmod(0o600)
+    for module in _readers():
+        if accepted:
+            assert len(module.read_body_file_text(str(body))) == 65536
+        else:
+            # A UnicodeDecodeError is a ValueError, so either refusal counts.
+            with pytest.raises(ValueError):
+                module.read_body_file_text(str(body))
