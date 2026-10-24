@@ -75,7 +75,7 @@ Based on the above changes:
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --preflight --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
    ```
 
-   `--preflight` checks the title format and the body file name, mode, and marker.
+   `--preflight` checks the title format and the body file: its path, that it is a regular UTF-8 file, and that the placeholder line is gone.
    It makes no network call and creates nothing. The dash and escaped newline
    checks still run at step 7. Fix a rejection here.
 5. Check that the body names only files the diff touches, before the push. The
@@ -120,7 +120,7 @@ Based on the above changes:
    ```
 
 - Branch checked out in a worktree outside the clone, and the command runs from another checkout (for example the primary clone): append `--head "<branch>"`. Running the command from the worktree itself needs no `--head`, because `new_pr.py` uses the current branch. Never remove the worktree to open the PR. Push the branch first, since `gh` resolves the head on the remote. `new_pr.py` exits 2 and prints the push command when origin lacks the branch.
-- A rejected body file fails the containment rule: the path must resolve under the repo root, a temp directory, or the git dir. `--prepare-body-file` creates a unique path that passes.
+- A rejected body file fails one of these checks: the path must resolve under the repo root, a temp directory, or the git dir; it must be a regular UTF-8 file; and it must no longer hold the `<!-- replace with PR body -->` line. `--prepare-body-file` creates a unique path that passes the path check.
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
 - Body SHOULD include GitHub issue linking keywords to auto-close issues:
   - `Closes #123`: auto-closes issue when PR merges

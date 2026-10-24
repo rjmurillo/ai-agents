@@ -254,8 +254,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--preflight",
         action="store_true",
         help=(
-            "Check the title format and the body file name, mode, and marker, then "
-            "exit without any network call, audit log, or PR. The dash and escaped "
+            "Check the title format and the body file (path rule, regular UTF-8 "
+            "file, placeholder replaced), then exit without any network call, "
+            "audit log, or PR. The dash and escaped "
             "newline checks still run at creation. Run it before pushing so a "
             "rejected body does not cost a push."
         ),
