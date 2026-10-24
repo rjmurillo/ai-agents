@@ -1,7 +1,9 @@
 """Tests for the .claude-mem/scripts/ memory EXPORT scripts.
 
-The Claude-Mem import wrapper was retired with issue #5583, so this module and
-tests/claude_mem/ cover the export scripts only.
+The Claude-Mem import wrapper was retired with issue #5583. This module and
+tests/claude_mem/test_export_json_parsing.py cover the export scripts, and
+tests/claude_mem/test_memories_dir_contract.py keeps the importer and the
+full-database export out of the tree.
 """
 
 from __future__ import annotations
