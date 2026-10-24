@@ -42,7 +42,8 @@ reported but does not fail: a pull request cannot be required to sit on the late
 base, because many agents merge at once. Every other finding still fails (issue #6472).
 
 EXIT CODES (ADR-035):
-  0 - the head's dispatch closure is byte-identical to the base ref
+  0 - the head's dispatch closure matches the base ref, apart from files
+      reported STALE
   1 - files differ, are removed or new, a symlink was added, or a dynamic
       load cannot be resolved (stale files alone exit 0)
   2 - configuration: a tree, the base config or the dispatcher cannot be read
@@ -217,7 +218,7 @@ def _merge_bases(tool_root: Path, base_ref: str, head_sha: str | None) -> list[s
     [] covers a work-tree head, a shallow history that misses the fork point, and
     an unrelated history. ``--all`` matters after a criss-cross merge: plain
     ``merge-base`` prints one of several ancestors, and the head shapes which.
-    They only pick STALE, which needs a match at every one. STALE is reported, not blocking.
+    A match at every one relabels a finding STALE, and STALE alone does not fail.
     """
     if head_sha is None:
         return []
@@ -247,10 +248,10 @@ def _classify(
     head that selects a built-in conversion cannot make the bytes written to the
     scratch tree equal the base's while the committed blob differs.
 
-    Only equality with the base ref tip clears a file. A head blob that differs
+    Only equality with the base ref tip leaves a file unreported. A head blob that differs
     from the tip but equals the blob at every merge base is STALE: the base moved
     or deleted the file after the branch point, and the head still runs the old
-    copy.
+    copy. STALE is reported and does not fail the check.
     """
     base_id = _blob_id(tool_root, base_ref, path)
     if head_sha is None:

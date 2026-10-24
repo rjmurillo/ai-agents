@@ -58,11 +58,11 @@ class TestStaleWithABlockingFinding:
         upstream, sha = upstream_with_pr(base, {"README.md": "pull request\n"})
         write(base, HELPER, "X = 2\n")
         commit_on_base(base, "main moves the helper")
-        upstream_head = upstream
-        os.symlink("README.md", upstream_head / "alias.py")
-        git(upstream_head, "add", "-A")
+        upstream = upstream
+        os.symlink("README.md", upstream / "alias.py")
+        git(upstream, "add", "-A")
         git(
-            upstream_head,
+            upstream,
             "-c",
             "user.email=t@example.invalid",
             "-c",
@@ -72,8 +72,8 @@ class TestStaleWithABlockingFinding:
             "-m",
             "add symlink",
         )
-        sha = rev(upstream_head)
-        git(upstream_head, "update-ref", "refs/pull/1/head", sha)
+        sha = rev(upstream)
+        git(upstream, "update-ref", "refs/pull/1/head", sha)
 
         report = check(base, upstream, sha, capsys)
 
