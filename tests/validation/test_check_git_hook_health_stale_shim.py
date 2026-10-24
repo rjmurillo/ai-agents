@@ -20,6 +20,7 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import check_git_hook_health
 import lefthook_inventory
+import lefthook_shim_staleness
 
 # Reuse the scratch-repo helpers of the sibling gate suite without importing it
 # as a package member, the way test_check_git_hook_health_environment.py does.
@@ -76,10 +77,10 @@ class TestStaleShim:
         result = _run_cli(repo)
 
         assert result.returncode == 1
-        assert check_git_hook_health._STALE_SHIM_PREFIX in result.stderr
+        assert lefthook_shim_staleness.STALE_SHIM_PREFIX in result.stderr
         assert "pre-push" in result.stderr
         assert RUNNER in result.stderr
-        assert "skip the repository's Lefthook runner" in result.stderr
+        assert lefthook_shim_staleness.STALE_SHIM_SUMMARY in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
 
     def test_only_the_stale_hooks_are_named(self, tmp_path: Path) -> None:
@@ -125,7 +126,7 @@ class TestStaleShim:
         reason = check_git_hook_health.diagnose(repo)
 
         assert reason is not None
-        assert reason.startswith(check_git_hook_health._STALE_SHIM_PREFIX)
+        assert reason.startswith(lefthook_shim_staleness.STALE_SHIM_PREFIX)
 
     def test_a_comment_quoting_the_runner_does_not_satisfy_the_check(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path, RUNNER_CONFIG)
@@ -139,7 +140,7 @@ class TestStaleShim:
         reason = check_git_hook_health.diagnose(repo)
 
         assert reason is not None
-        assert reason.startswith(check_git_hook_health._STALE_SHIM_PREFIX)
+        assert reason.startswith(lefthook_shim_staleness.STALE_SHIM_PREFIX)
 
     def test_a_repository_without_a_runner_key_accepts_an_older_shim(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path, NO_RUNNER_CONFIG)
@@ -158,13 +159,13 @@ class TestStaleShim:
 
         assert reason is not None
         assert "no live shim for configured hook type commit-msg" in reason
-        assert check_git_hook_health._STALE_SHIM_PREFIX not in reason
+        assert lefthook_shim_staleness.STALE_SHIM_PREFIX not in reason
 
     def test_an_unreadable_shim_counts_as_stale(self, tmp_path: Path) -> None:
         hook = tmp_path / "pre-push"
         hook.write_bytes(b"\xff\xfe\x00 not utf-8")
 
-        assert check_git_hook_health._runner_failure(hook, RUNNER) is True
+        assert lefthook_shim_staleness.runner_failure(hook, RUNNER) is True
 
     def test_a_dispatch_check_alone_passes_the_stale_shim(self, tmp_path: Path) -> None:
         """Pins why a second check exists: the dispatch line cannot see the gap."""
@@ -172,7 +173,29 @@ class TestStaleShim:
         hook.write_text(_shim("pre-push", runner=None), encoding="utf-8")
 
         assert check_git_hook_health._dispatch_failure(hook, "pre-push") is None
-        assert check_git_hook_health._runner_failure(hook, RUNNER) is True
+        assert lefthook_shim_staleness.runner_failure(hook, RUNNER) is True
+
+
+class TestStaleShimsHelper:
+    def test_no_configured_runner_reports_nothing(self, tmp_path: Path) -> None:
+        _install(tmp_path, "pre-push", _shim("pre-push", runner=None))
+
+        assert (
+            lefthook_shim_staleness.stale_shims(
+                tmp_path, frozenset({"pre-push"}), None, lambda _hook, _name: True
+            )
+            is None
+        )
+
+    def test_a_hook_the_caller_calls_not_live_is_left_to_the_caller(self, tmp_path: Path) -> None:
+        _install(tmp_path, "pre-push", _shim("pre-push", runner=None))
+
+        assert (
+            lefthook_shim_staleness.stale_shims(
+                tmp_path, frozenset({"pre-push"}), RUNNER, lambda _hook, _name: False
+            )
+            is None
+        )
 
 
 class TestFallbackCollision:
@@ -191,13 +214,13 @@ class TestFallbackCollision:
         hook = tmp_path / "pre-push"
         hook.write_text(stale_with_fallbacks, encoding="utf-8")
 
-        assert check_git_hook_health._runner_failure(hook, runner) is True
+        assert lefthook_shim_staleness.runner_failure(hook, runner) is True
 
     def test_the_same_runner_in_its_own_branch_passes(self, tmp_path: Path) -> None:
         hook = tmp_path / "pre-push"
         hook.write_text(_shim("pre-push", runner="uv run lefthook"), encoding="utf-8")
 
-        assert check_git_hook_health._runner_failure(hook, "uv run lefthook") is False
+        assert lefthook_shim_staleness.runner_failure(hook, "uv run lefthook") is False
 
 
 class TestRunnerNormalization:
@@ -209,25 +232,25 @@ class TestRunnerNormalization:
         hook = tmp_path / "pre-push"
         hook.write_text(_shim("pre-push", runner="cd sub;pnpm lefthook"), encoding="utf-8")
 
-        assert check_git_hook_health._runner_failure(hook, "cd sub\npnpm lefthook\n") is False
+        assert lefthook_shim_staleness.runner_failure(hook, "cd sub\npnpm lefthook\n") is False
 
     def test_a_windows_path_runner_is_matched_in_slash_form(self, tmp_path: Path) -> None:
         hook = tmp_path / "pre-push"
         hook.write_text(_shim("pre-push", runner="C:/Tools/lefthook.exe"), encoding="utf-8")
 
-        assert check_git_hook_health._runner_failure(hook, "C:\\Tools\\lefthook.exe") is False
+        assert lefthook_shim_staleness.runner_failure(hook, "C:\\Tools\\lefthook.exe") is False
 
     def test_surrounding_whitespace_in_the_value_is_ignored(self, tmp_path: Path) -> None:
         hook = tmp_path / "pre-push"
         hook.write_text(_shim("pre-push", runner=RUNNER), encoding="utf-8")
 
-        assert check_git_hook_health._runner_failure(hook, f"  {RUNNER}\n") is False
+        assert lefthook_shim_staleness.runner_failure(hook, f"  {RUNNER}\n") is False
 
     def test_a_different_multiline_runner_is_still_stale(self, tmp_path: Path) -> None:
         hook = tmp_path / "pre-push"
         hook.write_text(_shim("pre-push", runner="cd sub;pnpm lefthook"), encoding="utf-8")
 
-        assert check_git_hook_health._runner_failure(hook, "cd other\npnpm lefthook\n") is True
+        assert lefthook_shim_staleness.runner_failure(hook, "cd other\npnpm lefthook\n") is True
 
 
 class TestRunnerInventory:

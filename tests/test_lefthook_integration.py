@@ -23,7 +23,7 @@ import pytest
 import tomllib
 import yaml
 
-from scripts.validation import check_git_hook_health
+from scripts.validation import check_git_hook_health, lefthook_shim_staleness
 from scripts.validation import git_hook_policy as policy
 from tests.support.lefthook_binary import resolve_lefthook
 
@@ -1201,7 +1201,7 @@ def test_hook_health_flags_a_shim_older_than_the_runner_key_and_install_repairs_
     reason = check_git_hook_health.diagnose(repo)
 
     assert reason is not None
-    assert reason.startswith(check_git_hook_health._STALE_SHIM_PREFIX)
+    assert reason.startswith(lefthook_shim_staleness.STALE_SHIM_PREFIX)
     assert "pre-push" in reason
 
     _run_lefthook(repo, "install", "--reset-hooks-path")

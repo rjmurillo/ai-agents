@@ -38,13 +38,8 @@ The adjacent ``Lefthook Installed`` gate cannot cover the difference either: it
 proves the configured runtime starts, not that git will reach it. So this gate
 reads the hook and requires Lefthook's own dispatch line (issue #4789).
 
-The dispatch line is identical in every Lefthook version, so it cannot show
-that a shim is current. When the config sets a top-level ``lefthook:`` command,
-Lefthook embeds it in each shim at install time, and ``no_auto_install: true``
-means nothing refreshes it later. A clone installed before the key landed calls
-Lefthook directly and never reaches the runner, which brings back the skipped
-pre-push file list of issue #6884. So the gate also requires each live shim to
-invoke the configured command, and names the stale hooks (issue #6896).
+The dispatch line cannot show a shim is current, so the gate also requires the
+configured ``lefthook:`` runner branch (``lefthook_shim_staleness``, #6896).
 
 Scope: the remedy is a lefthook command, so this gate passes silently in any
 repository that does not configure lefthook. A repository with no hooks and no
@@ -101,6 +96,7 @@ from lefthook_inventory import (
     LefthookExecutionError,
     configured_inventory,
 )
+from lefthook_shim_staleness import STALE_SHIM_PREFIX, STALE_SHIM_SUMMARY, stale_shims
 
 # Typed contract by package path (evidence.py states why); exit-0 skips use it.
 if str(_PROJECT_ROOT) not in sys.path:
@@ -133,11 +129,6 @@ PROBE_HOOK = "pre-push"
 # Every diagnosis reached after the pre-push probe passed starts with this, so
 # the summary line does not claim pre-push is dead when pre-push proved live.
 _POST_PROBE_PREFIX = "pre-push is live, but "
-
-# A shim that dispatches Lefthook but never reaches the configured ``lefthook:``
-# command. It leads its own diagnosis so the summary names the real gap: the
-# hook runs, and the repository's runner does not (issue #6896).
-_STALE_SHIM_PREFIX = "stale Lefthook shim: "
 
 
 # Lefthook's generated shim ends by dispatching the hook through its own
@@ -331,72 +322,6 @@ def _dispatch_failure(hook: Path, hook_name: str) -> str | None:
     return None
 
 
-def _runner_branches(runner: str) -> tuple[tuple[str, str, str], ...]:
-    """The three-line branch Lefthook renders for the configured ``lefthook:`` command.
-
-    The template emits ``elif test -n "<command>"``, ``then``, and
-    ``<command> "$@"``. Matching the whole branch matters: the shim also carries
-    built-in fallbacks such as ``uv run lefthook "$@"``, so a bare invocation
-    line would accept a stale shim whenever the configured command equals one
-    of them (issue #6896). A shim generated before the
-    key existed lacks the branch, and one generated against another value
-    carries that value's branch instead. Lines are compared whole and stripped,
-    so a comment that quotes the command does not satisfy it.
-
-    ``lefthook dump`` prints the value as written, and the installer rewrites
-    it before embedding it (measured on Lefthook 2.2.2): it trims the value and
-    joins the lines of a multi-line value with ``;``. On Windows it also turns
-    backslashes into slashes. A healthy shim would otherwise read as stale, and
-    the printed repair would regenerate the same shim, an unfixable failure. So
-    both the joined form and its slash form are accepted.
-    """
-    joined = ";".join(runner.strip().splitlines())
-    forms = {joined, joined.replace(chr(92), "/")}
-    return tuple((f'elif test -n "{form}"', "then", f'{form} "$@"') for form in sorted(forms))
-
-
-def _runner_failure(hook: Path, runner: str) -> bool:
-    """True when ``hook`` never invokes the configured ``lefthook:`` command.
-
-    An unreadable file counts as stale: ``_dispatch_failure`` already read it
-    successfully moments earlier, so a failure here is a race, and an
-    unverifiable shim is not a verified pass. The check proves the generated
-    branch is present, which is what a stale generated shim lacks. It does not
-    prove the branch is reachable in a hand-edited shim.
-    """
-    try:
-        lines = [line.strip() for line in hook.read_text(encoding="utf-8").splitlines()]
-    except (OSError, UnicodeDecodeError):
-        return True
-    windows = list(zip(lines, lines[1:], lines[2:], strict=False))
-    return not any(branch in windows for branch in _runner_branches(runner))
-
-
-def _stale_shims(hooks_dir: Path, hook_names: frozenset[str], runner: str) -> str | None:
-    """Report live shims that skip the configured ``lefthook:`` runner.
-
-    Lefthook embeds the key's value in each shim when it installs. With
-    ``no_auto_install: true`` nothing refreshes a shim after the key lands, so
-    a clone installed earlier keeps calling Lefthook directly and the runner,
-    including the pre-push file list it builds (issue #6884), never executes.
-    The dispatch-line check passes such a shim because the dispatch line is
-    the same in every Lefthook version. Hooks that are absent or inert are
-    left to ``_missing_hook_types``, which owns that diagnosis.
-    """
-    stale = sorted(
-        name
-        for name in hook_names
-        if _is_live_hook(hooks_dir / name, name) and _runner_failure(hooks_dir / name, runner)
-    )
-    if not stale:
-        return None
-    return (
-        f"{_STALE_SHIM_PREFIX}{hooks_dir} holds {'shims' if len(stale) > 1 else 'a shim'} for "
-        f"{', '.join(stale)} that never call the configured lefthook command '{runner}', "
-        "so git runs Lefthook directly and skips the repository runner"
-    )
-
-
 def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> tuple[str | None, frozenset[str]]:
     """Return the failed condition and the hook types examined.
 
@@ -414,10 +339,9 @@ def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> tuple[str | None, f
         return probe_failure, probed
     inventory = configured_inventory(repo_root)
     configured = inventory.hook_types
-    if inventory.runner is not None:
-        stale = _stale_shims(hooks_dir, configured | probed, inventory.runner)
-        if stale is not None:
-            return stale, configured | probed
+    stale = stale_shims(hooks_dir, configured | probed, inventory.runner, _is_live_hook)
+    if stale is not None:
+        return stale, configured | probed
     return _missing_hook_types(hooks_dir, configured), configured | probed
 
 
@@ -525,12 +449,8 @@ def _evaluate(repo_root: Path) -> int:
     # Only claim the push is ungated when the pre-push probe is what failed.
     # A missing commit-msg shim reaches here with a working pre-push, and the
     # blanket line sent contributors after the wrong hook.
-    if reason.startswith(_STALE_SHIM_PREFIX):
-        print(
-            "Git runs these hooks, but they skip the repository's Lefthook runner, "
-            "so checks it adds, such as the pre-push file list, do not run.",
-            file=sys.stderr,
-        )
+    if reason.startswith(STALE_SHIM_PREFIX):
+        print(STALE_SHIM_SUMMARY, file=sys.stderr)
     elif reason.startswith(_POST_PROBE_PREFIX):
         print("pre-push itself is live; the gap is elsewhere.", file=sys.stderr)
     else:
