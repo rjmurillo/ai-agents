@@ -1,8 +1,8 @@
-# The PR body file must be prepared, and body paths must be in the diff
+# The PR body file must pass the strict reader, and body paths must be in the diff
 
 ## What happens
 
-`new_pr.py` accepts an inline `--body`. Its `--body-file` takes any plain file you own under the repo root or a temp directory, read by `read_body_file_text`. A path from `--prepare-body-file` works and avoids name collisions between sessions.
+`new_pr.py` accepts an inline `--body`. Its `--body-file` takes a plain file you own under the repo root or a temp directory, read by `read_body_file_text`. That reader refuses symlinks, hard-linked or world-writable files, and paths through a dot-named directory other than `.project-toolkit/scratch`. A path from `--prepare-body-file` passes those checks and avoids name collisions between sessions.
 
 `scripts/validation/pr_description.py` flags "File mentioned but not in diff" as a critical issue. A backticked path in the body that the diff does not touch fails the check. A description that names a file it did not change reads as a false claim.
 
