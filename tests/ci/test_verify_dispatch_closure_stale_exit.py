@@ -6,7 +6,6 @@ moved after the branch point is reported STALE and does not fail by itself.
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
@@ -16,24 +15,13 @@ from scripts.ci import verify_dispatch_closure as vdc
 from tests.ci.dispatch_closure_helpers import (
     HELPER,
     VERIFIER,
+    check,
+    commit_on_base,
     git,
     rev,
     upstream_with_pr,
     write,
 )
-
-
-def commit_on_base(base: Path, message: str) -> None:
-    git(base, "add", "-A")
-    git(base, "commit", "-q", "-m", message)
-
-
-def check(base: Path, upstream: Path, sha: str, capsys: pytest.CaptureFixture[str]) -> dict:
-    argv = ["--tool-root", str(base), "--head-sha", sha, "--pull-number", "1"]
-    code = vdc.main([*argv, "--remote", str(upstream), "--json"])
-    report = json.loads(capsys.readouterr().out)
-    report["code"] = code
-    return report
 
 
 class TestStaleWithABlockingFinding:
@@ -58,7 +46,6 @@ class TestStaleWithABlockingFinding:
         upstream, sha = upstream_with_pr(base, {"README.md": "pull request\n"})
         write(base, HELPER, "X = 2\n")
         commit_on_base(base, "main moves the helper")
-        upstream = upstream
         os.symlink("README.md", upstream / "alias.py")
         git(upstream, "add", "-A")
         git(

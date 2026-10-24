@@ -9,7 +9,6 @@ the base, then runs the check the way the workflow does.
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from unittest import mock
@@ -23,6 +22,8 @@ from tests.ci.dispatch_closure_helpers import (  # noqa: F401
     GATE,
     HELPER,
     VERIFIER,
+    check,
+    commit_on_base,
     git,
     rev,
     upstream_with_pr,
@@ -30,30 +31,6 @@ from tests.ci.dispatch_closure_helpers import (  # noqa: F401
 )
 
 SECOND = ".claude/skills/demo/scripts/second.py"
-
-
-def commit_on_base(base: Path, message: str) -> None:
-    git(base, "add", "-A")
-    git(base, "commit", "-q", "-m", message)
-
-
-def check(base: Path, upstream: Path, sha: str, capsys: pytest.CaptureFixture[str]) -> dict:
-    code = vdc.main(
-        [
-            "--tool-root",
-            str(base),
-            "--head-sha",
-            sha,
-            "--pull-number",
-            "1",
-            "--remote",
-            str(upstream),
-            "--json",
-        ]
-    )
-    report = json.loads(capsys.readouterr().out)
-    report["code"] = code
-    return report
 
 
 class TestBehindTheBase:
