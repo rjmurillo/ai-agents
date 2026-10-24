@@ -54,8 +54,10 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
   exits 2 ("nondeterministic scorer requires --null-results") until you pass a
   null control. Any other non-null value exits 2.
 - `tasks[id].verifier`: how pass or fail is decided. Prefer a deterministic
-  check (exit code, exact match, a script) over a judgment. The scripts do not
-  run the verifier; you do, and you write the result into the results file.
+  check (exit code, exact match, a script) over a judgment. For a task with
+  no `command`, the scripts do not run the verifier; you do, and you write the
+  result into the results file. A task with a `command` can be run by
+  `skillopt.py run` (see Command tasks below).
 - `tasks[id].kind`: optional `semantic` or `resource`. A resource task may
   encode a threshold declared up front, such as total bytes reduced by at
   least 15%. Adding a resource objective after seeing the candidate is
@@ -63,6 +65,104 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
 
 A manifest with no `sel` split, an empty one, a duplicate id, or a non-string
 id makes `score` and `pair-gate` exit 2. No held-out split, no gate.
+
+### Command tasks (`skillopt.py run`)
+
+A task with a `command` is a deterministic verifier that `run` executes
+against a bundle directory and records as `true`, `false`, or `"UNVERIFIED"`.
+
+```json
+"t7": {
+  "prompt": "audit-draft flags the banned phrase",
+  "verifier": "exit 1 and prints one finding",
+  "command": ["python3", "scripts/audit-draft.py", "--check", "fixtures/draft.md"],
+  "timeout": 30,
+  "expect_exit": 1,
+  "expect_stdout": "1 finding"
+}
+```
+
+- `command`: an argv list. A string is refused: there is no shell, so no
+  pipes, redirects, globbing, or `$VAR` expansion. Wrap shell syntax in a
+  script inside the bundle and run that script.
+- `timeout`: required, in seconds, greater than 0 and at most 600. A task
+  that exceeds it is killed with its process group and recorded as
+  `"UNVERIFIED"`, so a hung candidate cannot be scored as a pass.
+- `expect_exit`: integer exit status. Defaults to 0 when only
+  `expect_stdout` is set. At least one of `expect_exit` and `expect_stdout`
+  is required, so a verifier is never implicit.
+- `expect_stdout`: exact stdout text. `\r\n` counts as `\n`, and trailing
+  newlines are ignored on both sides. When both expectations are set, both
+  must hold. A task that writes more than 1 MiB to stdout is killed and
+  fails, whether or not `expect_stdout` is set.
+- Working directory is the bundle root. Stdin is closed and stderr is
+  discarded. The environment keeps only `PATH`, `PATHEXT`, `SYSTEMROOT`,
+  `LANG`, `LC_ALL`, `LC_CTYPE`, `TMPDIR`, `TEMP`, and `TMP`, plus
+  `PYTHONIOENCODING=utf-8` and a `PYTHONPYCACHEPREFIX` outside the bundle.
+  Tokens in the caller's environment do not reach the task, and Python
+  neither writes bytecode into the bundle nor loads a stale `.pyc` from it.
+- A task that could not start (the binary is missing) is `"UNVERIFIED"`.
+- On POSIX the task runs in its own process group. A timeout kills the whole
+  group, and the group is also killed after the task exits, so no background
+  process in that group outlives its task. A process that starts its own
+  session escapes it. On Windows only the direct child is killed.
+- `PATH` keeps only its absolute entries, so a bare command name cannot
+  resolve to a file inside the bundle through a `.` or empty entry.
+- A task with no `command` is skipped and left out of the results file, which
+  `pair-gate` reports as `REJECT_UNVERIFIED`. Grade it yourself and add it.
+
+**Security.** `eval.json` is executable input. Every `command` runs as you
+and may start any binary on `PATH`, so only run an `eval.json` you wrote or
+reviewed. `run` refuses these before any task starts, with exit 2:
+a non-list `command`, an empty command, a non-string or NUL-containing
+argv entry, a missing or out-of-range `timeout`, a missing expectation, any
+argv entry (or the value after any `=`, or after a short option such as
+`-I`) that is an absolute path or has a `..` segment, and an `argv[0]` containing a path separator that resolves
+outside the bundle after symlinks. These are string checks on the literal
+argv. They are not a sandbox: a program you name can still read or write
+anywhere your account can. Use a container or a throwaway account for an
+`eval.json` you did not write.
+
+Use `python3` or another bare name for the interpreter; an absolute path is
+refused. Run the incumbent and the candidate bundle with the same `eval.json`:
+
+```bash
+python3 "$SKILLOPT_DIR/skillopt.py" run --eval eval.json --bundle incumbent/ --role incumbent --out-dir results/
+python3 "$SKILLOPT_DIR/skillopt.py" run --eval eval.json --bundle candidate/ --role candidate --out-dir results/
+```
+
+`--role` is `incumbent`, `candidate`, or `null` and names the file
+(`incumbent_results.json`, `candidate_results.json`, `null_results.json`).
+`--split NAME` runs one split; the default runs every split. `--out-dir`
+defaults to the current directory and must not sit inside the bundle. Stdout
+is a JSON summary with `bundle_sha256`, counts, and a short reason per task;
+it never echoes task output. Exit 0: results written. Exit 1: results
+written, at least one task `"UNVERIFIED"`. Exit 2: refused or invalid; no
+results written.
+
+`run` hashes the bundle before the tasks and again after each task. A task
+that edits the bundle fails the run with exit 2 and no results file, and the
+error names the task. The bundle is not restored, so keep it under version
+control. An exit 2 leaves any earlier results file untouched, so
+check the exit code before passing a results file to `pair-gate`.
+
+### Bundle directories
+
+A bundle is a skill directory: `SKILL.md` plus its script folders, reference
+files, and fixtures. A candidate that changes a bundled script is a different
+artifact even when `SKILL.md` is identical, so identity covers the whole tree.
+
+- `skillopt.py hash DIR` prints one sha256 for the directory. The digest
+  covers each regular file by relative POSIX path and content, in sorted
+  order. It skips `__pycache__` and ignores empty directories, file modes, and
+  timestamps. A symlink anywhere in the tree exits 2.
+- `skillopt.py apply --skill DIR --out NEWDIR ...` copies the bundle to a new
+  directory and applies the patches to its `SKILL.md`. `--out` must not exist
+  and must not sit inside, or contain, the incumbent. It prints the candidate
+  bundle digest. If the candidate also changes a script, edit it in `NEWDIR`
+  after `apply`, then `hash NEWDIR` again: the new digest is the candidate's
+  identity, and `run --bundle NEWDIR` records that digest in its summary.
+- `hash DIR --expect SHA` checks a directory the same way as a file.
 
 ## 2. Patches (`patches.json`)
 
@@ -92,7 +192,8 @@ the whole batch.
 ## 3. Results (`*_results.json`)
 
 Per-task outcomes recorded after one rollout. The incumbent, the candidate,
-and any null control each get their own file.
+and any null control each get their own file. `skillopt.py run` writes these
+for command tasks.
 
 ```json
 { "t7": true, "t8": false, "t9": true, "t10": "UNVERIFIED" }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -28,3 +29,9 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     fake.mkdir()
     monkeypatch.setattr(Path, "home", staticmethod(lambda: fake))
     return fake
+
+
+@pytest.fixture
+def python_on_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Commands name the interpreter bare, as eval.json does; the runner reads PATH."""
+    monkeypatch.setenv("PATH", str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"])
