@@ -254,9 +254,15 @@ def verdict(r, b, n=20, minimum_effect=Fraction(1, 4)):
     return "INCONCLUSIVE"
 
 
-def final_verdict(r_and, b_and, r_or, b_or, agreement, valid_pairs, stopped):
+def final_verdict(
+    r_and, b_and, r_or, b_or, agreement_cells, cells, valid_pairs, stopped, failed_gap
+):
     # `stopped` is True only when a stop fired before the 20th valid pair.
-    if stopped or valid_pairs < 20 or agreement < 0.85:
+    # `failed_gap` is the absolute difference in failed response attempts
+    # between the two arms. `agreement_cells` is a count out of `cells`.
+    if stopped or valid_pairs < 20 or failed_gap > 4:
+        return "INCONCLUSIVE"
+    if agreement_cells * 100 < 85 * cells:
         return "INCONCLUSIVE"
     v = verdict(r_and, b_and)
     return v if v == verdict(r_or, b_or) else "INCONCLUSIVE"
