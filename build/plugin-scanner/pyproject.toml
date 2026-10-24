@@ -20,3 +20,13 @@ dependencies = [
 [tool.uv]
 package = false
 exclude-newer = "7 days"
+# Same certifi handling as the root pyproject.toml: PYSEC-2026-4320
+# (GHSA-6q48-6c7w-9gw2) affects certifi 2026.7.22 and is fixed in 2026.10.19,
+# which the 7-day cooldown would otherwise hold back. Pin it exactly so a later
+# `uv lock` cannot take an unreviewed CA bundle release.
+override-dependencies = [
+    "certifi==2026.10.19",
+]
+
+[tool.uv.exclude-newer-package]
+certifi = false
