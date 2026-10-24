@@ -65,6 +65,8 @@ DEFAULT_MIN_SCORE = 80
 # the 3m lefthook cap kills it (.claude/rules/ci-scripts.md item 19).
 TOTAL_BUDGET_SECONDS = 165
 GIT_TIMEOUT_SECONDS = 30
+# How long a timed-out child's pipes are drained after the kill.
+DRAIN_SECONDS = 5
 SCANNER_PROJECT = Path("build") / "plugin-scanner"
 # The scanner auto-discovers these in the scanned tree when run directly. The
 # catalog's action does not trust them, so they are removed before scanning.
@@ -124,7 +126,13 @@ def _run(
                     proc.kill()
             except ProcessLookupError:
                 pass  # the group exited between the timeout and the kill
-            proc.communicate()
+            # A descendant that left the group (setsid) can hold the pipes
+            # open forever; drain briefly, then let the context manager close
+            # them and reap the killed child.
+            try:
+                proc.communicate(timeout=DRAIN_SECONDS)
+            except subprocess.TimeoutExpired:
+                pass
             raise
     return subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
 

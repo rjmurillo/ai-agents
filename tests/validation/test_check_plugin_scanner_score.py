@@ -296,7 +296,7 @@ def test_budget_fits_inside_the_lefthook_cap() -> None:
     hook = (REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8")
     job = hook[hook.index("- name: plugin-scanner") :]
     assert job.splitlines()[1].strip() == "timeout: 3m"
-    assert gate.TOTAL_BUDGET_SECONDS < 180
+    assert gate.TOTAL_BUDGET_SECONDS + gate.DRAIN_SECONDS < 180
 
 
 def test_run_returns_output(tmp_path: Path) -> None:
@@ -328,6 +328,21 @@ def test_run_timeout_kills_the_whole_process_group(tmp_path: Path) -> None:
         time.sleep(0.1)
     else:
         pytest.fail(f"grandchild {grandchild} survived the timeout")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="setsid is POSIX")
+def test_run_timeout_does_not_wait_on_a_child_that_left_the_group(tmp_path: Path) -> None:
+    """A descendant in its own session keeps the pipes open; the kill cannot reach it."""
+    script = (
+        "import os, subprocess, sys, time\n"
+        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],"
+        " start_new_session=True)\n"
+        "time.sleep(60)\n"
+    )
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        gate._run([sys.executable, "-c", script], tmp_path, 1)
+    assert time.monotonic() - started < 1 + gate.DRAIN_SECONDS + 5
 
 
 def test_bad_ref_is_config_error(git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
