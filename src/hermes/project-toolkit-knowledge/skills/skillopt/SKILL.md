@@ -166,12 +166,13 @@ One optimization step:
    split, an incumbent `--out`, budget overflow, a bad anchor, a protected
    fence, or marker text inside a patch.
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
-   The `sel` runner does the `sel` half. For command tasks, run
+   For a bundle, `apply` writes a new directory. Finish every edit to its
+   scripts first, then run the command tasks, then `hash` the final
+   `CANDIDATE_DIR`. That digest is the candidate's identity, so results from
+   an earlier state of the bundle would gate a different candidate. The `sel`
+   runner does the `sel` half. For command tasks, run
    `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
-   --out-dir results/`, then add your grades for tasks with no `command`. A
-   bundle `apply` writes a new directory; edit its
-   scripts after `apply`, then `hash` it again, since that digest is the
-   candidate's identity.
+   --out-dir results/`, then add your grades for tasks with no `command`.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
    incumbent_results.json --candidate-results candidate_results.json`. If you
    used `run --out-dir results/`, pass the files under `results/`. For a
