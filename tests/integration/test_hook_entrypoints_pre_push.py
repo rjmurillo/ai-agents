@@ -11,9 +11,11 @@ Cases: first push, outgoing ref and range handling (protected destination, ref
 deletion from a ``main`` checkout, several refs, a pushed ref that is not the
 checked-out one), and security failures.
 
-Lefthook computes the pre-push file list as ``git diff --name-only HEAD
-@{push}`` and skips every job when that list is empty. A test that needs the
-hook to run therefore keeps the checked-out HEAD ahead of its push base.
+Lefthook alone computes the pre-push file list as ``git diff --name-only HEAD
+@{push}`` and skips every job when that list is empty (issue #6884). The
+repository's runner passes the files of the pushed refs instead, so the hook
+runs when the checked-out HEAD is level with its push base. The last test is
+the control: with the runner bypassed, the same push still skips every job.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ import pytest
 
 from tests.integration.hook_repo import (
     LEFTHOOK,
+    PROJECT_ROOT,
     HookRepo,
     build_hook_repo,
     commit_without_hooks,
@@ -145,8 +148,8 @@ def test_a_main_checkout_may_delete_a_feature_branch_on_the_remote(hook_repo: Ho
     """Issue #6671: the guard keys on the pushed ref, not on the checked-out branch."""
     hook_repo.git("push", "-q", "origin", "HEAD:refs/heads/feature/old")
     assert hook_repo.remote_ref("refs/heads/feature/old")
-    # A main checkout that holds an unpushed commit, so lefthook has push files
-    # and the hook runs instead of being skipped for an empty file list.
+    # A main checkout that holds an unpushed commit. The level case, where
+    # lefthook alone would skip the hook, is covered further down (#6884).
     hook_repo.git("checkout", "-q", "main")
     hook_repo.git("merge", "-q", "--ff-only", "feature/work")
     assert hook_repo.out("symbolic-ref", "--short", "HEAD") == "main"
@@ -265,14 +268,6 @@ def test_a_suppression_on_the_checked_out_branch_does_not_block_a_clean_ref(
     assert hook_repo.remote_ref("refs/heads/feature/work") == ""
 
 
-_SKIPPED_WHEN_LEVEL = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="#6884: lefthook skips every pre-push job when HEAD is level with its push base",
-)
-
-
-@_SKIPPED_WHEN_LEVEL
 def test_a_branch_level_with_its_upstream_cannot_update_main(hook_repo: HookRepo) -> None:
     hook_repo.git("push", "-q", "-u", "origin", "HEAD")
     main_before = hook_repo.remote_ref("refs/heads/main")
@@ -287,7 +282,6 @@ def test_a_branch_level_with_its_upstream_cannot_update_main(hook_repo: HookRepo
     assert hook_repo.remote_ref("refs/heads/main") == main_before
 
 
-@_SKIPPED_WHEN_LEVEL
 def test_a_branch_level_with_its_upstream_cannot_push_another_ref_with_a_suppression(
     hook_repo: HookRepo,
 ) -> None:
@@ -299,3 +293,51 @@ def test_a_branch_level_with_its_upstream_cannot_push_another_ref_with_a_suppres
     _refused(hook_repo, _SUPPRESSION_ERROR, "origin", "feature/bad")
 
     assert hook_repo.remote_ref("refs/heads/feature/bad") == ""
+
+
+def test_a_main_checkout_level_with_its_upstream_may_delete_a_feature_branch(
+    hook_repo: HookRepo,
+) -> None:
+    """A delete-only push changes no file, so the runner passes its placeholder path."""
+    hook_repo.git("push", "-q", "origin", "HEAD:refs/heads/feature/old")
+    hook_repo.git("checkout", "-q", "main")
+    assert hook_repo.out("rev-parse", "main") == hook_repo.remote_ref("refs/heads/main")
+
+    _landed(hook_repo, "origin", "--delete", "feature/old")
+
+    assert hook_repo.remote_ref("refs/heads/feature/old") == ""
+
+
+def test_a_main_checkout_level_with_its_upstream_still_may_not_delete_main(
+    hook_repo: HookRepo,
+) -> None:
+    hook_repo.git("checkout", "-q", "main")
+    main_before = hook_repo.remote_ref("refs/heads/main")
+
+    _refused(
+        hook_repo, "cannot delete or update protected branch 'main'", "origin", "--delete", "main"
+    )
+
+    assert hook_repo.remote_ref("refs/heads/main") == main_before
+
+
+def test_bypassing_the_runner_still_skips_every_job_when_level(hook_repo: HookRepo) -> None:
+    """Control for #6884: Lefthook alone skips the guard, so the runner is what fixes it.
+
+    ``LEFTHOOK_BIN`` makes the shim call the binary directly. That is the hook
+    as it ran before this fix, and it is a known bypass of the runner.
+    """
+    hook_repo.git("push", "-q", "-u", "origin", "HEAD")
+    hook_repo.env["LEFTHOOK_BIN"] = str(LEFTHOOK)
+
+    result = hook_repo.git("push", "origin", "HEAD:refs/heads/main", check=False)
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert _RAN_POLICY not in output
+    assert hook_repo.remote_ref("refs/heads/main") == hook_repo.out("rev-parse", "HEAD")
+
+
+def test_the_fixture_runs_the_repository_runner() -> None:
+    """The flipped tests above prove the fix only while the shim reaches the runner."""
+    assert "lefthook_runner.py" in (PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8")

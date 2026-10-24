@@ -171,7 +171,7 @@ def _shim_repo(tmp_path: Path, tools: Path) -> Path:
     (repo / "scripts/validation").mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     shutil.copy2(PROJECT_ROOT / "lefthook.yml", repo / "lefthook.yml")
-    for module in ("lefthook_runner.py", "lefthook_failure_report.py"):
+    for module in ("lefthook_runner.py", "lefthook_failure_report.py", "push_file_list.py"):
         shutil.copy2(
             PROJECT_ROOT / "scripts/validation" / module, repo / "scripts/validation" / module
         )

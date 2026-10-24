@@ -1215,8 +1215,12 @@ def test_installed_shim_runs_the_first_binary_in_runner_order(
     _copy_runtime_config(repo)
     runner = Path("scripts/validation/lefthook_runner.py")
     (repo / runner).parent.mkdir(parents=True, exist_ok=True)
-    # The runner imports lefthook_failure_report by bare name from its own directory.
-    for module in (runner, runner.with_name("lefthook_failure_report.py")):
+    # The runner imports its sibling modules by bare name from its own directory.
+    for module in (
+        runner,
+        runner.with_name("lefthook_failure_report.py"),
+        runner.with_name("push_file_list.py"),
+    ):
         shutil.copy2(PROJECT_ROOT / module, repo / module)
     _run_lefthook(repo, "install", "--reset-hooks-path")
 

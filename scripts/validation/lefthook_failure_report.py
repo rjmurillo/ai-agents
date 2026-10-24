@@ -57,10 +57,10 @@ def _redact_url(argument: str) -> str:
 
 def should_report(arguments: Sequence[str]) -> bool:
     """Return True for a ``run <hook>`` call whose output this module owns."""
-    return _hook_name(arguments) is not None and OUTPUT_ENV not in os.environ
+    return hook_name(arguments) is not None and OUTPUT_ENV not in os.environ
 
 
-def _hook_name(arguments: Sequence[str]) -> str | None:
+def hook_name(arguments: Sequence[str]) -> str | None:
     """Return the hook of a ``run <hook> ...`` invocation, else None."""
     if len(arguments) >= 2 and arguments[0] == "run" and not arguments[1].startswith("-"):
         return arguments[1]
@@ -152,7 +152,7 @@ def _feed_stdin(stream: IO[bytes], data: bytes) -> None:
             pass
 
 
-def _recorded_stdin(hook: str) -> bytes | None:
+def recorded_stdin(hook: str | None) -> bytes | None:
     """Return the pre-push ref lines git wrote to stdin, else None."""
     if hook == "pre-push" and sys.stdin is not None and not sys.stdin.isatty():
         data: bytes = sys.stdin.buffer.read()
@@ -187,21 +187,36 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
         raise
 
 
-def run_hook_with_report(command: Sequence[str], arguments: Sequence[str]) -> int:
+def lefthook_argv(
+    command: Sequence[str], arguments: Sequence[str], file_args: Sequence[str]
+) -> list[str]:
+    """Return the Lefthook argv with ``file_args`` placed right after ``run <hook>``."""
+    return [*command, *arguments[:2], *file_args, *arguments[2:]]
+
+
+def run_hook_with_report(
+    command: Sequence[str],
+    arguments: Sequence[str],
+    stdin_bytes: bytes | None,
+    file_args: Sequence[str] = (),
+) -> int:
     """Run ``run <hook>`` and report any failed job.
+
+    ``stdin_bytes`` is what git wrote to the hook's stdin (see
+    :func:`recorded_stdin`), replayed to Lefthook. ``file_args`` set the pre-push
+    file list and stay out of the printed rerun commands, which can be long.
 
     Output is forwarded line by line as Lefthook writes it, so a job that fails
     early shows its text while slower jobs still run, and an interrupt keeps
     what was already printed. Raises :class:`ChildStartError` when Lefthook does
     not start; any other I/O error propagates.
     """
-    stdin_bytes = _recorded_stdin(arguments[1])
     refs = stdin_bytes.decode("utf-8", errors="replace").splitlines() if stdin_bytes else []
     _replace_unencodable_output()
     sys.stdout.flush()
     try:
         process = subprocess.Popen(
-            [*command, *arguments],
+            lefthook_argv(command, arguments, file_args),
             stdin=subprocess.PIPE if stdin_bytes is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

@@ -15,12 +15,16 @@ Coverage:
 - positive: the hook is still piped, which the fast-fail staging depends on.
 - negative: a synthetic glob on any target makes the soundness check fail.
 - edge: direct pre-PR callers leave the scheduler flag unset.
+- issue #6884: no pre-push glob matches the runner's placeholder path, and every
+  job that takes a file template carries a glob, so a delete-only push runs the
+  ref guards and hands no file-scoped job a fake file.
 """
 
 from __future__ import annotations
 
+import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
@@ -33,6 +37,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import pre_pr_sequence  # noqa: E402
+import push_file_list  # noqa: E402
 
 FAST_STAGE_FLAG = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
 EXPECTED_DEFERRALS = {
@@ -339,3 +344,77 @@ class TestNonBlockingJobsAreDeclaredNotDiscovered:
                 "blocking gate now, drop it from EXIT_SWALLOWING_PREPUSH_JOBS "
                 "and size its cap as a gate rather than as a reporter."
             )
+
+
+# Templates that hand a job the pre-push file list (lefthook 2.2.2).
+_FILE_TEMPLATES = ("{push_files}", "{files}", "{all_files}", "{staged_files}")
+_BRACES = re.compile(r"\{([^{}]*)\}")
+
+
+def _expand_braces(pattern: str) -> list[str]:
+    """Expand ``{a,b}`` alternatives, which pathlib matching does not support."""
+    match = _BRACES.search(pattern)
+    if match is None:
+        return [pattern]
+    head, tail = pattern[: match.start()], pattern[match.end() :]
+    return [
+        expanded
+        for option in match.group(1).split(",")
+        for expanded in _expand_braces(f"{head}{option}{tail}")
+    ]
+
+
+def _globs(job: dict[str, Any]) -> list[str]:
+    value = job.get("glob")
+    if value is None:
+        return []
+    return [value] if isinstance(value, str) else list(value)
+
+
+def _matches(path: str, pattern: str) -> bool:
+    """Doublestar match, as `glob_matcher: doublestar` sets: `**` spans zero or more dirs."""
+    return any(PurePosixPath(path).full_match(item) for item in _expand_braces(pattern))
+
+
+def _placeholder_leaks(jobs: list[dict[str, Any]]) -> list[str]:
+    leaks: list[str] = []
+    for job in jobs:
+        name = job.get("name", "an unnamed job")
+        for pattern in _globs(job):
+            if _matches(push_file_list.PLACEHOLDER, pattern):
+                leaks.append(f"{name!r} glob {pattern!r} matches the placeholder")
+        run = str(job.get("run", ""))
+        if any(template in run for template in _FILE_TEMPLATES) and not _globs(job):
+            leaks.append(f"{name!r} takes a file template with no glob")
+    return leaks
+
+
+class TestThePlaceholderReachesNoFileScopedJob:
+    """Issue #6884: a push that changes no file passes the runner's placeholder."""
+
+    def test_no_pre_push_job_sees_the_placeholder(self) -> None:
+        assert _placeholder_leaks(_all_jobs("pre-push")) == []
+
+    @pytest.mark.parametrize("pattern", ["**", "*", ".*", ".lefthook-*", "{*.py,*}"])
+    def test_a_glob_that_matches_the_placeholder_is_caught(self, pattern: str) -> None:
+        job = {"name": "synthetic", "run": "echo {push_files}", "glob": pattern}
+        assert _placeholder_leaks([job]) == [
+            f"'synthetic' glob {pattern!r} matches the placeholder"
+        ]
+
+    @pytest.mark.parametrize("template", _FILE_TEMPLATES)
+    def test_a_file_template_without_a_glob_is_caught(self, template: str) -> None:
+        job = {"name": "synthetic", "run": f"echo {template}"}
+        assert _placeholder_leaks([job]) == ["'synthetic' takes a file template with no glob"]
+
+    @pytest.mark.parametrize(
+        ("path", "pattern", "expected"),
+        [
+            ("a.py", "**/*.py", True),
+            ("src/a.py", "**/*.py", True),
+            (".github/workflows/x.yaml", ".github/workflows/**/*.{yml,yaml}", True),
+            ("a.md", "**/*.py", False),
+        ],
+    )
+    def test_the_matcher_follows_doublestar(self, path: str, pattern: str, expected: bool) -> None:
+        assert _matches(path, pattern) is expected

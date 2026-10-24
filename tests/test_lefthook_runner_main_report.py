@@ -8,8 +8,9 @@ Coverage:
 - positive: job output reaches stdout and the report reaches stderr.
 - negative: a passing hook prints nothing extra; a caller-set LEFTHOOK_OUTPUT and a
   non-hook command keep Lefthook's own behavior.
-- edge: pre-push stdin is replayed, a start failure gets the runner diagnosis, and
-  an interrupt ends the child without a hang.
+- edge: pre-push stdin is replayed with the pushed file list (issue #6884), a
+  file list that cannot be built refuses the push, a start failure gets the
+  runner diagnosis, and an interrupt ends the child without a hang.
 """
 
 from __future__ import annotations
@@ -103,25 +104,129 @@ def test_main_prints_nothing_extra_when_the_hook_passes(
     assert captured.err == ""
 
 
+LOCAL_SHA = "a" * 40
+ZERO_SHA = "0" * 40
+REF_LINE = f"refs/heads/x {LOCAL_SHA} refs/heads/x {ZERO_SHA}\n"
+
+
+def _pipe_stdin(monkeypatch: pytest.MonkeyPatch, text: str) -> None:
+    stdin = mock.Mock(buffer=io.BytesIO(text.encode()))
+    stdin.isatty.return_value = False
+    monkeypatch.setattr(runner.sys, "stdin", stdin)
+
+
 def test_main_replays_stdin_to_a_pre_push_child_and_into_the_rerun(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
-    ref_line = "refs/heads/x abc refs/heads/x 000\n"
     process = _FakeProcess(1, _lefthook_failure("a", "boom"))
-    stdin = mock.Mock(buffer=io.BytesIO(ref_line.encode()))
-    stdin.isatty.return_value = False
-    monkeypatch.setattr(runner.sys, "stdin", stdin)
+    _pipe_stdin(monkeypatch, REF_LINE)
     with (
         mock.patch.object(runner, "resolve_command", return_value=COMMAND),
-        mock.patch.object(runner.subprocess, "Popen", return_value=process),
+        mock.patch.object(runner, "lefthook_file_args", return_value=["--file=x.py"]) as files,
+        mock.patch.object(runner.subprocess, "Popen", return_value=process) as popen,
         mock.patch.object(report_module.threading, "Thread") as thread,
     ):
         runner.main(["run", "pre-push", "origin", "https://u:tok@h/r.git"])
 
     err = capsys.readouterr().err
-    assert thread.call_args.kwargs["args"][1] == ref_line.encode()
-    assert "printf '%s\\n' 'refs/heads/x abc refs/heads/x 000' |" in err
+    files.assert_called_once_with(REF_LINE.encode(), "origin")
+    assert thread.call_args.kwargs["args"][1] == REF_LINE.encode()
+    assert popen.call_args.args[0] == [
+        *COMMAND,
+        "run",
+        "pre-push",
+        "--file=x.py",
+        "origin",
+        "https://u:tok@h/r.git",
+    ]
+    assert f"printf '%s\\n' 'refs/heads/x {LOCAL_SHA} refs/heads/x {ZERO_SHA}' |" in err
+    # The file list can be long, so the printed rerun leaves it out.
+    assert "--file=x.py" not in err
+
+
+def test_main_refuses_the_push_when_the_file_list_cannot_be_built(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
+    _pipe_stdin(monkeypatch, "refs/heads/x abc refs/heads/x 000\n")
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.object(runner.subprocess, "Popen") as popen,
+        mock.patch.object(runner.subprocess, "run") as run,
+    ):
+        status = runner.main(["run", "pre-push", "origin", "url"])
+
+    err = capsys.readouterr().err
+    assert status == runner.EXIT_FILE_LIST == 1
+    assert "pushed file list cannot be built" in err
+    assert "invalid object id" in err
+    popen.assert_not_called()
+    run.assert_not_called()
+
+
+def test_a_caller_chosen_output_mode_still_gets_the_file_list_and_the_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pipe_stdin(monkeypatch, REF_LINE)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.dict(os.environ, {report_module.OUTPUT_ENV: "failure"}),
+        mock.patch.object(runner, "lefthook_file_args", return_value=["--file=x.py"]),
+        mock.patch.object(runner.subprocess, "run", return_value=_completed(0, "")) as run,
+    ):
+        status = runner.main(["run", "pre-push", "origin", "url"])
+
+    assert status == 0
+    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "--file=x.py", "origin", "url"]
+    assert run.call_args.kwargs["input"] == REF_LINE.encode()
+
+
+@pytest.mark.parametrize(
+    "flag", ["--file=a.py", "--all-files", "--files-from-stdin", "--force", "--file"]
+)
+def test_a_caller_chosen_file_list_is_left_alone(
+    monkeypatch: pytest.MonkeyPatch, flag: str
+) -> None:
+    _pipe_stdin(monkeypatch, REF_LINE)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.dict(os.environ, {report_module.OUTPUT_ENV: "failure"}),
+        mock.patch.object(runner, "lefthook_file_args") as files,
+        mock.patch.object(runner.subprocess, "run", return_value=_completed(0, "")) as run,
+    ):
+        runner.main(["run", "pre-push", flag, "origin", "url"])
+
+    files.assert_not_called()
+    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", flag, "origin", "url"]
+
+
+@pytest.mark.parametrize(
+    ("rest", "remote"),
+    [
+        (["origin", "url"], "origin"),
+        (["--job", "push-ref-policy", "origin", "url"], "origin"),
+        (["--no-tty", "upstream", "url"], "upstream"),
+        (["--job"], None),
+        ([], None),
+    ],
+)
+def test_the_remote_is_the_first_hook_argument_after_lefthook_flags(
+    rest: list[str], remote: str | None
+) -> None:
+    assert runner._remote_name(rest) == remote
+
+
+def test_pre_push_with_empty_stdin_adds_no_file_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    _pipe_stdin(monkeypatch, "")
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.dict(os.environ, {report_module.OUTPUT_ENV: "failure"}),
+        mock.patch.object(runner.subprocess, "run", return_value=_completed(0, "")) as run,
+    ):
+        runner.main(["run", "pre-push", "origin", "url"])
+
+    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "origin", "url"]
 
 
 def test_main_leaves_a_caller_chosen_output_mode_alone() -> None:

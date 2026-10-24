@@ -24,12 +24,19 @@ Resolution order:
 ``LEFTHOOK_BIN`` is handled by the shim before this program runs, so it is not
 read here. Bypass switches stay forbidden by ADR-086 and are not offered.
 
+Pre-push file list (issue #6884): Lefthook skips every pre-push job, the
+ref guards included, when ``git diff HEAD @{push}`` is empty. For ``run
+pre-push`` this program reads the ref lines git writes to stdin, asks
+``push_file_list.py`` for the files of the refs being pushed, and passes them
+as ``--file`` arguments. The ref lines are replayed to Lefthook unchanged. When
+the list cannot be built the push stops with exit 1. It never skips.
+
 Failure report (issue #6734, item 5): ``run <hook>`` goes through
 ``lefthook_failure_report.py``, which names the failed stage and job and prints a
 rerun command.
 
-Exit codes: the child's exit status when a runner started, 3 (external) when no
-runner is available.
+Exit codes: the child's exit status when a runner started, 1 when the pre-push
+file list cannot be built, 3 (external) when no runner is available.
 """
 
 from __future__ import annotations
@@ -45,10 +52,19 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from lefthook_failure_report import (  # noqa: E402
     ChildStartError,
+    hook_name,
+    lefthook_argv,
+    recorded_stdin,
     run_hook_with_report,
     should_report,
 )
+from push_file_list import (  # noqa: E402
+    PushFileListError,
+    caller_chose_files,
+    lefthook_file_args,
+)
 
+EXIT_FILE_LIST = 1
 EXIT_UNAVAILABLE = 3
 PROBE_TIMEOUT_SECONDS = 60
 _UV_RUNNER = ("uv", "run", "--frozen", "lefthook")
@@ -104,6 +120,33 @@ def _cannot_start(command: list[str], error: Exception) -> int:
     return EXIT_UNAVAILABLE
 
 
+def _pre_push_file_args(arguments: list[str], stdin_bytes: bytes | None) -> list[str]:
+    """Return the ``--file`` arguments for a pre-push run, or none for other runs."""
+    if hook_name(arguments) != "pre-push" or not stdin_bytes:
+        return []
+    if caller_chose_files(arguments[2:]):
+        return []
+    file_args: list[str] = lefthook_file_args(stdin_bytes, _remote_name(arguments[2:]))
+    return file_args
+
+
+# Lefthook ``run`` flags that take a separate value, so the value is not the remote.
+_VALUE_FLAGS = frozenset({"--job", "--tag", "--command", "--exclude", "--file"})
+
+
+def _remote_name(rest: list[str]) -> str | None:
+    """Return the first git hook argument (the remote name) after any Lefthook flags."""
+    skip_value = False
+    for item in rest:
+        if skip_value:
+            skip_value = False
+        elif item in _VALUE_FLAGS:
+            skip_value = True
+        elif not item.startswith("-"):
+            return item
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run Lefthook with ``argv`` through the first working runner."""
     arguments = list(sys.argv[1:] if argv is None else argv)
@@ -111,15 +154,26 @@ def main(argv: list[str] | None = None) -> int:
     if command is None:
         sys.stderr.write(DIAGNOSIS)
         return EXIT_UNAVAILABLE
+    stdin_bytes = recorded_stdin(hook_name(arguments))
+    try:
+        file_args = _pre_push_file_args(arguments, stdin_bytes)
+    except PushFileListError as error:
+        sys.stderr.write(
+            f"lefthook_runner: pre-push stopped. The pushed file list cannot be built: "
+            f"{error}\nNo pre-push check ran, so the push is refused.\n"
+        )
+        return EXIT_FILE_LIST
     if should_report(arguments):
         try:
-            reported: int = run_hook_with_report(command, arguments)
+            reported: int = run_hook_with_report(command, arguments, stdin_bytes, file_args)
         except ChildStartError as error:
             return _cannot_start(command, error)
         return reported
     try:
         sys.stdout.flush()
-        return subprocess.run([*command, *arguments], check=False).returncode
+        return subprocess.run(
+            lefthook_argv(command, arguments, file_args), input=stdin_bytes, check=False
+        ).returncode
     except OSError as error:
         return _cannot_start(command, error)
 

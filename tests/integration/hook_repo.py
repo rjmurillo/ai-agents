@@ -14,11 +14,14 @@ cheap policy jobs and drops the rest. Each kept job keeps its real ``glob``,
 ``stage_fixed``, ``use_stdin``, ``skip`` and ``run`` fields, apart from the
 ``uv run`` prefix, which becomes the running interpreter.
 
-Two differences from a contributor checkout. The ``lefthook:`` runner key is
-dropped and ``LEFTHOOK_BIN`` names the pinned binary, so the runner's own
-fallback order stays with ``tests/test_lefthook_runner.py``. The
-``placeholder-identity`` job is omitted because it skips any repository under
-pytest's ``tmp_path`` by design.
+The shim calls the repository's ``lefthook:`` runner, ``lefthook_runner.py``,
+as a contributor checkout does. The runner builds the pre-push file list from
+git's ref lines (issue #6884), so a test that bypassed it would test a hook no
+contributor runs. Two differences from a contributor checkout. A ``uv`` stub
+that always fails leads ``PATH``, then the pinned binary, so the runner picks
+that binary. Its own fallback order stays with ``tests/test_lefthook_runner.py``.
+The ``placeholder-identity`` job is omitted because it skips any repository
+under pytest's ``tmp_path`` by design.
 """
 
 from __future__ import annotations
@@ -85,8 +88,11 @@ SUPPORT_FILES = (
     "scripts/validation/evidence.py",
     "scripts/validation/git_hook_policy.py",
     "scripts/validation/host_headroom.py",
+    "scripts/validation/lefthook_failure_report.py",
+    "scripts/validation/lefthook_runner.py",
     "scripts/validation/models.py",
     "scripts/validation/object_id.py",
+    "scripts/validation/push_file_list.py",
     "scripts/validation/push_ref_staleness.py",
     "scripts/validation/pytest_deferral.py",
     "scripts/validation/pytest_lanes.py",
@@ -146,6 +152,7 @@ def runtime_config() -> dict[str, Any]:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
     narrowed: dict[str, Any] = {
         "min_version": config["min_version"],
+        "lefthook": config["lefthook"],
         "no_auto_install": True,
         "glob_matcher": config["glob_matcher"],
         "output": False,
@@ -247,9 +254,27 @@ class HookRepo:
         )
 
 
+def _runner_bin(home: Path) -> Path:
+    """A directory holding a failing ``uv`` stub and the pinned ``lefthook``.
+
+    ``lefthook_runner.py`` tries ``uv run --frozen lefthook`` first, which in a
+    fixture without a ``pyproject.toml`` would depend on the host's uv. The stub
+    makes that probe fail, so the runner takes ``lefthook`` from ``PATH``.
+    """
+    assert LEFTHOOK is not None
+    directory = home / "bin"
+    directory.mkdir()
+    stub = directory / "uv"
+    stub.write_text(f"#!{sys.executable}\nraise SystemExit(1)\n", encoding="utf-8")
+    stub.chmod(0o755)
+    (directory / "lefthook").symlink_to(LEFTHOOK)
+    return directory
+
+
 def hermetic_env(home: Path) -> dict[str, str]:
     """An environment with no ambient git config, credentials, or GIT_* state."""
     env = {key: value for key, value in os.environ.items() if key in _ENV_KEEP}
+    env["PATH"] = os.pathsep.join([str(_runner_bin(home)), env.get("PATH", "")])
     env.update(
         {
             "HOME": str(home),
@@ -259,7 +284,6 @@ def hermetic_env(home: Path) -> dict[str, str]:
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_EDITOR": "true",
             "LC_ALL": "C",
-            "LEFTHOOK_BIN": str(LEFTHOOK),
             "PYTHONDONTWRITEBYTECODE": "1",
             "RUFF_NO_CACHE": "true",
         }
