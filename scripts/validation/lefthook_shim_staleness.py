@@ -48,9 +48,11 @@ def runner_branches(runner: str) -> tuple[tuple[str, str, str], ...]:
 def runner_failure(hook: Path, runner: str) -> bool:
     """True when ``hook`` never invokes the configured ``lefthook:`` command.
 
-    An unreadable file counts as stale: ``_dispatch_failure`` already read it
-    successfully moments earlier, so a failure here is a race, and an
-    unverifiable shim is not a verified pass. The check proves the generated
+    An unreadable file counts as stale, because an unverifiable shim is not a
+    verified pass. An ``OSError`` here is a race, since ``_dispatch_failure``
+    read the file moments earlier. A ``UnicodeDecodeError`` is not: that read
+    replaces undecodable bytes and this one does not, so a non-UTF-8 shim with
+    the right dispatch line always lands here. The check proves the generated
     branch is present, which is what a stale generated shim lacks. It does not
     prove the branch is reachable in a hand-edited shim.
     """
