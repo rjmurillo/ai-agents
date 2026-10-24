@@ -73,7 +73,10 @@ class TestDescribeStrayGit:
 
     def test_flags_a_dangling_symlink(self, tmp_path: Path) -> None:
         stray = tmp_path / ".git"
-        stray.symlink_to(tmp_path / "missing-target")
+        try:
+            stray.symlink_to(tmp_path / "missing-target")
+        except OSError:
+            pytest.skip("symlink creation needs a privilege this platform lacks")
 
         message = guard.describe_stray_git(stray)
 
@@ -162,6 +165,8 @@ def _run_pytest(
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=90,
         check=False,
     )

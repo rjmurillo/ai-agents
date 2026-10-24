@@ -34,7 +34,8 @@ def describe_stray_git(stray: Path) -> str | None:
     """Return a failure message when ``stray`` exists, else ``None``.
 
     ``os.path.lexists`` also catches a dangling symlink, which ``Path.exists``
-    reports as absent while git still treats the name as a repository marker.
+    reports as absent, so any entry named ``.git`` is reported whatever it
+    points to.
     """
     if not os.path.lexists(stray):
         return None
