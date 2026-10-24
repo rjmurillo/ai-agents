@@ -103,7 +103,7 @@ jobs:
       # object store into a scratch directory, so nothing of the head sits in
       # the workspace beside the code that reads it.
       # Full history: the script finds the merge base of this tree and the head, so
-      # a file the base moved after the branch point is labelled STALE. It still fails.
+      # a file the base moved after the branch point is labelled STALE. STALE is reported and does not fail.
       # The head fetch is depth-limited (HEAD_FETCH_DEPTH in the script), so after the
       # closure step this checkout may be shallow at the head's ancestor. Keep the step
       # last, and add no step that walks history.
@@ -119,7 +119,7 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
           enable-git-hooks: false
 
-      # Reports, and exits 1 on a difference: a legitimate verifier change reports
+      # Reports, and exits 1 on a difference other than STALE: a legitimate verifier change reports
       # here exactly as it halts the local gate until a human approves it.
       - name: Compare the head's dispatch closure with the base
         env:

@@ -2,14 +2,13 @@
 
 A pull request behind the base ref is not charged with editing files the base
 moved after the branch point. Those files are reported STALE instead, and STALE
-still fails: the head would run the old copy, so the author must merge the base
-ref. Each case builds the pull request first, from the base as it stands, then
-moves the base, then runs the check the way the workflow does.
+does not fail: a pull request cannot be required to sit on the latest base.
+Each case builds the pull request first, from the base as it stands, then moves
+the base, then runs the check the way the workflow does.
 """
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from unittest import mock
@@ -28,32 +27,9 @@ from tests.ci.dispatch_closure_helpers import (  # noqa: F401
     upstream_with_pr,
     write,
 )
+from tests.ci.dispatch_closure_runner import check, commit_on_base
 
 SECOND = ".claude/skills/demo/scripts/second.py"
-
-
-def commit_on_base(base: Path, message: str) -> None:
-    git(base, "add", "-A")
-    git(base, "commit", "-q", "-m", message)
-
-
-def check(base: Path, upstream: Path, sha: str, capsys: pytest.CaptureFixture[str]) -> dict:
-    code = vdc.main(
-        [
-            "--tool-root",
-            str(base),
-            "--head-sha",
-            sha,
-            "--pull-number",
-            "1",
-            "--remote",
-            str(upstream),
-            "--json",
-        ]
-    )
-    report = json.loads(capsys.readouterr().out)
-    report["code"] = code
-    return report
 
 
 class TestBehindTheBase:
@@ -69,12 +45,12 @@ class TestBehindTheBase:
 
         assert report["changed"] == []
         assert report["stale"] == [HELPER]
-        assert report["code"] == vdc.EXIT_DIFFERS
+        assert report["code"] == vdc.EXIT_OK
 
-    def test_a_verifier_the_base_hardened_after_the_branch_point_fails_as_stale(
+    def test_a_verifier_the_base_hardened_after_the_branch_point_is_reported_stale(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """The head carries the weaker pre-fix verifier; the check must not pass."""
+        """The head carries the pre-fix verifier; it is reported STALE and does not fail."""
         base, _ = trees
         upstream, sha = upstream_with_pr(base, {"README.md": "pull request\n"})
         write(base, VERIFIER, "import helper\n# hardened\n")
@@ -83,7 +59,7 @@ class TestBehindTheBase:
         report = check(base, upstream, sha, capsys)
 
         assert report["stale"] == [VERIFIER]
-        assert report["code"] == vdc.EXIT_DIFFERS
+        assert report["code"] == vdc.EXIT_OK
 
     def test_a_file_the_pull_request_and_the_base_changed_alike_is_not_reported(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -99,7 +75,7 @@ class TestBehindTheBase:
         assert report["stale"] == []
         assert report["code"] == vdc.EXIT_OK
 
-    def test_stale_output_tells_the_author_to_merge_the_base_ref(
+    def test_stale_output_is_reported_without_telling_the_author_to_merge(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
     ) -> None:
         base, _ = trees
@@ -111,9 +87,11 @@ class TestBehindTheBase:
         code = vdc.main([*argv, "--remote", str(upstream)])
         out = capsys.readouterr().out
 
-        assert code == vdc.EXIT_DIFFERS
+        assert code == vdc.EXIT_OK
         assert f"dispatch-closure: STALE {HELPER}" in out
-        assert "merge the base ref" in out
+        assert "1 stale" in out
+        assert "merge the base ref" not in out
+        assert "alone do not fail" in out
 
     def test_a_file_the_pull_request_edits_is_reported_when_the_base_moved_it_too(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -152,7 +130,7 @@ class TestBehindTheBase:
 
         assert report["added"] == []
         assert report["stale"] == [HELPER]
-        assert report["code"] == vdc.EXIT_DIFFERS
+        assert report["code"] == vdc.EXIT_OK
 
     def test_a_file_the_pull_request_adds_is_still_new(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -196,7 +174,7 @@ class TestBehindTheBase:
         assert report["removed"] == []
         assert report["changed"] == []
         assert report["stale"] == sorted([CONFIG, SECOND])
-        assert report["code"] == vdc.EXIT_DIFFERS
+        assert report["code"] == vdc.EXIT_OK
 
     def test_a_verifier_the_pull_request_deletes_is_still_removed(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -239,7 +217,7 @@ class TestBehindTheBase:
 
         assert report["symlinks"] == []
         assert report["stale"] == ["link"]
-        assert report["code"] == vdc.EXIT_DIFFERS
+        assert report["code"] == vdc.EXIT_OK
 
     def test_a_symlink_the_pull_request_adds_is_still_reported(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
