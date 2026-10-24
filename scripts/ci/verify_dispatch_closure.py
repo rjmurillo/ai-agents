@@ -37,13 +37,14 @@ human approves it.
 
 Every comparison is against the base ref tip, never the merge base: a head
 behind the base runs the old copy of a file the base moved. With `--head-sha`, a
-finding where the head equals every merge base is labelled STALE, which still
-fails and tells the author to merge the base ref (issue #6472).
+finding where the head equals every merge base is labelled STALE. STALE is
+reported but does not fail: a pull request cannot be required to sit on the latest
+base, because many agents merge at once. Every other finding still fails (issue #6472).
 
 EXIT CODES (ADR-035):
   0 - the head's dispatch closure is byte-identical to the base ref
-  1 - files differ, are removed, new or stale, a symlink was added, or a dynamic
-      load cannot be resolved
+  1 - files differ, are removed or new, a symlink was added, or a dynamic
+      load cannot be resolved (stale files alone exit 0)
   2 - configuration: a tree, the base config or the dispatcher cannot be read
 """
 
@@ -78,8 +79,8 @@ CHANGED = "changed"
 ADDED = "added"
 STALE = "stale"
 STALE_REMEDY = (
-    "dispatch-closure: STALE files match every merge base but not the base ref: "
-    "merge the base ref into the branch and push"
+    "dispatch-closure: STALE files match every merge base but not the base ref. "
+    "STALE is reported only and does not fail the check"
 )
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
 
@@ -127,8 +128,9 @@ class Report:
 
     @property
     def clean(self) -> bool:
+        """True when no finding blocks. STALE is reported but never blocks."""
         found = (self.changed, self.removed, self.added, self.symlinks, self.unresolved)
-        return not any(found) and not self.stale
+        return not any(found)
 
     def to_json(self) -> dict[str, Any]:
         return {
