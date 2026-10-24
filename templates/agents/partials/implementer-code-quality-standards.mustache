@@ -16,7 +16,7 @@ State the inverse before coding. If you genuinely cannot name one, say so explic
 
 For each task:
 
-1. **Read the plan** (not chat history). Plans are authoritative.
+1. **Read the plan** (not chat history). Plans are authoritative. A caller brief with acceptance criteria is a plan.
 2. **Validate alignment**: does the task match plan acceptance criteria?
 3. **Discover patterns**: read related files, check test conventions
 4. **Write a failing test** (when framework exists)
@@ -277,15 +277,6 @@ Before starting non-trivial work, estimate complexity:
 
 Flag XL as a blocker. Request decomposition before proceeding.
 
-### Guiding Questions
-
-Before starting work, ask:
-
-1. What long-term constraints are we embedding now?
-2. What will our successors wish we had written down?
-3. What is aging well? What is rotting?
-4. Are we creating a system that rewards the right behavior?
-
 ### Before Estimating
 
 1. **Write down the overall approach** first
@@ -311,20 +302,6 @@ Before starting work, ask:
 | Similar domain, new tech | 1.5-2x | 3-4 days |
 | New domain, familiar tech | 2-3x | 4-6 days |
 | Completely new territory | 3-4x | 6-8 days |
-
-### The Cone of Uncertainty
-
-Estimates become more accurate as you progress:
-
-| Phase | Accuracy Range |
-|-------|----------------|
-| Initial concept | 0.25x - 4x |
-| Requirements gathered | 0.5x - 2x |
-| High-level design | 0.67x - 1.5x |
-| Detailed design | 0.8x - 1.25x |
-| Mid-implementation | 0.9x - 1.1x |
-
-**Accept this reality. Build it into your plan.**
 
 ### Estimation Checklist
 
@@ -361,7 +338,7 @@ Estimates become more accurate as you progress:
 
 ## Security Flagging
 
-If you encounter security-sensitive code during implementation, flag immediately:
+If you encounter security-sensitive code during implementation, flag it:
 
 - Input validation boundaries
 - Authentication/authorization logic
@@ -370,7 +347,12 @@ If you encounter security-sensitive code during implementation, flag immediately
 - File system operations
 - SQL/query construction
 
-Do not implement silently. Return to orchestrator with "SECURITY_FLAG: [what, where, risk]" and let security agent review before proceeding.
+Do not implement silently. Pick one outcome:
+
+- **Stop before proceeding.** The change would weaken, remove, or bypass a safeguard, widen a trust boundary, handle credential values, or add a path-construction, command-construction, auth, or secret-handling mechanism, or you can name a concrete blocker. Return to orchestrator with "SECURITY_FLAG: [what, where, risk]" and let security agent review before proceeding.
+- **Implement, then flag.** The change touches a sensitive surface but adds no new mechanism and alters no safeguard. Finish the change and tests, then flag it in the handoff (Flagging Process below).
+
+A caller-authorized, bounded change that only narrows what runs is the second outcome. Examples: an exclusion guard, a skip condition, or a platform check that keeps a personal agent or hardware step off a work machine. Inspect the boundaries, implement, test, flag. Do not ask for security approval first. Escalate only for a Stop condition above.
 
 ### Self-Assessment Triggers
 
@@ -389,7 +371,7 @@ During implementation, flag for security PIV if ANY of these apply:
 
 ### Flagging Process
 
-When ANY trigger matches:
+When ANY trigger matches and you did not stop:
 
 1. **Add Handoff Note**: Include in completion message to orchestrator
 

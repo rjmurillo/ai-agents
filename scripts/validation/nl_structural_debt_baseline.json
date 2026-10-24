@@ -295,7 +295,7 @@
     "templates/agents/implementer.copilot.md.tmpl|templates/agents/implementer.shared.md": 14,
     "templates/agents/implementer.shared.md|templates/agents/independent-thinker.shared.md": 4,
     "templates/agents/implementer.shared.md|templates/agents/partials/implementer-blocking-read-project-documentation.mustache": 75,
-    "templates/agents/implementer.shared.md|templates/agents/partials/implementer-code-quality-standards.mustache": 162,
+    "templates/agents/implementer.shared.md|templates/agents/partials/implementer-code-quality-standards.mustache": 158,
     "templates/agents/implementer.shared.md|templates/agents/partials/implementer-degraded-mode-protocol.mustache": 20,
     "templates/agents/implementer.shared.md|templates/agents/partials/implementer-intro.mustache": 18,
     "templates/agents/implementer.shared.md|templates/agents/partials/serena-worktree-write-guard.mustache": 4,
