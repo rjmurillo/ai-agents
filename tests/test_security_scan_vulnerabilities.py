@@ -191,7 +191,7 @@ def test_get_language_ignores_extensionless_non_bash_shebang(tmp_path: Path) -> 
         ),
         (
             "eval(user_input)",
-            "eval() with potentially unvalidated input",
+            "eval call with potentially unvalidated input",
             "CRITICAL",
         ),
         (

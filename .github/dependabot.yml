@@ -10,6 +10,7 @@ updates:
   - package-ecosystem: "uv"
     directories:
       - "/"
+      - "/build/plugin-scanner"
       - "/packages/semantic-hooks"
     schedule:
       interval: "weekly"
@@ -20,6 +21,23 @@ updates:
       default-days: 7
     groups:
       uv-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "fix(deps)"
+
+  # GitHub Actions security advisories. Same split as uv above: Renovate bumps
+  # the SHA pins for versions, so this entry only opens security updates.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    cooldown:
+      default-days: 7
+    groups:
+      actions-security:
         applies-to: security-updates
         patterns:
           - "*"

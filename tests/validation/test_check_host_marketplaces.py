@@ -2,11 +2,12 @@
 
 Coverage:
 
-- positive: a synthetic repo with every host marketplace passes, and the
-  real repository passes with the expected examined count.
+- positive: a synthetic repo with every host marketplace passes, the real
+  repository passes with the expected examined count, and a Codex local object
+  source resolves like a path string.
 - negative: a source outside the repo, a missing source directory, a missing
-  manifest, a name mismatch, a non-string source, and an empty plugin list each
-  fail; ``main`` returns 1 for them.
+  manifest, a name mismatch, a non-string source, a non-local or pathless object
+  source, and an empty plugin list each fail; ``main`` returns 1 for them.
 - edge: a missing marketplace file, malformed JSON, a non-object document, and
   a missing ``plugins`` list are config errors (exit 2), not passes.
 """
@@ -117,6 +118,12 @@ def test_validate_wrapper_matches_main(tmp_path: Path) -> None:
         ("", "non-empty string"),
         (None, "non-empty string"),
         (["./plugin"], "non-empty string"),
+        ({"source": "git-subdir", "path": "./plugin"}, "source='local'"),
+        ({"path": "./plugin"}, "source='local'"),
+        ({"source": "local"}, "non-empty string"),
+        ({"source": "local", "path": ""}, "non-empty string"),
+        ({"source": "local", "path": "../escape"}, "outside the repository"),
+        ({"source": "local", "path": "./missing-dir"}, "not a directory"),
     ],
 )
 def test_bad_source_is_a_violation(tmp_path: Path, source: object, fragment: str) -> None:
@@ -126,6 +133,19 @@ def test_bad_source_is_a_violation(tmp_path: Path, source: object, fragment: str
     assert len(violations) == 1
     assert fragment in violations[0]
     assert gate.main([str(repo)]) == 1
+
+
+def test_codex_local_object_source_resolves_like_a_path(tmp_path: Path) -> None:
+    """Codex documents ``{"source": "local", "path": ...}``; it checks the same tree."""
+    repo = _repo(tmp_path)
+    codex = ".agents/plugins/marketplace.json"
+    _write_json(repo / codex, _marketplace(source={"source": "local", "path": "./plugin"}))
+    assert gate.find_violations(repo) == ([], 5)
+    (repo / "plugin" / "plugin.json").unlink()
+    violations, _ = gate.find_violations(repo)
+    assert len(violations) == 1
+    assert violations[0].startswith(codex)
+    assert "missing manifest plugin.json" in violations[0]
 
 
 def test_manifest_symlink_outside_the_source_is_a_violation(tmp_path: Path) -> None:
