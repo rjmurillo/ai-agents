@@ -63,6 +63,14 @@ A Claude install lands the full set of agents and skills, including the six life
 
 > **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python 3.10 or later on PATH (`py` on Windows). Skill and hook scripts are held to a 3.10 syntax floor (`.claude/rules/python.md`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
 
+### Trust Boundary
+
+- **Runs in:** Claude Code, GitHub Copilot CLI, or VS Code Copilot Chat. This repository ships agents, skills (some with Python scripts), and marketplace metadata.
+- **Hooks and local code:** no hooks are registered (ADR-097). Some skills run Python scripts, so they need Python 3.10+ on PATH (see the note above).
+- **Data sent:** prompts, source context, and agent output go through the host CLI and its model. This repository runs no hosted service. Skills you invoke can reach other services: the `github` skill calls the GitHub API through `gh`, `research` and `context-gather` can use the host's web search and fetch tools, and `benchmark-models` sends your prompt to the `claude`, `codex`, and `gemini` CLIs you have installed and signed in to, plus the Anthropic API if you enable its `--judge` option with `ANTHROPIC_API_KEY`. The plugin registers no MCP servers; any MCP server you add (for example GitHub MCP or Serena) receives the data its tools are called with.
+- **Permissions:** the host CLI's permission prompts apply. Review shell and git actions before you accept them. Child CLIs that a skill starts follow their own settings: `benchmark-models` runs `gemini` with `--yolo` (auto-approve, not sandboxed) in a throwaway workdir.
+- **Remove access:** run `/plugin uninstall project-toolkit@ai-agents` in either CLI. See [Uninstallation](docs/installation.md#uninstallation).
+
 ### What You Get
 
 | Component | Claude Code | Copilot CLI |
@@ -103,6 +111,7 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
   - [Why AI Agents](#why-ai-agents)
   - [Is AI Agents right for you?](#is-ai-agents-right-for-you)
   - [Fastest Start](#fastest-start)
+    - [Trust Boundary](#trust-boundary)
     - [What You Get](#what-you-get)
     - [Troubleshooting](#troubleshooting)
   - [Where to Start](#where-to-start)
