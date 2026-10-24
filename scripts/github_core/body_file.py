@@ -41,6 +41,14 @@ _IS_WINDOWS = os.name == "nt"
 # on every platform.
 _NTFS_SHORT_NAME = re.compile(r"~\d")
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+# GitHub refuses an issue, PR or comment body over 65536 characters. UTF-8
+# spends at most 4 bytes on a character, so a larger file cannot fit.
+MAX_BODY_CHARS = 65536
+MAX_BODY_BYTES = 4 * MAX_BODY_CHARS
+
+
+def _too_large(display: str) -> str:
+    return f"body file is over GitHub's {MAX_BODY_CHARS}-character body limit: {display}"
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -234,6 +242,20 @@ def _check_opened_body(
             if temp_root in directory.parents and not _is_private_directory(directory_metadata):
                 raise ValueError(f"body file directory is not private to the caller: {directory}")
 
+    # Outside a temp root, a directory another user owns, or a world-writable
+    # one without the sticky bit, lets others swap entries. Group write is
+    # allowed there: under umask 002 every repo directory is mode 775.
+    for directory, directory_metadata in directories:
+        if temp_root is not None and _is_within(directory, temp_root):
+            continue
+        if directory_metadata.st_uid not in (0, os.getuid()):
+            raise ValueError(f"body file directory has another owner: {directory}")
+        world_writable = directory_metadata.st_mode & _WORLD_WRITE
+        if world_writable and not directory_metadata.st_mode & stat.S_ISVTX:
+            raise ValueError(
+                f"body file directory is world-writable without the sticky bit: {directory}"
+            )
+
     # A group-writable file (umask 002) is safe only when no one else can reach
     # it: walking up from the file, every directory is private until one that
     # denies group and other search. Without that directory, a group member
@@ -387,7 +409,11 @@ def read_body_file_text(
     4. On the opened objects: a regular file, one hard link, owned by the
        caller, not world-writable; ``pr-body-*.md`` is mode 600. Below a temp
        root every directory is owned by the caller with no group or other
-       write. A group-writable file needs an owner-only directory above it.
+       write. Below the repo root or the git dir every directory belongs to
+       the caller or root and is not world-writable without the sticky bit.
+       A group-writable file needs an owner-only directory above it.
+    5. The file holds at most ``MAX_BODY_CHARS`` characters, GitHub's body
+       limit, and at most ``MAX_BODY_BYTES`` bytes before the read starts.
 
     Args:
         path: The body file path.
@@ -437,8 +463,15 @@ def read_body_file_text(
 
     matching_temp = [root for root in temp_roots if _is_within(resolved, root)]
     temp_root = min(matching_temp, key=lambda root: len(root.parts)) if matching_temp else None
+    # A linked git-dir body is walked from the common git dir, so
+    # ``.git/worktrees`` gets the owner and mode checks too.
+    walk_root = start
+    if start in linked:
+        common = _common_git_dir(start)
+        if common is not None and common in start.parents:
+            walk_root = common
     try:
-        descriptor, directories = _open_without_links(start, resolved)
+        descriptor, directories = _open_without_links(walk_root, resolved)
     except OSError as exc:
         if exc.errno in _LINK_ERRNOS:
             raise ValueError(
@@ -448,10 +481,18 @@ def read_body_file_text(
     try:
         if _IS_WINDOWS:
             _check_canonical_location(descriptor, start, linked, refused_git_dirs, path)
-        _check_opened_body(path, resolved.name, os.fstat(descriptor), directories, temp_root)
+        metadata = os.fstat(descriptor)
+        _check_opened_body(path, resolved.name, metadata, directories, temp_root)
+        if metadata.st_size > MAX_BODY_BYTES:
+            raise ValueError(_too_large(path))
         with os.fdopen(descriptor, encoding="utf-8") as body_file:
             descriptor = -1
-            return body_file.read()
+            # One character past the cap, so a file that grew after the
+            # stat is still refused without reading all of it.
+            text = body_file.read(MAX_BODY_CHARS + 1)
+        if len(text) > MAX_BODY_CHARS:
+            raise ValueError(_too_large(path))
+        return text
     finally:
         if descriptor >= 0:
             os.close(descriptor)
