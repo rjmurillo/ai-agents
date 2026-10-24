@@ -25,6 +25,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+from typing import NamedTuple
 
 # `lefthook dump` is a local config merge and answers in about 0.1 seconds.
 DUMP_TIMEOUT_SECONDS = 20
@@ -74,12 +75,28 @@ def dump_commands() -> list[list[str]]:
     return commands
 
 
+class LefthookInventory(NamedTuple):
+    """What one ``lefthook dump`` says about the merged configuration."""
+
+    hook_types: frozenset[str]
+    # The top-level ``lefthook:`` key, or None when the repository sets none.
+    runner: str | None
+
+
 def configured_hook_types(repo_root: Path) -> frozenset[str]:
     """Hook types in the merged Lefthook configuration.
 
     Raises ``LefthookExecutionError`` when no candidate command could be run to
     completion, and ``LefthookConfigError`` when one ran and produced output
     that is not a configuration mapping.
+    """
+    return configured_inventory(repo_root).hook_types
+
+
+def configured_inventory(repo_root: Path) -> LefthookInventory:
+    """Hook types and the ``lefthook:`` runner command from one dump.
+
+    Same failure contract as ``configured_hook_types``.
     """
     commands = dump_commands()
     if not commands:
@@ -112,18 +129,27 @@ def configured_hook_types(repo_root: Path) -> frozenset[str]:
             ran = " ".join(command[:2])
             rejected = f"{ran} exited {result.returncode}: {result.stderr.strip()}"
             continue
-        return _parse_dump(result.stdout)
+        return _parse_inventory(result.stdout)
     if rejected is not None:
         raise LefthookConfigError(rejected)
     raise LefthookExecutionError(unreachable)
 
 
-def _parse_dump(stdout: str) -> frozenset[str]:
-    """Hook types in one successful dump, or raise ``LefthookConfigError``."""
+def _parse_inventory(stdout: str) -> LefthookInventory:
+    """Hook types and runner in one successful dump, or raise ``LefthookConfigError``."""
     try:
         data = json.loads(stdout)
     except ValueError as exc:
         raise LefthookConfigError(f"lefthook dump did not emit JSON: {exc}") from exc
     if not isinstance(data, dict):
         raise LefthookConfigError("lefthook dump did not emit a configuration mapping")
-    return frozenset(str(key) for key, value in data.items() if _is_hook_entry(value))
+    hook_types = frozenset(str(key) for key, value in data.items() if _is_hook_entry(value))
+    runner = data.get("lefthook")
+    return LefthookInventory(
+        hook_types, runner.strip() if isinstance(runner, str) and runner.strip() else None
+    )
+
+
+def _parse_dump(stdout: str) -> frozenset[str]:
+    """Hook types in one successful dump, or raise ``LefthookConfigError``."""
+    return _parse_inventory(stdout).hook_types
