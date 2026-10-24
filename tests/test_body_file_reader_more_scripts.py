@@ -23,8 +23,10 @@ from tests.test_body_file_reader_security import (
     _NEGATIVE_CASES,
     Area,
     RefusedError,
+    _as_windows,
     _linked_worktree_git_dir,
     _load,
+    _mkdir,
     _owned_600,
     _owned_664_in_owner_only_dir,
     _prepared_body_in_repo_scratch,
@@ -175,3 +177,41 @@ def test_refuses_primary_clone_git_dir(area: Area, script: str) -> None:
     body = _write(git_dir / "reply.md", 0o600)
     with pytest.raises(RefusedError):
         READERS[script](body, area)
+
+
+@pytest.mark.parametrize("script", sorted(READERS))
+@pytest.mark.parametrize(
+    ("real_name", "accepted"),
+    [
+        (lambda body, _area: body, True),
+        (lambda body, _area: body.parent / ".env", False),
+        (lambda _body, area: area.repo / ".git" / "config", False),
+    ],
+    ids=["same-name", "real-name-is-dotfile", "real-name-is-git-config"],
+)
+def test_windows_real_name_recheck_runs_for_each_script(
+    area: Area, script: str, real_name, accepted: bool
+) -> None:
+    """The Windows branch, forced on POSIX, rechecks the opened file's real name."""
+    body = _write(_mkdir(area.repo / "drafts", 0o700) / "body.md", 0o600)
+    _as_windows(area, lambda _descriptor: real_name(body, area))
+    if accepted:
+        assert READERS[script](body, area) == _BODY
+    else:
+        with pytest.raises(RefusedError):
+            READERS[script](body, area)
+
+
+def test_edit_issue_body_inline_body_sends_no_stdin(area: Area) -> None:
+    calls: list[tuple[list[str], object]] = []
+
+    def _fake_run(args, **kwargs):
+        calls.append((list(args), kwargs.get("input")))
+        return _completed()
+
+    area.monkeypatch.setattr(subprocess, "run", _fake_run)
+    assert _EDIT_ISSUE_BODY.main(["--issue", "1", "--body", "inline text"]) == 0
+    ((args, stdin),) = calls
+    assert stdin is None
+    assert "-" not in args
+    assert args[args.index("--body") + 1] == "inline text"
