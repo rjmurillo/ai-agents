@@ -671,8 +671,9 @@ Exclusions:
   sampled. Every input was clean and passed. Failing inputs, partial staging, and first or
   deleting pushes were not sampled. The stdin ref line is a fixed one-commit range.
 - Diagnostic volume was not re-measured. `LEFTHOOK_OUTPUT` was set for every run, which
-  turns off both the `output` key in `lefthook.yml` and the failure report. The Failed hook
-  output section has the one-failure counts.
+  overrides the `output` key in `lefthook.yml`, and the sampler ran the lefthook binary
+  directly, not through the failure-report wrapper. The Failed hook output section has the
+  one-failure counts.
 - The host was not quiet. See the host conditions table. Pre-push `markdown` and `workflows`
   overlapped other agents' pushes, so their p95 and max values include contention. Pre-push
   `python` did not.
