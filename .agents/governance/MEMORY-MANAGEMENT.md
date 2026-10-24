@@ -2,7 +2,7 @@
 # Memory Management Workflow
 
 > **Status**: Operational Guidance
-> **Last Updated**: 2026-01-03
+> **Last Updated**: 2026-10-24
 > **Related**: ADR-106 (Serena-Only Memory Architecture), `AGENTS.md` Retrieval gate
 
 This document describes the unified memory management workflow across two memory systems: **Serena** and **Claude-Mem**.
@@ -11,8 +11,8 @@ This document describes the unified memory management workflow across two memory
 
 ## Two-Tier Memory Architecture
 
-| System | Purpose | Scope | Persistence | Export/Import |
-|--------|---------|-------|-------------|---------------|
+| System | Purpose | Scope | Persistence | Export |
+|--------|---------|-------|-------------|--------|
 | **Serena** | Project-specific context, code symbols | Single project | `.serena/memories/` (git) | Manual (filesystem) |
 | **Claude-Mem** | Session observations, prompts | Claude Code sessions | SQLite | `python3 .claude-mem/scripts/export_claude_mem_memories.py` |
 
@@ -53,11 +53,6 @@ This document describes the unified memory management workflow across two memory
 1. Read the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, when one exists
 2. Read `memory-index` from Serena
 3. Load task-relevant Serena memories
-
-### Phase 2.1: Import Shared Memories (RECOMMENDED)
-1. Check `.claude-mem/memories/imports/` for new exports
-2. Import: `npx tsx scripts/import-memories.ts [file].json`
-3. Document import count in the transcript or per-issue handoff
 ```
 
 ### During Session
@@ -88,7 +83,7 @@ mcp__serena__write_memory(memory_file_name="topic-name", content="# Topic\n\n[Ma
 
 ---
 
-## Claude-Mem Export/Import Detailed Workflow
+## Claude-Mem Export Detailed Workflow
 
 ### Export Commands
 
@@ -125,214 +120,9 @@ npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts \
   "" output.json --project=ai-agents
 ```
 
-### Import Commands
+### Importing
 
-**Single file** (direct plugin call):
-
-```bash
-npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts \
-  .claude-mem/memories/shared-learnings.json
-```
-
-**Bulk import** (using Python CLI):
-
-```bash
-# Auto-imports all .json files from .claude-mem/memories/
-python3 .claude-mem/scripts/import_claude_mem_memories.py
-```
-
-**Locating the importer across harnesses**
-
-Claude-Mem is an optional dependency, and its Copilot CLI integration is
-MCP-only: it installs an MCP server entry and no importer path. The
-bulk-importer script itself does exist upstream, and is the very script this
-command invokes, so the gap is not a missing script. The gap is that nothing in
-the Copilot integration installs it or points at an installed copy, so there is
-a Claude Code default path to fall back on and no Copilot equivalent of it.
-
-External source, pinned: `github.com/thedotmack/claude-mem` at commit
-`8f085b4f8861122201a5524be71d696a49a812a3` (2026-08-31),
-`src/services/integrations/McpIntegrations.ts` line 242:
-
-```typescript
-  'copilot-cli': installMcpIntegration(COPILOT_CLI_CONFIG),
-```
-
-`COPILOT_CLI_CONFIG` in the same file (lines 116 to 122) writes
-`~/.github/copilot/mcp.json`. At that revision `scripts/import-memories.ts`
-exists but nothing routes Copilot to it. This is an external claim about another
-project, so it can go stale without anything here changing: re-verify at a newer
-revision before relying on it.
-
-The bulk importer resolves its path from configuration before any harness
-default.
-
-Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 293 to 306, quoted verbatim:
-
-```python
-    if explicit is not None:
-        if is_blank(explicit):
-            return ImporterResolution(None, _SOURCE_ARGUMENT_BLANK)
-        return ImporterResolution(expand_home(explicit, home), _SOURCE_ARGUMENT)
-
-    env_value = env.get(IMPORTER_ENV_VAR, "")
-    if not is_blank(env_value):
-        return ImporterResolution(expand_home(env_value, home), _SOURCE_ENVIRONMENT)
-
-    default = claude_default_importer(home)
-    if default.exists():
-        return ImporterResolution(default, _SOURCE_DEFAULT)
-
-    return ImporterResolution(None, _SOURCE_UNSET)
-```
-
-Read as: `--importer PATH` first, then the `CLAUDE_MEM_IMPORTER` environment
-variable, then the Claude Code plugin default, which is returned only when it
-already exists on disk.
-
-The two blank cases are deliberately asymmetric, which the quoted code shows:
-
-| Input | Treated as | Exit | Why |
-|-------|-----------|------|-----|
-| `CLAUDE_MEM_IMPORTER=""` | unset, falls through | 0 or the next tier's outcome | `VAR=""` is the shell idiom for disabling an inherited value |
-| `--importer ""` | configured but invalid | 1 | The caller passed the highest-priority option and supplied nothing usable; falling through would disregard an explicit instruction |
-
-`is_blank` performs the blank test for both tiers. It is detection only: the
-original unstripped string is what resolves, because a POSIX filename may
-legitimately begin or end with a space, and trimming the value that resolves
-would execute a different file or report a real importer missing.
-
-A leading `~` is expanded by `expand_home`, not by `Path.expanduser`. The claims
-below are about that function's body, so it is quoted rather than described.
-From `.claude-mem/scripts/import_claude_mem_memories.py`, lines 251 to 260,
-verbatim:
-
-```python
-    mod: PathModule = os.path if pathmod is None else pathmod
-    seps = path_separators(mod)
-    if raw == "~":
-        return home
-    if not raw.startswith(tuple("~" + sep for sep in seps)):
-        return Path(raw)
-    suffix = raw[2:].lstrip(seps)
-    if mod.splitdrive(suffix)[0]:
-        return Path(raw)
-    return home / suffix
-```
-
-with `path_separators` at lines 194 to 195 of the same file:
-
-```python
-    mod: PathModule = os.path if pathmod is None else pathmod
-    return mod.sep + (mod.altsep or "")
-```
-
-Four things follow from the quoted lines.
-
-`Path.expanduser` is never called, so the expansion depends on the `home` passed
-in and not on the process `HOME` or the password database.
-
-What counts as a separator is asked of a standard-library path module, defaulting
-to `os.path`, which IS `posixpath` or `ntpath` for the running platform. A
-backslash is therefore a separator on Windows and an ordinary filename character
-on POSIX, where `altsep` is None. The same argument means two different things on
-the two platforms, deliberately.
-
-A `~otheruser` prefix does not match the `startswith` test, so it falls to
-`return Path(raw)` and is returned unchanged. That makes it a relative path
-beginning with a literal `~otheruser` segment, so it never resolves against a
-stranger's home. The existence check then runs against whatever that relative
-path resolves to under the process working directory. That normally does not
-exist and the error reports the literal path, but failure is not guaranteed: a
-directory literally named `~otheruser` in the working directory would satisfy
-the check and be executed. This branch is a non-expansion, not a rejection, and
-must not be relied on as one.
-
-A suffix still carrying a drive after the `lstrip` takes the same literal return.
-Stripping separators does not make a suffix relative on Windows, where a drive is
-a second anchoring mechanism: `~/D:/x` leaves `D:/x`, and joining that onto
-`home` yields `D:\x`, dropping `home` exactly as a rooted suffix would. On POSIX
-`splitdrive` reports no drive, so `D:` stays an ordinary directory name and the
-path expands normally.
-
-```bash
-# Point at an importer installed outside the Claude Code plugin root
-CLAUDE_MEM_IMPORTER=/opt/claude-mem/scripts/import-memories.ts \
-  python3 .claude-mem/scripts/import_claude_mem_memories.py
-
-# Or pass it explicitly
-python3 .claude-mem/scripts/import_claude_mem_memories.py \
-  --importer /opt/claude-mem/scripts/import-memories.ts
-```
-
-The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 401 to 420, quoted verbatim:
-
-```python
-    importer = resolution.path
-    if importer is None or not importer.is_file():
-        # is_file() rather than exists(): a directory can occupy the path (a
-        # misconfigured --importer, or a marketplace layout change), and
-        # exists() alone would let that pass the guard and then fail
-        # unhelpfully once tsx runs against a directory. is_configured, not
-        # the absence itself, decides the exit code: a path the caller named
-        # is a real failure, an uninstalled optional plugin is a supported
-        # state.
-        if resolution.is_configured:
-            print(
-                f"ERROR: Claude-Mem importer from {resolution.source} not found at: {importer}",
-                file=sys.stderr,
-            )
-            return 1
-        print(
-            "SKIP: Claude-Mem plugin not installed. Set "
-            f"${IMPORTER_ENV_VAR} or pass --importer to enable importing."
-        )
-        return 0
-```
-
-`is_configured` is true only for the argument and environment sources, per the
-tuple at line 96 and the property at lines 119 to 128 of the same file. Both are
-needed: the property alone does not say which sources count as configured.
-
-```python
-_CONFIGURED_SOURCES = (_SOURCE_ARGUMENT, _SOURCE_ARGUMENT_BLANK, _SOURCE_ENVIRONMENT)
-
-    @property
-    def is_configured(self) -> bool:
-        """True when configuration was attempted, so a miss is a real failure.
-
-        That is: ``--importer`` was supplied, even blank, or a nonblank
-        ``CLAUDE_MEM_IMPORTER`` was set. It does NOT mean a usable path exists.
-        A blank ``--importer`` names no path and is still configured, which is
-        why ``path`` may be None here.
-        """
-        return self.source in _CONFIGURED_SOURCES
-```
-
-| Situation | Exit | Reason |
-|-----------|------|--------|
-| Nothing configured, no plugin installed | 0 | Optional dependency absent; import skipped with a `SKIP:` line |
-| Configured path missing, or importer fails | 1 | The caller named an importer that does not work |
-| `--importer ""` | 1 | Highest-priority option supplied with nothing usable |
-
-A Copilot CLI session with no bulk importer on disk therefore skips cleanly
-instead of reporting a false failure (issue #4780).
-
-**Stricter/looser/different than canonical**: no divergence. This section
-restates the quoted fragments above and adds no rule the script does not
-implement. Line numbers are a reading aid and drift with edits; the function and
-property names (`resolve_importer`, `ImporterResolution.is_configured`) are the
-stable anchors.
-
-**Manual bulk import** (advanced users):
-
-```bash
-for file in .claude-mem/memories/*.json; do
-    npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts "$file"
-done
-```
+This repository no longer ships a Claude-Mem import procedure (issue #5583, owner decision D21 (2026-10-24)). The bulk import wrapper and its tests are removed. To load an export into a Claude-Mem installation, follow the upstream [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import).
 
 ### Privacy Review Before Export
 
@@ -360,7 +150,7 @@ python3 scripts/review_memory_export_security.py .claude-mem/memories/[file].jso
 
 ## Duplicate Prevention
 
-Both memory systems handle duplicates differently:
+Serena handles duplicates through the filesystem. Claude-Mem import deduplication is out of scope now that the import procedure is retired (see Importing above).
 
 ### Serena
 
@@ -369,19 +159,6 @@ Both memory systems handle duplicates differently:
 - Same filename = overwrite
 - Different filename = separate memories
 - Responsibility: Agent must check existing memories before writing
-
-### Claude-Mem
-
-**Strategy**: Composite key matching (automatic)
-
-| Record Type | Detection Key |
-|-------------|---------------|
-| Sessions | `claude_session_id` |
-| Summaries | `sdk_session_id` |
-| Observations | `sdk_session_id` + `title` + `created_at_epoch` |
-| Prompts | `claude_session_id` + `prompt_number` |
-
-**Implication**: Safe to reimport the same file multiple times. Duplicates are automatically skipped.
 
 ---
 
@@ -427,16 +204,9 @@ Serena memories use Markdown with sections:
 4. **Commit to git**: Add export to `.claude-mem/memories/exports/`
 5. **Notify team**: PR description mentions new shared learnings
 
-### Importing Teammate's Learnings
-
-1. **Pull latest**: `git pull origin main`
-2. **Check exports**: Review `.claude-mem/memories/` for new files
-3. **Auto-import**: `python3 .claude-mem/scripts/import_claude_mem_memories.py`
-4. **Verify**: Search for imported memories in Claude-Mem
-
 ### Onboarding New Team Members
 
-**Step 1**: Bulk export current knowledge
+Bulk export current knowledge:
 
 ```bash
 # Export all project-related memories using Python CLI
@@ -454,20 +224,6 @@ git commit -m "docs(memory): onboarding export for new team members"
 ```bash
 npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts \
   "" .claude-mem/memories/onboarding.json --project=ai-agents
-```
-
-**Step 2**: New team member imports
-
-```bash
-# Clone repo
-git clone https://github.com/user/ai-agents.git
-cd ai-agents
-
-# Auto-import all memories using Python CLI
-python3 .claude-mem/scripts/import_claude_mem_memories.py
-
-# Verify import
-# Use Claude-Mem search tools or check database directly
 ```
 
 ---
@@ -503,20 +259,6 @@ cat all.json | jq '.totalObservations'
 
 # List recent observations
 npx tsx scripts/search-memories.ts "" | head -20
-```
-
-### Import seems to do nothing
-
-**Cause**: Observations already exist (duplicate prevention)
-
-**Solution**:
-
-```bash
-# Check if memories were already imported
-# Compare created_at timestamps in export with database
-
-# Or just search for expected content
-npx tsx scripts/search-memories.ts "[expected topic]"
 ```
 
 ### A CLAUDE.md stub appears under `.claude/agents/`
@@ -592,21 +334,6 @@ anything here changing. Re-verify at a newer revision before relying on it.
 - No memorable insights
 - Pure bug fix with no learnings
 
-### Import Timing
-
-**Import at session start when**:
-
-- New to the project (onboarding)
-- Returning after multi-day break
-- Teammate shared important learnings
-- Working on related feature to exported memories
-
-**Skip import when**:
-
-- No new files in `imports/` directory
-- Already imported this week's exports
-- Time-sensitive bug fix (defer to next session)
-
 ---
 
 ## Metrics and Validation
@@ -640,7 +367,7 @@ Before exporting, verify:
 
 - [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
 - [ADR-007: Memory-First Architecture](../../.project-toolkit/architecture/ADR-007-memory-first-architecture.md)
-- [.claude-mem/memories/README.md](../../.claude-mem/memories/README.md) - Export/import detailed workflow
+- [.claude-mem/memories/README.md](../../.claude-mem/memories/README.md) - Export detailed workflow
 - [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import)
 
 ---
@@ -648,18 +375,10 @@ Before exporting, verify:
 ## Quick Reference
 
 ```bash
-# Session Start: Import shared memories
-npx tsx scripts/import-memories.ts .claude-mem/memories/imports/[file].json
-
 # Session End: Export observations
 npx tsx scripts/export-memories.ts "session NNN" \
   .claude-mem/memories/exports/YYYY-MM-DD-session-NNN-topic.json
 
 # Privacy review
 grep -i "api_key\|password\|token\|secret" [export-file].json
-
-# Bulk import (onboarding)
-for file in .claude-mem/memories/exports/*.json; do
-    npx tsx scripts/import-memories.ts "$file"
-done
 ```

@@ -4,27 +4,26 @@ This directory contains exportable memory snapshots from the Claude-Mem MCP serv
 
 ## Purpose
 
-Claude-Mem memories are local to each installation. Export/import enables:
+Claude-Mem memories are local to each installation. Export enables:
 
 1. **Team collaboration** - Share learnings across developers
-2. **Onboarding** - Bootstrap new installations with project knowledge
-3. **Cross-session persistence** - Version control memories alongside code
-4. **Disaster recovery** - Restore memories from git history
+2. **Cross-session persistence** - Version control memories alongside code
+3. **Disaster recovery** - Keep memories reachable in git history
+
+This repository no longer ships an import wrapper (owner decision D21 (2026-10-24), issue #5583). To load an export into a Claude-Mem installation, follow the upstream [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import).
 
 ## Directory Structure
 
 ```text
 .claude-mem/memories/
+├── AGENTS.md                                          # Agent guide for this directory
 ├── README.md                                          # This file
-├── 2026-01-03-session-229-frustrations.json         # Memory snapshots
-├── 2026-01-03-session-230-testing-philosophy.json
-├── direct-backup-2026-01-03-1434-ai-agents.json     # Full backup (security reviewed)
-└── ...
+└── (topic-scoped exports, when committed)
 ```
 
-All memory exports are stored in this single directory. Auto-import on session start handles idempotent loading.
+Topic-scoped exports are stored in this single directory.
 
-**Note**: Large backup files (like `direct-backup-*.json`) are intentionally committed after security review to serve as test data and onboarding references. All committed exports have passed automated secret scanning.
+**Note**: Full-database `direct-backup-*.json` exports are generated locally and are not committed. Topic-scoped session exports may still be committed after the privacy review in the Privacy and Security section below.
 
 ## Export Workflow (Session End)
 
@@ -43,41 +42,7 @@ uv run python .claude-mem/scripts/export_claude_mem_direct.py --project ai-agent
 
 **Naming Convention**: `YYYY-MM-DD-session-NNN-topic.json`
 
-**Note**: The four Python wrappers under `.claude-mem/scripts/` (`export_claude_mem_memories.py`, `export_claude_mem_full_backup.py`, `export_claude_mem_direct.py`, `import_claude_mem_memories.py`) are the tracked entry points. The export and import wrappers forward to the installed claude-mem plugin scripts at `~/.claude/plugins/marketplaces/thedotmack/scripts/`.
-
-## Import Workflow (Session Start or Onboarding)
-
-### Automatic Import (Session Start)
-
-The auto-import script runs idempotently on session start:
-
-```bash
-# Automatically imports all .json files from .claude-mem/memories/
-uv run python .claude-mem/scripts/import_claude_mem_memories.py
-```
-
-**Session Protocol Integration**: Can be added to a SessionStart hook for automatic execution.
-
-### Manual Import
-
-Import new memories from teammates by saving the file under `.claude-mem/memories/` and running the importer, which loads every file in that directory:
-
-```bash
-uv run python .claude-mem/scripts/import_claude_mem_memories.py
-```
-
-## Duplicate Prevention
-
-Claude-Mem automatically prevents duplicate imports using composite keys:
-
-| Record Type | Detection Key |
-|-------------|---------------|
-| Sessions | `claude_session_id` |
-| Summaries | `sdk_session_id` |
-| Observations | `sdk_session_id` + `title` + `created_at_epoch` |
-| Prompts | `claude_session_id` + `prompt_number` |
-
-**Safe to reimport**: Running import multiple times on the same file has no adverse effects.
+**Note**: The three Python wrappers under `.claude-mem/scripts/` (`export_claude_mem_memories.py`, `export_claude_mem_full_backup.py`, `export_claude_mem_direct.py`) are the tracked entry points. The first two forward to the installed claude-mem plugin scripts at `~/.claude/plugins/marketplaces/thedotmack/scripts/`. `export_claude_mem_direct.py` reads the plugin's SQLite database directly.
 
 ## Privacy and Security
 
@@ -108,18 +73,10 @@ Claude-Mem automatically prevents duplicate imports using composite keys:
 
 **DO NOT COMMIT**:
 
+- Full-database `direct-backup-*.json` exports (generated locally)
 - Any files with sensitive data (review before committing)
 
 ### Session Protocol Integration
-
-**Session Start (Optional)**:
-
-```bash
-# Auto-import all memories (idempotent)
-uv run python .claude-mem/scripts/import_claude_mem_memories.py
-```
-
-Can be added to a SessionStart hook for automatic execution.
 
 **Session End (Required for memory-heavy sessions)**:
 
@@ -140,30 +97,6 @@ uv run python .claude-mem/scripts/export_claude_mem_memories.py "frustration pat
 # Commit to git
 git add .claude-mem/memories/2026-01-03-session-229-frustrations.json
 git commit -m "feat(memory): export frustration pattern learnings from session 229"
-```
-
-### Onboarding New Team Member
-
-```bash
-# New team member clones repo
-git clone https://github.com/user/ai-agents.git
-cd ai-agents
-
-# Auto-import all memories (idempotent)
-uv run python .claude-mem/scripts/import_claude_mem_memories.py
-
-# Verify import: search "frustration pattern" with the claude-mem MCP search tool
-```
-
-### Importing Shared Knowledge from Teammate
-
-```bash
-# Receive export file from teammate (via Slack, email, etc.)
-# Save to memories/ directory
-mv ~/Downloads/teammate-learnings.json .claude-mem/memories/
-
-# Auto-import (idempotent, will import the new file)
-uv run python .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
 ## Quality Guidelines
@@ -204,7 +137,7 @@ Before exporting:
 
 ## Troubleshooting
 
-### Import Fails with "Database not found"
+### "Database not found"
 
 Ensure Claude-Mem MCP server has been initialized:
 
@@ -227,14 +160,6 @@ jq '.totalObservations' .claude-mem/memories/all.json
 
 Delete `all.json` afterward; it is a scratch export, not a shareable snapshot.
 
-### Duplicate Memories After Import
-
-Not possible due to automatic duplicate detection. If seeing apparent duplicates:
-
-1. Check `memory_id` - likely different IDs
-2. Verify content is actually identical
-3. May be intentional (e.g., cross-project patterns)
-
 ## References
 
 - [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import)
@@ -243,6 +168,11 @@ Not possible due to automatic duplicate detection. If seeing apparent duplicates
 - Forgetful MCP: Similar capability for semantic memory system
 
 ## Changelog
+
+### 2026-10-24
+
+- Retired the manual import procedure and removed the committed `direct-backup-2026-01-03-1434-ai-agents.json` export (issue #5583, owner decision D21 (2026-10-24))
+- Fixed the Directory Structure block to list the files that exist
 
 ### 2026-01-03
 

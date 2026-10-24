@@ -1,4 +1,3 @@
 ## Skip
 
-`README.md` here: dead `.ps1` and `scripts/*.ts` refs.
-Committed `direct-backup-*.json`: 9.6MB; grep or jq only.
+Nothing. The directory holds `AGENTS.md`, `README.md`, and any committed topic-scoped exports.

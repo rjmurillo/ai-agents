@@ -1,6 +1,9 @@
 # Claude-Mem Memories Directory
-# All .json export files are committed to git for team sharing
-# Import is idempotent - safe to reimport same files
+# Topic-scoped .json export files are committed to git for team sharing
+# Full-database direct-backup-*.json exports stay local
+
+# Ignore full-database exports
+memories/direct-backup-*.json
 
 # Ignore temporary files
 *.tmp

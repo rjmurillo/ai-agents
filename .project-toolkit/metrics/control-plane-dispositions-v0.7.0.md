@@ -677,6 +677,9 @@ below.
   not by filename, and a still-documented manual import procedure names
   it. Deleting the blob without first retiring that procedure would leave
   the documented command pointing at nothing.
+- Status, blob: released 2026-10-24. Owner decision D21 (2026-10-24) retired
+  the import procedure, and issue #5583 removed the blob, the importer
+  script, its six test modules, and the import documentation in one PR.
 - Evidence, delete: `.project-toolkit/projects/v0.3.0/` and `v0.3.1/` (audit
   finding 7) were frozen history under this owner's stated convention of
   archiving rather than deleting completed project state. Reclassified
