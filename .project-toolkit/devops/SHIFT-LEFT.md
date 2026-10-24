@@ -704,9 +704,10 @@ How the numbers were chosen:
   10 s. The pre-push `markdown` p95 of 149.9 s is inflated by load, because other
   agents pushed during 40% of its samples (#6893). The other two rows have 20 s to
   24 s of headroom. The 160 s budget is also well under the 300 s p95 cap in #5456.
-- Pre-push `python-tests` ran against a warm testmon database. A cold database adds
-  about 62 s (68.7 s cold against 6.7 s warm at `c5fc0f5bec`). A cold run is outside
-  the budget and is not a breach.
+- Pre-push `python-tests` ran against a warm testmon database. A cold database makes
+  that job about 62 s slower (68.7 s cold against 6.7 s warm at `c5fc0f5bec`), but the
+  job still finishes inside `pre-pr-validation` (about 104 s), so the cold control's hook
+  wall clock stayed at 135.0 s to 135.8 s, within the 160 s budget.
 
 Enforcement. No script enforces these budgets, and none was added, because no present
 use case needs one. The repository has a consecutive-breach policy in
