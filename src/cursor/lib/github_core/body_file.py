@@ -248,9 +248,8 @@ def _check_opened_body(
             if temp_root in directory.parents and not _is_private_directory(directory_metadata):
                 raise ValueError(f"body file directory is not private to the caller: {directory}")
 
-    # Outside a temp root (the repo root or the git dir and below), another
-    # user who owns a directory, or anyone at all when it is world-writable
-    # without the sticky bit, could rename or swap its entries. Group write is
+    # Outside a temp root, a directory another user owns, or a world-writable
+    # one without the sticky bit, lets others swap entries. Group write is
     # allowed there: under umask 002 every repo directory is mode 775.
     for directory, directory_metadata in directories:
         if temp_root is not None and _is_within(directory, temp_root):
@@ -465,9 +464,8 @@ def read_body_file_text(
 
     matching_temp = [root for root in temp_roots if _is_within(resolved, root)]
     temp_root = min(matching_temp, key=lambda root: len(root.parts)) if matching_temp else None
-    # For a body in a linked worktree's git dir, the directories from the
-    # common git dir down to it are walked too, so ``.git/worktrees`` gets
-    # the owner and mode checks as well.
+    # A linked git-dir body is walked from the common git dir, so
+    # ``.git/worktrees`` gets the owner and mode checks too.
     walk_root = start
     if start in linked:
         common = _common_git_dir(start)
