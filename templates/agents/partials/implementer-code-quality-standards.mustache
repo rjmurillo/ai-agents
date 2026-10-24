@@ -350,7 +350,7 @@ If you encounter security-sensitive code during implementation, flag it:
 Do not implement silently. Pick one outcome:
 
 - **Stop before proceeding.** The change would weaken, remove, or bypass a safeguard, widen a trust boundary, handle credential values, or add a path-construction, command-construction, auth, or secret-handling mechanism, or you can name a concrete blocker. Return to orchestrator with "SECURITY_FLAG: [what, where, risk]" and let security agent review before proceeding.
-- **Implement, then flag.** The change touches a sensitive surface but adds no new mechanism and alters no safeguard. Finish the change and tests, then flag it in the handoff (Flagging Process below).
+- **Implement, then flag.** The change touches a sensitive surface but meets no Stop condition above. Finish the change and tests, then flag it in the handoff (Flagging Process below).
 
 A caller-authorized, bounded change that only narrows what runs is the second outcome. Examples: an exclusion guard, a skip condition, or a platform check that keeps a personal agent or hardware step off a work machine. Inspect the boundaries, implement, test, flag. Do not ask for security approval first. Escalate only for a Stop condition above.
 

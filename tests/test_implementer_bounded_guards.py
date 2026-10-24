@@ -28,6 +28,15 @@ RENDERED_PATHS = (
 ALL_PATHS = (PLAN_PARTIAL, SECURITY_PARTIAL, HANDOFF_PARTIAL, *RENDERED_PATHS)
 
 
+def _on_disk_implementer_renders() -> set[Path]:
+    """Every implementer render under src/, whatever the platform directory."""
+    found: set[Path] = set()
+    for pattern in ("implementer.md", "implementer.agent.md"):
+        for hit in (PROJECT_ROOT / "src").rglob(pattern):
+            found.add(hit.resolve())
+    return found
+
+
 def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -75,7 +84,8 @@ class TestRenderedPrompt:
         assert "handle credential values" in text
         assert "add a path-construction, command-construction, auth, or secret-handling" in text
         assert 'Return to orchestrator with "SECURITY_FLAG: [what, where, risk]"' in text
-        assert "adds no new mechanism and alters no safeguard" in text
+        assert "touches a sensitive surface but meets no Stop condition above." in text
+        assert "adds no new mechanism and alters no safeguard" not in text
         assert "- **Implement, then flag.** Every other case." not in text
 
     def test_security_checks_stay_mandatory(self, path: Path) -> None:
@@ -124,3 +134,12 @@ def test_partials_hold_the_text_that_rendered_copies_carry() -> None:
     assert "caller's brief" in _text(PLAN_PARTIAL)
     assert "- **Implement, then flag.**" in _text(SECURITY_PARTIAL)
     assert "`[COMPLETE]` handoff" in _text(HANDOFF_PARTIAL)
+
+
+def test_every_on_disk_implementer_render_is_pinned() -> None:
+    """Converse of RENDERED_PATHS: a new platform copy must join the list."""
+    pinned = {path.resolve() for path in RENDERED_PATHS}
+    on_disk = _on_disk_implementer_renders()
+
+    assert on_disk, "no implementer renders found under src/"
+    assert on_disk <= pinned, sorted(str(p.relative_to(PROJECT_ROOT)) for p in on_disk - pinned)
