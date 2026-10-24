@@ -28,7 +28,6 @@ import os
 import re
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any, NoReturn
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -58,7 +57,7 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
-from github_core.validation import assert_valid_body_file, inline_body_error
+from github_core.validation import assert_valid_body_file, inline_body_error, read_body_file_text
 
 _SIDES = ("LEFT", "RIGHT")
 _HEAD_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
@@ -195,8 +194,8 @@ def _resolve_body(args: argparse.Namespace) -> str:
         return body
     assert_valid_body_file(args.body_file)
     try:
-        body = Path(args.body_file).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
+        body = read_body_file_text(args.body_file, allow_git_dir=True)
+    except (OSError, ValueError) as exc:
         error_and_exit(f"Failed to read body file {args.body_file}: {exc}", 2)
     if not body.strip():
         error_and_exit("Body cannot be empty.", 2)

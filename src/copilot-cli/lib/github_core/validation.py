@@ -214,10 +214,11 @@ def is_allowed_body_file_path(path: str) -> bool:
     prefix test, so a symlink under an approved root that points elsewhere is
     rejected. The caller owns the existence check.
 
-    Five scripts read their body file through :func:`read_body_file_text`,
-    which applies this rule and the stricter location and open checks (owner
-    decision D14, 2026-10-24, issue #6667). ``new_pr.py`` and
-    ``edit_pr_body.py`` refuse the git dir there; the issue scripts keep it.
+    Every body-file script then reads its file through
+    :func:`read_body_file_text`, which applies this rule and the stricter
+    location and open checks (owner decision D14, 2026-10-24, issue #6667;
+    issue #6919). ``new_pr.py`` and ``edit_pr_body.py`` refuse the git dir
+    there; the others keep it.
 
     Args:
         path: The file path to check.

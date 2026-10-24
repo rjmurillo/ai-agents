@@ -384,9 +384,8 @@ def read_body_file_text(
 ) -> str:
     """Read a UTF-8 body file after the containment, location, and open checks.
 
-    The one reader for every script that sends a file body to GitHub:
-    ``new_pr.py``, ``edit_pr_body.py``, ``close_issue.py``,
-    ``reopen_issue.py`` and ``post_issue_comment.py`` (issue #6667). A
+    The one reader for every script that sends a file body to GitHub
+    (issues #6667 and #6919). A
     relative ``path`` resolves against ``base`` when given, else the working
     directory.
 
@@ -419,9 +418,9 @@ def read_body_file_text(
         path: The body file path.
         base: Directory a relative ``path`` resolves against.
         allow_git_dir: Accept a file in a linked worktree's own git dir,
-            except its config files. The issue scripts keep this documented
-            reply flow; PR scripts do not. A primary clone's ``.git`` never
-            qualifies.
+            except its config files. Every body-file script but ``new_pr.py``
+            and ``edit_pr_body.py`` keeps this documented reply flow. A
+            primary clone's ``.git`` never qualifies.
 
     Returns:
         The file text.
