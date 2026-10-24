@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.ci import pytest_module_split as module_split
 from scripts.ci import run_pytest_partition as runner
 from tests.ci import pytest_split_group_collection as group_collection
 
@@ -82,6 +83,34 @@ def test_the_fixture_map_times_two_thirds_of_the_pool(
     recorded = json.loads(path.read_text(encoding="utf-8"))
     assert set(recorded) < set(fake_collect.pool)
     assert len(recorded) == sum(1 for index in range(len(fake_collect.pool)) if index % 3)
+
+
+def _expected_groups(pool: list[str], durations: dict[str, float]) -> dict[str, list[str]]:
+    """What leg ``group - 1`` of the real hook selects, for each split name."""
+    items = [group_collection._CollectedItem(node_id) for node_id in pool]
+    legs = module_split.split_by_module(runner.SPLIT_COUNT, items, durations)
+    return {
+        name: [item.nodeid for item in legs[group - 1].selected]
+        for group, name in enumerate(runner.split_names(), start=1)
+    }
+
+
+def test_split_n_is_leg_n_of_the_split_read_from_the_fixture_map(
+    fake_collect: _FakeCollect, tmp_path: Path
+) -> None:
+    path = tmp_path / "durations.json"
+    collected = group_collection.collect_groups(path)
+    durations = json.loads(path.read_text(encoding="utf-8"))
+    expected = _expected_groups(fake_collect.pool, durations)
+    assert {name: collected[name] for name in runner.split_names()} == expected
+
+
+def test_the_fixture_map_changes_the_split(fake_collect: _FakeCollect, tmp_path: Path) -> None:
+    """Guards the test above: with no timings the legs differ, so a dropped map is caught."""
+    path = tmp_path / "durations.json"
+    collected = group_collection.collect_groups(path)
+    by_count = _expected_groups(fake_collect.pool, {})
+    assert {name: collected[name] for name in runner.split_names()} != by_count
 
 
 def test_a_single_module_pool_fills_one_group_and_leaves_the_rest_empty(
