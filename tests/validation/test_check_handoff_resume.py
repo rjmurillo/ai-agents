@@ -18,7 +18,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = REPO_ROOT / ".agents" / "templates" / "HANDOFF.md"
 REMOTE_URL = "https://github.com/rjmurillo/ai-agents.git"
 BRANCH = "feat/login-redirect"
-ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+
+
+def _env() -> dict[str, str]:
+    # Read os.environ per call: the conftest fixture strips inherited git config
+    # (such as a GIT_CONFIG_COUNT hooksPath override) only after import.
+    return {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -30,7 +35,7 @@ def _git(cwd: Path, *args: str) -> str:
         text=True,
         encoding="utf-8",
         errors="replace",
-        env=ENV,
+        env=_env(),
     )
     return result.stdout.strip()
 
@@ -484,3 +489,10 @@ def test_nul_byte_in_worktree_is_a_config_error(repo: Path, tmp_path: Path, caps
     code = checker.main([str(handoff), "--repo", str(repo)])
 
     assert code == checker.EXIT_CONFIG
+
+
+def test_fixture_env_is_read_per_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A module-level copy froze the import-time env, so an inherited hooksPath
+    # override reached the fixture commits after conftest had stripped it.
+    monkeypatch.setenv("HANDOFF_RESUME_ENV_PROBE", "1")
+    assert _env()["HANDOFF_RESUME_ENV_PROBE"] == "1"
