@@ -16,11 +16,12 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation import agent_registry
 from scripts.validation.agent_registry import (
+    _BUILD_UTILITY_PATH,
     AgentDefinition,
     MalformedAgentFileError,
     ValidationResult,
-    _build_utility_path,
     _load_read_yaml_frontmatter,
     main,
     parse_agent_file,
@@ -450,32 +451,39 @@ class TestBuildUtilityLoaderNamesTheFailure:
     script died because a *build* utility was unloadable.
     """
 
-    def test_a_missing_build_utility_is_reported_as_an_import_error(self, tmp_path: Path) -> None:
+    def test_a_missing_build_utility_is_reported_as_an_import_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """spec_from_file_location succeeds for a missing path; exec_module is the guard."""
         missing = tmp_path / "generate_agents_common.py"
+        monkeypatch.setattr(agent_registry, "_BUILD_UTILITY_PATH", missing)
         with pytest.raises(ImportError) as excinfo:
-            _load_read_yaml_frontmatter(missing)
+            _load_read_yaml_frontmatter()
         assert str(missing) in str(excinfo.value)
 
-    def test_a_broken_build_utility_is_reported_as_an_import_error(self, tmp_path: Path) -> None:
+    def test_a_broken_build_utility_is_reported_as_an_import_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A SyntaxError inside the utility must not escape as a SyntaxError."""
         broken = tmp_path / "generate_agents_common.py"
         broken.write_text("def (\n", encoding="utf-8")
+        monkeypatch.setattr(agent_registry, "_BUILD_UTILITY_PATH", broken)
         with pytest.raises(ImportError) as excinfo:
-            _load_read_yaml_frontmatter(broken)
+            _load_read_yaml_frontmatter()
         assert str(broken) in str(excinfo.value)
 
     def test_a_utility_missing_the_symbol_is_reported_as_an_import_error(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Importing cleanly is not enough; the symbol has to be there."""
         empty = tmp_path / "generate_agents_common.py"
         empty.write_text("# no read_yaml_frontmatter here\n", encoding="utf-8")
+        monkeypatch.setattr(agent_registry, "_BUILD_UTILITY_PATH", empty)
         with pytest.raises(ImportError) as excinfo:
-            _load_read_yaml_frontmatter(empty)
+            _load_read_yaml_frontmatter()
         assert "read_yaml_frontmatter" in str(excinfo.value)
 
     def test_the_default_path_points_at_the_real_build_utility(self) -> None:
         """The production default must resolve to a file that actually loads."""
-        assert _build_utility_path().is_file()
+        assert _BUILD_UTILITY_PATH.is_file()
         assert callable(_load_read_yaml_frontmatter())
