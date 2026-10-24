@@ -196,6 +196,9 @@ class TestBodyFileContainment:
     def test_scratchpad_body_file_under_temp_dir_creates_issue(self, tmp_path, monkeypatch):
         scratch = tmp_path / "claude-1000" / "scratchpad"
         scratch.mkdir(parents=True)
+        # The real layout: every level below the temp root is mode 700.
+        for directory in (scratch.parent, scratch):
+            directory.chmod(0o700)
         body = scratch / "issue.md"
         body.write_text("from scratchpad", encoding="utf-8")
         monkeypatch.setenv("TMPDIR", str(tmp_path))

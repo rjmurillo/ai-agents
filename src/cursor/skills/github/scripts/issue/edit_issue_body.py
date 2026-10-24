@@ -20,7 +20,6 @@ import argparse
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -47,6 +46,7 @@ from github_core.output import (
 from github_core.validation import (
     assert_valid_body_file,
     escaped_newline_body_error,
+    read_body_file_text,
 )
 
 
@@ -112,17 +112,27 @@ def main(argv: list[str] | None = None) -> int:
         # would still hit assert_valid_body_file. Empty string is rejected
         # earlier in main() per PR #1965 cursor 6mMA.
         assert_valid_body_file(args.body_file)
-        # PR #1965 copilot eoz/epC: pass --body-file through to gh instead
-        # of reading the file ourselves and concatenating to --body. Reading
-        # a multi-MB body, then re-emitting it as a process arg, can exceed
-        # ARG_MAX on some platforms; --body-file avoids the round-trip and
-        # matches the gh CLI contract directly.
-        gh_args.extend(["--body-file", str(Path(args.body_file).resolve())])
+        # The strict shared reader checks the file (issue #6919), so gh must
+        # not reopen the path. The text goes to gh on stdin, not as a process
+        # arg, which keeps the ARG_MAX reason from PR #1965 copilot eoz/epC.
+        try:
+            stdin_body = read_body_file_text(args.body_file, allow_git_dir=True)
+        except (OSError, ValueError) as exc:
+            error_and_exit(f"Failed to read body file {args.body_file}: {exc}", 2)
+        gh_args.extend(["--body-file", "-"])
     else:
+        stdin_body = None
         gh_args.extend(["--body", args.body])
 
     try:
-        result = subprocess.run(gh_args, capture_output=True, text=True, check=False, timeout=30)
+        result = subprocess.run(
+            gh_args,
+            input=stdin_body,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
     except FileNotFoundError:
         # gh CLI binary missing: environment failure per ADR-035 exit 2.
         # PR #1965 cluster Q.
