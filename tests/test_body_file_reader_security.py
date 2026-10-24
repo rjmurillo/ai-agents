@@ -595,9 +595,13 @@ def test_filesystem_root_is_never_an_approved_root(area: Area, script: str) -> N
         area.monkeypatch.setattr(
             module, "resolve_repo_root", lambda **_kwargs: (Path("/"), REPO_ROOT_OK)
         )
+    area.set_temp_roots(Path("/"), area.tmp)
     body = _write(_mkdir(area.repo.parent / "outside", 0o700) / "body.md", 0o600)
     with pytest.raises(RefusedError):
         READERS[script](body, area.repo)
+    for module in _github_core_modules("validation"):
+        assert module.is_allowed_body_file_path(str(body)) is False
+        assert module.is_allowed_body_file_path(str(_owned_600(area))) is True
 
 
 _DEV_SHM = Path("/dev/shm")

@@ -234,18 +234,15 @@ def is_allowed_body_file_path(path: str) -> bool:
         return False
 
     repo_root = body_file_repo_root()
-    if repo_root is not None and is_safe_file_path(path, str(repo_root)):
-        return True
-
-    for temp_root in _candidate_temp_roots():
-        if is_safe_file_path(path, temp_root):
-            return True
-
-    for git_root in _candidate_git_dir_roots():
-        if is_safe_file_path(path, git_root):
-            return True
-
-    return False
+    roots = [
+        *([str(repo_root)] if repo_root is not None else []),
+        *_candidate_temp_roots(),
+        *_candidate_git_dir_roots(),
+    ]
+    # A root that is the filesystem root bounds nothing, so it never counts.
+    return any(
+        Path(root) != Path(Path(root).anchor) and is_safe_file_path(path, root) for root in roots
+    )
 
 
 def read_body_file_text(
