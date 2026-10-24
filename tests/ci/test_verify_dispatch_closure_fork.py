@@ -22,13 +22,12 @@ from tests.ci.dispatch_closure_helpers import (  # noqa: F401
     GATE,
     HELPER,
     VERIFIER,
-    check,
-    commit_on_base,
     git,
     rev,
     upstream_with_pr,
     write,
 )
+from tests.ci.dispatch_closure_runner import check, commit_on_base
 
 SECOND = ".claude/skills/demo/scripts/second.py"
 
