@@ -115,7 +115,7 @@ class TestBehindTheBase:
         assert f"dispatch-closure: STALE {HELPER}" in out
         assert "1 stale" in out
         assert "merge the base ref" not in out
-        assert "does not fail" in out
+        assert "alone do not fail" in out
 
     def test_stale_plus_a_differing_file_still_fails(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -423,3 +423,15 @@ class TestMergeBase:
         report = vdc.verify(base, head, "HEAD")
 
         assert report.changed == [HELPER]
+
+
+@pytest.mark.parametrize("category", ["changed", "removed", "added", "symlinks", "unresolved"])
+def test_stale_plus_each_blocking_category_is_not_clean(category: str) -> None:
+    report = vdc.Report(stale=["x"])
+    getattr(report, category).append("y")
+
+    assert not report.clean
+
+
+def test_stale_alone_is_clean() -> None:
+    assert vdc.Report(stale=["x"]).clean

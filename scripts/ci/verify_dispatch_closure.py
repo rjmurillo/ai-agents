@@ -80,7 +80,7 @@ ADDED = "added"
 STALE = "stale"
 STALE_REMEDY = (
     "dispatch-closure: STALE files match every merge base but not the base ref. "
-    "STALE is reported only and does not fail the check"
+    "STALE findings alone do not fail the check"
 )
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
 
@@ -217,7 +217,7 @@ def _merge_bases(tool_root: Path, base_ref: str, head_sha: str | None) -> list[s
     [] covers a work-tree head, a shallow history that misses the fork point, and
     an unrelated history. ``--all`` matters after a criss-cross merge: plain
     ``merge-base`` prints one of several ancestors, and the head shapes which.
-    They only pick STALE, which needs a match at every one; they never clear.
+    They only pick STALE, which needs a match at every one. STALE is reported, not blocking.
     """
     if head_sha is None:
         return []

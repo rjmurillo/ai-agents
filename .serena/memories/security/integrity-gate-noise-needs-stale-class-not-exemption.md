@@ -4,7 +4,7 @@
 
 In `scripts/ci/verify_dispatch_closure.py`, a noisy integrity gate tempts the fix "exempt what the PR did not change" by comparing to the merge base. That fails open. A stale-but-unchanged verifier still differs from trusted main, so the exemption hides a real mismatch.
 
-Add a new STALE outcome instead. It still exits 1 and tells the author to merge the base ref. The gate stays closed and the noise gets an actionable message.
+Add a new STALE outcome instead. It is reported but does not fail the check: a PR cannot be required to sit on the latest main. Every other category still exits 1. Commit 070e4017e made STALE fail; the stale-nonblocking change reversed that by user decision.
 
 ## Evidence
 
