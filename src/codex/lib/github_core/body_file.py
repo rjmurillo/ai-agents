@@ -12,6 +12,7 @@ import errno
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 
 from . import validation
@@ -306,8 +307,11 @@ def _final_path(descriptor: int) -> Path | None:
     """Return the name Windows gives the opened file, or None when it cannot say.
 
     ``GetFinalPathNameByHandleW`` expands 8.3 short names and drops trailing
-    dots, so the location checks can run again on the real name.
+    dots, so the location checks can run again on the real name. The
+    platform check also lets type checkers skip the Windows-only APIs.
     """
+    if sys.platform != "win32":
+        return None
     try:
         import ctypes
         import msvcrt
