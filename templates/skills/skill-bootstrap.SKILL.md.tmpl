@@ -163,7 +163,7 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_eval.py" score --frozen "<frozen path>" --results "<results path>"
    ```
 
-   A skill whose cases are all `no_gap` adds nothing measurable: drop it or report why it stays. A `regression` is a blocking finding. In `knowledge` mode, add `--mode knowledge` to `score`: a skill whose cases are all `no_gap` then also exits 1, with its cases in `failing_cases`. A regex result that times out is left ungraded, so its case is `incomplete`.
+   A skill whose cases are all `no_gap` adds nothing measurable: drop it or report why it stays. A skill whose cases are all `flat` does not transfer: `score` exits 1 in every mode, names it under `flat_skills`, and lists its cases in `failing_cases`. Fix the skill or the cases. One `flat` case among other statuses does not fail. A `regression` is a blocking finding. In `knowledge` mode, add `--mode knowledge` to `score`: a skill whose cases are all `no_gap` then also exits 1, with its cases in `failing_cases`. A regex result that times out is left ungraded, so its case is `incomplete`.
 3. Run `skillopt` only after steps 1 and 2, on the frozen cases as its held-out set. Otherwise report `skillopt: NOT RUN` with the missing input. Never invent an optimization result.
 
 ### Phase 6: Review, verify, and deliver
@@ -231,6 +231,7 @@ python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --r
 ## Limits
 
 - The instrument-first rule has not yet shown a capability gain. Run `20261017T164000Z-2e1e279c` found no F1 gain on T1 to T4 (T1 0.867 to 0.872; T2 to T4 stayed at 1.000) at 1.4x to 2.5x cost per run (the report is at `evals/skill-bootstrap-capability/reports/20261017T164000Z-2e1e279c/REPORT.md` in the rjmurillo/ai-agents repository, not in this skill). Untested hypotheses: reproducibility across runs, and repositories where ad hoc scripts are hard to write.
+- `bootstrap_forms.py check --require-scripts` stays a blocking gate (owner decision D18, 2026-10-24). It loosens only when a named consumer needs it.
 - Per-case `gain` and `regression` have no noise floor. Run each case at least twice and treat a single-run flip with suspicion.
 
 ## Anti-Patterns
@@ -256,7 +257,7 @@ Add a discovery lens in `references/discovery.md`, the plan-file lens table in `
 - [ ] `bootstrap_mine.py candidates` ran before discovery, or the report says why not.
 - [ ] `bootstrap_forms.py check` exited 0 on the final plan with `--require-scripts`: no computable item is scaffold-only.
 - [ ] `bootstrap_mine.py claims` reports no `current` finding in authored skills.
-- [ ] `bootstrap_eval.py score` ran on frozen cases; the report gives each skill's capability delta, and no case is `regression` or `incomplete`.
+- [ ] `bootstrap_eval.py score` ran on frozen cases; the report gives each skill's capability delta, and no case is `regression` or `incomplete`, and no skill has every case `flat`.
 - [ ] `context-optimizer` ran before `skillopt`, or the report names the skipped stage.
 - [ ] Independent factual, doctrine, and usability reviews ran on the final text.
 - [ ] `bootstrap_drift.py check --require` and `bootstrap_boundary.py verify` exited 0. The verify examined count is above zero unless the run wrote only proposals.

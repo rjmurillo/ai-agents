@@ -47,12 +47,6 @@
         1
       ]
     ],
-    "github/scripts/issue/edit_issue_body.py": [
-      [
-        "result = subprocess.run(gh_args, capture_output=True, text=True, check=False, timeout=30)",
-        0
-      ]
-    ],
     "github/scripts/issue/set_issue_assignee.py": [
       [
         "result = subprocess.run(",

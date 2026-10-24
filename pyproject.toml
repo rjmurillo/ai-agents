@@ -48,6 +48,8 @@ override-dependencies = [
     "certifi==2026.10.19",
     "click==8.3.3",
     "cryptography==50.0.0",
+    # filelock 4.1.1 has six CVE-2026-1129xx findings fixed in 4.2.1.
+    "filelock==4.2.1",
     "mcp==1.30.0",
     # semgrep 1.181.0 pins opentelemetry-api<1.38. 1.45.1 fixes
     # CVE-2026-114603. The whole family moves together because each package
@@ -65,6 +67,8 @@ override-dependencies = [
     # semgrep 1.178.0 still pins pyjwt~=2.13.0. 2.15.0 fixes the 2.13.0 CVEs
     # pip-audit reports and GHSA-42vr-xj54-vc7v (issue #6028).
     "pyjwt[crypto]==2.15.0",
+    # setuptools 84.0.0 has GHSA-xmj3-9gf7-h52w, fixed in 84.1.0.
+    "setuptools==84.1.0",
 ]
 
 [tool.uv.exclude-newer-package]
@@ -77,9 +81,13 @@ click = false
 # 7-day cooldown held the vulnerable release, so opt this package out to make
 # security fixes reachable immediately.
 cryptography = false
+# filelock 4.2.1 fixes six CVE-2026-1129xx findings the cooldown holds back.
+filelock = false
 lefthook = false
 mcp = false
 semgrep = false
+# setuptools 84.1.0 fixes GHSA-xmj3-9gf7-h52w.
+setuptools = false
 
 [build-system]
 requires = ["setuptools>=82.0.1"]

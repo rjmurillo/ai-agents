@@ -349,3 +349,30 @@ to 3 are unchanged, except that this amendment replaces the effort rule in item
 8. Run stops. A live run stops spending at a usage-limit or credit-exhaustion
    failure. Every remaining planned row is `NOT_RUN` with the limit as the
    reason, as the Run design says for a row the cap cuts off.
+
+## Amendment 5 (2026-10-23): the grader ignores check-tool caches
+
+Decided by the owner on 2026-10-23 (D13). H1 to H4, the task classes, the
+thresholds, the floors, and the decision mapping are unchanged. The version
+stays `predictions-v1`.
+
+What changed. The #5425 grader ignored only `__pycache__` and `.pyc` files
+when it listed changed paths. It now also ignores `.pytest_cache`,
+`.mypy_cache`, `.ruff_cache`, and `.hypothesis`. These are folders that a
+check writes when a worker runs it. Running the scenario's checks is not an
+edit to the tree. Every other grading rule is unchanged.
+
+Why. A worker that ran pytest in its workdir left `.pytest_cache` behind, and
+the grader called each of those files a scope violation. The defect is in the
+grader, not in any arm, and it penalized arms that test their own work.
+
+Evidence. In the first full Claude run (`results-2026-10-23-claude-aborted/`),
+6 of 72 rows failed only on `.pytest_cache` paths: 5 in arm A and 1 in arm B.
+These 6 rows account for 5 of arm A's 6 failures. The Codex run
+`results-2026-10-21-partial/` has 1 such row (RB-01, arm E). Rows do not
+record whether the checks passed, so these rows cannot be graded again.
+
+Reporting. `results-2026-10-23-claude-aborted/` used the old grader. It is
+reported separately and never pooled with runs made after this amendment, and
+it does not count toward any floor. The Claude run is repeated in full under
+this amendment. Codex results are unchanged; no Codex run follows.

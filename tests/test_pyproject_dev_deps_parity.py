@@ -60,6 +60,7 @@ SAFE_SEMGREP_OVERRIDES = frozenset(
     {
         "click==8.3.3",
         "cryptography==50.0.0",
+        "filelock==4.2.1",
         "mcp==1.30.0",
         "opentelemetry-api==1.45.1",
         "opentelemetry-exporter-otlp-proto-common==1.45.1",
@@ -72,13 +73,24 @@ SAFE_SEMGREP_OVERRIDES = frozenset(
         "opentelemetry-semantic-conventions==0.66b1",
         "opentelemetry-util-http==0.66b1",
         "pyjwt[crypto]==2.15.0",
+        "setuptools==84.1.0",
     }
 )
 # certifi is exempt from the cooldown for PYSEC-2026-4320, so an exact
 # override keeps a later lock from taking an unreviewed CA bundle.
 CERTIFI_OVERRIDE = "certifi==2026.10.19"
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
-    {"anthropic", "certifi", "click", "cryptography", "lefthook", "mcp", "semgrep"}
+    {
+        "anthropic",
+        "certifi",
+        "click",
+        "cryptography",
+        "filelock",
+        "lefthook",
+        "mcp",
+        "semgrep",
+        "setuptools",
+    }
 )
 
 # Splits a PEP 508 requirement string at the first character that ends the

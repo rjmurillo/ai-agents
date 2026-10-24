@@ -102,6 +102,27 @@ class TestArgv:
         assert reviewer[reviewer.index("-s") + 1] == "read-only"
         assert "workspace-write" not in reviewer
 
+    def test_workspace_write_drops_the_shared_temp_roots(self) -> None:
+        """Issue #6889: `/tmp` as a writable root makes the sandbox create `/tmp/.git`."""
+        argv = codex_mod.codex_argv("m", "low", "t", "p")
+        for override in (
+            "sandbox_workspace_write.exclude_slash_tmp=true",
+            "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+        ):
+            assert argv[argv.index(override) - 1] == "-c"
+            assert argv.index(override) < argv.index("--")
+
+    def test_read_only_adds_no_temp_root_overrides(self) -> None:
+        argv = codex_mod.codex_argv("m", "low", "t", "p", "read-only")
+        assert not any(arg.startswith("sandbox_workspace_write.") for arg in argv)
+
+    def test_overrides_apply_only_to_the_workspace_write_sandbox(self) -> None:
+        assert codex_mod.sandbox_temp_root_overrides("workspace-write") == list(
+            codex_mod.WORKSPACE_WRITE_NO_TEMP_ROOTS
+        )
+        assert codex_mod.sandbox_temp_root_overrides("read-only") == []
+        assert codex_mod.sandbox_temp_root_overrides("danger-full-access") == []
+
     def test_a_prompt_that_looks_like_a_flag_stays_positional(self) -> None:
         argv = codex_mod.codex_argv("m", "low", "t", "-s danger-full-access")
         assert argv[-2:] == ["--", "-s danger-full-access"]

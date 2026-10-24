@@ -192,14 +192,21 @@ class _ValidationStateLike(Protocol):
     references ``pre_pr``. ``pre_pr`` imports this module; a back-reference would
     make mypy resolve ``pre_pr`` under two module names (Issue #3073).
 
-    ``record`` is the only write, and the only requirement. The counters move
+    ``record`` is the only write. The counters move
     with the recorded state inside it, so a row the sequence short-circuits
     still appears in the summary with its reason code instead of incrementing a
     counter and vanishing (issue #5635). Before that, this Protocol also
     required ``total`` and ``skipped`` because the short-circuit incremented
     them directly; requiring them now would constrain implementers over fields
     this module never reads.
+
+    ``hides`` is the one read the sequence makes beyond ``record`` (issue #6734):
+    under ``--compact``, ``pre_pr_state.is_quiet`` decides which rows print.
     """
+
+    def hides(self, outcome: CheckOutcome) -> bool:
+        """Return True when the compact mode leaves ``outcome`` unprinted."""
+        ...
 
     def record(self, name: str, outcome: CheckOutcome) -> CheckOutcome:
         """Append one gate's typed outcome and update its state counter."""
@@ -755,7 +762,7 @@ def run_all_validations(
 
     ``run_validation`` and ``state`` are owned by ``pre_pr.main()`` and injected
     to avoid importing ``pre_pr`` (which runs as ``__main__``). ``args`` supplies
-    the only CLI flag the sequence reads, ``quick``.
+    the only CLI flag the sequence reads, ``quick``. ``state.hides`` is the other input.
 
     The order is ``_SEQUENCE``. Read that table, not this loop.
     """
@@ -763,11 +770,10 @@ def run_all_validations(
     for gate in _SEQUENCE:
         if fast_stage_ran and gate.already_run_by:
             detail = f"already passed as the unconditional pre-push job {gate.already_run_by}"
-            print(f"[SKIP] {gate.name} ({detail})")
-            state.record(
-                gate.name,
-                CheckOutcome.skipped(gate.name, reason=REASON_ALREADY_RUN, detail=detail),
-            )
+            outcome = CheckOutcome.skipped(gate.name, reason=REASON_ALREADY_RUN, detail=detail)
+            if not state.hides(outcome):
+                print(f"[SKIP] {gate.name} ({detail})")
+            state.record(gate.name, outcome)
             continue
 
         run_validation(

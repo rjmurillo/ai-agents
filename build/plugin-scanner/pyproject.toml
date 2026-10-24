@@ -1,0 +1,33 @@
+# HOL plugin scanner, isolated from the root project because its runtime
+# (mcp, starlette, uvicorn, keyring) has nothing to do with the repo's own
+# dependencies. uv.lock beside this file pins every wheel by hash, so a local
+# run installs the same scanner bytes the CI action verifies.
+#
+# Keep the version equal to scanner-version.txt in the pinned
+# hashgraph-online/ai-plugin-scanner-action commit used by
+# .github/workflows/plugin-scanner.yml, so local and CI scores agree.
+#
+# Run: uv run --project build/plugin-scanner --frozen plugin-scanner scan .
+[project]
+name = "ai-agents-plugin-scanner"
+version = "0.0.0"
+description = "Pinned HOL plugin scanner for the ai-agents catalog score gate"
+requires-python = ">=3.14"
+dependencies = [
+    "plugin-scanner==3.0.123",
+]
+
+[tool.uv]
+package = false
+exclude-newer = "7 days"
+# Same certifi handling as the root pyproject.toml: PYSEC-2026-4320
+# (GHSA-6q48-6c7w-9gw2) affects certifi 2026.7.22 and is fixed in 2026.10.19,
+# which the 7-day cooldown would otherwise hold back. Pin it exactly so a later
+# `uv lock` cannot take an unreviewed CA bundle release. Drop both entries when
+# the root pyproject.toml drops its certifi override.
+override-dependencies = [
+    "certifi==2026.10.19",
+]
+
+[tool.uv.exclude-newer-package]
+certifi = false

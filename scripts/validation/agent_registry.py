@@ -27,12 +27,14 @@ from yaml.nodes import MappingNode, ScalarNode
 logger = logging.getLogger(__name__)
 
 
-def _build_utility_path() -> Path:
-    """Absolute path of the build helper this module borrows its parser from."""
-    return Path(__file__).resolve().parents[2] / "build" / "generate_agents_common.py"
+# Absolute path of the build helper this module borrows its parser from. It is
+# built only from `__file__` and literals, and bound once, so the completion
+# gate's dynamic-load scanner can resolve the load below instead of failing the
+# closure manifest closed. Tests monkeypatch it rather than pass a path.
+_BUILD_UTILITY_PATH = Path(__file__).resolve().parents[2] / "build" / "generate_agents_common.py"
 
 
-def _load_read_yaml_frontmatter(path: Path | None = None) -> Callable[[str], dict[str, str] | None]:
+def _load_read_yaml_frontmatter() -> Callable[[str], dict[str, str] | None]:
     """Load `read_yaml_frontmatter` from the build tree without touching sys.path.
 
     This runs at import time, so a failure here takes down every caller of this
@@ -42,7 +44,7 @@ def _load_read_yaml_frontmatter(path: Path | None = None) -> Callable[[str], dic
     paths are wrapped so the failure says which utility could not be loaded,
     rather than a bare FileNotFoundError from inside a validation script.
     """
-    path = path or _build_utility_path()
+    path = _BUILD_UTILITY_PATH
     spec = importlib.util.spec_from_file_location("_agent_registry_build_common", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load build utility {path}: no import spec")

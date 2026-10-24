@@ -203,7 +203,7 @@ jobs:
       - name: Check complete context-output manifest (blocking)
         run: >-
           python3
-          .claude/skills/context-optimizer/scripts/extract_and_index.py
+          src/claude/skills/context-optimizer/scripts/extract_and_index.py
           --check --manifest .project-toolkit/context-output-manifest.json
 
   count-ratchet-guard:

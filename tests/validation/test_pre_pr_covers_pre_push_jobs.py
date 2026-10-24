@@ -140,6 +140,12 @@ EXEMPT: dict[str, str] = {
         "Advisory report that calls gh for the open pull request. It needs a "
         "pull request, which does not exist before the first push."
     ),
+    "plugin-scanner": (
+        "Scores the whole tree with the pinned HOL plugin scanner, about 50s, and "
+        "installs it from PyPI on first use. Inside pre_pr it would spend a fifth of "
+        "the 240s run budget; the Plugin Scanner workflow runs the same scanner on "
+        "every pull request instead."
+    ),
 }
 
 

@@ -38,6 +38,9 @@ The adjacent ``Lefthook Installed`` gate cannot cover the difference either: it
 proves the configured runtime starts, not that git will reach it. So this gate
 reads the hook and requires Lefthook's own dispatch line (issue #4789).
 
+The dispatch line cannot show a shim is current, so the gate also requires the
+configured ``lefthook:`` runner branch (``lefthook_shim_staleness``, #6896).
+
 Scope: the remedy is a lefthook command, so this gate passes silently in any
 repository that does not configure lefthook. A repository with no hooks and no
 lefthook config has chosen that, and is not broken. CI also skips this
@@ -91,8 +94,9 @@ from lefthook_inventory import (
     RUNTIME_REMEDY,
     LefthookConfigError,
     LefthookExecutionError,
-    configured_hook_types,
+    configured_inventory,
 )
+from lefthook_shim_staleness import STALE_SHIM_PREFIX, STALE_SHIM_SUMMARY, stale_shims
 
 # Typed contract by package path (evidence.py states why); exit-0 skips use it.
 if str(_PROJECT_ROOT) not in sys.path:
@@ -333,7 +337,11 @@ def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> tuple[str | None, f
     probe_failure = _dispatch_failure(hook, PROBE_HOOK)
     if probe_failure is not None:
         return probe_failure, probed
-    configured = configured_hook_types(repo_root)
+    inventory = configured_inventory(repo_root)
+    configured = inventory.hook_types
+    stale = stale_shims(hooks_dir, configured | probed, inventory.runner, _is_live_hook)
+    if stale is not None:
+        return stale, configured | probed
     return _missing_hook_types(hooks_dir, configured), configured | probed
 
 
@@ -441,7 +449,9 @@ def _evaluate(repo_root: Path) -> int:
     # Only claim the push is ungated when the pre-push probe is what failed.
     # A missing commit-msg shim reaches here with a working pre-push, and the
     # blanket line sent contributors after the wrong hook.
-    if reason.startswith(_POST_PROBE_PREFIX):
+    if reason.startswith(STALE_SHIM_PREFIX):
+        print(STALE_SHIM_SUMMARY, file=sys.stderr)
+    elif reason.startswith(_POST_PROBE_PREFIX):
         print("pre-push itself is live; the gap is elsewhere.", file=sys.stderr)
     else:
         print(

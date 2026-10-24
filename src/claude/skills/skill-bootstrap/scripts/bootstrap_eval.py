@@ -53,8 +53,9 @@ Case status in the score payload:
                 measurable for this case.
     regression  with_skill pass rate is below baseline. This wins over no_gap:
                 a baseline of 1.0 with a lower with_skill rate is a regression.
-    flat        Equal pass rates and baseline below 1.0. This does not fail
-                `score`, even when every case of a skill is flat.
+    flat        Equal pass rates and baseline below 1.0. One flat case among
+                other statuses does not fail `score`. A skill whose cases are
+                all flat fails it (owner decision D18, 2026-10-24).
     incomplete  A condition has no results, or a result could not be graded
                 (a regex grader timed out).
 
@@ -66,6 +67,8 @@ Exit codes:
        `--min-delta` when given).
     1  score found an incomplete case or a regression case, or the overall
        delta is below `--min-delta` (or unmeasured, when no case is complete).
+       A skill whose cases are all flat also fails, in every mode: the
+       payload names it under `flat_skills` and explains in `message`.
        With `--mode knowledge`, a skill whose cases are all no_gap also
        fails. The payload lists every failing case id under `failing_cases`.
     2  Configuration error: bad arguments, malformed or unreadable cases,
@@ -653,15 +656,33 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
             own = [row for row in rows if row["skill"] == name]
             if all(row["status"] == "no_gap" for row in own):
                 failing_cases += [row["id"] for row in own]
+    # Every case flat means the skill moved no pass rate and the baseline still misses
+    # cases, so the skill does not transfer. One flat case among other statuses passes.
+    flat_skills = [
+        name
+        for name in skills
+        if all(row["status"] == "flat" for row in rows if row["skill"] == name)
+    ]
+    for name in flat_skills:
+        failing_cases += [row["id"] for row in rows if row["skill"] == name]
     failing = bool(failing_cases)
     payload: Payload = {
         "mode": args.mode,
         "failing_cases": failing_cases,
+        "flat_skills": flat_skills,
         "cases": _rounded(rows),
         "skills": skills,
         "overall": overall,
         "examined": {"cases": len(cases), "results": result_count},
     }
+    if flat_skills:
+        message = (
+            f"every case is flat for skill(s): {', '.join(flat_skills)}. "
+            "Equal pass rates below 1.0 mean the skill does not transfer. "
+            "Fix the skill or the case."
+        )
+        payload["message"] = message
+        print(f"bootstrap_eval: {message}", file=sys.stderr)
     if args.min_delta is not None:
         delta = overall["capability_delta"]
         met = delta is not None and delta >= args.min_delta

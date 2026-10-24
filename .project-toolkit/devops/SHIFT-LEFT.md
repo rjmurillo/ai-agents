@@ -30,8 +30,16 @@ uv run --frozen python scripts/validation/pre_pr.py
 uv run --frozen python scripts/validation/pre_pr.py --quick
 ```
 
-`--quick` and `--markdown-lint-only` are the only flags. The runner reads every
-argument it declares.
+`--quick`, `--markdown-lint-only`, `--compact`, and `--summary-json` are the
+flags. The runner reads every argument it declares.
+
+`--compact` prints only the gates that did not pass. A gate that passes, or that
+the pre-push fast stage already ran, prints nothing. Any other skip, and every
+failing gate, keeps its own output (file and line), name, and verdict. A gate still running after 30 seconds prints one `[SLOW]` line with its
+name, so a job that Lefthook kills at its timeout still leaves the hung gate's name
+in the log. A child process a gate starts writes to the terminal directly, so its
+output can print above that gate's `=== name ===` header. The pre-push
+`pre-pr-validation` job passes `--compact`.
 
 `--quick` skips YAML Style Validation, Path Normalization, Planning Artifacts,
 and Agent Drift Detection. Measured 2026-08-19, those four gates cost 1.89s of
@@ -256,6 +264,43 @@ A job's standalone wall clock does not predict its wall clock inside the hook.
 See `.claude/rules/ci-scripts.md` MUST-16 for the measured gap and why timeouts
 must be sized against a real push.
 
+### Failed hook output
+
+`lefthook.yml` used to set `output: false`, so Lefthook printed a failed job's own
+output and nothing else. It now sets `output: [failure]`, which lists each failed job.
+`scripts/validation/lefthook_runner.py` hands `run <hook>` to
+`scripts/validation/lefthook_failure_report.py`, which closes a failed run with a
+block that names the hook, each failed job, and the command that reruns it:
+
+```text
+lefthook_runner: pre-commit FAILED (exit 1)
+  job: python-format
+  rerun: uv run --frozen lefthook run pre-commit --job python-format
+  rerun hook: uv run --frozen lefthook run pre-commit
+```
+
+The job's own output comes first and keeps its file and line. A passing hook
+prints nothing. The report lists every failed job. A job rerun skips the jobs that
+ran before it, and `pre-pr-validation` assumes the fast-stage jobs passed, so run
+the `rerun hook` line before you push. A pre-push rerun starts with
+`printf` because the hook reads its ref lines from stdin; without them the rerun
+runs no job and exits 0. The report drops credentials from a remote URL
+argument (`https://user:token@host` prints as `https://host`). Output streams as
+Lefthook writes it. Setting `LEFTHOOK_OUTPUT` yourself turns the report off.
+
+Measured at `68cf87ef34` (2026-10-23) with one planted failure per hook. Counts are
+lines on stdout and stderr. The report for one failed job adds 4 lines:
+
+| Hook and job | Lines before | Lines after | Stage named | Rerun command |
+|---|---|---|---|---|
+| pre-commit, `python-format` | 13 | 17 | no, then yes | no, then yes |
+| pre-push, `pre-pr-validation` | 1007 | 76, then the report | no, then yes | no, then yes |
+
+The before count for `pre-pr-validation` held 231 PASS, 110 RUNNING, and 17 SKIP
+lines, and the failing gate's file and line sat at line 97. The pre-push
+`python-tests` job still prints its whole pytest log on a failure (69459 lines
+in one run at the same SHA). This change leaves it as it was.
+
 ### CI pipeline
 
 No workflow runs `pre_pr.py`. CI repeats individual validators through
@@ -388,6 +433,7 @@ a security gate.
 | pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 115 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |
 | pre-push | `worktree-gc-report` | unscoped | Reports stale registered worktrees, advisory | - | no | Local state, no CI analogue |
 | pre-push | `branch-config-prune-report` | unscoped | Reports stale branch sections in .git/config, advisory | - | no | Local state, no CI analogue |
+| pre-push | `plugin-scanner` | unscoped | HOL plugin scanner score of HEAD is at least 80 (awesome-ai-plugins listing bar) | - | adjacent | CI, not required: plugin-scanner.yml |
 | pre-push | `python-tests` | unscoped | Pytest suite via git_hook_policy pytest | - | no | Required: Run Python Tests, step Run pytest (partitioned matrix) |
 | pre-push | `zero-collection-tests` | unscoped | Test files that collect zero tests | - | no | Required: Run Python Tests, step Check for zero-collection test files (blocking) |
 | pre-push | `python-lint-advisory` | push files | Ruff on pushed Python, advisory | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
@@ -434,8 +480,8 @@ runs fed a stdin ref line for a scratch branch (`HEAD` against `HEAD~1`) and the
 hook arguments `origin <url>`. The raw reports are in
 `.project-toolkit/metrics/gate-latency-2026-10-23/`, one file per row.
 
-`lefthook.yml` sets `output: false`, which hides the per-job summary the sampler
-parses. Every run set `LEFTHOOK_OUTPUT=summary,success,failure` so jobs parse.
+`lefthook.yml` set `output: false` when the sampler ran, which hid the per-job summary the
+sampler parses. Every run set `LEFTHOOK_OUTPUT=summary,success,failure` so jobs parse.
 Without it the report has a hook wall clock and no per-job rows.
 
 | Hook | Change class | n | Status | p50 s | p95 s | max s | Load range (48 CPUs) | Slowest jobs by p50 |
@@ -471,7 +517,7 @@ Exclusions:
   about 88 minutes per class at n=20.
 - Every sampled input was clean and passed. Failing inputs, partial staging, and
   first or deleting pushes were not sampled.
-- Diagnostic volume was not measured. `output: false` suppresses it.
+- Diagnostic volume was not measured. Every sampled input passed, and every run set `LEFTHOOK_OUTPUT`, which overrides the `output` key in `lefthook.yml`. The Failed hook output section measures it for one planted failure per hook.
 - The stdin ref line is a fixed one-commit range. A larger outgoing range is not
   covered.
 - No row sets a budget. The p50 and p95 values above are the input for setting
@@ -479,6 +525,198 @@ Exclusions:
 
 The earlier n=2 baseline in `.project-toolkit/metrics/gate-latency-v0.7.0/` ran
 on a 4-CPU host, so its figures do not compare with these.
+
+### Latency after
+
+Measured at `c5fc0f5bec` (2026-10-23), 36 commits after the baseline SHA `0e98cb2d12`, with
+the same `scripts/metrics/gate_latency.py`, the same six rows, 20 repetitions per row, the
+same host (48 CPUs, Python 3.14.8, lefthook 2.2.2), whole hooks, and
+`LEFTHOOK_OUTPUT=summary,success,failure`. Pre-push runs fed one stdin ref line
+(`HEAD` against `HEAD~1`) and the hook arguments `origin <url>`, as in the baseline. The
+`lefthook.yml` group layout is the same at both SHAs. The raw reports are in
+`.project-toolkit/metrics/gate-latency-after-2026-10-23/`, one file per row. All 120
+repetitions exited 0 and none was truncated. Every row ran the same job names at both SHAs.
+
+End to end, wall clock of the whole hook:
+
+| Hook | Change class | n | Before p50 s | Before p95 s | Before max s | After p50 s | After p95 s | After max s | p50 change |
+|---|---|---|---|---|---|---|---|---|---|
+| pre-commit | markdown | 20 | 27.9 | 28.1 | 28.1 | 6.6 | 6.7 | 6.8 | -76% |
+| pre-commit | python | 20 | 25.5 | 25.8 | 26.1 | 7.1 | 7.2 | 7.2 | -72% |
+| pre-commit | workflows | 20 | 25.5 | 25.8 | 26.2 | 4.4 | 4.5 | 4.5 | -83% |
+| pre-push | markdown | 20 | 263.2 | 280.2 | 388.5 | 135.7 | 149.9 | 153.8 | -48% |
+| pre-push | python | 20 | 263.3 | 265.6 | 266.2 | 134.9 | 135.8 | 135.9 | -49% |
+| pre-push | workflows | 20 | 263.0 | 267.1 | 270.9 | 134.7 | 140.0 | 143.4 | -49% |
+
+p95 is the 19th value of 20. The baseline rows are copied from the Latency baseline above.
+
+Host conditions during the after run. Load is the 1-minute load average before and after
+each repetition. The last column counts 5-second samples in which a `git push`, `pytest`, or
+`lefthook` process ran outside the sampler. Before each row, the driver waited for three
+10-second polls with none running, and for the pre-push rows until the load average was under 8.
+
+| Hook | Change class | Status | Load range before (48 CPUs) | Load range after | Samples with another push, pytest, or lefthook running |
+|---|---|---|---|---|---|
+| pre-commit | markdown | complete 20 | 2.8 to 6.7 | 4.2 to 65.0 | 0 of 27 (0%) |
+| pre-commit | python | complete 20 | 3.1 to 4.9 | 6.6 to 24.9 | 0 of 28 (0%) |
+| pre-commit | workflows | complete 20 | 2.8 to 5.8 | 5.0 to 6.8 | 0 of 18 (0%) |
+| pre-push | markdown | complete 20 | 2.7 to 12.8 | 3.3 to 20.1 | 217 of 541 (40%) |
+| pre-push | python | complete 20 | 2.6 to 6.4 | 3.1 to 5.4 | 1 of 532 (0%) |
+| pre-push | workflows | complete 20 | 2.6 to 4.4 | 2.8 to 15.8 | 117 of 533 (22%) |
+
+Other agents shared the host and pushed during the `markdown` and `workflows` pre-push rows.
+Two pre-commit rows saw load averages of 25 and 65 from processes that were not a
+push, pytest, or lefthook run; they are unidentified. Pre-commit wall clock stayed within
+6.4s to 6.8s across the `markdown` row, including the repetitions at load 36 to 65. Pre-push
+`python` had another pytest process in 1 of 532 samples and no other push.
+
+Per stage. A stage is a top-level step of the piped hook in `lefthook.yml` order. A job is
+its own stage. A piped group counts the sum of its jobs. A parallel group counts its slowest
+job, because lefthook reports a parallel group as the sum of its members. That choice is
+read from `lefthook.yml`, not measured, and the stage times add to the hook wall clock
+within 0.13s in all 240 repetitions. Group numbers are lefthook's own labels.
+
+| Hook | Change class | Stage | Before p50 s | Before p95 s | After p50 s | After p95 s |
+|---|---|---|---|---|---|---|
+| pre-commit | markdown | group (5), piped, 2 jobs | 2.13 | 2.18 | 2.17 | 2.20 |
+| pre-commit | markdown | group (6), parallel | 24.0 | 24.2 | 2.67 | 2.80 |
+| pre-commit | markdown | group (14), `context-output-check` | 0.94 | 0.95 | 0.94 | 0.95 |
+| pre-commit | markdown | 5 serial guard jobs | 0.66 | 0.68 | 0.66 | 0.67 |
+| pre-commit | python | group (6), parallel | 23.8 | 24.1 | 5.41 | 5.48 |
+| pre-commit | python | group (14), `context-output-check` | 0.94 | 0.94 | 0.93 | 0.94 |
+| pre-commit | python | 5 serial guard jobs | 0.66 | 0.67 | 0.66 | 0.67 |
+| pre-commit | workflows | group (6), parallel | 23.8 | 24.1 | 2.71 | 2.84 |
+| pre-commit | workflows | group (14), `context-output-check` | 0.93 | 0.94 | 0.93 | 0.94 |
+| pre-commit | workflows | 5 serial guard jobs | 0.66 | 0.66 | 0.66 | 0.67 |
+
+| Hook | Change class | Stage | Before p50 s | Before p95 s | After p50 s | After p95 s |
+|---|---|---|---|---|---|---|
+| pre-push | markdown | group (4), piped, 3 jobs | 1.17 | 1.37 | 1.19 | 1.33 |
+| pre-push | markdown | group (5), parallel, 7 jobs | 40.5 | 41.3 | 28.6 | 31.4 |
+| pre-push | markdown | group (7), parallel | 220.4 | 235.8 | 104.8 | 116.9 |
+| pre-push | markdown | 4 guard jobs and `security-scan` | 1.18 | 1.24 | 1.20 | 1.49 |
+| pre-push | python | group (4), piped, 3 jobs | 1.18 | 1.41 | 1.17 | 1.23 |
+| pre-push | python | group (5), parallel, 7 jobs | 40.3 | 41.2 | 28.4 | 28.8 |
+| pre-push | python | group (7), parallel | 220.4 | 222.9 | 103.9 | 104.7 |
+| pre-push | python | 4 guard jobs and `security-scan` | 1.18 | 1.31 | 1.19 | 1.25 |
+| pre-push | workflows | group (4), piped, 3 jobs | 1.18 | 1.39 | 1.16 | 1.24 |
+| pre-push | workflows | group (5), parallel, 7 jobs | 40.2 | 40.6 | 28.4 | 28.9 |
+| pre-push | workflows | group (7), parallel | 220.4 | 224.3 | 103.9 | 107.7 |
+| pre-push | workflows | 4 guard jobs and `security-scan` | 1.20 | 1.25 | 1.18 | 1.23 |
+
+Per job, for the five slowest jobs by baseline p50 in each row:
+
+| Hook | Change class | Job | Before p50 / p95 s | After p50 / p95 s |
+|---|---|---|---|---|
+| pre-commit | markdown | `agents-write-targets` | 24.0 / 24.2 | 2.66 / 2.80 |
+| pre-commit | markdown | `markdown-autofix` | 1.08 / 1.10 | 1.09 / 1.11 |
+| pre-commit | markdown | `markdown-check` | 1.06 / 1.10 | 1.08 / 1.10 |
+| pre-commit | markdown | `context-output-check` | 0.94 / 0.95 | 0.94 / 0.95 |
+| pre-commit | markdown | `taste-advisory` | 0.30 / 0.32 | 0.31 / 0.32 |
+| pre-commit | python | `agents-write-targets` | 23.8 / 24.1 | 2.66 / 2.84 |
+| pre-commit | python | `subprocess-encoding` | 13.2 / 13.4 | 5.40 / 5.48 |
+| pre-commit | python | `context-output-check` | 0.94 / 0.94 | 0.93 / 0.94 |
+| pre-commit | python | `taste-advisory` | 0.33 / 0.35 | 0.32 / 0.34 |
+| pre-commit | python | `security-suppressions-staged` | 0.27 / 0.30 | 0.27 / 0.29 |
+| pre-commit | workflows | `agents-write-targets` | 23.8 / 24.1 | 2.71 / 2.84 |
+| pre-commit | workflows | `context-output-check` | 0.93 / 0.94 | 0.93 / 0.94 |
+| pre-commit | workflows | `yaml-advisory` | 0.40 / 0.43 | 0.41 / 0.43 |
+| pre-commit | workflows | `taste-advisory` | 0.31 / 0.34 | 0.30 / 0.34 |
+| pre-commit | workflows | `action-pin-policy` | 0.27 / 0.29 | 0.25 / 0.28 |
+
+| Hook | Change class | Job | Before p50 / p95 s | After p50 / p95 s |
+|---|---|---|---|---|
+| pre-push | markdown | `pre-pr-validation` | 220.4 / 235.8 | 104.6 / 113.8 |
+| pre-push | markdown | `python-tests` | 54.2 / 89.8 | 6.92 / 106.6 |
+| pre-push | markdown | `count-ratchets` | 40.4 / 41.3 | 28.6 / 31.4 |
+| pre-push | markdown | `zero-collection-tests` | 36.3 / 36.9 | 37.1 / 41.9 |
+| pre-push | markdown | `python-unreachable-statements` | 17.0 / 17.4 | 17.3 / 19.2 |
+| pre-push | python | `pre-pr-validation` | 220.3 / 222.9 | 103.9 / 104.7 |
+| pre-push | python | `python-tests` | 53.1 / 60.5 | 6.74 / 7.11 |
+| pre-push | python | `count-ratchets` | 40.2 / 41.2 | 28.4 / 28.8 |
+| pre-push | python | `zero-collection-tests` | 36.1 / 36.8 | 36.9 / 37.0 |
+| pre-push | python | `python-unreachable-statements` | 16.9 / 17.4 | 17.2 / 17.6 |
+| pre-push | workflows | `pre-pr-validation` | 220.3 / 224.3 | 103.8 / 107.7 |
+| pre-push | workflows | `python-tests` | 53.4 / 57.9 | 6.77 / 7.07 |
+| pre-push | workflows | `count-ratchets` | 40.2 / 40.6 | 28.4 / 28.9 |
+| pre-push | workflows | `zero-collection-tests` | 36.1 / 36.4 | 36.8 / 38.9 |
+| pre-push | workflows | `python-unreachable-statements` | 16.9 / 17.1 | 17.2 / 17.8 |
+
+What changed:
+
+- Pre-push `pre-pr-validation` fell from 220.4s to 103.9s at p50 and is still the slowest
+  job, 77 percent of the pre-push wall clock. `count-ratchets` fell from 40.2s to 28.4s. Those
+  two set the critical path, so pre-push p50 fell from 263s to 135s in all three classes.
+- Pre-commit `agents-write-targets` fell from 23.8s to 2.7s and `subprocess-encoding` from
+  13.2s to 5.4s. Across the three classes, pre-commit p50 fell from a range of 25.5s to 27.9s
+  to a range of 4.4s to 7.1s.
+- `zero-collection-tests` (36.9s) is now the second-longest job in the parallel group that
+  holds `pre-pr-validation`. `python-unreachable-statements` is flat at 17.2s.
+- Two jobs slowed by more than 0.3s at p50. `dash-prohibition` went from about 0.7s to about
+  1.1s in every pre-push row, and `zero-collection-tests` went up 0.7s to 0.9s in each row.
+- The 36 commits between the two SHAs include the `perf(validation)` PRs #6864 to #6878. This
+  measurement does not isolate which commit moved which row.
+
+`python-tests` is not a like-for-like row. Its p50 fell from 53.1s to 6.7s, but it sits in
+the parallel group behind `pre-pr-validation`, so it does not set the hook wall clock. The
+after runs reused a warm `pytest-testmon` database, which selects the tests a push needs.
+Two controls of 3 repetitions each, `python` class, removed the testmon database first:
+at `c5fc0f5bec` the first repetition took 68.7s and the next two 6.7s; at `0e98cb2d12` all
+three took 51.3s to 52.7s. So the drop is a difference between the two SHAs. This
+measurement does not show why. Three of the 20 pre-push `markdown` repetitions (61.6s,
+106.6s, 116.9s) had a slow `python-tests` while other agents ran pytest, which is the
+p95 of that row. The control reports are in the same directory.
+
+Exclusions:
+
+- The baseline exclusions still hold. Change classes `none`, `skills`, and `hooks` were not
+  sampled. Every input was clean and passed. Failing inputs, partial staging, and first or
+  deleting pushes were not sampled. The stdin ref line is a fixed one-commit range.
+- Diagnostic volume was not re-measured. `LEFTHOOK_OUTPUT` was set for every run, which
+  overrides the `output` key in `lefthook.yml`, and the sampler ran the lefthook binary
+  directly, not through the failure-report wrapper. The Failed hook output section has the
+  one-failure counts.
+- The host was not quiet. See the host conditions table. Pre-push `markdown` and `workflows`
+  overlapped other agents' pushes, so their p95 and max values include contention. Pre-push
+  `python` did not.
+- The after rows reuse a warm testmon database. A fresh database costs one `python-tests`
+  run of 68.7s at `c5fc0f5bec` (one control repetition).
+- The sampler `scripts/metrics/gate_latency.py` is the committed one and ran unchanged.
+  The driver that ran the six rows one after another, waited for the host to go quiet,
+  and logged load every 5 seconds is not committed.
+- The budget below was set from these values. See Latency budget.
+
+### Latency budget
+
+The owner set these budgets on 2026-10-24 (decision D10, issue #6734). They apply to
+the p95 wall clock of the whole hook, per change class, at n of 20 or more.
+
+| Hook | Budget (p95 per change class) | Worst after p95 | Headroom |
+|---|---|---|---|
+| pre-commit | 10 s | 7.2 s (python) | 2.8 s (28%) |
+| pre-push | 160 s | 149.9 s (markdown) | 10.1 s (6%) |
+
+How the numbers were chosen:
+
+- Pre-commit sits at 4.5 s to 7.2 s after the work in #6893. A budget of 10 s keeps a
+  fast hook fast and leaves room for one slow job to appear before the budget trips.
+  The practitioner heuristic of 3 s was not enforced, because no pre-commit row meets it.
+- Pre-push sits at 135.8 s to 149.9 s. A budget of 160 s is the worst p95 plus about
+  10 s. The pre-push `markdown` p95 of 149.9 s is inflated by load, because other
+  agents pushed during 40% of its samples (#6893). The other two rows have 20 s to
+  24 s of headroom. The 160 s budget is also well under the 300 s p95 cap in #5456.
+- Pre-push `python-tests` ran against a warm testmon database. A cold database makes
+  that job about 62 s slower (68.7 s cold against 6.7 s warm at `c5fc0f5bec`), but the
+  job still finishes inside `pre-pr-validation` (about 104 s), so the cold control's hook
+  wall clock stayed at 135.0 s to 135.8 s, within the 160 s budget.
+
+Enforcement. No script enforces these budgets, and none was added, because no present
+use case needs one. The repository has a consecutive-breach policy in
+`scripts/ci/consecutive_breach.py`, and `scripts/testing/duration_gate_check.py` uses
+it for CI test legs. It does not read hook latency. The owner's rule for timing gates is
+that a gate fires only after two consecutive breaches on main. Any future hook-latency
+check must follow that rule. Until one exists, re-run `scripts/metrics/gate_latency.py`
+and compare the p95 column to the table above.
 
 ### Developer workflow
 

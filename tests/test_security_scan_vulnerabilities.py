@@ -191,7 +191,7 @@ def test_get_language_ignores_extensionless_non_bash_shebang(tmp_path: Path) -> 
         ),
         (
             "eval(user_input)",
-            "eval() with potentially unvalidated input",
+            "eval call with potentially unvalidated input",
             "CRITICAL",
         ),
         (
@@ -733,6 +733,22 @@ def test_scan_file_flags_unquoted_heredoc_body_expansion_as_before(tmp_path: Pat
     """An unquoted delimiter expands the body. Keep the per-line behavior."""
     body = "cat <<EOF\nrm $target\nEOF\n"
     assert _unquoted_lines(tmp_path, body) == [2]
+
+
+@pytest.mark.parametrize(
+    ("opener", "expected"),
+    [("cat <<EOF", [2]), ("cat <<'EOF'", [])],
+)
+def test_scan_file_heredoc_help_text_needs_quoted_delimiter_to_clear(
+    tmp_path: Path, opener: str, expected: list[int]
+) -> None:
+    """Owner decision D23 (issue #6624): no print-only narrowing for unquoted bodies.
+
+    A per-line scanner cannot prove an unquoted body never reaches a shell, so
+    `$var` in `cat <<EOF` help text stays flagged. Quoting the delimiter clears it.
+    """
+    body = f"{opener}\nUsage: $0 --dest $target\nEOF\n"
+    assert _unquoted_lines(tmp_path, body) == expected
 
 
 def test_scan_file_flags_code_after_heredoc_terminator(tmp_path: Path) -> None:

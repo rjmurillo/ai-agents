@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.containment_fixtures import private_dir
 from tests.new_pr_test_support import _prepared_body, main
 
 _BRANCH = "feat/5540-external-worktree"
@@ -43,8 +44,9 @@ def _git(cwd: Path, *args: str) -> str:
 
 @pytest.fixture
 def clone_and_worktree(tmp_path: Path) -> tuple[Path, Path]:
-    clone = tmp_path / "clone"
-    clone.mkdir()
+    # A clone below a shared temp root must be owner-only, or the body-file
+    # reader refuses the prepared body inside it (issue #6667).
+    clone = private_dir(tmp_path / "clone")
     _git(clone, "init", "-b", "main")
     (clone / "README.md").write_text("seed\n", encoding="utf-8")
     _git(clone, "add", "README.md")

@@ -11,7 +11,8 @@ manifest its host reads inside each plugin ``source`` directory. A new host adds
 one row. For each plugin entry the gate checks:
 
   * the file parses as a JSON object with a ``plugins`` list;
-  * ``source`` is a string that resolves to a directory inside the repository;
+  * ``source`` is a string, or a Codex ``{"source": "local", "path": ...}``
+    object, that resolves to a directory inside the repository;
   * that directory holds the host's manifest and the manifest parses;
   * the entry ``name`` equals the manifest ``name``.
 
@@ -85,7 +86,16 @@ def _load_plugins(repo_root: Path, marketplace: str) -> list[object]:
 
 
 def _resolve_source(repo_root: Path, source: object) -> Path | str:
-    """Return the source directory, or a violation message."""
+    """Return the source directory, or a violation message.
+
+    Codex documents a local source as ``{"source": "local", "path": "./..."}``
+    as well as a bare path string; both resolve the same way. Any other object
+    form (git, npm) names no directory in this repository, so it is a violation.
+    """
+    if isinstance(source, dict):
+        if source.get("source") != "local":
+            return f"object source must declare source='local' (got {source!r})"
+        source = source.get("path")
     if not isinstance(source, str) or not source:
         return f"source must be a non-empty string (got {source!r})"
     root = repo_root.resolve()

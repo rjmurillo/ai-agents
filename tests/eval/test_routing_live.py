@@ -164,6 +164,20 @@ def test_live_argv_carries_model_and_effort_with_the_pinned_flag_shapes() -> Non
     ]  # fmt: skip
 
 
+def test_live_codex_argv_keeps_shared_temp_roots_out_of_the_sandbox() -> None:
+    """Issue #6889: a writable `/tmp` root leaves a stray `/tmp/.git` when a run is killed."""
+    codex = live_mod.live_argv("codex", "gpt-5.6-luna", "high", "PROMPT")
+    copilot = live_mod.live_argv("copilot", "gpt-5.6-luna", "high", "PROMPT")
+
+    for override in (
+        "sandbox_workspace_write.exclude_slash_tmp=true",
+        "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+    ):
+        assert codex[codex.index(override) - 1] == "-c"
+        assert codex.index(override) < codex.index("--")
+    assert not any(arg.startswith("sandbox_workspace_write.") for arg in copilot)
+
+
 def test_role_prompts_differ_by_role_and_carry_the_same_requirement() -> None:
     scenario = _scenario()
     config = parse(config_dict())

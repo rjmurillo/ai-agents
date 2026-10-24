@@ -23,6 +23,9 @@ def _import_script(name: str):
 
 
 _mod = _import_script("new_pr")
+# Load github_core.validation now so the containment fixtures patch the copy
+# new_pr.py uses; a copy loaded after a fixture ran would be unstubbed.
+_mod._load_body_file_reader()
 main = _mod.main
 build_parser = _mod.build_parser
 validate_conventional_commit = _mod.validate_conventional_commit

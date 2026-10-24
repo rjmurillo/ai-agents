@@ -20,7 +20,6 @@ import os
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -88,10 +87,14 @@ def _not_found_message(owner: str, repo: str, pr: int, comment_id: int) -> str:
 
 def _resolve_body(args: argparse.Namespace) -> str:
     if args.body_file:
-        from github_core.validation import assert_valid_body_file
+        from github_core.validation import assert_valid_body_file, read_body_file_text
 
         assert_valid_body_file(args.body_file)
-        return Path(args.body_file).read_text(encoding="utf-8")
+        try:
+            # The strict shared reader (issue #6919), keeping the git-dir reply flow.
+            return read_body_file_text(args.body_file, allow_git_dir=True)
+        except (OSError, ValueError) as exc:
+            error_and_exit(f"Failed to read body file {args.body_file}: {exc}", 2)
     return str(args.body)
 
 

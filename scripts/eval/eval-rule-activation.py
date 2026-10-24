@@ -701,6 +701,47 @@ def _apply_forbidden_claims(
     result["forbidden_claim_hits"] = hits
 
 
+def _proof_point_spec_error(value: object) -> str | None:
+    """Return why a scenario's `proof_points` cannot be graded, or None.
+
+    Each entry is `{id, desc, pattern}`. The pattern is fixed in the file
+    before a run, so the read of each response is decided before any response
+    exists (#6737: the first S7 record changed a regex after reading).
+    """
+    if not isinstance(value, list) or not value:
+        return "proof_points must be a non-empty list"
+    seen: set[str] = set()
+    for idx, entry in enumerate(value):
+        if not isinstance(entry, dict):
+            return f"proof_points[{idx}] must be an object"
+        point_id = entry.get("id")
+        if not isinstance(point_id, str) or not point_id.strip():
+            return f"proof_points[{idx}].id must be a non-empty string"
+        if point_id in seen:
+            return f"proof_points[{idx}].id {point_id!r} repeats"
+        seen.add(point_id)
+        pattern = entry.get("pattern")
+        if not isinstance(pattern, str) or not pattern.strip():
+            return f"proof_points[{idx}].pattern must be a non-empty string"
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            return f"proof_points[{idx}].pattern does not compile: {exc}"
+    return None
+
+
+def grade_proof_points(scenario: dict[str, Any], response: str) -> dict[str, bool]:
+    """Return each declared proof point and whether its pattern matched.
+
+    Case-insensitive and multiline. No judge reads it and no gate uses it: it
+    is a deterministic second read beside the judge scores.
+    """
+    return {
+        entry["id"]: re.search(entry["pattern"], response, re.IGNORECASE | re.MULTILINE) is not None
+        for entry in scenario.get("proof_points", [])
+    }
+
+
 def _clamp_score(value: object) -> int:
     """Return an exact judge score, or 0 after shape validation fails."""
     if isinstance(value, int) and not isinstance(value, bool) and value in _SCORE_RANGE:
@@ -1440,6 +1481,8 @@ def eval_one_scenario(
             mechanism_result["harness"] = harness
         if keep_response:
             mechanism_result["response"] = response
+        if "proof_points" in scenario:
+            mechanism_result["proof_points"] = grade_proof_points(scenario, response)
         # A response cut at the token cap, refused, or otherwise unfinished is
         # shorter than the full answer, so its size says nothing about the rule.
         # Record why, and leave the size fields off: `_size_covers_pool` then
@@ -2618,6 +2661,11 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                     f"ERROR: scenarios[{idx}].{required} must be a non-empty string in {spath}",
                     file=sys.stderr,
                 )
+                return 2
+        if "proof_points" in sc:
+            proof_error = _proof_point_spec_error(sc["proof_points"])
+            if proof_error is not None:
+                print(f"ERROR: scenarios[{idx}]: {proof_error} in {spath}", file=sys.stderr)
                 return 2
         if "decision" in sc:
             decision_error = validate_decision_spec(sc["decision"])
