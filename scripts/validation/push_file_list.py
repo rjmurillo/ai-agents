@@ -20,6 +20,7 @@ Each ref line is ``<local ref> <local sha> <remote ref> <remote sha>``:
 
 - Delete (local sha all zeros): no files. The ref line still reaches stdin jobs.
 - Update: the files that differ between the remote sha and the local sha.
+- A tag on a tree or blob: no files, as for a delete.
 - New ref (remote sha all zeros), or a remote sha this clone lacks: the files
   changed since the merge-base with the remote's default branch. With no known
   default branch, or no common history, every file in the local commit.
@@ -100,21 +101,25 @@ def run_git(arguments: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
 
 
 def parse_ref_lines(data: bytes) -> list[RefUpdate]:
-    """Parse the pre-push stdin. A malformed line raises :class:`PushFileListError`."""
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise PushFileListError(f"pre-push stdin is not UTF-8: {error}") from error
+    """Parse the pre-push stdin. A malformed line raises :class:`PushFileListError`.
+
+    Only the local ref can hold a space: git writes the refspec source as typed,
+    such as ``main@{1 day ago}``, while a remote ref name cannot hold one. So
+    each line splits from the right. Ref names may be any bytes; only the object
+    ids must be ASCII hex.
+    """
     updates: list[RefUpdate] = []
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, line in enumerate(data.splitlines(), start=1):
         if not line.strip():
             continue
-        fields = line.split(" ")
+        fields = line.rsplit(b" ", 3)
         if len(fields) != 4:
             raise PushFileListError(
                 f"pre-push stdin line {number} has {len(fields)} fields, expected 4: {line!r}"
             )
-        local_ref, local_sha, remote_ref, remote_sha = fields
+        local_ref, local_sha, remote_ref, remote_sha = (
+            field.decode("utf-8", errors="replace") for field in fields
+        )
         for sha in (local_sha, remote_sha):
             if not _HEX_SHA.fullmatch(sha):
                 raise PushFileListError(
@@ -138,6 +143,11 @@ def _git_paths(git: GitRunner, arguments: Sequence[str]) -> list[str]:
 
 def _object_exists(git: GitRunner, sha: str) -> bool:
     return git(["cat-file", "-e", sha]).returncode == 0
+
+
+def _is_commit(git: GitRunner, sha: str) -> bool:
+    """Return True when ``sha`` is a commit, or a tag that peels to one."""
+    return git(["rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"]).returncode == 0
 
 
 def _default_branch_sha(git: GitRunner, remote: str | None) -> str | None:
@@ -172,7 +182,11 @@ def _changed(git: GitRunner, old: str, new: str) -> list[str]:
 def _ref_files(git: GitRunner, update: RefUpdate, remote: str | None) -> list[str]:
     if update.is_delete:
         return []
-    if not update.is_new and _object_exists(git, update.remote_sha):
+    if not _is_commit(git, update.local_sha):
+        if _object_exists(git, update.local_sha):
+            return []  # A tag on a tree or blob has no history, so it changes no file.
+        raise PushFileListError(f"the pushed object {update.local_sha} is not in this clone")
+    if not update.is_new and _is_commit(git, update.remote_sha):
         return _changed(git, update.remote_sha, update.local_sha)
     default = _default_branch_sha(git, remote)
     base = _merge_base(git, default, update.local_sha) if default else None
@@ -197,8 +211,15 @@ def arg_budget() -> int:
         limit = os.sysconf("SC_ARG_MAX")
     except (AttributeError, ValueError, OSError):
         return _WINDOWS_ARG_BUDGET
-    # A quarter leaves room for the environment and Lefthook's own arguments.
-    return limit // 4 if limit > 0 else _WINDOWS_ARG_BUDGET
+    if limit <= 0:
+        return _WINDOWS_ARG_BUDGET
+    # The environment shares ARG_MAX with argv on POSIX. The quarter cut leaves
+    # room for Lefthook's own arguments and any later growth of the environment.
+    environment = sum(
+        len(os.fsencode(k)) + len(os.fsencode(v)) + 2 + _POINTER_BYTES
+        for k, v in os.environ.items()
+    )
+    return max(limit // 4 - environment, 0)
 
 
 def _arg_bytes(arguments: Sequence[str]) -> int:

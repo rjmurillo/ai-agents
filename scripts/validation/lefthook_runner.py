@@ -53,7 +53,6 @@ if str(_SCRIPT_DIR) not in sys.path:
 from lefthook_failure_report import (  # noqa: E402
     ChildStartError,
     hook_name,
-    lefthook_argv,
     recorded_stdin,
     run_hook_with_report,
     should_report,
@@ -120,31 +119,49 @@ def _cannot_start(command: list[str], error: Exception) -> int:
     return EXIT_UNAVAILABLE
 
 
-def _pre_push_file_args(arguments: list[str], stdin_bytes: bytes | None) -> list[str]:
-    """Return the ``--file`` arguments for a pre-push run, or none for other runs."""
-    if hook_name(arguments) != "pre-push" or not stdin_bytes:
-        return []
-    if caller_chose_files(arguments[2:]):
-        return []
-    file_args: list[str] = lefthook_file_args(stdin_bytes, _remote_name(arguments[2:]))
-    return file_args
-
-
-# Lefthook ``run`` flags that take a separate value, so the value is not the remote.
+# Lefthook ``run`` flags that take a separate value.
 _VALUE_FLAGS = frozenset({"--job", "--tag", "--command", "--exclude", "--file"})
 
 
-def _remote_name(rest: list[str]) -> str | None:
-    """Return the first git hook argument (the remote name) after any Lefthook flags."""
-    skip_value = False
-    for item in rest:
-        if skip_value:
-            skip_value = False
-        elif item in _VALUE_FLAGS:
-            skip_value = True
-        elif not item.startswith("-"):
-            return item
-    return None
+def _split_hook_arguments(rest: list[str]) -> tuple[list[str], list[str]]:
+    """Split the arguments after ``run pre-push`` into Lefthook flags and git's arguments.
+
+    Git passes a pre-push hook exactly two arguments, the remote name and its
+    URL, after any flags a rerun adds. Taking them from the end, not by their
+    shape, keeps a remote named like a flag (``git remote add -- --file=x``)
+    from being read as one. A trailing value flag such as ``--job x`` marks a
+    call without git's arguments.
+    """
+    if len(rest) >= 2 and rest[-2] not in _VALUE_FLAGS:
+        return rest[:-2], rest[-2:]
+    return rest, []
+
+
+def _child_arguments(arguments: list[str], stdin_bytes: bytes | None) -> list[str]:
+    """Return what Lefthook receives: for pre-push, the file list and a ``--`` boundary.
+
+    ``--`` ends Lefthook's flags, so git's arguments always reach ``{1}`` and
+    ``{2}`` and never act as a flag. With an empty stdin there is no push and
+    no file list. Raises :class:`PushFileListError` when the list cannot be built.
+    """
+    if hook_name(arguments) != "pre-push":
+        return arguments
+    flags, git_arguments = _split_hook_arguments(arguments[2:])
+    file_args: list[str] = []
+    if stdin_bytes and not caller_chose_files(flags):
+        remote = git_arguments[0] if git_arguments else None
+        file_args = lefthook_file_args(stdin_bytes, remote)
+    boundary = ["--", *git_arguments] if git_arguments else []
+    return [*arguments[:2], *file_args, *flags, *boundary]
+
+
+# The command the shim runs, from lefthook.yml. Git hooks run at the repository root.
+RUNNER_COMMAND = ("python3", "scripts/validation/lefthook_runner.py")
+
+
+def _rerun_command(arguments: list[str], command: list[str]) -> list[str]:
+    """Return the command a printed rerun uses: this runner for pre-push, else Lefthook."""
+    return list(RUNNER_COMMAND) if hook_name(arguments) == "pre-push" else command
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_UNAVAILABLE
     stdin_bytes = recorded_stdin(hook_name(arguments))
     try:
-        file_args = _pre_push_file_args(arguments, stdin_bytes)
+        child_arguments = _child_arguments(arguments, stdin_bytes)
     except PushFileListError as error:
         sys.stderr.write(
             f"lefthook_runner: pre-push stopped. The pushed file list cannot be built: "
@@ -165,14 +182,20 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_FILE_LIST
     if should_report(arguments):
         try:
-            reported: int = run_hook_with_report(command, arguments, stdin_bytes, file_args)
+            reported: int = run_hook_with_report(
+                command,
+                arguments,
+                stdin_bytes,
+                child_arguments,
+                _rerun_command(arguments, command),
+            )
         except ChildStartError as error:
             return _cannot_start(command, error)
         return reported
     try:
         sys.stdout.flush()
         return subprocess.run(
-            lefthook_argv(command, arguments, file_args), input=stdin_bytes, check=False
+            [*command, *child_arguments], input=stdin_bytes, check=False
         ).returncode
     except OSError as error:
         return _cannot_start(command, error)

@@ -187,24 +187,23 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
         raise
 
 
-def lefthook_argv(
-    command: Sequence[str], arguments: Sequence[str], file_args: Sequence[str]
-) -> list[str]:
-    """Return the Lefthook argv with ``file_args`` placed right after ``run <hook>``."""
-    return [*command, *arguments[:2], *file_args, *arguments[2:]]
-
-
 def run_hook_with_report(
     command: Sequence[str],
     arguments: Sequence[str],
     stdin_bytes: bytes | None,
-    file_args: Sequence[str] = (),
+    child_arguments: Sequence[str] | None = None,
+    rerun_command: Sequence[str] | None = None,
 ) -> int:
     """Run ``run <hook>`` and report any failed job.
 
     ``stdin_bytes`` is what git wrote to the hook's stdin (see
-    :func:`recorded_stdin`), replayed to Lefthook. ``file_args`` set the pre-push
-    file list and stay out of the printed rerun commands, which can be long.
+    :func:`recorded_stdin`), replayed to Lefthook. ``child_arguments``, when
+    given, are what Lefthook receives instead of ``arguments``: for pre-push they
+    add the file list, which stays out of the printed rerun commands because it
+    can be long.
+    ``rerun_command`` replaces ``command`` in those printed commands. A pre-push
+    rerun must go through the runner, which rebuilds the file list; raw Lefthook
+    skips every job when HEAD is level with its push base (issue #6884).
 
     Output is forwarded line by line as Lefthook writes it, so a job that fails
     early shows its text while slower jobs still run, and an interrupt keeps
@@ -216,7 +215,7 @@ def run_hook_with_report(
     sys.stdout.flush()
     try:
         process = subprocess.Popen(
-            lefthook_argv(command, arguments, file_args),
+            [*command, *(arguments if child_arguments is None else child_arguments)],
             stdin=subprocess.PIPE if stdin_bytes is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -236,5 +235,6 @@ def run_hook_with_report(
     finally:
         _stop(process)
     if status != 0:
-        sys.stderr.write(failure_report(command, arguments, status, jobs, refs))
+        rerun = command if rerun_command is None else rerun_command
+        sys.stderr.write(failure_report(rerun, arguments, status, jobs, refs))
     return status

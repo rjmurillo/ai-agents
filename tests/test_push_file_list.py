@@ -250,8 +250,44 @@ def test_empty_stdin_is_no_push_and_adds_no_arguments(repo: Repo) -> None:
 
 
 def test_a_missing_local_object_stops_the_push(repo: Repo) -> None:
-    with pytest.raises(pfl.PushFileListError, match="failed"):
+    with pytest.raises(pfl.PushFileListError, match="not in this clone"):
         repo.files([f"refs/heads/x {'2' * 40} refs/heads/x {repo.git('rev-parse', 'HEAD')}"])
+
+
+@pytest.mark.parametrize("target", ["HEAD^{tree}", "HEAD:README.md"], ids=["tree", "blob"])
+def test_a_tag_on_a_tree_or_blob_names_the_placeholder(repo: Repo, target: str) -> None:
+    obj = repo.git("rev-parse", target)
+    repo.git("tag", "odd", obj)
+
+    assert repo.args([f"refs/tags/odd {obj} refs/tags/odd {ZERO}"]) == [f"--file={pfl.PLACEHOLDER}"]
+
+
+def test_an_annotated_tag_lists_the_files_of_its_commit(repo: Repo) -> None:
+    repo.commit({"tagged.txt": "t\n"})
+    repo.git("tag", "-a", "-m", "v", "v1")
+    tag = repo.git("rev-parse", "v1")
+
+    assert repo.files([f"refs/tags/v1 {tag} refs/tags/v1 {ZERO}"]) == ["tagged.txt"]
+
+
+def test_an_update_from_a_remote_tree_compares_against_the_default_branch(repo: Repo) -> None:
+    tree = repo.git("rev-parse", "HEAD^{tree}")
+    head = repo.commit({"new.txt": "n\n"})
+
+    assert repo.files([f"refs/tags/t {head} refs/tags/t {tree}"]) == ["new.txt"]
+
+
+def test_a_local_ref_with_spaces_or_odd_bytes_still_parses() -> None:
+    """Git writes the refspec source as typed, so field 1 may hold spaces."""
+    sha = "c" * 40
+    data = f"main@{{1 day ago}} {sha} refs/heads/x {ZERO}\n".encode() + (
+        b"refs/heads/\xff " + sha.encode() + b" refs/heads/y " + ZERO.encode() + b"\n"
+    )
+
+    updates = pfl.parse_ref_lines(data)
+
+    assert [update.local_ref for update in updates] == ["main@{1 day ago}", "refs/heads/\ufffd"]
+    assert all(update.local_sha == sha for update in updates)
 
 
 def test_parse_accepts_64_digit_ids_and_skips_blank_lines() -> None:
@@ -270,8 +306,9 @@ def test_parse_accepts_64_digit_ids_and_skips_blank_lines() -> None:
         (f"refs/heads/x {'A' * 40} refs/heads/x {ZERO}\n".encode(), "invalid object id"),
         (f"refs/heads/x {'a' * 39} refs/heads/x {ZERO}\n".encode(), "invalid object id"),
         (b"only three fields\n", "3 fields"),
-        (f"a {'a' * 40} b {ZERO} extra\n".encode(), "5 fields"),
-        (b"\xff\xfe\n", "not UTF-8"),
+        (f"a {'a' * 40} b {ZERO} extra\n".encode(), "invalid object id"),
+        (b"\xff\xfe\n", "1 fields"),
+        (f"refs/heads/x {'a' * 40} refs/heads/x \xe9{'0' * 39}\n".encode(), "invalid object id"),
     ],
 )
 def test_a_malformed_line_stops_the_push(data: bytes, message: str) -> None:
@@ -307,9 +344,14 @@ def test_a_diff_error_stops_the_push() -> None:
         pfl.lefthook_file_args(line, "origin", git)
 
 
-def test_git_that_cannot_start_stops_the_push(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "error", [FileNotFoundError("git"), subprocess.TimeoutExpired(["git"], 120)]
+)
+def test_git_that_cannot_start_or_finish_stops_the_push(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
     def broken(*_args: object, **_kwargs: object) -> None:
-        raise FileNotFoundError("git")
+        raise error
 
     monkeypatch.setattr(pfl.subprocess, "run", broken)
     with pytest.raises(pfl.PushFileListError, match="cannot run git"):
@@ -333,9 +375,19 @@ def test_caller_chose_files(arguments: list[str], chosen: bool) -> None:
     assert pfl.caller_chose_files(arguments) is chosen
 
 
-def test_arg_budget_is_a_quarter_of_arg_max(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_arg_budget_is_a_quarter_of_arg_max_less_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(pfl.os, "sysconf", lambda _name: 4_000_000, raising=False)
-    assert pfl.arg_budget() == 1_000_000
+    monkeypatch.setattr(pfl.os, "environ", {"AB": "cd"})
+    # "AB=cd" plus its NUL is 6 bytes, plus an 8-byte pointer.
+    assert pfl.arg_budget() == 1_000_000 - 14
+
+
+def test_a_huge_environment_leaves_no_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pfl.os, "sysconf", lambda _name: 400, raising=False)
+    monkeypatch.setattr(pfl.os, "environ", {"BIG": "x" * 500})
+    assert pfl.arg_budget() == 0
 
 
 @pytest.mark.parametrize("error", [AttributeError, ValueError, OSError])

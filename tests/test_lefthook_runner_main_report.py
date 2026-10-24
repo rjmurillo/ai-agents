@@ -137,12 +137,17 @@ def test_main_replays_stdin_to_a_pre_push_child_and_into_the_rerun(
         "run",
         "pre-push",
         "--file=x.py",
+        "--",
         "origin",
         "https://u:tok@h/r.git",
     ]
     assert f"printf '%s\\n' 'refs/heads/x {LOCAL_SHA} refs/heads/x {ZERO_SHA}' |" in err
-    # The file list can be long, so the printed rerun leaves it out.
+    # The file list can be long, so the printed rerun leaves it out and goes
+    # through the runner, which rebuilds it. Raw Lefthook would skip every job
+    # when HEAD is level with its push base (issue #6884).
     assert "--file=x.py" not in err
+    assert "| python3 scripts/validation/lefthook_runner.py run pre-push --job a origin" in err
+    assert "uv run --frozen lefthook run pre-push" not in err
 
 
 def test_main_refuses_the_push_when_the_file_list_cannot_be_built(
@@ -178,7 +183,15 @@ def test_a_caller_chosen_output_mode_still_gets_the_file_list_and_the_stdin(
         status = runner.main(["run", "pre-push", "origin", "url"])
 
     assert status == 0
-    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "--file=x.py", "origin", "url"]
+    assert run.call_args.args[0] == [
+        *COMMAND,
+        "run",
+        "pre-push",
+        "--file=x.py",
+        "--",
+        "origin",
+        "url",
+    ]
     assert run.call_args.kwargs["input"] == REF_LINE.encode()
 
 
@@ -198,23 +211,86 @@ def test_a_caller_chosen_file_list_is_left_alone(
         runner.main(["run", "pre-push", flag, "origin", "url"])
 
     files.assert_not_called()
-    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", flag, "origin", "url"]
+    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", flag, "--", "origin", "url"]
 
 
 @pytest.mark.parametrize(
-    ("rest", "remote"),
+    ("rest", "flags", "git_arguments"),
     [
-        (["origin", "url"], "origin"),
-        (["--job", "push-ref-policy", "origin", "url"], "origin"),
-        (["--no-tty", "upstream", "url"], "upstream"),
-        (["--job"], None),
-        ([], None),
+        (["origin", "url"], [], ["origin", "url"]),
+        (
+            ["--job", "push-ref-policy", "origin", "url"],
+            ["--job", "push-ref-policy"],
+            ["origin", "url"],
+        ),
+        (["--no-tty", "upstream", "url"], ["--no-tty"], ["upstream", "url"]),
+        (["--file=README.md", "url"], [], ["--file=README.md", "url"]),
+        (["--job", "x"], ["--job", "x"], []),
+        (["--job"], ["--job"], []),
+        ([], [], []),
     ],
 )
-def test_the_remote_is_the_first_hook_argument_after_lefthook_flags(
-    rest: list[str], remote: str | None
+def test_git_arguments_are_the_last_two(
+    rest: list[str], flags: list[str], git_arguments: list[str]
 ) -> None:
-    assert runner._remote_name(rest) == remote
+    assert runner._split_hook_arguments(rest) == (flags, git_arguments)
+
+
+@pytest.mark.parametrize("remote", ["--force", "--file=README.md", "--all-files"])
+def test_a_remote_named_like_a_file_flag_keeps_the_file_list(
+    monkeypatch: pytest.MonkeyPatch, remote: str
+) -> None:
+    """``git remote add -- --file=README.md`` is valid, so git's arguments go after ``--``."""
+    _pipe_stdin(monkeypatch, REF_LINE)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.dict(os.environ, {report_module.OUTPUT_ENV: "failure"}),
+        mock.patch.object(runner, "lefthook_file_args", return_value=["--file=x.py"]) as files,
+        mock.patch.object(runner.subprocess, "run", return_value=_completed(0, "")) as run,
+    ):
+        runner.main(["run", "pre-push", remote, "url"])
+
+    files.assert_called_once_with(REF_LINE.encode(), remote)
+    assert run.call_args.args[0] == [
+        *COMMAND,
+        "run",
+        "pre-push",
+        "--file=x.py",
+        "--",
+        remote,
+        "url",
+    ]
+
+
+def test_a_pre_push_run_without_git_arguments_adds_no_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pipe_stdin(monkeypatch, REF_LINE)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.dict(os.environ, {report_module.OUTPUT_ENV: "failure"}),
+        mock.patch.object(runner, "lefthook_file_args", return_value=["--file=x.py"]) as files,
+        mock.patch.object(runner.subprocess, "run", return_value=_completed(0, "")) as run,
+    ):
+        runner.main(["run", "pre-push", "--job", "x"])
+
+    files.assert_called_once_with(REF_LINE.encode(), None)
+    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "--file=x.py", "--job", "x"]
+
+
+def test_a_pre_commit_rerun_still_names_lefthook(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.object(
+            runner.subprocess, "Popen", return_value=_FakeProcess(1, _lefthook_failure("a", "x"))
+        ),
+    ):
+        runner.main(["run", "pre-commit"])
+
+    assert "rerun: uv run --frozen lefthook run pre-commit --job a" in capsys.readouterr().err
 
 
 def test_pre_push_with_empty_stdin_adds_no_file_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -226,7 +302,7 @@ def test_pre_push_with_empty_stdin_adds_no_file_list(monkeypatch: pytest.MonkeyP
     ):
         runner.main(["run", "pre-push", "origin", "url"])
 
-    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "origin", "url"]
+    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "--", "origin", "url"]
 
 
 def test_main_leaves_a_caller_chosen_output_mode_alone() -> None:
@@ -292,7 +368,10 @@ def test_pre_push_without_readable_stdin_runs_the_hook_and_replays_no_refs(
     assert status == 1
     assert popen.call_args.kwargs["stdin"] is None
     assert "printf" not in err
-    assert "rerun: uv run --frozen lefthook run pre-push --job a origin url" in err
+    assert (
+        "rerun: python3 scripts/validation/lefthook_runner.py run pre-push --job a origin url"
+        in err
+    )
 
 
 class _Failing(io.BytesIO):
