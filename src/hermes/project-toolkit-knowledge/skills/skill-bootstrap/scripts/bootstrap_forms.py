@@ -20,6 +20,8 @@ Subcommand:
               {item, rule, message}. With `--require-scripts` and
               `--skills-root`, also flag instrument or both items whose
               `<skills-root>/<skill>/<script>` file does not exist.
+              The gate stays strict (owner decision D18, 2026-10-24). It
+              loosens only when a named consumer needs it.
 
 Plan shape:
 

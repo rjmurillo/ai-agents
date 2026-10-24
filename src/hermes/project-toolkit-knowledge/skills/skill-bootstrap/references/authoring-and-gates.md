@@ -211,7 +211,7 @@ frozen cases. Build it in every run.
    |---|---|---|
    | `gain` | The skill raises the pass rate | Keep |
    | `no_gap` | Baseline already passes | The knowledge is not missing. In `knowledge` mode, a skill whose cases are all `no_gap` fails the gate, enforced by `score --mode knowledge` (exit 1, cases listed in `failing_cases`): drop the skill |
-   | `flat` | Equal pass rates, below 1.0 | The skill does not transfer. Fix the skill or the case. `score` exits 0 on `flat`, even when every case of a skill is `flat`, so read the status yourself |
+   | `flat` | Equal pass rates, below 1.0 | The skill does not transfer. Fix the skill or the case. `score` exits 1 when every case of a skill is `flat`, names the skill under `flat_skills`, and lists its cases in `failing_cases`. One `flat` case among other statuses does not fail |
    | `regression` | The skill lowers the pass rate | Blocking finding |
    | `incomplete` | A condition has no runs, or a run is ungraded (regex timeout) | Run it, or report it under Limits |
 
