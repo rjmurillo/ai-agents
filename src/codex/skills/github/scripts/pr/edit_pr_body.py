@@ -8,16 +8,19 @@ conditional headers on this PATCH endpoint, so it cannot prevent an edit made
 between that read and the update request.
 
 Safety behavior:
-  - Reads --body-file through the shared body-file containment rule
-    (``github_core.validation.read_body_file_text``), the same rule that
-    ``close_issue.py`` and ``post_issue_comment.py`` apply: the path must
-    resolve under the repo root, a temp directory, or the git dir. A session
-    scratchpad passes. Relative paths resolve against the repo root. The file
-    is opened with O_NOFOLLOW, must be a regular file, and is refused while it
-    still holds the placeholder line that ``new_pr.py --prepare-body-file``
-    seeds. Prefer a unique name per caller: concurrent sessions that share a
-    fixed name such as body.md can publish each other's text, and
-    ``--prepare-body-file`` hands each caller a unique random name.
+  - Reads --body-file through ``github_core.validation.read_body_file_text``,
+    the reader every body-file script shares. The path must resolve under the
+    repo root or a temp directory; this script refuses the git dir. A session
+    scratchpad passes. Relative paths resolve against the repo root. The
+    reader refuses repo dotfiles, symlinks, FIFOs, a file owned by another
+    user, a file with more than one hard link, a world-writable file, and a
+    temp directory another user can write. A group-writable file needs an
+    owner-only directory above it, and a ``pr-body-*.md`` file needs mode
+    600. The body is refused while it still holds the placeholder line that
+    ``new_pr.py --prepare-body-file`` seeds. Prefer a unique name per caller:
+    concurrent sessions that share a fixed name such as body.md can publish
+    each other's text, and ``--prepare-body-file`` hands each caller a unique
+    random name.
   - Rejects a body whose hash differs from the caller's expected hash.
   - No-ops when the new body equals the current body.
   - Warns when the resulting body contains em/en dashes, including retained
@@ -262,9 +265,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--body-file",
         default=None,
         help=(
-            "Path to a file holding the new body. It must resolve under the "
-            "repo root, a temp directory, or the git dir, the same rule the "
-            "other body-file scripts use. A path printed by new_pr.py "
+            "Path to a file holding the new body, under the repo root or a "
+            "temp directory, read by the reader every body-file script shares. "
+            "It must be a plain file you own. A path printed by new_pr.py "
             "--prepare-body-file works and avoids name collisions between "
             "concurrent sessions."
         ),

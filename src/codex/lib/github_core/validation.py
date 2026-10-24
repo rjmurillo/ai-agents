@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import stat
 from pathlib import Path
 
 # Owner: alphanumeric + hyphens, 1-39 chars, cannot start/end with hyphen
@@ -173,9 +172,10 @@ def is_allowed_body_file_path(path: str) -> bool:
     prefix test, so a symlink under an approved root that points elsewhere is
     rejected. The caller owns the existence check.
 
-    ``new_pr.py`` and ``edit_pr_body.py`` read their body file through
-    :func:`read_body_file_text`, which applies this same rule (owner decision
-    D14, 2026-10-24, issue #6667).
+    Five scripts read their body file through :func:`read_body_file_text`,
+    which applies this rule and the stricter location and open checks (owner
+    decision D14, 2026-10-24, issue #6667). ``new_pr.py`` and
+    ``edit_pr_body.py`` refuse the git dir there; the issue scripts keep it.
 
     Args:
         path: The file path to check.
@@ -197,57 +197,19 @@ def is_allowed_body_file_path(path: str) -> bool:
     return False
 
 
-def read_body_file_text(path: str, base: str | Path | None = None) -> str:
-    """Read a UTF-8 body file that the shared containment rule approves.
+def read_body_file_text(
+    path: str,
+    base: str | Path | None = None,
+    *,
+    allow_git_dir: bool = False,
+) -> str:
+    """Read a body file through the strict shared reader in ``body_file``.
 
-    Used by ``new_pr.py`` and ``edit_pr_body.py`` so a PR body file follows the
-    same rule as every other body or comment file (issue #6667). A relative
-    ``path`` resolves against ``base`` when given, else the working directory.
-
-    The path is resolved once, the rule is tested on the resolved path, and
-    that same resolved path is opened with ``O_NOFOLLOW`` and ``O_NONBLOCK``.
-    A symlink swapped in for the final component after the check fails the
-    open instead of leaking its target, and a FIFO cannot hang the read. Only
-    a regular file is read. A swap of a parent directory between the resolve
-    and the open is not covered; keep body files in a private directory.
-
-    Args:
-        path: The body file path.
-        base: Directory a relative ``path`` resolves against.
-
-    Returns:
-        The file text.
-
-    Raises:
-        ValueError: The path has a parent-directory segment, is outside every
-            approved root, or is not a regular file. A ``UnicodeError`` (also a
-            ``ValueError``) reports a file that is not UTF-8.
-        OSError: The file is missing or unreadable.
+    See :func:`github_core.body_file.read_body_file_text` for the checks.
     """
-    candidate = Path(path)
-    if base is not None and not candidate.is_absolute():
-        candidate = Path(base) / candidate
-    if _TRAVERSAL_PATTERN.search(str(candidate)):
-        raise ValueError(f"body file path contains a parent-directory segment: {path}")
-    resolved = candidate.resolve()
-    if not is_allowed_body_file_path(str(resolved)):
-        raise ValueError(
-            f"body file must be under the repo root, a temp directory, or the git dir: {path}"
-        )
+    from .body_file import read_body_file_text as _read  # avoid cycle
 
-    descriptor = os.open(
-        resolved,
-        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
-    )
-    try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError(f"body file must be a regular file: {path}")
-        with os.fdopen(descriptor, encoding="utf-8") as body_file:
-            descriptor = -1
-            return body_file.read()
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
+    return _read(path, base, allow_git_dir=allow_git_dir)
 
 
 def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> None:

@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.containment_fixtures import private_dir
 
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
@@ -276,8 +277,7 @@ class TestCommentFileContainment:
     def test_scratchpad_comment_file_under_temp_dir_reopens(self, tmp_path, capsys, monkeypatch):
         workspace = tmp_path / "workspace"
         workspace.mkdir()
-        scratch = tmp_path / "claude-1000" / "scratchpad"
-        scratch.mkdir(parents=True)
+        scratch = private_dir(tmp_path / "claude-1000" / "scratchpad")
         body = scratch / "reopen.md"
         body.write_text("Reopening from scratchpad.", encoding="utf-8")
         monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
@@ -295,8 +295,7 @@ class TestCommentFileContainment:
         self, tmp_path, capsys, monkeypatch, stub_temp_roots
     ):
         """GITHUB_WORKSPACE only resolves the relative path. The temp root approves it."""
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
+        workspace = private_dir(tmp_path / "workspace")
         body = workspace / "note.md"
         body.write_text("Relative note.", encoding="utf-8")
         monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))

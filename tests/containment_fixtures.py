@@ -14,6 +14,24 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def private_dir(path: Path) -> Path:
+    """Create ``path`` and its missing parents as owner-only (mode 700) directories.
+
+    A real session scratchpad is owner-only at every level below ``/tmp``. The
+    shared body-file reader refuses a group-writable directory below a temp
+    root, and a umask of 002 gives a plain ``mkdir`` mode 775 (issue #6667).
+    """
+    missing = []
+    current = path
+    while not current.exists():
+        missing.append(current)
+        current = current.parent
+    for directory in reversed(missing):
+        directory.mkdir(mode=0o700)
+        directory.chmod(0o700)
+    return path
+
+
 def _github_core_modules(submodule: str) -> list:
     """Return every loaded copy of ``github_core.<submodule>``.
 
