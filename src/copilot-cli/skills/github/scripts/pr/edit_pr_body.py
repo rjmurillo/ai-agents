@@ -8,14 +8,16 @@ conditional headers on this PATCH endpoint, so it cannot prevent an edit made
 between that read and the update request.
 
 Safety behavior:
-  - Reads --body-file only from a private file allocated by
-    ``new_pr.py --prepare-body-file`` (.project-toolkit/scratch/pr-body-*.md,
-    mode 600). Concurrent sessions that share a fixed name such as body.md
-    cannot publish each other's text, because the allocator hands each caller
-    a unique random name. This script refuses every other path, and also
-    refuses a matching path whose placeholder is untouched, whose mode has
-    group or other bits, that is a symlink or hard link, or that another
-    owner holds.
+  - Reads --body-file through the shared body-file containment rule
+    (``github_core.validation.read_body_file_text``), the same rule that
+    ``close_issue.py`` and ``post_issue_comment.py`` apply: the path must
+    resolve under the repo root, a temp directory, or the git dir. A session
+    scratchpad passes. Relative paths resolve against the repo root. The file
+    is opened with O_NOFOLLOW, must be a regular file, and is refused while it
+    still holds the placeholder line that ``new_pr.py --prepare-body-file``
+    seeds. Prefer a unique name per caller: concurrent sessions that share a
+    fixed name such as body.md can publish each other's text, and
+    ``--prepare-body-file`` hands each caller a unique random name.
   - Rejects a body whose hash differs from the caller's expected hash.
   - No-ops when the new body equals the current body.
   - Warns when the resulting body contains em/en dashes, including retained
@@ -71,6 +73,7 @@ from github_core.output import (
     write_skill_output,
 )
 from github_core.repo import get_repo_root
+from github_core.validation import read_body_file_text
 
 
 def _load_prepare_module():
@@ -92,7 +95,7 @@ def _load_prepare_module():
 
 _prepare = _load_prepare_module()
 PreparePrBodyError = _prepare.PreparePrBodyError
-read_prepared_pr_body = _prepare.read_prepared_pr_body
+reject_unreplaced_placeholder = _prepare.reject_unreplaced_placeholder
 
 _SCRIPT_NAME = "edit_pr_body.py"
 
@@ -232,16 +235,18 @@ def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
 
 
 def _read_new_body(args: argparse.Namespace) -> tuple[str, str | None]:
-    """Return ``(body, error)``; when ``--body-file`` is set it must be a prepared private file."""
+    """Return ``(body, error)``; ``--body-file`` follows the shared containment rule."""
     if not args.body_file:
         return args.body or "", None
+    # A relative path resolves against the repo root when git can name one,
+    # else against the working directory. An absolute path needs no root.
     root = get_repo_root()
-    if root is None:
-        return "", "Cannot resolve the repository root to locate the prepared body file"
     try:
-        return str(read_prepared_pr_body(root, args.body_file)), None
-    except (OSError, UnicodeError, PreparePrBodyError) as exc:
+        body = read_body_file_text(args.body_file, root)
+        reject_unreplaced_placeholder(body)
+    except (OSError, ValueError, PreparePrBodyError) as exc:
         return "", f"Invalid --body-file: {exc}"
+    return body, None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -257,10 +262,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--body-file",
         default=None,
         help=(
-            "Relative path printed by new_pr.py --prepare-body-file, for "
-            "example .project-toolkit/scratch/pr-body-<token>.md (mode 600). "
-            "Do not pass an absolute path: it is refused even when it "
-            "resolves to a valid prepared file. Any other path is refused."
+            "Path to a file holding the new body. It must resolve under the "
+            "repo root, a temp directory, or the git dir, the same rule the "
+            "other body-file scripts use. A path printed by new_pr.py "
+            "--prepare-body-file works and avoids name collisions between "
+            "concurrent sessions."
         ),
     )
     p.add_argument(

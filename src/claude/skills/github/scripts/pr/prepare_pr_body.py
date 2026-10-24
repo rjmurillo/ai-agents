@@ -253,6 +253,17 @@ def _validate_body_metadata(
         raise PreparePrBodyError(f"body file changed before read: {relative_path}")
 
 
+def reject_unreplaced_placeholder(content: str) -> None:
+    """Raise when a whole line of ``content`` is the line ``prepare_pr_body`` seeds.
+
+    A body that quotes the marker inside prose or a code span is not a seed
+    and passes.
+    """
+    marker = _BODY_PLACEHOLDER.strip()
+    if any(line.strip() == marker for line in content.splitlines()):
+        raise PreparePrBodyError("body placeholder was not replaced")
+
+
 def read_prepared_pr_body(repo_root: Path, relative_path: str) -> str:
     """Read one allocated body without following links or leaving scratch."""
     path = _validate_body_path(relative_path)
@@ -277,8 +288,7 @@ def read_prepared_pr_body(repo_root: Path, relative_path: str) -> str:
         with os.fdopen(descriptor, encoding="utf-8") as body_file:
             descriptor = -1
             content = body_file.read()
-        if _BODY_PLACEHOLDER.strip() in content:
-            raise PreparePrBodyError("body placeholder was not replaced")
+        reject_unreplaced_placeholder(content)
         return content
     except FileNotFoundError as exc:
         raise PreparePrBodyError(f"body file not found: {relative_path}") from exc

@@ -374,3 +374,16 @@ def test_reads_seeded_body_once_the_placeholder_line_is_removed(tmp_path: Path) 
     )
 
     assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n\nfilled in\n"
+
+
+def test_reject_unreplaced_placeholder_flags_the_seed_line() -> None:
+    with pytest.raises(_MODULE.PreparePrBodyError, match="placeholder was not replaced"):
+        _MODULE.reject_unreplaced_placeholder("<!-- replace with PR body -->\nrest")
+
+
+def test_reject_unreplaced_placeholder_accepts_a_quoted_marker() -> None:
+    _MODULE.reject_unreplaced_placeholder("The seed is `<!-- replace with PR body -->` today.\n")
+
+
+def test_reject_unreplaced_placeholder_accepts_a_written_body() -> None:
+    _MODULE.reject_unreplaced_placeholder("## Summary\n\nDone.\n")

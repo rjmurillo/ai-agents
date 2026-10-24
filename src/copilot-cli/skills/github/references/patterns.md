@@ -38,10 +38,11 @@ python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --ma
 
 For multi-line content, use `--body-file` to avoid escaping issues.
 
-`new_pr.py` and `edit_pr_body.py` take only a private file from the prepare
-step. Run `new_pr.py --prepare-body-file`, fill the relative path it prints,
-and pass that path. Any other path, including an absolute one, is refused.
-Other scripts still accept an arbitrary file.
+Every body-file script, `new_pr.py` and `edit_pr_body.py` included, accepts a
+path under the repo root, a temp directory, or the git dir. A session
+scratchpad passes. When sessions share one scratch directory, run
+`new_pr.py --prepare-body-file` for a unique name, fill the relative path it
+prints, and pass that path.
 
 ---
 

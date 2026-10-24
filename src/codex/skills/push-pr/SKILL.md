@@ -120,7 +120,7 @@ Based on the above changes:
    ```
 
 - Branch checked out in a worktree outside the clone, and the command runs from another checkout (for example the primary clone): append `--head "<branch>"`. Running the command from the worktree itself needs no `--head`, because `new_pr.py` uses the current branch. Never remove the worktree to open the PR. Push the branch first, since `gh` resolves the head on the remote. `new_pr.py` exits 2 and prints the push command when origin lacks the branch.
-- A rejected body file names both rules at once: the file name pattern and mode 600. `--prepare-body-file` creates a file that meets both.
+- A rejected body file fails the containment rule: the path must resolve under the repo root, a temp directory, or the git dir. `--prepare-body-file` creates a unique path that passes.
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
 - Body SHOULD include GitHub issue linking keywords to auto-close issues:
   - `Closes #123`: auto-closes issue when PR merges
