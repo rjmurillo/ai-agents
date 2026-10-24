@@ -64,6 +64,26 @@ _BLOCKED_BILLING_ENV = frozenset({"CODEX_API_KEY", "OPENAI_API_KEY", "OPENAI_BAS
 _ENV_ALLOWLIST = BASE_ENV_ALLOWLIST | {"CODEX_HOME"}
 
 
+#: Keeps `/tmp` and `$TMPDIR` out of the workspace-write roots. Without these two
+#: overrides Codex's Linux sandbox runs `mkdir /newroot/tmp/.git` for the `/tmp`
+#: root, which creates `<tempdir>/.git` on the host, and removes it only when
+#: the parent exits cleanly. A killed run leaves the stub, `<tempdir>` then reads
+#: as a repository root, and git-root tests fail (issue #6889). Measured on
+#: codex-cli 0.163.0 with `strace -f -e trace=mkdir,rmdir`. The working directory
+#: stays writable; only the shared temp roots are dropped.
+WORKSPACE_WRITE_NO_TEMP_ROOTS: tuple[str, ...] = (
+    "-c",
+    "sandbox_workspace_write.exclude_slash_tmp=true",
+    "-c",
+    "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+)
+
+
+def sandbox_temp_root_overrides(sandbox: str) -> list[str]:
+    """Return the `-c` overrides that keep shared temp roots out of `sandbox`."""
+    return list(WORKSPACE_WRITE_NO_TEMP_ROOTS) if sandbox == "workspace-write" else []
+
+
 def _toml_string(text: str) -> str:
     """A TOML basic string for `text`. JSON escapes control characters but leaves DEL raw."""
     return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
@@ -90,6 +110,7 @@ def codex_argv(
         "--ephemeral",
         "-s",
         sandbox,
+        *sandbox_temp_root_overrides(sandbox),
         "-m",
         model,
         "-c",
