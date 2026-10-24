@@ -647,11 +647,12 @@ What changed:
   job, 77 percent of the pre-push wall clock. `count-ratchets` fell from 40.2s to 28.4s. Those
   two set the critical path, so pre-push p50 fell from 263s to 135s in all three classes.
 - Pre-commit `agents-write-targets` fell from 23.8s to 2.7s and `subprocess-encoding` from
-  13.2s to 5.4s. Pre-commit p50 fell from 25.5s to 27.9s (by class) to 4.4s to 7.1s.
+  13.2s to 5.4s. Across the three classes, pre-commit p50 fell from a range of 25.5s to 27.9s
+  to a range of 4.4s to 7.1s.
 - `zero-collection-tests` (36.9s) is now the second-longest job in the parallel group that
   holds `pre-pr-validation`. `python-unreachable-statements` is flat at 17.2s.
-- Two jobs slowed by more than 0.3s at p50. `dash-prohibition` went from 0.69s to 1.13s in
-  the `python` row, and `zero-collection-tests` went up 0.7s to 0.9s in each row.
+- Two jobs slowed by more than 0.3s at p50. `dash-prohibition` went from about 0.7s to about
+  1.1s in every pre-push row, and `zero-collection-tests` went up 0.7s to 0.9s in each row.
 - The 36 commits between the two SHAs include the `perf(validation)` PRs #6864 to #6878. This
   measurement does not isolate which commit moved which row.
 
