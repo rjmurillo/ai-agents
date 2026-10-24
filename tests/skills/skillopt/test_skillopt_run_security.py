@@ -272,6 +272,14 @@ class TestRunIsolation:
         assert time.monotonic() - started < 30
         assert results_of(out) == {"a": False}
 
+    def test_fast_writer_that_exits_before_the_next_poll_still_fails(self, tmp_path: Path) -> None:
+        code = "import sys; sys.stdout.write('x' * (4 * 1024 * 1024))"
+        tasks = {f"a{i}": task(py(code)) for i in range(5)}
+        eval_path = make_eval(tmp_path, tasks)
+        out = tmp_path / "out"
+        assert skillopt.main(run_argv(eval_path, bundle_of(tmp_path), out)) == 0
+        assert results_of(out) == {f"a{i}": False for i in range(5)}
+
     def test_output_at_the_cap_is_accepted(self, tmp_path: Path) -> None:
         code = "import sys; sys.stdout.write('x' * 1024 * 1024)"
         eval_path = make_eval(tmp_path, {"a": task(py(code))})

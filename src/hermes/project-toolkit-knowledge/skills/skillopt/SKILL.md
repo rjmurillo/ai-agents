@@ -140,10 +140,13 @@ One optimization step:
    Record `{"task_id": true|false}` to `incumbent_results.json` and hash the
    incumbent: `skillopt.py hash target.md`. For tasks with an argv `command`,
    `skillopt.py run --eval eval.json --bundle DIR --role incumbent --out-dir
-   results/` runs them and writes the file; read the security note in
+   results/` runs them and writes `results/incumbent_results.json`. It
+   replaces the whole file, so run it first and add your grades for tasks with
+   no `command` after it finishes. Read the security note in
    `references/eval-set-format.md` first, because `eval.json` commands run any
    binary on `PATH`. When the target is a skill directory with scripts, pass
-   the directory to `hash` and `apply`; it hashes as one whole bundle. When the manifest sets
+   the directory to `hash` and `apply`; it hashes as one whole bundle. When the
+   manifest sets
    `"scorer": "nondeterministic"`, the `sel` runner also reruns the
    byte-identical incumbent into `null_results.json` now (see Before
    promotion, step 2).
@@ -165,11 +168,13 @@ One optimization step:
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
    The `sel` runner does the `sel` half. For command tasks, run
    `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
-   --out-dir results/`. A bundle `apply` writes a new directory; edit its
+   --out-dir results/`, then add your grades for tasks with no `command`. A
+   bundle `apply` writes a new directory; edit its
    scripts after `apply`, then `hash` it again, since that digest is the
    candidate's identity.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
-   incumbent_results.json --candidate-results candidate_results.json`. For a
+   incumbent_results.json --candidate-results candidate_results.json`. If you
+   used `run --out-dir results/`, pass the files under `results/`. For a
    nondeterministic scorer, add `--null-results null_results.json
    --incumbent-sha256 <sha> --null-sha256 <sha>`; without them the gate exits
    2.

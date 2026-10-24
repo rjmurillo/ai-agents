@@ -210,10 +210,10 @@ def select_tasks(
     for task_id in ordered:
         task = tasks.get(task_id)
         if task is None:
-            skipped.append(task_id)
-        elif not isinstance(task, dict):
+            raise SkillOptError(f"task {task_id}: named by a split but missing from 'tasks'")
+        if not isinstance(task, dict):
             raise SkillOptError(f"task {task_id}: must be an object")
-        elif "command" in task:
+        if "command" in task:
             runnable.append(validate_task(task_id, task, bundle))
         elif any(key in task for key in ("expect_exit", "expect_stdout", "timeout")):
             raise SkillOptError(f"task {task_id}: has verifier fields but no command")
@@ -317,6 +317,8 @@ def run_task(task: RunnableTask, bundle: Path, pycache: str) -> TaskOutcome:
         except OSError as exc:
             return TaskOutcome(UNVERIFIED, f"could not start: {exc.__class__.__name__}")
         state = _wait(proc, task.timeout, captured)
+        if state == "exited" and os.fstat(captured.fileno()).st_size > MAX_STDOUT_BYTES:
+            state = "oversize"
         if state == "timeout":
             return TaskOutcome(UNVERIFIED, f"timed out after {task.timeout:g}s")
         if state == "oversize":

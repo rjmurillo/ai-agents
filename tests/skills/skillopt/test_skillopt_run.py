@@ -161,6 +161,20 @@ class TestRunResults:
         assert results_of(out) == {"a": True}
         assert json.loads(capsys.readouterr().out)["skipped_no_command"] == ["sem"]
 
+    def test_split_id_missing_from_tasks_exits_two(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_path = make_eval(tmp_path, {"t1": task(py("pass"))}, train=["t1"], sel=["t1", "typo"])
+        out = tmp_path / "out"
+        assert skillopt.main(run_argv(eval_path, bundle_of(tmp_path), out)) == 2
+        assert "typo" in capsys.readouterr().err
+        assert not out.exists()
+
+    def test_train_only_copy_runs_with_split_train(self, tmp_path: Path) -> None:
+        eval_path = make_eval(tmp_path, {"t1": task(py("pass"))}, train=["t1"], sel=["s1"])
+        out = tmp_path / "out"
+        argv = run_argv(eval_path, bundle_of(tmp_path), out, "incumbent", "--split", "train")
+        assert skillopt.main(argv) == 0
+        assert results_of(out) == {"t1": True}
+
     def test_no_command_in_scope_exits_two(self, tmp_path: Path) -> None:
         eval_path = make_eval(tmp_path, {"sem": {"prompt": "p", "verifier": "v"}})
         assert skillopt.main(run_argv(eval_path, bundle_of(tmp_path), tmp_path / "o")) == 2

@@ -109,7 +109,11 @@ against a bundle directory and records as `true`, `false`, or `"UNVERIFIED"`.
 - `PATH` keeps only its absolute entries, so a bare command name cannot
   resolve to a file inside the bundle through a `.` or empty entry.
 - A task with no `command` is skipped and left out of the results file, which
-  `pair-gate` reports as `REJECT_UNVERIFIED`. Grade it yourself and add it.
+  `pair-gate` reports as `REJECT_UNVERIFIED`. Run `run` first, then grade
+  those tasks yourself and add them: each `run` replaces its results file.
+- A task id named by a split but absent from `tasks` exits 2, so a typo cannot
+  pass as a semantic task. A copy that drops the `sel` task bodies must run
+  with `--split train`.
 
 **Security.** `eval.json` is executable input. Every `command` runs as you
 and may start any binary on `PATH`, so only run an `eval.json` you wrote or
