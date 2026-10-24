@@ -21,4 +21,5 @@ PR #6878 (merge 68cf87ef34, 2026-10-23) memoized the dynamic-load scan in closur
 - `_dynamic_loads` in `run_completion_gate.py` is the scan being cached.
 - `closure_manifest.py` shares one `load_cache` between the closure pass and the site pass.
 - `scripts/ci/verify_dispatch_closure.py:319,322` repeats the same two scans.
-- That caller could share the cache the same way. This is noted, not done (issue #6734).
+- That caller could share the cache the same way. This is noted, not done.
+- Issue #6734 closed on 2026-10-24 without this change.
