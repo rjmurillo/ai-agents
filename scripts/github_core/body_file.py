@@ -314,9 +314,11 @@ def _final_path(descriptor: int) -> Path | None:
         from ctypes import wintypes
 
         handle = msvcrt.get_osfhandle(descriptor)
-        get_final = ctypes.windll.kernel32.GetFinalPathNameByHandleW
-        get_final.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD]
-        get_final.restype = wintypes.DWORD
+        # A local prototype, so the shared kernel32 function object is untouched.
+        prototype = ctypes.WINFUNCTYPE(
+            wintypes.DWORD, wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD
+        )
+        get_final = prototype(("GetFinalPathNameByHandleW", ctypes.windll.kernel32))
         buffer = ctypes.create_unicode_buffer(32768)
         length = get_final(handle, buffer, len(buffer), 0)
     except (ImportError, AttributeError, OSError):

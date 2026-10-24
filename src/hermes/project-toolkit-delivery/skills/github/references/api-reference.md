@@ -128,7 +128,7 @@ The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_va
 - A group-writable file, such as mode 664 from umask 002, passes only inside a directory only you can enter (mode 700). Every directory between that one and the file must be yours and refuse other writers. The session scratchpad qualifies. Otherwise run `chmod 600` on the file.
 - No dotfile and no dot directory at any depth below the root, so `.env`, `service/.env` and `.git/config` all fail. The scratch directory that `--prepare-body-file` uses is the one exception.
 - A temp root that others can write, such as `/tmp`, needs the sticky bit and must belong to root or to you.
-- No component that NTFS could read as another name: one with `:` (a stream), `~` and a digit (an 8.3 short name such as `GIT~1`), or a trailing dot or space. This applies on every platform. On Windows the checks run again on the real name of the opened file.
+- No component that NTFS could read as another name: one with `:` (a stream), `~` and a digit (an 8.3 short name such as `GIT~1`), or a trailing dot or space. This applies on every platform. On Windows the checks run again on the real name of the opened file. Windows also refuses any junction or other reparse point on the path, so a OneDrive Files On-Demand file is refused; copy the body to a local folder first.
 - `new_pr.py` and `edit_pr_body.py` refuse the git dir and the common git dir. The issue scripts keep the documented git-dir reply flow: they accept a linked worktree's own git dir (`.git/worktrees/<name>/`). They refuse its `config` and `config.worktree` files and a primary clone's `.git`.
 
 Other scripts still open the path as given. Keep body files in a private directory such as the session scratchpad.

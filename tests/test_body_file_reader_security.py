@@ -466,7 +466,9 @@ def test_windows_rechecks_the_real_name(
     area: Area, real_name: Callable[[Path, Area], Path | None], accepted: bool
 ) -> None:
     """GetFinalPathNameByHandle expands GIT~1 and drops trailing dots; recheck its answer."""
-    body = _write(_mkdir(area.tmp / "private", 0o700) / "body.md", 0o600)
+    # Under the repo, so a real name of .git/config reaches the git checks
+    # instead of failing the outside-root check first.
+    body = _write(_mkdir(area.repo / "drafts", 0o700) / "body.md", 0o600)
     _as_windows(area, lambda _descriptor: real_name(body, area))
     if accepted:
         assert READERS["new_pr"](body, area.repo) == _BODY
