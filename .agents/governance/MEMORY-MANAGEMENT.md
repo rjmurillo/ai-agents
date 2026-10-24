@@ -204,28 +204,6 @@ Serena memories use Markdown with sections:
 4. **Commit to git**: Add export to `.claude-mem/memories/exports/`
 5. **Notify team**: PR description mentions new shared learnings
 
-### Onboarding New Team Members
-
-Bulk export current knowledge:
-
-```bash
-# Export all project-related memories using Python CLI
-python3 .claude-mem/scripts/export_claude_mem_memories.py "" --topic "onboarding"
-# Output: .claude-mem/memories/YYYY-MM-DD-onboarding.json
-
-# Security review runs automatically
-# Commit if review passes
-git add .claude-mem/memories/YYYY-MM-DD-onboarding.json
-git commit -m "docs(memory): onboarding export for new team members"
-```
-
-**Advanced**: Direct plugin call for project filtering
-
-```bash
-npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts \
-  "" .claude-mem/memories/onboarding.json --project=ai-agents
-```
-
 ---
 
 ## Troubleshooting

@@ -20,8 +20,6 @@ _MEMORIES_DIR = _REPO_ROOT / _MEMORIES_REL
 _FILE_NAME = re.compile(r"[A-Za-z0-9._-]+\.(?:json|md)")
 _TEXT_BLOCK = re.compile(r"```text\n(.*?)```", re.DOTALL)
 
-_needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
-
 
 def _git(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -31,6 +29,16 @@ def _git(*args: str) -> subprocess.CompletedProcess[str]:
         text=True,
         check=False,
     )
+
+
+def _in_git_work_tree() -> bool:
+    if shutil.which("git") is None:
+        return False
+    result = _git("rev-parse", "--is-inside-work-tree")
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+_needs_git = pytest.mark.skipif(not _in_git_work_tree(), reason="not inside a git work tree")
 
 
 def block_file_names(readme_text: str) -> set[str]:
@@ -70,10 +78,13 @@ class TestReadmeDirectoryBlock:
         assert missing == ["GHOST.json"]
 
     @_needs_git
-    def test_every_tracked_file_is_listed(self) -> None:
-        result = _git("ls-files", "--", _MEMORIES_REL)
+    def test_every_tracked_markdown_file_is_listed(self) -> None:
+        # Topic-scoped *.json exports may be committed later, so only the
+        # Markdown guides must appear in the block.
+        result = _git("ls-files", "--", f"{_MEMORIES_REL}/*.md")
         assert result.returncode == 0, result.stderr
         tracked = {Path(line).name for line in result.stdout.splitlines()}
+        assert tracked, "expected at least README.md to be tracked"
         listed = block_file_names((_MEMORIES_DIR / "README.md").read_text(encoding="utf-8"))
         assert tracked - listed == set()
 

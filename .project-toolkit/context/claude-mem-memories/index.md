@@ -7,7 +7,7 @@
 [Where to look]
 || Path | Why | (see: .project-toolkit/context/claude-mem-memories/details/where-to-look.md)
 [Skip]
-|Nothing. The directory holds `AGENTS.md`, `README.md`, and any committed topi... (see: .project-toolkit/context/claude-mem-memories/details/skip.md)
+|Local `direct-backup-*.json` files here are gitignored full exports, many MB:... (see: .project-toolkit/context/claude-mem-memories/details/skip.md)
 [Constraints]
 |`--output-file` outside `.claude-mem/memories/` exits 1 (CWE-22 guard). (see: .project-toolkit/context/claude-mem-memories/details/constraints.md)
 [Dangerous assumptions]

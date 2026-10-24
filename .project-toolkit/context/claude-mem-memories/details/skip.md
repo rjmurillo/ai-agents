@@ -1,3 +1,3 @@
 ## Skip
 
-Nothing. The directory holds `AGENTS.md`, `README.md`, and any committed topic-scoped exports.
+Local `direct-backup-*.json` files here are gitignored full exports, many MB: grep or jq only.
