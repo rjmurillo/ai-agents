@@ -45,9 +45,7 @@ def _load_read_yaml_frontmatter() -> Callable[[str], dict[str, str] | None]:
     rather than a bare FileNotFoundError from inside a validation script.
     """
     path = _BUILD_UTILITY_PATH
-    spec = importlib.util.spec_from_file_location(
-        "_agent_registry_build_common", _BUILD_UTILITY_PATH
-    )
+    spec = importlib.util.spec_from_file_location("_agent_registry_build_common", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load build utility {path}: no import spec")
     module = importlib.util.module_from_spec(spec)
