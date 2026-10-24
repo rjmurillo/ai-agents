@@ -33,13 +33,17 @@ class Repo:
     """A clone with a bare ``origin``, driven with plain git."""
 
     def __init__(self, tmp_path: Path) -> None:
-        self.origin = tmp_path / "origin.git"
+        origin = tmp_path / "origin.git"
+        self.origin = origin
         self.path = tmp_path / "work"
         env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
         env.update({"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull})
         self.env = env
         subprocess.run(
-            ["git", "init", "-q", "--bare", "-b", "main", str(self.origin)], check=True, env=env
+            ["git", "init", "-q", "--bare", "-b", "main", str(origin)],
+            check=True,
+            env=env,
+            cwd=tmp_path,
         )
         self.path.mkdir()
         self.git("init", "-q", "-b", "main")
