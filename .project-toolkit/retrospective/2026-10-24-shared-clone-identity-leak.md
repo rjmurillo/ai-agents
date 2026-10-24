@@ -61,7 +61,7 @@ Root cause: identity is trusted from local config, and no check compares author 
 
 ### Patterns and Shifts
 - Pattern: a mitigation existed but did not fire. `--commit-body` can omit a trailer, and the filter exists, yet neither ran on this path.
-- Pattern: an agent labeled a PR blocked with the wrong cause (#6896).
+- Pattern: an agent labeled a PR blocked with the wrong cause (PR #6899, issue #6896; INFERRED from matching titles).
 - Pattern: an unprobed decision option was offered (#6884 D9). PR #6895 already records this, so it is not a new learning.
 
 ### Learning Matrix
@@ -84,7 +84,7 @@ Root cause: identity is trusted from local config, and no check compares author 
 | Merge agent PRs without checking author emails | Process gap | No author check in the merge path | `git log --format='%an <%ae>' origin/main..HEAD` before merge | 75% |
 | Run git or tests with GIT_DIR at the shared clone | Environment | One config shared by all worktrees | Never export GIT_DIR at the shared clone | 75% |
 | Re-arm auto-merge only once | Tool behavior | A new push drops auto-merge armed with an expected head | Re-check `auto_merge` after each push | 75% |
-| Label #6896 blocked:human on an advisory check | Misdiagnosis | One unresolved review thread was the real block | Count unresolved threads first | 75% |
+| Label PR #6899 blocked:human on an advisory check | Misdiagnosis | One unresolved review thread was the real block | Count unresolved threads first | 75% |
 
 ### Near Misses
 | What Almost Failed | Recovery | Learning |
@@ -137,7 +137,7 @@ Each learning names one command or one field, one trigger, and one observed case
 ### Learning 4
 - **Statement**: Count unresolved review threads before labeling a PR blocked:human.
 - **Atomicity Score**: 75%
-- **Evidence**: #6896 was labeled on an advisory check; one unresolved thread was the block.
+- **Evidence**: PR #6899 (issue #6896) was labeled on an advisory check; one unresolved thread was the block.
 - **Skill Operation**: UPDATE
 - **Target Skill ID**: diagnosing-a-blocked-pr
 
@@ -168,7 +168,7 @@ Each learning names one command or one field, one trigger, and one observed case
 
 | Skill ID | Current | Proposed | Why |
 |----------|---------|----------|-----|
-| diagnosing-a-blocked-pr | Reads the ruleset, not mergeStateStatus | Adds an unresolved-thread count step before blocked:human | #6896 mislabel |
+| diagnosing-a-blocked-pr | Reads the ruleset, not mergeStateStatus | Adds an unresolved-thread count step before blocked:human | PR #6899 mislabel |
 
 ### TAG
 

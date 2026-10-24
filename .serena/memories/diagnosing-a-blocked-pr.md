@@ -142,5 +142,5 @@ gh run list --repo rjmurillo/ai-agents --branch "$B" --limit 25 \
 
 Statement: before an agent labels a PR `blocked:human`, it reads the unresolved review thread count and the required check state from the PR. It names the exact blocker in the label comment. A non-required advisory check is not a blocker.
 
-Evidence: OBSERVED 2026-10-24 on PR #6896. The agent labeled it `blocked:human` and blamed a non-required advisory check. The real block was one unresolved review thread. `get_pr_context.py` reports `review_thread_unresolved_count`, and `get_pr_checks.py` reports required check state.
+Evidence: OBSERVED 2026-10-24 on the PR for issue #6896, which is #6899 (INFERRED from matching titles; the label itself is not re-checked). The agent labeled it `blocked:human` and blamed a non-required advisory check. The real block was one unresolved review thread. `get_pr_context.py` reports `review_thread_unresolved_count`, and `get_pr_checks.py` reports required check state.
 

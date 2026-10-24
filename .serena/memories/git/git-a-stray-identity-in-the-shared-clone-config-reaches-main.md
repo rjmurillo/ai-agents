@@ -6,7 +6,7 @@ Every linked worktree reads the shared clone's `.git/config`. A `[user]` block w
 
 Rules:
 
-- An agent MUST NOT run git or tests with `GIT_DIR` pointed at the shared clone.
+- An agent MUST NOT run git or tests with `GIT_DIR` pointed at the shared clone. This is a precaution, not the confirmed cause: PR #6902 refuted GIT_DIR here, and the writer of the `[user]` block is unknown.
 - Before merging an agent PR, run `git log --format='%an <%ae>' origin/main..HEAD` in the PR worktree. Every line must be the real owner identity or a bot.
 - Pass `--commit-body` to `set_pr_auto_merge.py` to set the squash message. That omits a bad `Co-authored-by` trailer that commit subjects would otherwise carry.
 - A merged squash body cannot be fixed without rewriting main. AGENTS.md forbids that, so the trailer stays.
