@@ -223,7 +223,9 @@ class TestMain:
                 main(["--pull-request", "1", "--body", "test"])
             assert exc.value.code == 3
 
-    def test_body_from_file(self, tmp_path, capsys):
+    def test_body_from_file(self, stub_git_probes, tmp_path_is_temp_root, capsys):
+        # The strict reader needs a temp root; CI puts basetemp outside /tmp.
+        tmp_path = tmp_path_is_temp_root
         body_file = tmp_path / "body.md"
         body_file.write_text("hello from file")
         response = json.dumps(
