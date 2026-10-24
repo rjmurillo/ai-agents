@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import stat
 from pathlib import Path
 
 # Owner: alphanumeric + hyphens, 1-39 chars, cannot start/end with hyphen
@@ -157,6 +156,44 @@ def _candidate_git_dir_roots() -> list[str]:
     return []
 
 
+# Kernel pseudo-filesystems. Their files can expose the process environment,
+# which holds the GitHub token, so no body file may come from them.
+_PSEUDO_FILESYSTEM_ROOTS = (Path("/proc"), Path("/sys"), Path("/dev"))
+# A plain tmpfs some hosts use as TMPDIR, so it stays allowed under /dev.
+_DEV_SHM = Path("/dev/shm")
+
+
+def is_pseudo_filesystem_path(resolved: Path) -> bool:
+    """Return True when a resolved path is under ``/proc``, ``/sys`` or ``/dev``.
+
+    ``/dev/shm`` and paths below it are allowed. Only POSIX has these mounts,
+    so a Windows path never matches.
+    """
+    if os.name == "nt":
+        return False
+    if _DEV_SHM in resolved.parents:
+        return False
+    return any(resolved == root or root in resolved.parents for root in _PSEUDO_FILESYSTEM_ROOTS)
+
+
+def body_file_repo_root() -> Path | None:
+    """Return the resolved repo root of the working directory, else None.
+
+    Unlike :func:`is_safe_file_path`, this never falls back to the working
+    directory when git finds no repository. A body file is sent to GitHub,
+    and the working directory is no boundary for that (issue #6916).
+    """
+    from scripts.github_core.repo import resolve_repo_root
+
+    repo_root, _reason = resolve_repo_root()
+    if repo_root is None:
+        return None
+    try:
+        return Path(repo_root).resolve()
+    except (OSError, ValueError):
+        return None
+
+
 def is_allowed_body_file_path(path: str) -> bool:
     """Return True when a body or comment file sits under an approved root.
 
@@ -167,15 +204,20 @@ def is_allowed_body_file_path(path: str) -> bool:
 
     Approved roots, checked in this order: the repository root of the working
     directory, every temp root from :func:`_candidate_temp_roots`, the git dir
-    from :func:`_candidate_git_dir_roots`. No caller adds roots, so every script
+    from :func:`_candidate_git_dir_roots`. Outside a repository there is no
+    repo root, and the working directory is never a root: it can be any
+    directory, such as ``/`` (issue #6916). A path under a kernel
+    pseudo-filesystem (see :func:`is_pseudo_filesystem_path`) is refused under
+    every root. No caller adds roots, so every script
     accepts the same paths. A relative-path base such as ``GITHUB_WORKSPACE`` only
     resolves the path and never widens the roots. Paths are resolved before the
     prefix test, so a symlink under an approved root that points elsewhere is
     rejected. The caller owns the existence check.
 
-    ``new_pr.py`` and ``edit_pr_body.py`` read their body file through
-    :func:`read_body_file_text`, which applies this same rule (owner decision
-    D14, 2026-10-24, issue #6667).
+    Five scripts read their body file through :func:`read_body_file_text`,
+    which applies this rule and the stricter location and open checks (owner
+    decision D14, 2026-10-24, issue #6667). ``new_pr.py`` and
+    ``edit_pr_body.py`` refuse the git dir there; the issue scripts keep it.
 
     Args:
         path: The file path to check.
@@ -183,71 +225,39 @@ def is_allowed_body_file_path(path: str) -> bool:
     Returns:
         True when the resolved path stays within an approved root.
     """
-    if is_safe_file_path(path, None):
-        return True
-
-    for temp_root in _candidate_temp_roots():
-        if is_safe_file_path(path, temp_root):
-            return True
-
-    for git_root in _candidate_git_dir_roots():
-        if is_safe_file_path(path, git_root):
-            return True
-
-    return False
-
-
-def read_body_file_text(path: str, base: str | Path | None = None) -> str:
-    """Read a UTF-8 body file that the shared containment rule approves.
-
-    Used by ``new_pr.py`` and ``edit_pr_body.py`` so a PR body file follows the
-    same rule as every other body or comment file (issue #6667). A relative
-    ``path`` resolves against ``base`` when given, else the working directory.
-
-    The path is resolved once, the rule is tested on the resolved path, and
-    that same resolved path is opened with ``O_NOFOLLOW`` and ``O_NONBLOCK``.
-    A symlink swapped in for the final component after the check fails the
-    open instead of leaking its target, and a FIFO cannot hang the read. Only
-    a regular file is read. A swap of a parent directory between the resolve
-    and the open is not covered; keep body files in a private directory.
-
-    Args:
-        path: The body file path.
-        base: Directory a relative ``path`` resolves against.
-
-    Returns:
-        The file text.
-
-    Raises:
-        ValueError: The path has a parent-directory segment, is outside every
-            approved root, or is not a regular file. A ``UnicodeError`` (also a
-            ``ValueError``) reports a file that is not UTF-8.
-        OSError: The file is missing or unreadable.
-    """
-    candidate = Path(path)
-    if base is not None and not candidate.is_absolute():
-        candidate = Path(base) / candidate
-    if _TRAVERSAL_PATTERN.search(str(candidate)):
-        raise ValueError(f"body file path contains a parent-directory segment: {path}")
-    resolved = candidate.resolve()
-    if not is_allowed_body_file_path(str(resolved)):
-        raise ValueError(
-            f"body file must be under the repo root, a temp directory, or the git dir: {path}"
-        )
-
-    descriptor = os.open(
-        resolved,
-        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
-    )
+    if _TRAVERSAL_PATTERN.search(path):
+        return False
     try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError(f"body file must be a regular file: {path}")
-        with os.fdopen(descriptor, encoding="utf-8") as body_file:
-            descriptor = -1
-            return body_file.read()
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
+        if is_pseudo_filesystem_path(Path(path).resolve()):
+            return False
+    except (OSError, ValueError):
+        return False
+
+    repo_root = body_file_repo_root()
+    roots = [
+        *([str(repo_root)] if repo_root is not None else []),
+        *_candidate_temp_roots(),
+        *_candidate_git_dir_roots(),
+    ]
+    # A root that is the filesystem root bounds nothing, so it never counts.
+    return any(
+        Path(root) != Path(Path(root).anchor) and is_safe_file_path(path, root) for root in roots
+    )
+
+
+def read_body_file_text(
+    path: str,
+    base: str | Path | None = None,
+    *,
+    allow_git_dir: bool = False,
+) -> str:
+    """Read a body file through the strict shared reader in ``body_file``.
+
+    See :func:`github_core.body_file.read_body_file_text` for the checks.
+    """
+    from scripts.github_core.body_file import read_body_file_text as _read  # avoid cycle
+
+    return _read(path, base, allow_git_dir=allow_git_dir)
 
 
 def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> None:

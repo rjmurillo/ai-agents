@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -71,3 +73,53 @@ def make_copilot_db(path: Path, turns: list[tuple]) -> None:
     con.executemany("INSERT INTO turns VALUES (?,?,?,?)", turns)
     con.commit()
     con.close()
+
+
+# --- skillopt.py run helpers ---
+PY = Path(sys.executable).name
+
+
+def py(code: str, *args: str) -> list[str]:
+    return [PY, "-c", code, *args]
+
+
+def task(command: object, **fields: Any) -> dict[str, Any]:
+    spec: dict[str, Any] = {"command": command, "timeout": 30}
+    if not ({"expect_exit", "expect_stdout"} & set(fields)):
+        spec["expect_exit"] = 0
+    spec.update(fields)
+    return spec
+
+
+def make_eval(tmp_path: Path, tasks: dict[str, Any], **splits: list[str]) -> Path:
+    if not splits:
+        splits = {"sel": list(tasks)}
+    return write_json(tmp_path / "eval.json", {"splits": splits, "tasks": tasks})
+
+
+def bundle_of(tmp_path: Path, name: str = "bundle") -> Path:
+    bundle = tmp_path / name
+    bundle.mkdir()
+    (bundle / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    return bundle
+
+
+def run_argv(
+    eval_path: Path, bundle: Path, out_dir: Path, role: str = "incumbent", *extra: str
+) -> list[str]:
+    return [
+        "run",
+        "--eval",
+        str(eval_path),
+        "--bundle",
+        str(bundle),
+        "--role",
+        role,
+        "--out-dir",
+        str(out_dir),
+        *extra,
+    ]
+
+
+def results_of(out_dir: Path, role: str = "incumbent") -> dict[str, Any]:
+    return json.loads((out_dir / f"{role}_results.json").read_text(encoding="utf-8"))

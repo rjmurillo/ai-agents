@@ -8,6 +8,7 @@ bundled scripts from an unrelated working directory, so prose drift goes red.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -37,6 +38,8 @@ BUNDLED = (
     "scripts/_skillopt_patching.py",
     "scripts/_skillopt_gates.py",
     "scripts/_skillopt_buffer.py",
+    "scripts/_skillopt_bundle.py",
+    "scripts/_skillopt_runner.py",
     "scripts/_mine_records.py",
     "scripts/_mine_handoff.py",
     "scripts/_mine_sources.py",
@@ -417,3 +420,58 @@ def test_sel_exposure_bound_is_the_whole_run_in_every_place(root: str) -> None:
     assert "holds the `sel` prompts, verifiers, and results in every step" in process
     assert "until the candidate is frozen" not in preconditions
     assert "until the candidate is frozen" not in process
+
+
+@pytest.mark.parametrize("root", SHIPPED_ROOTS)
+def test_run_and_bundle_contract_is_documented(root: str) -> None:
+    skill = " ".join(_skill_md(root).split())
+    fmt = " ".join(
+        (_skill_dir(root) / "references" / "eval-set-format.md").read_text(encoding="utf-8").split()
+    )
+    assert "`skillopt.py run`" in skill
+    assert "0 results written, 1 results written with a task `UNVERIFIED`, 2 refused" in skill
+    assert "run any binary on `PATH`" in skill
+    assert "a directory hashes as one whole bundle" in skill
+    assert "Every `command` runs as you and may start any binary on `PATH`" in fmt
+    assert "There is no shell" in fmt or "there is no shell" in fmt
+    assert "`timeout`: required" in fmt
+    assert "only the direct child is killed" in fmt
+
+
+def test_documented_exit_codes_for_run(tmp_path: Path) -> None:
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (bundle / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    py = Path(sys.executable).name
+    env_path = str(Path(sys.executable).parent)
+
+    def run(tasks: dict[str, object], out: Path) -> subprocess.CompletedProcess[str]:
+        eval_path = _write_json(
+            tmp_path / "eval.json", {"splits": {"sel": list(tasks)}, "tasks": tasks}
+        )
+        path = _skill_dir(".claude") / "scripts" / "skillopt.py"
+        return subprocess.run(
+            [sys.executable, str(path), "run", "--eval", eval_path, "--bundle", str(bundle),
+             "--role", "candidate", "--out-dir", str(out)],
+            cwd=tmp_path,
+            env={**os.environ, "PATH": env_path + os.pathsep + os.environ.get("PATH", "")},
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )  # fmt: skip
+
+    ok = {"command": [py, "-c", "pass"], "timeout": 30, "expect_exit": 0}
+    out = tmp_path / "out"
+    result = run({"a": ok}, out)
+    assert result.returncode == 0, result.stderr
+    assert json.loads((out / "candidate_results.json").read_text(encoding="utf-8")) == {"a": True}
+
+    missing = {"command": ["no-such-binary-6655"], "timeout": 5, "expect_exit": 0}
+    assert run({"a": ok, "b": missing}, tmp_path / "out2").returncode == 1
+
+    shell_string = {"command": "echo hi", "timeout": 5, "expect_exit": 0}
+    refused = run({"a": shell_string}, tmp_path / "out3")
+    assert refused.returncode == 2
+    assert not (tmp_path / "out3").exists()

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.containment_fixtures import private_dir
 from tests.new_pr_test_support import (
     _SCRIPTS_DIR,
     _completed,
@@ -235,8 +236,7 @@ class TestMain:
         )
         gh_stub.chmod(0o755)
 
-        repo = tmp_path / "repo"
-        repo.mkdir()
+        repo = private_dir(tmp_path / "repo")
         subprocess.run(
             ["git", "init"],
             cwd=repo,
@@ -403,8 +403,7 @@ class TestMain:
         self, tmp_path, tmp_path_is_temp_root, stub_git_probes
     ):
         """Issue #6667: a /tmp/claude-<uid>/ scratchpad path is accepted."""
-        scratchpad = tmp_path / "claude-1000" / "scratchpad"
-        scratchpad.mkdir(parents=True)
+        scratchpad = private_dir(tmp_path / "claude-1000" / "scratchpad")
         body_file = scratchpad / "pr7.md"
         body_file.write_text("## Summary\nscratchpad body", encoding="utf-8")
         create_call = None

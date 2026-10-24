@@ -9,7 +9,15 @@
     {
       "name": "project-toolkit",
       "description": "Reusable skills and lifecycle skills (/spec to /ship) for Codex workflows",
-      "source": "./src/codex"
+      "source": {
+        "source": "local",
+        "path": "./src/codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
     }
   ]
 }

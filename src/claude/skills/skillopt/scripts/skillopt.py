@@ -22,7 +22,9 @@ allowed to exist:
                           unverified-result and null-control checks
   - rejected-edit buffer: stable-signature dedup so known-bad edits are blocked
   - hash                : sha256 byte identity for incumbent, null control, and
-                          deployed copy
+                          deployed copy; a directory hashes as a whole bundle
+  - run                 : executes eval.json argv commands against a bundle and
+                          writes the per-task results files (see _skillopt_runner)
 
 Pure stdlib, no third-party deps. It is harness-agnostic and runs under any
 Python 3.10+. Exit codes: 0 = success / accept, 1 = reject / mismatch,
@@ -49,6 +51,15 @@ from _skillopt_buffer import (
     file_sha256,
     is_known_bad,
 )
+from _skillopt_bundle import (
+    BUNDLE_DOC,
+    bundle_sha256,
+    copy_bundle,
+    is_inside,
+    list_bundle_files,
+    overlaps,
+    path_sha256,
+)
 from _skillopt_gates import (
     BAD_TASK_STATUSES,
     _split_task_ids,
@@ -65,6 +76,9 @@ from _skillopt_patching import (
     edit_budget,
     protected_ranges,
 )
+from _skillopt_runner import UNVERIFIED, run_bundle
+
+RESULT_ROLES = ("incumbent", "candidate", "null")
 
 __all__ = [
     "BAD_TASK_STATUSES",
@@ -75,6 +89,7 @@ __all__ = [
     "append_rejected",
     "apply_patches",
     "build_parser",
+    "bundle_sha256",
     "edit_budget",
     "edit_signature",
     "file_sha256",
@@ -117,14 +132,18 @@ def _cmd_budget(args: argparse.Namespace) -> int:
 def _cmd_apply(args: argparse.Namespace) -> int:
     skill = Path(args.skill)
     _split_task_ids(_load_object(args.eval, "apply eval input"), "sel")
+    is_bundle = skill.is_dir()
+    doc_path = skill / BUNDLE_DOC if is_bundle else skill
+    if is_bundle:
+        list_bundle_files(skill)
     if not args.dry_run:
         if not args.out:
             raise SkillOptError("apply requires --out unless --dry-run")
-        if _same_file(skill, Path(args.out)):
+        if _same_file(skill, Path(args.out)) or (is_bundle and overlaps(skill, Path(args.out))):
             raise SkillOptError(
                 "refusing to overwrite the incumbent; write the candidate to a separate --out path"
             )
-    doc = skill.read_bytes().decode("utf-8")
+    doc = doc_path.read_bytes().decode("utf-8")
     patches = _load_json(args.patches)
     result = apply_patches(doc, patches, args.budget)
     if args.dry_run:
@@ -133,6 +152,12 @@ def _cmd_apply(args: argparse.Namespace) -> int:
         )
         return 0
     out = Path(args.out)
+    if is_bundle:
+        copy_bundle(skill, out, {BUNDLE_DOC: result.encode("utf-8")})
+        sys.stderr.write(
+            f"applied {len(patches)} patch(es) -> {out} (bundle sha256 {bundle_sha256(out)})\n"
+        )
+        return 0
     out.write_bytes(result.encode("utf-8"))
     sys.stderr.write(f"applied {len(patches)} patch(es) -> {out}\n")
     return 0
@@ -176,13 +201,41 @@ def _cmd_score(args: argparse.Namespace) -> int:
 def _cmd_hash(args: argparse.Namespace) -> int:
     if args.expect is not None and len(args.files) != 1:
         raise SkillOptError("--expect needs exactly one file")
-    digests = [(file_sha256(path), path) for path in args.files]
+    digests = [(path_sha256(path), path) for path in args.files]
     for digest, path in digests:
         print(f"{digest}  {path}")
     if args.expect is not None and digests[0][0] != args.expect.strip().lower():
         print(f"MISMATCH: {digests[0][1]} is {digests[0][0]}, expected {args.expect}")
         return 1
     return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    eval_set = _load_object(args.eval, "run eval input")
+    bundle = Path(args.bundle)
+    out_dir = Path(args.out_dir)
+    if is_inside(out_dir, bundle):
+        raise SkillOptError("--out-dir must not sit inside the bundle")
+    outcomes, skipped, digest = run_bundle(eval_set, bundle, args.split)
+    results = {task_id: outcome.value for task_id, outcome in outcomes.items()}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results_path = out_dir / f"{args.role}_results.json"
+    staged = results_path.with_name(f".{results_path.name}.tmp")
+    staged.write_bytes((json.dumps(results, indent=2) + "\n").encode("utf-8"))
+    os.replace(staged, results_path)
+    unverified = [t for t, o in outcomes.items() if o.value == UNVERIFIED]
+    summary = {
+        "role": args.role,
+        "bundle_sha256": digest,
+        "results_file": str(results_path),
+        "passed": sum(1 for o in outcomes.values() if o.value is True),
+        "failed": sum(1 for o in outcomes.values() if o.value is False),
+        "unverified": unverified,
+        "skipped_no_command": skipped,
+        "tasks": {t: {"result": o.value, "reason": o.reason} for t, o in outcomes.items()},
+    }
+    print(json.dumps(summary, indent=2))
+    return 1 if unverified else 0
 
 
 def _cmd_buffer_check(args: argparse.Namespace) -> int:
@@ -205,15 +258,35 @@ def _cmd_buffer_add(args: argparse.Namespace) -> int:
 
 def _add_apply_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     p = sub.add_parser("apply", help="apply bounded atomic patches to a skill doc")
-    p.add_argument("--skill", required=True)
+    p.add_argument("--skill", required=True, help="SKILL.md file, or a bundle directory")
     p.add_argument(
         "--eval", required=True, help="eval manifest; refuses a missing or empty sel split"
     )
     p.add_argument("--patches", required=True, help="JSON file: list of patch objects")
     p.add_argument("--budget", type=int, required=True)
-    p.add_argument("--out", help="candidate output path (required unless --dry-run)")
+    p.add_argument(
+        "--out",
+        help="candidate path: a new directory for a bundle (required unless --dry-run)",
+    )
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=_cmd_apply)
+
+
+def _add_run_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    p = sub.add_parser(
+        "run",
+        help="run eval.json argv commands against a bundle and write <role>_results.json",
+        description=(
+            "SECURITY: eval.json commands run as you and may start any binary on PATH. "
+            "Run only an eval.json you wrote or reviewed."
+        ),
+    )
+    p.add_argument("--eval", required=True)
+    p.add_argument("--bundle", required=True, help="skill directory; commands run with it as cwd")
+    p.add_argument("--role", required=True, choices=RESULT_ROLES)
+    p.add_argument("--out-dir", default=".", help="where <role>_results.json is written")
+    p.add_argument("--split", help="run only this split (default: every split)")
+    p.set_defaults(func=_cmd_run)
 
 
 def _add_gate_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -287,10 +360,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=_cmd_budget)
 
     _add_apply_parser(sub)
+    _add_run_parser(sub)
     _add_gate_parsers(sub)
 
-    p = sub.add_parser("hash", help="sha256 of file bytes; --expect checks one file")
-    p.add_argument("files", nargs="+")
+    p = sub.add_parser(
+        "hash", help="sha256 of file bytes or a whole bundle directory; --expect checks one path"
+    )
+    p.add_argument("files", nargs="+", help="files or bundle directories")
     p.add_argument("--expect", help="expected sha256; exit 1 on mismatch (one file only)")
     p.set_defaults(func=_cmd_hash)
 

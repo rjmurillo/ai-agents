@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.containment_fixtures import private_dir
 
 _PR_DIR = Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 _MOCK_REPO = RepoInfo(owner="testowner", repo="testrepo")
@@ -62,8 +63,7 @@ def test_prepared_file_body_is_published(tmp_path: Path) -> None:
 
 
 def test_fixed_name_file_in_scratch_is_published(tmp_path: Path) -> None:
-    scratch = tmp_path / ".project-toolkit" / "scratch"
-    scratch.mkdir(parents=True)
+    scratch = private_dir(tmp_path / ".project-toolkit" / "scratch")
     (scratch / "body.md").write_text("fixed name body", encoding="utf-8")
 
     rc, update, fetch = _run(tmp_path, ".project-toolkit/scratch/body.md")
@@ -74,8 +74,7 @@ def test_fixed_name_file_in_scratch_is_published(tmp_path: Path) -> None:
 
 def test_scratchpad_file_outside_the_repo_is_published(tmp_path: Path) -> None:
     """Issue #6667: a /tmp/claude-<uid>/ scratchpad path is accepted by absolute path."""
-    scratchpad = tmp_path / "claude-1000" / "scratchpad"
-    scratchpad.mkdir(parents=True)
+    scratchpad = private_dir(tmp_path / "claude-1000" / "scratchpad")
     body = scratchpad / "edit42.md"
     body.write_text("scratchpad body", encoding="utf-8")
 
@@ -129,14 +128,14 @@ def test_symlink_pointing_outside_every_root_is_refused(
     update.assert_not_called()
 
 
-def test_group_readable_file_is_published(tmp_path: Path) -> None:
+def test_group_readable_prepared_file_is_refused(tmp_path: Path) -> None:
     relative = _prepared(tmp_path, "shared mode body")
     (tmp_path / relative).chmod(0o644)
 
     rc, update, fetch = _run(tmp_path, relative)
 
-    assert rc == 0
-    update.assert_called_once_with("testowner", "testrepo", 42, "shared mode body")
+    assert rc == 2
+    update.assert_not_called()
 
 
 def test_unreplaced_placeholder_is_refused(tmp_path: Path) -> None:

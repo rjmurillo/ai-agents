@@ -169,6 +169,20 @@ Machine-readable JSON format including scan timestamp, files scanned, vulnerabil
 - Unquoted variable expansion in shell scripts
 - Dynamic command building from external input
 
+### Bash Here-Documents: Quote the Delimiter
+
+An unquoted delimiter (`<<EOF`) makes the shell expand the body, so the scanner flags each `$var` there as an unquoted expansion. This includes plain help text such as `Usage: $0 --dest $target`. Quote the delimiter (`<<'EOF'`, `<<"EOF"`, or `<<\EOF`) and the body is not expanded. The scanner then blanks it only when every command that reads the body is a known print or filter command such as `cat`, `echo`, `printf`, `tee`, `read`, `grep`, `sed`, `awk`, or `jq`. Any other reader (a shell, `ssh`, `sudo`, `psql`, or a pipe into one, as in `cat <<'EOF' | sh`) may run the body, so it is still scanned.
+
+```bash
+cat <<'EOF'
+Usage: $prog --dest <dir>
+EOF
+```
+
+If the body must expand, quote each expansion (`"$target"`) or add a justified suppression.
+
+This is a deliberate limit, not a pending fix (owner decisions D17 and D23, issue #6624). A per-line scanner cannot prove an unquoted body is never fed to a shell or a file that later runs. Four review rounds on a narrowing that cleared "print-only" bodies kept finding bypasses: a body read into a variable that is later run (`read`, `mapfile -C eval`), `>&1word` file redirects, a `}` argument closing a group early, a line continuation into the opener, a quoted or split `exec >file`, `case`, `#`, or `${` inside a body `$( )`, array subscripts (`${a[$i]}`), and a redefined `cat`. Quoted delimiters ship in #6682; comment and quoted-span skipping in #6594.
+
 ---
 
 ## Integration

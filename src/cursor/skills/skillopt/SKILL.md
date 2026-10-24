@@ -126,8 +126,9 @@ Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
 |---------|------------|
 | `skillopt.py budget`, `apply`, `score`, `buffer-add` | 0 success, 2 usage or validation error |
 | `skillopt.py gate`, `pair-gate` | 0 accept, 1 reject, 2 usage or validation error |
-| `skillopt.py hash FILE...` | 0 digests printed |
-| `skillopt.py hash FILE --expect SHA` | 0 match, 1 `MISMATCH`, 2 usage or validation error |
+| `skillopt.py run` | 0 results written, 1 results written with a task `UNVERIFIED`, 2 refused or invalid (no results written) |
+| `skillopt.py hash PATH...` | 0 digests printed; a directory hashes as one whole bundle |
+| `skillopt.py hash PATH --expect SHA` | 0 match, 1 `MISMATCH`, 2 usage or validation error |
 | `skillopt.py buffer-check` | 0 `KNOWN-BAD` (discard), 1 `NOVEL` (proceed), 2 usage or validation error |
 | `mine_sessions.py sources`, `rank`, `tasks`, `collect`, `merge` | 0 success, 2 usage or validation error |
 
@@ -153,7 +154,15 @@ One optimization step:
    self-check or summary is not proof. A clipped or missing answer is
    `"UNVERIFIED"` in the results file, which the gate refuses to count.
    Record `{"task_id": true|false}` to `incumbent_results.json` and hash the
-   incumbent: `skillopt.py hash target.md`. When the manifest sets
+   incumbent: `skillopt.py hash target.md`. For tasks with an argv `command`,
+   `skillopt.py run --eval eval.json --bundle DIR --role incumbent --out-dir
+   results/` runs them and writes `results/incumbent_results.json`. It
+   replaces the whole file, so run it first and add your grades for tasks with
+   no `command` after it finishes. Read the security note in
+   `references/eval-set-format.md` first, because `eval.json` commands run any
+   binary on `PATH`. When the target is a skill directory with scripts, pass
+   the directory to `hash` and `apply`; it hashes as one whole bundle. When the
+   manifest sets
    `"scorer": "nondeterministic"`, the `sel` runner also reruns the
    byte-identical incumbent into `null_results.json` now (see Before
    promotion, step 2).
@@ -173,9 +182,16 @@ One optimization step:
    split, an incumbent `--out`, budget overflow, a bad anchor, a protected
    fence, or marker text inside a patch.
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
-   The `sel` runner does the `sel` half.
+   For a bundle, `apply` writes a new directory. Finish every edit to its
+   scripts first, then run the command tasks, then `hash` the final
+   `CANDIDATE_DIR`. That digest is the candidate's identity, so results from
+   an earlier state of the bundle would gate a different candidate. The `sel`
+   runner does the `sel` half. For command tasks, run
+   `skillopt.py run --eval eval.json --bundle CANDIDATE_DIR --role candidate
+   --out-dir results/`, then add your grades for tasks with no `command`.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
-   incumbent_results.json --candidate-results candidate_results.json`. For a
+   incumbent_results.json --candidate-results candidate_results.json`. If you
+   used `run --out-dir results/`, pass the files under `results/`. For a
    nondeterministic scorer, add `--null-results null_results.json
    --incumbent-sha256 <sha> --null-sha256 <sha>`; without them the gate exits
    2.

@@ -1,0 +1,68 @@
+# Plugin Scanner
+#
+# Runs the HOL AI plugin scanner over the whole repository and fails below a
+# normalized score of 80. That is the listing gate hashgraph-online/
+# awesome-ai-plugins applies in its centralized source scan (SCANNER_GUIDE.md),
+# so a red run here predicts a blocked catalog listing.
+#
+# The action pin and inputs match that catalog's validate-contribution.yml:
+# same commit, min_score 80, fail_on_severity none (severities are advisory,
+# the score is the gate). The action verifies the scanner wheel's SHA-256 and
+# PyPI provenance before installing it. Repository-owned scanner config is not
+# trusted (trust_repository_policy defaults to false), so the score here is the
+# score the catalog computes.
+#
+# Margin: this repository scored 80 (160 of 199 points) on 2026-10-24, so one
+# more lost check turns this red. The local twin prints every check that lost
+# points, on a pass too.
+#
+# No path filter: the score reads the whole tree, so any file can move it
+# (.claude/rules/ci-scripts.md, "Path filters gate the diff, never the tree").
+#
+# Local twin: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
+# (also the `plugin-scanner` pre-push job in lefthook.yml).
+
+name: Plugin Scanner
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Plugin Scanner (score >= 80)
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run HOL AI Plugin Scanner
+        uses: hashgraph-online/ai-plugin-scanner-action@caba2e96aa8ad2feb6cf6fca52442b52e22e779f # v1.2.635
+        with:
+          plugin_dir: "."
+          mode: scan
+          min_score: 80
+          fail_on_severity: none
+          pr_comment: "off"
