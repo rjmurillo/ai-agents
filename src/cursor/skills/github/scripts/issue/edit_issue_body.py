@@ -130,6 +130,10 @@ def main(argv: list[str] | None = None) -> int:
             input=stdin_body,
             capture_output=True,
             text=True,
+            # The body is UTF-8. Without this, Windows encodes stdin in the
+            # locale code page and a non-ASCII body raises.
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=30,
         )

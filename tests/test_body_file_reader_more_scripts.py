@@ -215,3 +215,18 @@ def test_edit_issue_body_inline_body_sends_no_stdin(area: Area) -> None:
     assert stdin is None
     assert "-" not in args
     assert args[args.index("--body") + 1] == "inline text"
+
+
+def test_edit_issue_body_pipes_stdin_as_utf8(area: Area) -> None:
+    body = _write(_mkdir(area.tmp / "private", 0o700) / "body.md", 0o600, "caf\u00e9 \u2713\n")
+    seen: list[dict] = []
+
+    def _fake_run(args, **kwargs):
+        seen.append(kwargs)
+        return _completed()
+
+    area.monkeypatch.setattr(subprocess, "run", _fake_run)
+    assert _EDIT_ISSUE_BODY.main(["--issue", "1", "--body-file", str(body)]) == 0
+    (kwargs,) = seen
+    assert kwargs["encoding"] == "utf-8"
+    assert kwargs["input"] == "caf\u00e9 \u2713\n"
