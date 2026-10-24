@@ -72,29 +72,10 @@ def test_windows_without_directory_fds_fails_closed(
 def test_rejects_unreplaced_placeholder(tmp_path: Path) -> None:
     body = _MODULE.prepare_pr_body(tmp_path)
     with pytest.raises(_MODULE.PreparePrBodyError, match="placeholder"):
-        _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
+        _MODULE.reject_unreplaced_placeholder((tmp_path / body).read_text(encoding="utf-8"))
 
 
-def test_reads_replaced_private_body(tmp_path: Path) -> None:
-    body = _MODULE.prepare_pr_body(tmp_path)
-    (tmp_path / body).write_text("## Summary\n\nReady.\n", encoding="utf-8")
-    assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n\nReady.\n"
-
-
-def test_rejects_symlinked_body_file(tmp_path: Path) -> None:
-    body = _MODULE.prepare_pr_body(tmp_path)
-    body_path = tmp_path / body
-    target = tmp_path / "secret.txt"
-    target.write_text("secret", encoding="utf-8")
-    body_path.unlink()
-    body_path.symlink_to(target)
-
-    with pytest.raises(_MODULE.PreparePrBodyError, match="plain file"):
-        _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
-
-
-@pytest.mark.parametrize("operation", ["read", "write"])
-def test_rejects_hard_linked_body_file(tmp_path: Path, operation: str) -> None:
+def test_rejects_hard_linked_body_file(tmp_path: Path) -> None:
     body = _MODULE.prepare_pr_body(tmp_path)
     body_path = tmp_path / body
     secret = tmp_path / "secret.txt"
@@ -104,28 +85,7 @@ def test_rejects_hard_linked_body_file(tmp_path: Path, operation: str) -> None:
     body_path.hardlink_to(secret)
 
     with pytest.raises(_MODULE.PreparePrBodyError, match="plain"):
-        if operation == "read":
-            _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
-        else:
-            _MODULE.write_prepared_pr_body(tmp_path, body.as_posix(), "body")
-
-
-def test_rejects_file_swapped_between_check_and_open(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    body = _MODULE.prepare_pr_body(tmp_path)
-    body_path = tmp_path / body
-    real_open = _MODULE.os.open
-
-    def _swap_then_open(path: Path | str, flags: int, *args: object, **kwargs: object) -> int:
-        if str(path).startswith("pr-body-"):
-            body_path.unlink()
-            body_path.write_text("attacker content", encoding="utf-8")
-        return real_open(path, flags, *args, **kwargs)
-
-    monkeypatch.setattr(_MODULE.os, "open", _swap_then_open)
-    with pytest.raises(_MODULE.PreparePrBodyError, match="changed before read"):
-        _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
+        _MODULE.write_prepared_pr_body(tmp_path, body.as_posix(), "body")
 
 
 @pytest.mark.parametrize("script", [_SCRIPT, _MIRROR_SCRIPT])
@@ -170,7 +130,6 @@ def _assert_names_every_rule(message: str) -> None:
         assert fragment in message
 
 
-@pytest.mark.parametrize("operation", ["read", "write"])
 @pytest.mark.parametrize(
     "bad_path",
     [
@@ -181,45 +140,25 @@ def _assert_names_every_rule(message: str) -> None:
         "/tmp/pr-body-abc.md",
     ],
 )
-def test_wrong_body_name_states_name_and_mode_rules(
-    tmp_path: Path, operation: str, bad_path: str
-) -> None:
+def test_wrong_body_name_states_name_and_mode_rules(tmp_path: Path, bad_path: str) -> None:
     with pytest.raises(_MODULE.PreparePrBodyError) as caught:
-        if operation == "read":
-            _MODULE.read_prepared_pr_body(tmp_path, bad_path)
-        else:
-            _MODULE.write_prepared_pr_body(tmp_path, bad_path, "body")
+        _MODULE.write_prepared_pr_body(tmp_path, bad_path, "body")
 
     _assert_names_every_rule(str(caught.value))
 
 
-@pytest.mark.parametrize("operation", ["read", "write"])
 @pytest.mark.parametrize("mode", [0o644, 0o640, 0o604, 0o666])
-def test_wrong_body_mode_states_name_and_mode_rules(
-    tmp_path: Path, operation: str, mode: int
-) -> None:
+def test_wrong_body_mode_states_name_and_mode_rules(tmp_path: Path, mode: int) -> None:
     body = _MODULE.prepare_pr_body(tmp_path)
     (tmp_path / body).write_text("## Summary\n", encoding="utf-8")
     (tmp_path / body).chmod(mode)
 
     with pytest.raises(_MODULE.PreparePrBodyError) as caught:
-        if operation == "read":
-            _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
-        else:
-            _MODULE.write_prepared_pr_body(tmp_path, body.as_posix(), "body")
+        _MODULE.write_prepared_pr_body(tmp_path, body.as_posix(), "body")
 
     message = str(caught.value)
     _assert_names_every_rule(message)
     assert body.as_posix() in message
-
-
-@pytest.mark.parametrize("mode", [0o600, 0o400, 0o700])
-def test_owner_only_body_is_not_rejected_for_mode(tmp_path: Path, mode: int) -> None:
-    body = _MODULE.prepare_pr_body(tmp_path)
-    (tmp_path / body).write_text("## Summary\n", encoding="utf-8")
-    (tmp_path / body).chmod(mode)
-
-    assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n"
 
 
 def _write_template(root: Path, text: str) -> None:
@@ -362,7 +301,7 @@ def test_rejects_seeded_body_that_keeps_the_placeholder_line(tmp_path: Path) -> 
     body = _MODULE.prepare_pr_body(tmp_path)
 
     with pytest.raises(_MODULE.PreparePrBodyError, match="placeholder"):
-        _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
+        _MODULE.reject_unreplaced_placeholder((tmp_path / body).read_text(encoding="utf-8"))
 
 
 def test_reads_seeded_body_once_the_placeholder_line_is_removed(tmp_path: Path) -> None:
@@ -373,7 +312,9 @@ def test_reads_seeded_body_once_the_placeholder_line_is_removed(tmp_path: Path) 
         seeded.replace("<!-- replace with PR body -->\n\n", ""), encoding="utf-8"
     )
 
-    assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n\nfilled in\n"
+    filled = (tmp_path / body).read_text(encoding="utf-8")
+    _MODULE.reject_unreplaced_placeholder(filled)
+    assert filled == "## Summary\n\nfilled in\n"
 
 
 def test_reject_unreplaced_placeholder_flags_the_seed_line() -> None:
