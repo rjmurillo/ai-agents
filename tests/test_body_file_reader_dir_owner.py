@@ -64,6 +64,10 @@ def _body(directory: Path) -> Path:
 
 def _directories_owned_by(monkeypatch: pytest.MonkeyPatch, uid: int, below: Path) -> None:
     """Report ``uid`` as the owner of every directory at or below ``below``."""
+    # Import every body_file copy first: it reads ``os.open`` into
+    # ``_HAS_DIR_FD`` at import, and the patched open below is not in
+    # ``os.supports_dir_fd``.
+    _github_core_modules("body_file")
     real_fstat = os.fstat
     real_open = os.open
     names: dict[int, Path] = {}
