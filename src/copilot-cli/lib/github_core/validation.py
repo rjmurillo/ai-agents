@@ -156,6 +156,44 @@ def _candidate_git_dir_roots() -> list[str]:
     return []
 
 
+# Kernel pseudo-filesystems. Their files can expose the process environment,
+# which holds the GitHub token, so no body file may come from them.
+_PSEUDO_FILESYSTEM_ROOTS = (Path("/proc"), Path("/sys"), Path("/dev"))
+# A plain tmpfs some hosts use as TMPDIR, so it stays allowed under /dev.
+_DEV_SHM = Path("/dev/shm")
+
+
+def is_pseudo_filesystem_path(resolved: Path) -> bool:
+    """Return True when a resolved path is under ``/proc``, ``/sys`` or ``/dev``.
+
+    ``/dev/shm`` and paths below it are allowed. Only POSIX has these mounts,
+    so a Windows path never matches.
+    """
+    if os.name == "nt":
+        return False
+    if _DEV_SHM in resolved.parents:
+        return False
+    return any(resolved == root or root in resolved.parents for root in _PSEUDO_FILESYSTEM_ROOTS)
+
+
+def body_file_repo_root() -> Path | None:
+    """Return the resolved repo root of the working directory, else None.
+
+    Unlike :func:`is_safe_file_path`, this never falls back to the working
+    directory when git finds no repository. A body file is sent to GitHub,
+    and the working directory is no boundary for that (issue #6916).
+    """
+    from .repo import resolve_repo_root
+
+    repo_root, _reason = resolve_repo_root()
+    if repo_root is None:
+        return None
+    try:
+        return Path(repo_root).resolve()
+    except (OSError, ValueError):
+        return None
+
+
 def is_allowed_body_file_path(path: str) -> bool:
     """Return True when a body or comment file sits under an approved root.
 
@@ -166,7 +204,11 @@ def is_allowed_body_file_path(path: str) -> bool:
 
     Approved roots, checked in this order: the repository root of the working
     directory, every temp root from :func:`_candidate_temp_roots`, the git dir
-    from :func:`_candidate_git_dir_roots`. No caller adds roots, so every script
+    from :func:`_candidate_git_dir_roots`. Outside a repository there is no
+    repo root, and the working directory is never a root: it can be any
+    directory, such as ``/`` (issue #6916). A path under a kernel
+    pseudo-filesystem (see :func:`is_pseudo_filesystem_path`) is refused under
+    every root. No caller adds roots, so every script
     accepts the same paths. A relative-path base such as ``GITHUB_WORKSPACE`` only
     resolves the path and never widens the roots. Paths are resolved before the
     prefix test, so a symlink under an approved root that points elsewhere is
@@ -183,18 +225,24 @@ def is_allowed_body_file_path(path: str) -> bool:
     Returns:
         True when the resolved path stays within an approved root.
     """
-    if is_safe_file_path(path, None):
-        return True
+    if _TRAVERSAL_PATTERN.search(path):
+        return False
+    try:
+        if is_pseudo_filesystem_path(Path(path).resolve()):
+            return False
+    except (OSError, ValueError):
+        return False
 
-    for temp_root in _candidate_temp_roots():
-        if is_safe_file_path(path, temp_root):
-            return True
-
-    for git_root in _candidate_git_dir_roots():
-        if is_safe_file_path(path, git_root):
-            return True
-
-    return False
+    repo_root = body_file_repo_root()
+    roots = [
+        *([str(repo_root)] if repo_root is not None else []),
+        *_candidate_temp_roots(),
+        *_candidate_git_dir_roots(),
+    ]
+    # A root that is the filesystem root bounds nothing, so it never counts.
+    return any(
+        Path(root) != Path(Path(root).anchor) and is_safe_file_path(path, root) for root in roots
+    )
 
 
 def read_body_file_text(

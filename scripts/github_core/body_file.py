@@ -56,18 +56,12 @@ def _is_within(path: Path, root: Path) -> bool:
 
 
 def _working_root() -> Path | None:
-    """Return the repo root, the working directory when git finds no repo, else None.
+    """Return the repo root, else None. The working directory is never a root.
 
-    This mirrors the base :func:`is_safe_file_path` uses when it gets none.
+    Outside a repo the working directory can be any directory, such as ``/``,
+    so it bounds nothing (issue #6916). The temp roots still apply there.
     """
-    from scripts.github_core.repo import REPO_ROOT_NOT_A_REPO, resolve_repo_root
-
-    repo_root, reason = resolve_repo_root()
-    if repo_root is not None:
-        return Path(repo_root).resolve()
-    if reason == REPO_ROOT_NOT_A_REPO:
-        return Path.cwd().resolve()
-    return None
+    return validation.body_file_repo_root()
 
 
 def _common_git_dir(git_dir: Path) -> Path | None:
@@ -399,8 +393,10 @@ def read_body_file_text(
     The parent directory is resolved once. The final component is not, so a
     symlinked file is refused. The checks, in order:
 
-    1. The path sits under the repo root (the working directory outside a
-       repo), a temp root, or, only when ``allow_git_dir``, the git dir.
+    1. The path sits under the repo root, a temp root, or, only when
+       ``allow_git_dir``, the git dir. Outside a repo the working directory
+       is not a root, nor is a root that is the filesystem root. No path
+       under ``/proc``, ``/sys`` or ``/dev`` passes, except ``/dev/shm``.
     2. No component below the broadest matching root starts with a dot,
        except a ``.project-toolkit/scratch`` directory, or looks like an
        NTFS alias (``:``, ``~<digit>``, a trailing dot or space). It is not
@@ -442,14 +438,17 @@ def read_body_file_text(
         raise ValueError(f"body file path contains a parent-directory segment: {path}")
     absolute = Path(os.path.abspath(candidate))
     resolved = absolute.parent.resolve() / absolute.name
+    if validation.is_pseudo_filesystem_path(resolved):
+        raise ValueError(f"body file must not be under /proc, /sys or /dev: {path}")
 
     work_root = _working_root()
     temp_roots = [Path(root) for root in validation._candidate_temp_roots()]
     git_roots = _linked_worktree_git_dirs() if allow_git_dir else []
+    # A root that is the filesystem root bounds nothing, so it never counts.
     containing = [
         root
         for root in [work_root, *temp_roots, *git_roots]
-        if root is not None and _is_within(resolved, root)
+        if root is not None and root != Path(root.anchor) and _is_within(resolved, root)
     ]
     if not containing:
         where = "the repo root, a temp directory, or the git dir"
