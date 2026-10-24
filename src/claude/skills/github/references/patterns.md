@@ -38,12 +38,15 @@ python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --ma
 
 For multi-line content, use `--body-file` to avoid escaping issues.
 
-Every body-file script, `new_pr.py` and `edit_pr_body.py` included, accepts a
-path under the repo root or a temp directory. A session scratchpad passes. The
-file must be yours, with one link, and not a symlink. A group-writable file
-needs an owner-only directory above it; otherwise run `chmod 600` on it. The
-PR scripts refuse the git dir. The issue scripts still accept a linked worktree's
-own git dir. When sessions share one scratch directory, run
+`new_pr.py`, `edit_pr_body.py`, `close_issue.py`, `reopen_issue.py` and
+`post_issue_comment.py` read the body file through the strict shared reader.
+The path must be under the repo root or a temp directory, and the file must be
+yours, with one link, and not a symlink. A group-writable file needs an
+owner-only directory above it; otherwise run `chmod 600` on it. The PR scripts
+refuse the git dir, and the three issue scripts accept only a linked worktree's
+own git dir. The other body-file scripts, such as `new_issue.py`, still accept
+any path under the repo root, a temp directory, or the git dir. A session
+scratchpad passes. When sessions share one scratch directory, run
 `new_pr.py --prepare-body-file` for a unique name, fill the relative path it
 prints, and pass that path.
 
