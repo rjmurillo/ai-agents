@@ -256,10 +256,12 @@ def _parent_swapped_after_check(area: Area) -> Path:
     swapped = False
 
     def _swap_then_open(target, flags, *args, **kwargs):
-        # The first open under the fake /tmp comes after the path was resolved
-        # and checked. Swap the parent for a symlink right before it.
+        # The reader's first open, of the filesystem root or of a path under
+        # the fake /tmp, comes after the path was resolved and checked. Swap
+        # the parent for a symlink right before it.
         nonlocal swapped
-        if not swapped and str(target).startswith(str(area.tmp)):
+        first_open = str(target) == os.sep or str(target).startswith(str(area.tmp))
+        if not swapped and first_open:
             swapped = True
             real_parent.rename(private / "sub-moved")
             (private / "sub").symlink_to(attacker_dir, target_is_directory=True)
@@ -287,6 +289,25 @@ def _repo_dotfile(area: Area) -> Path:
     return _write(area.repo / ".env", 0o600, "TOKEN=secret\n")
 
 
+def _nested_repo_dotfile(area: Area) -> Path:
+    return _write(_mkdir(area.repo / "service", 0o755) / ".env", 0o600, "TOKEN=secret\n")
+
+
+def _dotfile_under_temp_root(area: Area) -> Path:
+    clone_git = _mkdir(area.tmp / "private" / "other-clone" / ".git", 0o700)
+    area.tmp.joinpath("private", "other-clone").chmod(0o700)
+    area.tmp.joinpath("private").chmod(0o700)
+    return _write(clone_git / "config", 0o600, "[remote]\n\turl = https://token@example\n")
+
+
+def _temp_root_without_sticky_bit(area: Area) -> Path:
+    # A world-writable TMPDIR without the sticky bit lets another user rename
+    # the caller's entries in it.
+    shared = _mkdir(area.repo.parent / "shared", 0o777)
+    area.set_temp_roots(shared)
+    return _write(_mkdir(shared / "private", 0o700) / "body.md", 0o600)
+
+
 def _prepared_body_not_600(area: Area) -> Path:
     scratch = _mkdir(_mkdir(area.repo / ".project-toolkit", 0o700) / "scratch", 0o700)
     return _write(scratch / "pr-body-0123abcd.md", 0o640)
@@ -303,6 +324,9 @@ _NEGATIVE_CASES = {
     "nested-tmpdir-under-world-writable-tmp": _nested_tmpdir_under_world_writable_tmp,
     "git-config": _git_config,
     "repo-dotfile": _repo_dotfile,
+    "nested-repo-dotfile": _nested_repo_dotfile,
+    "dotfile-under-temp-root": _dotfile_under_temp_root,
+    "temp-root-without-sticky-bit": _temp_root_without_sticky_bit,
     "prepared-body-not-600": _prepared_body_not_600,
 }
 
@@ -345,3 +369,38 @@ def test_refuses_linked_worktree_git_config(area: Area, script: str) -> None:
     body = _write(_linked_worktree_git_dir(area) / "config.worktree", 0o600)
     with pytest.raises(RefusedError):
         READERS[script](body, area.repo)
+
+
+@pytest.mark.parametrize("script", sorted(READERS))
+@pytest.mark.parametrize("name", ["CONFIG.worktree", "Config"])
+def test_refuses_git_config_in_any_case(area: Area, script: str, name: str) -> None:
+    body = _write(_linked_worktree_git_dir(area) / name, 0o600)
+    with pytest.raises(RefusedError):
+        READERS[script](body, area.repo)
+
+
+@pytest.mark.parametrize("script", sorted(READERS))
+def test_refuses_common_git_dir_config_beside_linked_worktree(area: Area, script: str) -> None:
+    common = _linked_worktree_git_dir(area).parents[1]
+    body = _write(common / "config", 0o600, "[remote]\n\turl = https://token@example\n")
+    with pytest.raises(RefusedError):
+        READERS[script](body, area.repo)
+
+
+@pytest.mark.parametrize(
+    ("make_body", "accepted"),
+    [(_owned_600, True), (_symlinked_file, False), (_parent_swapped_after_check, False)],
+    ids=["owned-600", "symlinked-file", "parent-swapped-after-check"],
+)
+def test_path_fallback_without_dir_fd(
+    area: Area, make_body: Callable[[Area], Path], accepted: bool
+) -> None:
+    """The Windows branch, which has no dir_fd, runs here by forcing it off."""
+    for module in _github_core_modules("body_file"):
+        area.monkeypatch.setattr(module, "_HAS_DIR_FD", False)
+    body = make_body(area)
+    if accepted:
+        assert READERS["new_pr"](body, area.repo) == _BODY
+    else:
+        with pytest.raises(RefusedError):
+            READERS["new_pr"](body, area.repo)

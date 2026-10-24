@@ -120,13 +120,14 @@ Relative paths resolve differently per script, so pass an absolute path. `close_
 
 The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_valid_body_file` wraps it for scripts that exit directly. `close_issue.py`, `reopen_issue.py` and `new_issue.py` call the predicate so they keep their JSON error envelope. `new_pr.py`, `edit_pr_body.py`, `close_issue.py`, `reopen_issue.py` and `post_issue_comment.py` then read the file with `read_body_file_text`. `new_pr.py` loads `github_core` by path because it runs under `python3 -I`. `new_pr.py` and `edit_pr_body.py` also refuse a body that still holds the `<!-- replace with PR body -->` line.
 
-`read_body_file_text` resolves the parent directory once and leaves the file name unresolved. It opens the file by walking down from the broadest matching root, one directory at a time, with `O_NOFOLLOW` on every step and `O_NONBLOCK` on the file. A symlinked file, a parent swapped for a symlink after the check, and a FIFO all fail. The checks then run on the opened objects:
+`read_body_file_text` resolves the parent directory once and leaves the file name unresolved. It opens the file by walking down from the filesystem root, one directory at a time, with `O_NOFOLLOW` on every step and `O_NONBLOCK` on the file. A symlinked file, a parent swapped for a symlink after the check, and a FIFO all fail. The checks then run on the opened objects:
 
 - A regular file with one hard link, owned by you, and not world-writable.
 - A `pr-body-*.md` file from `--prepare-body-file` must be mode 600.
 - Below a temp root, every directory down to the file must be owned by you with no group or other write bit. The walk starts at the broadest root, so a `TMPDIR` inside `/tmp` is checked too.
 - A group-writable file, such as mode 664 from umask 002, passes only inside a directory only you can enter (mode 700). Every directory between that one and the file must be yours and refuse other writers. The session scratchpad qualifies. Otherwise run `chmod 600` on the file.
-- No repo dotfile and no top-level dot directory such as `.git` or `.github`. `.project-toolkit/scratch/` is the one exception.
+- No dotfile and no dot directory at any depth below the root, so `.env`, `service/.env` and `.git/config` all fail. The scratch directory that `--prepare-body-file` uses is the one exception.
+- A temp root that others can write, such as `/tmp`, needs the sticky bit.
 - `new_pr.py` and `edit_pr_body.py` refuse the git dir and the common git dir. The issue scripts keep the documented git-dir reply flow: they accept a linked worktree's own git dir (`.git/worktrees/<name>/`). They refuse its `config` and `config.worktree` files and a primary clone's `.git`.
 
 Other scripts still open the path as given. Keep body files in a private directory such as the session scratchpad.
