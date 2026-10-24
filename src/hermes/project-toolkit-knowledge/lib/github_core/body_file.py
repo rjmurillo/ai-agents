@@ -240,6 +240,21 @@ def _check_opened_body(
             if temp_root in directory.parents and not _is_private_directory(directory_metadata):
                 raise ValueError(f"body file directory is not private to the caller: {directory}")
 
+    # Outside a temp root (the repo root or the git dir and below), another
+    # user who owns a directory, or anyone at all when it is world-writable
+    # without the sticky bit, could rename or swap its entries. Group write is
+    # allowed there: under umask 002 every repo directory is mode 775.
+    for directory, directory_metadata in directories:
+        if temp_root is not None and _is_within(directory, temp_root):
+            continue
+        if directory_metadata.st_uid not in (0, os.getuid()):
+            raise ValueError(f"body file directory has another owner: {directory}")
+        world_writable = directory_metadata.st_mode & _WORLD_WRITE
+        if world_writable and not directory_metadata.st_mode & stat.S_ISVTX:
+            raise ValueError(
+                f"body file directory is world-writable without the sticky bit: {directory}"
+            )
+
     # A group-writable file (umask 002) is safe only when no one else can reach
     # it: walking up from the file, every directory is private until one that
     # denies group and other search. Without that directory, a group member
@@ -391,7 +406,9 @@ def read_body_file_text(
     4. On the opened objects: a regular file, one hard link, owned by the
        caller, not world-writable; ``pr-body-*.md`` is mode 600. Below a temp
        root every directory is owned by the caller with no group or other
-       write. A group-writable file needs an owner-only directory above it.
+       write. Below the repo root or the git dir every directory belongs to
+       the caller or root and is not world-writable without the sticky bit.
+       A group-writable file needs an owner-only directory above it.
 
     Args:
         path: The body file path.
