@@ -220,3 +220,21 @@ def test_path_fallback_without_dir_fd_refuses_too(
         monkeypatch.setattr(Path, "lstat", _lstat)
     with pytest.raises(RefusedError):
         READERS["new_pr"](body, repo)
+
+
+@pytest.mark.parametrize("script", ["close_issue", "post_issue_comment"])
+def test_path_fallback_without_dir_fd_checks_the_worktrees_dir(
+    repo: Path, script: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for module in _github_core_modules("body_file"):
+        monkeypatch.setattr(module, "_HAS_DIR_FD", False)
+    common = _dir(repo.parent / "clone.git", 0o700)
+    worktrees = _dir(common / "worktrees", 0o700)
+    git_dir = _dir(worktrees / "feature", 0o700)
+    (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+    _set_roots(monkeypatch, temp=[], git=[git_dir])
+    body = _body(git_dir)
+    assert READERS[script](body, repo) == _BODY
+    worktrees.chmod(0o777)
+    with pytest.raises(RefusedError):
+        READERS[script](body, repo)
