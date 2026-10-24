@@ -33,6 +33,13 @@ _HAS_DIR_FD = hasattr(os, "O_DIRECTORY") and os.open in os.supports_dir_fd
 # Errors an O_NOFOLLOW open returns when a path component is a symlink:
 # ELOOP on Linux and macOS, EMLINK on FreeBSD, ENOTDIR for a non-directory.
 _LINK_ERRNOS = frozenset({errno.ELOOP, errno.EMLINK, errno.ENOTDIR})
+_IS_WINDOWS = os.name == "nt"
+# NTFS reaches one file under several names: an 8.3 short name (GIT~1), a
+# trailing dot or space (config.), or a stream (notes.md:evil). Any of them
+# would slip past a name check, so a component that looks like one is refused
+# on every platform.
+_NTFS_SHORT_NAME = re.compile(r"~\d")
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -147,23 +154,30 @@ def _open_by_path(
 ) -> tuple[int, list[tuple[Path, os.stat_result]]]:
     """Open without ``dir_fd`` (Windows): lstat each step, then recheck after the open.
 
-    A path open cannot pin its parents, so every directory and the file are
-    lstat-ed before and after the open and must be the same objects. A swap
-    and swap-back between the two passes is not caught; owner and mode checks
-    do not run on Windows either.
+    A path open cannot pin its parents, so every directory from the anchor and
+    the file are lstat-ed before and after the open and must be the same
+    objects, with no symlink or junction among them. A swap and swap-back
+    between the two passes is not caught; owner and mode checks do not run on
+    Windows either.
     """
 
+    def _is_link(metadata: os.stat_result) -> bool:
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        return stat.S_ISLNK(metadata.st_mode) or bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
+
     def _walk() -> list[tuple[Path, os.stat_result]]:
-        found = [(start, start.lstat())]
-        current = start
-        for part in resolved.relative_to(start).parts[:-1]:
+        # From the anchor, so a junction above start is caught too.
+        anchor = Path(resolved.anchor)
+        found = [(anchor, anchor.lstat())]
+        current = anchor
+        for part in resolved.relative_to(anchor).parts[:-1]:
             current = current / part
             metadata = current.lstat()
-            if not stat.S_ISDIR(metadata.st_mode):
+            if _is_link(metadata) or not stat.S_ISDIR(metadata.st_mode):
                 raise ValueError(f"body file path crosses a link or non-directory: {current}")
             found.append((current, metadata))
         before = resolved.lstat()
-        if stat.S_ISLNK(before.st_mode):
+        if _is_link(before):
             raise ValueError(f"body file must not be a symlink: {resolved}")
         found.append((resolved, before))
         return found
@@ -182,7 +196,7 @@ def _open_by_path(
     except BaseException:
         os.close(descriptor)
         raise
-    return descriptor, checked[:-1]
+    return descriptor, [entry for entry in checked[:-1] if _is_within(entry[0], start)]
 
 
 def _check_opened_body(
@@ -214,9 +228,14 @@ def _check_opened_body(
         for directory, directory_metadata in directories:
             # The temp root itself may be shared, like /tmp, only with the
             # sticky bit, which stops other users renaming entries in it.
+            # The sticky bit does not bind the directory's owner, so a shared
+            # root must also belong to root or the caller.
             shared = directory_metadata.st_mode & _GROUP_OR_WORLD_WRITE
-            if directory == temp_root and shared and not directory_metadata.st_mode & stat.S_ISVTX:
-                raise ValueError(f"temp directory is shared without the sticky bit: {directory}")
+            if directory == temp_root and shared:
+                if not directory_metadata.st_mode & stat.S_ISVTX:
+                    raise ValueError(f"shared temp directory lacks the sticky bit: {directory}")
+                if directory_metadata.st_uid not in (0, os.getuid()):
+                    raise ValueError(f"shared temp directory has another owner: {directory}")
             if temp_root in directory.parents and not _is_private_directory(directory_metadata):
                 raise ValueError(f"body file directory is not private to the caller: {directory}")
 
@@ -257,6 +276,84 @@ def _refuse_hidden_component(resolved: Path, start: Path, linked: list[Path], di
             raise ValueError(f"body file must not be a dotfile or in a dot directory: {display}")
 
 
+def _refuse_alias_component(resolved: Path, start: Path, display: str) -> None:
+    """Refuse a component below ``start`` that could be an NTFS alias of another name."""
+    for component in (resolved, *resolved.parents):
+        if component == start or start not in component.parents:
+            break
+        name = component.name
+        if ":" in name or _NTFS_SHORT_NAME.search(name) or name.endswith((".", " ")):
+            raise ValueError(
+                f"body file path has a component that can alias another name "
+                f"(':', '~<digit>', or a trailing dot or space): {display}"
+            )
+
+
+def _check_location(
+    resolved: Path, start: Path, linked: list[Path], refused_git_dirs: list[Path], display: str
+) -> None:
+    """Run the name-based location checks on one spelling of the path."""
+    _refuse_alias_component(resolved, start, display)
+    if linked and resolved.name.casefold() in _GIT_CONFIG_NAMES:
+        raise ValueError(f"body file must not be a git config file: {display}")
+    _refuse_hidden_component(resolved, start, linked, display)
+    for git_dir in refused_git_dirs:
+        if _is_within(resolved, git_dir) and not linked:
+            raise ValueError(f"body file must not be inside the git dir: {display}")
+
+
+def _final_path(descriptor: int) -> Path | None:
+    """Return the name Windows gives the opened file, or None when it cannot say.
+
+    ``GetFinalPathNameByHandleW`` expands 8.3 short names and drops trailing
+    dots, so the location checks can run again on the real name.
+    """
+    try:
+        import ctypes
+        import msvcrt
+        from ctypes import wintypes
+
+        handle = msvcrt.get_osfhandle(descriptor)
+        get_final = ctypes.windll.kernel32.GetFinalPathNameByHandleW
+        get_final.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD]
+        get_final.restype = wintypes.DWORD
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = get_final(handle, buffer, len(buffer), 0)
+    except (ImportError, AttributeError, OSError):
+        return None
+    if not length or length >= len(buffer):
+        return None
+    final = buffer.value
+    if final.startswith("\\\\?\\UNC\\"):
+        final = "\\\\" + final[8:]
+    elif final.startswith("\\\\?\\"):
+        final = final[4:]
+    return Path(final)
+
+
+def _check_canonical_location(
+    descriptor: int, start: Path, linked: list[Path], refused_git_dirs: list[Path], display: str
+) -> None:
+    """On Windows, rerun the location checks on the opened file's real name."""
+    final = _final_path(descriptor)
+    if final is None:
+        raise ValueError(f"cannot read the real name of the opened body file: {display}")
+
+    def canonical(path: Path) -> Path:
+        return Path(os.path.realpath(path))
+
+    canonical_start = canonical(start)
+    if not _is_within(final, canonical_start) or final == canonical_start:
+        raise ValueError(f"body file real name is outside the approved root: {display}")
+    _check_location(
+        final,
+        canonical_start,
+        [canonical(root) for root in linked],
+        [canonical(root) for root in refused_git_dirs],
+        display,
+    )
+
+
 def read_body_file_text(
     path: str,
     base: str | Path | None = None,
@@ -277,9 +374,11 @@ def read_body_file_text(
     1. The path sits under the repo root (the working directory outside a
        repo), a temp root, or, only when ``allow_git_dir``, the git dir.
     2. No component below the broadest matching root starts with a dot,
-       except a ``.project-toolkit/scratch`` directory. It is not in the git
-       dir or the common git dir, except a linked worktree's own git dir
-       when ``allow_git_dir``.
+       except a ``.project-toolkit/scratch`` directory, or looks like an
+       NTFS alias (``:``, ``~<digit>``, a trailing dot or space). It is not
+       in the git dir or the common git dir, except a linked worktree's own
+       git dir when ``allow_git_dir``. On Windows these checks run again on
+       the opened file's real name.
     3. The file is opened from the filesystem root with ``O_NOFOLLOW`` on
        every component and ``O_NONBLOCK`` on the file, so a symlink or a
        swapped parent fails the open and a FIFO cannot block.
@@ -328,12 +427,8 @@ def read_body_file_text(
 
     start = min(containing, key=lambda root: len(root.parts))
     linked = [root for root in git_roots if _is_within(resolved, root)]
-    if linked and resolved.name.casefold() in _GIT_CONFIG_NAMES:
-        raise ValueError(f"body file must not be a git config file: {path}")
-    _refuse_hidden_component(resolved, start, linked, path)
-    for git_dir in _git_dirs_to_refuse(work_root):
-        if _is_within(resolved, git_dir) and not linked:
-            raise ValueError(f"body file must not be inside the git dir: {path}")
+    refused_git_dirs = _git_dirs_to_refuse(work_root)
+    _check_location(resolved, start, linked, refused_git_dirs, path)
 
     matching_temp = [root for root in temp_roots if _is_within(resolved, root)]
     temp_root = min(matching_temp, key=lambda root: len(root.parts)) if matching_temp else None
@@ -346,6 +441,8 @@ def read_body_file_text(
             ) from exc
         raise
     try:
+        if _IS_WINDOWS:
+            _check_canonical_location(descriptor, start, linked, refused_git_dirs, path)
         _check_opened_body(path, resolved.name, os.fstat(descriptor), directories, temp_root)
         with os.fdopen(descriptor, encoding="utf-8") as body_file:
             descriptor = -1

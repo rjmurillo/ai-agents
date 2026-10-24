@@ -195,11 +195,27 @@ def _prepared_body_in_repo_scratch(area: Area) -> Path:
     return _write(scratch / "pr-body-0123abcd.md", 0o600)
 
 
+def _plain_pr_body_name(area: Area) -> Path:
+    return _write(_mkdir(area.tmp / "private", 0o700) / "pr-body.md", 0o600)
+
+
 @pytest.mark.parametrize("script", sorted(READERS))
 @pytest.mark.parametrize(
     "make_body",
-    [_owned_600, _owned_664_in_owner_only_dir, _session_scratchpad, _prepared_body_in_repo_scratch],
-    ids=["owned-600", "owned-664-owner-only-dir", "session-scratchpad", "prepared-body"],
+    [
+        _owned_600,
+        _owned_664_in_owner_only_dir,
+        _session_scratchpad,
+        _prepared_body_in_repo_scratch,
+        _plain_pr_body_name,
+    ],
+    ids=[
+        "owned-600",
+        "owned-664-owner-only-dir",
+        "session-scratchpad",
+        "prepared-body",
+        "plain-pr-body-name",
+    ],
 )
 def test_accepts_private_body_file(
     area: Area, script: str, make_body: Callable[[Area], Path]
@@ -308,6 +324,24 @@ def _temp_root_without_sticky_bit(area: Area) -> Path:
     return _write(_mkdir(shared / "private", 0o700) / "body.md", 0o600)
 
 
+def _ntfs_short_name_dir(area: Area) -> Path:
+    # GIT~1 is the 8.3 short name NTFS gives .git.
+    return _write(_mkdir(area.repo / "GIT~1", 0o700) / "config", 0o600)
+
+
+def _trailing_dot(area: Area) -> Path:
+    # NTFS drops a trailing dot, so "config." opens "config".
+    return _write(_mkdir(area.tmp / "private", 0o700) / "config.", 0o600)
+
+
+def _trailing_space_dotfile(area: Area) -> Path:
+    return _write(_mkdir(area.tmp / "private", 0o700) / ".env ", 0o600)
+
+
+def _alternate_data_stream(area: Area) -> Path:
+    return _write(_mkdir(area.tmp / "private", 0o700) / "notes.md:evil", 0o600)
+
+
 def _prepared_body_not_600(area: Area) -> Path:
     scratch = _mkdir(_mkdir(area.repo / ".project-toolkit", 0o700) / "scratch", 0o700)
     return _write(scratch / "pr-body-0123abcd.md", 0o640)
@@ -327,6 +361,10 @@ _NEGATIVE_CASES = {
     "nested-repo-dotfile": _nested_repo_dotfile,
     "dotfile-under-temp-root": _dotfile_under_temp_root,
     "temp-root-without-sticky-bit": _temp_root_without_sticky_bit,
+    "ntfs-short-name-dir": _ntfs_short_name_dir,
+    "trailing-dot": _trailing_dot,
+    "trailing-space-dotfile": _trailing_space_dotfile,
+    "alternate-data-stream": _alternate_data_stream,
     "prepared-body-not-600": _prepared_body_not_600,
 }
 
@@ -399,6 +437,37 @@ def test_path_fallback_without_dir_fd(
     for module in _github_core_modules("body_file"):
         area.monkeypatch.setattr(module, "_HAS_DIR_FD", False)
     body = make_body(area)
+    if accepted:
+        assert READERS["new_pr"](body, area.repo) == _BODY
+    else:
+        with pytest.raises(RefusedError):
+            READERS["new_pr"](body, area.repo)
+
+
+def _as_windows(area: Area, final: Callable[[Path], Path | None]) -> None:
+    """Take the Windows branch that rechecks the opened file's real name."""
+    for module in _github_core_modules("body_file"):
+        area.monkeypatch.setattr(module, "_IS_WINDOWS", True)
+        area.monkeypatch.setattr(module, "_final_path", final)
+
+
+@pytest.mark.parametrize(
+    ("real_name", "accepted"),
+    [
+        (lambda body, _area: body, True),
+        (lambda _body, area: area.repo / ".git" / "config", False),
+        (lambda body, _area: body.parent / ".env", False),
+        (lambda _body, area: area.repo.parent / "outside.md", False),
+        (lambda _body, _area: None, False),
+    ],
+    ids=["same-name", "real-name-is-git-config", "real-name-is-dotfile", "outside-root", "unknown"],
+)
+def test_windows_rechecks_the_real_name(
+    area: Area, real_name: Callable[[Path, Area], Path | None], accepted: bool
+) -> None:
+    """GetFinalPathNameByHandle expands GIT~1 and drops trailing dots; recheck its answer."""
+    body = _write(_mkdir(area.tmp / "private", 0o700) / "body.md", 0o600)
+    _as_windows(area, lambda _descriptor: real_name(body, area))
     if accepted:
         assert READERS["new_pr"](body, area.repo) == _BODY
     else:
