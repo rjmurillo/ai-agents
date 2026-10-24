@@ -233,10 +233,18 @@ def test_a_caller_chosen_file_list_is_left_alone(
 def test_git_arguments_are_the_last_two(
     rest: list[str], flags: list[str], git_arguments: list[str]
 ) -> None:
-    assert runner._split_hook_arguments(rest) == (flags, git_arguments)
+    assert runner._split_hook_arguments(rest, from_git=False) == (flags, git_arguments)
 
 
-@pytest.mark.parametrize("remote", ["--force", "--file=README.md", "--all-files"])
+@pytest.mark.parametrize("remote", ["--job", "--tag", "--command", "--exclude", "--file"])
+def test_with_ref_lines_the_last_two_are_git_arguments_whatever_their_name(remote: str) -> None:
+    assert runner._split_hook_arguments([remote, "url"], from_git=True) == ([], [remote, "url"])
+
+
+@pytest.mark.parametrize(
+    "remote",
+    ["--force", "--file=README.md", "--all-files", "--job", "--tag", "--file", "--exclude"],
+)
 def test_a_remote_named_like_a_file_flag_keeps_the_file_list(
     monkeypatch: pytest.MonkeyPatch, remote: str
 ) -> None:
@@ -262,9 +270,10 @@ def test_a_remote_named_like_a_file_flag_keeps_the_file_list(
     ]
 
 
-def test_a_pre_push_run_without_git_arguments_adds_no_boundary(
+def test_with_ref_lines_a_trailing_job_flag_is_taken_as_git_arguments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fail safe: the pair goes after ``--``, so Lefthook selects no job and runs them all."""
     _pipe_stdin(monkeypatch, REF_LINE)
     with (
         mock.patch.object(runner, "resolve_command", return_value=COMMAND),
@@ -274,8 +283,30 @@ def test_a_pre_push_run_without_git_arguments_adds_no_boundary(
     ):
         runner.main(["run", "pre-push", "--job", "x"])
 
-    files.assert_called_once_with(REF_LINE.encode(), None)
-    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "--file=x.py", "--job", "x"]
+    files.assert_called_once_with(REF_LINE.encode(), "--job")
+    assert run.call_args.args[0] == [
+        *COMMAND,
+        "run",
+        "pre-push",
+        "--file=x.py",
+        "--",
+        "--job",
+        "x",
+    ]
+
+
+def test_without_ref_lines_a_trailing_job_flag_stays_a_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pipe_stdin(monkeypatch, "")
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.dict(os.environ, {report_module.OUTPUT_ENV: "failure"}),
+        mock.patch.object(runner.subprocess, "run", return_value=_completed(0, "")) as run,
+    ):
+        runner.main(["run", "pre-push", "--job", "x"])
+
+    assert run.call_args.args[0] == [*COMMAND, "run", "pre-push", "--job", "x"]
 
 
 def test_a_pre_commit_rerun_still_names_lefthook(

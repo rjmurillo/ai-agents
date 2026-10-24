@@ -254,12 +254,27 @@ def test_a_missing_local_object_stops_the_push(repo: Repo) -> None:
         repo.files([f"refs/heads/x {'2' * 40} refs/heads/x {repo.git('rev-parse', 'HEAD')}"])
 
 
-@pytest.mark.parametrize("target", ["HEAD^{tree}", "HEAD:README.md"], ids=["tree", "blob"])
-def test_a_tag_on_a_tree_or_blob_names_the_placeholder(repo: Repo, target: str) -> None:
-    obj = repo.git("rev-parse", target)
-    repo.git("tag", "odd", obj)
+def test_a_tag_on_a_tree_lists_every_file_in_the_tree(repo: Repo) -> None:
+    tree = repo.git("rev-parse", "HEAD^{tree}")
+    repo.git("tag", "odd", tree)
 
-    assert repo.args([f"refs/tags/odd {obj} refs/tags/odd {ZERO}"]) == [f"--file={pfl.PLACEHOLDER}"]
+    assert repo.files([f"refs/tags/odd {tree} refs/tags/odd {ZERO}"]) == ["README.md", "app.py"]
+
+
+def test_an_annotated_tag_on_a_tree_lists_every_file_in_the_tree(repo: Repo) -> None:
+    repo.git("tag", "-a", "-m", "t", "odd", repo.git("rev-parse", "HEAD^{tree}"))
+    tag = repo.git("rev-parse", "odd")
+
+    assert repo.files([f"refs/tags/odd {tag} refs/tags/odd {ZERO}"]) == ["README.md", "app.py"]
+
+
+def test_a_tag_on_a_blob_names_the_placeholder(repo: Repo) -> None:
+    blob = repo.git("rev-parse", "HEAD:README.md")
+    repo.git("tag", "odd", blob)
+
+    assert repo.args([f"refs/tags/odd {blob} refs/tags/odd {ZERO}"]) == [
+        f"--file={pfl.PLACEHOLDER}"
+    ]
 
 
 def test_an_annotated_tag_lists_the_files_of_its_commit(repo: Repo) -> None:

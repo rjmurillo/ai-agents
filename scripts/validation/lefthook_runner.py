@@ -123,16 +123,17 @@ def _cannot_start(command: list[str], error: Exception) -> int:
 _VALUE_FLAGS = frozenset({"--job", "--tag", "--command", "--exclude", "--file"})
 
 
-def _split_hook_arguments(rest: list[str]) -> tuple[list[str], list[str]]:
+def _split_hook_arguments(rest: list[str], from_git: bool) -> tuple[list[str], list[str]]:
     """Split the arguments after ``run pre-push`` into Lefthook flags and git's arguments.
 
     Git passes a pre-push hook exactly two arguments, the remote name and its
     URL, after any flags a rerun adds. Taking them from the end, not by their
-    shape, keeps a remote named like a flag (``git remote add -- --file=x``)
-    from being read as one. A trailing value flag such as ``--job x`` marks a
-    call without git's arguments.
+    shape, keeps a remote named like a flag (``git remote add -- --job x``)
+    from being read as one. ``from_git`` is True when stdin carries ref lines,
+    which only git or a printed rerun sends, so the last two are always git's.
+    Otherwise a trailing value flag such as ``--job x`` marks a manual call.
     """
-    if len(rest) >= 2 and rest[-2] not in _VALUE_FLAGS:
+    if len(rest) >= 2 and (from_git or rest[-2] not in _VALUE_FLAGS):
         return rest[:-2], rest[-2:]
     return rest, []
 
@@ -146,7 +147,7 @@ def _child_arguments(arguments: list[str], stdin_bytes: bytes | None) -> list[st
     """
     if hook_name(arguments) != "pre-push":
         return arguments
-    flags, git_arguments = _split_hook_arguments(arguments[2:])
+    flags, git_arguments = _split_hook_arguments(arguments[2:], bool(stdin_bytes))
     file_args: list[str] = []
     if stdin_bytes and not caller_chose_files(flags):
         remote = git_arguments[0] if git_arguments else None

@@ -20,7 +20,7 @@ Each ref line is ``<local ref> <local sha> <remote ref> <remote sha>``:
 
 - Delete (local sha all zeros): no files. The ref line still reaches stdin jobs.
 - Update: the files that differ between the remote sha and the local sha.
-- A tag on a tree or blob: no files, as for a delete.
+- A tag on a tree: every file in the tree. A tag on a blob: no files.
 - New ref (remote sha all zeros), or a remote sha this clone lacks: the files
   changed since the merge-base with the remote's default branch. With no known
   default branch, or no common history, every file in the local commit.
@@ -141,8 +141,12 @@ def _git_paths(git: GitRunner, arguments: Sequence[str]) -> list[str]:
     return _paths(result.stdout)
 
 
-def _object_exists(git: GitRunner, sha: str) -> bool:
-    return git(["cat-file", "-e", sha]).returncode == 0
+def _object_type(git: GitRunner, sha: str) -> str | None:
+    """Return the object's type after peeling tags, or None when it is missing."""
+    result = git(["cat-file", "-t", f"{sha}^{{}}"])
+    return (
+        result.stdout.decode("ascii", errors="replace").strip() if result.returncode == 0 else None
+    )
 
 
 def _is_commit(git: GitRunner, sha: str) -> bool:
@@ -183,8 +187,12 @@ def _ref_files(git: GitRunner, update: RefUpdate, remote: str | None) -> list[st
     if update.is_delete:
         return []
     if not _is_commit(git, update.local_sha):
-        if _object_exists(git, update.local_sha):
-            return []  # A tag on a tree or blob has no history, so it changes no file.
+        kind = _object_type(git, update.local_sha)
+        if kind == "tree":
+            # A tag on a tree has no history, so every file in the tree is new.
+            return _git_paths(git, ["ls-tree", "-r", "-z", "--name-only", update.local_sha])
+        if kind is not None:
+            return []  # A tag on a blob names no path.
         raise PushFileListError(f"the pushed object {update.local_sha} is not in this clone")
     if not update.is_new and _is_commit(git, update.remote_sha):
         return _changed(git, update.remote_sha, update.local_sha)
