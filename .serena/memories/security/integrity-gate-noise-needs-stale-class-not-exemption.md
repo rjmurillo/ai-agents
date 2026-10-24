@@ -4,7 +4,7 @@
 
 In `scripts/ci/verify_dispatch_closure.py`, a noisy integrity gate tempts the fix "exempt what the PR did not change" by comparing to the merge base. That fails open. A stale-but-unchanged verifier still differs from trusted main, and a silent exemption hides that mismatch.
 
-Add a visible STALE outcome instead. It is listed per file with a count, so the mismatch is never hidden, but it does not fail the check: a PR cannot be required to sit on the latest main (user decision, 2026-10-24). Every other category still exits 1. Commit 070e4017e (PR #6488) first made STALE fail.
+Add a visible STALE outcome instead. It is listed per file with a count, so the mismatch is never hidden, but it does not fail the check: a PR cannot be required to sit on the latest main (user decision, 2026-10-24). Every other category still exits 1. Commit 070e4017e (PR #6488, 2026-10-13) first made STALE fail.
 
 ## Evidence
 

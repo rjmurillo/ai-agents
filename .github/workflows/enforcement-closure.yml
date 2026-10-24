@@ -119,7 +119,7 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
           enable-git-hooks: false
 
-      # Reports, and exits 1 on a difference: a legitimate verifier change reports
+      # Reports, and exits 1 on a difference other than STALE: a legitimate verifier change reports
       # here exactly as it halts the local gate until a human approves it.
       - name: Compare the head's dispatch closure with the base
         env:
