@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from tests import new_pr_harness
+from tests.containment_fixtures import private_dir
 from tests.new_pr_harness import completed, main, new_pr
 
 _pr_val = new_pr._pr_val
@@ -289,8 +290,7 @@ class TestPreflight:
 
     def test_scratchpad_body_outside_the_repo_passes(self, tmp_path: Path, capsys) -> None:
         """Issue #6667: a /tmp/claude-<uid>/ scratchpad path is accepted."""
-        scratchpad = tmp_path / "claude-1000" / "scratchpad"
-        scratchpad.mkdir(parents=True)
+        scratchpad = private_dir(tmp_path / "claude-1000" / "scratchpad")
         body = scratchpad / "pr7.md"
         body.write_text("## Summary\n\nDone.\n", encoding="utf-8")
 
@@ -302,8 +302,7 @@ class TestPreflight:
         assert "Preflight OK" in capsys.readouterr().out
 
     def test_fixed_name_body_in_scratch_passes(self, tmp_path: Path) -> None:
-        scratch = tmp_path / ".project-toolkit" / "scratch"
-        scratch.mkdir(parents=True)
+        scratch = private_dir(tmp_path / ".project-toolkit" / "scratch")
         (scratch / "body.md").write_text("text", encoding="utf-8")
 
         rc = self._preflight(
@@ -335,13 +334,14 @@ class TestPreflight:
         assert rc == 2
         assert "Invalid body file" in capsys.readouterr().err
 
-    def test_group_readable_body_passes(self, tmp_path: Path) -> None:
+    def test_group_readable_prepared_body_is_refused(self, tmp_path: Path, capsys) -> None:
         body = self._prepared(tmp_path)
         (tmp_path / body).chmod(0o644)
 
         rc = self._preflight(tmp_path, ["--title", "feat: test", "--body-file", body])
 
-        assert rc == 0
+        assert rc == 2
+        assert "mode 600" in capsys.readouterr().err
 
     def test_unedited_seed_fails(self, tmp_path: Path, capsys) -> None:
         relative = new_pr.prepare_pr_body(tmp_path)
@@ -359,8 +359,7 @@ class TestPreflight:
 
 def test_isolated_script_reads_a_scratchpad_body_file(tmp_path: Path) -> None:
     """Under ``python -I`` the shared rule loads by path and approves a temp-root file (#6667)."""
-    scratchpad = tmp_path / "claude-1000" / "scratchpad"
-    scratchpad.mkdir(parents=True)
+    scratchpad = private_dir(tmp_path / "claude-1000" / "scratchpad")
     body = scratchpad / "pr7.md"
     body.write_text("## Summary\n\nDone.\n", encoding="utf-8")
     env = {**os.environ, "TMPDIR": str(tmp_path)}

@@ -1,4 +1,4 @@
-"""Create and read private PR body files below consumer scratch space."""
+"""Create and fill private PR body files below consumer scratch space."""
 
 from __future__ import annotations
 
@@ -262,41 +262,6 @@ def reject_unreplaced_placeholder(content: str) -> None:
     marker = _BODY_PLACEHOLDER.strip()
     if any(line.strip() == marker for line in content.splitlines()):
         raise PreparePrBodyError("body placeholder was not replaced")
-
-
-def read_prepared_pr_body(repo_root: Path, relative_path: str) -> str:
-    """Read one allocated body without following links or leaving scratch."""
-    path = _validate_body_path(relative_path)
-    scratch_dir, scratch_fd = _open_scratch(repo_root)
-    descriptor = -1
-    try:
-        if scratch_fd is None:
-            body_path = scratch_dir / path.name
-            before = body_path.lstat()
-            descriptor = os.open(body_path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-        else:
-            before = os.stat(path.name, dir_fd=scratch_fd, follow_symlinks=False)
-            if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
-                raise PreparePrBodyError(f"body file must be a plain file: {relative_path}")
-            descriptor = os.open(
-                path.name,
-                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
-                dir_fd=scratch_fd,
-            )
-        opened = os.fstat(descriptor)
-        _validate_body_metadata(relative_path, before, opened)
-        with os.fdopen(descriptor, encoding="utf-8") as body_file:
-            descriptor = -1
-            content = body_file.read()
-        reject_unreplaced_placeholder(content)
-        return content
-    except FileNotFoundError as exc:
-        raise PreparePrBodyError(f"body file not found: {relative_path}") from exc
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-        if scratch_fd is not None:
-            os.close(scratch_fd)
 
 
 def write_prepared_pr_body(repo_root: Path, relative_path: str, content: str) -> None:

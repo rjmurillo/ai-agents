@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import re
 import stat
@@ -173,9 +174,10 @@ def is_allowed_body_file_path(path: str) -> bool:
     prefix test, so a symlink under an approved root that points elsewhere is
     rejected. The caller owns the existence check.
 
-    ``new_pr.py`` and ``edit_pr_body.py`` read their body file through
-    :func:`read_body_file_text`, which applies this same rule (owner decision
-    D14, 2026-10-24, issue #6667).
+    Five scripts read their body file through :func:`read_body_file_text`,
+    which applies this rule and the stricter location and open checks (owner
+    decision D14, 2026-10-24, issue #6667). ``new_pr.py`` and
+    ``edit_pr_body.py`` refuse the git dir there; the issue scripts keep it.
 
     Args:
         path: The file path to check.
@@ -197,31 +199,234 @@ def is_allowed_body_file_path(path: str) -> bool:
     return False
 
 
-def read_body_file_text(path: str, base: str | Path | None = None) -> str:
-    """Read a UTF-8 body file that the shared containment rule approves.
+# A file new_pr.py --prepare-body-file allocates. It must stay mode 600.
+_PREPARED_BODY_NAME = re.compile(r"^pr-body-[A-Za-z0-9_-]+\.md$")
+# The one dot directory a body may live in below the repo root: the scratch
+# directory that --prepare-body-file and the worktree scratch rule use.
+_TRUSTED_DOT_PREFIX = (".project-toolkit", "scratch")
+_GIT_CONFIG_NAMES = frozenset({"config", "config.worktree"})
+_WORLD_WRITE = 0o002
+_GROUP_WRITE = 0o020
+_GROUP_OR_WORLD_WRITE = 0o022
+_GROUP_OR_WORLD_SEARCH = 0o011
+_GROUP_OR_WORLD_ANY = 0o077
+# Mode bits and owners mean nothing on Windows, so those checks run on POSIX.
+_POSIX_PERMISSIONS = os.name != "nt" and hasattr(os, "getuid")
+_HAS_DIR_FD = hasattr(os, "O_DIRECTORY") and os.open in os.supports_dir_fd
+# Errors an O_NOFOLLOW open returns when a path component is a symlink:
+# ELOOP on Linux and macOS, EMLINK on FreeBSD, ENOTDIR for a non-directory.
+_LINK_ERRNOS = frozenset({errno.ELOOP, errno.EMLINK, errno.ENOTDIR})
 
-    Used by ``new_pr.py`` and ``edit_pr_body.py`` so a PR body file follows the
-    same rule as every other body or comment file (issue #6667). A relative
-    ``path`` resolves against ``base`` when given, else the working directory.
 
-    The path is resolved once, the rule is tested on the resolved path, and
-    that same resolved path is opened with ``O_NOFOLLOW`` and ``O_NONBLOCK``.
-    A symlink swapped in for the final component after the check fails the
-    open instead of leaking its target, and a FIFO cannot hang the read. Only
-    a regular file is read. A swap of a parent directory between the resolve
-    and the open is not covered; keep body files in a private directory.
+def _is_within(path: Path, root: Path) -> bool:
+    return path == root or root in path.parents
+
+
+def _working_root() -> Path | None:
+    """Return the repo root, the working directory when git finds no repo, else None.
+
+    This mirrors the base :func:`is_safe_file_path` uses when it gets none.
+    """
+    from .repo import REPO_ROOT_NOT_A_REPO, resolve_repo_root
+
+    repo_root, reason = resolve_repo_root()
+    if repo_root is not None:
+        return Path(repo_root).resolve()
+    if reason == REPO_ROOT_NOT_A_REPO:
+        return Path.cwd().resolve()
+    return None
+
+
+def _common_git_dir(git_dir: Path) -> Path | None:
+    """Return the common dir a linked worktree's git dir names, else None.
+
+    It is read from the ``commondir`` file, so no extra git process runs.
+    """
+    try:
+        common = (git_dir / "commondir").read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return None
+    return (git_dir / common).resolve() if common else None
+
+
+def _linked_worktree_git_dirs() -> list[Path]:
+    """Return the git dir only when it belongs to a linked worktree.
+
+    The git-dir reply flow is for linked worktrees, whose git dir is the
+    worktree-specific ``.git/worktrees/<name>/``. In a primary clone the git dir
+    is the common dir that holds ``config``, so it never qualifies.
+    """
+    found: list[Path] = []
+    for raw in _candidate_git_dir_roots():
+        git_dir = Path(raw)
+        common = _common_git_dir(git_dir)
+        if common is not None and common != git_dir:
+            found.append(git_dir)
+    return found
+
+
+def _git_dirs_to_refuse(work_root: Path | None) -> list[Path]:
+    """Return the git dir, its common dir, and ``<repo>/.git`` when it is a directory."""
+    found: list[Path] = []
+    for raw in _candidate_git_dir_roots():
+        git_dir = Path(raw)
+        found.append(git_dir)
+        common = _common_git_dir(git_dir)
+        if common is not None:
+            found.append(common)
+    if work_root is not None and (work_root / ".git").is_dir():
+        found.append((work_root / ".git").resolve())
+    return found
+
+
+def _is_private_directory(metadata: os.stat_result) -> bool:
+    """Return True for a directory the caller owns that no one else can write."""
+    return metadata.st_uid == os.getuid() and not metadata.st_mode & _GROUP_OR_WORLD_WRITE
+
+
+def _open_without_links(
+    start: Path, resolved: Path
+) -> tuple[int, list[tuple[Path, os.stat_result]]]:
+    """Open ``resolved`` by walking down from ``start`` without following a link.
+
+    Each directory below ``start`` is opened relative to its parent's
+    descriptor with ``O_NOFOLLOW``, and the file is opened relative to the last
+    one. The checks then run on the objects that were opened, not on a path
+    that could change in between. Returns the file descriptor and the
+    ``(path, stat)`` of ``start`` and every directory below it.
+    """
+    parts = resolved.relative_to(start).parts
+    if not parts:
+        raise ValueError(f"body file must be a regular file, not a root: {resolved}")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    file_flags = os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0)
+
+    if not _HAS_DIR_FD:
+        # Windows has no dir_fd. Refuse a link at each step by lstat, then
+        # confirm the opened file is the one that was checked.
+        directories = [(start, start.stat())]
+        current = start
+        for part in parts[:-1]:
+            current = current / part
+            metadata = current.lstat()
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise ValueError(f"body file path crosses a link or non-directory: {current}")
+            directories.append((current, metadata))
+        before = resolved.lstat()
+        if stat.S_ISLNK(before.st_mode):
+            raise ValueError(f"body file must not be a symlink: {resolved}")
+        descriptor = os.open(resolved, file_flags)
+        opened = os.fstat(descriptor)
+        if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            os.close(descriptor)
+            raise ValueError(f"body file changed while it was opened: {resolved}")
+        return descriptor, directories
+
+    current_fd = os.open(start, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        directories = [(start, os.fstat(current_fd))]
+        current = start
+        for part in parts[:-1]:
+            next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | nofollow, dir_fd=current_fd)
+            os.close(current_fd)
+            current_fd = next_fd
+            current = current / part
+            directories.append((current, os.fstat(current_fd)))
+        return os.open(parts[-1], file_flags, dir_fd=current_fd), directories
+    finally:
+        os.close(current_fd)
+
+
+def _check_opened_body(
+    display: str,
+    name: str,
+    metadata: os.stat_result,
+    directories: list[tuple[Path, os.stat_result]],
+    temp_root: Path | None,
+) -> None:
+    """Refuse a body file another local user could have written or swapped."""
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"body file must be a regular file: {display}")
+    if metadata.st_nlink != 1:
+        raise ValueError(f"body file must have exactly one hard link: {display}")
+    if not _POSIX_PERMISSIONS:
+        return
+    if metadata.st_uid != os.getuid():
+        raise ValueError(f"body file is owned by another user: {display}")
+    mode = stat.S_IMODE(metadata.st_mode)
+    if mode & _WORLD_WRITE:
+        raise ValueError(f"body file must not be world-writable: {display}")
+    if _PREPARED_BODY_NAME.fullmatch(name) and mode & _GROUP_OR_WORLD_ANY:
+        raise ValueError(f"prepared body file must be mode 600: {display}")
+
+    # Below a shared temp root, every directory down to the file must belong
+    # to the caller and refuse other writers. The broadest matching root is
+    # the start, so a TMPDIR nested in /tmp is checked as a directory too.
+    if temp_root is not None:
+        for directory, directory_metadata in directories:
+            if temp_root in directory.parents and not _is_private_directory(directory_metadata):
+                raise ValueError(f"body file directory is not private to the caller: {directory}")
+
+    # A group-writable file (umask 002) is safe only when no one else can reach
+    # it: walking up from the file, every directory is private until one that
+    # denies group and other search. Without that directory, a group member
+    # could write the content through the group bit.
+    if mode & _GROUP_WRITE:
+        for _directory, directory_metadata in reversed(directories):
+            if not _is_private_directory(directory_metadata):
+                break
+            if not directory_metadata.st_mode & _GROUP_OR_WORLD_SEARCH:
+                return
+        raise ValueError(
+            f"body file is group-writable outside an owner-only directory: {display}. "
+            "Run chmod 600 on it or keep it in a directory only you can enter."
+        )
+
+
+def read_body_file_text(
+    path: str,
+    base: str | Path | None = None,
+    *,
+    allow_git_dir: bool = False,
+) -> str:
+    """Read a UTF-8 body file after the containment, location, and open checks.
+
+    The one reader for every script that sends a file body to GitHub:
+    ``new_pr.py``, ``edit_pr_body.py``, ``close_issue.py``,
+    ``reopen_issue.py`` and ``post_issue_comment.py`` (issue #6667). A
+    relative ``path`` resolves against ``base`` when given, else the working
+    directory.
+
+    The parent directory is resolved once. The final component is not, so a
+    symlinked file is refused. The checks, in order:
+
+    1. The path sits under the repo root (the working directory outside a
+       repo), a temp root, or, only when ``allow_git_dir``, the git dir.
+    2. It is not a repo dotfile or in a top-level dot directory, except
+       ``.project-toolkit/scratch``. Without ``allow_git_dir`` it is not in
+       the git dir or the common git dir.
+    3. The file is opened by walking from the broadest matching root with
+       ``O_NOFOLLOW`` on every component and ``O_NONBLOCK`` on the file, so a
+       symlink or a swapped parent fails the open and a FIFO cannot block.
+    4. On the opened objects: a regular file, one hard link, owned by the
+       caller, not world-writable; ``pr-body-*.md`` is mode 600. Below a temp
+       root every directory is owned by the caller with no group or other
+       write. A group-writable file needs an owner-only directory above it.
 
     Args:
         path: The body file path.
         base: Directory a relative ``path`` resolves against.
+        allow_git_dir: Accept a file in a linked worktree's own git dir,
+            except its config files. The issue scripts keep this documented
+            reply flow; PR scripts do not. A primary clone's ``.git`` never
+            qualifies.
 
     Returns:
         The file text.
 
     Raises:
-        ValueError: The path has a parent-directory segment, is outside every
-            approved root, or is not a regular file. A ``UnicodeError`` (also a
-            ``ValueError``) reports a file that is not UTF-8.
+        ValueError: A check refused the file. ``UnicodeError`` (a subclass)
+            reports a file that is not UTF-8.
         OSError: The file is missing or unreadable.
     """
     candidate = Path(path)
@@ -229,19 +434,49 @@ def read_body_file_text(path: str, base: str | Path | None = None) -> str:
         candidate = Path(base) / candidate
     if _TRAVERSAL_PATTERN.search(str(candidate)):
         raise ValueError(f"body file path contains a parent-directory segment: {path}")
-    resolved = candidate.resolve()
-    if not is_allowed_body_file_path(str(resolved)):
-        raise ValueError(
-            f"body file must be under the repo root, a temp directory, or the git dir: {path}"
-        )
+    absolute = Path(os.path.abspath(candidate))
+    resolved = absolute.parent.resolve() / absolute.name
 
-    descriptor = os.open(
-        resolved,
-        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
-    )
+    work_root = _working_root()
+    temp_roots = [Path(root) for root in _candidate_temp_roots()]
+    git_roots = _linked_worktree_git_dirs() if allow_git_dir else []
+    containing = [
+        root
+        for root in [work_root, *temp_roots, *git_roots]
+        if root is not None and _is_within(resolved, root)
+    ]
+    if not containing:
+        where = "the repo root, a temp directory, or the git dir"
+        if not allow_git_dir:
+            where = "the repo root or a temp directory"
+        raise ValueError(f"body file must be under {where}: {path}")
+
+    in_git_dir = any(_is_within(resolved, root) for root in git_roots)
+    if in_git_dir and resolved.name in _GIT_CONFIG_NAMES:
+        raise ValueError(f"body file must not be a git config file: {path}")
+    if work_root is not None and work_root in resolved.parents and not in_git_dir:
+        parts = resolved.relative_to(work_root).parts
+        trusted = parts[:2] == _TRUSTED_DOT_PREFIX and len(parts) > 2
+        if parts[0].startswith(".") and not trusted:
+            raise ValueError(f"body file must not be a repo dotfile or in a dot directory: {path}")
+    if not allow_git_dir:
+        for git_dir in _git_dirs_to_refuse(work_root):
+            if _is_within(resolved, git_dir):
+                raise ValueError(f"body file must not be inside the git dir: {path}")
+
+    start = min(containing, key=lambda root: len(root.parts))
+    matching_temp = [root for root in temp_roots if _is_within(resolved, root)]
+    temp_root = min(matching_temp, key=lambda root: len(root.parts)) if matching_temp else None
     try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError(f"body file must be a regular file: {path}")
+        descriptor, directories = _open_without_links(start, resolved)
+    except OSError as exc:
+        if exc.errno in _LINK_ERRNOS:
+            raise ValueError(
+                f"body file path must not contain a symlink or non-directory: {path}"
+            ) from exc
+        raise
+    try:
+        _check_opened_body(path, resolved.name, os.fstat(descriptor), directories, temp_root)
         with os.fdopen(descriptor, encoding="utf-8") as body_file:
             descriptor = -1
             return body_file.read()

@@ -239,9 +239,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--body-file",
         default="",
         help=(
-            "Path to a file holding the PR body. It must resolve under the repo "
-            "root, a temp directory, or the git dir, the same rule the other "
-            "body-file scripts use. A path printed by --prepare-body-file works "
+            "Path to a file holding the PR body, under the repo root or a temp "
+            "directory, read by the reader every body-file script shares. It "
+            "must be a plain file you own. A path printed by --prepare-body-file works "
             "and avoids name collisions between concurrent sessions."
         ),
     )

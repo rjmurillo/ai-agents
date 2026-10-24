@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core.api import RepoInfo
+from tests.containment_fixtures import private_dir
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -287,8 +288,7 @@ class TestMain:
         """Issue #6667: a /tmp/claude-<uid>/ scratchpad file is accepted."""
         workspace = tmp_path / "workspace"
         workspace.mkdir()
-        scratch = tmp_path / "claude-1000" / "scratchpad"
-        scratch.mkdir(parents=True)
+        scratch = private_dir(tmp_path / "claude-1000" / "scratchpad")
         comment_path = scratch / "close5369.md"
         comment_path.write_text("Closing from scratchpad.", encoding="utf-8")
         monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))

@@ -493,8 +493,10 @@ class TestReadBodyFileText:
         monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])
 
     def test_reads_scratchpad_file_under_temp_root(self, tmp_path: Path):
+        # A real session scratchpad is owner-only at every level below /tmp.
         scratch = tmp_path / "claude-1000" / "scratchpad"
-        scratch.mkdir(parents=True)
+        scratch.mkdir(mode=0o700, parents=True)
+        scratch.parent.chmod(0o700)
         body = scratch / "pr7.md"
         body.write_text("## Summary\nscratch body", encoding="utf-8")
 
@@ -530,7 +532,8 @@ class TestReadBodyFileText:
         except OSError:
             pytest.skip("symlinks unavailable")
 
-        with pytest.raises(ValueError, match="must be under the repo root"):
+        # The file name is not resolved, so the link itself is refused.
+        with pytest.raises(ValueError, match="symlink"):
             read_body_file_text(str(link))
 
     def test_refuses_symlink_swapped_in_for_the_final_component(self, tmp_path: Path):
@@ -548,7 +551,7 @@ class TestReadBodyFileText:
 
         # Resolve is skipped to model a link created after the resolve step.
         with patch.object(_validation.Path, "resolve", lambda self, *a, **k: self):
-            with pytest.raises(OSError):
+            with pytest.raises(ValueError, match="symlink"):
                 read_body_file_text(str(link))
 
     def test_missing_file_raises_oserror(self, tmp_path: Path):
