@@ -26,10 +26,10 @@ Same harness and scenario as the second run.
 
 - Scenario: `tests/evals/skill-scenarios/spec.json`, id `S8`. The `input`, `expected_signals`, `expected_gate`, and `proof_points` fields must equal the `scenario` object in the second run's record. The runner hashes the whole file, and the file changed after the second run (only the `_scope_note` text), so the whole-file hash is recorded, not gated. It was `b52f14d88ce7ed99` at `origin/main` 97ea576195 on 2026-10-24 (the second run recorded `44ded3f54b83fdb5` at 735ff7ed41).
 - Treatment: the `skill-routed` arm installs `src/claude/skills/spec`. Its git tree id must equal `5f94c26166fe5e4cfdab2daef34f58bdf11d08b7`, the id at both 735ff7ed41 and 97ea576195. If it differs, the run does not start.
-- Runner: `scripts/eval/eval-rule-activation.py`, `_claude_skill_harness.py`, `_claude_cli.py`, and `_claude_stream.py`. They are unchanged between 735ff7ed41 and 97ea576195.
+- Runner: every file under `scripts/eval/`. The four files that decide what runs (`eval-rule-activation.py`, `_claude_skill_harness.py`, `_claude_cli.py`, `_claude_stream.py`) are unchanged between 735ff7ed41 and 97ea576195.
 - Transport `claude-cli`, model `claude-sonnet-5`, judge repeats 1, judge reducer median, seed 0.
 - The Claude CLI version may differ from 2.1.309 (2.1.310 on 2026-10-24). The record states the version used.
-- No edit to the files above, to the scenario file, or to the skill lands between the merge of this file and the end of the run.
+- The run starts only at a commit where `git diff --stat <merge commit of this file> HEAD -- scripts/eval src/claude/skills/spec tests/evals/skill-scenarios` is empty. The record names that commit. No such edit lands before the run ends.
 
 Command, run from a worktree at `origin/main` after this file merges:
 
@@ -53,7 +53,7 @@ Three kinds count:
 
 - **(a) Correctness check.** Compares the automated output with an independent reference: the dashboard, the CSV export, or the manual list. The comparison is by rows, names, or counts.
 - **(b) Health or completeness check.** A stated test on the output or the job, such as a row count, a non-empty list, an HTTP status, or a failure alert, where a failed test is stated to stop or flag the report.
-- **(c) Outcome check.** A stated measurable pass condition for the whole change, such as "zero manual steps for 4 consecutive weeks".
+- **(c) Outcome check.** A stated measurable pass condition for the whole change, with a number or a time window, such as "zero manual steps for 4 consecutive weeks". The goal restated with no number or window is not kind (c).
 
 These do not count:
 
@@ -71,7 +71,7 @@ a secondary measure.
 Two independent scorers apply the rubric. Neither is told the arm. The response text can still reveal it, for example through the skill's wording, and that limit is accepted.
 
 1. After the stop condition is met, take the first 20 valid pairs in order of (invocation number, repeat, arm name). Extra valid pairs are dropped before scoring. Only cells of valid pairs are scored. A response from a half-failed pair is excluded. Shuffle the 40 cells, in that order, with `random.Random(0).shuffle`. Assign ids `R01` to `R40` in shuffled order. Write two files with `json.dumps(obj, indent=2, sort_keys=True)` plus a trailing newline. The blind file is a list of objects with the keys `id` and `response`. The key file is a list of objects with the keys `id`, `arm`, `invocation`, and `repeat`. Record the SHA-256 of each file in the results record.
-2. Scorer A is `claude --print --model claude-sonnet-5 --output-format json --tools "" --setting-sources project --strict-mcp-config --mcp-config '{"mcpServers":{}}' --no-session-persistence`, run in an empty temporary directory through the capture wrapper. The prompt goes on standard input. Scorer B is the same command with `--model claude-opus-5`. A Codex scorer was the first plan. The Codex workspace returned "out of credits" on 2026-10-24, so both scorers are Claude models of different sizes. Each gets the same prompt, the rubric above, and the blind file. Each runs once.
+2. Scorer A calls `_ClaudeCLIProvider(executable=<capture wrapper>, timeout=900.0).complete(messages=[{"role": "user", "content": <prompt>}], model="claude-sonnet-5")` from `scripts/eval/_claude_cli.py`. That is the runner's own judge path, with its isolation: no settings sources, no MCP servers, no tools, no slash commands, no session persistence. Scorer B is the same call with `model="claude-opus-5"`. The scorer script is kept with the results record. A Codex scorer was the first plan. The Codex workspace returned "out of credits" on 2026-10-24, so both scorers are Claude models of different sizes. Each gets the same prompt. Each runs once, plus one rerun only when its output is unparseable (rule 3).
 3. The scorer output is read from the `result` field of the CLI's JSON envelope. One optional Markdown code fence around the JSON is removed. The output is valid only if it is a JSON object whose keys are exactly the 40 ids, and each value is an object with exactly the keys `a`, `b`, and `c`, each 0 or 1. Anything else, including an `is_error` envelope, is unparseable. A scorer with unparseable output is rerun once with the same prompt. A valid output is never rerun.
 4. A cell's FSC is 1 only when both scorers give at least one of `a`, `b`, `c` as 1 for it (the AND rule). A cell's FSC-OR is 1 when either scorer does. A cell's FSC-A is 1 only when both scorers give `a` as 1. The three are computed separately from the raw scorer outputs.
 5. Agreement is the count of cells where both scorers give the same FSC value. If agreement is below 85% of the cells (fewer than 34 of 40), the verdict is INCONCLUSIVE whatever the counts say.
@@ -80,9 +80,11 @@ Two independent scorers apply the rubric. Neither is told the arm. The response 
 The author of this file reads the responses after unblinding. That read is
 reported as description only. It never changes a count.
 
-The scoring prompt is the rubric text above (from "A response has FSC = 1" to
-the end of the "do not count" list), followed by this instruction: "For each
-response id in the JSON below, return one JSON object mapping the id to
+The scoring prompt is these parts, joined by blank lines, in this order: the
+rubric text above (from "A response has FSC = 1" to the end of the "do not
+count" list); "Request given to the model under test:" and the S8 `input`
+string; "Responses (JSON):" and the blind file contents; and this instruction:
+"For each response id above, return one JSON object mapping the id to
 {\"a\": 0 or 1, \"b\": 0 or 1, \"c\": 0 or 1}. Return only the JSON object."
 
 ## Sample size
@@ -118,10 +120,10 @@ d = r/20 - b/20.
 
 Verdict, applied in this order. Rule 3 and rule 4 use `verdict` from the reference implementation below.
 
-1. If agreement is below 85%, or fewer than 20 valid pairs exist, or a stop condition ended the run, the verdict is INCONCLUSIVE.
+1. If agreement is below 85%, or fewer than 20 valid pairs exist, or a stop fired before the 20th valid pair, or the count of failed response attempts differs between the two arms by more than 4, the verdict is INCONCLUSIVE.
 2. Compute `verdict(r, b)` twice: once with the counts under the AND rule, once with the counts under the OR rule. If the two differ, the verdict is INCONCLUSIVE, because scorer strictness would decide it.
 3. **CLEAR YES** when d is at least 0.25 and the Fisher p is below 0.05.
-4. **CLEAR NO** when the upper bound U is below 0.25. This rules out a lift of the minimum effect or more. It includes the case where the skill-routed arm is lower than baseline. A reversed result is reported as "CLEAR NO (reversed)" when the Fisher p is below 0.05 with skill-routed lower, and it closes the issue the same way.
+4. **CLEAR NO** when the upper bound U is below 0.25. This rules out a lift of the minimum effect or more. It includes the case where the skill-routed arm is lower than baseline. A reversed result is reported as "CLEAR NO (reversed)" when, on the AND-rule counts, the Fisher p is below 0.05 with skill-routed lower. It closes the issue the same way.
 5. Otherwise **INCONCLUSIVE**.
 
 The rules are checked once, on the complete data. No look at any count, score,
@@ -154,9 +156,10 @@ ends. The capture wrapper therefore enforces the stops by refusing calls.
 - The run ends when 20 valid pairs exist. Nothing is added because a result looks close.
 - The wrapper refuses every `claude --print` call after the 120th call of the run (response plus judge, all invocations). Failed attempts count. The runner then finishes its remaining cells as failures and writes its output.
 - The wrapper also refuses every call after 5 `claude --print` calls in a row exit non-zero. It writes a trip file. A trip is not retried.
-- When a stop refuses calls, fewer than 20 valid pairs result, the verdict is INCONCLUSIVE, and no count is analyzed beyond the number of valid pairs and the failure causes.
+- A stop counts only if it fires before the 20th valid pair exists. Then fewer than 20 valid pairs result, the verdict is INCONCLUSIVE, and no count is analyzed beyond the number of valid pairs and the failure causes. A stop that fires after 20 valid pairs exist (for example on judge calls) does not change the data, and the analysis proceeds.
+- No run resumes after a stop, even if a person restores credits. A new attempt needs a new pre-registration.
 - A stop caused by a quota, credit, or rate-limit message in the CLI's error output is a blocker for a person. The issue gets the label `blocked:human` and one comment that names the exact action.
-- A scorer with unparseable output twice stops the scoring. The verdict is INCONCLUSIVE.
+- A scorer with unparseable output twice stops the scoring. The verdict is INCONCLUSIVE. The other scorer's saved output is reported, and the key file is never applied.
 
 ## Cost recording
 
@@ -168,7 +171,7 @@ the `result` event's `total_cost_usd`, `usage`, `subtype`, and exit code to a
 log, from either the stream-json output (responses) or the json envelope
 (judge and scorers). It counts only `claude --print` calls. Other
 invocations, such as `claude auth status`, pass through uncounted. It also
-enforces the stops above. The scorers run through the same wrapper with their
+enforces the stops above. Its log, call counter, and trip file sit at fixed paths under `~/src/scratch/eval-6737/` written into the wrapper, because the runner passes a minimal environment. The failure streak counts `claude --print` calls in the order they finish, whatever their kind. When the runner kills the wrapper on a timeout, the wrapper forwards the signal to the real CLI, and the call is logged as unread. The scorers run through the same wrapper with their
 own log and a cap of 4 calls. The record reports:
 
 - Calls by kind (response, judge, scorer), the count of failed calls, and the sum of `total_cost_usd` for each kind, in USD at list price. The account is a subscription, so this is the metered equivalent, not a charge.
@@ -213,6 +216,7 @@ check. That is what the skill's first step asks for.
 ## Reference implementation of the verdict
 
 ```python
+from fractions import Fraction
 from math import comb, sqrt
 
 
@@ -241,9 +245,9 @@ def newcombe(r, b, n):
     return (d, d - sqrt((pr - lr) ** 2 + (ub - pb) ** 2), d + sqrt((ur - pr) ** 2 + (pb - lb) ** 2))
 
 
-def verdict(r, b, n=20, minimum_effect=0.25):
-    d, _, upper = newcombe(r, b, n)
-    if d >= minimum_effect and fisher_two_sided(r, n, b, n) < 0.05:
+def verdict(r, b, n=20, minimum_effect=Fraction(1, 4)):
+    _, _, upper = newcombe(r, b, n)
+    if Fraction(r - b, n) >= minimum_effect and fisher_two_sided(r, n, b, n) < 0.05:
         return "CLEAR YES"
     if upper < minimum_effect:
         return "CLEAR NO"
@@ -251,6 +255,7 @@ def verdict(r, b, n=20, minimum_effect=0.25):
 
 
 def final_verdict(r_and, b_and, r_or, b_or, agreement, valid_pairs, stopped):
+    # `stopped` is True only when a stop fired before the 20th valid pair.
     if stopped or valid_pairs < 20 or agreement < 0.85:
         return "INCONCLUSIVE"
     v = verdict(r_and, b_and)
