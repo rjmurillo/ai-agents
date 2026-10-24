@@ -433,6 +433,7 @@ a security gate.
 | pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 115 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |
 | pre-push | `worktree-gc-report` | unscoped | Reports stale registered worktrees, advisory | - | no | Local state, no CI analogue |
 | pre-push | `branch-config-prune-report` | unscoped | Reports stale branch sections in .git/config, advisory | - | no | Local state, no CI analogue |
+| pre-push | `plugin-scanner` | unscoped | HOL plugin scanner score of HEAD is at least 80 (awesome-ai-plugins listing bar) | - | adjacent | CI, not required: plugin-scanner.yml |
 | pre-push | `python-tests` | unscoped | Pytest suite via git_hook_policy pytest | - | no | Required: Run Python Tests, step Run pytest (partitioned matrix) |
 | pre-push | `zero-collection-tests` | unscoped | Test files that collect zero tests | - | no | Required: Run Python Tests, step Check for zero-collection test files (blocking) |
 | pre-push | `python-lint-advisory` | push files | Ruff on pushed Python, advisory | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |

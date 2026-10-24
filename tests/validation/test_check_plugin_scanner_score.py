@@ -1,7 +1,9 @@
 """Guards for the plugin scanner score gate.
 
 The scanner itself is not run here (about 50s and a network install); every
-test replaces the subprocess boundary or uses a throwaway git repository.
+test replaces the subprocess boundary or uses a throwaway git repository. The
+subprocess helper and the time budget are covered in
+``test_check_plugin_scanner_run.py``.
 
 Coverage:
 
@@ -27,7 +29,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -231,18 +232,6 @@ def test_clean_pass_prints_no_empty_lost_header(
     assert "Checks that lost points" not in capsys.readouterr().out
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="process groups are POSIX")
-def test_run_timeout_tolerates_a_group_that_already_exited(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def gone(_pid: int, _sig: int) -> None:
-        raise ProcessLookupError
-
-    monkeypatch.setattr(gate.os, "killpg", gone)
-    with pytest.raises(subprocess.TimeoutExpired):
-        gate._run([sys.executable, "-c", "import time; time.sleep(0.5)"], tmp_path, 0.1)
-
-
 def test_nonzero_scanner_exit_with_a_report_is_reported_and_scored(
     git_repo: Path,
     tmp_path: Path,
@@ -277,72 +266,6 @@ def test_scanner_commands_use_the_pinned_project(
         assert "--frozen" in command
     assert scan[scan.index("--fail-on-severity") + 1] == "none"
     assert "--config" not in scan
-
-
-def test_spent_budget_is_external_error() -> None:
-    deadline = gate.Deadline(0)
-    with pytest.raises(gate.GateError) as exc:
-        deadline.remaining()
-    assert exc.value.exit_code == 3
-
-
-def test_budget_caps_each_step() -> None:
-    assert gate.Deadline(100).remaining(gate.GIT_TIMEOUT_SECONDS) == gate.GIT_TIMEOUT_SECONDS
-    assert gate.Deadline(5).remaining(gate.GIT_TIMEOUT_SECONDS) <= 5
-
-
-def test_budget_fits_inside_the_lefthook_cap() -> None:
-    """The script must report its own timeout before lefthook kills it at 3m."""
-    hook = (REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8")
-    job = hook[hook.index("- name: plugin-scanner") :]
-    assert job.splitlines()[1].strip() == "timeout: 3m"
-    assert gate.TOTAL_BUDGET_SECONDS + gate.DRAIN_SECONDS < 180
-
-
-def test_run_returns_output(tmp_path: Path) -> None:
-    result = gate._run([sys.executable, "-c", "print('hi')"], tmp_path, 30)
-    assert result.returncode == 0
-    assert result.stdout.strip() == b"hi"
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="process groups are POSIX")
-def test_run_timeout_kills_the_whole_process_group(tmp_path: Path) -> None:
-    """A grandchild (the scanner under uv) must not outlive the timeout."""
-    pid_file = tmp_path / "grandchild.pid"
-    script = (
-        "import subprocess, sys, time\n"
-        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
-        f"open({str(pid_file)!r}, 'w').write(str(p.pid))\n"
-        "time.sleep(60)\n"
-    )
-    with pytest.raises(subprocess.TimeoutExpired):
-        gate._run([sys.executable, "-c", script], tmp_path, 2)
-    grandchild = int(pid_file.read_text(encoding="utf-8"))
-    for _ in range(50):
-        try:
-            with open(f"/proc/{grandchild}/stat", encoding="utf-8") as stat:
-                if stat.read().split()[2] == "Z":
-                    break
-        except FileNotFoundError:
-            break
-        time.sleep(0.1)
-    else:
-        pytest.fail(f"grandchild {grandchild} survived the timeout")
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="setsid is POSIX")
-def test_run_timeout_does_not_wait_on_a_child_that_left_the_group(tmp_path: Path) -> None:
-    """A descendant in its own session keeps the pipes open; the kill cannot reach it."""
-    script = (
-        "import os, subprocess, sys, time\n"
-        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],"
-        " start_new_session=True)\n"
-        "time.sleep(60)\n"
-    )
-    started = time.monotonic()
-    with pytest.raises(subprocess.TimeoutExpired):
-        gate._run([sys.executable, "-c", script], tmp_path, 1)
-    assert time.monotonic() - started < 1 + gate.DRAIN_SECONDS + 5
 
 
 def test_bad_ref_is_config_error(git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:

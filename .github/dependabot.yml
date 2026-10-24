@@ -10,6 +10,7 @@ updates:
   - package-ecosystem: "uv"
     directories:
       - "/"
+      - "/build/plugin-scanner"
       - "/packages/semantic-hooks"
     schedule:
       interval: "weekly"

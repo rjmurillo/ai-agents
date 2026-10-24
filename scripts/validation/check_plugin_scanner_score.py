@@ -62,7 +62,8 @@ from pathlib import Path
 
 DEFAULT_MIN_SCORE = 80
 # One deadline covers every step, so the script reports its own exit 3 before
-# the 3m lefthook cap kills it (.claude/rules/ci-scripts.md item 19).
+# the 3m lefthook cap kills it (.claude/rules/ci-scripts.md item 19). A timed-out
+# step can overrun it by DRAIN_SECONDS; the budget test checks the sum.
 TOTAL_BUDGET_SECONDS = 165
 GIT_TIMEOUT_SECONDS = 30
 # How long a timed-out child's pipes are drained after the kill.
