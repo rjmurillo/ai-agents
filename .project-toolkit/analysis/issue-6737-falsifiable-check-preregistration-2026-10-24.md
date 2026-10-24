@@ -60,7 +60,7 @@ a secondary measure.
 Two independent scorers apply the rubric. Neither sees the arm.
 
 1. After all valid pairs exist, extract the response text of every valid cell. Sort the cells by (repeat, arm name). Shuffle them with `random.Random(0).shuffle`. Assign ids `R01`, `R02`, and so on in shuffled order. Write the blind file (id and response text only) and a key file (id, arm, repeat). Record the SHA-256 of both files in the results record.
-2. Scorer A is `claude --print --model claude-sonnet-5 --output-format json --tools "" --setting-sources project --no-session-persistence`, run in an empty temporary directory. Scorer B is `codex exec -m gpt-5.6-sol --sandbox read-only`. Each gets the same prompt, the rubric above, and the blind file. Each runs once. No rerun on a bad answer, except when the output is not parseable JSON, which allows one rerun of the same prompt.
+2. Scorer A is `claude --print --model claude-sonnet-5 --output-format json --tools "" --setting-sources project --strict-mcp-config --mcp-config '{"mcpServers":{}}' --no-session-persistence`, run in an empty temporary directory. Scorer B is the same command with `--model claude-opus-5`. A Codex scorer was the first plan. The Codex workspace returned "out of credits" on 2026-10-24, so both scorers are Claude models of different sizes. Each gets the same prompt, the rubric above, and the blind file. Each runs once. No rerun on a bad answer, except when the output is not parseable JSON, which allows one rerun of the same prompt.
 3. Each scorer returns a JSON object that maps each id to an object with the keys `a`, `b`, and `c`, each 0 or 1. No other text is read.
 4. A cell's FSC is 1 only when both scorers give at least one of `a`, `b`, `c` as 1 for it. A cell's FSC-A is 1 only when both scorers give `a` as 1.
 5. Agreement is the count of cells where both scorers give the same FSC value. If agreement is below 85% of the valid cells (for example fewer than 34 of 40), the verdict is INCONCLUSIVE whatever the counts say. The measure is then too unreliable to decide.
@@ -86,7 +86,7 @@ judge failure alone does not make a pair invalid, because the primary measure
 reads the response only.
 
 Planned paid calls: 20 repeats x 2 arms x 2 calls (one response, one judge) =
-80. Scoring adds one Claude call and one Codex call.
+80. Scoring adds two Claude calls, one per scorer.
 
 Why 20: with the rule below, if the true rates are 0.5 for skill-routed and
 0.05 for baseline, the chance of a clear yes is 0.89. If both true rates are
@@ -149,7 +149,6 @@ record reports:
 
 - Calls by kind (response, judge, scorer) and the sum of `total_cost_usd` for each, in USD at list price. The account is a subscription, so this is the metered equivalent, not a charge.
 - Input and output tokens per arm.
-- The Codex scorer call, which has no cost field. It is counted and marked not metered.
 - Any call the wrapper could not read, listed by id.
 
 A check that the wrapper changed nothing: before the run, one `claude --version` and one dry run of the runner (`--dry-run`) go through it, and their outputs match a run without it.
@@ -174,6 +173,8 @@ does not show that the check is a good one, that the call changes, that an
 amnesiac agent finds the principle from entry points, or that the novel-tool
 requirements (demand, owner, authority boundary, cost) hold. Those acceptance
 criteria of issue 6737 stay as the second run's comment left them.
+
+Both scorers are Claude models, as is the model under test. A bias they share is not controlled by this design.
 
 Skill-routed responses may use the skill's words ("falsifiable check") because
 the skill asks for a proof point. A response that uses the words with a stated
