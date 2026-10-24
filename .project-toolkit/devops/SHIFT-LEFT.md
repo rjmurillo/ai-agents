@@ -683,7 +683,38 @@ Exclusions:
 - The sampler `scripts/metrics/gate_latency.py` is the committed one and ran unchanged.
   The driver that ran the six rows one after another, waited for the host to go quiet,
   and logged load every 5 seconds is not committed.
-- No row sets a budget. The after values are inputs for choosing one.
+- The budget below was set from these values. See Latency budget.
+
+### Latency budget
+
+The owner set these budgets on 2026-10-24 (decision D10, issue #6734). They apply to
+the p95 wall clock of the whole hook, per change class, at n of 20 or more.
+
+| Hook | Budget (p95 per change class) | Worst after p95 | Headroom |
+|---|---|---|---|
+| pre-commit | 10 s | 7.2 s (python) | 2.8 s (28%) |
+| pre-push | 160 s | 149.9 s (markdown) | 10.1 s (6%) |
+
+How the numbers were chosen:
+
+- Pre-commit sits at 4.5 s to 7.2 s after the work in #6893. A budget of 10 s keeps a
+  fast hook fast and leaves room for one slow job to appear before the budget trips.
+  The practitioner heuristic of 3 s was not enforced, because no pre-commit row meets it.
+- Pre-push sits at 135.8 s to 149.9 s. A budget of 160 s is the worst p95 plus about
+  10 s. The pre-push `markdown` p95 of 149.9 s is inflated by load, because other
+  agents pushed during 40% of its samples (#6893). The other two rows have 20 s to
+  24 s of headroom. The 160 s budget is also well under the 300 s p95 cap in #5456.
+- Pre-push `python-tests` ran against a warm testmon database. A cold database adds
+  about 62 s (68.7 s cold against 6.7 s warm at `c5fc0f5bec`). A cold run is outside
+  the budget and is not a breach.
+
+Enforcement. No script enforces these budgets, and none was added, because no present
+use case needs one. The repository has a consecutive-breach policy in
+`scripts/ci/consecutive_breach.py`, and `scripts/testing/duration_gate_check.py` uses
+it for CI test legs. It does not read hook latency. The owner's rule for timing gates is
+that a gate fires only after two consecutive breaches on main. Any future hook-latency
+check must follow that rule. Until one exists, re-run `scripts/metrics/gate_latency.py`
+and compare the p95 column to the table above.
 
 ### Developer workflow
 
