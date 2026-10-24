@@ -171,7 +171,7 @@ Machine-readable JSON format including scan timestamp, files scanned, vulnerabil
 
 ### Bash Here-Documents: Quote the Delimiter
 
-An unquoted delimiter (`<<EOF`) makes the shell expand the body, so the scanner flags each `$var` there as an unquoted expansion. This includes plain help text such as `Usage: $0 --dest $target`. Quote the delimiter (`<<'EOF'`, `<<"EOF"`, or `<<\EOF`) and the body is not expanded: the scanner blanks it, unless the opener sends the body to a shell (`bash <<'EOF'`, `cat <<'EOF' | sh`), where the body is code and is still scanned.
+An unquoted delimiter (`<<EOF`) makes the shell expand the body, so the scanner flags each `$var` there as an unquoted expansion. This includes plain help text such as `Usage: $0 --dest $target`. Quote the delimiter (`<<'EOF'`, `<<"EOF"`, or `<<\EOF`) and the body is not expanded. The scanner then blanks it only when every command that reads the body is a known print or filter command such as `cat`, `echo`, `printf`, `tee`, `read`, `grep`, `sed`, `awk`, or `jq`. Any other reader (a shell, `ssh`, `sudo`, `psql`, or a pipe into one, as in `cat <<'EOF' | sh`) may run the body, so it is still scanned.
 
 ```bash
 cat <<'EOF'
