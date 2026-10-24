@@ -48,8 +48,9 @@ from dataclasses import dataclass
 # a branch delete, so Lefthook still runs the jobs that read the ref lines.
 PLACEHOLDER = ".lefthook-push-changes-no-files"
 ALL_FILES = "--all-files"
-# Flags with which the caller already chose the file list. The runner then
-# leaves the call alone. --files-from-stdin also needs the stdin for itself.
+# Flags with which the caller already chose the file list, or (--force) told
+# Lefthook to run jobs even with an empty list. The runner then leaves the call
+# alone. --files-from-stdin also needs the stdin for itself.
 CALLER_FILE_FLAGS = ("--file", "--all-files", "--files-from-stdin", "--force")
 # Windows has no SC_ARG_MAX. CreateProcess allows 32767 characters.
 _WINDOWS_ARG_BUDGET = 30_000
@@ -235,7 +236,7 @@ def _arg_bytes(arguments: Sequence[str]) -> int:
 
 
 def caller_chose_files(arguments: Sequence[str]) -> bool:
-    """Return True when the Lefthook arguments already set the file list."""
+    """Return True when the Lefthook arguments set the file list or force every job to run."""
     return any(
         item == flag or item.startswith(f"{flag}=")
         for item in arguments
