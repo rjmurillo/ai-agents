@@ -455,8 +455,16 @@ def read_body_file_text(
 
     matching_temp = [root for root in temp_roots if _is_within(resolved, root)]
     temp_root = min(matching_temp, key=lambda root: len(root.parts)) if matching_temp else None
+    # For a body in a linked worktree's git dir, the directories from the
+    # common git dir down to it are walked too, so ``.git/worktrees`` gets
+    # the owner and mode checks as well.
+    walk_root = start
+    if start in linked:
+        common = _common_git_dir(start)
+        if common is not None and common in start.parents:
+            walk_root = common
     try:
-        descriptor, directories = _open_without_links(start, resolved)
+        descriptor, directories = _open_without_links(walk_root, resolved)
     except OSError as exc:
         if exc.errno in _LINK_ERRNOS:
             raise ValueError(

@@ -125,7 +125,7 @@ The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_va
 - A regular file with one hard link, owned by you, and not world-writable.
 - A `pr-body-*.md` file from `--prepare-body-file` must be mode 600.
 - Below a temp root, every directory down to the file must be owned by you with no group or other write bit. The walk starts at the broadest root, so a `TMPDIR` inside `/tmp` is checked too.
-- Below the repo root or the git dir, every directory down to the file must belong to you or to root. One that anyone can write needs the sticky bit. Group write is allowed there, since umask 002 leaves repo directories at mode 775.
+- Below the repo root or the git dir, every directory down to the file must belong to you or to root. One that anyone can write needs the sticky bit. Group write is allowed there, since umask 002 leaves repo directories at mode 775. For a linked worktree's git dir the walk starts at the common git dir. A checkout another user owns is refused, even when you run as root. ACLs are not read, only mode bits.
 - A group-writable file, such as mode 664 from umask 002, passes only inside a directory only you can enter (mode 700). Every directory between that one and the file must be yours and refuse other writers. The session scratchpad qualifies. Otherwise run `chmod 600` on the file.
 - No dotfile and no dot directory at any depth below the root, so `.env`, `service/.env` and `.git/config` all fail. The scratch directory that `--prepare-body-file` uses is the one exception.
 - A temp root that others can write, such as `/tmp`, needs the sticky bit and must belong to root or to you.

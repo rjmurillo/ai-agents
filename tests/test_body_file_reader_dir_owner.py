@@ -164,3 +164,59 @@ def test_refuses_world_writable_directory_above_a_nested_temp_root(
     shared.chmod(0o777)
     with pytest.raises(RefusedError):
         READERS[script](body, repo)
+
+
+@pytest.mark.parametrize("script", ["close_issue", "reopen_issue", "post_issue_comment"])
+def test_refuses_world_writable_worktrees_dir_above_the_git_dir(
+    repo: Path, script: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The walk starts at the common git dir, so ``.git/worktrees`` is checked."""
+    common = _dir(repo.parent / "clone.git", 0o700)
+    worktrees = _dir(common / "worktrees", 0o700)
+    git_dir = _dir(worktrees / "feature", 0o700)
+    (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+    _set_roots(monkeypatch, temp=[], git=[git_dir])
+    body = _body(git_dir)
+    assert READERS[script](body, repo) == _BODY
+    worktrees.chmod(0o777)
+    with pytest.raises(RefusedError):
+        READERS[script](body, repo)
+
+
+@pytest.mark.parametrize("script", sorted(READERS))
+def test_refuses_root_owned_world_writable_directory_without_sticky_bit(
+    repo: Path, script: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    drafts = _dir(repo / "drafts", 0o777)
+    body = _body(drafts)
+    _directories_owned_by(monkeypatch, 0, drafts)
+    with pytest.raises(RefusedError):
+        READERS[script](body, repo)
+
+
+@pytest.mark.parametrize("case", ["world-writable", "foreign-owner"])
+def test_path_fallback_without_dir_fd_refuses_too(
+    repo: Path, case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Windows-style path walk, forced on POSIX, runs the same directory checks."""
+    for module in _github_core_modules("body_file"):
+        monkeypatch.setattr(module, "_HAS_DIR_FD", False)
+    drafts = _dir(repo / "drafts", 0o755)
+    body = _body(drafts)
+    assert READERS["new_pr"](body, repo) == _BODY
+    if case == "world-writable":
+        drafts.chmod(0o777)
+    else:
+        real_lstat = Path.lstat
+
+        def _lstat(self: Path):
+            result = real_lstat(self)
+            if self == drafts:
+                fields = list(result)
+                fields[4] = os.getuid() + 1
+                return os.stat_result(fields)
+            return result
+
+        monkeypatch.setattr(Path, "lstat", _lstat)
+    with pytest.raises(RefusedError):
+        READERS["new_pr"](body, repo)
