@@ -41,6 +41,14 @@ _IS_WINDOWS = os.name == "nt"
 # on every platform.
 _NTFS_SHORT_NAME = re.compile(r"~\d")
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+# GitHub refuses an issue, PR or comment body over 65536 characters. UTF-8
+# spends at most 4 bytes on a character, so a larger file cannot fit.
+MAX_BODY_CHARS = 65536
+MAX_BODY_BYTES = 4 * MAX_BODY_CHARS
+
+
+def _too_large(display: str) -> str:
+    return f"body file is over GitHub's {MAX_BODY_CHARS}-character body limit: {display}"
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -409,6 +417,8 @@ def read_body_file_text(
        write. Below the repo root or the git dir every directory belongs to
        the caller or root and is not world-writable without the sticky bit.
        A group-writable file needs an owner-only directory above it.
+    5. The file holds at most ``MAX_BODY_CHARS`` characters, GitHub's body
+       limit, and at most ``MAX_BODY_BYTES`` bytes before the read starts.
 
     Args:
         path: The body file path.
@@ -474,10 +484,18 @@ def read_body_file_text(
     try:
         if _IS_WINDOWS:
             _check_canonical_location(descriptor, start, linked, refused_git_dirs, path)
-        _check_opened_body(path, resolved.name, os.fstat(descriptor), directories, temp_root)
+        metadata = os.fstat(descriptor)
+        _check_opened_body(path, resolved.name, metadata, directories, temp_root)
+        if metadata.st_size > MAX_BODY_BYTES:
+            raise ValueError(_too_large(path))
         with os.fdopen(descriptor, encoding="utf-8") as body_file:
             descriptor = -1
-            return body_file.read()
+            # One character past the cap, so a file that grew after the
+            # stat is still refused without reading all of it.
+            text = body_file.read(MAX_BODY_CHARS + 1)
+        if len(text) > MAX_BODY_CHARS:
+            raise ValueError(_too_large(path))
+        return text
     finally:
         if descriptor >= 0:
             os.close(descriptor)

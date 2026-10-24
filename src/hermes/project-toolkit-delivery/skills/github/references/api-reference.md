@@ -123,6 +123,7 @@ The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_va
 `read_body_file_text` resolves the parent directory once and leaves the file name unresolved. It opens the file by walking down from the filesystem root, one directory at a time, with `O_NOFOLLOW` on every step and `O_NONBLOCK` on the file. A symlinked file, a parent swapped for a symlink after the check, and a FIFO all fail. The checks then run on the opened objects:
 
 - A regular file with one hard link, owned by you, and not world-writable.
+- At most 65536 characters, GitHub's body limit. A larger file is refused before the API call.
 - A `pr-body-*.md` file from `--prepare-body-file` must be mode 600.
 - Below a temp root, every directory down to the file must be owned by you with no group or other write bit. The walk starts at the broadest root, so a `TMPDIR` inside `/tmp` is checked too.
 - Below the repo root or the git dir, every directory down to the file must belong to you or to root. One that anyone can write needs the sticky bit. Group write is allowed there, since umask 002 leaves repo directories at mode 775. For a linked worktree's git dir the walk starts at the common git dir. The clone root above it is not checked: whoever can write there can already replace `.git`. A checkout another user owns is refused, even when you run as root. ACLs are not read, only mode bits.
