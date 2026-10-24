@@ -123,6 +123,7 @@ The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_va
 `read_body_file_text` resolves the parent directory once and leaves the file name unresolved. It opens the file by walking down from the filesystem root, one directory at a time, with `O_NOFOLLOW` on every step and `O_NONBLOCK` on the file. A symlinked file, a parent swapped for a symlink after the check, and a FIFO all fail. The checks then run on the opened objects:
 
 - A regular file with one hard link, owned by you, and not world-writable.
+- At most 65536 characters, GitHub's body limit. A larger file is refused before the API call.
 - A `pr-body-*.md` file from `--prepare-body-file` must be mode 600.
 - Below a temp root, every directory down to the file must be owned by you with no group or other write bit. The walk starts at the broadest root, so a `TMPDIR` inside `/tmp` is checked too.
 - A group-writable file, such as mode 664 from umask 002, passes only inside a directory only you can enter (mode 700). Every directory between that one and the file must be yours and refuse other writers. The session scratchpad qualifies. Otherwise run `chmod 600` on the file.
