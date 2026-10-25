@@ -23,6 +23,7 @@ GOOD_DOC = "```http example=a expect=200\nGET /x\n```\n"
 @contextmanager
 def _serve_trickle(total: int, pause: float) -> Iterator[str]:
     """Serve `total` bytes one at a time, `pause` seconds apart, under a Content-Length."""
+    stop = threading.Event()
 
     class Trickle(BaseHTTPRequestHandler):
         def log_message(self, *args: Any) -> None:
@@ -36,17 +37,21 @@ def _serve_trickle(total: int, pause: float) -> Iterator[str]:
                 for _ in range(total):
                     self.wfile.write(b"x")
                     self.wfile.flush()
-                    time.sleep(pause)
+                    if stop.wait(pause):
+                        return
             except OSError:
                 return
 
+    # Handler threads are joined by server_close(), so none outlives the test.
+    # A live one would add sleep calls to a later test's global sleep mock.
     server = ThreadingHTTPServer(("127.0.0.1", 0), Trickle)
-    server.daemon_threads = True
+    server.daemon_threads = False
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
         yield f"http://127.0.0.1:{server.server_port}"
     finally:
+        stop.set()
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
@@ -59,6 +64,8 @@ def _serve_raw(behave: Callable[[socket.socket], None]) -> Iterator[str]:
     listener.bind(("127.0.0.1", 0))
     listener.listen(5)
     stop = threading.Event()
+    conns: list[socket.socket] = []
+    workers: list[threading.Thread] = []
 
     def loop() -> None:
         listener.settimeout(0.1)
@@ -67,7 +74,12 @@ def _serve_raw(behave: Callable[[socket.socket], None]) -> Iterator[str]:
                 conn, _ = listener.accept()
             except OSError:
                 continue
-            threading.Thread(target=_guarded, args=(conn,), daemon=True).start()
+            worker = threading.Thread(
+                target=_guarded, args=(conn,), name="serve-raw-worker", daemon=True
+            )
+            conns.append(conn)
+            workers.append(worker)
+            worker.start()
 
     def _guarded(conn: socket.socket) -> None:
         with conn:
@@ -83,12 +95,20 @@ def _serve_raw(behave: Callable[[socket.socket], None]) -> Iterator[str]:
     finally:
         stop.set()
         thread.join(timeout=5)
+        # Shut each connection so a blocked recv or the next send ends its worker.
+        for conn in conns:
+            try:
+                conn.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        for worker in workers:
+            worker.join(timeout=5)
         listener.close()
 
 
 def _silent(conn: socket.socket) -> None:
     conn.recv(65536)
-    time.sleep(3)
+    conn.recv(1)  # say nothing until the connection is shut
 
 
 def _trickled_headers(conn: socket.socket) -> None:
@@ -101,7 +121,7 @@ def _trickled_headers(conn: socket.socket) -> None:
 def _stalled_error_body(conn: socket.socket) -> None:
     conn.recv(65536)
     conn.sendall(b"HTTP/1.1 500 Err\r\nContent-Length: 100\r\n\r\nabcde")
-    time.sleep(3)
+    conn.recv(1)  # stall the body until the connection is shut
 
 
 def _cut_short(status: bytes) -> Callable[[socket.socket], None]:
@@ -223,6 +243,25 @@ def test_a_trickling_server_is_cut_off_near_the_deadline(
 def test_a_slow_body_that_finishes_inside_the_deadline_is_read_in_full() -> None:
     with _serve_trickle(total=5, pause=0.01) as base:
         assert ax.send("GET", f"{base}/x", {}, b"").body == b"xxxxx"
+
+
+def _server_threads() -> list[threading.Thread]:
+    return [
+        t
+        for t in threading.enumerate()
+        if t.is_alive() and (t.name == "serve-raw-worker" or "process_request_thread" in t.name)
+    ]
+
+
+def test_no_server_thread_outlives_its_helper(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A leftover trickle worker once failed a later test's sleep mock on the same worker."""
+    monkeypatch.setattr(ax, "REQUEST_DEADLINE_SECONDS", 0.4)
+    with _serve_raw(_trickled_headers) as base, pytest.raises(ax.InputError):
+        ax.send("GET", f"{base}/x", {}, b"")
+    assert _server_threads() == []
+    with _serve_trickle(total=100, pause=0.1) as base, pytest.raises(ax.InputError):
+        ax.send("GET", f"{base}/x", {}, b"")
+    assert _server_threads() == []
 
 
 def test_a_run_past_its_deadline_is_unverifiable(
