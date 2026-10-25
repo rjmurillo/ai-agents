@@ -356,3 +356,26 @@ def inline_body_error(body: str | None) -> str | None:
     if not body or not body.strip():
         return "Body cannot be empty."
     return escaped_newline_body_error(body)
+
+
+def resolved_body_error(body: str | None, *, from_file: bool) -> str | None:
+    """Return the first problem with a resolved body, or None.
+
+    An inline ``--body`` gets both checks of :func:`inline_body_error`. A
+    ``--body-file`` body gets only the empty check: the escaped-newline check
+    exists to steer an inline body to a file, and a file can quote a literal
+    backslash-n on purpose, such as a Python bytes literal in inline code
+    (issue #6940). ``new_pr_review_comment.py`` follows the same split.
+
+    Args:
+        body: The body text, inline or read from the file.
+        from_file: True when the body came from ``--body-file``.
+
+    Returns:
+        An operator-facing message, or None when the body is usable.
+    """
+    if not from_file:
+        return inline_body_error(body)
+    if not body or not body.strip():
+        return "Body cannot be empty."
+    return None

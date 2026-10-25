@@ -2285,9 +2285,9 @@ class TestEscapedNewlineGuardIsWiredAtEveryInlineBodySite:
     _SITE_ENTRY_POINTS = {
         "issue/new_issue.py": "escaped_newline_body_error",
         "issue/edit_issue_body.py": "escaped_newline_body_error",
-        "issue/post_issue_comment.py": "inline_body_error",
-        "pr/post_pr_comment_reply.py": "inline_body_error",
-        "pr/add_pr_review_thread_reply.py": "inline_body_error",
+        "issue/post_issue_comment.py": "resolved_body_error",
+        "pr/post_pr_comment_reply.py": "resolved_body_error",
+        "pr/add_pr_review_thread_reply.py": "resolved_body_error",
     }
 
     def _script(self, rel: str) -> str:
