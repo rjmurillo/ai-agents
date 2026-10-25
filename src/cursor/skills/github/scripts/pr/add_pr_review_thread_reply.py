@@ -55,7 +55,7 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
-from github_core.validation import inline_body_error
+from github_core.validation import resolved_body_error
 
 _REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
@@ -454,7 +454,7 @@ def _validate_args(args: argparse.Namespace) -> str:
     if args.pull_request is not None and args.pull_request <= 0:
         error_and_exit("Pull request number must be positive.", 2)
     body = _resolve_body(args)
-    body_error = inline_body_error(body)
+    body_error = resolved_body_error(body, from_file=bool(args.body_file))
     if body_error:
         error_and_exit(body_error, 2)
     return body

@@ -42,7 +42,7 @@ from github_core.api import (
     error_and_exit,
     resolve_repo_params,
 )
-from github_core.validation import inline_body_error
+from github_core.validation import resolved_body_error
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     body = _resolve_body(args)
-    body_error = inline_body_error(body)
+    body_error = resolved_body_error(body, from_file=bool(args.body_file))
     if body_error:
         error_and_exit(body_error, 2)
 

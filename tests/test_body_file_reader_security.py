@@ -92,13 +92,13 @@ def _read_with_issue_script(module) -> Callable[[Path, Path], str]:
 def _read_with_post_issue_comment(path: Path, _repo: Path) -> str:
     module = _POST_ISSUE_COMMENT
 
-    def _capture(body: str) -> None:
+    def _capture(body: str, **_kwargs: object) -> None:
         raise _CapturedError(body)
 
     patches = {
         "assert_gh_authenticated": lambda: None,
         "resolve_repo_params": lambda _owner, _repo: SimpleNamespace(owner="o", repo="r"),
-        "inline_body_error": _capture,
+        "resolved_body_error": _capture,
     }
     saved = {name: getattr(module, name) for name in patches}
     for name, value in patches.items():
