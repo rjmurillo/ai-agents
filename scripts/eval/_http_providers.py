@@ -248,6 +248,10 @@ def weighted_input_cost_units(
     if prompt is None or cached is None or written is None:
         return None
     ordinary = prompt - cached - written
+    if ordinary < 0:
+        # Cached plus written cannot exceed the prompt; a response that says
+        # so is malformed, and pricing it would report a negative cost.
+        return None
     return ordinary + cached * read_multiplier + written * write_multiplier
 
 
@@ -310,10 +314,12 @@ class _OpenAICompatibleProvider:
         temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
-        client = self._client()
+        # Reset before building the client so a credential or import failure
+        # cannot leave the previous call's metadata in place.
         self.system_fingerprint = None
         self.finish_reason = None
         self.usage = None
+        client = self._client()
         full_messages: list[dict[str, str]] = []
         if system:
             full_messages.append({"role": "system", "content": system})

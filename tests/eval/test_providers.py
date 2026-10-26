@@ -370,6 +370,26 @@ def test_openai_provider_usage_resets_when_next_call_fails(
     assert provider.usage is None
 
 
+def test_openai_provider_usage_resets_when_client_construction_fails(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_create(monkeypatch, _fake_usage())
+    provider = _providers.resolve_provider("openai")
+    _complete(provider)
+    assert provider.usage is not None
+
+    def _no_client() -> object:
+        raise RuntimeError("missing credential")
+
+    monkeypatch.setattr(provider, "_client", _no_client)
+    with pytest.raises(RuntimeError, match="missing credential"):
+        _complete(provider)
+
+    assert provider.usage is None
+    assert provider.system_fingerprint is None
+    assert provider.finish_reason is None
+
+
 def test_weighted_input_cost_units_matches_caching_guide_formula() -> None:
     usage = _http_providers.OpenAIUsage(12000, 40, 9000, 3000)
 
@@ -398,6 +418,8 @@ def test_weighted_input_cost_units_accepts_custom_multipliers() -> None:
         _http_providers.OpenAIUsage(None, 5, 0, 0),
         _http_providers.OpenAIUsage(100, 5, None, 0),
         _http_providers.OpenAIUsage(100, 5, 0, None),
+        # Cached plus written exceeds the prompt: malformed, never priced.
+        _http_providers.OpenAIUsage(100, 5, 90, 20),
     ],
 )
 def test_weighted_input_cost_units_is_none_when_a_count_is_unreported(
