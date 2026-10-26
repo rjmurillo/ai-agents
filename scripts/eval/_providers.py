@@ -146,11 +146,15 @@ def _make_copilot_cli() -> EvalProvider:
 def _make_openai() -> EvalProvider:
     # Same Any boundary the Copilot factory pins: `_http_providers` is a flat
     # sibling module, so its classes resolve to Any. Bind the contract here.
+    base_url = os.environ.get("OPENAI_BASE_URL") or None
     provider: EvalProvider = _OpenAICompatibleProvider(
         name="openai",
         provider_label="OpenAI",
         key_names=["OPENAI_API_KEY"],
-        base_url=os.environ.get("OPENAI_BASE_URL") or None,
+        base_url=base_url,
+        # A custom base URL may be a proxy or compatible server that rejects
+        # unknown request fields, so explicit caching is first-party only.
+        explicit_prompt_cache=base_url is None,
     )
     return provider
 
