@@ -262,8 +262,7 @@ def call_api_response(
     A non-default provider carries no stop metadata: termination ``"unknown"``.
     """
     selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
-    if metadata is not None:
-        metadata.pop("output_tokens", None)  # a reused dict must not keep a stale count
+    record_provider_metadata(None, metadata)  # a reused dict keeps no stale provider keys
     alternate = _call_selected_provider(
         selected,
         messages,

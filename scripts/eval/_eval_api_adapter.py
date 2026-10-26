@@ -28,6 +28,7 @@ Logging:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import random
@@ -95,6 +96,27 @@ class APICallResult:
     tokens_estimated: bool = True
     system_fingerprint: str | None = None
     termination: str | None = None
+    # Measured cache counts from a transport that reports them (OpenAI today),
+    # as a plain dict of `OpenAIUsage` fields. None when the transport has none.
+    cache_usage: dict[str, int | None] | None = None
+
+
+def _cache_usage_of(transport: object) -> dict[str, int | None] | None:
+    """A transport's `usage` dataclass as a plain dict, or None.
+
+    Only a dataclass instance whose values are non-negative ints or None is
+    accepted, so a malformed attribute never reaches the result or the log.
+    """
+    usage = getattr(transport, "usage", None)
+    if usage is None or not dataclasses.is_dataclass(usage) or isinstance(usage, type):
+        return None
+    fields = dataclasses.asdict(usage)
+    for value in fields.values():
+        if value is None:
+            continue
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return None
+    return fields
 
 
 def _categorize_error(exc: Exception) -> str:
@@ -273,6 +295,7 @@ class _OpenAIProviderTransport:
         self._seed = seed
         self._max_tokens = max_tokens
         self.system_fingerprint: str | None = None
+        self.usage: object | None = None
         self._termination: str = "unknown"
 
     @property
@@ -291,9 +314,12 @@ class _OpenAIProviderTransport:
         }
         if self._seed is not None:
             kwargs["seed"] = self._seed
+        # Clear first: a raising call must not leave the previous call's usage.
+        self.usage = None
         text = self._provider.complete(**kwargs)
         fingerprint = getattr(self._provider, "system_fingerprint", None)
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
+        self.usage = getattr(self._provider, "usage", None)
         return text
 
 
@@ -587,6 +613,7 @@ class AnthropicAPIAdapter:
             )
             termination_raw = getattr(transport, "termination", None)
             termination = termination_raw if isinstance(termination_raw, str) else None
+            cache_usage = _cache_usage_of(transport)
             # Success path. Token counts are estimated from text length until
             # `_anthropic_api.call_api` surfaces a `usage` envelope; callers
             # see `tokens_estimated=True` so cost numbers carry that caveat.
@@ -635,6 +662,7 @@ class AnthropicAPIAdapter:
                 tokens_estimated=True,
                 system_fingerprint=fingerprint,
                 termination=termination,
+                cache_usage=cache_usage,
             )
 
         # The entry guard pins `max_retries >= 1`, so the loop body runs at

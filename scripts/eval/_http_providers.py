@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -43,6 +44,7 @@ GITHUB_MODELS_BASE_URL = "https://models.github.ai/inference"
 
 __all__ = [
     "GITHUB_MODELS_BASE_URL",
+    "OpenAIUsage",
     "_AnthropicSDKProvider",
     "_OpenAICompatibleProvider",
     "_http_code_from_exc",
@@ -50,6 +52,7 @@ __all__ = [
     "_is_temperature_deprecated_sdk_error",
     "_normalize_and_raise",
     "_read_env_key",
+    "weighted_input_cost_units",
 ]
 
 
@@ -188,6 +191,71 @@ def _is_reasoning_model(model: str) -> bool:
     return bool(_REASONING_MODEL_RE.match(model or ""))
 
 
+@dataclass(frozen=True, slots=True)
+class OpenAIUsage:
+    """Token counts from one Chat Completions response (`resp.usage`).
+
+    Every field is `None` when the response did not report it. `None` means
+    "not reported" and must never be read as zero: a provider that omits
+    `prompt_tokens_details` has not said that nothing was cached.
+    """
+
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    cached_tokens: int | None
+    cache_write_tokens: int | None
+
+
+def _count_or_none(value: object) -> int | None:
+    """A real non-negative int, else None. `bool` is an int subclass, so refuse it."""
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+def _parse_usage(usage: object) -> OpenAIUsage | None:
+    """Read `usage` off an SDK response without trusting its shape."""
+    if usage is None:
+        return None
+    details = getattr(usage, "prompt_tokens_details", None)
+    return OpenAIUsage(
+        prompt_tokens=_count_or_none(getattr(usage, "prompt_tokens", None)),
+        completion_tokens=_count_or_none(getattr(usage, "completion_tokens", None)),
+        cached_tokens=_count_or_none(getattr(details, "cached_tokens", None)),
+        cache_write_tokens=_count_or_none(getattr(details, "cache_write_tokens", None)),
+    )
+
+
+def weighted_input_cost_units(
+    usage: OpenAIUsage,
+    *,
+    read_multiplier: float = 0.1,
+    write_multiplier: float = 1.25,
+) -> float | None:
+    """Input cost in uncached-token units, per the OpenAI prompt caching guide.
+
+    ordinary = prompt - cached - write; weighted = ordinary +
+    cached * read_multiplier + write * write_multiplier. Defaults are the
+    30-minute rates for most GPT-5.6+ models (pass read_multiplier=0.05 for
+    GPT-6.1 Sol), from
+    https://developers.openai.com/api/docs/guides/prompt-caching. Returns None
+    when any needed count is unreported, because a guessed zero would price a
+    cache hit or write as free. Carries no price table: multiply by the model's
+    uncached input price outside.
+    """
+    prompt = usage.prompt_tokens
+    cached = usage.cached_tokens
+    written = usage.cache_write_tokens
+    if prompt is None or cached is None or written is None:
+        return None
+    ordinary = prompt - cached - written
+    if ordinary < 0:
+        # Cached plus written cannot exceed the prompt; a response that says
+        # so is malformed, and pricing it would report a negative cost.
+        return None
+    return ordinary + cached * read_multiplier + written * write_multiplier
+
+
 class _OpenAICompatibleProvider:
     """OpenAI Chat Completions transport. Backs both the OpenAI provider and
     the GitHub Models provider (GitHub Models mirrors the OpenAI API, differing
@@ -210,6 +278,7 @@ class _OpenAICompatibleProvider:
         self._base_url = base_url
         self._default_headers = default_headers
         self.system_fingerprint: str | None = None
+        self.usage: OpenAIUsage | None = None
         # The request carries `max_tokens`, so a long answer can be cut (#5405).
         self.applies_max_tokens = True
         self.finish_reason: str | None = None
@@ -246,9 +315,12 @@ class _OpenAICompatibleProvider:
         temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
-        client = self._client()
+        # Reset before building the client so a credential or import failure
+        # cannot leave the previous call's metadata in place.
         self.system_fingerprint = None
         self.finish_reason = None
+        self.usage = None
+        client = self._client()
         full_messages: list[dict[str, str]] = []
         if system:
             full_messages.append({"role": "system", "content": system})
@@ -284,6 +356,7 @@ class _OpenAICompatibleProvider:
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
         finish_reason = getattr(choices[0], "finish_reason", None)
         self.finish_reason = finish_reason if isinstance(finish_reason, str) else None
+        self.usage = _parse_usage(getattr(resp, "usage", None))
         return content
 
 

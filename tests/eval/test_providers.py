@@ -100,10 +100,17 @@ class _FakeChoice:
 
 
 class _FakeResponse:
-    def __init__(self, content: object, system_fingerprint: object = "fp-test") -> None:
+    def __init__(
+        self,
+        content: object,
+        system_fingerprint: object = "fp-test",
+        usage: object = None,
+    ) -> None:
         self.choices = [_FakeChoice(content)]
         if system_fingerprint is not None:
             self.system_fingerprint = system_fingerprint
+        if usage is not None:
+            self.usage = usage
 
 
 class _FakeCompletions:
@@ -254,6 +261,322 @@ def test_openai_provider_raises_on_non_string_system_fingerprint(
         provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
     # The malformed value never reached the field the report reads.
     assert provider.system_fingerprint is None
+
+
+def _fake_usage(
+    prompt: object = 12000,
+    completion: object = 40,
+    cached: object = 9000,
+    written: object = 3000,
+    *,
+    with_details: bool = True,
+) -> types.SimpleNamespace:
+    usage = types.SimpleNamespace(prompt_tokens=prompt, completion_tokens=completion)
+    if with_details:
+        usage.prompt_tokens_details = types.SimpleNamespace(
+            cached_tokens=cached, cache_write_tokens=written
+        )
+    return usage
+
+
+def _patch_create(monkeypatch: pytest.MonkeyPatch, usage: object) -> None:
+    def _create(self: _FakeCompletions, **kwargs: object) -> _FakeResponse:
+        self._recorder.append(kwargs)
+        return _FakeResponse("answer", usage=usage)
+
+    monkeypatch.setattr(_FakeCompletions, "create", _create)
+
+
+def _complete(provider: Any) -> str:
+    return str(provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o"))
+
+
+def test_openai_provider_captures_full_usage(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_create(monkeypatch, _fake_usage())
+    provider = _providers.resolve_provider("openai")
+
+    _complete(provider)
+
+    assert provider.usage == _http_providers.OpenAIUsage(
+        prompt_tokens=12000, completion_tokens=40, cached_tokens=9000, cache_write_tokens=3000
+    )
+
+
+def test_openai_provider_usage_is_none_when_response_has_none(
+    fake_openai: type[_FakeOpenAI],
+) -> None:
+    provider = _providers.resolve_provider("openai")
+
+    _complete(provider)
+
+    assert provider.usage is None
+
+
+def test_openai_provider_usage_without_details_leaves_cache_fields_none(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_create(monkeypatch, _fake_usage(with_details=False))
+    provider = _providers.resolve_provider("openai")
+
+    _complete(provider)
+
+    assert provider.usage == _http_providers.OpenAIUsage(
+        prompt_tokens=12000, completion_tokens=40, cached_tokens=None, cache_write_tokens=None
+    )
+
+
+def test_openai_provider_usage_keeps_real_zero(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_create(monkeypatch, _fake_usage(cached=0, written=0))
+    provider = _providers.resolve_provider("openai")
+
+    _complete(provider)
+
+    assert provider.usage is not None
+    assert provider.usage.cached_tokens == 0
+    assert provider.usage.cache_write_tokens == 0
+
+
+@pytest.mark.parametrize("bad", [True, False, -1, 1.5, "7", None])
+def test_openai_provider_usage_rejects_malformed_counts(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch, bad: object
+) -> None:
+    _patch_create(monkeypatch, _fake_usage(bad, bad, bad, bad))
+    provider = _providers.resolve_provider("openai")
+
+    _complete(provider)
+
+    assert provider.usage == _http_providers.OpenAIUsage(None, None, None, None)
+
+
+def test_openai_provider_usage_resets_when_next_call_fails(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_create(monkeypatch, _fake_usage())
+    provider = _providers.resolve_provider("openai")
+    _complete(provider)
+    assert provider.usage is not None
+
+    def _boom(self: _FakeCompletions, **kwargs: object) -> _FakeResponse:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(_FakeCompletions, "create", _boom)
+    with pytest.raises(RuntimeError):
+        _complete(provider)
+
+    assert provider.usage is None
+
+
+def test_openai_provider_usage_resets_when_client_construction_fails(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_create(monkeypatch, _fake_usage())
+    provider = _providers.resolve_provider("openai")
+    _complete(provider)
+    assert provider.usage is not None
+
+    def _no_client() -> object:
+        raise RuntimeError("missing credential")
+
+    monkeypatch.setattr(provider, "_client", _no_client)
+    with pytest.raises(RuntimeError, match="missing credential"):
+        _complete(provider)
+
+    assert provider.usage is None
+    assert provider.system_fingerprint is None
+    assert provider.finish_reason is None
+
+
+def test_weighted_input_cost_units_matches_caching_guide_formula() -> None:
+    usage = _http_providers.OpenAIUsage(12000, 40, 9000, 3000)
+
+    assert _http_providers.weighted_input_cost_units(usage) == pytest.approx(4650.0)
+
+
+def test_weighted_input_cost_units_counts_ordinary_tokens_at_full_rate() -> None:
+    usage = _http_providers.OpenAIUsage(1000, 5, 0, 0)
+
+    assert _http_providers.weighted_input_cost_units(usage) == pytest.approx(1000.0)
+
+
+def test_weighted_input_cost_units_accepts_custom_multipliers() -> None:
+    usage = _http_providers.OpenAIUsage(1000, 5, 500, 100)
+
+    got = _http_providers.weighted_input_cost_units(
+        usage, read_multiplier=0.5, write_multiplier=2.0
+    )
+
+    assert got == pytest.approx(400 + 250 + 200)
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        _http_providers.OpenAIUsage(None, 5, 0, 0),
+        _http_providers.OpenAIUsage(100, 5, None, 0),
+        _http_providers.OpenAIUsage(100, 5, 0, None),
+        # Cached plus written exceeds the prompt: malformed, never priced.
+        _http_providers.OpenAIUsage(100, 5, 90, 20),
+    ],
+)
+def test_weighted_input_cost_units_is_none_when_a_count_is_unreported(
+    usage: _http_providers.OpenAIUsage,
+) -> None:
+    assert _http_providers.weighted_input_cost_units(usage) is None
+
+
+def test_openai_transport_mirrors_provider_usage() -> None:
+    usage = _http_providers.OpenAIUsage(10, 2, 4, 1)
+
+    class _Provider:
+        system_fingerprint = None
+
+        def __init__(self, usage: object) -> None:
+            self.usage = usage
+
+        def complete(self, **_: object) -> str:
+            return "answer"
+
+    transport = _eval_api_adapter._OpenAIProviderTransport(_Provider(usage), seed=None)
+    transport("p", "m", "s")
+    assert transport.usage == usage
+
+    bare_provider: Any = types.SimpleNamespace(system_fingerprint=None, complete=lambda **_: "x")
+    bare = _eval_api_adapter._OpenAIProviderTransport(bare_provider, seed=None)
+    bare("p", "m", "s")
+    assert bare.usage is None
+
+
+def test_openai_transport_clears_usage_when_the_next_call_raises() -> None:
+    class _Provider:
+        system_fingerprint = None
+        usage: object = _http_providers.OpenAIUsage(10, 2, 4, 1)
+        fail = False
+
+        def complete(self, **_: object) -> str:
+            if self.fail:
+                self.usage = None
+                raise RuntimeError("boom")
+            return "answer"
+
+    provider = _Provider()
+    transport = _eval_api_adapter._OpenAIProviderTransport(provider, seed=None)
+    transport("p", "m", "s")
+    assert transport.usage is not None
+
+    provider.fail = True
+    with pytest.raises(RuntimeError, match="boom"):
+        transport("p", "m", "s")
+
+    assert transport.usage is None
+
+
+# `bool` is an int subclass; typed Any so the malformed case needs no type-ignore.
+_BOOL_COUNT: Any = True
+
+
+class _UsageTransport:
+    """A callable transport that exposes a fixed `usage` attribute."""
+
+    system_fingerprint = None
+    termination = None
+
+    def __init__(self, usage: object) -> None:
+        self.usage = usage
+
+    def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        return "answer"
+
+
+def test_call_model_success_carries_measured_cache_usage() -> None:
+    transport = _UsageTransport(_http_providers.OpenAIUsage(12000, 40, 9000, 3000))
+    adapter = _eval_api_adapter.AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+    result = adapter.call_model("p", "m", "fx", "variant", 0)
+
+    assert result.outcome == "success"
+    assert result.cache_usage == {
+        "prompt_tokens": 12000,
+        "completion_tokens": 40,
+        "cached_tokens": 9000,
+        "cache_write_tokens": 3000,
+    }
+    # Measured cache counts do not change the estimate flag on tokens_in/out.
+    assert result.tokens_estimated is True
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        None,
+        {"prompt_tokens": 1},
+        _http_providers.OpenAIUsage(-1, 2, 3, 4),
+        _http_providers.OpenAIUsage(_BOOL_COUNT, 2, 3, 4),
+    ],
+)
+def test_call_model_drops_missing_or_malformed_cache_usage(usage: object) -> None:
+    adapter = _eval_api_adapter.AnthropicAPIAdapter(
+        transport=_UsageTransport(usage), sleep=lambda _s: None
+    )
+
+    result = adapter.call_model("p", "m", "fx", "variant", 0)
+
+    assert result.outcome == "success"
+    assert result.cache_usage is None
+
+
+def test_default_anthropic_call_clears_stale_openai_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _anthropic_api,
+        "_read_messages_response",
+        lambda request, api_key: {
+            "content": [{"type": "text", "text": "hi"}],
+            "stop_reason": "end_turn",
+        },
+    )
+    metadata: dict[str, object] = {
+        "usage": {"cached_tokens": 9000},
+        "max_tokens_applied": True,
+        "finish_reason": "length",
+    }
+
+    response = _anthropic_api.call_api_response(
+        "key", [{"role": "user", "content": "hi"}], provider="anthropic", metadata=metadata
+    )
+
+    assert response.text == "hi"
+    assert "usage" not in metadata
+    assert "max_tokens_applied" not in metadata
+    assert "finish_reason" not in metadata
+
+
+def test_record_cache_usage_writes_plain_dict_and_clears_stale() -> None:
+    from _anthropic_response import record_cache_usage
+
+    metadata: dict[str, object] = {"usage": "stale"}
+    provider = types.SimpleNamespace(usage=_http_providers.OpenAIUsage(10, 2, None, 1))
+    record_cache_usage(provider, metadata)
+    assert metadata["usage"] == {
+        "prompt_tokens": 10,
+        "completion_tokens": 2,
+        "cached_tokens": None,
+        "cache_write_tokens": 1,
+    }
+
+    record_cache_usage(types.SimpleNamespace(usage=None), metadata)
+    assert "usage" not in metadata
+
+    metadata["usage"] = "stale"
+    record_cache_usage(types.SimpleNamespace(usage={"prompt_tokens": 1}), metadata)
+    assert "usage" not in metadata
+    record_cache_usage(types.SimpleNamespace(usage=_http_providers.OpenAIUsage), metadata)
+    assert "usage" not in metadata
+    record_cache_usage(provider, None)
 
 
 def test_openai_provider_raises_on_non_text_content(

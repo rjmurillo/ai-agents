@@ -488,6 +488,12 @@ def test_openai_provider_messages_create_accepts_every_keyword_it_sends(
                     }
                 ],
                 "system_fingerprint": "fp_test",
+                "usage": {
+                    "prompt_tokens": 12000,
+                    "completion_tokens": 40,
+                    "total_tokens": 12040,
+                    "prompt_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 3000},
+                },
             },
         )
 
@@ -515,3 +521,6 @@ def test_openai_provider_messages_create_accepts_every_keyword_it_sends(
     assert calls[0]["temperature"] == 0.0
     assert calls[0]["max_tokens"] == 16
     assert calls[0]["seed"] == 7
+    assert provider.usage == _http_providers.OpenAIUsage(
+        prompt_tokens=12000, completion_tokens=40, cached_tokens=9000, cache_write_tokens=3000
+    )
