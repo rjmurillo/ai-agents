@@ -273,6 +273,7 @@ class _OpenAIProviderTransport:
         self._seed = seed
         self._max_tokens = max_tokens
         self.system_fingerprint: str | None = None
+        self.usage: object | None = None
         self._termination: str = "unknown"
 
     @property
@@ -294,6 +295,7 @@ class _OpenAIProviderTransport:
         text = self._provider.complete(**kwargs)
         fingerprint = getattr(self._provider, "system_fingerprint", None)
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
+        self.usage = getattr(self._provider, "usage", None)
         return text
 
 
