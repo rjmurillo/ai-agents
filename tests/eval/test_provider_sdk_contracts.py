@@ -56,6 +56,7 @@ try:
     import _eval_common
     import _eval_errors
     import _http_providers
+    import _providers
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
@@ -524,3 +525,80 @@ def test_openai_provider_messages_create_accepts_every_keyword_it_sends(
     assert provider.usage == _http_providers.OpenAIUsage(
         prompt_tokens=12000, completion_tokens=40, cached_tokens=9000, cache_write_tokens=3000
     )
+
+
+def test_empty_openai_base_url_still_reaches_the_default_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real SDK reads OPENAI_BASE_URL itself when base_url is None, so an
+    empty variable would become an empty endpoint. The factory names the
+    default instead. Building a client makes no network call.
+    """
+    pytest.importorskip("openai")
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    client = _providers.resolve_provider("openai")._client()
+
+    assert str(client.base_url).rstrip("/") == "https://api.openai.com/v1"
+
+
+def test_openai_provider_sends_prompt_cache_fields_the_sdk_accepts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The installed SDK must serialize `prompt_cache_options` and the
+    system text part's `prompt_cache_breakpoint` into the request body.
+    Skips when the optional `eval` extra is not installed.
+    """
+    openai = pytest.importorskip("openai")
+    httpx = pytest.importorskip("httpx")
+
+    calls: list[dict[str, object]] = []
+
+    def handler(request: Any) -> Any:
+        calls.append(json.loads(request.content.decode()))
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "gpt-6-luna",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "hi"},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+        )
+
+    client = openai.OpenAI(
+        api_key="sk-test", http_client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    monkeypatch.setattr(openai, "OpenAI", lambda **_: client)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    provider = _http_providers._OpenAICompatibleProvider(
+        name="openai",
+        provider_label="OpenAI",
+        key_names=["OPENAI_API_KEY"],
+        explicit_prompt_cache=True,
+    )
+    text = provider.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        system="be terse",
+        model="gpt-6-luna",
+        max_tokens=16,
+    )
+
+    assert text == "hi"
+    assert len(calls) == 1
+    assert calls[0]["prompt_cache_options"] == {"mode": "explicit"}
+    messages = calls[0]["messages"]
+    assert isinstance(messages, list)
+    assert messages[0]["content"] == [
+        {"type": "text", "text": "be terse", "prompt_cache_breakpoint": {"mode": "explicit"}}
+    ]
+    assert messages[1] == {"role": "user", "content": "hi"}

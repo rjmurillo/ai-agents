@@ -163,6 +163,162 @@ def test_openai_provider_folds_system_into_leading_message(
     assert sent[1] == {"role": "user", "content": "hello"}
 
 
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("gpt-5.6", True),
+        ("gpt-5.6-mini", True),
+        ("gpt-5.10", True),
+        ("gpt-6", True),
+        ("gpt-6-luna", True),
+        ("gpt-6.1-sol", True),
+        ("gpt-7", True),
+        ("gpt-10", True),
+        ("openai/gpt-6-luna", True),
+        ("GPT-6-LUNA", True),
+        ("gpt-5", False),
+        ("gpt-5.5", False),
+        ("gpt-5.5-pro", False),
+        ("gpt-5-mini", False),
+        ("gpt-5.60x", False),
+        ("gpt-6x", False),
+        ("gpt-4o", False),
+        ("gpt-4.1", False),
+        ("o3", False),
+        ("o4-mini", False),
+        ("", False),
+    ],
+)
+def test_supports_prompt_cache_options_gate(model: str, expected: bool) -> None:
+    assert _http_providers._supports_prompt_cache_options(model) is expected
+
+
+def _sent_kwargs(
+    fake: type[_FakeOpenAI],
+    monkeypatch: pytest.MonkeyPatch,
+    provider_name: str,
+    model: str,
+    system: str = "be terse",
+) -> dict[str, Any]:
+    captured: list[_FakeOpenAI] = []
+    original_init = _FakeOpenAI.__init__
+
+    def _record_init(self: _FakeOpenAI, **kwargs: object) -> None:
+        original_init(self, **kwargs)
+        captured.append(self)
+
+    monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
+    provider = _providers.resolve_provider(provider_name)
+    provider.complete(messages=[{"role": "user", "content": "hello"}], system=system, model=model)
+    return captured[0].recorder[0]
+
+
+def test_openai_provider_sends_explicit_cache_for_gpt_6(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    sent = _sent_kwargs(fake_openai, monkeypatch, "openai", "gpt-6-luna")
+
+    assert sent["prompt_cache_options"] == {"mode": "explicit"}
+    assert sent["messages"] == [
+        {
+            "role": "system",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "be terse",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+        },
+        {"role": "user", "content": "hello"},
+    ]
+
+
+@pytest.mark.parametrize("model", ["gpt-5.5", "gpt-4o"])
+def test_openai_provider_body_unchanged_for_older_models(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    sent = _sent_kwargs(fake_openai, monkeypatch, "openai", model)
+
+    assert "prompt_cache_options" not in sent
+    assert sent["messages"] == [
+        {"role": "system", "content": "be terse"},
+        {"role": "user", "content": "hello"},
+    ]
+
+
+def test_openai_provider_skips_caching_with_custom_base_url(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://proxy.example.test/v1")
+    sent = _sent_kwargs(fake_openai, monkeypatch, "openai", "gpt-6")
+
+    assert "prompt_cache_options" not in sent
+    assert sent["messages"][0] == {"role": "system", "content": "be terse"}
+
+
+def test_openai_provider_empty_base_url_still_caches(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    sent = _sent_kwargs(fake_openai, monkeypatch, "openai", "gpt-6")
+
+    assert sent["prompt_cache_options"] == {"mode": "explicit"}
+
+
+def test_openai_factory_names_default_endpoint_for_empty_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+
+    provider = _providers.resolve_provider("openai")
+
+    assert provider._base_url == _http_providers.OPENAI_API_BASE_URL
+
+
+def test_openai_factory_leaves_base_url_unset_when_variable_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    provider = _providers.resolve_provider("openai")
+
+    assert provider._base_url is None
+
+
+def test_openai_provider_explicit_mode_without_breakpoint_when_system_empty(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    sent = _sent_kwargs(fake_openai, monkeypatch, "openai", "gpt-6", system="")
+
+    assert sent["prompt_cache_options"] == {"mode": "explicit"}
+    assert sent["messages"] == [{"role": "user", "content": "hello"}]
+
+
+def test_github_provider_never_sends_cache_keys(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GITHUB_MODELS_TOKEN", "gh-test")
+    sent = _sent_kwargs(fake_openai, monkeypatch, "github", "gpt-6")
+
+    assert "prompt_cache_options" not in sent
+    assert sent["messages"][0] == {"role": "system", "content": "be terse"}
+
+
+def test_copilot_api_provider_never_sends_cache_keys(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COPILOT_API_BASE_URL", "https://copilot.example.test/v1")
+    monkeypatch.setenv("COPILOT_API_KEY", "cp-test")
+    sent = _sent_kwargs(fake_openai, monkeypatch, "copilot-api", "gpt-6")
+
+    assert "prompt_cache_options" not in sent
+    assert sent["messages"][0] == {"role": "system", "content": "be terse"}
+
+
 def test_openai_provider_returns_message_content(
     fake_openai: type[_FakeOpenAI],
 ) -> None:

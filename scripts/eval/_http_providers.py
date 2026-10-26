@@ -41,9 +41,13 @@ if TYPE_CHECKING:  # imported lazily at runtime; typed here for the client facto
 # Retired 2026-07-30; the endpoint answered HTTP 410 when re-probed
 # 2026-09-16. Kept so an archived run's provider string still resolves.
 GITHUB_MODELS_BASE_URL = "https://models.github.ai/inference"
+# The openai SDK's own default endpoint, named so an empty OPENAI_BASE_URL can
+# be replaced with it: the SDK would otherwise read the empty string itself.
+OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 
 __all__ = [
     "GITHUB_MODELS_BASE_URL",
+    "OPENAI_API_BASE_URL",
     "OpenAIUsage",
     "_AnthropicSDKProvider",
     "_OpenAICompatibleProvider",
@@ -191,6 +195,30 @@ def _is_reasoning_model(model: str) -> bool:
     return bool(_REASONING_MODEL_RE.match(model or ""))
 
 
+# `prompt_cache_options` and `prompt_cache_breakpoint` exist for GPT-5.6 and
+# later. Version is major or major.minor followed by end, `-`, or `.`, so
+# `gpt-5.6-mini`, `gpt-5.10`, `gpt-6-luna`, and `openai/gpt-7` match while
+# `gpt-5.5`, `gpt-5.60x`, `gpt-5`, and `gpt-4o` do not.
+_PROMPT_CACHE_MODEL_RE = re.compile(
+    r"^(?:[a-z0-9-]+/)?gpt-(\d+)(?:\.(\d+))?(?=$|[-.])", re.IGNORECASE
+)
+_PROMPT_CACHE_MIN_MAJOR = 6
+_PROMPT_CACHE_MIN_MINOR_AT_FIVE = 6
+_EXPLICIT_CACHE_MODE: dict[str, str] = {"mode": "explicit"}
+
+
+def _supports_prompt_cache_options(model: str) -> bool:
+    """True for GPT-5.6 and later, which accept explicit prompt caching."""
+    match = _PROMPT_CACHE_MODEL_RE.match(model or "")
+    if match is None:
+        return False
+    major = int(match.group(1))
+    minor = int(match.group(2) or 0)
+    if major >= _PROMPT_CACHE_MIN_MAJOR:
+        return True
+    return major == 5 and minor >= _PROMPT_CACHE_MIN_MINOR_AT_FIVE
+
+
 @dataclass(frozen=True, slots=True)
 class OpenAIUsage:
     """Token counts from one Chat Completions response (`resp.usage`).
@@ -271,8 +299,10 @@ class _OpenAICompatibleProvider:
         key_names: list[str],
         base_url: str | None = None,
         default_headers: dict[str, str] | None = None,
+        explicit_prompt_cache: bool = False,
     ) -> None:
         self.name = name
+        self._explicit_prompt_cache = explicit_prompt_cache
         self._provider_label = provider_label
         self._key_names = key_names
         self._base_url = base_url
@@ -305,6 +335,25 @@ class _OpenAICompatibleProvider:
         client_factory = cast("Callable[..., OpenAI]", OpenAI)
         return client_factory(**kwargs)
 
+    @staticmethod
+    def _cached_system_message(system: str) -> dict[str, Any]:
+        # Guide: https://developers.openai.com/api/docs/guides/prompt-caching
+        # GPT-5.6+ defaults to implicit mode: the breakpoint sits at the end of
+        # the latest user message and the write costs 1.25x input. With a fixed
+        # system prompt and a changing user message, that pays the write on
+        # every call and the next request never reuses the system prefix
+        # (guide "Gotchas"). Explicit mode with a breakpoint after the system
+        # prompt caches only the stable prefix; the user message bills at the
+        # uncached rate with no write charge. Explicit mode with no breakpoint
+        # (empty system) makes no cache writes at all. A prefix under 1,024
+        # tokens is never cached, so a short system prompt costs nothing extra.
+        part = {
+            "type": "text",
+            "text": system,
+            "prompt_cache_breakpoint": dict(_EXPLICIT_CACHE_MODE),
+        }
+        return {"role": "system", "content": [part]}
+
     def complete(
         self,
         *,
@@ -321,8 +370,11 @@ class _OpenAICompatibleProvider:
         self.finish_reason = None
         self.usage = None
         client = self._client()
-        full_messages: list[dict[str, str]] = []
-        if system:
+        full_messages: list[dict[str, Any]] = []
+        use_explicit_cache = self._explicit_prompt_cache and _supports_prompt_cache_options(model)
+        if system and use_explicit_cache:
+            full_messages.append(self._cached_system_message(system))
+        elif system:
             full_messages.append({"role": "system", "content": system})
         full_messages.extend(messages)
         # Reasoning models reject max_tokens + custom temperature; send
@@ -336,6 +388,8 @@ class _OpenAICompatibleProvider:
                 create_kwargs["temperature"] = temperature
         if seed is not None:
             create_kwargs["seed"] = seed
+        if use_explicit_cache:
+            create_kwargs["prompt_cache_options"] = dict(_EXPLICIT_CACHE_MODE)
         try:
             create_completion = cast("Callable[..., Any]", client.chat.completions.create)
             resp = create_completion(**create_kwargs)

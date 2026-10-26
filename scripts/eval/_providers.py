@@ -66,6 +66,7 @@ from _copilot_cli import _CopilotCLIProvider
 # implementations moved to keep this file under the file-size ceiling.
 from _http_providers import (
     GITHUB_MODELS_BASE_URL,
+    OPENAI_API_BASE_URL,
     _AnthropicSDKProvider,
     _http_code_from_exc,
     _is_reasoning_model,
@@ -146,11 +147,18 @@ def _make_copilot_cli() -> EvalProvider:
 def _make_openai() -> EvalProvider:
     # Same Any boundary the Copilot factory pins: `_http_providers` is a flat
     # sibling module, so its classes resolve to Any. Bind the contract here.
+    configured = os.environ.get("OPENAI_BASE_URL")
+    custom_base_url = configured or None
     provider: EvalProvider = _OpenAICompatibleProvider(
         name="openai",
         provider_label="OpenAI",
         key_names=["OPENAI_API_KEY"],
-        base_url=os.environ.get("OPENAI_BASE_URL") or None,
+        # Set but empty means "use the default", yet the SDK reads the empty
+        # variable itself when base_url is None, so name the endpoint here.
+        base_url=OPENAI_API_BASE_URL if configured == "" else custom_base_url,
+        # A custom base URL may be a proxy or compatible server that rejects
+        # unknown request fields, so explicit caching is first-party only.
+        explicit_prompt_cache=custom_base_url is None,
     )
     return provider
 
