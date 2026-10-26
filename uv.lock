@@ -103,7 +103,7 @@ requires-dist = [
     { name = "lefthook", marker = "extra == 'dev'", specifier = "==2.2.2" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.1.0" },
-    { name = "openai", marker = "extra == 'eval'", specifier = ">=1.40" },
+    { name = "openai", marker = "extra == 'eval'", specifier = ">=2.45.0" },
     { name = "packaging", marker = "extra == 'dev'", specifier = ">=24.0" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.10.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },

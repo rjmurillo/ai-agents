@@ -41,9 +41,13 @@ if TYPE_CHECKING:  # imported lazily at runtime; typed here for the client facto
 # Retired 2026-07-30; the endpoint answered HTTP 410 when re-probed
 # 2026-09-16. Kept so an archived run's provider string still resolves.
 GITHUB_MODELS_BASE_URL = "https://models.github.ai/inference"
+# The openai SDK's own default endpoint, named so an empty OPENAI_BASE_URL can
+# be replaced with it: the SDK would otherwise read the empty string itself.
+OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 
 __all__ = [
     "GITHUB_MODELS_BASE_URL",
+    "OPENAI_API_BASE_URL",
     "OpenAIUsage",
     "_AnthropicSDKProvider",
     "_OpenAICompatibleProvider",
@@ -332,7 +336,7 @@ class _OpenAICompatibleProvider:
         return client_factory(**kwargs)
 
     @staticmethod
-    def _system_message(system: str, use_explicit_cache: bool) -> dict[str, Any]:
+    def _cached_system_message(system: str) -> dict[str, Any]:
         # Guide: https://developers.openai.com/api/docs/guides/prompt-caching
         # GPT-5.6+ defaults to implicit mode: the breakpoint sits at the end of
         # the latest user message and the write costs 1.25x input. With a fixed
@@ -343,8 +347,6 @@ class _OpenAICompatibleProvider:
         # uncached rate with no write charge. Explicit mode with no breakpoint
         # (empty system) makes no cache writes at all. A prefix under 1,024
         # tokens is never cached, so a short system prompt costs nothing extra.
-        if not use_explicit_cache:
-            return {"role": "system", "content": system}
         part = {
             "type": "text",
             "text": system,
@@ -370,8 +372,10 @@ class _OpenAICompatibleProvider:
         client = self._client()
         full_messages: list[dict[str, Any]] = []
         use_explicit_cache = self._explicit_prompt_cache and _supports_prompt_cache_options(model)
-        if system:
-            full_messages.append(self._system_message(system, use_explicit_cache))
+        if system and use_explicit_cache:
+            full_messages.append(self._cached_system_message(system))
+        elif system:
+            full_messages.append({"role": "system", "content": system})
         full_messages.extend(messages)
         # Reasoning models reject max_tokens + custom temperature; send
         # max_completion_tokens and omit temperature so o-series / gpt-5 work.

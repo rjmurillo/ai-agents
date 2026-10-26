@@ -268,6 +268,26 @@ def test_openai_provider_empty_base_url_still_caches(
     assert sent["prompt_cache_options"] == {"mode": "explicit"}
 
 
+def test_openai_factory_names_default_endpoint_for_empty_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+
+    provider = _providers.resolve_provider("openai")
+
+    assert provider._base_url == _http_providers.OPENAI_API_BASE_URL
+
+
+def test_openai_factory_leaves_base_url_unset_when_variable_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    provider = _providers.resolve_provider("openai")
+
+    assert provider._base_url is None
+
+
 def test_openai_provider_explicit_mode_without_breakpoint_when_system_empty(
     fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
 ) -> None:

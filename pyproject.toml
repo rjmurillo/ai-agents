@@ -35,7 +35,7 @@ dev = [
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
     # anthropic is already a core dependency; the default eval needs no extra.
-    "openai>=1.40",
+    "openai>=2.45.0",
 ]
 
 [tool.uv]

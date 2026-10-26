@@ -56,6 +56,7 @@ try:
     import _eval_common
     import _eval_errors
     import _http_providers
+    import _providers
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
@@ -524,6 +525,22 @@ def test_openai_provider_messages_create_accepts_every_keyword_it_sends(
     assert provider.usage == _http_providers.OpenAIUsage(
         prompt_tokens=12000, completion_tokens=40, cached_tokens=9000, cache_write_tokens=3000
     )
+
+
+def test_empty_openai_base_url_still_reaches_the_default_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real SDK reads OPENAI_BASE_URL itself when base_url is None, so an
+    empty variable would become an empty endpoint. The factory names the
+    default instead. Building a client makes no network call.
+    """
+    pytest.importorskip("openai")
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    client = _providers.resolve_provider("openai")._client()
+
+    assert str(client.base_url).rstrip("/") == "https://api.openai.com/v1"
 
 
 def test_openai_provider_sends_prompt_cache_fields_the_sdk_accepts(
