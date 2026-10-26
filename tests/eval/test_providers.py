@@ -450,6 +450,111 @@ def test_openai_transport_mirrors_provider_usage() -> None:
     assert bare.usage is None
 
 
+def test_openai_transport_clears_usage_when_the_next_call_raises() -> None:
+    class _Provider:
+        system_fingerprint = None
+        usage: object = _http_providers.OpenAIUsage(10, 2, 4, 1)
+        fail = False
+
+        def complete(self, **_: object) -> str:
+            if self.fail:
+                self.usage = None
+                raise RuntimeError("boom")
+            return "answer"
+
+    provider = _Provider()
+    transport = _eval_api_adapter._OpenAIProviderTransport(provider, seed=None)
+    transport("p", "m", "s")
+    assert transport.usage is not None
+
+    provider.fail = True
+    with pytest.raises(RuntimeError, match="boom"):
+        transport("p", "m", "s")
+
+    assert transport.usage is None
+
+
+# `bool` is an int subclass; typed Any so the malformed case needs no type-ignore.
+_BOOL_COUNT: Any = True
+
+
+class _UsageTransport:
+    """A callable transport that exposes a fixed `usage` attribute."""
+
+    system_fingerprint = None
+    termination = None
+
+    def __init__(self, usage: object) -> None:
+        self.usage = usage
+
+    def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        return "answer"
+
+
+def test_call_model_success_carries_measured_cache_usage() -> None:
+    transport = _UsageTransport(_http_providers.OpenAIUsage(12000, 40, 9000, 3000))
+    adapter = _eval_api_adapter.AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+    result = adapter.call_model("p", "m", "fx", "variant", 0)
+
+    assert result.outcome == "success"
+    assert result.cache_usage == {
+        "prompt_tokens": 12000,
+        "completion_tokens": 40,
+        "cached_tokens": 9000,
+        "cache_write_tokens": 3000,
+    }
+    # Measured cache counts do not change the estimate flag on tokens_in/out.
+    assert result.tokens_estimated is True
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        None,
+        {"prompt_tokens": 1},
+        _http_providers.OpenAIUsage(-1, 2, 3, 4),
+        _http_providers.OpenAIUsage(_BOOL_COUNT, 2, 3, 4),
+    ],
+)
+def test_call_model_drops_missing_or_malformed_cache_usage(usage: object) -> None:
+    adapter = _eval_api_adapter.AnthropicAPIAdapter(
+        transport=_UsageTransport(usage), sleep=lambda _s: None
+    )
+
+    result = adapter.call_model("p", "m", "fx", "variant", 0)
+
+    assert result.outcome == "success"
+    assert result.cache_usage is None
+
+
+def test_default_anthropic_call_clears_stale_openai_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _anthropic_api,
+        "_read_messages_response",
+        lambda request, api_key: {
+            "content": [{"type": "text", "text": "hi"}],
+            "stop_reason": "end_turn",
+        },
+    )
+    metadata: dict[str, object] = {
+        "usage": {"cached_tokens": 9000},
+        "max_tokens_applied": True,
+        "finish_reason": "length",
+    }
+
+    response = _anthropic_api.call_api_response(
+        "key", [{"role": "user", "content": "hi"}], provider="anthropic", metadata=metadata
+    )
+
+    assert response.text == "hi"
+    assert "usage" not in metadata
+    assert "max_tokens_applied" not in metadata
+    assert "finish_reason" not in metadata
+
+
 def test_record_cache_usage_writes_plain_dict_and_clears_stale() -> None:
     from _anthropic_response import record_cache_usage
 

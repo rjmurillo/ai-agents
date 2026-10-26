@@ -236,7 +236,8 @@ def weighted_input_cost_units(
 
     ordinary = prompt - cached - write; weighted = ordinary +
     cached * read_multiplier + write * write_multiplier. Defaults are the
-    GPT-5.6+ 30-minute rates from
+    30-minute rates for most GPT-5.6+ models (pass read_multiplier=0.05 for
+    GPT-6.1 Sol), from
     https://developers.openai.com/api/docs/guides/prompt-caching. Returns None
     when any needed count is unreported, because a guessed zero would price a
     cache hit or write as free. Carries no price table: multiply by the model's
