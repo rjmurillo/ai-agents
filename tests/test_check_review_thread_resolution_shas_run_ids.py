@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
-import sys
+import importlib.util
 from pathlib import Path
 from unittest.mock import patch
 
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
-sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import check_review_thread_resolution_shas as _mod  # noqa: E402
+
+def _import_script(name: str):
+    # Not registered in sys.modules: sibling tests patch that entry by name.
+    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_mod = _import_script("check_review_thread_resolution_shas")
 
 
 def _thread(thread_id: str, resolved: bool, body: str) -> dict:
@@ -94,8 +104,9 @@ def test_hex_token_with_letters_is_still_a_sha() -> None:
 
 def test_resolved_thread_citing_run_ids_passes_report() -> None:
     thread = _thread("T1", True, "Fixed in abc1234. CI: run 39223031239, run 39223031240.")
-    with patch(
-        "check_review_thread_resolution_shas.check_ancestor",
+    with patch.object(
+        _mod,
+        "check_ancestor",
         return_value=(True, "reachable", ""),
     ) as check:
         report = _mod.build_report("o", "r", 1, "b" * 40, [thread], True, ".")
@@ -117,3 +128,23 @@ def test_label_of_commit_link_is_still_checked() -> None:
 
 def test_label_of_other_link_is_still_checked() -> None:
     assert _mod.extract_shas("See [1234567](https://example.com/page).") == ["1234567"]
+
+
+def test_label_of_html_anchor_to_run_url_is_not_a_sha() -> None:
+    body = 'See <a href="https://github.com/o/r/actions/runs/123456789">1234567</a> for logs.'
+    assert _mod.extract_shas(body) == []
+
+
+def test_label_of_html_block_anchor_to_run_url_is_not_a_sha() -> None:
+    body = '<p><a href="https://github.com/o/r/actions/runs/1234567/job/9">1234567</a></p>'
+    assert _mod.extract_shas(body) == []
+
+
+def test_label_of_html_anchor_to_commit_url_is_still_checked() -> None:
+    body = 'See <a href="https://github.com/o/r/commit/1234567abcdef">1234567</a> for the fix.'
+    assert _mod.extract_shas(body) == ["1234567abcdef", "1234567"]
+
+
+def test_label_of_html_anchor_to_other_url_is_still_checked() -> None:
+    body = 'See <a href="https://example.com/page">1234567</a>.'
+    assert _mod.extract_shas(body) == ["1234567"]
