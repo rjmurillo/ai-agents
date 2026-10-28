@@ -178,7 +178,11 @@ class _HtmlText(HTMLParser):
             # GitHub strips the element with its attributes, so no href counts.
             self._unrendered_tag = tag
             return
-        self.parts.extend(_commit_refs(value) for name, value in attrs if name == "href" and value)
+        for name, value in attrs:
+            if name == "href" and value:
+                # A link to an Actions run makes its label a run ID, as in _inline_text.
+                run_context = " run " if _RUN_URL_RE.search(value) else ""
+                self.parts.append(_commit_refs(value) + run_context)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # HTML ignores "/>" on raw-text elements, so their text still runs to the end tag.
