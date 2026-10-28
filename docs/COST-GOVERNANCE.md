@@ -268,5 +268,5 @@ How the `agent-claude` secrets map to the credits:
 ---
 
 **Last Updated**: 2026-10-24
-**Next Review**: 2026-01-22
+**Next Review**: 2026-11-24
 **Owner**: DevOps Team
