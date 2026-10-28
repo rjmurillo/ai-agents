@@ -201,6 +201,32 @@ ai-metrics-analysis, pr-maintenance, artifact-insight-scanner, and autoplan-rout
 
 plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). It runs one matrix leg per CLI. A Claude or Copilot leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential. The Codex legs read no credential and run in no environment. plugin-cli-smoke is the one blocking gated workflow (REQ-047, owner decision D2); the other gated pull-request workflows stay advisory.
 
+### Claude Max Monthly API Credits
+
+Bottom line: the Claude calls that use `ANTHROPIC_API_KEY` can be paid from the monthly API credits included with a Claude Max plan, but only when that key was created in the Claude Console organization linked to the plan. The Claude Code runs that use `CLAUDE_CODE_OAUTH_TOKEN` count as Claude subscription usage and never draw on these credits.
+
+What Anthropic documents:
+
+- Max 5x includes $100 of API credits each month, and Max 20x includes $200. ([Help Center][max-credits-help], [Claude docs][max-credits-docs])
+- You claim the credits once on claude.ai. Go to Settings > Billing, select "Link organization" in the API credits section, and choose the Console organization that should receive them. A plan links to one Console organization, and you can't change that link yourself. ([Help Center][max-credits-help])
+- The credits refresh each billing cycle. Unused credits expire at the end of the cycle and don't roll over. ([Help Center][max-credits-help], [Claude docs][max-credits-docs])
+- The credits cover the Claude API (the Messages API and the Message Batches API), the Console Playground, Claude Managed Agents, and the Claude Agent SDK. Everyone with an API key in the linked organization draws from the same balance. ([Help Center][max-credits-help], [Claude docs][max-credits-docs])
+- The credits don't cover Claude Code. The Help Center excludes interactive Claude Code in the terminal, IDE, desktop, or web, and the Claude docs list Claude Code as not covered. ([Help Center][max-credits-help], [Claude docs][max-credits-docs])
+- Monthly credits are spent before purchased credits. When they run out, requests continue only if the organization has purchased credits or auto-reload. Otherwise API requests stop until the next monthly credits arrive, and the usage is never charged to the Claude plan. ([Help Center][max-credits-help], [Claude docs][max-credits-docs])
+- The Console Billing page shows each credit with its amount and expiry date. ([Help Center][max-credits-help])
+- A token made with `claude setup-token` and set as `CLAUDE_CODE_OAUTH_TOKEN` authenticates with your Claude subscription. ([Claude Code authentication][claude-code-auth])
+
+How the `agent-claude` secrets map to the credits:
+
+| Secret | How the repo uses it | Draws on the monthly API credits |
+|--------|----------------------|----------------------------------|
+| `ANTHROPIC_API_KEY` | Calls the Messages API directly, through the `anthropic` SDK in `.github/actions/ai-review` or the HTTP client in `scripts/eval/_anthropic_api.py`. Used by ai-spec-review, pr-maintenance, artifact-insight-scanner, ai-metrics-analysis, autoplan-route-eval, skill-overlap-eval, slash-command-quality, and software-engineering-library-activation. | Yes, when the key was created in the linked Console organization. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Runs Claude Code through `anthropics/claude-code-action` in claude and post-pr-retrospective, and through the Claude Code CLI in plugin-cli-smoke. | No. The token uses the Claude subscription. |
+
+[max-credits-help]: https://support.claude.com/en/articles/17154008-monthly-api-credits-for-max-and-team-plans
+[max-credits-docs]: https://docs.claude.com/en/docs/about-claude/api-credits-for-subscribers
+[claude-code-auth]: https://docs.anthropic.com/en/docs/claude-code/authentication
+
 ## Best Practices
 
 ### Workflow Design
@@ -241,6 +267,6 @@ plugin-cli-smoke runs on pull requests, only when a change touches a smoke path 
 
 ---
 
-**Last Updated**: 2025-12-22
-**Next Review**: 2026-01-22
+**Last Updated**: 2026-10-24
+**Next Review**: 2026-11-24
 **Owner**: DevOps Team
