@@ -92,13 +92,13 @@ def _read_with_issue_script(module) -> Callable[[Path, Path], str]:
 def _read_with_post_issue_comment(path: Path, _repo: Path) -> str:
     module = _POST_ISSUE_COMMENT
 
-    def _capture(body: str) -> None:
+    def _capture(body: str, **_kwargs: object) -> None:
         raise _CapturedError(body)
 
     patches = {
         "assert_gh_authenticated": lambda: None,
         "resolve_repo_params": lambda _owner, _repo: SimpleNamespace(owner="o", repo="r"),
-        "inline_body_error": _capture,
+        "resolved_body_error": _capture,
     }
     saved = {name: getattr(module, name) for name in patches}
     for name, value in patches.items():
@@ -155,8 +155,8 @@ def _write(path: Path, mode: int, text: str = _BODY) -> Path:
     return path
 
 
-@pytest.fixture
-def area(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Area:
+def build_area(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Area:
+    """Pin the roots under ``tmp_path``. Other body-file suites reuse this."""
     base = _mkdir(tmp_path.resolve() / "area", 0o700)
     repo = _mkdir(base / "repo", 0o755)
     fake_tmp = _mkdir(base / "tmp", 0o1777)
@@ -168,6 +168,11 @@ def area(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Area:
     monkeypatch.chdir(repo)
     monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
     return built
+
+
+@pytest.fixture
+def area(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Area:
+    return build_area(tmp_path, monkeypatch)
 
 
 # Positive cases ------------------------------------------------------------

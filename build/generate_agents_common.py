@@ -31,7 +31,7 @@ def _load_model_pin_manifest_exports() -> tuple[
     Canonical source and reuse decision
     (``.claude/rules/canonical-source-mirror.md``): mirrors
     ``scripts/validation/agent_registry.py``'s
-    ``_load_read_yaml_frontmatter`` (lines 32-59), which loads a sibling
+    ``_load_read_yaml_frontmatter`` (lines 37-60), which loads a sibling
     build-tree module via ``importlib.util.spec_from_file_location`` and
     ``exec_module`` specifically so that importing the *loading* module
     never touches ``sys.path``

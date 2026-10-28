@@ -28,7 +28,6 @@ _BOOTSTRAP_REF = (
 )
 _SKILLFORGE_TMPL = _REPO / "templates" / "skills" / "skillforge.SKILL.md.tmpl"
 _MIRROR_ROOTS = (
-    "src/claude",
     "src/codex",
     "src/copilot-cli",
     "src/cursor",
@@ -183,6 +182,7 @@ def test_self_verification_doctrine_is_retired_from_unchanged_sections() -> None
 
 _SKILLFORGE_REFS = _REPO / ".claude" / "skills" / "skillforge" / "references"
 _INSTRUMENT = "get_unresolved_review_threads.py"
+_VALIDATOR = "validate-skill.py"
 _SKILLFORGE_SKILL = _REPO / ".claude" / "skills" / "skillforge" / "SKILL.md"
 _SKILLFORGE_TEMPLATE_SCRIPT = (
     _REPO / ".claude" / "skills" / "skillforge" / "assets" / "templates" / "script-template.py"
@@ -232,6 +232,13 @@ def test_framework_patterns_use_fast_fail_names() -> None:
     assert "Verification failed" not in text
     assert "verify_result(" not in text
     assert "fast_fail_check(result)" in text
+
+
+def test_pattern_one_calls_the_template_helper_by_name() -> None:
+    """Scoped to Pattern 1: Pattern 2 alone must not satisfy the claim."""
+    pattern_one = _section(_REF.read_text(encoding="utf-8"), "Pattern 1: Fast-Fail Output Check")
+    assert "is_valid, reason = fast_fail_check(result)" in pattern_one
+    assert "verify_output(" not in pattern_one
 
 
 def test_generation_path_teaches_fast_fail_plus_independent_check() -> None:
@@ -311,6 +318,17 @@ def test_script_header_marker_admits_the_one_real_script() -> None:
     assert real.is_file(), "marker names a script that must exist"
 
 
+def test_script_header_marker_names_every_real_script_the_file_cites() -> None:
+    """The file cites validate-skill.py as reused; the marker must not call it unreal."""
+    text = _REF.read_text(encoding="utf-8")
+    marker = text.splitlines()[2]
+    assert marker.startswith("<!-- vendor-portability-exec:")
+    assert "the one real script" not in marker
+    assert _VALIDATOR in marker
+    assert f"skillforge/scripts/{_VALIDATOR}" in text
+    assert (_REPO / ".claude" / "skills" / "skillforge" / "scripts" / _VALIDATOR).is_file()
+
+
 def test_pattern_one_sample_is_named_for_a_fast_fail_check() -> None:
     text = _REF.read_text(encoding="utf-8")
     assert "def execute_and_verify" not in text
@@ -384,7 +402,14 @@ def test_generated_mirrors_match_canonical_source(root: str, skill: str, rel: st
     canonical = _REPO / ".claude" / "skills" / skill / rel
     mirror = _REPO / root / "skills" / skill / rel
     assert mirror.is_file(), mirror
+    assert not mirror.samefile(canonical), "mirror resolves to the canonical file; case cannot fail"
     assert mirror.read_bytes() == canonical.read_bytes()
+
+
+def test_mirror_roots_exclude_the_canonical_symlink_target() -> None:
+    """.claude/skills/<skill> symlinks into src/claude; comparing it to itself proves nothing."""
+    assert "src/claude" not in _MIRROR_ROOTS
+    assert {"src/codex", "src/copilot-cli", "src/cursor"} <= set(_MIRROR_ROOTS)
 
 
 def test_pattern_two_unpacks_the_fast_fail_tuple_before_returning() -> None:
@@ -399,3 +424,14 @@ def test_map_only_branch_does_not_require_a_fast_fail_check() -> None:
     phase1 = (_SKILLFORGE_REFS / "phase1-analysis-deep-dive.md").read_text(encoding="utf-8")
     assert "add a fast-fail check only if an executor script runs" in phase1
     assert "NO → Add a fast-fail check and keep" not in phase1
+
+
+_CRITERIA = _REPO / ".agents" / "governance" / "SKILL-CREATION-CRITERIA.md"
+
+
+def test_governance_quality_gate_table_matches_the_retired_self_verification_gate() -> None:
+    text = _CRITERIA.read_text(encoding="utf-8")
+    gates = _section(text, "SkillForge Quality Gates")
+    assert "| Fast-fail and independent check |" in gates
+    assert not re.search(r"self[-_ ]?verif", gates, re.I)
+    assert re.search(r"^Refs: #6688 ", gates, re.M), "changed gate needs an evidence anchor"

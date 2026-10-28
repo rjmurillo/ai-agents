@@ -37,13 +37,15 @@ human approves it.
 
 Every comparison is against the base ref tip, never the merge base: a head
 behind the base runs the old copy of a file the base moved. With `--head-sha`, a
-finding where the head equals every merge base is labelled STALE, which still
-fails and tells the author to merge the base ref (issue #6472).
+finding where the head equals every merge base is labelled STALE. STALE is
+reported but does not fail: a pull request cannot be required to sit on the latest
+base, because many agents merge at once. Every other finding still fails (issue #6472).
 
 EXIT CODES (ADR-035):
-  0 - the head's dispatch closure is byte-identical to the base ref
-  1 - files differ, are removed, new or stale, a symlink was added, or a dynamic
-      load cannot be resolved
+  0 - the head's dispatch closure matches the base ref, apart from files
+      reported STALE
+  1 - files differ, are removed or new, a symlink was added, or a dynamic
+      load cannot be resolved (stale files alone exit 0)
   2 - configuration: a tree, the base config or the dispatcher cannot be read
 """
 
@@ -78,8 +80,8 @@ CHANGED = "changed"
 ADDED = "added"
 STALE = "stale"
 STALE_REMEDY = (
-    "dispatch-closure: STALE files match every merge base but not the base ref: "
-    "merge the base ref into the branch and push"
+    "dispatch-closure: STALE files match every merge base but not the base ref. "
+    "STALE findings alone do not fail the check"
 )
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
 
@@ -127,8 +129,9 @@ class Report:
 
     @property
     def clean(self) -> bool:
+        """True when no finding blocks. STALE is reported but never blocks."""
         found = (self.changed, self.removed, self.added, self.symlinks, self.unresolved)
-        return not any(found) and not self.stale
+        return not any(found)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -215,7 +218,7 @@ def _merge_bases(tool_root: Path, base_ref: str, head_sha: str | None) -> list[s
     [] covers a work-tree head, a shallow history that misses the fork point, and
     an unrelated history. ``--all`` matters after a criss-cross merge: plain
     ``merge-base`` prints one of several ancestors, and the head shapes which.
-    They only pick STALE, which needs a match at every one; they never clear.
+    A match at every one relabels a finding STALE, and STALE alone does not fail.
     """
     if head_sha is None:
         return []
@@ -245,10 +248,10 @@ def _classify(
     head that selects a built-in conversion cannot make the bytes written to the
     scratch tree equal the base's while the committed blob differs.
 
-    Only equality with the base ref tip clears a file. A head blob that differs
+    Only equality with the base ref tip leaves a file unreported. A head blob that differs
     from the tip but equals the blob at every merge base is STALE: the base moved
     or deleted the file after the branch point, and the head still runs the old
-    copy.
+    copy. STALE is reported and does not fail the check.
     """
     base_id = _blob_id(tool_root, base_ref, path)
     if head_sha is None:

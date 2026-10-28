@@ -23,7 +23,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.181.0",
+    "semgrep==1.182.0",
     "lefthook==2.2.2",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
@@ -35,7 +35,7 @@ dev = [
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
     # anthropic is already a core dependency; the default eval needs no extra.
-    "openai>=1.40",
+    "openai>=2.45.0",
 ]
 
 [tool.uv]
@@ -355,7 +355,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.181.0",
+    "semgrep==1.182.0",
     "lefthook==2.2.2",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",

@@ -197,8 +197,8 @@ class TestMainSuccess:
             main(BASE_ARGS)
         repo_ready.assert_called_once_with(rest_only=True)
 
-    def test_body_file_is_read(self, repo_ready, tmp_path, capsys):
-        body_file = tmp_path / "body.md"
+    def test_body_file_is_read(self, repo_ready, stub_git_probes, tmp_path_is_temp_root, capsys):
+        body_file = tmp_path_is_temp_root / "body.md"
         body_file.write_text("From a file\nsecond line", encoding="utf-8")
         argv = [a for a in BASE_ARGS[:-2]] + ["--body-file", str(body_file)]
         with (
@@ -252,8 +252,10 @@ class TestMainUsageErrors:
         assert exc.value.code == 2
         run.assert_not_called()
 
-    def test_body_file_not_utf8_exits_2(self, repo_ready, tmp_path, capsys):
-        body_file = tmp_path / "body.md"
+    def test_body_file_not_utf8_exits_2(
+        self, repo_ready, stub_git_probes, tmp_path_is_temp_root, capsys
+    ):
+        body_file = tmp_path_is_temp_root / "body.md"
         body_file.write_bytes(b"caf\xe9 in cp1252\n")
         argv = BASE_ARGS[:-2] + ["--body-file", str(body_file)]
         with (
@@ -266,8 +268,10 @@ class TestMainUsageErrors:
         run.assert_not_called()
         assert f"Failed to read body file {body_file}" in capsys.readouterr().err
 
-    def test_body_file_os_error_exits_2(self, repo_ready, tmp_path, capsys):
-        argv = BASE_ARGS[:-2] + ["--body-file", str(tmp_path)]
+    def test_body_file_os_error_exits_2(
+        self, repo_ready, stub_git_probes, tmp_path_is_temp_root, capsys
+    ):
+        argv = BASE_ARGS[:-2] + ["--body-file", str(tmp_path_is_temp_root)]
         with (
             patch("new_pr_review_comment.assert_valid_body_file"),
             patch("new_pr_review_comment.subprocess.run") as run,
@@ -276,11 +280,13 @@ class TestMainUsageErrors:
                 main(argv)
         assert exc.value.code == 2
         run.assert_not_called()
-        assert f"Failed to read body file {tmp_path}" in capsys.readouterr().err
+        assert f"Failed to read body file {tmp_path_is_temp_root}" in capsys.readouterr().err
 
     @pytest.mark.parametrize("content", ["", "  \n\t\n"])
-    def test_empty_body_file_exits_2(self, repo_ready, tmp_path, content: str):
-        body_file = tmp_path / "body.md"
+    def test_empty_body_file_exits_2(
+        self, repo_ready, stub_git_probes, tmp_path_is_temp_root, content: str
+    ):
+        body_file = tmp_path_is_temp_root / "body.md"
         body_file.write_text(content, encoding="utf-8")
         argv = BASE_ARGS[:-2] + ["--body-file", str(body_file)]
         with (
@@ -292,8 +298,10 @@ class TestMainUsageErrors:
         assert exc.value.code == 2
         run.assert_not_called()
 
-    def test_one_line_body_file_naming_backslash_n_is_posted(self, repo_ready, tmp_path, capsys):
-        body_file = tmp_path / "body.md"
+    def test_one_line_body_file_naming_backslash_n_is_posted(
+        self, repo_ready, stub_git_probes, tmp_path_is_temp_root, capsys
+    ):
+        body_file = tmp_path_is_temp_root / "body.md"
         body_file.write_text("Split on the literal \\n here.\n", encoding="utf-8")
         argv = BASE_ARGS[:-2] + ["--body-file", str(body_file)]
         with (

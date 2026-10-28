@@ -54,9 +54,9 @@ CWE78_PATTERNS = {
                 r"eval\s*\(\s*(\w*(user|input|param|arg|request|cmd|command)\w*)",
                 re.IGNORECASE,
             ),
-            "description": "eval() with potentially unvalidated input",
+            "description": "eval call with potentially unvalidated input",
             "severity": "CRITICAL",
-            "recommendation": "Never use eval() with user input",
+            "recommendation": "Never pass user input to eval",
         },
         {
             "pattern": re.compile(

@@ -53,8 +53,8 @@ from github_core.output import (
 )
 from github_core.validation import (
     assert_valid_body_file,
-    inline_body_error,
     read_body_file_text,
+    resolved_body_error,
 )
 
 _SCRIPT_NAME = "post_issue_comment.py"
@@ -202,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as exc:
             error_and_exit(f"Invalid --body-file: {exc}", 2)
 
-    body_error = inline_body_error(body)
+    body_error = resolved_body_error(body, from_file=bool(args.body_file))
     if body_error:
         error_and_exit(body_error, 2)
 

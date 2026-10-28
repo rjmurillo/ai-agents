@@ -156,6 +156,44 @@ def _candidate_git_dir_roots() -> list[str]:
     return []
 
 
+# Kernel pseudo-filesystems. Their files can expose the process environment,
+# which holds the GitHub token, so no body file may come from them.
+_PSEUDO_FILESYSTEM_ROOTS = (Path("/proc"), Path("/sys"), Path("/dev"))
+# A plain tmpfs some hosts use as TMPDIR, so it stays allowed under /dev.
+_DEV_SHM = Path("/dev/shm")
+
+
+def is_pseudo_filesystem_path(resolved: Path) -> bool:
+    """Return True when a resolved path is under ``/proc``, ``/sys`` or ``/dev``.
+
+    ``/dev/shm`` and paths below it are allowed. Only POSIX has these mounts,
+    so a Windows path never matches.
+    """
+    if os.name == "nt":
+        return False
+    if _DEV_SHM in resolved.parents:
+        return False
+    return any(resolved == root or root in resolved.parents for root in _PSEUDO_FILESYSTEM_ROOTS)
+
+
+def body_file_repo_root() -> Path | None:
+    """Return the resolved repo root of the working directory, else None.
+
+    Unlike :func:`is_safe_file_path`, this never falls back to the working
+    directory when git finds no repository. A body file is sent to GitHub,
+    and the working directory is no boundary for that (issue #6916).
+    """
+    from .repo import resolve_repo_root
+
+    repo_root, _reason = resolve_repo_root()
+    if repo_root is None:
+        return None
+    try:
+        return Path(repo_root).resolve()
+    except (OSError, ValueError):
+        return None
+
+
 def is_allowed_body_file_path(path: str) -> bool:
     """Return True when a body or comment file sits under an approved root.
 
@@ -166,16 +204,21 @@ def is_allowed_body_file_path(path: str) -> bool:
 
     Approved roots, checked in this order: the repository root of the working
     directory, every temp root from :func:`_candidate_temp_roots`, the git dir
-    from :func:`_candidate_git_dir_roots`. No caller adds roots, so every script
+    from :func:`_candidate_git_dir_roots`. Outside a repository there is no
+    repo root, and the working directory is never a root: it can be any
+    directory, such as ``/`` (issue #6916). A path under a kernel
+    pseudo-filesystem (see :func:`is_pseudo_filesystem_path`) is refused under
+    every root. No caller adds roots, so every script
     accepts the same paths. A relative-path base such as ``GITHUB_WORKSPACE`` only
     resolves the path and never widens the roots. Paths are resolved before the
     prefix test, so a symlink under an approved root that points elsewhere is
     rejected. The caller owns the existence check.
 
-    Five scripts read their body file through :func:`read_body_file_text`,
-    which applies this rule and the stricter location and open checks (owner
-    decision D14, 2026-10-24, issue #6667). ``new_pr.py`` and
-    ``edit_pr_body.py`` refuse the git dir there; the issue scripts keep it.
+    Every body-file script then reads its file through
+    :func:`read_body_file_text`, which applies this rule and the stricter
+    location and open checks (owner decision D14, 2026-10-24, issue #6667;
+    issue #6919). ``new_pr.py`` and ``edit_pr_body.py`` refuse the git dir
+    there; the others keep it.
 
     Args:
         path: The file path to check.
@@ -183,18 +226,24 @@ def is_allowed_body_file_path(path: str) -> bool:
     Returns:
         True when the resolved path stays within an approved root.
     """
-    if is_safe_file_path(path, None):
-        return True
+    if _TRAVERSAL_PATTERN.search(path):
+        return False
+    try:
+        if is_pseudo_filesystem_path(Path(path).resolve()):
+            return False
+    except (OSError, ValueError):
+        return False
 
-    for temp_root in _candidate_temp_roots():
-        if is_safe_file_path(path, temp_root):
-            return True
-
-    for git_root in _candidate_git_dir_roots():
-        if is_safe_file_path(path, git_root):
-            return True
-
-    return False
+    repo_root = body_file_repo_root()
+    roots = [
+        *([str(repo_root)] if repo_root is not None else []),
+        *_candidate_temp_roots(),
+        *_candidate_git_dir_roots(),
+    ]
+    # A root that is the filesystem root bounds nothing, so it never counts.
+    return any(
+        Path(root) != Path(Path(root).anchor) and is_safe_file_path(path, root) for root in roots
+    )
 
 
 def read_body_file_text(
@@ -307,3 +356,26 @@ def inline_body_error(body: str | None) -> str | None:
     if not body or not body.strip():
         return "Body cannot be empty."
     return escaped_newline_body_error(body)
+
+
+def resolved_body_error(body: str | None, *, from_file: bool) -> str | None:
+    """Return the first problem with a resolved body, or None.
+
+    An inline ``--body`` gets both checks of :func:`inline_body_error`. A
+    ``--body-file`` body gets only the empty check: the escaped-newline check
+    exists to steer an inline body to a file, and a file can quote a literal
+    backslash-n on purpose, such as a Python bytes literal in inline code
+    (issue #6940). ``new_pr_review_comment.py`` follows the same split.
+
+    Args:
+        body: The body text, inline or read from the file.
+        from_file: True when the body came from ``--body-file``.
+
+    Returns:
+        An operator-facing message, or None when the body is usable.
+    """
+    if not from_file:
+        return inline_body_error(body)
+    if not body or not body.strip():
+        return "Body cannot be empty."
+    return None

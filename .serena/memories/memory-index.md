@@ -64,7 +64,7 @@
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 |stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
 |issue worktree branch existing open PR closing keyword check_existing_pr_for_issue duplicate: [github/check-existing-pr-before-issue-worktree](github/check-existing-pr-before-issue-worktree.md) (659)
-|PR validator prepare-body-file backticked path not in diff pr_description pr-number after open: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (573)
+|PR validator prepare-body-file backticked path not in diff pr_description body-file local mode before open brace paths: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (910)
 |parallel agents shared scratch directory pr body overwritten pr1.md prepare-body-file per worktree issue 6315 Validate PR: [github/github-pr-body-files-collide-in-a-shared-scratch-directory](github/github-pr-body-files-collide-in-a-shared-scratch-directory.md) (335)
 |triage packet stale issue closed before dispatch re-check state: [pr-review/triage-packets-go-stale-within-hours](pr-review/triage-packets-go-stale-within-hours.md) (175)
 |coderabbit sticky changes-requested approve command: [coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command](coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command.md) (131)
@@ -91,7 +91,7 @@
 [Security]
 |security vulnerability TOCTOU secret injection: [skills-security-index](skills-security-index.md) (508)
 |filesystem redirect symlink junction ancestor parent swap descriptor: [security/filesystem-redirect-boundaries](security/filesystem-redirect-boundaries.md) (154)
-|integrity gate noise stale outcome exemption merge base fail-open verifier: [security/integrity-gate-noise-needs-stale-class-not-exemption](security/integrity-gate-noise-needs-stale-class-not-exemption.md) (202)
+|integrity gate noise stale outcome exemption merge base fail-open verifier: [security/integrity-gate-noise-needs-stale-class-not-exemption](security/integrity-gate-noise-needs-stale-class-not-exemption.md) (258)
 |uv exclude-newer cooldown security dependency bump certifi opentelemetry semgrep override-dependencies SAFE_SEMGREP_OVERRIDES parity test: [python/uv-cooldown-security-dependency-bumps](python/uv-cooldown-security-dependency-bumps.md) (368)
 
 [Architecture and Design]
@@ -256,5 +256,7 @@
 |pytest-split durations cache frozen cancelled leg split-1 timeout duration_based_chunks least_duration module split scatter whole-repo scan 6846 6853 6857 rerun in_progress required check 6828 6830: [ci/pytest-split-cache-freeze-repeats-timeout](ci/pytest-split-cache-freeze-repeats-timeout.md) (545)
 |stale main clone skill script missing flag remove-labels set_issue_labels detached worktree origin/main git pull denied: [git/git-stale-detached-clone-runs-stale-tooling](git/git-stale-detached-clone-runs-stale-tooling.md) (984)
 |lefthook pre-push job already_run_by deferral target glob files skip unscoped pre_pr gate passed nothing run 5317 6734 slice 3 scoping speed: [ci/prepush-deferral-targets-stay-unscoped](ci/prepush-deferral-targets-stay-unscoped.md) (304)
+|closure dispatch dynamic load scan cache key resolved path symlink ADR-119 __file__ spelling skills mirror memoize load_cache 6878 6734: [validation/closure-scan-cache-keys-on-the-path-as-given](validation/closure-scan-cache-keys-on-the-path-as-given.md) (292)
 |shared clone .git/config user email identity leak T t@example.com GIT_DIR agent commit author squash trailer set_pr_auto_merge commit-body 6898 retro: [git/git-a-stray-identity-in-the-shared-clone-config-reaches-main](git/git-a-stray-identity-in-the-shared-clone-config-reaches-main.md) (553)
 |auto-merge off new push expected-head-sha re-arm merge_pr auto_merge false 6899: [github/github-a-new-push-turns-off-auto-merge-armed-with-an-expected-head](github/github-a-new-push-turns-off-auto-merge-armed-with-an-expected-head.md) (219)
+|patch time.sleep mock global process-wide thread leak xdist worker daemon test server join sleep count flaky call(0.05) 6935 6937: [testing/testing-patching-module-time-sleep-is-process-wide](testing/testing-patching-module-time-sleep-is-process-wide.md) (328)
