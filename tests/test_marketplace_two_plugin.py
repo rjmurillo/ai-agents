@@ -138,8 +138,19 @@ class TestCodexMarketplace:
     def test_lists_exactly_project_toolkit_at_the_codex_tree(self) -> None:
         data = _load_marketplace(CODEX_MARKETPLACE)
         assert [(p["name"], p["source"]) for p in data["plugins"]] == [
-            ("project-toolkit", "./src/codex")
+            ("project-toolkit", {"source": "local", "path": "./src/codex"})
         ]
+
+    def test_entries_carry_the_policy_fields_codex_requires(self) -> None:
+        """Codex docs: always include policy.installation, policy.authentication, category."""
+        for plugin in _load_marketplace(CODEX_MARKETPLACE)["plugins"]:
+            assert plugin["policy"]["installation"] in {
+                "AVAILABLE",
+                "INSTALLED_BY_DEFAULT",
+                "NOT_AVAILABLE",
+            }
+            assert plugin["policy"]["authentication"]
+            assert plugin["category"]
 
     def test_shares_the_claude_marketplace_name_and_owner(self) -> None:
         """Same marketplace name keeps `project-toolkit@ai-agents` installs in place."""

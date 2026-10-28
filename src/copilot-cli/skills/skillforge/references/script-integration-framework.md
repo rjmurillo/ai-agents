@@ -1,6 +1,6 @@
 # Script Integration Framework
 
-<!-- vendor-portability-exec: example invocations only; scripts referenced here are mostly illustrative; the one real script is get_unresolved_review_threads.py in the github skill -->
+<!-- vendor-portability-exec: example invocations only; scripts referenced here are mostly illustrative; the real scripts are get_unresolved_review_threads.py in the github skill and validate-skill.py in the skillforge skill -->
 
 Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and independently verifiable.
 
@@ -201,7 +201,7 @@ def execute_and_check(input_data):
     result = perform_operation(input_data)
 
     # Fast-fail guard - the script checks itself; an independent postcondition check still runs after it
-    is_valid, reason = verify_output(result)
+    is_valid, reason = fast_fail_check(result)
     if not is_valid:
         return Result(success=False, message=f"Fast-fail check failed: {reason}", errors=[reason])
 

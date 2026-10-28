@@ -662,6 +662,22 @@ pre-push:
             timeout: 2m
             run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator branch-config-prune-report --scope "branch sections in .git/config" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/prune_branch_config.py --fail-on-stale
 
+          # Blocking. The awesome-ai-plugins listing needs a HOL plugin
+          # scanner score of 80 on the whole tree, so this scores HEAD with the
+          # scanner pinned in build/plugin-scanner/uv.lock; CI runs the same
+          # version through .github/workflows/plugin-scanner.yml. Too slow for
+          # pre-commit: 48s standalone on 4 CPUs. The script spends one 165s
+          # budget across the tree export, the scanner install, and the scan,
+          # so it reports its own exit 3 before this 3m cap; the cap stays under
+          # the 240s container ceiling (test_lefthook_container_bound.py). The
+          # group is parallel and the e2e smokes hold it at 20m, so the pre-push
+          # declared total does not move. The first run installs the scanner
+          # from PyPI; offline with no cached install, it exits 3 and blocks the
+          # push (fix: uv sync --project build/plugin-scanner --frozen online).
+          - name: plugin-scanner
+            timeout: 3m
+            run: uv run --frozen python scripts/validation/check_plugin_scanner_score.py
+
           # Runs `pytest --testmon` over tests/ (issue #6239): pytest-testmon
           # re-runs only the tests whose recorded dependencies changed since
           # its last run. `.testmondata` is git-ignored local state. With none,

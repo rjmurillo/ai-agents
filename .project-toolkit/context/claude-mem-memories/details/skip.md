@@ -1,4 +1,3 @@
 ## Skip
 
-`README.md` here: dead `.ps1` and `scripts/*.ts` refs.
-Committed `direct-backup-*.json`: 9.6MB; grep or jq only.
+Local `direct-backup-*.json` files here are gitignored full exports, many MB: grep or jq only.

@@ -74,7 +74,7 @@ from types import TracebackType
 from typing import Any
 
 from _capability_probes import TRUSTED_REQUEST_TEMPLATES
-from _durable_codex import codex_env, parse_codex_run
+from _durable_codex import codex_env, parse_codex_run, sandbox_temp_root_overrides
 from _harness_capability import EvidenceKind
 from _routing_backend import IMPLEMENT_INVOCATION_ID, PLAN_INVOCATION_ID
 from _routing_claude import (
@@ -289,6 +289,7 @@ def live_argv(harness: str, model: str, effort: str, prompt: str) -> list[str]:
             "--ignore-rules",
             "-s",
             "workspace-write",
+            *sandbox_temp_root_overrides("workspace-write"),
         ]
         return [*head, *request, "--", prompt]
     head = ["copilot", "--no-auto-update", "--no-custom-instructions", "--allow-all-tools"]

@@ -42,6 +42,16 @@ _REVIEWED: dict[tuple[str, str, str], tuple[int, str]] = {
         "launches get_unresolved_review_threads.py, a sibling the config names, so it is "
         "byte-verified (see test_reviewed_launcher_target_is_itself_verified)",
     ),
+    (
+        "src/claude/lib/github_core/body_file.py",
+        "serialization-or-native",
+        "import ctypes",
+    ): (
+        2,
+        "_final_path imports ctypes and ctypes.wintypes only on win32. It loads only "
+        "kernel32, a Windows system DLL, by name through ctypes.windll, never a repo or "
+        "PR-edited file",
+    ),
 }
 _REVIEWED_LAUNCHER_TARGET = f"{_PR_DIR}/get_unresolved_review_threads.py"
 

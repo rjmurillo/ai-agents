@@ -14,6 +14,7 @@ Coverage:
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -45,6 +46,11 @@ def _hook_repo(tmp_path: Path, hook: str, jobs: str) -> tuple[Path, dict[str, st
     (repo / "lefthook.yml").write_text(
         f"output:\n  - failure\nno_auto_install: true\n{hook}:\n  jobs:\n{jobs}", encoding="utf-8"
     )
+    # A printed pre-push rerun calls the runner from the repository root (issue #6884).
+    validation = repo / "scripts" / "validation"
+    validation.mkdir(parents=True)
+    for module in ("lefthook_runner.py", "lefthook_failure_report.py", "push_file_list.py"):
+        shutil.copy2(PROJECT_ROOT / "scripts" / "validation" / module, validation / module)
     tools = tmp_path / "tools"
     tools.mkdir()
     # `uv` cannot resolve Lefthook here, so the runner falls back to this binary.

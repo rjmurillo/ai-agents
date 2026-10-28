@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from pathlib import Path
 from typing import Any, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -56,7 +55,7 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
-from github_core.validation import inline_body_error
+from github_core.validation import resolved_body_error
 
 _REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
@@ -146,10 +145,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _resolve_body(args: argparse.Namespace) -> str:
     if args.body_file:
-        from github_core.validation import assert_valid_body_file
+        from github_core.validation import assert_valid_body_file, read_body_file_text
 
         assert_valid_body_file(args.body_file)
-        return Path(args.body_file).read_text(encoding="utf-8")
+        try:
+            # The strict shared reader (issue #6919), keeping the git-dir reply flow.
+            return read_body_file_text(args.body_file, allow_git_dir=True)
+        except (OSError, ValueError) as exc:
+            error_and_exit(f"Failed to read body file {args.body_file}: {exc}", 2)
     return str(args.body)
 
 
@@ -451,7 +454,7 @@ def _validate_args(args: argparse.Namespace) -> str:
     if args.pull_request is not None and args.pull_request <= 0:
         error_and_exit("Pull request number must be positive.", 2)
     body = _resolve_body(args)
-    body_error = inline_body_error(body)
+    body_error = resolved_body_error(body, from_file=bool(args.body_file))
     if body_error:
         error_and_exit(body_error, 2)
     return body

@@ -110,7 +110,9 @@ SkillForge enforces these automatically:
 | Panel approval | 3/3 or 4/4 unanimous (Design, Usability, Evolution, Script agents) |
 | Frontmatter validation | Only allowed properties |
 | Extension points | ≥2 documented |
-| Script self-verification | Scripts can verify their own output |
+| Fast-fail and independent check | Scripts fail fast; a separate check confirms the outcome where it can be checked independently |
+
+Refs: #6688 replaced the old script-checks-itself gate in SkillForge; this row names the gate that replaced it.
 
 ### When to Use SkillForge
 

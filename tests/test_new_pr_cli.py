@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.containment_fixtures import private_dir
 from tests.new_pr_test_support import (
     _SCRIPTS_DIR,
     _completed,
@@ -127,7 +128,7 @@ class TestMain:
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 0
 
-    def test_body_file_not_found_returns_2(self, tmp_path):
+    def test_body_file_not_found_returns_2(self, tmp_path, tmp_path_is_temp_root, stub_git_probes):
         with (
             patch(
                 "subprocess.run",
@@ -146,13 +147,16 @@ class TestMain:
                     "--head",
                     "feat/branch",
                     "--body-file",
-                    "/nonexistent/file.md",
+                    str(tmp_path / "missing.md"),
                 ]
             )
         assert rc == 2
 
-    def test_existing_body_file_outside_scratch_returns_2(self, tmp_path):
-        body = tmp_path / "private-key.txt"
+    def test_existing_body_file_outside_every_root_returns_2(
+        self, tmp_path, external_tmp_path, stub_git_probes, stub_temp_roots, capsys
+    ):
+        stub_temp_roots()
+        body = external_tmp_path / "private-key.txt"
         body.write_text("secret", encoding="utf-8")
         with patch(
             "subprocess.run",
@@ -169,6 +173,29 @@ class TestMain:
                 ]
             )
         assert rc == 2
+        assert "must be under the repo root" in capsys.readouterr().err
+
+    def test_parent_traversal_body_file_returns_2(
+        self, tmp_path, tmp_path_is_temp_root, stub_git_probes, capsys
+    ):
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "body.md").write_text("body", encoding="utf-8")
+        with patch(
+            "subprocess.run",
+            side_effect=[_completed(stdout=str(tmp_path), rc=0)],
+        ):
+            rc = main(
+                [
+                    "--title",
+                    "feat: test",
+                    "--head",
+                    "feat/branch",
+                    "--body-file",
+                    "sub/../body.md",
+                ]
+            )
+        assert rc == 2
+        assert "parent-directory segment" in capsys.readouterr().err
 
     def test_gh_pr_create_failure_returns_exit_code(self, tmp_path):
         with (
@@ -209,8 +236,7 @@ class TestMain:
         )
         gh_stub.chmod(0o755)
 
-        repo = tmp_path / "repo"
-        repo.mkdir()
+        repo = private_dir(tmp_path / "repo")
         subprocess.run(
             ["git", "init"],
             cwd=repo,
@@ -311,7 +337,7 @@ class TestMain:
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 1
 
-    def test_body_file_used_when_provided(self, tmp_path):
+    def test_body_file_used_when_provided(self, tmp_path, tmp_path_is_temp_root, stub_git_probes):
         body_file = _prepared_body(tmp_path)
         with patch(
             "subprocess.run",
@@ -373,6 +399,44 @@ class TestMain:
         assert kwargs["input"] == body
         assert kwargs["encoding"] == "utf-8"
 
+    def test_scratchpad_body_file_outside_the_repo_streams_to_gh_stdin(
+        self, tmp_path, tmp_path_is_temp_root, stub_git_probes
+    ):
+        """Issue #6667: a /tmp/claude-<uid>/ scratchpad path is accepted."""
+        scratchpad = private_dir(tmp_path / "claude-1000" / "scratchpad")
+        body_file = scratchpad / "pr7.md"
+        body_file.write_text("## Summary\nscratchpad body", encoding="utf-8")
+        create_call = None
+
+        def _run(command, **kwargs):
+            nonlocal create_call
+            if command[:3] == ["git", "rev-parse", "--show-toplevel"]:
+                return _completed(stdout=str(tmp_path / "repo-root"), rc=0)
+            if command[:3] == ["gh", "pr", "create"]:
+                create_call = (command, kwargs)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=_run), patch("new_pr.run_validations"):
+            rc = main(["--title", "feat: test", "--head", "feat/b", "--body-file", str(body_file)])
+
+        assert rc == 0
+        assert create_call is not None
+        assert create_call[1]["input"] == "## Summary\nscratchpad body"
+
+    def test_unreplaced_placeholder_body_file_returns_2(
+        self, tmp_path, tmp_path_is_temp_root, stub_git_probes, capsys
+    ):
+        relative = _mod.prepare_pr_body(tmp_path)
+        with patch(
+            "subprocess.run",
+            side_effect=[_completed(stdout=str(tmp_path), rc=0), _completed(rc=0)],
+        ):
+            rc = main(
+                ["--title", "feat: test", "--head", "feat/b", "--body-file", relative.as_posix()]
+            )
+        assert rc == 2
+        assert "placeholder" in capsys.readouterr().err
+
     def test_body_arg_skips_allocator_and_streams_to_gh_stdin(self, tmp_path):
         """Pin the Windows fallback that push-pr documents (issue #6571)."""
         create_call = None
@@ -386,12 +450,12 @@ class TestMain:
             return _completed(rc=0)
 
         def _no_allocator(*_args, **_kwargs):
-            raise AssertionError("--body must not read a prepared body file")
+            raise AssertionError("--body must not load the body file reader")
 
         with (
             patch("subprocess.run", side_effect=_run),
             patch.object(_mod, "run_validations") as validations,
-            patch.dict(main.__globals__, {"read_prepared_pr_body": _no_allocator}),
+            patch.dict(main.__globals__, {"_load_body_file_reader": _no_allocator}),
         ):
             rc = main(["--title", "feat: test", "--head", "feat/b", "--body", "Body text"])
 

@@ -23,7 +23,7 @@ import pytest
 import tomllib
 import yaml
 
-from scripts.validation import check_git_hook_health
+from scripts.validation import check_git_hook_health, lefthook_shim_staleness
 from scripts.validation import git_hook_policy as policy
 from tests.support.lefthook_binary import resolve_lefthook
 
@@ -1171,6 +1171,74 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
     # shim, by test_installed_shim_runs_the_first_binary_in_runner_order below.
 
 
+def test_hook_health_flags_a_shim_older_than_the_runner_key_and_install_repairs_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #6896: the documented repair really replaces a stale shim.
+
+    A shim installed before the `lefthook:` key existed calls Lefthook directly.
+    The gate must flag it, and the `Fix:` command it prints must clear the flag,
+    measured here against the real Lefthook rather than a hand-written shim.
+    """
+    lefthook_inventory = sys.modules["lefthook_inventory"]
+    assert LEFTHOOK is not None
+    monkeypatch.setattr(
+        lefthook_inventory, "dump_commands", lambda: [[LEFTHOOK, "dump", "--format", "json"]]
+    )
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+    assert check_git_hook_health.diagnose(repo) is None
+
+    runner = "python3 scripts/validation/lefthook_runner.py"
+    for name in ("commit-msg", "pre-commit", "pre-merge-commit", "pre-push"):
+        shim = repo / ".git/hooks" / name
+        stale = shim.read_text(encoding="utf-8").replace(runner, "uv run --frozen lefthook")
+        _write_lf(shim, stale)
+    reason = check_git_hook_health.diagnose(repo)
+
+    assert reason is not None
+    assert reason.startswith(lefthook_shim_staleness.STALE_SHIM_PREFIX)
+    assert "pre-push" in reason
+
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+
+    assert check_git_hook_health.diagnose(repo) is None
+
+
+def test_hook_health_accepts_the_shim_lefthook_renders_for_a_multiline_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #6896: Lefthook joins a multi-line `lefthook:` value with `;` on install.
+
+    `lefthook dump` keeps the newlines, so a gate comparing the raw value would
+    call this freshly installed shim stale, and the printed repair would
+    reinstall the same shim.
+    """
+    lefthook_inventory = sys.modules["lefthook_inventory"]
+    assert LEFTHOOK is not None
+    monkeypatch.setattr(
+        lefthook_inventory, "dump_commands", lambda: [[LEFTHOOK, "dump", "--format", "json"]]
+    )
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write_lf(
+        repo / "lefthook.yml",
+        "lefthook: |\n  cd .\n  python3 scripts/validation/lefthook_runner.py\n"
+        "pre-push:\n  commands:\n    noop:\n      run: 'true'\n",
+    )
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+    shim = (repo / ".git/hooks/pre-push").read_text(encoding="utf-8")
+
+    assert 'cd .;python3 scripts/validation/lefthook_runner.py "$@"' in shim
+    assert check_git_hook_health.diagnose(repo) is None
+
+
 def _stub_executable(directory: Path, name: str, log: Path) -> None:
     """Write an executable that appends its name and arguments to ``log``."""
     stub = directory / name
@@ -1215,8 +1283,12 @@ def test_installed_shim_runs_the_first_binary_in_runner_order(
     _copy_runtime_config(repo)
     runner = Path("scripts/validation/lefthook_runner.py")
     (repo / runner).parent.mkdir(parents=True, exist_ok=True)
-    # The runner imports lefthook_failure_report by bare name from its own directory.
-    for module in (runner, runner.with_name("lefthook_failure_report.py")):
+    # The runner imports its sibling modules by bare name from its own directory.
+    for module in (
+        runner,
+        runner.with_name("lefthook_failure_report.py"),
+        runner.with_name("push_file_list.py"),
+    ):
         shutil.copy2(PROJECT_ROOT / module, repo / module)
     _run_lefthook(repo, "install", "--reset-hooks-path")
 

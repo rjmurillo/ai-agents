@@ -466,13 +466,13 @@ surfaces:
   - id: src-claude-authored
     path: src/claude
     relation: independent
-    include: ["AGENTS.md", "claude-instructions.template.md", "security/**", ".claude-plugin/**"]
-    reason: Plugin guide, install template, security references, and plugin manifest are authored in place.
+    include: ["AGENTS.md", "claude-instructions.template.md", "security/**", ".claude-plugin/**", "LICENSE", "SECURITY.md"]
+    reason: Plugin guide, install template, security references, plugin manifest, license, and security policy are authored in place.
   - id: src-copilot-cli-authored
     path: src/copilot-cli
     relation: independent
-    include: ["docs/**", ".claude-plugin/**"]
-    reason: Plugin documentation and plugin manifest are authored in place.
+    include: ["docs/**", ".claude-plugin/**", "LICENSE", "SECURITY.md"]
+    reason: Plugin documentation, plugin manifest, license, and security policy are authored in place.
   - id: src-cursor-authored
     path: src/cursor
     relation: independent

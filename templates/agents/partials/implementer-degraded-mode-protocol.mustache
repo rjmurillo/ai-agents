@@ -23,8 +23,8 @@ You cannot delegate. Return to orchestrator with:
 
 **Failure-mode trigger conditions:**
 
-- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
-- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
+- `[BLOCKED]`: No acceptance criteria in the plan or brief, or conflicting constraints not resolvable without human input.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that meets a Stop condition in Security Flagging and needs security agent review first. A surface you only touch is flagged in a `[COMPLETE]` handoff.
 - `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown with remaining steps.
 - `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
 

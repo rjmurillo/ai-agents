@@ -324,6 +324,9 @@ class TestBodyFileContainment:
         mod = _import_module
         scratch = tmp_path / "claude-1000" / "scratchpad"
         scratch.mkdir(parents=True)
+        # A real scratchpad is owner-only below /tmp; the reader refuses mode 775.
+        scratch.chmod(0o700)
+        scratch.parent.chmod(0o700)
         body = scratch / "comment.md"
         body.write_text("from scratchpad", encoding="utf-8")
         monkeypatch.setenv("TMPDIR", str(tmp_path))

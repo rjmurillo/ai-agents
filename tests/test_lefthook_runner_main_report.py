@@ -8,8 +8,10 @@ Coverage:
 - positive: job output reaches stdout and the report reaches stderr.
 - negative: a passing hook prints nothing extra; a caller-set LEFTHOOK_OUTPUT and a
   non-hook command keep Lefthook's own behavior.
-- edge: pre-push stdin is replayed, a start failure gets the runner diagnosis, and
-  an interrupt ends the child without a hang.
+- edge: pre-push stdin is replayed with the pushed file list (issue #6884; the
+  rest of the list behavior is in test_lefthook_runner_pre_push_files.py), a
+  start failure gets the runner diagnosis, and an interrupt ends the child
+  without a hang.
 """
 
 from __future__ import annotations
@@ -103,25 +105,65 @@ def test_main_prints_nothing_extra_when_the_hook_passes(
     assert captured.err == ""
 
 
+LOCAL_SHA = "a" * 40
+ZERO_SHA = "0" * 40
+REF_LINE = f"refs/heads/x {LOCAL_SHA} refs/heads/x {ZERO_SHA}\n"
+
+
+def _pipe_stdin(monkeypatch: pytest.MonkeyPatch, text: str) -> None:
+    stdin = mock.Mock(buffer=io.BytesIO(text.encode()))
+    stdin.isatty.return_value = False
+    monkeypatch.setattr(runner.sys, "stdin", stdin)
+
+
 def test_main_replays_stdin_to_a_pre_push_child_and_into_the_rerun(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
-    ref_line = "refs/heads/x abc refs/heads/x 000\n"
     process = _FakeProcess(1, _lefthook_failure("a", "boom"))
-    stdin = mock.Mock(buffer=io.BytesIO(ref_line.encode()))
-    stdin.isatty.return_value = False
-    monkeypatch.setattr(runner.sys, "stdin", stdin)
+    _pipe_stdin(monkeypatch, REF_LINE)
     with (
         mock.patch.object(runner, "resolve_command", return_value=COMMAND),
-        mock.patch.object(runner.subprocess, "Popen", return_value=process),
+        mock.patch.object(runner, "lefthook_file_args", return_value=["--file=x.py"]) as files,
+        mock.patch.object(runner.subprocess, "Popen", return_value=process) as popen,
         mock.patch.object(report_module.threading, "Thread") as thread,
     ):
         runner.main(["run", "pre-push", "origin", "https://u:tok@h/r.git"])
 
     err = capsys.readouterr().err
-    assert thread.call_args.kwargs["args"][1] == ref_line.encode()
-    assert "printf '%s\\n' 'refs/heads/x abc refs/heads/x 000' |" in err
+    files.assert_called_once_with(REF_LINE.encode(), "origin")
+    assert thread.call_args.kwargs["args"][1] == REF_LINE.encode()
+    assert popen.call_args.args[0] == [
+        *COMMAND,
+        "run",
+        "pre-push",
+        "--file=x.py",
+        "--",
+        "origin",
+        "https://u:tok@h/r.git",
+    ]
+    assert f"printf '%s\\n' 'refs/heads/x {LOCAL_SHA} refs/heads/x {ZERO_SHA}' |" in err
+    # The file list can be long, so the printed rerun leaves it out and goes
+    # through the runner, which rebuilds it. Raw Lefthook would skip every job
+    # when HEAD is level with its push base (issue #6884).
+    assert "--file=x.py" not in err
+    assert "| python3 scripts/validation/lefthook_runner.py run pre-push --job a origin" in err
+    assert "uv run --frozen lefthook run pre-push" not in err
+
+
+def test_a_pre_commit_rerun_still_names_lefthook(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(report_module.OUTPUT_ENV, raising=False)
+    with (
+        mock.patch.object(runner, "resolve_command", return_value=COMMAND),
+        mock.patch.object(
+            runner.subprocess, "Popen", return_value=_FakeProcess(1, _lefthook_failure("a", "x"))
+        ),
+    ):
+        runner.main(["run", "pre-commit"])
+
+    assert "rerun: uv run --frozen lefthook run pre-commit --job a" in capsys.readouterr().err
 
 
 def test_main_leaves_a_caller_chosen_output_mode_alone() -> None:
@@ -187,7 +229,10 @@ def test_pre_push_without_readable_stdin_runs_the_hook_and_replays_no_refs(
     assert status == 1
     assert popen.call_args.kwargs["stdin"] is None
     assert "printf" not in err
-    assert "rerun: uv run --frozen lefthook run pre-push --job a origin url" in err
+    assert (
+        "rerun: python3 scripts/validation/lefthook_runner.py run pre-push --job a origin url"
+        in err
+    )
 
 
 class _Failing(io.BytesIO):

@@ -396,7 +396,9 @@ class TestMain:
         assert output["action"] == "SKIP"
         assert output["reason"] == "thread_state_query_failed"
 
-    def test_body_from_file(self, tmp_path, capsys):
+    def test_body_from_file(self, stub_git_probes, tmp_path_is_temp_root, capsys):
+        # The strict reader needs a temp root; CI puts basetemp outside /tmp.
+        tmp_path = tmp_path_is_temp_root
         body_file = tmp_path / "reply.md"
         body_file.write_text("File content")
         reply_data = {

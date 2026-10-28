@@ -82,7 +82,7 @@ _SESSION_LOG_FILENAME_RE = _pr_val._SESSION_LOG_FILENAME_RE
 # Re-export from prepare_pr_body
 PreparePrBodyError = _prepare.PreparePrBodyError
 prepare_pr_body = _prepare.prepare_pr_body
-read_prepared_pr_body = _prepare.read_prepared_pr_body
+reject_unreplaced_placeholder = _prepare.reject_unreplaced_placeholder
 
 # Re-export from validate_pr_description
 _CONVENTIONAL_COMMIT_PATTERN = _validate_desc._CONVENTIONAL_COMMIT_PATTERN
@@ -235,7 +235,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--title", default="", help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")
-    parser.add_argument("--body-file", default="", help="Path to file containing PR body")
+    parser.add_argument(
+        "--body-file",
+        default="",
+        help=(
+            "Path to a file holding the PR body, under the repo root or a temp "
+            "directory, read by the reader every body-file script shares. It "
+            "must be a plain file you own. A path printed by --prepare-body-file works "
+            "and avoids name collisions between concurrent sessions."
+        ),
+    )
     parser.add_argument(
         "--prepare-body-file",
         action="store_true",
@@ -245,8 +254,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--preflight",
         action="store_true",
         help=(
-            "Check the title format and the body file name, mode, and marker, then "
-            "exit without any network call, audit log, or PR. The dash and escaped "
+            "Check the title format and the body file (path rule, regular UTF-8 "
+            "file, placeholder replaced), then exit without any network call, "
+            "audit log, or PR. The dash and escaped "
             "newline checks still run at creation. Run it before pushing so a "
             "rejected body does not cost a push."
         ),
@@ -288,8 +298,45 @@ def _prepare_body_file(repo_root: str) -> int:
     return 0
 
 
+def _load_body_file_reader():
+    """Return ``github_core.validation.read_body_file_text``, the shared body-file rule.
+
+    ``new_pr.py`` runs under ``python3 -I`` and keeps ``sys.path`` untouched
+    (see ``_load_sibling``), so the ``github_core`` package loads by absolute
+    path instead of by import. The lib directory is the plugin root's ``lib``
+    when ``CLAUDE_PLUGIN_ROOT`` or ``COPILOT_PLUGIN_ROOT`` names one, else the
+    ``lib`` beside this script's skill tree. Loaded only when ``--body-file``
+    is used.
+    """
+    loaded = sys.modules.get("github_core.validation")
+    if loaded is not None:
+        return loaded.read_body_file_text
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root and (Path(plugin_root) / "lib" / "github_core").is_dir():
+        lib_dir = Path(plugin_root) / "lib"
+    else:
+        lib_dir = Path(__file__).resolve().parents[4] / "lib"
+    package_dir = lib_dir / "github_core"
+    spec = importlib.util.spec_from_file_location(
+        "github_core",
+        package_dir / "__init__.py",
+        submodule_search_locations=[str(package_dir)],
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load github_core from: {package_dir}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["github_core"] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        for name in [n for n in sys.modules if n == "github_core" or n.startswith("github_core.")]:
+            del sys.modules[name]
+        raise
+    return sys.modules["github_core.validation"].read_body_file_text
+
+
 def _read_body(args: argparse.Namespace, repo_root: str) -> str | None:
-    """Validate body arguments and securely read a prepared body file."""
+    """Validate body arguments and read ``--body-file`` under the shared containment rule."""
     if not args.title:
         print("--title is required", file=sys.stderr)
         return None
@@ -300,8 +347,9 @@ def _read_body(args: argparse.Namespace, repo_root: str) -> str | None:
     body: str = str(args.body)
     if args.body_file:
         try:
-            body = str(read_prepared_pr_body(Path(repo_root), args.body_file))
-        except (OSError, UnicodeError, PreparePrBodyError) as exc:
+            body = _load_body_file_reader()(args.body_file, repo_root)
+            reject_unreplaced_placeholder(body)
+        except (ImportError, OSError, ValueError, PreparePrBodyError) as exc:
             print(f"Invalid body file: {exc}", file=sys.stderr)
             return None
     return body

@@ -445,7 +445,9 @@ worked case:
 qualification, the script hardcoded a Claude Code plugin path, and the one test
 covering `main` asserted `result in (0, 1)`. No gate ever ran the script on a
 host without that directory, so a Copilot CLI session reported a failure for an
-optional dependency that was only not installed.
+optional dependency that was only not installed. The importer and its tests were
+retired in issue #5583 (owner decision D21 (2026-10-24)); the case stays as the
+worked example.
 
 ### Trigger
 
@@ -474,8 +476,8 @@ optional dependency that was only not installed.
   Claude-Mem importer hardcoded `~/.claude/plugins/marketplaces/thedotmack/scripts/`
   and exited 1 under Copilot CLI. The only test of `main` asserted
   `assert result in (0, 1)`, which passes for every possible implementation.
-  PR #5459 fixed it and pinned each exit code in
-  `tests/claude_mem/test_importer_cli_contract.py`.
+  PR #5459 fixed it and pinned each exit code in an exit-code contract test.
+  Issue #5583 later retired the importer and removed that test.
 
 ### Detection
 
@@ -499,7 +501,7 @@ optional dependency that was only not installed.
 | Runtime-contract test | `tests/build_scripts/test_generate_hooks_runtime_contract.py` executes the command under the real cwd/env with a negative control | CI (pytest) |
 | Committed-artifact gate | `scripts/validation/validate_hook_anchoring.py` in `pre_pr.py`; derives expected shape from the generator | Pre-PR |
 | Real-CLI smoke | Lefthook `hook-anchoring-e2e` runs `tests/e2e/test_cli_hook_e2e.py` on matching changes; skips loudly without a CLI | Pre-push (local) |
-| Exit-code contract test (hand-authored variant) | `tests/claude_mem/test_importer_cli_contract.py` asserts each documented exit code with `==`, never a set of accepted codes | CI (pytest) |
+| Exit-code contract test (hand-authored variant) | A pytest module asserts each documented exit code with `==`, never a set of accepted codes (PR #5459 added one for the Claude-Mem importer, since retired) | CI (pytest) |
 
 The principle: **a customer-facing artifact, generated or hand-authored, MUST be
 executed in its target runtime before release.** Structural validity is not behavioral evidence.

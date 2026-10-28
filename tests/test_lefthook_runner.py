@@ -152,6 +152,8 @@ def test_configured_runner_points_at_this_script() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
     assert config["lefthook"] == "python3 scripts/validation/lefthook_runner.py"
     assert (PROJECT_ROOT / "scripts/validation/lefthook_runner.py").is_file()
+    # A printed pre-push rerun must use the same command the shim runs (issue #6884).
+    assert " ".join(runner.RUNNER_COMMAND) == config["lefthook"]
 
 
 # --- behavior through a real generated shim -------------------------------
@@ -171,7 +173,7 @@ def _shim_repo(tmp_path: Path, tools: Path) -> Path:
     (repo / "scripts/validation").mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     shutil.copy2(PROJECT_ROOT / "lefthook.yml", repo / "lefthook.yml")
-    for module in ("lefthook_runner.py", "lefthook_failure_report.py"):
+    for module in ("lefthook_runner.py", "lefthook_failure_report.py", "push_file_list.py"):
         shutil.copy2(
             PROJECT_ROOT / "scripts/validation" / module, repo / "scripts/validation" / module
         )
