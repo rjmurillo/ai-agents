@@ -180,16 +180,20 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 
 ## rerun_failed_jobs.py details
 
-Reruns failed Actions jobs through `POST .../actions/runs/{id}/rerun-failed-jobs` and `POST .../actions/jobs/{id}/rerun`. Use `--pull-request N` (all completed failed runs for the head SHA) or `--run-id ID` (add `--job-id` for one job).
+Reruns failed Actions jobs through `POST .../actions/runs/{id}/rerun-failed-jobs` and `POST .../actions/jobs/{id}/rerun`. Use `--pull-request N` (open PR; failed runs for the head SHA) or `--run-id ID` (add `--job-id` for one job, which must belong to that run).
+
+PR mode keeps the newest run per workflow and event, so a superseded run is not rerun. It skips `cancelled` runs and lists them in `skipped_cancelled`. `--run-id` reruns a cancelled run when named. `timed_out` and `startup_failure` count as failed. Branch on `Data.reason`, not `Error.Type`.
 
 | Exit | `Data.reason` | Meaning |
 |------|---------------|---------|
 | 0 | `rerun_requested`, `no_failed_runs` | Reruns requested, or nothing failed. Runs still in progress are listed in `skipped_in_progress` |
-| 1 | `run_in_progress`, `invalid_params` | Only in-progress runs found, or bad arguments |
-| 2 | `not_found` | PR or run not found |
-| 3 | `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The run list had a gap, or the API failed. After a POST timeout the outcome is unknown |
+| 1 | `run_in_progress`, `pr_not_open`, `job_run_mismatch`, `invalid_params` | Only in-progress runs, a PR that is not open, a job from another run, or bad arguments |
+| 2 | `not_found` | PR, run, or job not found on a read |
+| 3 | `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The run list had a gap, or a call failed. After a POST timeout the outcome is unknown |
 | 4 | `auth` | Credential or permission fault |
 | 100 | `cannot_be_retried` | GitHub refused. Do not retry. The fallbacks are in `Data.fallbacks` and on stderr |
+
+Every envelope lists `reruns`, `refused`, `failed`, and `not_attempted_run_ids`, so a failure never hides what was already requested.
 
 On exit 100, merge `origin/main` into the branch cleanly if main has moved (the pre-push marker gate allows it), or ask a human. Never push an empty commit: it invalidates the SHA-bound review marker.
 

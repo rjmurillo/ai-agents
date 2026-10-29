@@ -13,25 +13,37 @@ REST calls (checked against docs.github.com/en/rest/actions/workflow-runs on
 - ``POST /repos/{o}/{r}/actions/jobs/{id}/rerun`` answers 201; 403 is documented.
 
 Behavior:
+- PR mode needs an open PR (exit 1, ``pr_not_open``). It keeps the newest run per
+  workflow and event (by ``run_number``), so a superseded run is never rerun. It
+  skips ``cancelled`` runs and lists them in ``Data.skipped_cancelled``, since a
+  human or a concurrency group may have cancelled them on purpose. ``--run-id``
+  reruns a cancelled run when named.
+- ``--job-id`` is checked against ``--run-id`` first (exit 1, ``job_run_mismatch``).
 - A run that is not ``completed`` cannot be rerun. With only such runs the
-  script exits 1 with ``reason: run_in_progress`` and the run status.
+  script exits 1 with ``reason: run_in_progress`` and the run status. With both
+  failed and in-progress runs it reruns the failed ones and lists the others in
+  ``Data.skipped_in_progress``.
 - The run list is read lossless: pages are walked until ``total_count`` unique
   runs are seen. A short page, a non-object page, a missing ``total_count``, or
   the page cap before that point exits 3 with ``reason: pagination_incomplete``.
   Runs are deduplicated by run id.
+- Every run is attempted. The envelope always carries ``reruns``, ``refused``,
+  ``failed`` and ``not_attempted_run_ids``, so a failure never hides what landed.
+  An auth or rate-limit fault stops the batch, since the rest would fail the same way.
 - A 403 that says the run cannot be retried is an authoritative refusal. It is
-  never retried. The script exits 100 with ``reason: cannot_be_retried``, names
-  the refused runs, and prints the documented fallbacks on stderr and in
-  ``Data.fallbacks``. Other runs in the same PR still get their rerun.
+  never retried. With no other failure the script exits 100 with
+  ``reason: cannot_be_retried``, and prints the documented fallbacks on stderr
+  and in ``Data.fallbacks``. Other runs in the same PR still get their rerun.
 - The refusal wording is matched on ``cannot be retried``, ``cannot be rerun``
   and ``cannot be re-run``. A 403 with other wording falls through to exit 3
   with the API text shown, so the agent reads it instead of guessing.
+- Branch on ``Data.reason``, not ``Error.Type``: a refusal and a 500 are both ``ApiError``.
 
 Output uses the standard skill envelope (ADR-056). Exit codes follow ADR-035:
     0 - Success (reruns requested, or no failed runs to rerun)
-    1 - Invalid parameters, or the only candidate runs are still in progress
-    2 - PR or run not found
-    3 - External error (API failure, timeout, incomplete pagination)
+    1 - Invalid parameters, PR not open, job not in run, or only in-progress runs
+    2 - PR, run, or job not found on a read
+    3 - External error (API failure, timeout, incomplete pagination, a failed POST)
     4 - Auth error
   100 - Script-specific: GitHub refused the rerun (run cannot be retried)
 """
@@ -62,6 +74,7 @@ from github_core.api import (
     check_gh_auth,
     describe_gh_auth_failure,
     is_auth_failure_text,
+    is_rate_limit_refusal,
     resolve_repo_params,
     sanitize_failure_detail,
 )
@@ -72,14 +85,15 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
+from github_core.protocol import GitHubClient
 
 _SCRIPT_NAME = "rerun_failed_jobs.py"
 EXIT_REFUSED = 100
 _PAGE_SIZE = 100
 _MAX_PAGES = 50
-_FAILED_CONCLUSIONS = frozenset({"failure", "timed_out", "cancelled", "startup_failure"})
+_FAILED_CONCLUSIONS = frozenset({"failure", "timed_out", "startup_failure"})
+_CANCELLED = "cancelled"
 _REFUSAL_MARKERS = ("cannot be retried", "cannot be rerun", "cannot be re-run")
-_RATE_LIMIT_MARKERS = ("rate limit", "abuse detection")
 
 # Source: the review skill's marker doc (marker-and-no-task.md): after the marker
 # lands, a clean merge of origin/main needs no new review.
@@ -105,6 +119,24 @@ class _Ctx:
     output_format: str
     pull_request: int | None
     run_id: int | None
+
+
+@dataclass
+class _Batch:
+    """Outcome of the rerun POSTs, so every exit path can report what landed."""
+
+    done: list[dict[str, Any]]
+    refused: list[dict[str, Any]]
+    failed: list[dict[str, Any]]
+    not_attempted: list[int]
+
+    def view(self) -> dict[str, Any]:
+        return {
+            "reruns": self.done,
+            "refused": self.refused,
+            "failed": self.failed,
+            "not_attempted_run_ids": self.not_attempted,
+        }
 
 
 class _ExitOneParser(argparse.ArgumentParser):
@@ -155,12 +187,12 @@ def _fail_api(ctx: _Ctx, what: str, exc: Exception, **extra: Any) -> NoReturn:
         _emit_error(ctx, f"Not authorized: {what}: {detail}", 4, "AuthError", "auth", **extra)
     if is_pr_not_found(text):
         _emit_error(ctx, f"Not found: {what}: {detail}", 2, "NotFound", "not_found", **extra)
-    if any(marker in text.lower() for marker in _RATE_LIMIT_MARKERS):
+    if is_rate_limit_refusal(text):
         _emit_error(ctx, f"{what}: {detail}", 3, "RateLimitError", "rate_limited", **extra)
     _emit_error(ctx, f"{what} failed: {detail}", 3, "ApiError", "api_error", **extra)
 
 
-def _get(client: Any, ctx: _Ctx, endpoint: str, what: str) -> Any:
+def _get(client: GitHubClient, ctx: _Ctx, endpoint: str, what: str) -> Any:
     try:
         return client.rest_get(endpoint)
     except (RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
@@ -197,9 +229,10 @@ def _page_items(ctx: _Ctx, page: Any, number: int) -> tuple[list[Any], int]:
     return page["workflow_runs"], total
 
 
-def list_runs_for_sha(client: Any, ctx: _Ctx, sha: str) -> list[dict[str, Any]]:
+def list_runs_for_sha(client: GitHubClient, ctx: _Ctx, sha: str) -> list[dict[str, Any]]:
     """Return every run for ``sha``, deduplicated by run id, or exit 3."""
     unique: dict[int, dict[str, Any]] = {}
+    dropped = 0
     for number in range(1, _MAX_PAGES + 1):
         endpoint = (
             f"repos/{ctx.repo}/actions/runs?head_sha={sha}&per_page={_PAGE_SIZE}&page={number}"
@@ -209,102 +242,189 @@ def list_runs_for_sha(client: Any, ctx: _Ctx, sha: str) -> list[dict[str, Any]]:
         for item in items:
             if isinstance(item, dict) and isinstance(item.get("id"), int):
                 unique.setdefault(item["id"], item)
+            else:
+                dropped += 1
+        note = f" ({dropped} malformed item(s) skipped)" if dropped else ""
         if len(unique) >= total:
             return list(unique.values())
         if len(items) < _PAGE_SIZE:
-            _incomplete(ctx, f"saw {len(unique)} of {total} runs, then page {number} ended")
+            _incomplete(ctx, f"saw {len(unique)} of {total} runs, then page {number} ended{note}")
     _incomplete(ctx, f"saw {len(unique)} runs after the {_MAX_PAGES}-page cap")
 
 
-def _pr_head_sha(client: Any, ctx: _Ctx) -> str:
+def _read_pr(client: GitHubClient, ctx: _Ctx) -> str:
+    """Return the PR head SHA; exit 1 unless the PR is open."""
     pr = _get(client, ctx, f"repos/{ctx.repo}/pulls/{ctx.pull_request}", "Reading PR")
-    head = pr.get("head") if isinstance(pr, dict) else None
+    if not isinstance(pr, dict):
+        _emit_error(ctx, "PR response was not an object", 3, "ApiError", "api_error")
+    head = pr.get("head")
     sha = head.get("sha") if isinstance(head, dict) else None
     if not isinstance(sha, str) or not sha:
         _emit_error(ctx, "PR response has no head SHA", 3, "ApiError", "api_error")
+    if pr.get("state") != "open":
+        _emit_error(
+            ctx,
+            f"PR #{ctx.pull_request} is {pr.get('state') or 'in an unknown state'}; "
+            "rerunning CI on a PR that is not open spends minutes for no merge outcome",
+            1,
+            "InvalidParams",
+            "pr_not_open",
+            state=pr.get("state"),
+        )
     return sha
 
 
-def _single_run(client: Any, ctx: _Ctx) -> dict[str, Any]:
+def _single_run(client: GitHubClient, ctx: _Ctx) -> dict[str, Any]:
     run = _get(client, ctx, f"repos/{ctx.repo}/actions/runs/{ctx.run_id}", "Reading run")
     if not isinstance(run, dict) or not isinstance(run.get("id"), int):
         _emit_error(ctx, "Run response was not a run object", 3, "ApiError", "api_error")
     return run
 
 
-def _post_rerun(client: Any, ctx: _Ctx, endpoint: str) -> bool:
-    """POST one rerun. True on success, False on a refusal, exit otherwise."""
-    try:
-        client.rest_post(endpoint, {})
-    except (RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
-        if is_cannot_retry_refusal(str(exc)):
-            return False
-        _fail_api(ctx, "Rerun request", exc)
-    return True
+def _require_job_in_run(client: GitHubClient, ctx: _Ctx, job_id: int) -> None:
+    """Exit 1 unless job ``job_id`` belongs to run ``--run-id``."""
+    job = _get(client, ctx, f"repos/{ctx.repo}/actions/jobs/{job_id}", "Reading job")
+    owner_run = job.get("run_id") if isinstance(job, dict) else None
+    if owner_run != ctx.run_id:
+        _emit_error(
+            ctx,
+            f"Job {job_id} belongs to run {owner_run}, not run {ctx.run_id}",
+            1,
+            "InvalidParams",
+            "job_run_mismatch",
+            job_id=job_id,
+            job_run_id=owner_run,
+        )
+
+
+def _latest_per_workflow(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the newest run per (workflow_id, event).
+
+    A superseded run (older ``run_number``) must not be rerun: it can join the
+    newer run's concurrency group and cancel it, or replace its result.
+    """
+    latest: dict[tuple[Any, Any], tuple[tuple[int, int], dict[str, Any]]] = {}
+    for run in runs:
+        key = (run.get("workflow_id"), run.get("event"))
+        rank = (run.get("run_number") or 0, run["id"])
+        if key not in latest or rank > latest[key][0]:
+            latest[key] = (rank, run)
+    return [run for _, run in latest.values()]
+
+
+def _partition(
+    runs: list[dict[str, Any]], include_cancelled: bool
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Split runs into (rerun targets, still running, skipped cancelled)."""
+    wanted = _FAILED_CONCLUSIONS | ({_CANCELLED} if include_cancelled else set())
+    completed = [r for r in runs if r.get("status") == "completed"]
+    targets = [r for r in completed if r.get("conclusion") in wanted]
+    cancelled = [
+        r for r in completed if not include_cancelled and r.get("conclusion") == _CANCELLED
+    ]
+    active = [r for r in runs if r.get("status") != "completed"]
+    return targets, active, cancelled
+
+
+def _rerun_request(ctx: _Ctx, run: dict[str, Any], job_id: int | None) -> tuple[str, dict]:
+    if job_id is None:
+        endpoint = f"repos/{ctx.repo}/actions/runs/{run['id']}/rerun-failed-jobs"
+        return endpoint, {**_run_summary(run), "action": "rerun_failed_jobs"}
+    endpoint = f"repos/{ctx.repo}/actions/jobs/{job_id}/rerun"
+    return endpoint, {**_run_summary(run), "action": "rerun_job", "job_id": job_id}
+
+
+def _record_failure(
+    ctx: _Ctx, batch: _Batch, entry: dict[str, Any], exc: Exception, remaining: list[int]
+) -> None:
+    """File one failed POST. Auth and rate-limit faults stop the batch."""
+    text = str(exc)
+    detail = sanitize_failure_detail(text) or type(exc).__name__
+    if is_cannot_retry_refusal(text):
+        batch.refused.append({**entry, "detail": detail})
+    elif isinstance(exc, subprocess.TimeoutExpired):
+        batch.failed.append({**entry, "detail": "timed out; outcome unknown", "timed_out": True})
+    elif is_auth_failure_text(text) or is_rate_limit_refusal(text):
+        batch.not_attempted = remaining
+        _fail_api(ctx, "Rerun request", exc, **batch.view())
+    else:
+        batch.failed.append({**entry, "detail": detail, "timed_out": False})
 
 
 def _rerun_all(
-    client: Any, ctx: _Ctx, runs: list[dict[str, Any]], job_id: int | None
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    done: list[dict[str, Any]] = []
-    refused: list[dict[str, Any]] = []
-    for run in runs:
-        if job_id is None:
-            endpoint = f"repos/{ctx.repo}/actions/runs/{run['id']}/rerun-failed-jobs"
-            entry = {**_run_summary(run), "action": "rerun_failed_jobs"}
-        else:
-            endpoint = f"repos/{ctx.repo}/actions/jobs/{job_id}/rerun"
-            entry = {**_run_summary(run), "action": "rerun_job", "job_id": job_id}
-        (done if _post_rerun(client, ctx, endpoint) else refused).append(entry)
-    return done, refused
+    client: GitHubClient, ctx: _Ctx, targets: list[dict[str, Any]], job_id: int | None
+) -> _Batch:
+    batch = _Batch([], [], [], [])
+    for index, run in enumerate(targets):
+        endpoint, entry = _rerun_request(ctx, run, job_id)
+        try:
+            client.rest_post(endpoint, {})
+        except (RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+            _record_failure(ctx, batch, entry, exc, [t["id"] for t in targets[index + 1 :]])
+            continue
+        batch.done.append(entry)
+    return batch
 
 
-def _partition(runs: list[dict[str, Any]]) -> tuple[list[dict], list[dict]]:
-    """Split runs into (completed and failed, not completed)."""
-    failed = [
-        r
-        for r in runs
-        if r.get("status") == "completed" and r.get("conclusion") in _FAILED_CONCLUSIONS
-    ]
-    active = [r for r in runs if r.get("status") != "completed"]
-    return failed, active
-
-
-def _report_refusal(ctx: _Ctx, done: list, refused: list, data: dict[str, Any]) -> NoReturn:
-    ids = ", ".join(str(r["run_id"]) for r in refused)
+def _print_fallbacks() -> None:
     for line in FALLBACKS:
         print(f"[FALLBACK] {line}", file=sys.stderr)
+
+
+def _report_batch_errors(ctx: _Ctx, batch: _Batch, extra: dict[str, Any]) -> NoReturn:
+    """Exit for a batch with failed or refused runs; every outcome stays visible."""
+    if batch.refused:
+        _print_fallbacks()
+    refused_ids = ", ".join(str(r["run_id"]) for r in batch.refused)
+    data = {**batch.view(), **extra}
+    if batch.refused:
+        data["fallbacks"] = list(FALLBACKS)
+    if batch.failed:
+        failed_ids = ", ".join(str(r["run_id"]) for r in batch.failed)
+        timed_out = all(r["timed_out"] for r in batch.failed)
+        _emit_error(
+            ctx,
+            f"Rerun request failed for run(s) {failed_ids}"
+            + ("; a timeout leaves the outcome unknown" if timed_out else "")
+            + f". Requested for {len(batch.done)} other run(s).",
+            3,
+            "Timeout" if timed_out else "ApiError",
+            "timeout" if timed_out else "api_error",
+            **data,
+        )
     _emit_error(
         ctx,
-        f"GitHub refused the rerun of run(s) {ids}: the run cannot be retried. "
+        f"GitHub refused the rerun of run(s) {refused_ids}: the run cannot be retried. "
         "Do not retry; use a fallback.",
         EXIT_REFUSED,
         "ApiError",
         "cannot_be_retried",
-        reruns=done,
-        refused=refused,
-        fallbacks=list(FALLBACKS),
         **data,
     )
 
 
-def _resolve_targets(client: Any, ctx: _Ctx, job_id: int | None) -> tuple[list, list, dict]:
-    """Return (failed runs, in-progress runs, extra Data) for the chosen mode."""
+def _resolve_targets(
+    client: GitHubClient, ctx: _Ctx, job_id: int | None
+) -> tuple[list, list, list, dict]:
+    """Return (rerun targets, in-progress runs, skipped cancelled, extra Data)."""
     if ctx.pull_request is not None:
-        sha = _pr_head_sha(client, ctx)
-        failed, active = _partition(list_runs_for_sha(client, ctx, sha))
-        return failed, active, {"head_sha": sha}
+        sha = _read_pr(client, ctx)
+        runs = _latest_per_workflow(list_runs_for_sha(client, ctx, sha))
+        targets, active, cancelled = _partition(runs, include_cancelled=False)
+        return targets, active, cancelled, {"head_sha": sha}
     run = _single_run(client, ctx)
-    failed, active = _partition([run])
+    if job_id is not None:
+        _require_job_in_run(client, ctx, job_id)
+    targets, active, cancelled = _partition([run], include_cancelled=True)
     if job_id is not None and not active:
-        failed = [run]  # an explicit job rerun does not require a failed run
-    return failed, active, {"run_status": run.get("status")}
+        targets = [run]  # an explicit job rerun does not require a failed run
+    return targets, active, cancelled, {"run_status": run.get("status")}
 
 
-def _run(client: Any, ctx: _Ctx, job_id: int | None) -> int:
-    failed, active, extra = _resolve_targets(client, ctx, job_id)
+def _run(client: GitHubClient, ctx: _Ctx, job_id: int | None) -> int:
+    targets, active, cancelled, extra = _resolve_targets(client, ctx, job_id)
     active_view = [_run_summary(r) for r in active]
-    if not failed and active:
+    if not targets and active:
         _emit_error(
             ctx,
             "Only in-progress runs found; a run that is not completed cannot be rerun. "
@@ -315,26 +435,28 @@ def _run(client: Any, ctx: _Ctx, job_id: int | None) -> int:
             in_progress_runs=active_view,
             **extra,
         )
-    done, refused = _rerun_all(client, ctx, failed, job_id)
-    if refused:
-        _report_refusal(ctx, done, refused, extra)
-    reason = "rerun_requested" if done else "no_failed_runs"
+    batch = _rerun_all(client, ctx, targets, job_id)
+    cancelled_view = [_run_summary(r) for r in cancelled]
+    extra = {**extra, "skipped_cancelled": cancelled_view}
+    if batch.failed or batch.refused:
+        _report_batch_errors(ctx, batch, extra)
     data = {
-        "reason": reason,
+        "reason": "rerun_requested" if batch.done else "no_failed_runs",
         "pull_request": ctx.pull_request,
         "run_id": ctx.run_id,
-        "reruns": done,
+        "reruns": batch.done,
         "skipped_in_progress": active_view,
         **extra,
     }
-    summary = f"Rerun requested for {len(done)} run(s); {len(active_view)} still in progress"
-    if not done:
+    skipped = len(active_view) + len(cancelled_view)
+    summary = f"Rerun requested for {len(batch.done)} run(s); {skipped} skipped"
+    if not batch.done:
         summary = "No failed runs to rerun"
     write_skill_output(
         data,
         output_format=ctx.output_format,
         human_summary=summary,
-        status="WARNING" if active_view else "PASS",
+        status="WARNING" if skipped else "PASS",
         script_name=_SCRIPT_NAME,
     )
     return 0
@@ -353,7 +475,7 @@ def _validate(args: argparse.Namespace) -> str:
     return ""
 
 
-def main(argv: list[str] | None = None, client: Any = None) -> int:
+def main(argv: list[str] | None = None, client: GitHubClient = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     ctx = _Ctx("", args.output_format, args.pull_request, args.run_id)
