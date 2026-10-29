@@ -1,7 +1,7 @@
 ---
 id: ADR-111
 status: accepted
-date: 2026-09-27
+date: 2026-10-29
 decision-makers: [rjmurillo]
 supersedes: [ADR-080]
 superseded-by: null

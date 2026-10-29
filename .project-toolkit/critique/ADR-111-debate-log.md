@@ -127,3 +127,10 @@ precedent.
 
 Consensus: both seats' findings are resolved as listed. The fixes narrow
 claims and add tests. No rule changed, so no second vote round ran.
+
+### PR review fixes
+
+Two PR #6978 threads were fixed. Cursor Bugbot flagged the frontmatter
+`date`, which ADR-073 defines as last updated, so it is now 2026-10-29.
+The owner flagged a stale ADR-080 quote in `build/model_pin_manifest.py`.
+Neither fix changes a rule, so no vote round ran.

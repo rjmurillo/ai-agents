@@ -14,8 +14,8 @@ reach a generated agent. That haiku-tier fallback was removed under issue
 The 2026-08-12 ADR-080 Amendment (finding 4) does not use the phrase "manifest
 wiring"; its finding is about generated-agent ``model_tier`` translation and
 rule 3's cost exception, closing with: "Whether that override is acceptable
-for generated agents, and how it interacts with rule 3's cost exception, is
-undecided here and remains an open gap." What this module closes is the
+for generated agents, and how it interacts with rule 3's cost exception, was
+open here; ADR-111 closed it 2026-10-29." What this module closes is the
 mechanical half rule 5 actually requires: giving a manifest ``KEEP_PIN`` entry
 a path to a generated agent, and resolving the cross-platform id-spelling
 difference that path needs. The separate question about the ``haiku``-tier
