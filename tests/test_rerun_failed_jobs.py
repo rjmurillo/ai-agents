@@ -118,6 +118,7 @@ def run_main(argv: list[str], client: FakeClient, *, auth: Any = None) -> int:
         try:
             return script.main([*argv, "--output-format", "json"], client=client)
         except SystemExit as exc:
+            assert isinstance(exc.code, int)
             return exc.code
 
 

@@ -5,9 +5,3 @@
 
 *No recent activity*
 </claude-mem-context>
-
-## Scripts
-
-| Script | Purpose | Exit codes |
-|--------|---------|------------|
-| `rerun_failed_jobs.py` | Rerun failed Actions jobs for a PR head SHA, a run, or one job. Lossless run list, dedupe by run id, refusal classified | 0 ok or none failed, 1 invalid or run in progress, 2 not found, 3 API or incomplete pagination, 4 auth, 100 `cannot_be_retried` |
