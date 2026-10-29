@@ -8,7 +8,8 @@ backed by a ``KEEP_PIN`` entry in the sidecar manifest,
 generator never read that manifest at all: ``convert_frontmatter_for_platform``
 only ever emitted the ``haiku`` rolling-alias cost exception (ADR-080 rule 3)
 and otherwise omitted ``model:`` outright, so a manifest entry had no path to
-reach a generated agent.
+reach a generated agent. That haiku-tier fallback was removed under issue
+#6638, so a manifest entry is now the only source of a generated ``model:``.
 
 The 2026-08-12 ADR-080 Amendment (finding 4) does not use the phrase "manifest
 wiring"; its finding is about generated-agent ``model_tier`` translation and
@@ -17,10 +18,10 @@ for generated agents, and how it interacts with rule 3's cost exception, is
 undecided here and remains an open gap." What this module closes is the
 mechanical half rule 5 actually requires: giving a manifest ``KEEP_PIN`` entry
 a path to a generated agent, and resolving the cross-platform id-spelling
-difference that path needs. It does not resolve the Amendment's separate,
-still-open policy question about the ``haiku``-tier fallback itself; see
-``convert_frontmatter_for_platform``'s model-resolution comment for how the
-two mechanisms are ordered.
+difference that path needs. The separate question about the ``haiku``-tier
+fallback was closed by removing it (issue #6638, ADR-119 decision 11: every
+Copilot agent inherits its model); see ``convert_frontmatter_for_platform``'s
+model-resolution comment.
 
 Two responsibilities, kept separate because they answer different questions:
 
@@ -378,7 +379,7 @@ def format_model_id_for_platform(model_id: str, platform_tiers: Mapping[str, obj
     second source of truth that drifts the moment either YAML file's own
     spelling changes), this derives the platform's format from
     ``platform_tiers[tier]`` -- the SAME string ``convert_frontmatter_for_platform``
-    already reads to resolve the haiku-tier default -- by matching it against
+    already reads to format manifest ids -- by matching it against
     the two known shapes above and substituting the manifest id's own
     ``(major, minor)`` digits into whichever shape matched.
 
