@@ -14,8 +14,8 @@ seen, is unverified.
 The last section guards every generated Copilot-side agent, not only
 code-reviewer. `scripts/validation/check_model_pins.py` reads `src/copilot-cli`
 only through the `.github/agents` symlinks and never reads `src/vs-code-agents`,
-and the generator turns `model_tier: haiku` into a versioned id, so a
-new haiku-tier template would bring the bug back unseen.
+and a hand-written versioned `model:` in a new template, or a regression of the
+removed haiku-tier fallback (issue #6638), would bring the bug back unseen.
 """
 
 from __future__ import annotations
@@ -243,7 +243,7 @@ def _write_agent(tmp_path: Path, model: str, name: str = "new-agent") -> Path:
 
 
 def test_unbacked_pin_in_generated_agent_is_rejected(tmp_path: Path) -> None:
-    """Negative control: a haiku-tier template rendered to a versioned id fails."""
+    """Negative control: a generated agent with an unbacked versioned pin fails."""
     agent = _write_agent(tmp_path, "claude-haiku-4.5")
 
     with pytest.raises(AssertionError, match="no KEEP_PIN entry"):

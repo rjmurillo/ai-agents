@@ -259,13 +259,11 @@ def convert_frontmatter_for_platform(
     sidecar manifest (``build.model_pin_manifest``): when ``source_unit``
     names a unit that carries a fully valid, fresh ``KEEP_PIN`` entry, that
     entry's model id is formatted for this platform and emitted instead of
-    the haiku-tier default. ``repo_root`` is required for the manifest path
+    omitting the field. ``repo_root`` is required for the manifest path
     because ``resolve_manifest_model`` validates the entry's ``artifact``
     field stays within the repository (CWE-22); all three default to
-    ``None``, which reproduces the pre-manifest-wiring behavior
-    (haiku-tier-or-omit) exactly, so every existing caller and test is
-    unaffected. See ``convert_frontmatter_for_platform``'s model-resolution
-    block below for the full three-step order.
+    ``None``, which omits ``model`` for every platform. See the
+    model-resolution block below for the full two-step order.
     """
     result: dict[str, str | None] = {}
     # Support both new schema (provider + legacy block) and old schema (platform + top-level)
@@ -292,28 +290,22 @@ def convert_frontmatter_for_platform(
         else:
             result.pop("name", None)
 
-        # Resolve model in three steps, in order:
+        # Resolve model in two steps, in order:
         #   1. A manifest-justified versioned pin: a fresh, fully-validated
         #      KEEP_PIN entry for this source unit (ADR-080 rules 2 and 4),
         #      formatted for this platform. ADR-080 rule 5 requires the
         #      generator to "emit no model: unless the source unit carries
         #      a justified one"; this is that path. See
         #      build/model_pin_manifest.py.
-        #   2. The 'haiku' tier, matching the sole cost exception ADR-080
-        #      rule 3 recognizes (a rolling alias resolving, via this same
-        #      model_tiers map, to an id priced below the harness default).
-        #      Whether this fallback is itself fully governed under rule 3
-        #      is a separate, still-open policy question (the ADR-080
-        #      2026-08-12 Amendment leaves model_tier alias translation and
-        #      the cost exception's interaction undecided); this step's
-        #      behavior is unchanged by the manifest wiring above it.
-        #   3. Omit the field. Any other tier, and the platform's own
-        #      default model, injected a versioned pin no manifest evidence
-        #      justified (ADR-080 rule 2), which breaks on the next
-        #      retirement (issue #5313, the retired claude-opus-4.5).
+        #   2. Omit the field. The haiku-tier fallback was removed under
+        #      issue #6638: ADR-119 decision 11 makes every Copilot agent
+        #      inherit-only, so model_tier never emits a model: pin. A tier
+        #      or the platform's own default model once injected a versioned
+        #      pin no manifest evidence justified (ADR-080 rule 2), which
+        #      breaks on the next retirement (issue #5313, the retired
+        #      claude-opus-4.5).
         #      Omitting the field lets the harness inherit its own default
         #      at runtime instead.
-        model_tier = frontmatter.get("model_tier")
         # Look for model_tiers in legacy block first, then top-level for backward compat
         model_tiers = legacy.get("model_tiers") or platform_config.get("model_tiers")
         manifest_model_id = (
@@ -328,8 +320,6 @@ def convert_frontmatter_for_platform(
         )
         if formatted_manifest_model is not None:
             result["model"] = formatted_manifest_model
-        elif model_tier == "haiku" and isinstance(model_tiers, dict) and "haiku" in model_tiers:
-            result["model"] = str(model_tiers["haiku"])
         else:
             result.pop("model", None)
     else:

@@ -302,7 +302,7 @@ operator's explicitly selected session model on delegation. The same override
 was not independently probed for a `model_tier`-resolved id specifically; it is
 inferred from finding 1's mechanism, not separately reproduced. Whether that
 override is acceptable for generated agents, and how it interacts with rule
-3's cost exception, is undecided here and remains an open gap. For
+3's cost exception, was open here; ADR-111 closed it 2026-10-29. For
 **repository-level agents** (`.github/agents/`), bare aliases such as
 `model: sonnet` in `quality-auditor.agent.md` reached Copilot unresolved and
 fell back; this was the state observed during the 2026-08-12 probe. It has
@@ -452,8 +452,8 @@ was 6 plus 1 when written, and the opus one is gone, because
 `.claude/commands/research.md` carried it and the command-to-skill bridge copied
 it verbatim, so removing the source pin removed the mirror's. Finding 4 also
 says a template's `model_tier: sonnet` resolves to `model: claude-sonnet-4.6`
-before shipping. Issue #5313 ended that: the generator emits a `model` key only
-for a manifest KEEP_PIN or the `haiku` tier, so `model_tier: opus` and
+before shipping. Issue #5313 ended that, and #6638 dropped the `haiku` tier:
+only a manifest KEEP_PIN emits a `model` key, so `model_tier: opus` and
 `model_tier: sonnet` now resolve to no pin at all.
 
 ### What stays open
