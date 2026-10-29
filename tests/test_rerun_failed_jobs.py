@@ -410,6 +410,22 @@ class TestRunId:
         assert client.post_calls == []
 
 
+class TestEdgeCases:
+    def test_rate_limit_text_exits_three_with_rate_limit_type(self, capsys):
+        client = pr_fake([RuntimeError("API rate limit exceeded (HTTP 403)")])
+        assert run_main(["--pull-request", "7"], client) == 3
+        env = envelope(capsys)
+        assert env["Error"]["Type"] == "RateLimitError"
+        assert env["Data"]["reason"] == "rate_limited"
+
+    def test_run_response_that_is_not_a_run_exits_three(self, capsys):
+        client = FakeClient({"repos/o/r/actions/runs/42": {"message": "odd"}})
+        assert run_main(["--run-id", "42"], client) == 3
+
+    def test_non_numeric_id_exits_one(self, capsys):
+        assert run_main(["--run-id", "abc"], FakeClient({})) == 1
+
+
 class TestArguments:
     def test_requires_pull_request_or_run_id(self, capsys):
         assert run_main([], FakeClient({})) == 1
