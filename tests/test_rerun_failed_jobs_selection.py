@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tests.rerun_failed_jobs_harness import (
@@ -298,3 +300,27 @@ class TestEnvelopeContract:
         odd = {**run_obj(1), "run_number": "x"}
         client = pr_fake([runs_page([odd])], rerun_ok(1))
         assert run_main(["--pull-request", "7"], client) == 0
+
+
+class TestStopAfterRefusal:
+    @pytest.mark.parametrize(
+        ("text", "code"),
+        [("Bad credentials (HTTP 401)", 4), ("API rate limit exceeded (HTTP 403)", 3)],
+    )
+    def test_fallbacks_survive_a_stop_that_follows_a_refusal(self, text, code, capsys):
+        client = pr_fake(
+            [runs_page([run_obj(1), run_obj(2)])],
+            {
+                "repos/o/r/actions/runs/1/rerun-failed-jobs": RuntimeError(
+                    CANNOT_RETRY.format(id=1)
+                ),
+                "repos/o/r/actions/runs/2/rerun-failed-jobs": RuntimeError(text),
+            },
+        )
+        rc = run_main(["--pull-request", "7"], client)
+        captured = capsys.readouterr()
+        data = json.loads(captured.out.strip().splitlines()[-1])["Data"]
+        assert rc == code
+        assert [r["run_id"] for r in data["refused"]] == [1]
+        assert data["fallbacks"]
+        assert "[FALLBACK]" in captured.err

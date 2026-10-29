@@ -359,7 +359,11 @@ def _record_failure(
     elif is_auth_failure_text(text) or is_rate_limit_refusal(text):
         batch.failed.append({**entry, "detail": detail, "timed_out": False, "stopped_batch": True})
         batch.not_attempted = remaining
-        _fail_api(ctx, "Rerun request", exc, **{**extra, **batch.view()})
+        stop_data = {**extra, **batch.view()}
+        if batch.refused:
+            _print_fallbacks()
+            stop_data["fallbacks"] = list(FALLBACKS)
+        _fail_api(ctx, "Rerun request", exc, **stop_data)
     else:
         batch.failed.append({**entry, "detail": detail, "timed_out": False})
 
