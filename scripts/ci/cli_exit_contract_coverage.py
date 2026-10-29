@@ -78,7 +78,7 @@ def defines_main(source: str) -> bool:
 # The binding styles tests under tests/ci actually use:
 #   from scripts.ci import check_codeql_sarif as ccs
 #   from require_job_results import failures, main   (inside a sys.path fixture)
-#   import run_quality_grades as grades
+#   import verify_codeql_artifacts as vca
 #   qa_mod = _load_module("check_pr_qa_report")
 _FROM_IMPORT = re.compile(r"^[ \t]*from\s+([\w.]+)\s+import\s+(.+)$", re.MULTILINE)
 _PLAIN_IMPORT = re.compile(r"^[ \t]*import\s+([\w.]+)(?:\s+as\s+(\w+))?", re.MULTILINE)
