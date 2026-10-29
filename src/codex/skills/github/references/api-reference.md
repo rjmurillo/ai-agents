@@ -182,7 +182,7 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 
 Reruns failed Actions jobs through `POST .../actions/runs/{id}/rerun-failed-jobs` and `POST .../actions/jobs/{id}/rerun`. Use `--pull-request N` (open PR; failed runs for the head SHA) or `--run-id ID` (add `--job-id` for one job, which must belong to that run).
 
-PR mode keeps the newest run per workflow and event, so a superseded run is not rerun. It drops runs whose `pull_requests` list is non-empty and lacks this PR (two branches can share a commit) and lists their ids in `skipped_other_pr_run_ids`; a run with no PR link, such as a fork PR run, is kept. It never reruns `cancelled` runs, in either mode: they are listed in `skipped_cancelled`, because GitHub's docs do not say whether `rerun-failed-jobs` covers cancelled jobs. `timed_out` and `startup_failure` count as failed. Branch on `Data.reason`, not `Error.Type`.
+PR mode keeps the newest run per workflow and event, so a superseded run is not rerun. It drops runs whose `pull_requests` list is non-empty and lacks this PR (two branches can share a commit) and lists their ids in `skipped_other_pr_run_ids`; a run with no PR link, such as a fork PR run, is kept. It never reruns a `cancelled` run by run, in either mode: it lists them in `skipped_cancelled`, because GitHub's docs do not say whether `rerun-failed-jobs` covers cancelled jobs. An explicit `--job-id` reruns that job whatever the run conclusion, and `skipped_cancelled` is then empty. `timed_out` and `startup_failure` count as failed. Branch on `Data.reason`, not `Error.Type`.
 
 | Exit | `Data.reason` | Meaning |
 |------|---------------|---------|

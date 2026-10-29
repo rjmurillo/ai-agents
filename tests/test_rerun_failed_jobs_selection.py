@@ -113,7 +113,10 @@ class TestRunSelection:
             {"repos/o/r/actions/jobs/77/rerun": {}},
         )
         assert run_main(["--run-id", "42", "--job-id", "77"], client) == 0
+        env = envelope(capsys)
         assert [c[0] for c in client.post_calls] == ["repos/o/r/actions/jobs/77/rerun"]
+        assert [r["run_id"] for r in env["Data"]["reruns"]] == [42]
+        assert env["Data"]["skipped_cancelled"] == []
 
     def test_superseded_failed_run_is_not_rerun(self, capsys):
         """An older failed run of the same workflow and event loses to the newer run."""

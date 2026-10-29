@@ -19,10 +19,11 @@ Behavior:
   non-empty and lacks this PR, as happens when two branches share a commit);
   their ids go in ``Data.skipped_other_pr_run_ids``. A run with an empty
   ``pull_requests`` list, such as a fork PR run, cannot be attributed and is kept.
-- ``cancelled`` runs are never rerun, in either mode. They are listed in
+- ``cancelled`` runs are never rerun by run, in either mode. They are listed in
   ``Data.skipped_cancelled``, since a human or a concurrency group may have
   cancelled them on purpose, and GitHub's docs do not say whether
-  ``rerun-failed-jobs`` covers cancelled jobs.
+  ``rerun-failed-jobs`` covers cancelled jobs. An explicit ``--job-id`` reruns
+  that job whatever the run conclusion, and then ``skipped_cancelled`` is empty.
 - ``--job-id`` is checked against ``--run-id`` first (exit 1, ``job_run_mismatch``).
 - A run that is not ``completed`` cannot be rerun. With only such runs the
   script exits 1 with ``reason: run_in_progress`` and the run status. With both
@@ -461,7 +462,7 @@ def _resolve_targets(
         _require_job_in_run(client, ctx, job_id)
     targets, active, cancelled = _partition([run])
     if job_id is not None and not active:
-        targets = [run]  # an explicit job rerun does not require a failed run
+        targets, cancelled = [run], []  # an explicit job rerun ignores the run conclusion
     return targets, active, cancelled, {"run_status": run.get("status")}
 
 
