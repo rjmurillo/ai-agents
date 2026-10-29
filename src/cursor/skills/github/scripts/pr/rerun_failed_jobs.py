@@ -15,9 +15,14 @@ REST calls (checked against docs.github.com/en/rest/actions/workflow-runs on
 Behavior:
 - PR mode needs an open PR (exit 1, ``pr_not_open``). It keeps the newest run per
   workflow and event (by ``run_number``), so a superseded run is never rerun. It
-  skips ``cancelled`` runs and lists them in ``Data.skipped_cancelled``, since a
-  human or a concurrency group may have cancelled them on purpose. ``--run-id``
-  reruns a cancelled run when named.
+  drops runs that belong to other PRs (a run whose ``pull_requests`` list is
+  non-empty and lacks this PR, as happens when two branches share a commit);
+  their ids go in ``Data.skipped_other_pr_run_ids``. A run with an empty
+  ``pull_requests`` list, such as a fork PR run, cannot be attributed and is kept.
+- ``cancelled`` runs are never rerun, in either mode. They are listed in
+  ``Data.skipped_cancelled``, since a human or a concurrency group may have
+  cancelled them on purpose, and GitHub's docs do not say whether
+  ``rerun-failed-jobs`` covers cancelled jobs.
 - ``--job-id`` is checked against ``--run-id`` first (exit 1, ``job_run_mismatch``).
 - A run that is not ``completed`` cannot be rerun. With only such runs the
   script exits 1 with ``reason: run_in_progress`` and the run status. With both
@@ -38,14 +43,21 @@ Behavior:
   ``reason: cannot_be_retried``, and prints the documented fallbacks on stderr
   and in ``Data.fallbacks``. Other runs in the same PR still get their rerun.
 - The refusal wording is matched on ``cannot be retried``, ``cannot be rerun``
-  and ``cannot be re-run``. A 403 with other wording falls through to exit 3
-  with the API text shown, so the agent reads it instead of guessing.
+  and ``cannot be re-run``. A permission 403 ("Resource not accessible by
+  integration") exits 4 with ``reason: auth``. A rate-limit 403 exits 3 with
+  ``reason: rate_limited``. Any other wording exits 3 with the API text shown,
+  so the agent reads it instead of guessing.
+- Auth is REST-only: a session where GraphQL is blocked but repository REST works
+  is allowed, as in the other REST-only scripts.
 - Branch on ``Data.reason``, not ``Error.Type``: a refusal and a 500 are both ``ApiError``.
 
 Output uses the standard skill envelope (ADR-056). Exit codes follow ADR-035:
     0 - Success (reruns requested, or no failed runs to rerun)
-    1 - Invalid parameters, PR not open, job not in run, or only in-progress runs
-    2 - PR, run, or job not found on a read
+    1 - PR not open, job not in run, or only in-progress runs
+    2 - Bad arguments (ADR-035 usage error, ``reason: invalid_params``), or PR, run,
+        or job not found on a read (the sibling scripts' convention; branch on
+        ``Data.reason``). Argparse type errors print usage on stderr and carry
+        no envelope.
     3 - External error (API failure, timeout, incomplete pagination, a failed POST)
     4 - Auth error
   100 - Script-specific: GitHub refused the rerun (run cannot be retried)
@@ -74,8 +86,7 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (
-    check_gh_auth,
-    describe_gh_auth_failure,
+    assert_gh_authenticated,
     is_auth_failure_text,
     is_rate_limit_refusal,
     resolve_repo_params,
@@ -99,14 +110,16 @@ _CANCELLED = "cancelled"
 _REFUSAL_MARKERS = ("cannot be retried", "cannot be rerun", "cannot be re-run")
 
 # Source: the review skill's marker doc (marker-and-no-task.md): after the marker
-# lands, a clean merge of origin/main needs no new review.
+# lands, a clean merge of the validator's base ref needs no new review. The
+# validator defaults that ref to origin/main and takes --base-ref for other bases.
 FALLBACKS = (
-    "If origin/main has moved, merge it into the branch cleanly (no conflict edits). "
-    "The pre-push marker gate allows a clean merge of origin/main without a new review, "
-    "and the new head starts fresh runs.",
+    "If the PR base branch has moved, merge it into the branch cleanly (no conflict "
+    "edits). The pre-push marker gate allows a clean merge of the base ref without a "
+    "new review (origin/main by default, --base-ref otherwise), and the new head "
+    "starts fresh runs.",
     "update_pr_branch.py (github skill) merges the base into the PR head on GitHub; "
     "pass --expected-head-sha.",
-    "If main has not moved, do not push an empty commit: it invalidates the SHA-bound "
+    "If the base branch has not moved, do not push an empty commit: it invalidates the SHA-bound "
     "review marker. Ask a human to rerun the workflow from the Actions UI.",
 )
 
@@ -143,17 +156,8 @@ class _Batch:
         }
 
 
-class _ExitOneParser(argparse.ArgumentParser):
-    """Argparse exits 2 on bad input; ADR-035 reserves 2 for not-found, so use 1."""
-
-    def error(self, message: str) -> NoReturn:
-        self.print_usage(sys.stderr)
-        print(f"{self.prog}: error: {message}", file=sys.stderr)
-        raise SystemExit(1)
-
-
 def build_parser() -> argparse.ArgumentParser:
-    parser = _ExitOneParser(
+    parser = argparse.ArgumentParser(
         description="Rerun failed GitHub Actions jobs for a PR or run.",
     )
     parser.add_argument("--owner", default="", help="Repository owner")
@@ -319,16 +323,33 @@ def _latest_per_workflow(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [run for _, run in latest.values()]
 
 
-def _partition(
-    runs: list[dict[str, Any]], include_cancelled: bool
-) -> tuple[list[dict], list[dict], list[dict]]:
+def _split_other_pr_runs(
+    runs: list[dict[str, Any]], pull_request: int
+) -> tuple[list[dict[str, Any]], list[int]]:
+    """Drop runs that belong to other PRs; return (kept runs, dropped run ids).
+
+    A run's head SHA names a commit, and two branches can share one. A run whose
+    ``pull_requests`` list is non-empty and lacks ``pull_request`` belongs to
+    other PRs. An empty or missing list cannot be attributed (a fork PR run has
+    one), so the run is kept.
+    """
+    kept: list[dict[str, Any]] = []
+    dropped: list[int] = []
+    for run in runs:
+        linked = run.get("pull_requests")
+        numbers = [p.get("number") for p in linked if isinstance(p, dict)] if linked else []
+        if numbers and pull_request not in numbers:
+            dropped.append(run["id"])
+        else:
+            kept.append(run)
+    return kept, dropped
+
+
+def _partition(runs: list[dict[str, Any]]) -> tuple[list[dict], list[dict], list[dict]]:
     """Split runs into (rerun targets, still running, skipped cancelled)."""
-    wanted = _FAILED_CONCLUSIONS | ({_CANCELLED} if include_cancelled else set())
     completed = [r for r in runs if r.get("status") == "completed"]
-    targets = [r for r in completed if r.get("conclusion") in wanted]
-    cancelled = [
-        r for r in completed if not include_cancelled and r.get("conclusion") == _CANCELLED
-    ]
+    targets = [r for r in completed if r.get("conclusion") in _FAILED_CONCLUSIONS]
+    cancelled = [r for r in completed if r.get("conclusion") == _CANCELLED]
     active = [r for r in runs if r.get("status") != "completed"]
     return targets, active, cancelled
 
@@ -431,13 +452,14 @@ def _resolve_targets(
     """Return (rerun targets, in-progress runs, skipped cancelled, extra Data)."""
     if ctx.pull_request is not None:
         sha = _read_pr(client, ctx)
-        runs = _latest_per_workflow(list_runs_for_sha(client, ctx, sha))
-        targets, active, cancelled = _partition(runs, include_cancelled=False)
-        return targets, active, cancelled, {"head_sha": sha}
+        listed = list_runs_for_sha(client, ctx, sha)
+        own, other_pr = _split_other_pr_runs(listed, ctx.pull_request)
+        targets, active, cancelled = _partition(_latest_per_workflow(own))
+        return targets, active, cancelled, {"head_sha": sha, "skipped_other_pr_run_ids": other_pr}
     run = _single_run(client, ctx)
     if job_id is not None:
         _require_job_in_run(client, ctx, job_id)
-    targets, active, cancelled = _partition([run], include_cancelled=True)
+    targets, active, cancelled = _partition([run])
     if job_id is not None and not active:
         targets = [run]  # an explicit job rerun does not require a failed run
     return targets, active, cancelled, {"run_status": run.get("status")}
@@ -496,17 +518,14 @@ def _validate(args: argparse.Namespace) -> str:
     return ""
 
 
-def main(argv: list[str] | None = None, client: GitHubClient = None) -> int:
+def main(argv: list[str] | None = None, client: GitHubClient | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     ctx = _Ctx("", args.output_format, args.pull_request, args.run_id)
     problem = _validate(args)
     if problem:
-        _emit_error(ctx, problem, 1, "InvalidParams", "invalid_params")
-    auth = check_gh_auth()
-    if not auth.is_authenticated:
-        message, code, error_type = describe_gh_auth_failure(auth)
-        _emit_error(ctx, message, code, error_type, "auth")
+        _emit_error(ctx, problem, 2, "InvalidParams", "invalid_params")
+    assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
     ctx = _Ctx(
         f"{resolved.owner}/{resolved.repo}", args.output_format, args.pull_request, args.run_id

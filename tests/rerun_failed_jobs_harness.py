@@ -113,7 +113,7 @@ def rerun_ok(run_id: int) -> dict:
 def run_main(argv: list[str], client: FakeClient, *, auth: Any = None) -> int:
     auth = auth or GhAuthResult(GhAuthStatus.AUTHENTICATED)
     with (
-        patch.object(script, "check_gh_auth", return_value=auth),
+        patch.object(_api, "check_gh_auth", return_value=auth),
         patch.object(script, "resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
     ):
         try:

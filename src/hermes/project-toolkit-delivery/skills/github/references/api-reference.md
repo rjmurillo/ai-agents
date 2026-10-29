@@ -182,20 +182,20 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 
 Reruns failed Actions jobs through `POST .../actions/runs/{id}/rerun-failed-jobs` and `POST .../actions/jobs/{id}/rerun`. Use `--pull-request N` (open PR; failed runs for the head SHA) or `--run-id ID` (add `--job-id` for one job, which must belong to that run).
 
-PR mode keeps the newest run per workflow and event, so a superseded run is not rerun. It skips `cancelled` runs and lists them in `skipped_cancelled`. `--run-id` reruns a cancelled run when named. `timed_out` and `startup_failure` count as failed. Branch on `Data.reason`, not `Error.Type`.
+PR mode keeps the newest run per workflow and event, so a superseded run is not rerun. It drops runs whose `pull_requests` list is non-empty and lacks this PR (two branches can share a commit) and lists their ids in `skipped_other_pr_run_ids`; a run with no PR link, such as a fork PR run, is kept. It never reruns `cancelled` runs, in either mode: they are listed in `skipped_cancelled`, because GitHub's docs do not say whether `rerun-failed-jobs` covers cancelled jobs. `timed_out` and `startup_failure` count as failed. Branch on `Data.reason`, not `Error.Type`.
 
 | Exit | `Data.reason` | Meaning |
 |------|---------------|---------|
 | 0 | `rerun_requested`, `no_failed_runs` | Reruns requested, or nothing failed. Runs still in progress are listed in `skipped_in_progress` |
-| 1 | `run_in_progress`, `pr_not_open`, `job_run_mismatch`, `invalid_params` | Only in-progress runs, a PR that is not open, a job from another run, or bad arguments |
-| 2 | `not_found` | PR, run, or job not found on a read |
+| 1 | `run_in_progress`, `pr_not_open`, `job_run_mismatch` | Only in-progress runs, a PR that is not open, or a job from another run |
+| 2 | `invalid_params`, `not_found` | Bad arguments (ADR-035 usage error; argparse type errors print usage with no envelope), or PR, run, or job not found on a read |
 | 3 | `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The run list had a gap, or a call failed. After a POST timeout the outcome is unknown |
-| 4 | `auth` | Credential or permission fault |
+| 4 | `auth` | Credential or permission fault, including a permission 403 on a POST |
 | 100 | `cannot_be_retried` | GitHub refused. Do not retry. The fallbacks are in `Data.fallbacks` and on stderr |
 
-Every envelope from the rerun step (exit 0, 3, 4, 100) lists `reruns`, `refused`, `failed`, `not_attempted_run_ids`, `skipped_in_progress`, and `skipped_cancelled`, so a failure never hides what was already requested. When an auth or rate-limit fault stops the batch, the run that hit it is in `failed` with `stopped_batch: true`. Early exits (1, 2, and 3 before any POST) carry `reason` only.
+Pass `--output-format json` to read the envelope; the default `auto` prints a summary line only. Every envelope from the rerun step (exit 0, 3, 4, 100) lists `reruns`, `refused`, `failed`, `not_attempted_run_ids`, `skipped_in_progress`, `skipped_cancelled`, and (PR mode) `skipped_other_pr_run_ids`, so a failure never hides what was already requested. When an auth or rate-limit fault stops the batch, the run that hit it is in `failed` with `stopped_batch: true`. Early exits (1, 2, and 3 before any POST) carry `reason` only. The preflight auth check allows a session where GraphQL is blocked but REST works.
 
-On exit 100, merge `origin/main` into the branch cleanly if main has moved (the pre-push marker gate allows it), or ask a human. Never push an empty commit: it invalidates the SHA-bound review marker.
+On exit 100, merge the PR base branch into the branch cleanly if it has moved (the pre-push marker gate allows a clean merge of its base ref: `origin/main` by default, `--base-ref` otherwise), or ask a human. Never push an empty commit: it invalidates the SHA-bound review marker.
 
 ## new_pr_review_comment.py
 

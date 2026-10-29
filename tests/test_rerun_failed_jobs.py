@@ -113,7 +113,7 @@ class TestRefusal:
         assert env["Data"]["refused"][0]["run_id"] == 9
         assert len(client.post_calls) == 1, "authoritative refusal must not be retried"
         fallbacks = " ".join(env["Data"]["fallbacks"])
-        assert "origin/main" in fallbacks
+        assert "base branch" in fallbacks
         assert "empty commit" in fallbacks
         assert "human" in fallbacks
         assert "[FALLBACK]" in captured.err
@@ -182,6 +182,22 @@ class TestAuth:
         client = pr_fake([])
         auth = GhAuthResult(GhAuthStatus.INVALID_CREDENTIALS, "bad token")
         assert run_main(["--pull-request", "7"], client, auth=auth) == 4
+        assert client.get_calls == []
+
+    def test_graphql_blocked_session_still_runs_over_rest(self, capsys):
+        """The script reaches GitHub only through REST, so a GraphQL block is not fatal."""
+        client = pr_fake([runs_page([run_obj(1)])], rerun_ok(1))
+        auth = GhAuthResult(GhAuthStatus.GRAPHQL_BLOCKED, "graphql refused")
+        assert run_main(["--pull-request", "7"], client, auth=auth) == 0
+        assert len(client.post_calls) == 1
+
+    @pytest.mark.parametrize(
+        "status",
+        [GhAuthStatus.INVALID_CREDENTIALS, GhAuthStatus.MISSING_GH],
+    )
+    def test_other_auth_statuses_still_exit_four(self, status, capsys):
+        client = pr_fake([])
+        assert run_main(["--pull-request", "7"], client, auth=GhAuthResult(status, "x")) == 4
         assert client.get_calls == []
 
     def test_post_auth_error_exits_four(self, capsys):

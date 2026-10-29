@@ -94,12 +94,26 @@ class TestRunSelection:
         assert [r["run_id"] for r in env["Data"]["skipped_cancelled"]] == [1]
         assert client.post_calls == []
 
-    def test_cancelled_run_is_rerun_when_named_by_run_id(self, capsys):
+    def test_cancelled_run_is_skipped_when_named_by_run_id(self, capsys):
+        """No claim that rerun-failed-jobs covers cancelled jobs: list it, do not POST."""
+        client = FakeClient({"repos/o/r/actions/runs/42": run_obj(42, conclusion="cancelled")})
+        rc = run_main(["--run-id", "42"], client)
+        env = envelope(capsys)
+        assert rc == 0
+        assert env["Data"]["reason"] == "no_failed_runs"
+        assert [r["run_id"] for r in env["Data"]["skipped_cancelled"]] == [42]
+        assert client.post_calls == []
+
+    def test_job_rerun_still_works_on_a_cancelled_run(self, capsys):
         client = FakeClient(
-            {"repos/o/r/actions/runs/42": run_obj(42, conclusion="cancelled")}, rerun_ok(42)
+            {
+                "repos/o/r/actions/runs/42": run_obj(42, conclusion="cancelled"),
+                JOB_77: {"run_id": 42},
+            },
+            {"repos/o/r/actions/jobs/77/rerun": {}},
         )
-        assert run_main(["--run-id", "42"], client) == 0
-        assert len(client.post_calls) == 1
+        assert run_main(["--run-id", "42", "--job-id", "77"], client) == 0
+        assert [c[0] for c in client.post_calls] == ["repos/o/r/actions/jobs/77/rerun"]
 
     def test_superseded_failed_run_is_not_rerun(self, capsys):
         """An older failed run of the same workflow and event loses to the newer run."""
@@ -177,24 +191,25 @@ class TestEdgeCases:
         client = FakeClient({"repos/o/r/actions/runs/42": {"message": "odd"}})
         assert run_main(["--run-id", "42"], client) == 3
 
-    def test_non_numeric_id_exits_one(self, capsys):
-        assert run_main(["--run-id", "abc"], FakeClient({})) == 1
+    def test_non_numeric_id_exits_two(self, capsys):
+        assert run_main(["--run-id", "abc"], FakeClient({})) == 2
 
 
 class TestArguments:
     def test_requires_pull_request_or_run_id(self, capsys):
-        assert run_main([], FakeClient({})) == 1
+        assert run_main([], FakeClient({})) == 2
+        assert envelope(capsys)["Data"]["reason"] == "invalid_params"
 
     def test_rejects_both_pull_request_and_run_id(self, capsys):
-        assert run_main(["--pull-request", "7", "--run-id", "42"], FakeClient({})) == 1
+        assert run_main(["--pull-request", "7", "--run-id", "42"], FakeClient({})) == 2
 
     def test_job_id_requires_run_id(self, capsys):
-        assert run_main(["--pull-request", "7", "--job-id", "77"], FakeClient({})) == 1
+        assert run_main(["--pull-request", "7", "--job-id", "77"], FakeClient({})) == 2
         assert envelope(capsys)["Error"]["Type"] == "InvalidParams"
 
     @pytest.mark.parametrize("flag", ["--pull-request", "--run-id"])
     def test_rejects_non_positive_ids(self, flag, capsys):
-        assert run_main([flag, "0"], FakeClient({})) == 1
+        assert run_main([flag, "0"], FakeClient({})) == 2
 
 
 class TestDocumentation:
