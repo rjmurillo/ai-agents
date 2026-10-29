@@ -171,6 +171,28 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 - With `--wait`, the wait ends only when compare shows the PR is not behind. A timeout exits 3.
 - Exit 1 with `reason: head_moved` means the head differs from `--expected-head-sha`.
 
+## Blocked PR diagnosis
+
+`mergeable_state` and `mergeStateStatus: blocked` are cached and frequently stale. `why_pr_blocked.py` decomposes them into required checks, review threads, and merge conflicts. It does not query `reviewDecision` or the required-approving-review count, so a repository that requires approvals can still be blocked on that when the script reports no cause.
+
+- GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them with `resolve_pr_review_thread.py`.
+- If the script reports no cause and the PR is still blocked, compare `get_pr_context.py`'s `review_decision` field with the target branch's required-approving-review count.
+
+## rerun_failed_jobs.py details
+
+Reruns failed Actions jobs through `POST .../actions/runs/{id}/rerun-failed-jobs` and `POST .../actions/jobs/{id}/rerun`. Use `--pull-request N` (all completed failed runs for the head SHA) or `--run-id ID` (add `--job-id` for one job).
+
+| Exit | `Data.reason` | Meaning |
+|------|---------------|---------|
+| 0 | `rerun_requested`, `no_failed_runs` | Reruns requested, or nothing failed. Runs still in progress are listed in `skipped_in_progress` |
+| 1 | `run_in_progress`, `invalid_params` | Only in-progress runs found, or bad arguments |
+| 2 | `not_found` | PR or run not found |
+| 3 | `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The run list had a gap, or the API failed. After a POST timeout the outcome is unknown |
+| 4 | `auth` | Credential or permission fault |
+| 100 | `cannot_be_retried` | GitHub refused. Do not retry. The fallbacks are in `Data.fallbacks` and on stderr |
+
+On exit 100, merge `origin/main` into the branch cleanly if main has moved (the pre-push marker gate allows it), or ask a human. Never push an empty commit: it invalidates the SHA-bound review marker.
+
 ## new_pr_review_comment.py
 
 Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to reply to an existing thread.

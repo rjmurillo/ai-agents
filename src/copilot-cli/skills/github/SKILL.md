@@ -128,6 +128,7 @@ Need GitHub data?
    ├─ Assign Copilot → invoke_copilot_assignment.py
    ├─ Enable/disable auto-merge → set_pr_auto_merge.py
    ├─ Update PR branch with its base (server side) → update_pr_branch.py
+   ├─ Rerun failed CI jobs on a PR or run → rerun_failed_jobs.py
    ├─ Close PR → close_pr.py
    └─ Merge PR → merge_pr.py
 ```
@@ -201,6 +202,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
+| `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
@@ -441,7 +443,7 @@ author gets `source:human`. It only labels.
 | Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
 | Retrying `gh` after a session refusal | The refusal has no reset; retries only burn the budget | Run the transport preflight, then use the GitHub MCP operations |
 | Reporting a PR blocked because a call failed | An unreachable API is an unknown, not a verdict | Name the transport failure as the cause |
-| Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory | It is a cached, frequently-stale field. `why_pr_blocked.py` decomposes it into required checks, review threads, and merge conflicts, but does not query `reviewDecision` or the required-approving-review count, so a repo that requires approvals can still be blocked on that even when the script reports no cause | Run `why_pr_blocked.py` first. GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them (`resolve_pr_review_thread.py`). If the script reports no cause but the PR is still blocked, also check `get_pr_context.py`'s `review_decision` field against the target branch's required-approving-review count |
+| Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory | It is a cached, frequently-stale field. `why_pr_blocked.py` does not query `reviewDecision` or the required-approving-review count | Run `why_pr_blocked.py` first and resolve unresolved threads with `resolve_pr_review_thread.py`. Details: `references/api-reference.md`, "Blocked PR diagnosis" |
 
 ---
 
