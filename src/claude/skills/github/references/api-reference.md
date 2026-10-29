@@ -193,7 +193,7 @@ PR mode keeps the newest run per workflow and event, so a superseded run is not 
 | 4 | `auth` | Credential or permission fault |
 | 100 | `cannot_be_retried` | GitHub refused. Do not retry. The fallbacks are in `Data.fallbacks` and on stderr |
 
-Every envelope lists `reruns`, `refused`, `failed`, and `not_attempted_run_ids`, so a failure never hides what was already requested.
+Every envelope from the rerun step (exit 0, 3, 4, 100) lists `reruns`, `refused`, `failed`, `not_attempted_run_ids`, `skipped_in_progress`, and `skipped_cancelled`, so a failure never hides what was already requested. When an auth or rate-limit fault stops the batch, the run that hit it is in `failed` with `stopped_batch: true`. Early exits (1, 2, and 3 before any POST) carry `reason` only.
 
 On exit 100, merge `origin/main` into the branch cleanly if main has moved (the pre-push marker gate allows it), or ask a human. Never push an empty commit: it invalidates the SHA-bound review marker.
 

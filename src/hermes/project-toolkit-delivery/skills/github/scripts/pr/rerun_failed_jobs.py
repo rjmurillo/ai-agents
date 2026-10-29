@@ -27,9 +27,12 @@ Behavior:
   runs are seen. A short page, a non-object page, a missing ``total_count``, or
   the page cap before that point exits 3 with ``reason: pagination_incomplete``.
   Runs are deduplicated by run id.
-- Every run is attempted. The envelope always carries ``reruns``, ``refused``,
-  ``failed`` and ``not_attempted_run_ids``, so a failure never hides what landed.
-  An auth or rate-limit fault stops the batch, since the rest would fail the same way.
+- Every run is attempted. Every envelope from the rerun step (exit 0, 3, 4 and
+  100) carries ``reruns``, ``refused``, ``failed``, ``not_attempted_run_ids``,
+  ``skipped_in_progress`` and ``skipped_cancelled``, so a failure never hides
+  what landed. Early exits (1, 2, and 3 before any POST) carry ``reason`` only.
+  An auth or rate-limit fault stops the batch, since the rest would fail the same
+  way. The run that hit it is listed in ``failed`` with ``stopped_batch: true``.
 - A 403 that says the run cannot be retried is an authoritative refusal. It is
   never retried. With no other failure the script exits 100 with
   ``reason: cannot_be_retried``, and prints the documented fallbacks on stderr
@@ -101,7 +104,8 @@ FALLBACKS = (
     "If origin/main has moved, merge it into the branch cleanly (no conflict edits). "
     "The pre-push marker gate allows a clean merge of origin/main without a new review, "
     "and the new head starts fresh runs.",
-    "update_pr_branch.py (github skill) does the same merge server side; pass --expected-head-sha.",
+    "update_pr_branch.py (github skill) merges the base into the PR head on GitHub; "
+    "pass --expected-head-sha.",
     "If main has not moved, do not push an empty commit: it invalidates the SHA-bound "
     "review marker. Ask a human to rerun the workflow from the Actions UI.",
 )
@@ -285,6 +289,8 @@ def _require_job_in_run(client: GitHubClient, ctx: _Ctx, job_id: int) -> None:
     """Exit 1 unless job ``job_id`` belongs to run ``--run-id``."""
     job = _get(client, ctx, f"repos/{ctx.repo}/actions/jobs/{job_id}", "Reading job")
     owner_run = job.get("run_id") if isinstance(job, dict) else None
+    if not isinstance(owner_run, int):
+        _emit_error(ctx, f"Job {job_id} response has no integer run_id", 3, "ApiError", "api_error")
     if owner_run != ctx.run_id:
         _emit_error(
             ctx,
@@ -306,7 +312,8 @@ def _latest_per_workflow(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     latest: dict[tuple[Any, Any], tuple[tuple[int, int], dict[str, Any]]] = {}
     for run in runs:
         key = (run.get("workflow_id"), run.get("event"))
-        rank = (run.get("run_number") or 0, run["id"])
+        number = run.get("run_number")
+        rank = (number if isinstance(number, int) else 0, run["id"])
         if key not in latest or rank > latest[key][0]:
             latest[key] = (rank, run)
     return [run for _, run in latest.values()]
@@ -335,7 +342,12 @@ def _rerun_request(ctx: _Ctx, run: dict[str, Any], job_id: int | None) -> tuple[
 
 
 def _record_failure(
-    ctx: _Ctx, batch: _Batch, entry: dict[str, Any], exc: Exception, remaining: list[int]
+    ctx: _Ctx,
+    batch: _Batch,
+    entry: dict[str, Any],
+    exc: Exception,
+    remaining: list[int],
+    extra: dict[str, Any],
 ) -> None:
     """File one failed POST. Auth and rate-limit faults stop the batch."""
     text = str(exc)
@@ -345,14 +357,19 @@ def _record_failure(
     elif isinstance(exc, subprocess.TimeoutExpired):
         batch.failed.append({**entry, "detail": "timed out; outcome unknown", "timed_out": True})
     elif is_auth_failure_text(text) or is_rate_limit_refusal(text):
+        batch.failed.append({**entry, "detail": detail, "timed_out": False, "stopped_batch": True})
         batch.not_attempted = remaining
-        _fail_api(ctx, "Rerun request", exc, **batch.view())
+        _fail_api(ctx, "Rerun request", exc, **{**extra, **batch.view()})
     else:
         batch.failed.append({**entry, "detail": detail, "timed_out": False})
 
 
 def _rerun_all(
-    client: GitHubClient, ctx: _Ctx, targets: list[dict[str, Any]], job_id: int | None
+    client: GitHubClient,
+    ctx: _Ctx,
+    targets: list[dict[str, Any]],
+    job_id: int | None,
+    extra: dict[str, Any],
 ) -> _Batch:
     batch = _Batch([], [], [], [])
     for index, run in enumerate(targets):
@@ -360,7 +377,8 @@ def _rerun_all(
         try:
             client.rest_post(endpoint, {})
         except (RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
-            _record_failure(ctx, batch, entry, exc, [t["id"] for t in targets[index + 1 :]])
+            remaining = [t["id"] for t in targets[index + 1 :]]
+            _record_failure(ctx, batch, entry, exc, remaining, extra)
             continue
         batch.done.append(entry)
     return batch
@@ -435,17 +453,16 @@ def _run(client: GitHubClient, ctx: _Ctx, job_id: int | None) -> int:
             in_progress_runs=active_view,
             **extra,
         )
-    batch = _rerun_all(client, ctx, targets, job_id)
     cancelled_view = [_run_summary(r) for r in cancelled]
-    extra = {**extra, "skipped_cancelled": cancelled_view}
+    extra = {**extra, "skipped_in_progress": active_view, "skipped_cancelled": cancelled_view}
+    batch = _rerun_all(client, ctx, targets, job_id, extra)
     if batch.failed or batch.refused:
         _report_batch_errors(ctx, batch, extra)
     data = {
         "reason": "rerun_requested" if batch.done else "no_failed_runs",
         "pull_request": ctx.pull_request,
         "run_id": ctx.run_id,
-        "reruns": batch.done,
-        "skipped_in_progress": active_view,
+        **batch.view(),
         **extra,
     }
     skipped = len(active_view) + len(cancelled_view)
