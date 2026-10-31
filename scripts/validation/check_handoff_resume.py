@@ -89,9 +89,12 @@ _ATTRIBUTE_KEYS = frozenset({"alternatives considered", "provenance", "supersede
 _TOP_LEVEL_ATTRIBUTE = re.compile(r"^[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _SUB_BULLET = re.compile(r"^\s+[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _URL_REMOTE = re.compile(
-    r"^[a-z][a-z0-9+.-]*://(?:[^@/\s]+@)?(?P<host>[^/:@\s]+)(?::\d+)?/(?P<path>\S+)$", re.IGNORECASE
+    r"^(?:https?|ssh|git|git\+ssh|ssh\+git)://(?:[^@/\s]+@)?(?P<host>[^/:@\s]+)(?::\d+)?/(?P<path>\S+)$",
+    re.IGNORECASE,
 )
 _SCP_REMOTE = re.compile(r"^(?:[^@/\s]+@)?(?P<host>[^/:@\s]+):(?P<path>[^/\s]\S*)$")
+_URL_USERINFO = re.compile(r"(?<=://)[^/\s]*@")
+_SCP_USERINFO = re.compile(r"^[^\s/@]+@")
 NO_ORIGIN = "(no origin remote)"
 
 
@@ -313,12 +316,17 @@ def _owner_name(path: str) -> str | None:
     return f"{parts[-2]}/{parts[-1]}" if len(parts) >= 2 else None
 
 
+def _redact(text: str) -> str:
+    """Drop userinfo (user:token@) from a remote before it reaches a report."""
+    return _SCP_USERINFO.sub("", _URL_USERINFO.sub("", text.strip()))
+
+
 def _parse_remote(text: str) -> tuple[str | None, str] | None:
     """Return (host, owner/name) from a remote, or None when it is not a repository reference.
 
-    Accepts https/ssh URLs, scp-style git@host:owner/name, host/owner/name, and the
-    host-less owner/name shorthand (host is None). Anything else, including the
-    no-origin sentinel, is rejected.
+    Accepts http(s), ssh, and git URLs, scp-style git@host:owner/name, host/owner/name,
+    and the host-less owner/name shorthand (host is None). Anything else, including
+    file URLs and the no-origin sentinel, is rejected.
     """
     text = text.strip()
     if not text or any(char.isspace() for char in text):
@@ -392,7 +400,7 @@ def _format_remote(remote: tuple[str | None, str]) -> str:
 def _check_remote(recorded_text: str, repo: Path, report: Report) -> None:
     recorded = _parse_remote(recorded_text)
     if recorded is None:
-        report.hold(f"remote is not a repository URL or owner/name: {recorded_text.strip()}")
+        report.hold(f"remote is not a repository URL or owner/name: {_redact(recorded_text)}")
         return
     recorded_label = _format_remote(recorded)
     origin = _live_origin(repo)
@@ -401,7 +409,7 @@ def _check_remote(recorded_text: str, repo: Path, report: Report) -> None:
         return
     live = _parse_remote(origin)
     if live is None:
-        report.hold(f"live origin is not a repository URL: {origin}")
+        report.hold(f"live origin is not a repository URL: {_redact(origin)}")
         return
     recorded_host, recorded_name = recorded
     live_host, live_name = live

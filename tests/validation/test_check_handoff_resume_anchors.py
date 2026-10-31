@@ -171,7 +171,10 @@ def test_missing_origin_reports_no_origin(repo: Path, tmp_path: Path, capsys) ->
     assert "live (no origin remote)" in out
 
 
-@pytest.mark.parametrize("origin", ["/home/x/repos/foo", "file:///srv/repos/foo"])
+@pytest.mark.parametrize(
+    "origin",
+    ["/home/x/repos/foo", "file:///srv/repos/foo", "file://localhost/owner/repo.git"],
+)
 def test_non_url_live_origin_reports_the_url_not_missing_origin(
     repo: Path, tmp_path: Path, capsys, origin: str
 ) -> None:
@@ -183,3 +186,72 @@ def test_non_url_live_origin_reports_the_url_not_missing_origin(
     assert code == checker.EXIT_HOLD
     assert f"live origin is not a repository URL: {origin}" in out
     assert "no origin remote" not in out
+
+
+def test_file_url_with_authority_holds_even_when_the_record_matches(
+    repo: Path, tmp_path: Path, capsys
+) -> None:
+    _git(repo, "remote", "set-url", "origin", "file://localhost/owner/repo.git")
+    handoff = _write(tmp_path / "h.md", repo, Remote="localhost/owner/repo")
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert "[RESUME]" not in out
+
+
+def test_file_url_in_record_holds(repo: Path, tmp_path: Path, capsys) -> None:
+    handoff = _write(tmp_path / "h.md", repo, Remote="file://localhost/owner/repo.git")
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert "remote is not a repository URL or owner/name" in out
+
+
+@pytest.mark.parametrize(
+    ("origin", "secret"),
+    [
+        ("file://user:s3cr3tTOKEN@localhost/owner/repo.git", "s3cr3tTOKEN"),
+        ("/srv/s3cr3tTOKEN@host/repo", None),
+    ],
+)
+def test_live_origin_hold_redacts_userinfo(
+    repo: Path, tmp_path: Path, capsys, origin: str, secret: str | None
+) -> None:
+    _git(repo, "remote", "set-url", "origin", origin)
+    handoff = _write(tmp_path / "h.md", repo)
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert "live origin is not a repository URL" in out
+    if secret:
+        assert secret not in out
+        assert "user" not in out.split("live origin is not a repository URL", 1)[1]
+
+
+@pytest.mark.parametrize(
+    "recorded",
+    [
+        "https://user:s3cr3tTOKEN@/nopath",
+        "s3cr3tTOKEN@host-only",
+        "https://user:s3cr3tTOKEN@github.com bad value",
+    ],
+)
+def test_recorded_remote_hold_redacts_userinfo(
+    repo: Path, tmp_path: Path, capsys, recorded: str
+) -> None:
+    handoff = _write(tmp_path / "h.md", repo, Remote=recorded)
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert "remote is not a repository URL or owner/name" in out
+    assert "s3cr3tTOKEN" not in out
+
+
+def test_redact_strips_url_and_scp_userinfo() -> None:
+    assert checker._redact("https://u:t@github.com/o/r") == "https://github.com/o/r"
+    assert checker._redact("git@github.com:o/r") == "github.com:o/r"
+    assert checker._redact("github.com/o/r") == "github.com/o/r"
