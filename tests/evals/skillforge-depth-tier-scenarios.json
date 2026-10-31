@@ -1,0 +1,103 @@
+{
+  "scenarios": [
+    {
+      "id": "DC-1",
+      "desc": "Structural edit to one skill with a deterministic verifier is Bounded",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: rename a section in the existing research skill. Scope is one skill, reversible, no shared defaults. quick_validate.py is the verifier and prior art was read.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "BOUNDED",
+      "verdict_options": [
+        "BOUNDED",
+        "STANDARD",
+        "FULL"
+      ],
+      "expected_reason_contains": "bounded",
+      "rationale": "Changed branch: all-low inputs select Bounded, skipping Phase 1 discovery."
+    },
+    {
+      "id": "DC-2",
+      "desc": "One high input selects at least Standard",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: add trigger phrases to the memory skill. Scope is one skill and reversible, but the trigger phrases are unknown and need discovery. A validator exists.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "STANDARD",
+      "verdict_options": [
+        "BOUNDED",
+        "STANDARD",
+        "FULL"
+      ],
+      "expected_reason_contains": "standard",
+      "rationale": "Changed branch: any one high input means Standard at least; Standard runs only lenses tied to a named open risk."
+    },
+    {
+      "id": "DC-3",
+      "desc": "New ambiguous capability with no verifier selects Full",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: create a new skill for an open-ended capability. No matching skill exists, requirements are open, triggers are unknown, and no verifier exists. It will ship to other teams.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "FULL",
+      "verdict_options": [
+        "BOUNDED",
+        "STANDARD",
+        "FULL"
+      ],
+      "expected_reason_contains": "full",
+      "rationale": "Changed branch: two or more high inputs, or a new ambiguous capability, select Full."
+    },
+    {
+      "id": "DC-4",
+      "desc": "Consequential change keeps independent review whatever the step count",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: a one-line edit to the security skill that loosens a permission boundary shipped as a default. The edit is small and quick_validate.py passes. Decide the review.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "INDEPENDENT_REVIEW",
+      "verdict_options": [
+        "VALIDATORS_ONLY",
+        "INDEPENDENT_REVIEW"
+      ],
+      "expected_reason_contains": "authority",
+      "rationale": "Changed branch: authority or shipped-default changes keep human decision and independent review regardless of tier."
+    },
+    {
+      "id": "DC-5",
+      "desc": "Verifier failure mid-run escalates the tier",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. A Bounded edit is under way. quick_validate.py now fails with an error the edit did not cause, and the failure suggests the skill trigger overlaps another skill. Decide what happens to the tier.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "ESCALATE",
+      "verdict_options": [
+        "ESCALATE",
+        "CONTINUE_BOUNDED"
+      ],
+      "expected_reason_contains": "verifier",
+      "rationale": "Changed branch: a failed verifier escalates mid-run."
+    },
+    {
+      "id": "DC-6",
+      "desc": "Reused evidence is stale when touched paths changed since its SHA",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. A prior triage finding for the ship skill was recorded at SHA abc1234. Files under src/claude/skills/ship changed since that SHA. Decide whether to reuse the finding.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "REVALIDATE",
+      "verdict_options": [
+        "REUSE",
+        "REVALIDATE"
+      ],
+      "expected_reason_contains": "stale",
+      "rationale": "Changed branch: stale context is re-read and re-checked, never silently reused."
+    },
+    {
+      "id": "DC-7",
+      "desc": "Regression: Phase 0 triage still runs for a Bounded edit",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: a Bounded structural edit to one existing skill with a passing validator. The user asks to skip the duplicate check to save time. Decide on Phase 0 triage.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "RUN_TRIAGE",
+      "verdict_options": [
+        "RUN_TRIAGE",
+        "SKIP_TRIAGE"
+      ],
+      "expected_reason_contains": "triage",
+      "rationale": "Regression: Phase 0 triage and validators do not shrink with the tier."
+    },
+    {
+      "id": "DC-8",
+      "desc": "Regression: a depth reduction is not an improvement when accepted outcomes regress",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. A trial skipped the panel and cut steps by 60 percent, but two of five accepted outcomes failed their checks. A teammate wants to report the run as an improvement. Decide the report.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "NOT_IMPROVEMENT",
+      "verdict_options": [
+        "IMPROVEMENT",
+        "NOT_IMPROVEMENT"
+      ],
+      "expected_reason_contains": "outcome",
+      "rationale": "Changed branch: report a reduction as an improvement only when accepted outcomes hold and trust does not regress."
+    }
+  ]
+}
