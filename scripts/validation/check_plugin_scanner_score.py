@@ -2,10 +2,12 @@
 """Gate: the HOL AI plugin scanner scores this repository at least 80.
 
 hashgraph-online/awesome-ai-plugins lists a plugin only after its centralized
-source scan completes with a normalized score of 80 or more (its
-SCANNER_GUIDE.md). That scan clones the default branch and scores the whole
-tree, so one new file anywhere can drop the listing below the bar. This gate
-runs the same scanner version locally, before a push, and
+source scan completes with a normalized score of 75 or more (its
+SCANNER_GUIDE.md, lowered from 80 on 2026-10-27). That scan clones the default
+branch and scores the whole tree, so one new file anywhere can drop the listing
+below the bar. This gate holds 80 on purpose, 5 points above the catalog, so a
+red run warns before the listing is at risk. It runs the same scanner version
+locally, before a push, and
 ``.github/workflows/plugin-scanner.yml`` runs the pinned action in CI.
 
 What is scanned: the tree of a named ref (``HEAD`` by default), read into a
@@ -61,6 +63,9 @@ import time
 from pathlib import Path
 
 DEFAULT_MIN_SCORE = 80
+# The awesome-ai-plugins listing bar (SCANNER_GUIDE.md, since 2026-10-27).
+# Only the failure message reads it; the gate uses DEFAULT_MIN_SCORE.
+CATALOG_MIN_SCORE = 75
 # One deadline covers every step, so the script reports its own exit 3 before
 # the 3m lefthook cap kills it (.claude/rules/ci-scripts.md item 19). A timed-out
 # step can overrun it by DRAIN_SECONDS; the budget test checks the sum.
@@ -315,8 +320,9 @@ def main(argv: list[str] | None = None) -> int:
     if score >= args.min_score:
         return _OK
     print(
-        f"plugin-scanner: score {score} is below {args.min_score}; the "
-        "awesome-ai-plugins listing requires 80 (SCANNER_GUIDE.md).",
+        f"plugin-scanner: score {score} is below {args.min_score}. The "
+        f"awesome-ai-plugins listing bar is {CATALOG_MIN_SCORE} "
+        "(SCANNER_GUIDE.md); this gate defaults higher to warn early.",
         file=sys.stderr,
     )
     return _BELOW

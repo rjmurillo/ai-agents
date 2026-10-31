@@ -142,6 +142,10 @@ def test_score_below_minimum_fails_and_names_lost_checks(
     assert "-3  [claude:.] Security: SECURITY.md found (m)" in err
     assert "LICENSE found" not in err
     assert "score 54 is below 80" in err
+    # The catalog bar (75) differs from this gate's default (80), so the
+    # message must not claim the listing needs 80.
+    assert "listing bar is 75" in err
+    assert "requires 80" not in err
 
 
 def test_min_score_flag_moves_the_bar(git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
