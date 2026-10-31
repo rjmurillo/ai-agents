@@ -240,8 +240,23 @@ def _trigger_output(cwd: Path, path: str, *effects: str) -> dict[str, Any]:
     return output
 
 
+def _write_moved_modules(root: Path, *, drop_param: bool = False) -> None:
+    """Write the two destination modules that make_relocation_target() describes."""
+    tests = root / "tests" / "validation"
+    tests.mkdir(parents=True)
+    (tests / "test_slow_part1.py").write_text("def test_a():\n    pass\n", encoding="utf-8")
+    params = '"y"' if drop_param else '"x"'
+    (tests / "test_slow_part2.py").write_text(
+        "import pytest\n\n\nclass TestB:\n"
+        f"    @pytest.mark.parametrize('v', [{params}])\n"
+        "    def test_b(self, v):\n        pass\n",
+        encoding="utf-8",
+    )
+
+
 def test_real_trigger_then_record_cli_passes_for_a_pure_move(tmp_path: Path) -> None:
     """End to end: the trigger activates on the move, and the record clears it."""
+    _write_moved_modules(tmp_path)
     path = "tests/validation/test_slow_part2.py"
     trigger = _trigger_output(tmp_path, path)
     assert trigger["decision"] == "activate"
@@ -256,7 +271,7 @@ def test_real_trigger_then_record_cli_passes_for_a_pure_move(tmp_path: Path) -> 
         "--changed-path",
         path,
         "--repo-root",
-        str(PROJECT_ROOT),
+        str(tmp_path),
     )
     assert result.returncode == 0, result.stdout
     assert json.loads(result.stdout)["ok"] is True

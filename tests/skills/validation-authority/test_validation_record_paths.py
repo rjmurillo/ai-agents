@@ -47,7 +47,11 @@ def test_every_trigger_target_needs_a_record_target() -> None:
 
 def test_trigger_target_spelled_with_dot_slash_matches_the_record() -> None:
     """AC3: `./` and backslash spellings name the same target."""
-    trigger = {"decision": "activate", "targets": [{"path": ".\\scripts\\validation\\check_x.py"}]}
+    trigger = {
+        "decision": "activate",
+        "effects": [],
+        "targets": [{"path": ".\\scripts\\validation\\check_x.py"}],
+    }
     assert record_errors(make_record(make_target(), trigger=trigger)) == []
 
 

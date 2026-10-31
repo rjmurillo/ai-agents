@@ -9,9 +9,11 @@ category of code it is, and the single location Phase 3 may edit. This script
 checks that record before Phase 3 touches anything, and again whenever `/test`
 Gate 4 receives the record path.
 
-The script is a pure function of the record and, optionally, the current
-changed-path list, so the same inputs always get the same result. It opens no
-network connection and starts no subprocess.
+The script is a pure function of the record, the current changed-path list,
+and, for a relocation diagnosis, what pytest collects for the moved test
+modules. It opens no network connection. Its only subprocess is a fixed
+``pytest --collect-only`` run; the record's own ``collect_command`` string is
+never executed.
 
 Record shape (REQ-041 data model)::
 
@@ -74,6 +76,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from relocation_evidence import (
     RELOCATION,
+    Collector,
+    collect_tests,
 )
 from relocation_evidence import (
     is_text as _text,
@@ -232,7 +236,9 @@ def _baseline_defects(where: str, target: dict[str, Any], repo_root: Path | None
     return defects
 
 
-def _target_defects(index: int, target: object, repo_root: Path | None) -> list[str]:
+def _target_defects(
+    index: int, target: object, repo_root: Path | None, collector: Collector | None = None
+) -> list[str]:
     """Return every defect for one target entry."""
     where = f"targets[{index}]"
     if not isinstance(target, dict):
@@ -261,7 +267,7 @@ def _target_defects(index: int, target: object, repo_root: Path | None) -> list[
         defects += _baseline_defects(where, target, repo_root)
     if diagnosis == RELOCATION:
         defects += _relocation_scope_defects(where, target)
-        defects += _relocation_defects(where, target)
+        defects += _relocation_defects(where, target, collector)
     return defects
 
 
@@ -328,7 +334,11 @@ def _trigger_defects(trigger: object, targets: list[Any]) -> list[str]:
         return ["the trigger activated but the record has no targets; record each target"]
     defects: list[str] = []
     effects = trigger.get("effects")
-    if effects is not None and not _is_text_list(effects):
+    if "effects" not in trigger:
+        defects.append(
+            "trigger.effects is missing; rerun validation_trigger.py, which always emits it"
+        )
+    elif not _is_text_list(effects):
         defects.append("trigger.effects must be a list of non-empty effect strings")
     recorded = {_path_key(t.get("target")) for t in targets if isinstance(t, dict)}
     named = trigger.get("targets")
@@ -357,13 +367,41 @@ def _relocation_effect_defects(trigger: object, targets: list[Any]) -> list[str]
     ]
 
 
+def _recomputed_trigger_defects(
+    trigger: object,
+    changed_paths: Sequence[str],
+    repo_root: Path | None,
+    trigger_module: ModuleType | None,
+) -> list[str]:
+    """Rerun the trigger on the real changed paths and catch a record that skipped too early."""
+    if trigger_module is None or not changed_paths or not isinstance(trigger, dict):
+        return []
+    effects = trigger.get("effects")
+    declared = effects if _is_text_list(effects) else []
+    try:
+        fresh = trigger_module.decide(list(changed_paths), declared, repo_root or Path.cwd())
+    except ValueError as exc:
+        return [f"trigger recomputed from the changed paths was refused: {exc}"]
+    if fresh.get("decision") == "activate" and trigger.get("decision") != "activate":
+        return [
+            "trigger.decision is `skip` but the trigger recomputed from the changed paths "
+            f"activates: {fresh.get('reason')}"
+        ]
+    return []
+
+
 def validate(
     record: Any,
     changed_paths: Sequence[str] = (),
     repo_root: Path | None = None,
     trigger_module: ModuleType | None = None,
+    collector: Collector | None = None,
 ) -> list[str]:
-    """Return every record defect. An empty list means the record passed."""
+    """Return every record defect. An empty list means the record passed.
+
+    ``collector`` verifies relocation test ids against real collection; the CLI
+    always passes one.
+    """
     if not isinstance(record, dict):
         return ["record must be a JSON object"]
     missing = [key for key in TOP_LEVEL_KEYS if key not in record]
@@ -373,10 +411,13 @@ def validate(
     if not isinstance(targets, list):
         return ["`targets` must be a list"]
     defects = _trigger_defects(record["trigger"], targets)
+    defects += _recomputed_trigger_defects(
+        record["trigger"], changed_paths, repo_root, trigger_module
+    )
     defects += _relocation_effect_defects(record["trigger"], targets)
     valid_targets: list[dict[str, Any]] = []
     for index, target in enumerate(targets):
-        target_defects = _target_defects(index, target, repo_root)
+        target_defects = _target_defects(index, target, repo_root, collector)
         defects += target_defects
         if not target_defects:
             valid_targets.append(target)
@@ -441,7 +482,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ImportError) as exc:
             print(f"validation_record: cannot load sibling trigger: {exc}", file=sys.stderr)
             return 2
-    defects = validate(record, args.changed_path, args.repo_root, trigger_module)
+    root = args.repo_root or Path.cwd()
+    defects = validate(
+        record,
+        args.changed_path,
+        args.repo_root,
+        trigger_module,
+        lambda paths: collect_tests(paths, root),
+    )
     print(json.dumps(_summary(record, defects, args.record), sort_keys=True))
     return 1 if defects else 0
 
