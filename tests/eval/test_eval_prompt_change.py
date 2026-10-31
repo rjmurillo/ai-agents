@@ -1530,6 +1530,8 @@ class TestMainCLI:
                 "--scenarios",
                 str(scen),
                 "--dry-run",
+                "--max-tokens",
+                "4096",
             ],
         )
         with pytest.raises(SystemExit) as exc:
@@ -1537,6 +1539,7 @@ class TestMainCLI:
         assert exc.value.code == 0
         out = capsys.readouterr().out
         assert "dry_run" in out
+        assert '"max_tokens": 4096' in out
 
     def test_load_scenarios_failure_exits_two(self, tmp_path, monkeypatch):
         monkeypatch.setattr(

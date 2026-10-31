@@ -1094,6 +1094,7 @@ def _run_and_report(
         "model": args.model,
         "source": source,
         "runs_per_scenario": args.runs,
+        "max_tokens": args.max_tokens,
         "security_critical": args.security_critical,
         "comparison": {
             "before_score": comparison["before_score"],
@@ -1301,6 +1302,7 @@ def main() -> None:
                     "before_chars": len(before_text),
                     "after_chars": len(after_text),
                     "runs": args.runs,
+                    "max_tokens": args.max_tokens,
                     "security_critical": args.security_critical,
                     "est_api_calls": len(scenarios) * 2 * args.runs,
                     "max_resample_api_calls": len(scenarios) * args.base_resamples,

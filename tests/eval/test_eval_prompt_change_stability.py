@@ -187,10 +187,13 @@ def test_run_and_report_serializes_scored_scenario_count(
     )
     out_file = tmp_path / "report.json"
     args = _report_args(out_file)
+    args.max_tokens = 4096
     with pytest.raises(SystemExit) as exc:
         ev._run_and_report("k", "base", "head", [D12, D6], args, "test")
     assert exc.value.code == 0
-    comparison = json.loads(out_file.read_text(encoding="utf-8"))["comparison"]
+    report = json.loads(out_file.read_text(encoding="utf-8"))
+    assert report["max_tokens"] == 4096
+    comparison = report["comparison"]
     assert comparison["scenario_count"] == 2
     assert comparison["scored_scenario_count"] == 1
 
