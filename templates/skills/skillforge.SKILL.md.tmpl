@@ -147,7 +147,7 @@ verifier, no prior art checked).
 |------|--------------|------|
 | Bounded | Structural edit to an existing skill, known scope, a deterministic verifier | Phase 0 triage, `--improve` or `--quick`, Phase 3 edit, validators. No Phase 1 discovery, no long-horizon scoring. |
 | Standard | Scoped change with a few open questions | Bounded path plus only the Phase 1 lenses and regression questions that address a named open risk |
-| Full | New or ambiguous capability, or `CREATE_NEW` with unresolved risk | Phases 0 to 4, all 11 lenses, panel review |
+| Full | New ambiguous capability, or two or more high inputs | Phases 0 to 4, all 11 lenses, panel review |
 
 Consequential changes override the tier. A change to a safety control, a
 permission or authority boundary, a shipped default, or anything irreversible

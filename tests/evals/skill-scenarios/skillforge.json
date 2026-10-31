@@ -6,7 +6,7 @@
     {
       "id": "S1",
       "desc": "Bounded structural edit: fix one word in an existing skill's description frontmatter, validators available",
-      "input": "The accepted outcome is that the testgen skill's frontmatter stays valid after a one-word wording fix in its description. The edit is one word in one existing skill. Scope is known and quick_validate.py checks frontmatter validity and description length. Choose BOUNDED to edit and run the validator, or FULL_ANALYSIS to run discovery, all thinking models, and the synthesis panel first. For BOUNDED, EVIDENCE names the validator command that proves the outcome and nothing else. Reply in at most 4 short lines. The last two lines must be exactly:\nDECISION: <BOUNDED or FULL_ANALYSIS>\nEVIDENCE: <one line>\nDo not modify any files.",
+      "input": "The accepted outcome is that the testgen skill's frontmatter stays valid after a one-word wording fix in its description. The edit is one word in one existing skill. Scope is known, the testgen maintainer accepts the edit, and the skill's current description and references were read as prior art. The validators are quick_validate.py, validate-skill.py, and check_docs_safety.py. Choose BOUNDED to edit and run the validator, or FULL_ANALYSIS to run discovery, all thinking models, and the synthesis panel first. For BOUNDED, EVIDENCE names Phase 0 triage and the validators that prove the outcome, and nothing else. Reply in at most 4 short lines. The last two lines must be exactly:\nDECISION: <BOUNDED or FULL_ANALYSIS>\nEVIDENCE: <one line>\nDo not modify any files.",
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The outcome is verifiable by a script, the scope is one word, and nothing consequential changes. Running discovery, every lens, and a panel repeats settled reasoning without a new evidence need. Editing and running the validator is the pass.",
@@ -19,26 +19,30 @@
           "BOUNDED"
         ],
         "evidence_all": [
-          "quick_validate|validate-skill",
+          "\\btriage\\b",
+          "quick_validate",
+          "validate-skill",
+          "check_docs_safety",
           "^(?!.*\\b(?:panel|lens|lenses|discovery|long-horizon|regression|thinking models?)\\b)"
         ],
         "known_good_variants": [
-          "DECISION: bounded\nEVIDENCE: python validate-skill.py skills/testgen/ confirms the frontmatter is valid",
-          "Edit the word, then verify.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py skills/testgen/",
-          "1. DECISION: BOUNDED\n2. EVIDENCE: run quick_validate.py on the testgen skill directory"
+          "DECISION: bounded\nEVIDENCE: Phase 0 triage, then quick_validate.py, validate-skill.py, check_docs_safety.py confirm the frontmatter is valid",
+          "Edit the word, then verify.\nDECISION: BOUNDED\nEVIDENCE: triage first; quick_validate.py, validate-skill.py, check_docs_safety.py on skills/testgen/",
+          "1. DECISION: BOUNDED\n2. EVIDENCE: Phase 0 triage, then run quick_validate.py, validate-skill.py and check_docs_safety.py on the testgen skill directory"
         ],
         "known_good": [
-          "DECISION: BOUNDED\nEVIDENCE: python quick_validate.py skills/testgen/"
+          "DECISION: BOUNDED\nEVIDENCE: Phase 0 triage, then python quick_validate.py, validate-skill.py, and check_docs_safety.py on skills/testgen/"
         ],
         "known_bad": [
           "The edit needs a full review first.\nDECISION: FULL_ANALYSIS\nEVIDENCE: run discovery, all 11 thinking models, then the synthesis panel"
         ],
         "right_token_bad_evidence": [
-          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py, then the synthesis panel for safety",
-          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py after applying all lenses",
-          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py plus long-horizon evolution scoring",
-          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py and regression questioning",
-          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: it is a small change"
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: Phase 0 triage, quick_validate.py, validate-skill.py, check_docs_safety.py, then the synthesis panel for safety",
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: Phase 0 triage, quick_validate.py, validate-skill.py, check_docs_safety.py after applying all lenses",
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: Phase 0 triage, quick_validate.py, validate-skill.py, check_docs_safety.py plus long-horizon evolution scoring",
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: Phase 0 triage, quick_validate.py, validate-skill.py, check_docs_safety.py and regression questioning",
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: it is a small change",
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py only, skipping triage and the other validators"
         ],
         "keyword_stuffed": [
           "Outcome-first, risk-proportional depth: uncertainty, consequence, missing evidence, freshness, scope, human decision, independent review.",
@@ -107,7 +111,8 @@
         "evidence_all": [
           "\\b(?:owner|maintainer|human|accountable)\\b",
           "\\bpanel\\b",
-          "^(?!.*\\b(?:skip review|self-approve|no review|without review)\\b)"
+          "^(?!.*\\b(?:skip review|self-approve|no review|without review)\\b)",
+          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\b)"
         ],
         "known_good_variants": [
           "DECISION: human_decides\nEVIDENCE: accountable maintainer signs off after the Phase 4 panel reviews the tool grant",
@@ -125,7 +130,8 @@
           "Needs a human.\nDECISION: HUMAN_DECIDES\nEVIDENCE: the owner decides and we skip review of the panel to save time",
           "Needs a human.\nDECISION: HUMAN_DECIDES\nEVIDENCE: an independent reviewer checks it and nobody else signs off",
           "Needs a human.\nDECISION: HUMAN_DECIDES\nEVIDENCE: the owner decides and the panel runs, without review",
-          "Needs a human.\nDECISION: HUMAN_DECIDES\nEVIDENCE: it is risky"
+          "Needs a human.\nDECISION: HUMAN_DECIDES\nEVIDENCE: it is risky",
+          "Needs a human.\nDECISION: HUMAN_DECIDES\nEVIDENCE: owner must not decide; panel must not review"
         ],
         "keyword_stuffed": [
           "Outcome-first, risk-proportional depth: uncertainty, consequence, missing evidence, freshness, scope, human decision, independent review.",
@@ -150,7 +156,8 @@
         ],
         "evidence_all": [
           "triage_skill_request\\.py|discover_skills\\.py",
-          "^(?!.*\\b(?:estimate|guess|manually|by hand|approximate)\\b)"
+          "^(?!.*\\b(?:estimate|guess|manually|by hand|approximate)\\b)",
+          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\b)"
         ],
         "known_good_variants": [
           "DECISION: existing_tool\nEVIDENCE: discover_skills.py to index the catalog, then triage_skill_request.py to score",
@@ -168,7 +175,8 @@
           "Use the script.\nDECISION: EXISTING_TOOL\nEVIDENCE: discover_skills.py, and manually check each match",
           "Use the script.\nDECISION: EXISTING_TOOL\nEVIDENCE: triage_skill_request.py, then guess the ranking",
           "Use the script.\nDECISION: EXISTING_TOOL\nEVIDENCE: discover_skills.py with an approximate score",
-          "Use the script.\nDECISION: EXISTING_TOOL\nEVIDENCE: a script is cheaper"
+          "Use the script.\nDECISION: EXISTING_TOOL\nEVIDENCE: a script is cheaper",
+          "Use the script.\nDECISION: EXISTING_TOOL\nEVIDENCE: do not use triage_skill_request.py"
         ],
         "keyword_stuffed": [
           "Outcome-first, risk-proportional depth: uncertainty, consequence, missing evidence, freshness, scope, human decision, independent review.",
@@ -193,7 +201,8 @@
         ],
         "evidence_all": [
           "\\b(?:changed|new skills?|commits?|since|stale|moved)\\b",
-          "^(?!.*\\b(?:still holds|unchanged|reuse)\\b)"
+          "^(?!.*\\b(?:still holds|unchanged|reuse)\\b)",
+          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\b)"
         ],
         "known_good_variants": [
           "DECISION: revalidate\nEVIDENCE: the index is stale, skills/ changed after a1b2c3d",
@@ -211,7 +220,8 @@
           "Stale.\nDECISION: REVALIDATE\nEVIDENCE: skills/ changed since a1b2c3d, unchanged otherwise",
           "Stale.\nDECISION: REVALIDATE\nEVIDENCE: commits landed, so reuse the index anyway",
           "Stale.\nDECISION: REVALIDATE\nEVIDENCE: it is safer",
-          "Stale.\nDECISION: REVALIDATE\nEVIDENCE: more checking is better"
+          "Stale.\nDECISION: REVALIDATE\nEVIDENCE: more checking is better",
+          "Stale.\nDECISION: REVALIDATE\nEVIDENCE: skills/ changed since a1b2c3d, do not revalidate"
         ],
         "keyword_stuffed": [
           "Outcome-first, risk-proportional depth: uncertainty, consequence, missing evidence, freshness, scope, human decision, independent review.",
