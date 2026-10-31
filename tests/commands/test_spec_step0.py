@@ -654,6 +654,28 @@ class TestEvidencePath:
         answer = "Bleu team would want this and Felix on the Bleu rotation reported it"
         assert q1_aspirational(answer, q3_specific_ok=True, q5_evidenced=True)
 
+    def test_ticket_only_q1_fails_even_with_evidence(self, hedge_phrases: list[str]) -> None:
+        answers = self._answers("Issue #1700 records the failure", self.Q3_OK, self.Q5_OK)
+        assert evaluate_step0(answers, hedge_phrases) == "H3"
+
+    def test_file_path_only_q1_fails_even_with_evidence(self) -> None:
+        assert q1_aspirational("see deploy.py", q3_specific_ok=True, q5_evidenced=True)
+
+    @pytest.mark.parametrize(
+        "q1",
+        [
+            "Bleu team will request this after onboarding",
+            "Felix on the Bleu rotation is going to ask for this",
+            "Bleu team plans to request this",
+            "Bleu team would request this",
+        ],
+    )
+    def test_future_request_forms_fail_even_with_evidence(
+        self, q1: str, hedge_phrases: list[str]
+    ) -> None:
+        answers = self._answers(q1, self.Q3_OK, self.Q5_OK)
+        assert evaluate_step0(answers, hedge_phrases) == "H3"
+
     def test_conditional_single_requester_fails(self, hedge_phrases: list[str]) -> None:
         answers = self._answers(
             "if users start filing tickets, Bleu team will escalate", self.Q3_OK, self.Q5_OK
