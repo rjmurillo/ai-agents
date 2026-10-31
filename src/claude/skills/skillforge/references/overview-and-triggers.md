@@ -46,7 +46,7 @@ TypeError: Cannot read property 'map' of undefined
 | Input | Output | Quality Gate |
 |-------|--------|--------------|
 | Any input | Triage → Route → Action | Phase 0 analysis |
-| Explicit create | New skill | Unanimous panel approval |
+| Explicit create | New skill | Depth Contract tier; unanimous panel when it runs |
 | Skill question | Skill recommendation | Match confidence ≥60% |
 | Task / code / URL | Recommend, improve, or compose | ≥80% recommend; 50-79% improve |
 
@@ -57,6 +57,12 @@ TypeError: Cannot read property 'map' of undefined
 ```
 ANY USER INPUT
 (prompt, error, code, URL, question, task request)
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│ ACCEPTED OUTCOME (before any phase)                 │
+│ • What must be true, its check, who accepts it      │
+└─────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────┐
@@ -74,9 +80,12 @@ ANY USER INPUT
 ┌─────────────────────────────────────────────────────┐
 │ Phase 1: DEEP ANALYSIS                              │
 │ • Expand requirements (explicit, implicit, unknown) │
-│ • Apply 11 thinking models + Automation Lens        │
-│ • Question until no new insights (3 empty rounds)   │
+│ • Full: 11 thinking models + Automation Lens        │
+│ • Full: question until 3 empty rounds               │
+│ • Standard: lenses for named open risks only        │
 │ • Identify automation/script opportunities          │
+│ (Bounded edit skips Phase 1 and Phase 2; see        │
+│  depth-contract.md)                                 │
 ├─────────────────────────────────────────────────────┤
 │ Phase 2: SPECIFICATION                              │
 │ • Generate XML spec with all decisions + WHY        │
@@ -87,7 +96,8 @@ ANY USER INPUT
 │ • Write SKILL.md with fresh context                 │
 │ • Generate references/, assets/, and scripts/       │
 ├─────────────────────────────────────────────────────┤
-│ Phase 4: SYNTHESIS PANEL                            │
+│ Phase 4: SYNTHESIS PANEL (Full tier and             │
+│ consequential changes; Bounded: validators)         │
 │ • 3-4 Opus agents review independently              │
 │ • Script Agent added when scripts present           │
 │ • All agents must approve (unanimous)               │
@@ -101,10 +111,10 @@ Production-Ready Agentic Skill
 **Key principles:**
 
 - **Phase 0 prevents duplicates** - Always checks existing skills first
-- Evolution/timelessness is the core lens (score ≥ 7 required)
+- Evolution/timelessness is the core lens at Standard and Full tiers (score ≥ 7 required; Bounded edits skip it)
 - Every decision includes WHY
 - Zero tolerance for errors
-- Autonomous execution at maximum depth
+- Depth follows the accepted outcome and its risk (see depth-contract.md); Full tier runs at maximum depth
 - Scripts enable fast-fail checks, independent postcondition checks, and agentic operation
 
 ### Tool Escalation Policy
@@ -125,7 +135,7 @@ Only add higher-risk tools when explicitly required:
 |---------|--------|
 | `SkillForge: {goal}` | Full autonomous execution |
 | `SkillForge --plan-only {goal}` | Generate specification only |
-| `SkillForge --quick {goal}` | Reduced depth (not recommended) |
+| `SkillForge --quick {goal}` | Bounded tier for a low-risk edit with a deterministic verifier (see depth-contract.md) |
 | `SkillForge --triage {input}` | Run Phase 0 triage only |
 | `SkillForge --improve {skill}` | Enter improvement mode for existing skill |
 

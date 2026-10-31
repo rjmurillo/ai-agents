@@ -1,7 +1,7 @@
 # Phase 4: Synthesis Deep Dive
 
 **Panel:** 3-4 Opus agents with distinct evaluative lenses
-**Requirement:** Unanimous approval (all agents)
+**Requirement:** Unanimous approval (all agents). Required at the Full tier and for consequential changes; see [depth-contract.md](depth-contract.md).
 **Fallback:** Return to Phase 1 with feedback (max 5 iterations)
 
 ## Panel Composition
