@@ -217,6 +217,12 @@ def http_delete_sink(node: ast.Call) -> str:
     dotted = dotted_name(node.func)
     if dotted in HTTP_DELETE_CALLS:
         return f"{dotted}()"
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "delete"
+        and isinstance(node.func.value, ast.Call | ast.Name)
+    ):
+        return ".delete()"
     method_args = [node.args[0]] if node.args else []
     method_args += [k.value for k in node.keywords if k.arg == "method"]
     if dotted in HTTP_REQUEST_CALLS or callee_name(node) == "request":
@@ -228,7 +234,7 @@ def http_delete_sink(node: ast.Call) -> str:
 def is_git_wrapper(node: ast.Call) -> bool:
     """True for a call to a function named for git, or ``subprocess`` run on ``git``."""
     name = callee_name(node).lower()
-    if "git" in name:
+    if name == "git" or name.startswith("git_") or name.endswith("_git") or "_git_" in name:
         return True
     first = node.args[0] if node.args else None
     return (
@@ -244,8 +250,9 @@ def variable_git_argv_sink(node: ast.Call) -> str:
     """Return a label when a git wrapper receives an argv the scan cannot read.
 
     A variable list (``run_git(args)``), a starred element (``["push", *rest]``),
-    or a non-literal subcommand hides what git will run, so the scan fails
-    closed and reports it for review.
+    a non-literal subcommand, or a ``push`` with a non-literal argument (a
+    variable refspec can be ``+main``) hides what git will run, so the scan
+    fails closed and reports it for review.
     """
     if not node.args or not is_git_wrapper(node):
         return ""
@@ -259,6 +266,13 @@ def variable_git_argv_sink(node: ast.Call) -> str:
         head = 1 if elts and isinstance(elts[0], ast.Constant) and elts[0].value == "git" else 0
         if len(elts) > head and not isinstance(elts[head], ast.Constant):
             return "git argv with non-literal subcommand"
+        sub = elts[head] if len(elts) > head else None
+        if (
+            isinstance(sub, ast.Constant)
+            and sub.value == "push"
+            and any(not isinstance(e, ast.Constant) for e in elts[head + 1 :])
+        ):
+            return "git push argv with non-literal refspec"
     return ""
 
 

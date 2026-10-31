@@ -178,6 +178,9 @@ def test_detects_each_sink_family(tmp_path: Path, source: str, label: str) -> No
         "import requests\ndef f(u):\n    requests.get(u)\n    requests.request('GET', u)\n",
         "def f(run_git, path):\n    run_git(['add', path])\n",
         "def f(args, runner):\n    runner(args)\n",
+        "def f(s, pats):\n    s.isdigit(s)\n    load_gitignore(pats)\n",
+        "def f(x):\n    delete(x)\n",
+        "def f(run_git):\n    run_git(['push', 'origin', 'main'])\n",
     ],
 )
 def test_benign_code_is_not_a_sink(tmp_path: Path, source: str) -> None:
@@ -461,3 +464,30 @@ def test_unreadable_extensionless_file_is_unscanned(tmp_path: Path) -> None:
         locked.chmod(0o644)
     assert report["decision"] == "unknown"
     assert report["unscanned"] == ["locked"]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(run_git, remote, ref):\n    run_git(['push', remote, ref])\n",
+        "import subprocess\n"
+        "def f(remote, ref):\n    subprocess.run(['git', 'push', remote, ref])\n",
+        "def f(run_git, ref):\n    run_git(['push', 'origin', f'+{ref}'])\n",
+        "def f(run_git, o):\n    run_git(['push', o.remote, 'main'])\n",
+    ],
+)
+def test_push_with_non_literal_refspec_is_a_sink(tmp_path: Path, source: str) -> None:
+    labels = sink_labels(scan_source(tmp_path, source))
+    assert "git push argv with non-literal refspec" in labels
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import requests\ndef f(u):\n    requests.Session().delete(u)\n",
+        "def f(client, url):\n    client.delete(url)\n",
+        "import httpx\ndef f(url):\n    httpx.Client().delete(url)\n",
+    ],
+)
+def test_client_delete_method_is_a_sink(tmp_path: Path, source: str) -> None:
+    assert ".delete()" in sink_labels(scan_source(tmp_path, source))

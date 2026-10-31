@@ -196,6 +196,16 @@ class TestFallbackKey:
         units = caps.capability_units({}, "tools_copilot", "c", {}, fallback_key="tools")
         assert units == {"c:declaration": "unrestricted"}
 
+    def test_list_fallback_ignored_when_other_platform_key_present(self) -> None:
+        fm = {"tools_vscode": ["read"], "tools": ["read", "shell"]}
+        units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units == {"c:declaration": "unrestricted"}
+
+    def test_string_fallback_kept_when_other_platform_key_present(self) -> None:
+        fm = {"tools_vscode": ["read"], "tools": "read, shell"}
+        units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units == {"c:declaration": "restricted", "c:builtin": "execute\nread"}
+
     def test_platform_placeholder_is_ignored_like_the_generator(self) -> None:
         fm = {"tools": "{{PLATFORM_TOOLS}}"}
         units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")

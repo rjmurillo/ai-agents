@@ -182,7 +182,14 @@ def capability_units(
     """
     if frontmatter.get(key) is None and fallback_key is not None:
         fallback = frontmatter.get(fallback_key)
-        if fallback is not None and not str(fallback).startswith("{{PLATFORM_"):
+        other_platform_key = "tools_vscode" in frontmatter or "tools_copilot" in frontmatter
+        # The generator copies a list-valued bare key only when no platform key exists.
+        list_blocked = other_platform_key and not isinstance(fallback, str)
+        if (
+            fallback is not None
+            and not list_blocked
+            and not str(fallback).startswith("{{PLATFORM_")
+        ):
             key = fallback_key
     if frontmatter.get(key) is None:
         return {f"{prefix}:{DECLARATION}": UNRESTRICTED}
