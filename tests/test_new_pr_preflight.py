@@ -196,25 +196,23 @@ class TestRequireHeadOnOrigin:
             assert _pr_val.require_head_on_origin("feat/x") is True
 
         assert "could not read origin" in capsys.readouterr().err
-        _pr_val._PREFLIGHT_WARNINGS.clear()
 
     def test_unreadable_origin_is_recorded_for_the_summary(self, capsys) -> None:
-        _pr_val._PREFLIGHT_WARNINGS.clear()
+        warnings: list[str] = []
         with patch.object(_pr_val, "head_on_origin", return_value=None):
-            assert _pr_val.require_head_on_origin("feat/x") is True
+            assert _pr_val.require_head_on_origin("feat/x", warnings) is True
         capsys.readouterr()
 
-        assert len(_pr_val._PREFLIGHT_WARNINGS) == 1
-        assert "could not read origin" in _pr_val._PREFLIGHT_WARNINGS[0]
-        _pr_val._PREFLIGHT_WARNINGS.clear()
+        assert len(warnings) == 1
+        assert "could not read origin" in warnings[0]
 
     def test_pushed_and_missing_branches_record_no_warning(self) -> None:
-        _pr_val._PREFLIGHT_WARNINGS.clear()
+        warnings: list[str] = []
         for found in (True, False):
             with patch.object(_pr_val, "head_on_origin", return_value=found):
-                _pr_val.require_head_on_origin("feat/x")
+                _pr_val.require_head_on_origin("feat/x", warnings)
 
-        assert _pr_val._PREFLIGHT_WARNINGS == []
+        assert warnings == []
 
     def test_pushed_branch_is_silent(self, capsys) -> None:
         with patch.object(_pr_val, "head_on_origin", return_value=True):
@@ -271,6 +269,35 @@ class TestMainRequiresPushedHead:
 
         assert rc == 0
         assert any(command[:3] == ["gh", "pr", "create"] for command in commands)
+
+    def test_unreadable_origin_warning_is_handed_to_validation(self, tmp_path) -> None:
+        def _side(argv, **kwargs):
+            return completed(stdout=str(tmp_path) if "--show-toplevel" in argv else "")
+
+        with (
+            patch("subprocess.run", side_effect=_side),
+            patch.object(_pr_val, "head_on_origin", return_value=None),
+            patch.object(new_pr, "run_validations") as validations,
+        ):
+            rc = main(["--title", "feat: test", "--head", "feat/x"])
+
+        assert rc == 0
+        handed = validations.call_args.kwargs["preflight_warnings"]
+        assert len(handed) == 1
+        assert "could not read origin" in handed[0]
+
+    def test_pushed_head_hands_no_preflight_warning_to_validation(self, tmp_path) -> None:
+        def _side(argv, **kwargs):
+            return completed(stdout=str(tmp_path) if "--show-toplevel" in argv else "")
+
+        with (
+            patch("subprocess.run", side_effect=_side),
+            patch.object(_pr_val, "head_on_origin", return_value=True),
+            patch.object(new_pr, "run_validations") as validations,
+        ):
+            main(["--title", "feat: test", "--head", "feat/x"])
+
+        assert validations.call_args.kwargs["preflight_warnings"] == []
 
 
 @pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")

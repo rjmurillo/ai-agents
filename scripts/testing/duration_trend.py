@@ -19,7 +19,7 @@ A regression fails the run only on a push to main. ``--event`` and ``--ref``
 name the run; any other event or ref, such as a pull request, reports the
 regression as a warning and exits 0, because runner timing noise must not block
 a merge (issue #6244). With neither flag the run is enforced, as on main.
-Passing only one of them, or an empty value, is a config error (exit 2).
+Passing only one, or an empty, padded, or malformed value, is a config error (exit 2).
 
 ``--breach-policy consecutive-main`` applies the owner decision of issue #6796.
 One sample on a shared runner swings 2x to 4x, and the swing lands on a
@@ -40,6 +40,7 @@ output or breach record that cannot be written).
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Sequence
@@ -105,16 +106,21 @@ ENFORCED_REF = "refs/heads/main"
 def is_enforced(event: str | None, ref: str | None) -> bool:
     """True when a regression fails the run: a push to main, or no run named.
 
-    Raises ValueError when only one of ``event`` and ``ref`` is given, or when
-    either is empty or blank. Such a run names no event, so treating it as
-    advisory would let a missing CI variable mute the gate.
+    Raises ValueError for a partial pair, an empty or padded value, an event
+    that is not a GitHub event name (lowercase words joined by underscores),
+    or a ref outside refs/. GitHub sends no such run, so reading one as
+    advisory would let a missing or mangled CI variable mute the gate.
     """
     if event is None and ref is None:
         return True
     if event is None or ref is None:
         raise ValueError("--event and --ref must be given together")
-    if not event.strip() or not ref.strip():
-        raise ValueError("--event and --ref must not be empty")
+    if not event.strip() or not ref.strip() or (event, ref) != (event.strip(), ref.strip()):
+        raise ValueError("--event and --ref must be non-empty with no surrounding whitespace")
+    if re.fullmatch(r"[a-z][a-z0-9_]*", event) is None or not ref.startswith("refs/"):
+        raise ValueError(
+            f"--event {event!r} must be a GitHub event name and --ref {ref!r} must start with refs/"
+        )
     return event == ENFORCED_EVENT and ref == ENFORCED_REF
 
 
@@ -191,11 +197,7 @@ def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.
 
 
 def _run_identity_ok(args: argparse.Namespace, policy: consecutive_breach.Policy) -> bool:
-    """False, with a message, when the event and ref are partial or empty.
-
-    Strict reads the flags. Every other policy reads the resolved policy, which
-    falls back to GITHUB_EVENT_NAME and GITHUB_REF when a flag is empty.
-    """
+    """False, with a message, for a partial, empty, or malformed event and ref."""
     strict = policy.name == consecutive_breach.POLICY_STRICT
     event, ref = (args.event, args.ref) if strict else (policy.event, policy.ref)
     try:

@@ -128,13 +128,13 @@ def head_on_origin(head: str) -> bool | None:
     return None
 
 
-# Warnings raised before ``run_validations`` builds its log. The next run drains
-# them so the summary says "completed with warnings" instead of "passed".
-_PREFLIGHT_WARNINGS: list[str] = []
+def require_head_on_origin(head: str, warnings: list[str] | None = None) -> bool:
+    """Refuse to continue when gh would resolve a head that origin lacks.
 
-
-def require_head_on_origin(head: str) -> bool:
-    """Refuse to continue when gh would resolve a head that origin lacks."""
+    An unreadable origin is a warning, not a refusal. It is printed and, when
+    ``warnings`` is given, appended there so the caller can hand it to
+    ``run_validations`` and the summary says "completed with warnings".
+    """
     if not is_valid_branch_name(head):
         print(f"Head {head!r} is not a valid git branch name.", file=sys.stderr)
         return False
@@ -145,7 +145,8 @@ def require_head_on_origin(head: str) -> bool:
             f"Warning: {message}; continuing, gh will report a missing head.",
             file=sys.stderr,
         )
-        _PREFLIGHT_WARNINGS.append(message)
+        if warnings is not None:
+            warnings.append(message)
         return True
     if not on_origin:
         print(
@@ -332,11 +333,16 @@ def run_validations(
     title: str = "",
     body: str = "",
     body_file: str = "",
+    preflight_warnings: tuple[str, ...] | list[str] = (),
 ) -> None:
-    """Run pre-creation validations. Raises SystemExit(1) on failure."""
+    """Run pre-creation validations. Raises SystemExit(1) on failure.
+
+    ``preflight_warnings`` carries warnings raised before this call, such as
+    an unreadable origin, so the summary counts them.
+    """
     warnings = _WarningLog()
-    while _PREFLIGHT_WARNINGS:
-        warnings.record(_PREFLIGHT_WARNINGS.pop(0))
+    for message in preflight_warnings:
+        warnings.record(message)
     try:
         os.makedirs(os.path.join(repo_root, ".project-toolkit"), exist_ok=True)
     except PermissionError as exc:

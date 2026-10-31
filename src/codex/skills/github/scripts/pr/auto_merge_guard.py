@@ -147,9 +147,8 @@ def identity_mismatches(
     ``expected`` carries the head SHA, base ref, and base SHA captured by the
     readiness cycle. This helper reports no mismatch for an empty expectation;
     the guard entry point refuses an empty binding before it gets here. When
-    any is supplied the PR must also
-    still be OPEN: a merged PR keeps its head SHA, so a SHA match alone cannot
-    prove the session still owns a live branch.
+    any is supplied the PR must also still be OPEN: a merged PR keeps its head
+    SHA, so a SHA match alone cannot prove the session still owns a live branch.
     """
     if not expected:
         return []
@@ -165,7 +164,13 @@ def identity_mismatches(
 
 
 def _has_identity_binding(expected: dict[str, str] | None) -> bool:
-    """True when the caller bound at least one of head SHA, base ref, base SHA."""
+    """True when the caller bound at least one of head SHA, base ref, base SHA.
+
+    Any one field is accepted so a caller that captured only the base ref still
+    gets the OPEN-state check ``identity_mismatches`` adds for every binding,
+    which refuses a merged or closed PR. Only a SHA binding detects a moved
+    head, which is why the skill docs and pr-autofix pass ``--expected-head-sha``.
+    """
     if not expected:
         return False
     return any(expected.get(key) for key in ("head_sha", "base_ref", "base_sha"))

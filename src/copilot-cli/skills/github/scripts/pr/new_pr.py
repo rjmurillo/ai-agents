@@ -406,8 +406,13 @@ def _run_pre_creation_validations(
     repo_root: str,
     head: str,
     body: str,
+    preflight_warnings: list[str] | None = None,
 ) -> int | None:
-    """Validate the request or write the audited validation skip."""
+    """Validate the request or write the audited validation skip.
+
+    ``preflight_warnings`` are warnings raised before validation, such as an
+    unreadable origin, handed to ``run_validations`` for its summary.
+    """
     if not validate_conventional_commit(args.title):
         return 2
 
@@ -443,6 +448,7 @@ def _run_pre_creation_validations(
             title=args.title,
             body=body,
             body_file="",
+            preflight_warnings=preflight_warnings or [],
         )
     except SystemExit:
         raise
@@ -523,11 +529,12 @@ def main(argv: list[str] | None = None) -> int:
     if not _gh_is_available():
         return 2
 
+    preflight_warnings: list[str] = []
     head = _resolve_head(args.head)
-    if head is None or not _pr_val.require_head_on_origin(head):
+    if head is None or not _pr_val.require_head_on_origin(head, preflight_warnings):
         return 2
 
-    validation_exit = _run_pre_creation_validations(args, repo_root, head, body)
+    validation_exit = _run_pre_creation_validations(args, repo_root, head, body, preflight_warnings)
     if validation_exit is not None:
         return validation_exit
 

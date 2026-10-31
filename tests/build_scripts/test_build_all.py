@@ -33,6 +33,8 @@ def _stub_surface_parity_gate(monkeypatch: pytest.MonkeyPatch) -> None:
 
     The parity gate has its own tests in test_check_surface_parity_inventory.py
     and test_surface_parity_repo.py; these tests exercise the other --check gates.
+    test_cli_check_exits_2_when_the_surface_parity_manifest_is_missing restores
+    the real gate and is the one guard on the --check wiring.
     """
     monkeypatch.setattr(build_all, "_surface_parity_exit", lambda *_a, **_k: 0)
 
