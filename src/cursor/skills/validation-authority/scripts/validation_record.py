@@ -266,8 +266,10 @@ def _target_defects(
     if diagnosis == "baseline-update":
         defects += _baseline_defects(where, target, repo_root)
     if diagnosis == RELOCATION:
-        defects += _relocation_scope_defects(where, target)
-        defects += _relocation_defects(where, target, collector)
+        scope_defects = _relocation_scope_defects(where, target)
+        defects += scope_defects
+        # pytest collection imports the named files, so only vetted paths reach it.
+        defects += _relocation_defects(where, target, None if scope_defects else collector)
     return defects
 
 

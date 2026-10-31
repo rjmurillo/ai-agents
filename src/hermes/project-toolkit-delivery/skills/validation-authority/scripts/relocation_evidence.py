@@ -35,9 +35,22 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
     The validator never runs the record's own ``collect_command``: that string
     is agent-supplied, and executing it would let the record run arbitrary
     commands. The argv here is fixed, so only the module paths vary, and they
-    are checked to sit under ``tests/`` with no ``..`` before this runs.
+    are checked to sit under ``tests/`` with no ``..`` by the caller before this
+    runs; ``validation_record`` skips collection when that scope check fails.
     """
-    argv = [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
+    # --override-ini=addopts= drops the repo's addopts: its -v cancels -q and
+    # prints a tree with no "::" ids, which would collect zero tests.
+    argv = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "--override-ini=addopts=",
+        "--import-mode=importlib",
+        "--collect-only",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+    ]
     try:
         result = subprocess.run(
             [*argv, "--", *paths],

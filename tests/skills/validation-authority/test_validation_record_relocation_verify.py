@@ -230,3 +230,60 @@ def test_recomputed_trigger_refusal_is_reported(tmp_path: Path) -> None:
         record, changed_paths=("tests/a.py",), repo_root=tmp_path, trigger_module=trigger_mod
     )
     assert any("refused: unknown effect: bogus-effect" in e for e in errors)
+
+
+def test_collect_tests_yields_ids_from_the_real_repo_root_despite_addopts() -> None:
+    """review-gates-03: repo addopts (-v) must not turn the id list into a tree."""
+    ids = reloc.collect_tests(
+        ["tests/validation/test_check_memory_placement_growth.py"], PROJECT_ROOT
+    )
+    assert ids
+    assert all("::" in item for item in ids)
+
+
+def test_cli_passes_a_pure_move_from_the_real_repo_root(tmp_path: Path) -> None:
+    """review-gates-03: end to end with --repo-root set to the real repository."""
+    module = "tests/validation/test_check_memory_placement_growth.py"
+    ids = reloc.collect_tests([module], PROJECT_ROOT)
+    target = make_relocation_target(
+        target=module,
+        authority={
+            "diagnosis": "relocation-no-semantic-change",
+            "permitted_change_location": module,
+        },
+    )
+    target["relocation_evidence"].update(
+        {"moved_from": ["tests/validation/test_old_home.py"], "moved_to": [module]}
+    )
+    old = "tests/validation/test_old_home.py"
+    target["relocation_evidence"]["tests_before"] = [item.replace(module, old, 1) for item in ids]
+    target["relocation_evidence"]["tests_after"] = list(ids)
+    trigger = _trigger_output(tmp_path, module)
+    record = tmp_path / "record.json"
+    record.write_text(json.dumps(make_record(target, trigger=trigger)))
+    result = _run(
+        _RECORD_SCRIPT,
+        tmp_path,
+        "--record",
+        str(record),
+        "--changed-path",
+        module,
+        "--repo-root",
+        str(PROJECT_ROOT),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_collector_is_not_called_when_a_moved_to_path_fails_the_scope_rule() -> None:
+    """review-gates-05: an unvetted record path must never reach pytest."""
+    calls: list[Any] = []
+
+    def collector(paths: Any) -> list[str]:
+        calls.append(list(paths))
+        return []
+
+    target = make_relocation_target()
+    target["relocation_evidence"]["moved_to"] = ["tests/../../outside/test_evil.py"]
+    errors = mod.validate(make_record(target), collector=collector)
+    assert calls == []
+    assert any(".." in error for error in errors)

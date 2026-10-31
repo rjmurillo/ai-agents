@@ -146,8 +146,10 @@ Rules `validation_record.py` enforces:
    the trigger activated, the record needs at least one target, and each path
    the trigger named needs a record target.
    An activated trigger must carry an `effects` list; a record without one is a
-   defect. With `--changed-path`, the validator reruns the trigger on those
-   paths and refuses a `skip` the trigger would activate.
+   defect. The validator cannot recompute `effects` from paths: they are
+   diff-verified declarations, and an empty list is trusted. With
+   `--changed-path`, the validator reruns the trigger on those paths and
+   refuses a `skip` the trigger would activate.
 2. `UNKNOWN` category or `unknown` diagnosis is always a blocking defect: stop
    semantic edits and request ownership evidence.
 3. `GENERATED` needs `provenance.canonical_source`, and
