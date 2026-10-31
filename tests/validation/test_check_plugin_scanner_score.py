@@ -407,6 +407,10 @@ def test_scanner_project_lock_pins_the_action_wheel() -> None:
     lock = (REPO_ROOT / gate.SCANNER_PROJECT / "uv.lock").read_text(encoding="utf-8")
     assert 'name = "plugin-scanner"\nversion = "3.57.0"' in lock
     assert "408b302ca427fc8b7bc0b54164f85e9d57d45714d24bafe1a2e6bef7353558fa" in lock
+    # The cooldown waiver is a dated cutoff, never `false`, so later scanner
+    # releases stay under the 7-day exclude-newer cooldown.
+    assert 'plugin-scanner = "2026-10-26T00:00:00Z"' in lock
+    assert "plugin-scanner = false" not in lock
     workflow = (REPO_ROOT / ".github" / "workflows" / "plugin-scanner.yml").read_text(
         encoding="utf-8"
     )

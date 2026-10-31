@@ -8,7 +8,7 @@ exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
 certifi = false
-plugin-scanner = false
+plugin-scanner = "2026-10-26T00:00:00Z"
 
 [manifest]
 overrides = [{ name = "certifi", specifier = "==2026.10.19" }]

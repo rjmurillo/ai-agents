@@ -31,7 +31,10 @@ override-dependencies = [
 
 [tool.uv.exclude-newer-package]
 certifi = false
-# The scanner version follows the action commit the catalog pins, not the
-# cooldown. The action already checks this wheel's SHA-256 and PyPI provenance,
-# and uv.lock pins the same hash, so the cooldown adds no check here.
-plugin-scanner = false
+# The cooldown is waived for one release only: 3.57.0, uploaded
+# 2026-10-25T21:40Z, the version the catalog's action commit installs. The
+# action verifies its SHA-256 and PyPI provenance, and uv.lock pins that hash.
+# A dated cutoff, not `false`, so later versions stay under the cooldown. Next
+# bump: delete this entry once the new version is 7 days old, or move the date
+# only after checking the wheel hash against the action's scanner-sha256.txt.
+plugin-scanner = "2026-10-26T00:00:00Z"
