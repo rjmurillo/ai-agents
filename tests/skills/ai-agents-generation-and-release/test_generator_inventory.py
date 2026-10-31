@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py"
 
@@ -124,6 +126,9 @@ def test_path_repo_local_skill_flagged(tmp_path, capsys):
     out = json.loads(capsys.readouterr().out)
     assert out["repo_local_skill"] is True
     assert out["role"] == "repo-local-rendered"
+    assert all(m["role"] == "repo-local-rendered" for m in out["matches"])
+    assert all(m["plugin_tree"] is None for m in out["matches"])
+    assert all(m["canonical_source"] == "templates/skills" for m in out["matches"])
     assert mod.main(["--repo", str(repo), "path", ".claude/skills/a/SKILL.md"]) == 0
     assert json.loads(capsys.readouterr().out)["repo_local_skill"] is False
 
@@ -218,3 +223,26 @@ def test_most_specific_does_not_mutate_input():
     matches = [{"role": "x", "specificity": 3}, {"role": "y", "specificity": 1}]
     assert mod._most_specific(matches) == [{"role": "x"}]
     assert matches[0]["specificity"] == 3
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/claude/AGENTS.md",
+        "src/claude/claude-instructions.template.md",
+        "src/claude/skills/a/scripts/x.py",
+    ],
+)
+def test_path_hand_maintained_sources_are_not_generated(tmp_path, capsys, path):
+    repo = _repo(tmp_path)
+    assert mod.main(["--repo", str(repo), "path", path]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["role"] == "hand-maintained"
+    assert "regenerate" not in out
+    assert all(m["regenerate"] is None for m in out["matches"])
+
+
+def test_path_shipped_skill_md_stays_generated(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    assert mod.main(["--repo", str(repo), "path", "src/claude/skills/a/SKILL.md"]) == 0
+    assert json.loads(capsys.readouterr().out)["role"] == "generated"

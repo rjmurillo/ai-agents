@@ -6,8 +6,10 @@
 
 `list` prints every linked instrument and whether its files exist (exit 1 when any
 is missing). `run` executes the instrument argv from the repo root and passes the
-child's exit code through. Exit codes: 0 ok, 1 missing instrument file, 2 bad
-arguments or unknown id, 3 the run target failed to start.
+child's exit code and output through unchanged, so a `grep` row prints text while a
+script row prints its own JSON; only `list` promises JSON with `examined`. Exit codes:
+0 ok, 1 missing instrument file, 2 bad arguments or unknown id, 3 the run target
+failed to start.
 """
 
 from __future__ import annotations

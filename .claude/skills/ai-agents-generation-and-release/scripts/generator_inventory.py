@@ -226,6 +226,13 @@ def cmd_path(repo: Path, raw: str) -> tuple[dict[str, Any], int]:
     path = _norm(raw)
     matches = [m for row in rows for m in _row_matches(row, path)]
     out: dict[str, Any] = {"path": path, "examined": len(rows)}
+    if _hand_maintained(path):
+        out["role"] = "hand-maintained"
+        out["matches"] = [
+            {**m, "regenerate": None} for m in (_most_specific(matches) if matches else [])
+        ]
+        out["note"] = "hand-maintained source: commit directly, nothing regenerates it"
+        return out, 0
     if matches:
         best = _most_specific(matches)
         out["role"] = best[0]["role"]
@@ -233,6 +240,9 @@ def cmd_path(repo: Path, raw: str) -> tuple[dict[str, Any], int]:
         out["repo_local_skill"] = _repo_local_skill(repo, path)
         if out["repo_local_skill"] and path.endswith("/SKILL.md"):
             out["role"] = "repo-local-rendered"
+            out["matches"] = [
+                {**m, "role": "repo-local-rendered", "plugin_tree": None} for m in best
+            ]
             out["note"] = (
                 "repo-local skill: template renders straight to install_tree, no plugin hop"
             )
@@ -250,6 +260,18 @@ def cmd_path(repo: Path, raw: str) -> tuple[dict[str, Any], int]:
         return out, 0
     out.update(role=None, matches=[], note="no binplace row or owned prefix covers this path")
     return out, 1
+
+
+_HAND_MAINTAINED_NAMES = {"AGENTS.md", "CLAUDE.md"}
+_HAND_MAINTAINED_PATHS = {"src/claude/claude-instructions.template.md"}
+_SHIPPED_SKILL_SUPPORT = re.compile(r"^src/claude/skills/[^/]+/(?!SKILL\.md$).+")
+
+
+def _hand_maintained(path: str) -> bool:
+    """Files that sit under a generated or owned tree but are edited directly."""
+    if path in _HAND_MAINTAINED_PATHS or path.rsplit("/", 1)[-1] in _HAND_MAINTAINED_NAMES:
+        return True
+    return _SHIPPED_SKILL_SUPPORT.match(path) is not None
 
 
 def _repo_local_skill(repo: Path, path: str) -> bool:

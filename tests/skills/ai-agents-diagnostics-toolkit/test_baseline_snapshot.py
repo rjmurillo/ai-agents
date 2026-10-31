@@ -89,6 +89,8 @@ def test_ai_agents_diagnostics_toolkit_snapshot_positive(monkeypatch, repo, caps
     assert ins["orphan_refs"]["directive_suppressed"] == 316
     assert ins["orphan_refs"]["verdict"] == "PASS"
     assert ins["golden_principles"]["errors"] == 7 and ins["golden_principles"]["exit"] == 10
+    # A scan that found violations is recorded, not treated as a snapshot failure.
+    assert out["failing"] == ["golden_principles"] and out["unreadable"] == []
 
 
 def test_unreadable_output_exits_1(monkeypatch, repo, capsys):

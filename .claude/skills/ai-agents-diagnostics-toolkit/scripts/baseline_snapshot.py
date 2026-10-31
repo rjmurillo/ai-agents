@@ -7,6 +7,9 @@ then prints their counts with the HEAD SHA and the ISO date. It never runs
 
 Exit codes: 0 every instrument produced numbers, 1 an instrument ran but its output
 could not be read, 2 bad arguments or not a repository, 3 git or an instrument failed to start.
+The snapshot records a baseline, it does not gate one: an instrument's own nonzero exit
+(a scan that found violations) is kept in that instrument's `exit` field and its name is
+listed under `failing`, while the snapshot itself still exits 0.
 """
 
 from __future__ import annotations
@@ -134,6 +137,9 @@ def snapshot(repo: Path) -> tuple[dict[str, Any], int]:
         result["instruments"][name] = entry
     result["examined"] = len(INSTRUMENT_ARGV)
     result["unreadable"] = unreadable
+    result["failing"] = [
+        name for name, entry in result["instruments"].items() if entry["exit"] != 0
+    ]
     return result, (1 if unreadable else 0)
 
 
