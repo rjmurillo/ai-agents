@@ -91,7 +91,7 @@ jobs:
       - name: Checkout trusted base scripts
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch || 'main' }}
           path: trusted-base
           sparse-checkout: |
             scripts/ci
