@@ -159,3 +159,27 @@ def test_matching_host_forms_resume(repo: Path, tmp_path: Path, capsys, recorded
 
     assert code == checker.EXIT_OK
     assert "[RESUME]" in out
+
+
+def test_missing_origin_reports_no_origin(repo: Path, tmp_path: Path, capsys) -> None:
+    _git(repo, "remote", "remove", "origin")
+    handoff = _write(tmp_path / "h.md", repo)
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert "live (no origin remote)" in out
+
+
+@pytest.mark.parametrize("origin", ["/home/x/repos/foo", "file:///srv/repos/foo"])
+def test_non_url_live_origin_reports_the_url_not_missing_origin(
+    repo: Path, tmp_path: Path, capsys, origin: str
+) -> None:
+    _git(repo, "remote", "set-url", "origin", origin)
+    handoff = _write(tmp_path / "h.md", repo)
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert f"live origin is not a repository URL: {origin}" in out
+    assert "no origin remote" not in out

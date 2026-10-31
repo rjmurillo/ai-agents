@@ -12,8 +12,8 @@ What it decides:
   * every required State Record field is present and not a ``{placeholder}``
   * the timestamp parses as ISO 8601
   * every decision under ``## Decisions Made`` has a ``Provenance:`` line
-  * recorded remote owner/name, branch, worktree, and head SHA equal the live
-    repository
+  * recorded remote host (when present) and owner/name, branch, worktree, and
+    head SHA equal the live repository
 
 What it does not decide (the orchestrator still does):
   * whether the Next action is already done, reverted, or superseded. When the
@@ -375,17 +375,16 @@ def _ahead(repo: Path, recorded: str) -> str:
     return f" (live head is {count} commit(s) ahead; read them against the Next action)"
 
 
-def _live_remote(repo: Path) -> tuple[str | None, str] | None:
+def _live_origin(repo: Path) -> str | None:
+    """Return the raw origin URL, or None when the repository has no origin."""
     try:
-        return _parse_remote(_git(repo, "remote", "get-url", "origin"))
+        return _git(repo, "remote", "get-url", "origin")
     except GitError:
         _git(repo, "rev-parse", "--git-dir")  # not a repository: raise as an external failure
         return None
 
 
-def _format_remote(remote: tuple[str | None, str] | None) -> str:
-    if remote is None:
-        return NO_ORIGIN
+def _format_remote(remote: tuple[str | None, str]) -> str:
     host, owner_name = remote
     return f"{host}/{owner_name}" if host else owner_name
 
@@ -395,12 +394,19 @@ def _check_remote(recorded_text: str, repo: Path, report: Report) -> None:
     if recorded is None:
         report.hold(f"remote is not a repository URL or owner/name: {recorded_text.strip()}")
         return
-    live = _live_remote(repo)
+    recorded_label = _format_remote(recorded)
+    origin = _live_origin(repo)
+    if origin is None:
+        report.hold(f"remote mismatch: recorded {recorded_label}, live {NO_ORIGIN}")
+        return
+    live = _parse_remote(origin)
+    if live is None:
+        report.hold(f"live origin is not a repository URL: {origin}")
+        return
     recorded_host, recorded_name = recorded
-    live_host, live_name = live if live else (None, "")
+    live_host, live_name = live
     host_differs = recorded_host is not None and recorded_host != live_host
-    if live is None or host_differs or recorded_name.lower() != live_name.lower():
-        recorded_label = _format_remote(recorded)
+    if host_differs or recorded_name.lower() != live_name.lower():
         report.hold(f"remote mismatch: recorded {recorded_label}, live {_format_remote(live)}")
 
 
