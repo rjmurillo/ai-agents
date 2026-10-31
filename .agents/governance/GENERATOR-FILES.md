@@ -129,7 +129,7 @@ the required `Python Tests` run on every pull request.
 
 | Pair | Compared | Section on one side only |
 |------|----------|--------------------------|
-| `claude-shared` | rendered Claude template against `<stem>.shared.md` | Skipped. `detect_agent_drift.py` owns the section inventory |
+| `claude-shared` | rendered Claude template against `<stem>.shared.md` | Divergence, except the Claude-only `Claude Code Tools` section. Each existing case is pinned in the baseline |
 | `copilot-shared` | rendered Copilot template against `<stem>.shared.md` | Fails. Both feed the same platform family |
 
 Tree-specific, dropped from comparison: every frontmatter key except
