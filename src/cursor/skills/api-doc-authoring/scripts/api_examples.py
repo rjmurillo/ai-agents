@@ -38,8 +38,10 @@ import hashlib
 import http.client
 import ipaddress
 import json
+import os
 import platform
 import re
+import stat
 import sys
 import threading
 import time
@@ -338,9 +340,76 @@ def _evidence(
     }
 
 
+_MAX_EVIDENCE_BYTES = 10_000_000
+
+
+def _is_prior_evidence(path: Path, size: int) -> bool:
+    """Return whether ``path`` holds an evidence report this tool wrote earlier.
+
+    ``size`` is the byte length from the caller's ``lstat``; a file over
+    ``_MAX_EVIDENCE_BYTES`` is not a report and is never read.
+    """
+    if size > _MAX_EVIDENCE_BYTES:
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and "verdict" in data and "doc_sha256" in data
+
+
+def _check_evidence_path(raw: str) -> Path:
+    """Validate ``--evidence`` before any example runs and return the target.
+
+    Refuses a symlink at the target, a target that is not a regular file, and
+    an existing file that is not a prior evidence report, so the flag cannot
+    clobber a source file or write through a planted link (CWE-59). A relative
+    path must stay inside the working directory once its parent is resolved,
+    which stops a symlinked directory from carrying the write out of the
+    checkout. An absolute path is the caller's explicit choice and is only
+    held to the target checks; a symlinked parent of an absolute path is not
+    refused, so pass a path whose directories you control.
+    """
+    target = Path(raw)
+    if not target.is_absolute():
+        cwd = Path.cwd().resolve()
+        if not (cwd / target).parent.resolve().is_relative_to(cwd):
+            raise InputError(f"evidence path `{raw}` resolves outside the working directory")
+    try:
+        info = target.lstat()
+    except FileNotFoundError:
+        return target
+    except OSError as exc:
+        raise InputError(f"cannot inspect evidence path `{raw}`: {exc.strerror or exc}") from exc
+    if not stat.S_ISREG(info.st_mode):
+        raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
+    if not _is_prior_evidence(target, info.st_size):
+        raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
+    return target
+
+
+def _write_evidence(target: Path, report: dict[str, Any]) -> None:
+    """Write the report through an exclusive, no-follow sibling temp file."""
+    text = json.dumps(report, indent=2) + "\n"
+    temporary = target.with_name(f".{target.name}.{os.urandom(8).hex()}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(temporary, flags, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(temporary, target)
+    except OSError as exc:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+        raise InputError(f"cannot write evidence to `{target}`: {exc.strerror or exc}") from exc
+
+
 def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, Any], int]:
     """Execute examples against a local or mock server."""
     base_url = check_base_url(args.base_url, args.allow_remote)
+    evidence_target = _check_evidence_path(args.evidence) if args.evidence else None
     examples, findings = _collect(args.docs, args.touching)
     runnable = [e for e in examples if e.expect is not None]
     if not runnable:
@@ -349,13 +418,18 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
     results: list[dict[str, Any]] = []
     for example in runnable:
         if time.monotonic() > deadline:
-            return _past_deadline(args, base_url, results, runnable[len(results) :], findings)
+            return _past_deadline(
+                args, base_url, results, runnable[len(results) :], findings, evidence_target
+            )
         try:
             results.append(run_example(example, base_url, sender))
         except InputError as exc:
-            return _request_failed(args, base_url, results, runnable[len(results) :], findings, exc)
+            return _request_failed(
+                args, base_url, results, runnable[len(results) :], findings, evidence_target, exc
+            )
     report = _report(args, base_url, results, findings)
-    _write_evidence(args, report)
+    if evidence_target is not None:
+        _write_evidence(evidence_target, report)
     return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
 
 
@@ -373,16 +447,12 @@ def _report(
     return report
 
 
-def _write_evidence(args: argparse.Namespace, report: dict[str, Any]) -> None:
-    if args.evidence:
-        Path(args.evidence).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-
-
 def _stopped(
     args: argparse.Namespace,
     base_url: str,
     results: list[dict[str, Any]],
     findings: list[dict[str, Any]],
+    evidence_target: Path | None,
     *,
     key: str,
     detail: dict[str, Any],
@@ -399,7 +469,8 @@ def _stopped(
     if not failed:
         report["verdict"] = "UNVERIFIED"
     report[key] = detail
-    _write_evidence(args, report)
+    if evidence_target is not None:
+        _write_evidence(evidence_target, report)
     if failed:
         return report, EXIT_FINDINGS
     raise InputError(message)
@@ -411,6 +482,7 @@ def _past_deadline(
     results: list[dict[str, Any]],
     unrun: list[Example],
     findings: list[dict[str, Any]],
+    evidence_target: Path | None,
 ) -> tuple[dict[str, Any], int]:
     """Stop a run that passed its deadline; the examples that never ran are listed."""
     detail = {"seconds": RUN_DEADLINE_SECONDS, "unrun": [e.id for e in unrun]}
@@ -420,7 +492,14 @@ def _past_deadline(
         "the run is unverified and the finished results are not a verdict"
     )
     return _stopped(
-        args, base_url, results, findings, key="deadline_exceeded", detail=detail, message=message
+        args,
+        base_url,
+        results,
+        findings,
+        evidence_target,
+        key="deadline_exceeded",
+        detail=detail,
+        message=message,
     )
 
 
@@ -430,6 +509,7 @@ def _request_failed(
     results: list[dict[str, Any]],
     unrun: list[Example],
     findings: list[dict[str, Any]],
+    evidence_target: Path | None,
     error: InputError,
 ) -> tuple[dict[str, Any], int]:
     """Stop a run whose request could not finish (deadline, byte cap, unreachable server).
@@ -445,7 +525,14 @@ def _request_failed(
         "the run is unverified and the finished results are not a verdict"
     )
     return _stopped(
-        args, base_url, results, findings, key="request_failed", detail=detail, message=message
+        args,
+        base_url,
+        results,
+        findings,
+        evidence_target,
+        key="request_failed",
+        detail=detail,
+        message=message,
     )
 
 
