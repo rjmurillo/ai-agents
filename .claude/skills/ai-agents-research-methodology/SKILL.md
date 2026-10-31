@@ -20,7 +20,7 @@ metadata:
 
 # AI Agents Research Methodology
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers (issue #2050). Declared paths: .agents/governance/FAILURE-MODES.md, .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md, .project-toolkit/retrospective, .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md, .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md, scripts/eval/eval-prompt-change.py, scripts/validation/check_citation_freshness.py -->
 This repo runs on verification-based governance: labels like "MANDATORY" or
 "NON-NEGOTIABLE" are insufficient, every requirement needs a verification
 mechanism. The same standard applies to ideas. An idea is not accepted because it sounds
@@ -47,7 +47,7 @@ including the negative ones, and the explanation survives adversarial
 refutation. Partial explanations that cover only the confirming observations
 are hypotheses, not results.
 
-The cautionary tale is the recursive-failure PR. Mitigation M1 was built on a root-cause claim
+The cautionary tale is PR #1989. Mitigation M1 was built on a root-cause claim
 inherited from a retro RCA that nobody re-verified: the RCA said pagination was
 missing, but `get_unresolved_review_threads.py` already paginated correctly
 (.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20). Five
@@ -59,7 +59,7 @@ invent a new review ritual; route into these:
 
 | Claim type | Adversarial mechanism | How to invoke |
 |---|---|---|
-| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` create/edit (AGENTS.md "ADR Review"); or `/adr-review path` |
+| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` create/edit (AGENTS.md:12, "ADR review: debate log required"); or `/adr-review path` |
 | A single decision's reasoning | `decision-critic` skill | Say `Poke holes in this decision` or `Validate my thinking on ...` |
 | Contrarian read of a plan | `independent-thinker` or `critic` agent (`.claude/agents/`) | Task tool with that subagent_type |
 | Strategic build/buy/defer | `buy-vs-build-framework` (Quick tier: 1-2 hours) | Required gate for new capabilities, see Phase 3 |
@@ -110,7 +110,7 @@ citation, behavior). Interpretation guidance lives in
 ## Process
 
 The lifecycle. Every stage produces an artifact; every transition has a gate.
-Skipping a stage is how the recursive-failure incident happened.
+Skipping a stage is how #1989 happened.
 
 ### Phase 1: Hunch, Then Search, Then Contradiction Log
 
@@ -134,20 +134,19 @@ Turn the hunch into a falsifiable claim and probe it. Rules of the probe
   the comfortable default environment.
 - Include a negative control: a case that proves the probe CAN fail.
 - Never trust vendor docs alone; this repo was burned twice by
-  wrong-by-omission docs (the plugin-root and hook payload retros in `.project-toolkit/retrospective/`).
+  wrong-by-omission docs (#2205, #2290 retros in `.project-toolkit/retrospective/`).
 - Record the probe result in a decision memory with version and date.
 
 ### Phase 3: Capability Gate and Eval Baseline
 
 If the idea adds a new capability (Context, module, scanner, validator,
 pipeline component), it must pass the buy-vs-build gate BEFORE any spec work.
-AGENTS.md (line 40): "buy-vs-build Quick tier BEFORE spec-generator + baseline;
-greater than 13wk no baseline = prune. Skip: bug, doc, refactor, approved
-extension." Run `buy-vs-build-framework` at Quick tier (1-2 hours: Core vs
+AGENTS.md:12 lists "new cap buy-vs-build" among the skills a new capability
+must pass. Run `buy-vs-build-framework` at Quick tier (1-2 hours: Core vs
 Context, simple TCO, go/no-go).
 
 Then establish the eval baseline using the Predict Numbers discipline above.
-An idea that has carried no measurable baseline for 13 weeks gets pruned; that
+An idea with no measurable baseline gets pruned; that
 is the documented cost of skipping this phase.
 
 ### Phase 4: ADR and Debate
@@ -167,14 +166,14 @@ when citing.
 
 A result becomes enforcement (a hook, a validator, a CI gate) or capability (a
 skill via `SkillForge`). Any threshold-based detector must ship with a
-calibration table. The rule, from the recursive-failure retro ("Process Change 3",
+calibration table. The rule, from the #1989 retro ("Process Change 3",
 .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:149-157): show
 the threshold, a sample of real PRs measured against it, and the expected
 firing rate. "A detector that cannot fire on the last 5 PRs in the repo is not
 calibrated." The origin: M4 shipped with threshold 6 in a repo whose busiest
 PR had 4 file edits; it could never fire (retro lines 72-73).
 
-Also run the new guard on its own branch before merging. M5 in that retro was a
+Also run the new guard on its own branch before merging. #1989 M5 was a
 pre-push guard that was never executed on the branch that shipped it.
 
 ### Phase 6: Monitor
@@ -183,7 +182,7 @@ Enforcement decays. The push guards used to emit `EVENT=` telemetry lines
 (stderr, via `push_guard_base.py`) that a maturity-tier skill aggregated into
 tiers (Budding, Growing, Mature, Proficient, Inert, Harmful) to tell you
 whether a gate earned its keep. That emitter, every guard built on it, and the
-classifier skill itself were deleted under ADR-084: there is no
+classifier skill itself were deleted under ADR-084 (issue #5154): there is no
 producer and no consumer today. The underlying principle still applies to
 whatever gate you add next: an Inert gate is a candidate for the same prune
 rule as an unbaselined idea. If you build a new detector, ship its own
@@ -195,10 +194,10 @@ instruments lives in `ai-agents-diagnostics-toolkit`.
 Both outcomes are results. Adoption means the artifact set is complete: probe
 memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 
-Retirement gets recorded, never silenced. The exemplar is a rejected proposal: a
+Retirement gets recorded, never silenced. The exemplar is issue #2230: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
-silent-failure anti-pattern; the rejection is recorded with rationale in the plugin-root retro decision table
-(.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
+silent-failure anti-pattern; the rejection is recorded with rationale in the #2205 retro decision table
+(.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297 and :393) and
 the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection
 is a future duplicate proposal.
@@ -209,7 +208,7 @@ is a future duplicate proposal.
 |---|---|---|---|
 | 1. Hunch | `decision-<slug>` Serena memory (contradiction log) | Search done; contradiction logged if any | Self-serve |
 | 2. Spike | Probe script + decision memory with version/date | Negative control passed; claim falsifiable | Self-serve, peers via memory |
-| 3. Baseline | Buy-vs-build Quick verdict + written prediction + eval numbers | Go verdict; baseline exists (13wk prune clock starts) | `buy-vs-build-framework` output; user for spend |
+| 3. Baseline | Buy-vs-build Quick verdict + written prediction + eval numbers | Go verdict; baseline exists | `buy-vs-build-framework` output; user for spend |
 | 4. ADR | `ADR-*.md` + debate log | `adr-review` consensus (max 10 rounds) + human approval | 6-agent debate + user |
 | 5. Ship | Gate/skill + calibration table + tests | `ai-agents-change-control` ladder (pre_pr.py, CI, plugin version-field gate if plugin tree) | CI gates + review |
 | 6. Monitor | Detector-specific telemetry and tier report | Tier not Inert/Harmful | Periodic report from whatever the detector ships |
@@ -241,7 +240,7 @@ for templates and house style). Non-negotiables for research prose:
   `status: proposed` (as of 2026-07-03); citing it as settled is a defect.
 - Date-stamp volatile facts inline: "(as of 2026-07-03)".
 - Quote canonical sources verbatim when claiming a mirror "matches" (FM-9,
-  `.agents/governance/FAILURE-MODES.md`; One round-cap PR paid 7 fix commits for
+  `.agents/governance/FAILURE-MODES.md`; PR #1887 paid 7 fix commits for
   paraphrases).
 - Include the prediction AND the measured number, even when they disagree.
 - Run `prose-self-check` before emitting.
@@ -250,14 +249,14 @@ for templates and house style). Non-negotiables for research prose:
 
 | Anti-pattern | Real instance | Correct move |
 |---|---|---|
-| Building on an unverified RCA | Recursive-failure M1: "missing pagination" premise was false; the script already paginated | Re-verify the mechanism against source before building on it |
-| Shipping an uncalibrated threshold | Recursive-failure M4: threshold 6, repo max 4, could never fire | Calibration table against last 5 merged PRs, in the PR description |
-| Guard never run on its own branch | Recursive-failure M5 pre-push guard | Execute the guard on the shipping branch before merge |
+| Building on an unverified RCA | #1989 M1: "missing pagination" premise was false; the script already paginated | Re-verify the mechanism against source before building on it |
+| Shipping an uncalibrated threshold | #1989 M4: threshold 6, repo max 4, could never fire | Calibration table against last 5 merged PRs, in the PR description |
+| Guard never run on its own branch | #1989 M5 pre-push guard | Execute the guard on the shipping branch before merge |
 | Prediction written after the run | Any post-hoc "as expected" | Prediction in session log BEFORE the eval command |
 | Adopting on model consensus | Rejected repeatedly per builder-ethos | Present, state missing context, ask the user |
-| Silent retirement | The failure an explicit rejection record prevents | Record rejections with rationale where the next proposer will search |
+| Silent retirement | The failure #2230's explicit rejection record prevents | Record rejections with rationale where the next proposer will search |
 | Routing around the debate | Encoding policy in a rule to dodge `adr-review` | ADR + debate + human approval for governance changes |
-| Trusting vendor docs over probes | The first plugin-root fix assumed an env var by analogy; shipped 3 new defects | Empirical probe with negative control (`ai-agents-empirical-probe-toolkit`) |
+| Trusting vendor docs over probes | #2205 first fix assumed an env var by analogy; shipped 3 new defects | Empirical probe with negative control (`ai-agents-empirical-probe-toolkit`) |
 
 ## Verification
 
@@ -265,7 +264,7 @@ Before calling an idea "an accepted result," confirm:
 
 - [ ] A written prediction predates the measurement, and both numbers appear in the write-up.
 - [ ] One mechanism explains all observations, including negatives, and survived at least one adversarial pass (`adr-review`, `decision-critic`, or `independent-thinker`).
-- [ ] New capability passed the buy-vs-build Quick tier gate and has an eval baseline (or the 13-week prune clock is acknowledged).
+- [ ] New capability passed the buy-vs-build Quick tier gate and has an eval baseline.
 - [ ] Any threshold detector ships with a calibration table against the last 5 merged PRs and was run on its own branch.
 - [ ] The outcome (adoption or rejection) is recorded in a document of record with date-stamped, non-oversold claims.
 
@@ -276,19 +275,29 @@ volatile facts:
 
 | Fact | Source | Re-verify |
 |---|---|---|
-| Recursive-failure false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| Rejected-proposal record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n "Closed addressed-by-prevention" .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
-| adr-review auto-fire + 6-agent debate | `AGENTS.md:40` (`adr-review`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:38` (`13wk`) | `grep -n "13" AGENTS.md` |
-| buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory |
+| #1989 false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
+| #2230 rejection record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:297` and `:393` (`addressed-by-prevention`) | `grep -n 2230 .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
+| adr-review debate log required | `AGENTS.md:12` (`ADR review: debate log required`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
+| buy-vs-build gate for new capabilities | `AGENTS.md:12` (`new cap buy-vs-build`) | `grep -n "buy-vs-build" AGENTS.md` |
+| buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:92` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory |
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:633` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/skills/memory-gate/references/contradiction-log.md` | `grep -n "decision-" .claude/skills/memory-gate/references/contradiction-log.md` |
 | ADR-069 still proposed | `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size | `.project-toolkit/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.project-toolkit/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
+| Retro corpus size | `.project-toolkit/retrospective/` | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/corpus_index.py" --repo .` (`retro_files`; exits 1 while INDEX.md covers 11 of 241 retros at 42e409325, so read the JSON, not the exit code) |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline was never fully
 mapped before it was retired (noted in `ai-agents-research-frontier`). The
 emitter, `push_guard_base.py`, was verified present 2026-07-03 (mirrored under
 `src/copilot-cli/hooks/PreToolUse/`) and was deleted from both trees under
-ADR-084, along with the tier-classifier skill that consumed its
+ADR-084 (issue #5154), along with the tier-classifier skill that consumed its
 output; nothing in this repo produces or reads that telemetry today.
+
+### Scripts
+
+Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-research-methodology/scripts/instruments.py" --repo . list` to see every linked instrument and whether its file exists. It lists the retro counter above, the `file:line` claim check (`bootstrap_mine.py claims`), `scripts/validation/check_citation_freshness.py`, and the drift check. It answers presence only; whether a cited line still says what this skill claims is for `reverify.json`.
+
+Machine-checkable facts live in `reverify.json`. Run the drift check after any edit:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-research-methodology --require
+```

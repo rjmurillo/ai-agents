@@ -18,7 +18,7 @@ Verified 2026-07-03 against the working tree.
 | Verbatim-quote rule (7 fix commits) | `.claude/rules/canonical-source-mirror.md` | `sed -n '1,30p' .claude/rules/canonical-source-mirror.md` |
 | CONTRIBUTING pwsh commands are dead | `CONTRIBUTING.md:155`; no `.ps1` outside `.venv` | `find . -name '*.ps1' -not -path './.venv/*'` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md:8` | `sed -n '8p' .serena/memories/ci-infrastructure-observations.md` |
-| Runtime-contract exemplar passes (6 tests) | `tests/build_scripts/test_generate_hooks_runtime_contract.py` | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
-| FM-9, FM-11 catalog rows | `.agents/governance/FAILURE-MODES.md:14-27` | `sed -n '14,28p' .agents/governance/FAILURE-MODES.md` |
+| Runtime-contract exemplar passes (29 test functions at 42e409325) | `tests/build_scripts/test_generate_hooks_runtime_contract.py` | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
+| Failure mode 9 and 11 index rows (names, not FM-N ids) | `.agents/governance/FAILURE-MODES.md:15-29` | `sed -n '15,29p' .agents/governance/FAILURE-MODES.md` |
 
 Volatile facts to re-check when touching this skill: Copilot CLI version pins (1.0.57/1.0.58 were the measured versions, not the current ones), the `tests/evals/` scenario inventory, and whether ADR-057's flakiness protocol has been amended.
