@@ -122,8 +122,8 @@ def build_parser() -> argparse.ArgumentParser:
 # Markdown that GitHub hides or shows as code must not feed the SHA regex. Bots
 # hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
 # markdown-it-py parses the body; html.parser reads raw HTML blocks. Fenced and
-# indented code blocks are skipped on purpose, since they quote commands, not fix
-# references. A link target counts only when its URL names a commit
+# indented code block text is read, so a commit cited only inside a code block is
+# still reachability-checked (fail closed). A link target counts only when its URL names a commit
 # (/commit/<sha>); unused reference definitions do not render, so they are not read.
 #
 # html.parser changed across CPython patch releases (gh-135664): older builds end

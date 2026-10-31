@@ -186,3 +186,18 @@ def test_code_block_without_hex_adds_no_shas() -> None:
 
 def test_sha_only_in_code_block_is_found() -> None:
     assert _mod.extract_shas("```\ngit show deadbee\n```") == ["deadbee"]
+
+
+def test_unreachable_sha_only_in_code_block_blocks_report() -> None:
+    thread = {
+        "id": "T1",
+        "isResolved": True,
+        "comments": {"nodes": [{"body": "```\ngit show deadbee\n```"}]},
+    }
+    with patch(
+        "check_review_thread_resolution_shas.check_ancestor",
+        return_value=(False, "unreachable", ""),
+    ):
+        report = _mod.build_report("o", "r", 1, "b" * 40, [thread], True, ".")
+    assert report["sha_reference_count"] == 1
+    assert report["unreachable_count"] == 1
