@@ -151,7 +151,8 @@ def _run_gh_strict(args: list[str], *, timeout: int, what: str) -> subprocess.Co
     """Run ``gh`` and decode its output as strict UTF-8.
 
     Undecodable bytes used to be replaced with U+FFFD, which hid a corrupted
-    body, diff, or file name from the caller. Fail with exit 3 instead.
+    body, diff, or file name from the caller. Fail with exit 3 instead. The
+    explicit ``errors="strict"`` documents that a decode failure is an error.
     """
     try:
         return subprocess.run(
@@ -159,11 +160,13 @@ def _run_gh_strict(args: list[str], *, timeout: int, what: str) -> subprocess.Co
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="strict",
             timeout=timeout,
             check=False,
         )
     except UnicodeDecodeError as exc:
-        error_and_exit(f"Failed to decode {what} output as UTF-8: {exc}", 3)
+        print(f"Failed to decode {what} output as UTF-8: {exc}", file=sys.stderr)
+        raise SystemExit(3) from exc
 
 
 def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:

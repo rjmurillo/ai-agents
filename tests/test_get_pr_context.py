@@ -1115,7 +1115,7 @@ class TestUtf8Decoding:
         assert len(seen) == 3
         for kwargs in seen:
             assert kwargs["encoding"] == "utf-8"
-            assert "errors" not in kwargs
+            assert kwargs["errors"] == "strict"
 
     def test_pr_json_with_undecodable_byte_fails_closed(self, capsys):
         """A stray 0x9d byte in gh JSON must not crash or null stdout."""
