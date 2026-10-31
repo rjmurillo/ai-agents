@@ -109,6 +109,20 @@ class TestLiveEnumeration:
 
         assert code == EXIT_OK
 
+    def test_non_object_runs_payload_exits_external_not_a_traceback(self, workflows: Path, capsys):
+        """iter_paginated raises TypeError on a bare-array payload. That is an
+        API-contract break on a read, so it must exit 3, not escape as exit 1.
+        """
+        client = self._pulls_client()
+        client.responses[f"repos/{self.REPOSITORY}/pulls/7"] = self._pull_payload()
+        queued = page_url(runs_url(self.REPOSITORY, "feat/a", "queued"), 1)
+        client.responses[queued] = []
+
+        code = main(["--pr", "7", "--workflows-dir", str(workflows)], client=client)
+
+        assert code == EXIT_EXTERNAL
+        assert "GitHub API read failed: expected a JSON object" in capsys.readouterr().err
+
     def test_a_fork_run_sharing_the_branch_name_is_not_cancelled_for_this_pr(
         self, tmp_path: Path, workflows: Path
     ):

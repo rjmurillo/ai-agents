@@ -392,7 +392,7 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
     except ValueError as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    except (RuntimeError, OSError) as exc:
+    except (RuntimeError, OSError, TypeError) as exc:
         print(f"[FAIL] GitHub API read failed: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
 
