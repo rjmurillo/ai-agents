@@ -248,26 +248,26 @@ not defer in-scope findings to PR review.
 
 Run, in order:
 
-1. `skill: "code-qualities-assessment"` with `--changed-only --base origin/main --gate-mode regression` against the changed files. Reject the build if any changed method regresses below the configured thresholds in `.qualityrc.json`, or if a new method fails the absolute gate.
-2. `skill: "taste-lints"` against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
+1. `skill: "code-qualities-assessment"` with `--changed-only --base origin/main --gate-mode regression` against the changed files. Reject the build if any changed method regresses below the `.qualityrc.json` thresholds, or a new method fails the absolute gate.
+2. `skill: "taste-lints"` against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning on lines you touched.
 3. Documentation gate: run the `test` skill's `doc_accuracy_trigger.py` per "Build handoff" in `test/references/doc-accuracy-gate.md`. On `"activate"` and a non-empty `changed_documents`, run `skill: "doc-accuracy"` with `--diff-base origin/main`; reject critical or high findings in your prose.
-4. `skill: "orphan-ref-validator"`. Reject the build on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`. Catches references to deleted skills and missing script paths. Re-run with `--output human` to see `path:line` per finding. Gates 1-3 run `--changed-only` and ignore preexisting drift; gate 4 scans repo-wide, so it can fail on drift this build did not cause: apply "Gate failure disposition" below.
+4. `skill: "orphan-ref-validator"`. Reject the build on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`. Re-run with `--output human` for `path:line`. Gates 1-3 run `--changed-only`; gate 4 scans repo-wide, so it can fail on drift this build did not cause: apply "Gate failure disposition" below.
 
 ### Gate failure disposition
 
-Scope is the work order (`orchestrator-routing-algorithm` Handoff Contract). Classify each finding with the `avoiding-manufactured-work` disposition procedure:
+Scope is the allowed paths in the work order's `NON-GOALS` field (`orchestrator-routing-algorithm` Handoff Contract). For exit-gate findings, this table overrides the `avoiding-manufactured-work` Blocker row: a Blocker outside the allowed paths stops the branch instead of being kept and repaired.
 
 | Finding | Disposition |
 |---|---|
 | Caused by this diff, or inside allowed paths | In scope. Repair it this cycle, rerun the gate. |
 | Pre-existing, outside allowed paths | Out of scope. No edit to those files. Record it. |
 | Out of scope and the gate blocks delivery | Blocker. Stop this branch, report the gate FAILED, name the owner from ESCALATE TO. |
-| Out of scope, and the work order or user explicitly authorizes repair | Separate bounded repair: own commit, authorized paths only, named in the PR body. |
+| Out of scope, and the work order or user explicitly authorizes repair | Separate bounded repair: own commit, authorized paths only, named in PR body. |
 
 - A failed required gate stays FAILED. A rationale or recorded finding never turns it into PASS.
-- Never weaken the gate, add suppression directives (including `<!-- orphan-ref-ignore -->`), change baselines, broaden permissions, or skip hooks to get past it.
+- Never weaken the gate, add suppression directives (including `<!-- orphan-ref-ignore -->`), change baselines, broaden permissions, or skip hooks.
 - Record out-of-scope findings in existing handoff fields only: command, result, failing paths, scope decision in CONTEXT; owner in ESCALATE TO; stop reason in STOP CONDITIONS.
-- Reuse a recorded blocker on a repeated run only after a freshness check: head SHA and failing paths match and the command returns the same result. Otherwise discard the record and reclassify the new output.
+- Reuse a recorded blocker only after a freshness check: head SHA and failing paths match and the command returns the same result. Otherwise discard the record and reclassify.
 
 ## Verification
 
@@ -287,7 +287,7 @@ Scope is the work order (`orchestrator-routing-algorithm` Handoff Contract). Cla
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Writing code before a failing test | A test written after the code confirms the code's behavior, not the spec's contract | Write the test, watch it fail on the right assertion, then implement |
-| Treating the exit gates as advisory | Produces the iteration paradox: reviewers flag what the implementer should have caught, and every revision costs more | Clear all four in the same build cycle |
+| Treating the exit gates as advisory | Produces the iteration paradox: reviewers flag what the implementer should have caught, and every revision costs more | Clear every in-scope finding in the same build cycle; apply "Gate failure disposition" to the rest |
 | Shipping a detector without self-applying it | A guard that does not fire on conditions already in the branch has wrong logic, and nobody finds out until it matters | Run it against the branch before committing |
 | "I will fix it in review" | Moves work to the most expensive place | Fix it now if in scope, else record it and name the owner |
 | Editing whatever file makes a failing validator pass | Might edit a generated mirror, a vendored file, or an unjustified baseline instead of the true owner | Run Phase 2b first; edit only the record's `permitted_change_location` |

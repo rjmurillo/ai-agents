@@ -66,7 +66,7 @@ def test_handoff_uses_existing_fields_only() -> None:
 
 
 def test_scenarios_cover_positive_out_of_scope_and_changed_evidence() -> None:
-    scenarios = {s["id"]: s for s in json.loads(SCENARIOS.read_text())["scenarios"]}
+    scenarios = {s["id"]: s for s in json.loads(SCENARIOS.read_text(encoding="utf-8"))["scenarios"]}
     assert {"S8", "S9", "S10"} <= scenarios.keys()
     assert "in scope" in scenarios["S8"]["expected_signals"]
     assert "FAILED" in scenarios["S9"]["expected_signals"]
