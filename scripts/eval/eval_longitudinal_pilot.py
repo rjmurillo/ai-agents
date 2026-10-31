@@ -60,7 +60,14 @@ Runner = Callable[[str, dict[str, Any], str, Path, str], dict[str, Any]]
 def _git(checkout: Path, *args: str) -> str | None:
     try:
         proc = subprocess.run(
-            ["git", *args], cwd=checkout, capture_output=True, text=True, timeout=30, check=False
+            ["git", *args],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -252,11 +259,16 @@ def cmd_prepare_post(args: argparse.Namespace) -> int:
     if not (root / old).is_file() or (root / new).exists():
         print(f"ERROR: {root} must hold {old} and not {new}", file=sys.stderr)
         return EXIT_CONFIG
-    return (
-        EXIT_OK
-        if subprocess.run(["git", "mv", old, new], cwd=root, check=False).returncode == 0
-        else EXIT_EXTERNAL
-    )
+    try:
+        sys.stdout.flush()
+        moved = subprocess.run(["git", "mv", old, new], cwd=root, check=False).returncode == 0
+    except OSError as exc:
+        print(f"ERROR: cannot run git: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    if not moved:
+        print(f"ERROR: git mv failed in {root}; is it a git checkout?", file=sys.stderr)
+        return EXIT_CONFIG
+    return EXIT_OK
 
 
 def cmd_dry_run(args: argparse.Namespace) -> int:
@@ -303,7 +315,12 @@ def cmd_live(args: argparse.Namespace) -> int:
             )
     minutes = _load_minutes(args.minutes, pilot, args.reps)
     version = subprocess.run(
-        ["claude", "--version"], capture_output=True, text=True, check=False
+        ["claude", "--version"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     ).stdout.strip()
     records, window = execute(
         pilot, live_runner, {"pre": pre, "post": post}, args.model, args.reps, ledger, minutes

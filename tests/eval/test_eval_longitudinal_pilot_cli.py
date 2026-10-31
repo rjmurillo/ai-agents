@@ -190,7 +190,7 @@ def test_live_end_to_end_with_stubbed_runner_stops_at_ceiling(
             str(tmp_path / "out"),
         ]
     )
-    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
     assert rc == 0 and report["mode"] == "live" and report["complete"] is False
     assert (
         report["ceiling"]["spent_usd"] <= 1.2 and report["config"]["harness"] == "claude-cli 9.9.9"
@@ -200,24 +200,26 @@ def test_live_end_to_end_with_stubbed_runner_stops_at_ceiling(
 
 def test_dry_run_cli_writes_report_with_config(tmp_path: Path) -> None:
     rc = cli.main(["dry-run", "--out-dir", str(tmp_path), "--reps", "2"])
-    report = json.loads((tmp_path / "report.json").read_text())
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
     assert rc == 0 and report["mode"] == "dry_run" and report["config"]["reps"] == 2
     for key in ("model", "harness", "template_revision", "local_context_revision"):
         assert report["config"][key]
-    assert (tmp_path / "records.jsonl").read_text().count("\n") == 20
+    assert (tmp_path / "records.jsonl").read_text(encoding="utf-8").count("\n") == 20
 
 
 def test_minutes_file_rows_must_match_a_planned_cell(tmp_path: Path) -> None:
     path = tmp_path / "m.json"
     path.write_text(
-        json.dumps([{"control": "local_context", "task_id": "T9", "repeat": 0, "minutes": 1}])
+        json.dumps([{"control": "local_context", "task_id": "T9", "repeat": 0, "minutes": 1}]),
+        encoding="utf-8",
     )
     assert cli.main(["dry-run", "--out-dir", str(tmp_path / "o"), "--minutes", str(path)]) == 2
     path.write_text(
-        json.dumps([{"control": "local_context", "task_id": "T1-seed", "repeat": 0, "minutes": 0}])
+        json.dumps([{"control": "local_context", "task_id": "T1-seed", "repeat": 0, "minutes": 0}]),
+        encoding="utf-8",
     )
     assert cli.main(["dry-run", "--out-dir", str(tmp_path / "o"), "--minutes", str(path)]) == 0
-    report = json.loads((tmp_path / "o" / "report.json").read_text())
+    report = json.loads((tmp_path / "o" / "report.json").read_text(encoding="utf-8"))
     assert report["conditions"]["local_context"]["human_active_correction_minutes"]["total"] == 0.0
 
 
@@ -248,3 +250,42 @@ def test_prepare_post_renames_in_a_git_checkout(pilot: dict[str, Any], tmp_path:
     assert cli.main(["prepare-post", "--checkout", str(tmp_path)]) == 0
     assert (tmp_path / new).is_file() and not (tmp_path / old).exists()
     assert cli.main(["prepare-post", "--checkout", str(tmp_path)]) == 2
+
+
+def test_prepare_post_outside_a_git_checkout_is_config_error(
+    pilot: dict[str, Any], tmp_path: Path
+) -> None:
+    old, _ = pilot["repo_change"]["rename"]
+    (tmp_path / old).parent.mkdir(parents=True)
+    (tmp_path / old).write_text("x", encoding="utf-8")
+    assert cli.main(["prepare-post", "--checkout", str(tmp_path)]) == 2
+
+
+def test_prepare_post_missing_git_binary_is_config_error(
+    pilot: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old, _ = pilot["repo_change"]["rename"]
+    (tmp_path / old).parent.mkdir(parents=True)
+    (tmp_path / old).write_text("x", encoding="utf-8")
+
+    def no_git(*a: Any, **k: Any) -> Any:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(cli.subprocess, "run", no_git)
+    assert cli.main(["prepare-post", "--checkout", str(tmp_path)]) == 2
+
+
+def test_call_costing_more_than_reserve_records_overrun_and_stops(
+    pilot: dict[str, Any], tmp_path: Path
+) -> None:
+    def runner(
+        condition: str, task: dict[str, Any], prompt: str, root: Path, model: str
+    ) -> dict[str, Any]:
+        return {**cli.scripted_runner(pilot)(condition, task, prompt, root, model), "cost_usd": 1.1}
+
+    ledger = lp.Ledger(1.0, 0.25)
+    records, _ = runs(pilot, tmp_path, runner, ledger)
+    assert ledger.calls == 1 and ledger.overrun_usd == pytest.approx(0.1)
+    assert "exceeded" in (ledger.stopped_reason or "")
+    assert sum(1 for r in records if r.get("skipped") == "ceiling") == 9
+    assert report_of(pilot, records, ledger)["ceiling"]["overrun_usd"] == pytest.approx(0.1)

@@ -168,6 +168,7 @@ class Ledger:
     spent_usd: float = 0.0
     calls: int = 0
     stopped_reason: str | None = field(default=None)
+    overrun_usd: float = 0.0
 
     def __post_init__(self) -> None:
         for name, value in (("ceiling_usd", self.ceiling_usd), ("reserve_usd", self.reserve_usd)):
@@ -182,6 +183,8 @@ class Ledger:
 
     def allow(self) -> bool:
         """True when one more call fits under the ceiling; records why not otherwise."""
+        if self.stopped_reason is not None:
+            return False
         if self.max_calls is not None and self.calls >= self.max_calls:
             self.stopped_reason = f"max_calls {self.max_calls} reached"
         elif self.spent_usd + self.reserve_usd > self.ceiling_usd:
@@ -195,6 +198,14 @@ class Ledger:
         """Book one finished call. An unreported cost is booked at the reserve."""
         self.calls += 1
         self.spent_usd += self.reserve_usd if cost_usd is None else float(cost_usd)
+        if self.spent_usd > self.ceiling_usd:
+            # A call can cost more than the reserve; the ceiling is checked before a call,
+            # not enforced inside it. Record the breach and stop the run.
+            self.overrun_usd = round(self.spent_usd - self.ceiling_usd, 6)
+            self.stopped_reason = (
+                f"ceiling ${self.ceiling_usd:.4f} exceeded by ${self.overrun_usd:.4f}: "
+                "a call cost more than the per-call reserve"
+            )
 
 
 def _norm(path: str) -> str:

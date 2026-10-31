@@ -17,10 +17,18 @@ def _sum_known(values: list[float | None]) -> tuple[float | None, int]:
     return (round(sum(known), 6) if known else None), len(values) - len(known)
 
 
+def _bucket(values: list[float | None]) -> tuple[float | None, int]:
+    """Sum a cost bucket. An empty bucket is a measured 0.0, not an unknown."""
+    if not values:
+        return 0.0, 0
+    return _sum_known(values)
+
+
 def _condition_summary(
     recs: list[dict[str, Any]], tasks: dict[str, dict[str, Any]], bootstrap_usd: float | None
 ) -> dict[str, Any]:
-    graded = [r for r in recs if not r.get("skipped") and not r.get("is_error")]
+    ran = [r for r in recs if not r.get("skipped")]  # includes failed calls: they were billed
+    graded = [r for r in ran if not r.get("is_error")]
     accepted = {(r["task_id"], r["repeat"]) for r in graded if r["accepted"]}
     done = {(r["task_id"], r["repeat"]) for r in graded}
     pairs = [
@@ -30,8 +38,11 @@ def _condition_summary(
         if t.get("followup_of") and (t["followup_of"], r["repeat"]) in done
     ]
     minutes, unknown_minutes = _sum_known([r["human_minutes"] for r in graded])
-    exec_ok, exec_unknown = _sum_known([r["cost_usd"] for r in graded if r["accepted"]])
-    rework, rework_unknown = _sum_known([r["cost_usd"] for r in graded if not r["accepted"]])
+    exec_ok, exec_unknown = _bucket([r["cost_usd"] for r in graded if r["accepted"]])
+    # A failed call is wasted spend, so it counts as rework.
+    rework, rework_unknown = _bucket(
+        [r["cost_usd"] for r in ran if r.get("is_error") or not r["accepted"]]
+    )
     cost: dict[str, float | None] = {
         "bootstrap_usd": bootstrap_usd,
         "execution_usd": exec_ok,
@@ -73,7 +84,7 @@ def _condition_summary(
             "unknown_components": unknown,
         },
         "retrieval_tokens_est": sum(r["context"]["tokens_est"] for r in graded),
-        "active_s": round(sum(r["active_s"] for r in graded), 1),
+        "active_s": round(sum(r["active_s"] for r in ran), 1),
     }
 
 
@@ -124,19 +135,21 @@ def _stale_check(pilot: dict[str, Any], recs: list[dict[str, Any]]) -> list[dict
             and not r.get("skipped")
         ]
         expected = stale_truth(pilot, task["phase"])
-        detected = (
-            set().union(*(set(r["context"]["stale_fact_ids"]) for r in cells)) if cells else set()
-        )
+        flagged = [set(r["context"]["stale_fact_ids"]) for r in cells]
+        detected = set().union(*flagged) if cells else set()
+        # Judge every repetition: one repetition that misses a flag fails the check.
+        missed = set().union(*(expected - f for f in flagged)) if cells else set(expected)
+        false_alarm = set().union(*(f - expected for f in flagged)) if cells else set()
         reused = sorted(f for r in cells for f in r["context"]["fact_ids"] if f in expected)
         out.append(
             {
                 "task_id": task["id"],
                 "expected_stale": sorted(expected),
                 "detected": sorted(detected),
-                "missed": sorted(expected - detected),
-                "false_alarm": sorted(detected - expected),
+                "missed": sorted(missed),
+                "false_alarm": sorted(false_alarm),
                 "silently_reused": sorted(set(reused)),
-                "result": "pass" if cells and not (expected ^ detected) and not reused else "fail",
+                "result": "pass" if cells and not (missed or false_alarm or reused) else "fail",
             }
         )
     return out
@@ -197,6 +210,7 @@ def build_report(
             "spent_usd": round(ledger.spent_usd, 6),
             "calls": ledger.calls,
             "stopped_reason": ledger.stopped_reason,
+            "overrun_usd": ledger.overrun_usd,
         },
         "complete": complete,
         "verdict": _verdict(summary, complete),

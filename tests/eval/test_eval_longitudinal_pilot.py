@@ -319,9 +319,9 @@ def test_published_records_hold_no_transcript(pilot: dict[str, Any], tmp_path: P
 
     records, _ = runs(pilot, tmp_path / "c", runner)
     cli._write(tmp_path / "out", records, report_of(pilot, records))
-    published = (tmp_path / "out" / "records.jsonl").read_text() + (
+    published = (tmp_path / "out" / "records.jsonl").read_text(encoding="utf-8") + (
         tmp_path / "out" / "report.json"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     assert SENTINEL not in published and "scripts/eval/_outcome_record.py" not in published
     assert all("result" not in r for r in records)
 
@@ -340,3 +340,50 @@ def test_error_cell_makes_run_incomplete(pilot: dict[str, Any], tmp_path: Path) 
     records, _ = runs(pilot, tmp_path, runner)
     report = report_of(pilot, records)
     assert report["complete"] is False and report["verdict"] == "inconclusive_incomplete"
+
+
+def test_failed_billed_call_counts_toward_cost_and_active_time(
+    pilot: dict[str, Any], tmp_path: Path
+) -> None:
+    def runner(
+        condition: str, task: dict[str, Any], prompt: str, root: Path, model: str
+    ) -> dict[str, Any]:
+        out = cli.scripted_runner(pilot)(condition, task, prompt, root, model)
+        out = {**out, "cost_usd": 0.02, "wall_s": 3.0}
+        return {**out, "is_error": True} if task["id"] == "T2-correction-source" else out
+
+    records, _ = runs(pilot, tmp_path, runner)
+    local = report_of(pilot, records)["conditions"]["local_context"]
+    assert local["active_s"] == pytest.approx(15.0)
+    assert local["cost"]["rework_usd"] == pytest.approx(0.02)  # only the failed T2 call
+
+
+def test_empty_cost_buckets_are_measured_zero_not_unknown(
+    pilot: dict[str, Any], tmp_path: Path
+) -> None:
+    def runner(
+        condition: str, task: dict[str, Any], prompt: str, root: Path, model: str
+    ) -> dict[str, Any]:
+        gold = {task["answer_key"]: task["gold"]}
+        text = f"```json\n{json.dumps(gold)}\n```"
+        return {"result": text, "is_error": False, "cost_usd": 0.01, "wall_s": 1.0}
+
+    records, _ = runs(pilot, tmp_path, runner)
+    cost = report_of(pilot, records)["conditions"]["local_context"]["cost"]
+    assert cost["rework_usd"] == 0.0 and "rework_usd" not in cost["unknown_components"]
+
+
+def test_stale_check_fails_when_one_repetition_misses_the_flag(
+    pilot: dict[str, Any], tmp_path: Path
+) -> None:
+    records, _ = runs(pilot, tmp_path, cli.scripted_runner(pilot), reps=3)
+    assert report_of(pilot, records)["stale_context"][0]["result"] == "pass"
+    for r in records:
+        if (
+            r["condition"] == "local_context"
+            and r["task_id"] == "T4-stale-trap"
+            and r["repeat"] == 1
+        ):
+            r["context"] = {**r["context"], "stale_fact_ids": []}
+    check = report_of(pilot, records)["stale_context"][0]
+    assert check["result"] == "fail" and check["missed"] == ["F1"] and check["detected"] == ["F1"]
