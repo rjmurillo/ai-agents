@@ -6,7 +6,7 @@ The drift-prone volatile facts behind `ai-agents-architecture-contract`. SKILL.m
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
-Re-verified 2026-10-31 against 42e409325 for the rows marked below; the `reverify.json` checks and the `claims` and `hook-counts` instruments are the live gate. Rows without a 2026-10-31 stamp were not re-audited. Sources and re-verification commands:
+Verified 2026-10-31 against the working tree at 42e409325 (counts: 5 events / 8 groups in settings, 0 events / 0 groups in vendored source, 0 events / 0 registrations in the Copilot mirror) for the rows marked below; the `reverify.json` checks and the `claims` and `hook-counts` instruments are the live gate. Rows without a 2026-10-31 stamp were not re-audited. Sources and re-verification commands:
 
 | Claim | Source | Re-verify |
 |---|---|---|

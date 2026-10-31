@@ -38,7 +38,7 @@ The source-of-truth table (artifact class, canonical source, generated output, m
 
 Direction rule: generators read canonical, write mirrors. Outside the binplace step, they never write `.claude/` (binplace rows and ADR-108 template-owned skill files are allowlisted). That invariant is enforced in code: `assert_no_claude_writes` in `build/scripts/build_all.py`, applied under the comment "REQ-003-010: enforce .claude/ no-write invariant" (the `guard-lines` instrument prints current line numbers); any generator write under `.claude/` prints `REQ-003-010 VIOLATION` and exits 2. ADR-108 carves out the template-owned skill files under `.claude/skills/`, passed to the guard as an allowlist; binplace is the other writer. When a drift check goes red, the output shows a difference, not a direction. Always answer "which side is canonical?" from the table or the `generator-path` instrument before editing either side. An agent once "fixed" drift by editing the source to match the generated tree (2025-12-15 incident, commit reverted); the archaeology lives in `ai-agents-failure-archaeology`.
 
-`build/scripts/detect_agent_drift.py` is not a template-drift check: it is a weekly similarity audit between agent trees and can pass while a tree is wrong. Details and the measured trip point are in `references/drift-detector.md`.
+`build/scripts/detect_agent_drift.py` is not a template-drift check: it is a weekly similarity audit between agent trees and can pass while a tree is wrong. It scores `src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`, NOT against templates. The measured trip point and the 18-section allowlist are in `references/drift-detector.md`.
 
 ### Phase 2: Load the load-bearing decisions
 
@@ -63,11 +63,11 @@ Two meta-patterns bind these together:
 Registration is split by consumer. These source files are intentionally not
 parity twins:
 
-| Surface | File |
-|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key |
-| Vendored plugin source | `.claude/hooks/hooks.json` |
-| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` |
+| Surface | File | Registered (re-verified 2026-10-31) |
+|---|---|---|
+| Claude Code direct | `.claude/settings.json` `hooks` key | 5 events, 8 groups |
+| Vendored plugin source | `.claude/hooks/hooks.json` | 0 events, 0 groups |
+| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 0 events, 0 registrations |
 
 Run the `hook-counts` instrument for the events and registrations in each file. It counts registrations only; it does not say whether a hook is repository-only or vendored.
 
@@ -132,7 +132,7 @@ belong to `ai-agents-generation-and-release`. Run the `version-gate` instrument 
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: the three sources are not parity twins. Do not force parity; verify repository-only vs vendored before editing either source. ADR-097 retired every tool-call hook, so the vendored surface ships no hooks and the generated Copilot tree carries no dispatcher. Counts come from the `hook-counts` instrument.
+- **Hook sources serve different consumers**: the three sources are not parity twins. Do not force parity; verify repository-only vs vendored before editing either source. ADR-097 retired every tool-call hook, so the vendored surface ships no hooks and the generated Copilot tree carries no dispatcher. Counts on 2026-10-31: 5 events and 8 groups in settings, 0 events and 0 groups in the vendored source. Run the `hook-counts` instrument for current numbers.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions; existing debt remains.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
@@ -156,7 +156,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against `references/source-of-truth.md` (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count
+- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count; on 2026-10-31 local settings print `5 8` and vendored source prints `0 0`
 - [ ] Ran the `adr-status` instrument for any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (the `version-gate` instrument exits 0)
 
@@ -178,7 +178,7 @@ Exit codes for `instruments.py` and `contract_probe.py`: 0 ok, 1 when something 
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03, refreshed 2026-10-31 against 42e409325. `reverify.json` holds the machine-checkable claims; the drift command below runs them:
+Authored 2026-07-03, refreshed 2026-10-31 against 42e409325; facts re-verified against the working tree on 2026-10-31. `reverify.json` holds the machine-checkable claims; the drift command below runs them:
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-architecture-contract --require

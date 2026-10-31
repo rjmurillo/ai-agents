@@ -180,7 +180,11 @@ def test_main_exit_2_on_bad_arguments(argv):
     assert join.main(argv) == 2
 
 
-def test_main_exit_2_when_lib_missing(tmp_path):
+def test_main_exit_2_when_lib_missing(tmp_path, monkeypatch):
+    # A sibling test in the same worker can leave a plugin root exported;
+    # the lookup must fall through to the empty --repo tree.
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
     assert join.main(["--repo", str(tmp_path), "--sha", SHA, "--base", "main"]) == 2
 
 

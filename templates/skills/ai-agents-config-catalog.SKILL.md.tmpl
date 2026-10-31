@@ -134,10 +134,10 @@ parity between them. The Copilot sub-agent gate
 `.github/hooks/require-subagent-model.json` was retired by ADR-097 along with
 every tool-call hook.
 
-| Surface | Consumer | Shape on 2026-10-31 (`hook-counts`) |
+| Surface | Consumer | Shape re-verified 2026-10-31 (`hook-counts`) |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct in this repository | run `hook-counts` (5 events, 8 registrations on 2026-10-31) |
-| `.claude/hooks/hooks.json` | Binplaced copy of `src/claude/hooks.json` | run `hook-counts` |
+| `.claude/settings.json` | Claude Code direct in this repository | run `hook-counts` (5 events, 8 groups on 2026-10-31) |
+| `.claude/hooks/hooks.json` | Binplaced copy of `src/claude/hooks.json` | run `hook-counts` (0 events, 0 groups on 2026-10-31) |
 
 Chain: `templates/hooks/hooks.json` (source) renders to `src/claude/hooks.json` (plugin tree, the Copilot generator input, `settingsSource` in `templates/platforms/copilot-cli.yaml`), then binplaces to `.claude/hooks/hooks.json` (copy). The generator reads the plugin tree, not local settings. A
 one-file registration is valid only when its consumer scope is deliberate.
@@ -198,7 +198,7 @@ Rows that link existing tools: `hook-counts` (owner script in `ai-agents-portabi
 
 ## Provenance and Maintenance
 
-Audited against commit 42e409325 on 2026-10-31. Cites name a symbol or a script id, not a line number, because line numbers drift. `reverify.json` holds the machine checks. Run the drift command from the repo root:
+Audited 2026-10-31 against the working tree at commit 42e409325. The retired Copilot gate `.github/hooks/require-subagent-model.json` stays absent (ADR-097). Cites name a symbol or a script id, not a line number, because line numbers drift. `reverify.json` holds the machine checks. Run the drift command from the repo root:
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-config-catalog --require
