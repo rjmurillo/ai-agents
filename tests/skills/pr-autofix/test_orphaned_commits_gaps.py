@@ -115,18 +115,20 @@ class TestDetectionGaps:
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             ).stdout.strip()
 
         git("init", "-q", "-b", "main")
-        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "a.txt").write_text("a", encoding="utf-8")
         git("add", ".")
         git("commit", "-q", "-m", "base")
-        (tmp_path / "b.txt").write_text("remote-only")
+        (tmp_path / "b.txt").write_text("remote-only", encoding="utf-8")
         git("add", ".")
         git("commit", "-q", "-m", "old remote tip")
         live = git("rev-parse", "HEAD")
         git("reset", "-q", "--hard", "HEAD~1")
-        (tmp_path / "lefthook.yml").write_text("pre-push: {}")
+        (tmp_path / "lefthook.yml").write_text("pre-push: {}", encoding="utf-8")
         git("add", ".")
         git("commit", "-q", "-m", "rewritten tip")
         monkeypatch.chdir(tmp_path)

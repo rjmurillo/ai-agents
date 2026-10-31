@@ -47,6 +47,8 @@ def _git(cwd: Path, *args: str) -> str:
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     ).stdout.strip()
 
 
@@ -55,7 +57,7 @@ def repos(tmp_path: Path) -> dict[str, object]:
     main = tmp_path / "main"
     main.mkdir()
     _git(main, "init", "-q", "-b", "main")
-    (main / "a.txt").write_text("a")
+    (main / "a.txt").write_text("a", encoding="utf-8")
     _git(main, "add", ".")
     _git(main, "commit", "-q", "-m", "base")
     _git(main, "remote", "add", "origin", f"https://github.com/{REPO}.git")
@@ -68,7 +70,13 @@ def _run(block: str, cwd: Path, var: str, env: dict[str, str]) -> str:
     assignments = "\n".join(f"{k}={v!r}" for k, v in env.items())
     script = f'set -u\n{assignments}\n{var}=""\n{block}\nprintf \'%s\' "${var}"\n'
     result = subprocess.run(
-        [BASH or "bash", "-c", script], cwd=cwd, capture_output=True, text=True, check=False
+        [BASH or "bash", "-c", script],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     return result.stdout
@@ -87,7 +95,7 @@ def _dispatch(repos: dict[str, object], **overrides: str) -> str:
 def _cleanup(repos: dict[str, object], **overrides: str) -> str:
     env = {
         "PR_HEAD_REF": BRANCH,
-        "PR_REPO": REPO,
+        "PR_HEAD_REPO": REPO,
         "MERGED_HEAD_SHA": str(repos["head"]),
         **overrides,
     }
@@ -104,7 +112,7 @@ class TestDispatchSelection:
 
     def test_worktree_ahead_of_the_live_head_is_selected(self, repos) -> None:
         wt = Path(str(repos["wt"]))
-        (wt / "b.txt").write_text("unpushed")
+        (wt / "b.txt").write_text("unpushed", encoding="utf-8")
         _git(wt, "add", ".")
         _git(wt, "commit", "-q", "-m", "unpushed")
         assert _dispatch(repos) == str(wt)
@@ -158,7 +166,7 @@ class TestCleanupSelection:
 
     def test_head_ahead_of_the_merged_head_is_not_selected(self, repos) -> None:
         wt = Path(str(repos["wt"]))
-        (wt / "b.txt").write_text("later")
+        (wt / "b.txt").write_text("later", encoding="utf-8")
         _git(wt, "add", ".")
         _git(wt, "commit", "-q", "-m", "later")
         assert _cleanup(repos) == ""
@@ -173,6 +181,17 @@ class TestCleanupSelection:
     def test_ssh_spelling_matches(self, repos) -> None:
         _git(Path(str(repos["wt"])), "remote", "set-url", "origin", "git@github.com:owner/repo.git")
         assert _cleanup(repos) == str(repos["wt"])
+
+    def test_fork_pr_selects_the_worktree_whose_origin_is_the_fork(self, repos) -> None:
+        _git(
+            Path(str(repos["wt"])),
+            "remote",
+            "set-url",
+            "origin",
+            "https://github.com/alice/repo.git",
+        )
+        assert _cleanup(repos, PR_HEAD_REPO="alice/repo") == str(repos["wt"])
+        assert _cleanup(repos, PR_HEAD_REPO="owner/repo") == ""
 
 
 def _guard() -> str:
@@ -192,7 +211,7 @@ class TestCleanupKeepGuard:
     ) -> subprocess.CompletedProcess[str]:
         env = {
             "PR_HEAD_REF": BRANCH,
-            "PR_REPO": REPO,
+            "PR_HEAD_REPO": REPO,
             "MERGED_HEAD_SHA": str(repos["head"]),
             "HOME": str(Path(str(repos["tmp"])) / "home"),
             **overrides,
@@ -204,6 +223,8 @@ class TestCleanupKeepGuard:
             cwd=Path(str(repos["main"])),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
 

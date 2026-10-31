@@ -96,6 +96,9 @@ query($owner: String!, $repo: String!, $prNumber: Int!) {
       }
       headRefName
       headRefOid
+      headRepository {
+        nameWithOwner
+      }
       mergeCommit {
         oid
       }
@@ -132,6 +135,8 @@ class PrMergeState:
         merged_by: Login from GraphQL ``mergedBy``, or None.
         head_ref: GraphQL ``headRefName``, the PR's branch name, or None.
         head_sha: GraphQL ``headRefOid``, the PR's head commit, or None.
+        head_repo: GraphQL ``headRepository.nameWithOwner``, the repository the
+            PR branch lives in (the fork for a fork PR), or None.
         merge_commit_sha: GraphQL ``mergeCommit.oid``, or None. GitHub sets it
             only for a merged PR.
         detail: Sanitized failure reason. Non-empty only for ``PROBE_FAILED``.
@@ -148,6 +153,7 @@ class PrMergeState:
     merged_by: str | None = None
     head_ref: str | None = None
     head_sha: str | None = None
+    head_repo: str | None = None
     merge_commit_sha: str | None = None
     detail: str = ""
     exit_code: int = 0
@@ -194,6 +200,14 @@ def _merge_commit_oid(pull_request: dict) -> str | None:
     return oid if isinstance(oid, str) else None
 
 
+def _head_repo_name(pull_request: dict) -> str | None:
+    """Return ``headRepository.nameWithOwner``, or None for a deleted fork."""
+    head_repository = pull_request.get("headRepository")
+    if not isinstance(head_repository, dict):
+        return None
+    return _string_or_none(head_repository.get("nameWithOwner"))
+
+
 def _string_or_none(value: object) -> str | None:
     """Return ``value`` when it is a string, else None."""
     return value if isinstance(value, str) else None
@@ -235,6 +249,7 @@ def _classify(owner: str, repo: str, number: int, data: object) -> PrMergeState:
         merged_by=_merged_by_login(pull_request),
         head_ref=_string_or_none(pull_request.get("headRefName")),
         head_sha=_string_or_none(pull_request.get("headRefOid")),
+        head_repo=_head_repo_name(pull_request),
         merge_commit_sha=_merge_commit_oid(pull_request),
     )
 

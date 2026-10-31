@@ -560,7 +560,13 @@ def test_round_cap_scan_skips_a_worktree_with_another_origin(tmp_path: Path, doc
         check=True,
     )
     head_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=worktree, capture_output=True, text=True, check=True
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
     ).stdout.strip()
     live = json.dumps(
         {"Data": {"head_ref": "fix/5447-demo", "head_repo": PR_HEAD_REPO, "head_sha": head_sha}}
@@ -580,7 +586,13 @@ def test_round_cap_scan_is_pointed_at_the_pr_worktree(tmp_path: Path, doc: str) 
     """
     worktree = _repo_with_pr_worktree(tmp_path, "fix/5447-demo")
     head_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=worktree, capture_output=True, text=True, check=True
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
     ).stdout.strip()
     live = json.dumps(
         {"Data": {"head_ref": "fix/5447-demo", "head_repo": PR_HEAD_REPO, "head_sha": head_sha}}

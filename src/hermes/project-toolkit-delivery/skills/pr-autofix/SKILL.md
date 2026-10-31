@@ -613,10 +613,10 @@ if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     # This loop runs from the shared checkout, whose HEAD is not
     # the PR's. The orphaned-commit scan compares the live PR head with a local
     # HEAD, so point it at the worktree that holds the PR branch. Without it the
-    # ancestry check exits 1 or 128 and the scan reports `unverified`, so read
-    # `.commits`, `reason`, and `force_push_suspected` on that status too. No
-    # matching worktree passes no flag, and the script falls back to the
-    # current directory.
+    # ancestry check exits 1 or 128 and the scan reports `unverified` with no
+    # `.commits` and no `force_push_suspected`; read `reason`. No matching
+    # worktree passes no flag, and the script falls back to the current
+    # directory.
     PR_HEAD_REF=$(printf '%s' "${LIVE:-}" | jq -r '.Data.head_ref // empty' 2>/dev/null)
     PR_HEAD_REPO=$(printf '%s' "${LIVE:-}" | jq -r '.Data.head_repo // empty' 2>/dev/null)
     PR_WORKTREE=""
@@ -713,7 +713,7 @@ Dispatcher exit contract (CWE-829 trust boundary): exit 0 all criteria passed; e
    pin `--force-with-lease` to that observed SHA so a competing session's commit
    rejects the push instead of being overwritten.
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE`. It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; one PR ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to. The wall-clock budget restarts when the PR head SHA advances or a maintainer with write access reopens the PR, so calendar idle time does not retire a PR; the round cap still bounds a loop that keeps pushing. A maintainer restarts both the clock and the round counter with a `/pr-autofix continue` comment (OWNER or COLLABORATOR) or by running the script with `--reset`. A repeat blocked call posts no further comments.
-   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`, and the object may also carry `reason`, `force_push_suspected`, and `truncated`. `ahead` and `unverified` can fill `.commits`: `unverified` does so for a diverged branch (with `force_push_suspected`) and when `git show` cannot be read; `clean` and `not_checked` leave it empty. The dispatch block passes `--worktree` only for a worktree that holds the live head, so a rewritten remote head (the diverged case) lists its commits only when you run the script by hand with `--worktree <path>`. Read `.commits[].risks` on every status, including `test diff unreadable (git show failed)`. The dispatch block finds the worktree that holds the PR branch and passes it as `--worktree <path>`, so the scan compares the live head with the PR's `HEAD` and not the shared checkout's; run the script by hand the same way. The block prints `Data.orphaned_warning` (a flat copy of `.warning`) on every arm, escalated or not, so the commit names reach the log. A session that hit the cap can leave unpushed commits behind, and one PR carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not fully answer: read `.reason`, any `.commits` it lists, and `git log <live head>..HEAD` by hand.
+   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`, and the object may also carry `reason`, `force_push_suspected`, and `truncated`. `ahead` and `unverified` can fill `.commits`: `unverified` does so for a diverged branch (with `force_push_suspected`) and when `git show` cannot be read; `clean` and `not_checked` leave it empty. The dispatch block passes `--worktree` only for a worktree that holds the live head, so a rewritten remote head (the diverged case) lists its commits only when you run the script by hand with `--worktree <path>`. Read `.commits[].risks` on every status, including `test diff unreadable (git show failed)`. The dispatch block passes `--worktree <path>` only for a worktree on the PR branch whose `HEAD` contains the live head and whose `origin` is the PR head repository, so the scan compares the live head with the PR's `HEAD` and not the shared checkout's; run the script by hand the same way. The block prints `Data.orphaned_warning` (a flat copy of `.warning`) on every arm, escalated or not, so the commit names reach the log. A session that hit the cap can leave unpushed commits behind, and one PR carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not fully answer: read `.reason`, any `.commits` it lists, and `git log <live head>..HEAD` by hand.
 6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
@@ -1047,7 +1047,7 @@ GitHub refuses auto-merge for `UNSTABLE` PRs and may also reject an already-`CLE
 
 Run this after every merge this skill lands, once `test_pr_merged.py` reports
 `merged: true`. The snippet reads its inputs from `test_pr_merged.py`
-(`head_ref`, `head_sha`, `merge_commit_sha`, `owner`, `repo`), fails when any is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
+(`head_ref`, `head_sha`, `merge_commit_sha`, `head_repo`), fails when any is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
 A leftover worktree costs disk and slows repo-wide scans: one machine counted
 113 of them at 10.6G. A merged PR has been found with its worktree and
 local branch still in place.
@@ -1055,19 +1055,19 @@ local branch still in place.
 ```bash
 # Replace <pr> with the merged PR number. SCRIPTS_DIR is set by resolve_pr_scripts_dir above.
 # jq prints nothing unless all five values exist, so the guard below fails loud.
-read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA PR_REPO < <(python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request <pr> --output-format json \
-    | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha and .owner and .repo) | [.head_ref, .head_sha, .merge_commit_sha, (.owner + "/" + .repo)] | @tsv')
-: "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}" "${PR_REPO:?}"
+read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA PR_HEAD_REPO < <(python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request <pr> --output-format json \
+    | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha and .head_repo) | [.head_ref, .head_sha, .merge_commit_sha, .head_repo] | @tsv')
+: "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}" "${PR_HEAD_REPO:?}"
 git fetch origin main && git merge-base --is-ancestor "$MERGE_SHA" origin/main || { echo "merge not on main yet"; exit 1; }
 # The branch name is chosen by the PR author, so the ref alone does not identify
 # the worktree. Also require HEAD to equal the merged head and origin to be the
-# PR's repository (the merge-state probe reports no head repository). A worktree
+# PR's head repository (the fork for a fork PR, not the base repository). A worktree
 # that fails either check is not matched, so WT stays empty and the guard below
 # keeps and reports it. There is no path-convention fallback: it would reinstate
 # a ref-only match.
 WT=""
 # pr-worktree-select:begin
-WANT_REPO=$(printf '%s' "$PR_REPO" | tr 'A-Z' 'a-z')
+WANT_REPO=$(printf '%s' "$PR_HEAD_REPO" | tr 'A-Z' 'a-z')
 # awk fields are written $(N), not $N: the skill loader rewrites a bare $<digit> as an argument.
 while IFS= read -r CANDIDATE; do
     [ -n "$CANDIDATE" ] || continue
