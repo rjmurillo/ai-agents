@@ -255,7 +255,7 @@ def build_context(
         frozenset(pilot["repo_change"]["rename"][:1]) if task["phase"] == "post" else frozenset()
     )
     kept: list[dict[str, Any]] = []
-    stale: list[str] = []
+    stale: list[dict[str, Any]] = []
     for fact in pilot["local_context"]["facts"]:
         (kept if probe_ok(fact["probe"], root, removed) else stale).append(fact)
     lines = ["Validated local context:"]

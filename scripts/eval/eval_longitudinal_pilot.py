@@ -46,9 +46,7 @@ DEFAULT_PILOT = REPO_ROOT / "evals" / "longitudinal-pilot" / "fixtures" / "pilot
 PRIOR_RUNS = "evals/skill-bootstrap-capability/runs/*/cap-*.jsonl"
 TEMPLATE = "templates/skills/skill-bootstrap.SKILL.md.tmpl"
 DEFAULT_RESERVE_USD = 0.25  # above the largest per-call cost in PRIOR_RUNS (about 0.21)
-PRICING_BASIS = (
-    "docs/SKILL-AUTHORING.md:120-125 (haiku $1/$5 per MTok); measured cost_usd in PRIOR_RUNS"
-)
+PRICING_BASIS = "docs/SKILL-AUTHORING.md model pricing table (haiku $1/$5 per MTok); measured cost_usd in PRIOR_RUNS"
 EXIT_OK, EXIT_LOGIC, EXIT_CONFIG, EXIT_EXTERNAL = 0, 1, 2, 3
 
 # (condition, task, prompt, checkout, model) -> run_one-shaped record
@@ -83,7 +81,8 @@ def live_runner(
     condition: str, task: dict[str, Any], prompt: str, checkout: Path, model: str
 ) -> dict[str, Any]:
     """One fresh `claude -p` session per call. Paid. Only `live` reaches this."""
-    return cap.run_one(checkout, prompt, model)
+    record: dict[str, Any] = cap.run_one(checkout, prompt, model)
+    return record
 
 
 def execute(
@@ -185,7 +184,7 @@ def _load_minutes(
     stray = unmatched(minutes, produced)
     if stray:
         raise lp.PilotError(f"minutes rows match no planned cell: {stray}")
-    return minutes
+    return dict(minutes)
 
 
 def _verify_gold(pilot: dict[str, Any], root: Path, phase: str) -> list[str]:
@@ -365,7 +364,8 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: --reps must be >= 1", file=sys.stderr)
         return EXIT_CONFIG
     try:
-        return args.fn(args)
+        code: int = args.fn(args)
+        return code
     except (lp.PilotError, HumanMinutesError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_CONFIG
