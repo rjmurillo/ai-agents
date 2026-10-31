@@ -1,0 +1,214 @@
+{
+  "revision": "pilot-1",
+  "frozen": "2026-10-30",
+  "outcome": "A maintainer gets correct file lists for the scripts/eval durable-outcome modules across five fresh sessions, before and after a rename, with fewer repeated corrections.",
+  "verifier": "Each gold list is re-derived from the checkout by gold_probe (verify-gold). The grader is exact-set F1 over repo-relative paths; a task is accepted at F1 = 1.0.",
+  "preamble": "You are working in a read-only checkout of the ai-agents repository. Use Read, Grep, and Glob. Do not edit files. Answer with a final fenced json block containing the requested key as a list of repo-relative paths. If you must ask a question, ask it in prose before the block.",
+  "repo_change": {
+    "description": "scripts/eval/_human_minutes.py is renamed to scripts/eval/_human_minutes_v2.py before the post-phase tasks.",
+    "rename": [
+      "scripts/eval/_human_minutes.py",
+      "scripts/eval/_human_minutes_v2.py"
+    ]
+  },
+  "local_context": {
+    "revision": "lc-1",
+    "facts": [
+      {
+        "id": "F1",
+        "text": "The human-minutes parser module is scripts/eval/_human_minutes.py.",
+        "probe": {
+          "path_exists": "scripts/eval/_human_minutes.py"
+        },
+        "valid_in": [
+          "pre"
+        ]
+      },
+      {
+        "id": "F2",
+        "text": "Durable-outcome record validation lives in scripts/eval/_outcome_record.py.",
+        "probe": {
+          "path_exists": "scripts/eval/_outcome_record.py"
+        },
+        "valid_in": [
+          "pre",
+          "post"
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "T1-seed",
+      "phase": "pre",
+      "role": "seed",
+      "prompt": "List every file directly under scripts/eval/ whose text contains the string _human_minutes. Exclude eval_longitudinal_pilot.py and _longitudinal_pilot.py. Answer key: files.",
+      "grader": "set_f1",
+      "answer_key": "files",
+      "gold": [
+        "scripts/eval/_durable_live.py",
+        "scripts/eval/_durable_live_record.py",
+        "scripts/eval/_human_minutes.py",
+        "scripts/eval/_run_changes.py",
+        "scripts/eval/eval_control_ablation.py",
+        "scripts/eval/eval_durable_live.py",
+        "scripts/eval/eval_human_minutes_join.py"
+      ],
+      "gold_probe": {
+        "dir": "scripts/eval",
+        "pattern": "_human_minutes",
+        "exclude": [
+          "eval_longitudinal_pilot.py",
+          "_longitudinal_pilot.py"
+        ]
+      },
+      "decision_points": 0
+    },
+    {
+      "id": "T2-correction-source",
+      "phase": "pre",
+      "role": "correction_source",
+      "prompt": "Which single file under scripts/eval/ defines the function parse_record? Answer key: files.",
+      "grader": "set_f1",
+      "answer_key": "files",
+      "gold": [
+        "scripts/eval/_outcome_record.py"
+      ],
+      "gold_probe": {
+        "dir": "scripts/eval",
+        "pattern": "^def parse_record\\(",
+        "exclude": []
+      },
+      "decision_points": 1,
+      "correction": {
+        "id": "C1",
+        "approved": true,
+        "text": "parse_record is defined in scripts/eval/_outcome_record.py. Other modules only import or call it."
+      }
+    },
+    {
+      "id": "T3-related",
+      "phase": "pre",
+      "role": "related",
+      "prompt": "List every file directly under scripts/eval/ whose text contains the string parse_record( . Exclude eval_longitudinal_pilot.py and _longitudinal_pilot.py. Answer key: files.",
+      "grader": "set_f1",
+      "answer_key": "files",
+      "gold": [
+        "scripts/eval/_control_ablation_dry_run.py",
+        "scripts/eval/_durable_live_record.py",
+        "scripts/eval/_outcome_record.py",
+        "scripts/eval/_run_persistence.py",
+        "scripts/eval/eval_control_ablation.py",
+        "scripts/eval/eval_durable_outcome.py",
+        "scripts/eval/eval_durable_repetitions.py",
+        "scripts/eval/eval_human_minutes_join.py"
+      ],
+      "gold_probe": {
+        "dir": "scripts/eval",
+        "pattern": "parse_record\\(",
+        "exclude": [
+          "eval_longitudinal_pilot.py",
+          "_longitudinal_pilot.py"
+        ]
+      },
+      "decision_points": 0,
+      "uses_correction": "C1",
+      "followup_of": "T2-correction-source"
+    },
+    {
+      "id": "T4-stale-trap",
+      "phase": "post",
+      "role": "stale_trap",
+      "prompt": "Which single file under scripts/eval/ defines the class HumanMinutesError? Answer key: files.",
+      "grader": "set_f1",
+      "answer_key": "files",
+      "gold": [
+        "scripts/eval/_human_minutes_v2.py"
+      ],
+      "gold_probe": {
+        "dir": "scripts/eval",
+        "pattern": "^class HumanMinutesError\\b",
+        "exclude": []
+      },
+      "decision_points": 1,
+      "uses_fact": "F1"
+    },
+    {
+      "id": "T5-held-out",
+      "phase": "post",
+      "role": "held_out",
+      "prompt": "List every file directly under scripts/eval/ that defines the class DurableOutcomeError or the class HumanMinutesError. Answer key: files.",
+      "grader": "set_f1",
+      "answer_key": "files",
+      "gold": [
+        "scripts/eval/_human_minutes_v2.py",
+        "scripts/eval/_outcome_record.py"
+      ],
+      "gold_probe": {
+        "dir": "scripts/eval",
+        "pattern": "^class (DurableOutcomeError|HumanMinutesError)\\b",
+        "exclude": []
+      },
+      "decision_points": 0,
+      "followup_of": "T4-stale-trap"
+    }
+  ],
+  "dry_run_script": {
+    "vendor_only": {
+      "T1-seed": [
+        "scripts/eval/_durable_live.py",
+        "scripts/eval/_durable_live_record.py",
+        "scripts/eval/_human_minutes.py",
+        "scripts/eval/_run_changes.py",
+        "scripts/eval/eval_control_ablation.py",
+        "scripts/eval/eval_durable_live.py",
+        "scripts/eval/eval_human_minutes_join.py"
+      ],
+      "T2-correction-source": [
+        "scripts/eval/eval_durable_outcome.py"
+      ],
+      "T3-related": [
+        "scripts/eval/_durable_live_record.py",
+        "scripts/eval/_outcome_record.py",
+        "scripts/eval/eval_durable_outcome.py"
+      ],
+      "T4-stale-trap": [
+        "scripts/eval/_human_minutes_v2.py"
+      ],
+      "T5-held-out": [
+        "scripts/eval/_human_minutes_v2.py"
+      ]
+    },
+    "local_context": {
+      "T1-seed": [
+        "scripts/eval/_durable_live.py",
+        "scripts/eval/_durable_live_record.py",
+        "scripts/eval/_human_minutes.py",
+        "scripts/eval/_run_changes.py",
+        "scripts/eval/eval_control_ablation.py",
+        "scripts/eval/eval_durable_live.py",
+        "scripts/eval/eval_human_minutes_join.py"
+      ],
+      "T2-correction-source": [
+        "scripts/eval/eval_durable_outcome.py"
+      ],
+      "T3-related": [
+        "scripts/eval/_control_ablation_dry_run.py",
+        "scripts/eval/_durable_live_record.py",
+        "scripts/eval/_outcome_record.py",
+        "scripts/eval/_run_persistence.py",
+        "scripts/eval/eval_control_ablation.py",
+        "scripts/eval/eval_durable_outcome.py",
+        "scripts/eval/eval_durable_repetitions.py",
+        "scripts/eval/eval_human_minutes_join.py"
+      ],
+      "T4-stale-trap": [
+        "scripts/eval/_human_minutes_v2.py"
+      ],
+      "T5-held-out": [
+        "scripts/eval/_human_minutes_v2.py",
+        "scripts/eval/_outcome_record.py"
+      ]
+    }
+  }
+}
