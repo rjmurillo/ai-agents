@@ -56,13 +56,15 @@ prints, and pass that path.
 
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-# 1. Get unresolved threads
+# 1. Get unresolved threads and the PR head SHA
+HEAD_SHA=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --output-format json | jq -r '.Data.head_sha')
 threads=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request 50 --unresolved-only)
 
 # 2. Reply to each thread using thread ID and resolve (recommended)
 echo "$threads" | jq -r '.threads[].thread_id' | while read -r tid; do
     python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
-      --pull-request 50 --thread-id "$tid" --body "Fixed." --resolve
+      --pull-request 50 --thread-id "$tid" --body "Fixed." --resolve \
+      --expected-head-sha "$HEAD_SHA"
 done
 
 # 3. Or reply using comment ID (REST API) then batch resolve

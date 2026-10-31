@@ -139,7 +139,7 @@ Every conversation on a PR MUST traverse the full lifecycle before the PR can la
 2. **TRIAGE**: Classify per the table below. Record category in your working state.
 3. **SOLVE**: If Blocking, fix the underlying code. If Informational or Stale, no code action required.
 4. **REPLY**: Post a reply stating the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated.
-5. **RESOLVE**: Mark the thread resolved. `add_pr_review_thread_reply.py --resolve` does steps 4 and 5 in one invocation by issuing `addPullRequestReviewThreadReply` followed by `resolveReviewThread` (two GraphQL mutations, one script call). A reply alone does not resolve the thread.
+5. **RESOLVE**: Mark the thread resolved. `add_pr_review_thread_reply.py --resolve --expected-head-sha <sha>` does steps 4 and 5 in one invocation by issuing `addPullRequestReviewThreadReply` followed by `resolveReviewThread` (two GraphQL mutations, one script call). `--resolve` exits 2 before any API call without one of `--expected-head-sha`, `--expected-base-ref`, or `--expected-base-sha`. A reply alone does not resolve the thread.
 
 Skipping any step on an unresolved thread is a protocol violation. Threads already RESOLVED before the session started require only read-only inspection (steps 1-2) to confirm the resolution is consistent with the current diff; steps 3-5 do not apply because there is nothing to act on.
 
