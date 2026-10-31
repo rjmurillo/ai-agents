@@ -186,10 +186,7 @@ def test_unreachable_sha_only_in_code_block_blocks_report() -> None:
         "isResolved": True,
         "comments": {"nodes": [{"body": "```\ngit show deadbee\n```"}], "totalCount": 1},
     }
-    with patch(
-        "check_review_thread_resolution_shas.check_ancestor",
-        return_value=(False, "unreachable", ""),
-    ):
+    with patch.object(_mod, "check_ancestor", return_value=(False, "unreachable", "")):
         report = _mod.build_report("o", "r", 1, "b" * 40, [thread], True, ".")
     assert report["fetched_pages_complete"] is True
     assert report["sha_reference_count"] == 1
