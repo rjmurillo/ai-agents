@@ -641,6 +641,7 @@ def validate_ref(
     known_axes: frozenset[str] | None = None,
     references_dir: Path | None = None,
     base_ref: str = DEFAULT_BASE_REF,
+    required_axes: tuple[str, ...] = (),
 ) -> ValidationOutcome:
     """Check that ``ref`` is a marker commit binding its parent (the reviewed code).
 
@@ -656,6 +657,10 @@ def validate_ref(
     The axis list must also name only discovered axes, each once. ``known_axes``
     defaults to the set discovered beside this script; no axis directory is a
     configuration error (exit 2), not a pass.
+
+    ``required_axes`` is an optional caller policy: each named axis must appear
+    in the declared marker axes, or the outcome is exit 1. The default is no
+    required axis, because risk-selected review may declare a subset.
     """
     ref_error = validate_ref_argument(ref)
     if ref_error is not None:
@@ -700,7 +705,21 @@ def validate_ref(
     outcome = (
         validate_review_artifact(target.commit, parent_sha, outcome.axes, repo_root) or outcome
     )
-    return with_merge_note(outcome, target.merges, base_ref) if outcome.ok else outcome
+    if not outcome.ok:
+        return outcome
+    missing = [axis for axis in required_axes if axis not in outcome.axes]
+    if missing:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"required axis not declared by the marker on {ref}: {', '.join(missing)} "
+                f"(declared: {', '.join(outcome.axes)}). Not verified. Re-run /review "
+                f"with the axis pinned."
+            ),
+            axes=outcome.axes,
+        )
+    return with_merge_note(outcome, target.merges, base_ref)
 
 
 def evaluate_marker_values(
@@ -909,6 +928,16 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--require-axis",
+        action="append",
+        default=[],
+        metavar="AXIS",
+        help=(
+            "Fail with exit 1 unless the marker declares AXIS. Repeatable. Default: "
+            "none, because risk-selected review may declare a subset of axes."
+        ),
+    )
+    parser.add_argument(
         "--digest",
         type=Path,
         default=None,
@@ -959,7 +988,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     outcome = validate_ref(
-        args.ref, repo_root, references_dir=args.references_dir, base_ref=args.base_ref
+        args.ref,
+        repo_root,
+        references_dir=args.references_dir,
+        base_ref=args.base_ref,
+        required_axes=tuple(args.require_axis),
     )
     label = "PASS" if outcome.ok else "FAIL"
     stream = sys.stdout if outcome.ok else sys.stderr
