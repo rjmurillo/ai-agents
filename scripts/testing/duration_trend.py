@@ -190,6 +190,16 @@ def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.
     return 1 if verdict.failing else 0
 
 
+def _run_identity_ok(args: argparse.Namespace) -> bool:
+    """False, with a message, when --event and --ref are partial or empty."""
+    try:
+        is_enforced(args.event, args.ref)
+    except ValueError as exc:
+        print(f"bad run identity: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
     if args.max_history < 1 or args.top < 1:
@@ -200,12 +210,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"bad breach policy: {exc}", file=sys.stderr)
         return 2
-    if policy.name == consecutive_breach.POLICY_STRICT:
-        try:
-            is_enforced(args.event, args.ref)
-        except ValueError as exc:
-            print(f"bad run identity: {exc}", file=sys.stderr)
-            return 2
+    if policy.name == consecutive_breach.POLICY_STRICT and not _run_identity_ok(args):
+        return 2
     try:
         snapshot = build_snapshot(args.inputs, args.sha or policy.sha, datetime.now(UTC))
     except (OSError, ET.ParseError) as exc:
