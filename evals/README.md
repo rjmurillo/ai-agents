@@ -24,6 +24,7 @@ ADR-057's prompt-change scenarios answer a different question than the agent-vs-
 | `evals/security-spike/fixtures/` | Held-out agent-vs-baseline corpus | `scripts/eval/eval-agent-vs-baseline.py` |
 | `evals/adr-review-catch-rate/` | Seeded-defect corpus and results for the adr-review per-role catch rate (#5248) | `scripts/eval/eval_adr_review_catch_rate.py` |
 | `evals/skill-bootstrap-capability/fixtures/` | Before/after capability tasks (gold at `acff1d0a1`, 2026-10-17) and results for skill-bootstrap | `scripts/eval/eval_skill_bootstrap_capability.py` |
+| `evals/longitudinal-pilot/fixtures/` | Frozen five-task sequence, vendor-only vs vendor plus validated local context, with a stale-fact trap (#6993); live runs need an explicit `--ceiling-usd` | `scripts/eval/eval_longitudinal_pilot.py` |
 | `evals/agent-slimming-spike/reports/` | Legacy agent-slimming experiment outputs from 2026-04 | `scripts/eval/eval-agents.py`, `scripts/eval/eval-knowledge-integration.py` |
 
 A fixture in `evals/security-spike/fixtures/` MUST NOT duplicate a scenario in `tests/evals/security-scenarios.json` verbatim. Where prior public material is reused, it is paraphrased substantially and tagged `provenance: paraphrased-from-public` (REQ-004 AC-4).

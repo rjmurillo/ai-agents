@@ -1,0 +1,147 @@
+{
+  "baseline": "vendor_only",
+  "ceiling": {
+    "calls": 30,
+    "ceiling_usd": 5.0,
+    "spent_usd": 0.299474,
+    "stopped_reason": null
+  },
+  "complete": true,
+  "conditions": {
+    "local_context": {
+      "accepted": 12,
+      "accepted_rate": 0.8,
+      "active_s": 278.6,
+      "cells": 15,
+      "clarification_requests": 0,
+      "cost": {
+        "bootstrap_usd": null,
+        "execution_usd": 0.115473,
+        "known_total_usd": 0.147368,
+        "maintenance_usd": 0.0,
+        "retrieval_usd": null,
+        "rework_usd": 0.031895,
+        "total_usd": null,
+        "unknown_components": [
+          "bootstrap_usd",
+          "retrieval_usd"
+        ]
+      },
+      "durable_acceptance": {
+        "accepted_pairs": 6,
+        "pairs": 6
+      },
+      "errors": 0,
+      "graded": 15,
+      "human_active_correction_minutes": {
+        "timed_cells": 0,
+        "total": null,
+        "unknown_cells": 15
+      },
+      "human_decision_points": 6,
+      "mean_f1": 0.9867,
+      "residual_defects": {
+        "extra": 3,
+        "missing": 0
+      },
+      "retrieval_tokens_est": 954,
+      "skipped": 0
+    },
+    "vendor_only": {
+      "accepted": 12,
+      "accepted_rate": 0.8,
+      "active_s": 253.8,
+      "cells": 15,
+      "clarification_requests": 0,
+      "cost": {
+        "bootstrap_usd": 0.0,
+        "execution_usd": 0.12578,
+        "known_total_usd": 0.152105,
+        "maintenance_usd": 0.0,
+        "retrieval_usd": null,
+        "rework_usd": 0.026325,
+        "total_usd": null,
+        "unknown_components": [
+          "retrieval_usd"
+        ]
+      },
+      "durable_acceptance": {
+        "accepted_pairs": 6,
+        "pairs": 6
+      },
+      "errors": 0,
+      "graded": 15,
+      "human_active_correction_minutes": {
+        "timed_cells": 0,
+        "total": null,
+        "unknown_cells": 15
+      },
+      "human_decision_points": 6,
+      "mean_f1": 0.9867,
+      "residual_defects": {
+        "extra": 3,
+        "missing": 0
+      },
+      "retrieval_tokens_est": 0,
+      "skipped": 0
+    }
+  },
+  "config": {
+    "harness": "claude-cli 2.1.314 (Claude Code)",
+    "local_context_revision": "lc-1+114f5a8db9c0",
+    "model": "claude-haiku-5-5",
+    "pilot_revision": "pilot-1",
+    "reps": 3,
+    "template_revision": "14b6678972445139e2a2de3537691e5541191cce"
+  },
+  "limitations": [
+    "Fixture tasks on one repository; results do not generalize to customer outcomes.",
+    "Clarification requests are counted as prose lines ending in a question mark.",
+    "Retrieval cost is not separable inside one print-mode call; only tokens are estimated.",
+    "No production verifier or named review owner is attached; no production-value claim."
+  ],
+  "mode": "live",
+  "observation_window": {
+    "elapsed_s": 532.4,
+    "end_utc": "2026-10-31T05:14:52+00:00",
+    "start_utc": "2026-10-31T05:06:00+00:00"
+  },
+  "outcome": "A maintainer gets correct file lists for the scripts/eval durable-outcome modules across five fresh sessions, before and after a rename, with fewer repeated corrections.",
+  "pilot_revision": "pilot-1",
+  "production_claim": {
+    "made": false,
+    "production_verifier": null,
+    "review_owner": null
+  },
+  "retained_correction": [
+    {
+      "baseline_f1": 1.0,
+      "correction": "C1",
+      "local_f1": 1.0,
+      "result": "no_gain",
+      "task_id": "T3-related"
+    }
+  ],
+  "stale_context": [
+    {
+      "detected": [
+        "F1"
+      ],
+      "expected_stale": [
+        "F1"
+      ],
+      "false_alarm": [],
+      "missed": [],
+      "result": "pass",
+      "silently_reused": [],
+      "task_id": "T4-stale-trap"
+    }
+  ],
+  "time_split": {
+    "active_s": 532.4,
+    "elapsed_s": 532.4,
+    "waiting_s": null
+  },
+  "verdict": "no_gain",
+  "verifier": "Each gold list is re-derived from the checkout by gold_probe (verify-gold). The grader is exact-set F1 over repo-relative paths; a task is accepted at F1 = 1.0."
+}
