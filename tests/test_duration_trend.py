@@ -195,8 +195,6 @@ def test_a_regression_on_a_push_to_main_exits_one(
     [
         (None, None, True),
         ("push", "refs/heads/main", True),
-        ("push", None, False),
-        (None, "refs/heads/main", False),
         ("pull_request", "refs/heads/main", False),
     ],
 )
@@ -204,3 +202,49 @@ def test_only_a_push_to_main_or_an_unnamed_run_is_enforced(
     event: str | None, ref: str | None, enforced: bool
 ) -> None:
     assert trend.is_enforced(event, ref) is enforced
+
+
+@pytest.mark.parametrize(
+    ("event", "ref"),
+    [
+        ("push", None),
+        (None, "refs/heads/main"),
+        ("", "refs/heads/main"),
+        ("push", ""),
+        ("  ", "refs/heads/main"),
+        ("push", " "),
+        ("", ""),
+    ],
+)
+def test_a_missing_or_empty_event_or_ref_is_a_config_error(
+    event: str | None, ref: str | None
+) -> None:
+    with pytest.raises(ValueError):
+        trend.is_enforced(event, ref)
+
+
+@pytest.mark.parametrize(
+    "named",
+    [
+        ["--event", "push"],
+        ["--ref", "refs/heads/main"],
+        ["--event", "", "--ref", "refs/heads/main"],
+        ["--event", "push", "--ref", ""],
+    ],
+)
+def test_main_exits_two_for_a_partial_or_empty_run_identity(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], named: list[str]
+) -> None:
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [20.0, 20.0]}, 40.0)
+    history = str(write_history(tmp_path, [10.0, 12.0]))
+
+    rc = trend.main([str(report), "--history", history, *named])
+
+    assert rc == 2
+    assert "bad run identity" in capsys.readouterr().err
+
+
+def test_main_still_runs_when_neither_event_nor_ref_is_given(tmp_path: Path) -> None:
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0]}, 1.0)
+
+    assert trend.main([str(report)]) == 0

@@ -19,7 +19,7 @@ A regression fails the run only on a push to main. ``--event`` and ``--ref``
 name the run; any other event or ref, such as a pull request, reports the
 regression as a warning and exits 0, because runner timing noise must not block
 a merge (issue #6244). With neither flag the run is enforced, as on main.
-Passing only one of them makes the run advisory.
+Passing only one of them, or an empty value, is a config error (exit 2).
 
 ``--breach-policy consecutive-main`` applies the owner decision of issue #6796.
 One sample on a shared runner swings 2x to 4x, and the swing lands on a
@@ -103,9 +103,18 @@ ENFORCED_REF = "refs/heads/main"
 
 
 def is_enforced(event: str | None, ref: str | None) -> bool:
-    """True when a regression fails the run: a push to main, or no run named."""
+    """True when a regression fails the run: a push to main, or no run named.
+
+    Raises ValueError when only one of ``event`` and ``ref`` is given, or when
+    either is empty or blank. Such a run names no event, so treating it as
+    advisory would let a missing CI variable mute the gate.
+    """
     if event is None and ref is None:
         return True
+    if event is None or ref is None:
+        raise ValueError("--event and --ref must be given together")
+    if not event.strip() or not ref.strip():
+        raise ValueError("--event and --ref must not be empty")
     return event == ENFORCED_EVENT and ref == ENFORCED_REF
 
 
@@ -191,6 +200,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"bad breach policy: {exc}", file=sys.stderr)
         return 2
+    if policy.name == consecutive_breach.POLICY_STRICT:
+        try:
+            is_enforced(args.event, args.ref)
+        except ValueError as exc:
+            print(f"bad run identity: {exc}", file=sys.stderr)
+            return 2
     try:
         snapshot = build_snapshot(args.inputs, args.sha or policy.sha, datetime.now(UTC))
     except (OSError, ET.ParseError) as exc:
