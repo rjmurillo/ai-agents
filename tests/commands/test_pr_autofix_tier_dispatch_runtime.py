@@ -566,9 +566,7 @@ def test_round_cap_scan_skips_a_worktree_with_another_origin(tmp_path: Path, doc
         {"Data": {"head_ref": "fix/5447-demo", "head_repo": PR_HEAD_REPO, "head_sha": head_sha}}
     )
 
-    run = run_dispatch(
-        tmp_path, doc, tier="T3", round_action="ACT", live=live, expected_head_sha=head_sha
-    )
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
 
     assert "--worktree" not in run.round_cap_argv
 
@@ -588,9 +586,7 @@ def test_round_cap_scan_is_pointed_at_the_pr_worktree(tmp_path: Path, doc: str) 
         {"Data": {"head_ref": "fix/5447-demo", "head_repo": PR_HEAD_REPO, "head_sha": head_sha}}
     )
 
-    run = run_dispatch(
-        tmp_path, doc, tier="T3", round_action="ACT", live=live, expected_head_sha=head_sha
-    )
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
 
     assert run.round_cap_called
     assert ["--worktree", str(worktree)] == json.loads(run.round_cap_argv.splitlines()[0])[-2:]

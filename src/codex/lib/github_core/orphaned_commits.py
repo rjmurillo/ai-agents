@@ -291,6 +291,8 @@ def _diverged_report(live_head: str, runner: GitRunner) -> dict[str, object]:
     code, parsed = _log_commits(rev_range, runner)
     if code != 0:
         return _unverified(live_head, f"{reason}; git log exited {code}", force_push_suspected=True)
+    if not parsed:
+        return _unverified(live_head, f"{reason}; local HEAD is behind the live head")
     truncated = len(parsed) > MAX_COMMITS
     commits = [classify(commit, runner) for commit in parsed[-MAX_COMMITS:]]
     warning = (

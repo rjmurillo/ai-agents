@@ -97,6 +97,12 @@ class TestDetectionGaps:
         report = oc.scan_if_escalated(True, LIVE, git, pr_checkout=False)
         assert "force_push_suspected" not in report
 
+    def test_head_behind_the_live_head_is_not_a_force_push(self):
+        report = oc.scan_unpushed_commits(LIVE, FakeGit(ancestor=1, log=(0, "")))
+        assert report["status"] == "unverified"
+        assert "force_push_suspected" not in report
+        assert "behind the live head" in str(report["reason"])
+
     def test_ancestor_scan_has_no_force_push_flag(self):
         report = oc.scan_unpushed_commits(LIVE, FakeGit(log=(0, "")))
         assert "force_push_suspected" not in report

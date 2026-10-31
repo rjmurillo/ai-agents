@@ -351,7 +351,6 @@ def run_dispatch(
     tier_read: str = SHIPPED_TIER_READ,
     block_edit: tuple[str, str] | None = None,
     expected_stderr: str | None = None,
-    expected_head_sha: str = "",
 ) -> DispatchRun:
     scripts_dir = tmp_path / "scripts"
     # `parents=True` so a case can hand in a fresh subdirectory of its own
@@ -394,8 +393,8 @@ run_pr_mutation_if_live() {{
     fi
     "$@"
 }}
-
 for PR in 5176 5177; do
+    EXPECTED_HEAD_SHA=$(printf '%s' "$LIVE" | jq -r '.Data.head_sha // empty')
     printf 'visiting %s\\n' "$PR"
 {block}
     printf 'reached-post-tier\\n'
@@ -419,8 +418,6 @@ done
             "FAKE_MERGE_READY_RC": merge_ready_rc,
             "MUTATION_RC_OVERRIDE": mutation_rc,
             "CONTEXT_LOG": str(context_log),
-            # The real doc sets this above the extracted block, from the live head.
-            "EXPECTED_HEAD_SHA": expected_head_sha,
         }
     )
     process = subprocess.run(
