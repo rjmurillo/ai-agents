@@ -30,25 +30,29 @@ def divergence_units(root: Path) -> list[tuple[str, str]]:
 class TestClaudeToolList:
     def test_added_write_edit_bash_fails(self, tmp_path: Path) -> None:
         """The repro from the review: widen a Claude agent with write and shell tools."""
-        claude = mutate(CLAUDE, "tools: Read, Grep", "tools: Read, Grep, Write, Edit, Bash")
+        claude = mutate(
+            CLAUDE, "tools: Read, Glob, Grep", "tools: Read, Glob, Grep, Write, Edit, Bash"
+        )
         build_repo(tmp_path, claude=claude)
         assert run_gate(tmp_path) == gate.EXIT_DIVERGED
         assert divergence_units(tmp_path) == [(gate.PAIR_CLAUDE, "capability:builtin")]
 
     def test_removed_tool_fails(self, tmp_path: Path) -> None:
-        build_repo(tmp_path, claude=mutate(CLAUDE, "tools: Read, Grep", "tools: Read"))
+        build_repo(tmp_path, claude=mutate(CLAUDE, "tools: Read, Glob, Grep", "tools: Read"))
         assert divergence_units(tmp_path) == [(gate.PAIR_CLAUDE, "capability:builtin")]
 
     def test_respelled_tools_pass(self, tmp_path: Path) -> None:
         shared = SHARED.replace("[read, search]", "[read, search, github/issue_read]")
         claude = mutate(
-            CLAUDE, "tools: Read, Grep", "tools: [Grep, Glob, Read, mcp__github__issue_read]"
+            CLAUDE, "tools: Read, Glob, Grep", "tools: [Grep, Glob, Read, mcp__github__issue_read]"
         )
         build_repo(tmp_path, shared=shared, claude=claude, copilot=shared)
         assert run_gate(tmp_path) == gate.EXIT_OK
 
     def test_added_mcp_tool_names_its_server(self, tmp_path: Path) -> None:
-        claude = mutate(CLAUDE, "tools: Read, Grep", "tools: Read, Grep, mcp__serena__write_memory")
+        claude = mutate(
+            CLAUDE, "tools: Read, Glob, Grep", "tools: Read, Glob, Grep, mcp__serena__write_memory"
+        )
         build_repo(tmp_path, claude=claude)
         assert divergence_units(tmp_path) == [(gate.PAIR_CLAUDE, "capability:mcp:serena")]
 
@@ -56,34 +60,66 @@ class TestClaudeToolList:
         shared = mutate(
             SHARED, "tools_copilot: [read, search]", "tools_copilot: [read, search, serena/*]"
         )
-        claude = mutate(CLAUDE, "tools: Read, Grep", "tools: Read, Grep, mcp__serena__find_symbol")
+        claude = mutate(
+            CLAUDE, "tools: Read, Glob, Grep", "tools: Read, Glob, Grep, mcp__serena__find_symbol"
+        )
         build_repo(tmp_path, shared=shared, claude=claude, copilot=shared)
         assert divergence_units(tmp_path) == [(gate.PAIR_CLAUDE, "capability:mcp:serena")]
 
     def test_unknown_tool_name_cannot_hide(self, tmp_path: Path) -> None:
-        claude = mutate(CLAUDE, "tools: Read, Grep", "tools: Read, Grep, Teleport")
+        claude = mutate(CLAUDE, "tools: Read, Glob, Grep", "tools: Read, Glob, Grep, Teleport")
         build_repo(tmp_path, claude=claude)
         assert divergence_units(tmp_path) == [(gate.PAIR_CLAUDE, "capability:unmapped")]
 
     def test_dropping_the_list_widens_to_unrestricted(self, tmp_path: Path) -> None:
-        claude = mutate(CLAUDE, "tools: Read, Grep\n", "")
+        claude = mutate(CLAUDE, "tools: Read, Glob, Grep\n", "")
         build_repo(tmp_path, claude=claude)
-        assert divergence_units(tmp_path) == [(gate.PAIR_CLAUDE, "capability:declaration")]
+        assert divergence_units(tmp_path) == [
+            (gate.PAIR_CLAUDE, "capability:builtin"),
+            (gate.PAIR_CLAUDE, "capability:declaration"),
+        ]
+
+    def test_restricted_side_stays_pinned_when_the_other_is_unrestricted(
+        self, tmp_path: Path
+    ) -> None:
+        """detection-gaps-02: the shared list is compared, not dropped, on a mismatch."""
+        build_repo(tmp_path, claude=mutate(CLAUDE, "tools: Read, Glob, Grep\n", ""))
+        run_gate(tmp_path, "--write-baseline")
+        shared = mutate(
+            SHARED, "tools_copilot: [read, search]", "tools_copilot: [read, search, shell]"
+        )
+        (tmp_path / "templates" / "agents" / "widget.shared.md").write_text(
+            shared, encoding="utf-8"
+        )
+        assert run_gate(tmp_path) == gate.EXIT_DIVERGED
 
     def test_unrestricted_claude_pin_is_one_entry_per_agent(self, tmp_path: Path) -> None:
-        build_repo(tmp_path, claude=mutate(CLAUDE, "tools: Read, Grep\n", ""))
+        build_repo(tmp_path, claude=mutate(CLAUDE, "tools: Read, Glob, Grep\n", ""))
         assert run_gate(tmp_path, "--write-baseline") == gate.EXIT_OK
         assert run_gate(tmp_path) == gate.EXIT_OK
-        assert len(gate.load_baseline(tmp_path)) == 1
+        assert len(gate.load_baseline(tmp_path)) == 2
 
     def test_declaring_a_list_retires_the_declaration_pin(self, tmp_path: Path) -> None:
-        build_repo(tmp_path, claude=mutate(CLAUDE, "tools: Read, Grep\n", ""))
+        build_repo(tmp_path, claude=mutate(CLAUDE, "tools: Read, Glob, Grep\n", ""))
         run_gate(tmp_path, "--write-baseline")
         claude_path = tmp_path / "templates" / "agents" / "widget.claude.md.tmpl"
         claude_path.write_text(CLAUDE, encoding="utf-8")
         found, _ = gate.collect_divergence(tmp_path)
         assert found == {}
         assert run_gate(tmp_path) == gate.EXIT_DIVERGED
+
+
+class TestSharedSourceFallback:
+    def test_shared_bare_tools_key_is_read_like_the_generator(self, tmp_path: Path) -> None:
+        """detection-gaps-04: no tools_copilot means the generator emits the bare list."""
+        shared = mutate(SHARED, "tools_copilot: [read, search]\n", "tools: [read, search]\n")
+        build_repo(tmp_path, shared=shared)
+        assert (gate.PAIR_CLAUDE, "capability:declaration") not in divergence_units(tmp_path)
+
+    def test_shared_bare_tools_key_that_differs_is_a_divergence(self, tmp_path: Path) -> None:
+        shared = mutate(SHARED, "tools_copilot: [read, search]\n", "tools: [read, search, shell]\n")
+        build_repo(tmp_path, shared=shared)
+        assert (gate.PAIR_CLAUDE, "capability:builtin") in divergence_units(tmp_path)
 
 
 class TestCopilotToolLists:
@@ -140,7 +176,7 @@ class TestCopilotToolLists:
         assert run_gate(tmp_path) == gate.EXIT_CONFIG
 
     def test_malformed_tool_list_is_a_config_error(self, tmp_path: Path) -> None:
-        claude = mutate(CLAUDE, "tools: Read, Grep", "tools:\n  nested: map")
+        claude = mutate(CLAUDE, "tools: Read, Glob, Grep", "tools:\n  nested: map")
         build_repo(tmp_path, claude=claude)
         assert run_gate(tmp_path) == gate.EXIT_CONFIG
 

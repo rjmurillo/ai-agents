@@ -29,32 +29,38 @@ UNRESTRICTED = "unrestricted"
 FAMILY_BUILTIN = "builtin"
 FAMILY_UNMAPPED = "unmapped"
 
-_BUILTIN: dict[str, str] = {
+# Each built-in grant is its own item, so adding or dropping one inside a group
+# shows as a difference. A VS Code or Copilot name that stands for several
+# Claude tools expands to the items of those tools: ``search`` is Glob and Grep,
+# ``edit`` is Write and Edit, ``web`` is WebFetch and WebSearch. MultiEdit and
+# NotebookEdit have no VS Code spelling, so a Claude list that grants them
+# differs from ``edit`` and the difference is visible.
+_BUILTIN: dict[str, tuple[str, ...]] = {
     # Claude Code spellings.
-    "Read": "read",
-    "Glob": "search",
-    "Grep": "search",
-    "Write": "write",
-    "Edit": "write",
-    "MultiEdit": "write",
-    "NotebookEdit": "write",
-    "Bash": "execute",
-    "WebFetch": "network",
-    "WebSearch": "network",
-    "Task": "delegate",
-    "TodoWrite": "track",
-    "ToolSearch": "tool-discovery",
+    "Read": ("read",),
+    "Glob": ("glob",),
+    "Grep": ("grep",),
+    "Write": ("write",),
+    "Edit": ("edit",),
+    "MultiEdit": ("multiedit",),
+    "NotebookEdit": ("notebookedit",),
+    "Bash": ("execute",),
+    "WebFetch": ("webfetch",),
+    "WebSearch": ("websearch",),
+    "Task": ("delegate",),
+    "TodoWrite": ("track",),
+    "ToolSearch": ("tool-discovery",),
     # VS Code and Copilot CLI spellings.
-    "read": "read",
-    "search": "search",
-    "edit": "write",
-    "execute": "execute",
-    "shell": "execute",
-    "web": "network",
-    "agent": "delegate",
-    "todo": "track",
-    "memory": "memory",
-    "vscode": "host:vscode",
+    "read": ("read",),
+    "search": ("glob", "grep"),
+    "edit": ("write", "edit"),
+    "execute": ("execute",),
+    "shell": ("execute",),
+    "web": ("webfetch", "websearch"),
+    "agent": ("delegate",),
+    "todo": ("track",),
+    "memory": ("memory",),
+    "vscode": ("host:vscode",),
 }
 _SERVER_ALIASES = {"cognitionai/deepwiki": "deepwiki"}
 _CLAUDE_MCP_RE = re.compile(r"^mcp__(?P<server>.+?)__(?P<tool>.+)$")
@@ -89,20 +95,21 @@ def _claude_server(server: str) -> str:
     return server
 
 
-def classify(name: str) -> tuple[str, str]:
-    """Return ``(family, item)`` for one tool name.
+def classify(name: str) -> tuple[str, tuple[str, ...]]:
+    """Return ``(family, items)`` for one tool name.
 
-    ``family`` is ``builtin``, ``mcp:<server>``, or ``unmapped``.
+    ``family`` is ``builtin``, ``mcp:<server>``, or ``unmapped``. ``items`` holds
+    one entry, except for a VS Code name that stands for several Claude tools.
     """
     if name in _BUILTIN:
         return FAMILY_BUILTIN, _BUILTIN[name]
     claude = _CLAUDE_MCP_RE.match(name)
     if claude:
-        return f"mcp:{_claude_server(claude['server'])}", claude["tool"].replace("-", "_")
+        return f"mcp:{_claude_server(claude['server'])}", (claude["tool"].replace("-", "_"),)
     if "/" in name:
         server, tool = name.rsplit("/", 1)
-        return f"mcp:{_SERVER_ALIASES.get(server, server)}", tool.replace("-", "_")
-    return FAMILY_UNMAPPED, name
+        return f"mcp:{_SERVER_ALIASES.get(server, server)}", (tool.replace("-", "_"),)
+    return FAMILY_UNMAPPED, (name,)
 
 
 def load_toolsets(repo_root: Path) -> dict[str, dict[str, object]]:
@@ -161,41 +168,33 @@ def capability_units(
     key: str,
     prefix: str,
     toolsets: dict[str, dict[str, object]],
+    fallback_key: str | None = None,
 ) -> dict[str, str]:
     """Return ``{unit: text}`` for the abstract capability set in ``frontmatter[key]``.
+
+    ``fallback_key`` names a key the generator reads when ``key`` is absent
+    (the bare ``tools`` list, ``build/generate_agents_common.py``). Without it
+    the member would read as unrestricted while the generated agent is restricted.
 
     One ``<prefix>:declaration`` unit says whether the member restricts its
     tools at all, because an agent with no tool list inherits every tool. One
     ``<prefix>:<family>`` unit per family holds the sorted, de-duplicated items.
     """
-    if key not in frontmatter or frontmatter[key] is None:
+    if frontmatter.get(key) is None and fallback_key is not None:
+        fallback = frontmatter.get(fallback_key)
+        if fallback is not None and not str(fallback).startswith("{{PLATFORM_"):
+            key = fallback_key
+    if frontmatter.get(key) is None:
         return {f"{prefix}:{DECLARATION}": UNRESTRICTED}
     names = expand_names(_names(frontmatter[key], key), key, toolsets)
     families: dict[str, set[str]] = {}
     for name in names:
-        family, item = classify(name)
-        families.setdefault(family, set()).add(item)
+        family, items = classify(name)
+        families.setdefault(family, set()).update(items)
     units = {f"{prefix}:{DECLARATION}": RESTRICTED}
     for family, items in families.items():
         units[f"{prefix}:{family}"] = "\n".join(sorted(items))
     return units
-
-
-def drop_families_on_declaration_mismatch(left: dict[str, str], right: dict[str, str]) -> None:
-    """Remove family units for a prefix whose two declarations disagree.
-
-    A restricted list against an unrestricted member is one divergence, the
-    declaration. Comparing the families too would pin the same fact once per
-    family.
-    """
-    declarations = {u for u in (*left, *right) if u.endswith(f":{DECLARATION}")}
-    for declaration in declarations:
-        if left.get(declaration) == right.get(declaration):
-            continue
-        prefix = declaration[: -len(DECLARATION)]
-        for units in (left, right):
-            for unit in [u for u in units if u.startswith(prefix) and u != declaration]:
-                del units[unit]
 
 
 def load_mcp_table(repo_root: Path) -> dict[str, object]:

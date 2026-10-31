@@ -122,11 +122,16 @@ EXIT_CONFIG = 2
 BASELINE_RELATIVE_PATH = Path(".agents") / "governance" / "agent-source-divergence.json"
 BASELINE_SCHEMA_VERSION = "1"
 # Pinned divergences at the time the gate landed: 62 in prose and 47 in the
-# capability set. Raising this needs a code edit, so growth is a reviewed change
-# and not a quiet re-record.
-BASELINE_CEILING = 109
+# capability set. Issue #6506 (detection-gaps-02, -03) then pinned the restricted
+# side's tool list when the declarations disagree and each built-in grant
+# separately, which exposed 110 more capability units: 219 in total. Raising this
+# needs a code edit, so growth is a reviewed change and not a quiet re-record.
+BASELINE_CEILING = 219
 
 SHARED_FRONTMATTER_KEYS: tuple[str, ...] = ("description", "argument-hint", "role")
+# The generator reads the bare ``tools`` key of a shared source when the
+# platform key (``tools_copilot``, ``tools_vscode``) is absent.
+SHARED_TOOLS_FALLBACK_KEY = "tools"
 PAIR_CLAUDE = "claude-shared"
 PAIR_COPILOT = "copilot-shared"
 PAIRS: tuple[str, ...] = (PAIR_CLAUDE, PAIR_COPILOT)
@@ -187,11 +192,16 @@ def _capability_units(
     frontmatter: dict[str, object],
     capabilities: tuple[tuple[str, str], ...],
     toolsets: dict[str, dict[str, object]],
+    fallback_key: str | None = None,
 ) -> dict[str, str]:
     units: dict[str, str] = {}
     try:
         for key, prefix in capabilities:
-            units.update(agent_capabilities.capability_units(frontmatter, key, prefix, toolsets))
+            units.update(
+                agent_capabilities.capability_units(
+                    frontmatter, key, prefix, toolsets, fallback_key
+                )
+            )
     except agent_capabilities.CapabilityError as exc:
         raise ConfigError(str(exc)) from exc
     return units
@@ -201,14 +211,17 @@ def extract_units(
     text: str,
     capabilities: tuple[tuple[str, str], ...] = (),
     toolsets: dict[str, dict[str, object]] | None = None,
+    fallback_key: str | None = None,
 ) -> dict[str, str]:
     """Return ``{unit: normalized text}`` for every shared unit in one member.
 
     ``capabilities`` lists ``(frontmatter key, unit prefix)`` tool lists to
     reduce to abstract capability units (``agent_capabilities.py``).
+    ``fallback_key`` is the key the generator reads when a list's own key is
+    absent; the shared source passes ``tools`` so it reads like the generator.
     """
     frontmatter = _frontmatter(text)
-    units = _capability_units(frontmatter, capabilities, toolsets or {})
+    units = _capability_units(frontmatter, capabilities, toolsets or {}, fallback_key)
     for key in SHARED_FRONTMATTER_KEYS:
         value = _shared_value(frontmatter, key)
         if value:
@@ -327,9 +340,11 @@ def _compare_stem(
         text = _render(tmpl, partials, table if pair == PAIR_CLAUDE else None)
         units = extract_units(text, tuple((own, prefix) for own, _, prefix in spec), toolsets)
         shared_units = extract_units(
-            shared_text, tuple((theirs, prefix) for _, theirs, prefix in spec), toolsets
+            shared_text,
+            tuple((theirs, prefix) for _, theirs, prefix in spec),
+            toolsets,
+            fallback_key=SHARED_TOOLS_FALLBACK_KEY,
         )
-        agent_capabilities.drop_families_on_declaration_mismatch(units, shared_units)
         diverged = diverged_units(units, shared_units, strict=strict)
         diverged.update(section_order_divergence(units, shared_units))
         found.update({(stem, pair, unit): digest for unit, digest in diverged.items()})
