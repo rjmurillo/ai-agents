@@ -1,0 +1,69 @@
+{
+  "scenarios": [
+    {
+      "id": "TR-1",
+      "desc": "Python target with documented pytest command uses the target command",
+      "input": "Act as the QA agent in pre-PR validation mode for a repository that is NOT this one. Decide where the test and coverage command comes from. Target repo is Python. CONTRIBUTING.md documents 'uv run pytest --cov' and pyproject.toml configures pytest.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "DOTNET_DEFAULT",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "target",
+      "rationale": "Changed branch: commands come from the target repository, not a fixed .NET default."
+    },
+    {
+      "id": "TR-2",
+      "desc": "Node target with npm test in the manifest uses the target command",
+      "input": "Act as the QA agent in pre-PR validation mode for a repository that is NOT this one. Decide where the test and coverage command comes from. Target repo is Node. package.json defines scripts.test as 'vitest run' and scripts.coverage as 'vitest run --coverage'.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "DOTNET_DEFAULT",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "package",
+      "rationale": "Changed branch: manifest or task runner is an accepted source for test commands."
+    },
+    {
+      "id": "TR-3",
+      "desc": "Target with no discoverable test command reports UNRESOLVED EVIDENCE",
+      "input": "Act as the QA agent in pre-PR validation mode for a repository that is NOT this one. Decide where the test and coverage command comes from. Target repo has no README test section, no manifest scripts, no CI config, no local validation skill, and no autoplan recon context.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "UNRESOLVED_EVIDENCE",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "DOTNET_DEFAULT",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "unresolved",
+      "rationale": "Changed branch: never invent a command; report UNRESOLVED EVIDENCE and treat the gate as unmet."
+    },
+    {
+      "id": "TR-4",
+      "desc": "CI configuration is an accepted command source",
+      "input": "Act as the QA agent in pre-PR validation mode for a repository that is NOT this one. Decide where the test and coverage command comes from. Target repo has no README test section. .github/workflows/ci.yml runs 'make test' and 'make coverage' on every pull request.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "DOTNET_DEFAULT",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "CI",
+      "rationale": "Changed branch: CI configuration is a documented source."
+    },
+    {
+      "id": "TR-5",
+      "desc": "Regression: a .NET target with documented dotnet test still uses its own command",
+      "input": "Act as the QA agent in pre-PR validation mode for a repository that is NOT this one. Decide where the test and coverage command comes from. Target repo is .NET. README documents 'dotnet test -c Release --collect:\"XPlat Code Coverage\"'.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "DOTNET_DEFAULT",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "target",
+      "rationale": "Regression: .NET targets still resolve their own documented command."
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "scenarios": [
+    {
+      "id": "TS-1",
+      "desc": "Go target with a documented security target uses the target command",
+      "input": "Act as the security agent writing a verification request for a repository that is NOT this one. Decide where the verification commands come from. Target repo is Go. Its Makefile defines 'make security-test' and CONTRIBUTING.md says to run it before merging.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "THIS_REPO_COMMAND",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "target",
+      "rationale": "Changed branch: take every command from the target repository."
+    },
+    {
+      "id": "TS-2",
+      "desc": "Target with no documented security tests reports UNRESOLVED EVIDENCE",
+      "input": "Act as the security agent writing a verification request for a repository that is NOT this one. Decide where the verification commands come from. Target repo is Rust. No docs, manifest task, CI config, local validation skill, or recon context names any security test command.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "UNRESOLVED_EVIDENCE",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "THIS_REPO_COMMAND",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "unresolved",
+      "rationale": "Changed branch: drop or flag the step rather than copy this repository's hook validation command."
+    },
+    {
+      "id": "TS-3",
+      "desc": "Node target uses its own vulnerable-dependency check",
+      "input": "Act as the security agent writing a verification request for a repository that is NOT this one. Decide where the verification commands come from. Target repo is Node with a package-lock.json. CI runs 'npm audit --audit-level=high'. Decide the dependency check source.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "THIS_REPO_COMMAND",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "audit",
+      "rationale": "Changed branch: the vulnerable-dependency check follows the target ecosystem."
+    },
+    {
+      "id": "TS-4",
+      "desc": "This repository's hook validation step is not copied into a foreign repo",
+      "input": "Act as the security agent writing a verification request for a repository that is NOT this one. Decide where the verification commands come from. Target repo is Java with Maven. The caller's recon names 'mvn verify -Psecurity'. The agent's example block shows this repository's hook validation script.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "THIS_REPO_COMMAND",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "mvn",
+      "rationale": "Changed branch: replace the example hook validation step with the target's own."
+    },
+    {
+      "id": "TS-5",
+      "desc": "Regression: a .NET target uses dotnet list package --vulnerable",
+      "input": "Act as the security agent writing a verification request for a repository that is NOT this one. Decide where the verification commands come from. Target repo is .NET. Its docs say to run 'dotnet list package --vulnerable' for the dependency check.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "TARGET_COMMAND",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "THIS_REPO_COMMAND",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "dotnet",
+      "rationale": "Regression: the .NET dependency check remains valid when the target is .NET."
+    }
+  ]
+}
