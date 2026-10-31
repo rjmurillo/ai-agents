@@ -56,7 +56,7 @@ def test_parseable_modules_still_resolve(tmp_path: Path) -> None:
     assert wpf.reach(tmp_path, "tests/test_a.py", inventory) == {"tests/test_a.py", "lib/ok.py"}
 
 
-def test_emit_writes_the_match_everything_key_when_a_file_is_broken(
+def test_emit_writes_the_match_everything_key_when_reach_error_is_injected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def boom(_root: Path, _files: object = None) -> dict[str, list[str]]:

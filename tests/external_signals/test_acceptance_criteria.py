@@ -413,3 +413,15 @@ def test_indented_heading_ends_the_section() -> None:
     body = "## Acceptance\n\n- [ ] One\n  ## Notes\n- [ ] Not acceptance\n"
 
     assert len(ac.parse_criteria(body)) == 1
+
+
+def test_acceptance_heading_count_sees_a_duplicate_indented_one_to_three_spaces() -> None:
+    body = "## Acceptance\n\n- [ ] a\n\n ## Acceptance\n\n- [x] b\n"
+
+    assert ac.acceptance_heading_count(body) == 2
+
+
+def test_acceptance_heading_count_ignores_a_duplicate_indented_four_spaces() -> None:
+    body = "## Acceptance\n\n- [ ] a\n\n    ## Acceptance\n\n- [x] b\n"
+
+    assert ac.acceptance_heading_count(body) == 1

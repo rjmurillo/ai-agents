@@ -267,7 +267,8 @@ def filter_patterns(repo_root: Path, files: Iterable[str] | None = None) -> dict
     """Globs per marked module for the tree at ``repo_root``.
 
     Raises:
-        ReachError: the inventory could not be read.
+        ReachError: the inventory could not be read, or a reachable Python
+            file could not be read or parsed.
         run_pytest_windows.DiscoveryError: a test module could not be read.
     """
     inventory = Inventory(tracked_files(repo_root) if files is None else files)
