@@ -260,6 +260,8 @@ def _visible_text(body: str) -> tuple[str, str]:
             parts.append(_inline_text(token))
         elif token.type == "html_block":
             parts.append(_html_block_text(token.content))
+        elif token.type in ("fence", "code_block"):
+            parts.append(token.content)
     return "\n".join(parts), TEXT_MODE_PARSED
 
 
