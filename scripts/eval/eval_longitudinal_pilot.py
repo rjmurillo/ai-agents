@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 import _longitudinal_pilot as lp
+import _longitudinal_report as rep
 import eval_skill_bootstrap_capability as cap
 from _human_minutes import HumanMinutesError, load_human_minutes, lookup, unmatched
 
@@ -46,7 +47,10 @@ DEFAULT_PILOT = REPO_ROOT / "evals" / "longitudinal-pilot" / "fixtures" / "pilot
 PRIOR_RUNS = "evals/skill-bootstrap-capability/runs/*/cap-*.jsonl"
 TEMPLATE = "templates/skills/skill-bootstrap.SKILL.md.tmpl"
 DEFAULT_RESERVE_USD = 0.25  # above the largest per-call cost in PRIOR_RUNS (about 0.21)
-PRICING_BASIS = "docs/SKILL-AUTHORING.md model pricing table (haiku $1/$5 per MTok); measured cost_usd in PRIOR_RUNS"
+PRICING_BASIS = (
+    "docs/SKILL-AUTHORING.md model pricing table (haiku $1/$5 per MTok); "
+    "measured cost_usd in PRIOR_RUNS"
+)
 EXIT_OK, EXIT_LOGIC, EXIT_CONFIG, EXIT_EXTERNAL = 0, 1, 2, 3
 
 # (condition, task, prompt, checkout, model) -> run_one-shaped record
@@ -268,7 +272,7 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         None,
         minutes,
     )
-    report = lp.build_report(
+    report = rep.build_report(
         pilot,
         records,
         _config(pilot, root, "scripted", "scripted-dry-run", args.reps),
@@ -304,7 +308,7 @@ def cmd_live(args: argparse.Namespace) -> int:
     records, window = execute(
         pilot, live_runner, {"pre": pre, "post": post}, args.model, args.reps, ledger, minutes
     )
-    report = lp.build_report(
+    report = rep.build_report(
         pilot,
         records,
         _config(pilot, pre, args.model, f"claude-cli {version or 'unknown'}", args.reps),
