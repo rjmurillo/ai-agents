@@ -862,6 +862,36 @@ class TestCheckNameFilter:
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["FailingChecks"] == 0
         assert data["CheckLogs"] == []
+        assert data["CheckNames"] == ["build"]
+
+    def test_passing_named_check_summary_names_the_filter(self, capsys):
+        rc = _run_main(
+            [
+                "--checks-input",
+                _two_failing_checks_json(),
+                "--check-name",
+                "build",
+                "--output-format",
+                "human",
+            ]
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "build" in out
+        assert "No failing checks to analyze" not in out
+
+    def test_no_filter_no_failing_keeps_generic_summary(self, capsys):
+        passing = json.dumps(
+            {
+                "Success": True,
+                "Number": 7,
+                "Checks": [{"Name": "build", "Conclusion": "SUCCESS", "DetailsUrl": ""}],
+            }
+        )
+        rc = _run_main(["--checks-input", passing])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["CheckNames"] == []
 
 
 def _job_json(steps: list[dict[str, object]]) -> str:
