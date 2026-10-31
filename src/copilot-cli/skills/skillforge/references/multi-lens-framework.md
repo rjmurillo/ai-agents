@@ -8,7 +8,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 
 **Minimum Requirements:**
 
-- All 11 lenses must be applied during Phase 1
+- At the Full tier, all 11 lenses must be applied during Phase 1; at the Standard tier, apply those that address a named open risk (see depth-contract.md)
 - At least 3 lenses must yield actionable insights
 - Conflicting perspectives must be explicitly resolved
 

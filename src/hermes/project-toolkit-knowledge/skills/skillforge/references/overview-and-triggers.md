@@ -125,7 +125,7 @@ Only add higher-risk tools when explicitly required:
 |---------|--------|
 | `SkillForge: {goal}` | Full autonomous execution |
 | `SkillForge --plan-only {goal}` | Generate specification only |
-| `SkillForge --quick {goal}` | Reduced depth (not recommended) |
+| `SkillForge --quick {goal}` | Bounded tier for a low-risk edit with a deterministic verifier (see depth-contract.md) |
 | `SkillForge --triage {input}` | Run Phase 0 triage only |
 | `SkillForge --improve {skill}` | Enter improvement mode for existing skill |
 
