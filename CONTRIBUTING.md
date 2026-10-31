@@ -373,6 +373,12 @@ uv run python scripts/eval/eval-prompt-change.py \
   --scenarios tests/evals/research-scenarios.json \
   --base-ref main
 
+# Replies truncated (token_limit, unscored runs)? Raise the reply budget (default 1024, max 16384):
+uv run python scripts/eval/eval-prompt-change.py \
+  --prompt .claude/skills/research/SKILL.md \
+  --scenarios tests/evals/research-scenarios.json \
+  --base-ref main --max-tokens 4096
+
 # Security-critical prompts (5 runs, 100% pass required):
 uv run python scripts/eval/eval-prompt-change.py \
   --prompt .project-toolkit/security/prompts/security-review.md \

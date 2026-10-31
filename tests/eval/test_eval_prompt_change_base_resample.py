@@ -24,7 +24,7 @@ def _resampling_multi(
     `calls` records (prompt, runs) so a test can assert when no resample happens.
     """
 
-    def fake(_k: str, prompt: str, scenario: dict[str, Any], _m: str, runs: int) -> Any:
+    def fake(_k: str, prompt: str, scenario: dict[str, Any], _m: str, runs: int, **_kw: Any) -> Any:
         calls.append((prompt, runs))
         if prompt != "base":
             return _result(scenario["id"], head, runs)
@@ -137,7 +137,7 @@ def test_run_and_report_forwards_base_resamples(
 
     monkeypatch.setattr(ev, "run_comparison", fake)
     args = argparse.Namespace(
-        model="m", runs=3, security_critical=False, base_resamples=7, output=None
+        model="m", runs=3, security_critical=False, base_resamples=7, max_tokens=1024, output=None
     )
     with pytest.raises(SystemExit):
         ev._run_and_report("k", "b", "h", [D12], args, "t")
