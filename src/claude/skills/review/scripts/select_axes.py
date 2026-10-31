@@ -624,11 +624,15 @@ def _blanket_reason(
     unknown_effects: Sequence[str],
     usable_paths: Sequence[str],
 ) -> str:
-    """Return the reason recorded on every axis when the whole set runs."""
-    if deep:
-        return _DEEP_REASON
+    """Return the reason recorded on every axis a deep or fail-closed run selects.
+
+    Fail-closed wins over deep: a deep run that fails closed keeps all four
+    local axes, and the reason must say why the narrowing did not run.
+    """
     if unclassified or unknown_effects or not usable_paths:
         return _FAIL_CLOSED_REASON
+    if deep:
+        return _DEEP_REASON
     return _UNRESOLVED_REASON
 
 
@@ -765,9 +769,10 @@ def select_axes(
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
         if not fail_closed:
-            # Deep has a trustworthy path list, so a local scanner that reads
-            # none of it is skipped with a reason rather than run over zero
-            # files. That run reports UNKNOWN, which no language-specific
+            # Deep trusts its path list (SKILL.md tells a caller unsure of the
+            # paths to pass none, which fails closed), so a local scanner that
+            # reads none of it is skipped with a reason rather than run over
+            # zero files. That run reports UNKNOWN, which no language-specific
             # review can clear, so a valid PowerShell-only change could never
             # reach PASS (issue #7004). Every canonical axis still runs, which
             # keeps deep the superset of CI: CI runs no local axis.

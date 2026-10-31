@@ -204,7 +204,16 @@ class TestOverrideModesAndLocalAxes:
     def test_deep_still_runs_every_canonical_axis_when_narrowing(self):
         result = select(self.POWERSHELL_CHANGE, deep=True)
         assert set(result["canonical_selected"]) == set(CANDIDATES)
-        assert result["fail_closed"] is False
+        # The output forces fail_closed to False under deep, so assert the
+        # classification evidence instead: every path classified, so the
+        # narrowing ran rather than a fail-closed bypass.
+        assert result["unclassified_paths"] == []
+
+    def test_deep_with_no_paths_keeps_every_local_axis(self):
+        """A caller unsure of the changed paths passes none, so nothing narrows."""
+        result = select([], deep=True)
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        assert result["skipped"] == {}
 
     def test_deep_keeps_a_scanner_that_reads_one_changed_file(self):
         """Negative control: narrowing must not drop a scanner with work to do."""
@@ -226,6 +235,29 @@ class TestOverrideModesAndLocalAxes:
         result = select(["some/unclassifiable/blob.bin"], deep=True)
         assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
         assert result["skipped"] == {}
+
+    def test_deep_and_unknown_effect_keeps_every_local_axis(self):
+        result = mod.select_axes(
+            changed_paths=self.POWERSHELL_CHANGE,
+            effects=["not-a-real-effect"],
+            canonical_candidates=CANDIDATES,
+            deep=True,
+        )
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        assert result["skipped"] == {}
+
+    @pytest.mark.parametrize("paths", [[], ["some/unclassifiable/blob.bin"]])
+    def test_deep_fail_closed_reason_says_why_narrowing_did_not_run(self, paths):
+        """The output forces fail_closed to False under deep, so the reason must."""
+        result = select(paths, deep=True)
+        for axis in mod.LOCAL_AXES:
+            assert result["selection_reasons"][axis] == mod._FAIL_CLOSED_REASON
+
+    def test_deep_narrowing_keeps_the_deep_reason(self):
+        """Negative control: a classified deep run still says deep review."""
+        result = select(self.POWERSHELL_CHANGE, deep=True)
+        for axis in result["local_selected"]:
+            assert result["selection_reasons"][axis] == mod._DEEP_REASON
 
     def test_fail_closed_keeps_every_local_axis(self):
         result = select(["some/unclassifiable/blob.bin"])

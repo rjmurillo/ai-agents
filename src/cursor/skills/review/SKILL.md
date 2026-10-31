@@ -87,7 +87,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 4. **Select the Stage-2 axes with `select_axes.py`, then run the canonical ones.** Pass every path from step 1 and every effect from the diff hunks. Pass each path as one argument. Never shell-expand Git-controlled paths. The selector is deterministic, so do not re-derive routing from prose. The co-located `resources/axis-selection.md` defines effects, risks, and output fields.
 
-   Pass `--deep` when the caller asks for a deep or full review, when the invocation is a pre-merge gate that must be a strict superset of CI, or when you cannot enumerate the changed paths with confidence. Deep skips a local axis whose scanner reads no changed file.
+   Pass `--deep` when the caller asks for a deep or full review, when the invocation is a pre-merge gate that must be a strict superset of CI. Deep skips a local axis whose scanner reads no changed file. Unsure of the paths? Pass none; that fails closed.
 
    Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every candidate was selected; that is intended, not an error. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
 
@@ -122,7 +122,7 @@ A subagent with no `Task` tool MUST NOT review its own diff and write the marker
 - A canonical axis whose output cannot be parsed by `extract_verdict` -> mark `UNKNOWN`.
 - UNKNOWN does NOT override real findings: `merge_verdicts(["WARN", "UNKNOWN"])` returns `WARN`. UNKNOWN only matters when it would otherwise be PASS.
 - UNKNOWN axes are surfaced in the output table so the reviewer sees what was not evaluated.
-- A local axis skipped as unreadable is not PASS and gets no marker row; its Summary names the language-native checks run instead.
+- A local axis skipped as unreadable is not PASS and gets no marker row; its Summary names the language-native checks run instead, or `none run`.
 
 ## Output
 

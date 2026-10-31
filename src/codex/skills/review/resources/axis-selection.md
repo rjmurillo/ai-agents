@@ -129,10 +129,21 @@ fail-closed run skips the narrowing, deep or not, because it has no
 trustworthy path list. A `--pin` also overrides it: a caller who names the
 axis gets it.
 
+The narrowing trusts the path list, so pass only the verified diff paths. A
+caller who cannot list the changed paths with confidence passes none. An
+empty list fails closed, and all four local axes run over the real diff. A
+partial list would skip a scanner that the missing files needed.
+
+A path the risk table cannot classify also fails closed. A PowerShell module
+that changes its `.psd1` manifest or a `.ps1xml` file keeps all four local
+axes. In that case `code-qualities-assessment` and `golden-principles` still
+report UNKNOWN.
+
 A local axis skipped this way is not PASS and gets no marker row. In its
 Summary cell, name the language-native checks that covered those files, such
-as PSScriptAnalyzer and Pester for PowerShell or shellcheck for shell. That
-note is evidence for the reader, not a verdict.
+as PSScriptAnalyzer and Pester for PowerShell or shellcheck for shell. If no
+such check ran, write `none run`. That note is evidence for the reader, not a
+verdict.
 
 `golden-principles` is scoped to toolkit artifacts because that is the surface
 its GP rules govern; a clean result elsewhere means no rule applied, not that

@@ -50,6 +50,9 @@ def select(paths: list[str], **kwargs: object) -> dict:
 class TestDeepReviewRunsTheWholeSet:
     """Issue #4981 AC-10: a full-set mode stays available for a deep review.
 
+    Since issue #7004, deep runs every local axis only when each scanner reads
+    a changed file, so these tests use ``EVERY_SCANNER_READS``.
+
     The issue's Problem section counts "15 review axes" as the state BEFORE
     this work: 1 Stage-1 gate, 11 Stage-2 canonical axes, and 3 chained
     skills. Its own routing table then adds a row, "Docs and instruction
@@ -66,6 +69,17 @@ class TestDeepReviewRunsTheWholeSet:
         result = select(EVERY_SCANNER_READS, deep=True)
         assert set(result["canonical_selected"]) == set(CANDIDATES)
         assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+
+    def test_every_scanner_reads_input_does_not_fail_closed(self) -> None:
+        """A fail-closed run keeps all four local axes without narrowing.
+
+        Deep output forces ``fail_closed`` to False, so check the input in
+        risk mode, where the field is real. This proves the full set above
+        comes from narrowing that kept every scanner, not from a bypass.
+        """
+        result = select(EVERY_SCANNER_READS)
+        assert result["fail_closed"] is False
+        assert result["unclassified_paths"] == []
 
     def test_deep_review_stage2_total_is_canonical_plus_local(self) -> None:
         result = select(EVERY_SCANNER_READS, deep=True)
