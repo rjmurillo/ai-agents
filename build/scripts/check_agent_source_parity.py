@@ -84,7 +84,6 @@ EXIT CODES (ADR-035)
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
@@ -108,6 +107,11 @@ from agent_source_report import (  # noqa: E402
     print_json,
     print_text,
     reconcile,
+)
+from agent_unit_diff import (  # noqa: E402
+    CLAUDE_ONLY_SECTIONS,
+    diverged_units,
+    section_order_divergence,
 )
 from detect_agent_drift import (  # noqa: E402
     get_markdown_section_list,
@@ -137,9 +141,6 @@ SHARED_FRONTMATTER_KEYS: tuple[str, ...] = ("description", "argument-hint", "rol
 # The generator reads the bare ``tools`` key of a shared source when the
 # platform key (``tools_copilot``, ``tools_vscode``) is absent.
 SHARED_TOOLS_FALLBACK_KEY = "tools"
-# H2 sections that exist only in a Claude template by design (the Claude Code
-# tool list, GENERATOR-FILES.md). One-sided, they are not a divergence.
-CLAUDE_ONLY_SECTIONS: frozenset[str] = frozenset({"section:Claude Code Tools"})
 PAIR_CLAUDE = "claude-shared"
 PAIR_COPILOT = "copilot-shared"
 PAIRS: tuple[str, ...] = (PAIR_CLAUDE, PAIR_COPILOT)
@@ -160,10 +161,6 @@ _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 
 class ConfigError(Exception):
     """The gate could not run: a tree, template, or baseline is unusable."""
-
-
-def _digest(left: str, right: str) -> str:
-    return hashlib.sha256(f"{left}\0{right}".encode()).hexdigest()
 
 
 def _frontmatter(text: str) -> dict[str, object]:
@@ -245,41 +242,6 @@ def extract_units(
         unit = "preamble" if name == "preamble" else f"section:{name}"
         units[unit] = _normalize(body)
     return units
-
-
-def diverged_units(
-    left: dict[str, str],
-    right: dict[str, str],
-    *,
-    strict: bool,
-    one_sided_ok: frozenset[str] = frozenset(),
-) -> dict[str, str]:
-    """Return ``{unit: digest}`` for each unit the two members disagree on.
-
-    A section on one side only counts only when ``strict`` is set, and never
-    when it is named in ``one_sided_ok``. The preamble and the frontmatter keys
-    count in every pair.
-    """
-    found: dict[str, str] = {}
-    for unit in sorted(set(left) | set(right)):
-        one_sided = unit not in left or unit not in right
-        if one_sided and unit in one_sided_ok:
-            continue
-        if one_sided and not strict and unit.startswith("section:"):
-            continue
-        a, b = left.get(unit, ""), right.get(unit, "")
-        if one_sided or a != b:
-            found[unit] = _digest(a, b)
-    return found
-
-
-def section_order_divergence(left: dict[str, str], right: dict[str, str]) -> dict[str, str]:
-    """Return ``{"order": digest}`` when shared sections appear in a different order."""
-    both = [u for u in left if u.startswith("section:") and u in right]
-    in_right = [u for u in right if u in set(both)]
-    if both == in_right:
-        return {}
-    return {"order": _digest("\n".join(both), "\n".join(in_right))}
 
 
 def _read(path: Path) -> str:

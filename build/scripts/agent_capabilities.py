@@ -189,8 +189,8 @@ def capability_units(
     names = expand_names(_names(frontmatter[key], key), key, toolsets)
     families: dict[str, set[str]] = {}
     for name in names:
-        family, items = classify(name)
-        families.setdefault(family, set()).update(items)
+        family, granted = classify(name)
+        families.setdefault(family, set()).update(granted)
     units = {f"{prefix}:{DECLARATION}": RESTRICTED}
     for family, items in families.items():
         units[f"{prefix}:{family}"] = "\n".join(sorted(items))

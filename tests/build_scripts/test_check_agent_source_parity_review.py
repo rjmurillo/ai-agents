@@ -53,3 +53,27 @@ class TestReviewFindings:
         shared = SHARED + "\n## Steps\n\n1. Again.\n"
         build_repo(tmp_path, shared=shared)
         assert run_gate(tmp_path) == gate.EXIT_CONFIG
+
+
+class TestOneSidedSections:
+    def test_claude_template_section_missing_from_shared_fails(self, tmp_path: Path) -> None:
+        """detection-gaps-05: a one-sided section in the Claude pair is no longer skipped."""
+        claude = CLAUDE + "\n## Extra Rules\n\n- Never ask first.\n"
+        build_repo(tmp_path, claude=claude)
+        found, _ = gate.collect_divergence(tmp_path)
+        assert [k[1:] for k in found] == [(gate.PAIR_CLAUDE, "section:Extra Rules")]
+
+    def test_shared_section_missing_from_claude_template_fails(self, tmp_path: Path) -> None:
+        shared = SHARED + "\n## Extra Rules\n\n- Never ask first.\n"
+        build_repo(tmp_path, shared=shared, copilot=shared)
+        found, _ = gate.collect_divergence(tmp_path)
+        assert [k[1:] for k in found] == [(gate.PAIR_CLAUDE, "section:Extra Rules")]
+
+    def test_diverged_units_one_sided_exemption_is_explicit(self) -> None:
+        left: dict[str, str] = {"section:Only Here": "x"}
+        right: dict[str, str] = {}
+        assert gate.diverged_units(left, right, strict=True)
+        assert not gate.diverged_units(
+            left, right, strict=True, one_sided_ok=frozenset({"section:Only Here"})
+        )
+        assert not gate.diverged_units(left, right, strict=False)
