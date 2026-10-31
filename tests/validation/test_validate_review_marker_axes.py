@@ -281,3 +281,60 @@ def test_check_axes_scales_linearly_on_a_forged_long_list() -> None:
     reason = vrm.check_axes(axes, KNOWN)
     assert reason == "axis named more than once: analyst"
     assert time.monotonic() - start < 1.0
+
+
+def test_validate_ref_subset_reports_declared_axes_only(git_repo: Path) -> None:
+    _marker_commit(git_repo, "analyst,correctness")
+    outcome = vrm.validate_ref("HEAD", git_repo, KNOWN)
+    assert outcome.axes == ("analyst", "correctness")
+    assert "taste-lints" not in outcome.message
+
+
+def test_validate_ref_deep_marker_declares_every_axis(git_repo: Path) -> None:
+    _marker_commit(git_repo, "analyst,qa,security,correctness,taste-lints")
+    outcome = vrm.validate_ref("HEAD", git_repo, KNOWN, required_axes=("taste-lints", "security"))
+    assert outcome.ok
+    assert outcome.axes == ("analyst", "qa", "security", "correctness", "taste-lints")
+
+
+def test_validate_ref_missing_required_axis_is_not_verified(git_repo: Path) -> None:
+    _marker_commit(git_repo, "analyst,correctness")
+    outcome = vrm.validate_ref("HEAD", git_repo, KNOWN, required_axes=("taste-lints",))
+    assert not outcome.ok
+    assert outcome.exit_code == 1
+    assert "required axis not declared" in outcome.message
+    assert "taste-lints" in outcome.message
+
+
+def test_validate_ref_required_axis_present_in_subset_passes(git_repo: Path) -> None:
+    _marker_commit(git_repo, "analyst,correctness")
+    outcome = vrm.validate_ref("HEAD", git_repo, KNOWN, required_axes=("correctness",))
+    assert outcome.ok
+
+
+def test_validate_ref_stale_marker_fails_even_when_axis_required(git_repo: Path) -> None:
+    _marker_commit(git_repo, "analyst,taste-lints")
+    (git_repo / "b.txt").write_text("new code\n", encoding="utf-8")
+    _git(git_repo, "add", "b.txt")
+    _git(git_repo, "commit", "-q", "-m", "feat: code after review")
+    outcome = vrm.validate_ref("HEAD", git_repo, KNOWN, required_axes=("taste-lints",))
+    assert not outcome.ok
+    assert "required axis" not in outcome.message
+
+
+def test_main_require_axis_exit_1_when_absent(
+    git_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _marker_commit(git_repo, "analyst,correctness")
+    code = vrm.main(
+        [
+            "--repo-root",
+            str(git_repo),
+            "--references-dir",
+            str(REFERENCES),
+            "--require-axis",
+            "security",
+        ]
+    )
+    assert code == 1
+    assert "required axis not declared" in capsys.readouterr().err

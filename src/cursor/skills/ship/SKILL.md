@@ -127,13 +127,15 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
        table live in `references/review-marker-resolution.md`; run the command
        it gives you, then read the exit code below.
 
-     The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent) and whose body carries a review report that the `Review-Artifact` digest covers; a clean merge of `origin/main` on top of such a marker also passes. Exit `1` means no marker, a stale marker, new code after review, an unknown or repeated axis name, or a missing or altered review report; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped. Because `/review` is the strict superset of CI (Child 1 #1934), a passing marker covers golden-principles, taste-lints, and code-quality too; there is no separate standards check.
+     The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent) and whose body carries a review report that the `Review-Artifact` digest covers; a clean merge of `origin/main` on top of such a marker also passes. Exit `1` means no marker, a stale marker, new code after review, an unknown or repeated axis name, or a missing or altered review report; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped.
+
+     **Coverage is what the marker declares, nothing more.** Report `Reviewed: PASS (axes: <declared list>)` from the validator's PASS line, never a full-review claim. An axis the marker omits is `NOT RUN`, not passed. `/ship` requires no specific axis by default; when policy requires one, pass `--require-axis <axis>`. Rules: `references/review-marker-resolution.md` (Coverage).
 
    - **`mode=contributor` (advisory; no marker commit).** Writing the empty `Reviewed-By` marker commit onto a shared branch is PROHIBITED here: it pollutes the owner's PR. Do NOT run the marker validator and do NOT commit a marker. Instead, run the `/review` axes and accept a non-commit attestation as the proof: a `/review` run logged in the ship report (the axes run plus verdict on the current HEAD SHA), or that same result posted as a PR comment. This check is advisory in contributor mode: a clean `/review` result records the attestation; it never blocks and never mutates the branch.
 
 4. **Tests passing** - All tests green? No skipped tests without justification?
 
-> `golden-principles` + `taste-lints` + `code-quality` are now part of `/review` (Child 1 #1934), so `/ship` does not invoke them separately. `/pr-quality:all` is likewise no longer a required separate step before `/ship`: a passing `/review` marker (check 3) already runs the same canonical axes locally. No CI workflow runs the review axes against a diff: PR #5132 deleted the one that did, so the local marker is the review-axis gate.
+> `golden-principles`, `taste-lints`, and `code-quality` are `/review` axes (Child 1 #1934), not separate `/ship` steps, and count only when the marker declares them. No CI workflow runs the review axes (PR #5132 deleted it), so the local marker is that gate.
 
 ## Process
 
@@ -169,7 +171,7 @@ PR-AT-PREFLIGHT: none|#<number>
 PRE-FLIGHT:
   Pipeline:  PASS|FAIL|DEFERRED->PASS|DEFERRED->FAIL (evidence; DEFERRED-> forms mean pr=none at check 1 and validated after PR creation)
   Security:  PASS|FAIL (evidence)
-  Reviewed:  PASS|FAIL|ADVISORY (owner: SHA-bound /review marker on HEAD; contributor: /review attestation, no marker commit)
+  Reviewed:  PASS|FAIL|ADVISORY (owner: SHA-bound /review marker on HEAD, list declared axes; contributor: /review attestation, no marker commit)
   Tests:     PASS|FAIL (evidence)
 
 RESULT: SHIPPED|VALIDATED|BLOCKED
