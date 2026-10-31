@@ -1,0 +1,100 @@
+{
+  "scenarios": [
+    {
+      "id": "GD-1",
+      "desc": "Finding caused by this diff is repaired this cycle",
+      "input": "Invoke /build. All implementation is done and the four exit gates ran. The work order NON-GOALS field limits edits to src/claude/skills/ship/** and tests/skills/ship/**. Gate 4 (orphan-ref-validator) returned CRITICAL_FAIL for a script path reference this diff added in src/claude/skills/ship/SKILL.md. Decide the disposition.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "REPAIR_IN_SCOPE",
+      "verdict_options": [
+        "REPAIR_IN_SCOPE",
+        "RECORD_OUT_OF_SCOPE",
+        "STOP_BLOCKER",
+        "SEPARATE_REPAIR",
+        "ADD_SUPPRESSION",
+        "DEFER_TO_REVIEW"
+      ],
+      "expected_reason_contains": "in scope",
+      "rationale": "Changed branch: caused by this diff or inside allowed paths means repair and rerun."
+    },
+    {
+      "id": "GD-2",
+      "desc": "Pre-existing drift outside allowed paths that does not block delivery is recorded",
+      "input": "Invoke /build. All implementation is done and the four exit gates ran. The work order NON-GOALS field limits edits to src/claude/skills/ship/** and tests/skills/ship/**. Gate 2 (taste-lints) shows a warning in docs/old-guide.md on a line this diff did not touch, outside the allowed paths. The gate result is not blocking delivery. Decide the disposition.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "RECORD_OUT_OF_SCOPE",
+      "verdict_options": [
+        "REPAIR_IN_SCOPE",
+        "RECORD_OUT_OF_SCOPE",
+        "STOP_BLOCKER",
+        "SEPARATE_REPAIR",
+        "ADD_SUPPRESSION",
+        "DEFER_TO_REVIEW"
+      ],
+      "expected_reason_contains": "record",
+      "rationale": "Changed branch: pre-existing and outside allowed paths means no edit, record it."
+    },
+    {
+      "id": "GD-3",
+      "desc": "Out-of-scope drift that blocks a required gate stops the branch",
+      "input": "Invoke /build. All implementation is done and the four exit gates ran. The work order NON-GOALS field limits edits to src/claude/skills/ship/** and tests/skills/ship/**. Gate 4 (orphan-ref-validator) returned CRITICAL_FAIL on a stale skill reference in docs/legacy/README.md, outside the allowed paths, present on origin/main before this branch. No one authorized repair. Decide the disposition.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "STOP_BLOCKER",
+      "verdict_options": [
+        "REPAIR_IN_SCOPE",
+        "RECORD_OUT_OF_SCOPE",
+        "STOP_BLOCKER",
+        "SEPARATE_REPAIR",
+        "ADD_SUPPRESSION",
+        "DEFER_TO_REVIEW"
+      ],
+      "expected_reason_contains": "block",
+      "rationale": "Changed branch: an out-of-scope finding that blocks delivery stops the branch, reports the gate FAILED, and names the owner."
+    },
+    {
+      "id": "GD-4",
+      "desc": "Explicitly authorized out-of-scope repair is a separate bounded commit",
+      "input": "Invoke /build. All implementation is done and the four exit gates ran. The work order NON-GOALS field limits edits to src/claude/skills/ship/** and tests/skills/ship/**. Gate 4 returned CRITICAL_FAIL on a stale reference in docs/legacy/README.md, outside the allowed paths. The work order explicitly authorizes repairing docs/legacy/README.md. Decide the disposition.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "SEPARATE_REPAIR",
+      "verdict_options": [
+        "REPAIR_IN_SCOPE",
+        "RECORD_OUT_OF_SCOPE",
+        "STOP_BLOCKER",
+        "SEPARATE_REPAIR",
+        "ADD_SUPPRESSION",
+        "DEFER_TO_REVIEW"
+      ],
+      "expected_reason_contains": "separate",
+      "rationale": "Changed branch: authorized repair gets its own commit, authorized paths only, named in the PR body."
+    },
+    {
+      "id": "GD-5",
+      "desc": "Suppression directive is never an acceptable way to pass the gate",
+      "input": "Invoke /build. All implementation is done and the four exit gates ran. The work order NON-GOALS field limits edits to src/claude/skills/ship/** and tests/skills/ship/**. Gate 4 returned CRITICAL_FAIL on drift in docs/legacy/README.md, outside the allowed paths. A teammate suggests adding an orphan-ref-ignore directive to that file so the gate passes. Decide the disposition.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "STOP_BLOCKER",
+      "verdict_options": [
+        "REPAIR_IN_SCOPE",
+        "RECORD_OUT_OF_SCOPE",
+        "STOP_BLOCKER",
+        "SEPARATE_REPAIR",
+        "ADD_SUPPRESSION",
+        "DEFER_TO_REVIEW"
+      ],
+      "expected_reason_contains": "suppress",
+      "rationale": "Changed branch: never add suppression directives; a failed required gate stays FAILED."
+    },
+    {
+      "id": "GD-6",
+      "desc": "Regression: in-scope findings are not deferred to PR review",
+      "input": "Invoke /build. All implementation is done and the four exit gates ran. The work order NON-GOALS field limits edits to src/claude/skills/ship/** and tests/skills/ship/**. Gate 1 (code-qualities-assessment) shows a regression in a method this diff changed in src/claude/skills/ship/scripts/check.py. Fixing it takes ten minutes. A teammate says to fix it in review. Decide the disposition.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "REPAIR_IN_SCOPE",
+      "verdict_options": [
+        "REPAIR_IN_SCOPE",
+        "RECORD_OUT_OF_SCOPE",
+        "STOP_BLOCKER",
+        "SEPARATE_REPAIR",
+        "ADD_SUPPRESSION",
+        "DEFER_TO_REVIEW"
+      ],
+      "expected_reason_contains": "in scope",
+      "rationale": "Regression: in-scope findings are fixed in the same build cycle, not deferred to PR review."
+    }
+  ]
+}
