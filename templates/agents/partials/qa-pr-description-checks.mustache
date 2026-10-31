@@ -1,0 +1,17 @@
+**Pass criteria:**
+
+- Title follows conventional commit format
+- At least one GitHub keyword present (Closes/Fixes/Resolves)
+- PR template sections completed (Summary, Spec References, Type of Change, Changes)
+
+**Evidence generation:**
+
+```markdown
+## PR Description Validation
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Conventional Commit Title | [PASS]/[FAIL] | [Title format] |
+| Issue Keywords Present | [PASS]/[WARN] | [Keywords found] |
+| Template Compliance | [PASS]/[WARN] | [Sections: X/4 complete] |
+```
