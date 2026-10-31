@@ -8,10 +8,15 @@ Regression questioning prevents premature convergence on suboptimal designs by s
 
 **Termination Criteria:**
 
+Full tier (see [depth-contract.md](depth-contract.md)):
+
 - Three consecutive rounds produce no new insights
 - All thinking models have been applied
 - At least 3 simulated expert perspectives considered
 - Evolution/timelessness explicitly evaluated with score ≥7
+
+Standard tier: stop when a round adds no new unresolved risk. A Bounded edit
+skips regression questioning.
 
 ---
 

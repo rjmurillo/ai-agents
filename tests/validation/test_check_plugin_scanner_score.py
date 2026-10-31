@@ -142,6 +142,10 @@ def test_score_below_minimum_fails_and_names_lost_checks(
     assert "-3  [claude:.] Security: SECURITY.md found (m)" in err
     assert "LICENSE found" not in err
     assert "score 54 is below 80" in err
+    # The catalog bar (75) differs from this gate's default (80), so the
+    # message must not claim the listing needs 80.
+    assert "listing bar is 75" in err
+    assert "requires 80" not in err
 
 
 def test_min_score_flag_moves_the_bar(git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -405,10 +409,14 @@ def test_scanner_project_lock_pins_the_action_wheel() -> None:
     cannot drift from the CI and catalog score unnoticed.
     """
     lock = (REPO_ROOT / gate.SCANNER_PROJECT / "uv.lock").read_text(encoding="utf-8")
-    assert 'name = "plugin-scanner"\nversion = "3.51.0"' in lock
-    assert "3468d19afcb95dc384e033665c71d19808b8aed7f32b4b2e2a07820f365ab1a5" in lock
+    assert 'name = "plugin-scanner"\nversion = "3.57.0"' in lock
+    assert "408b302ca427fc8b7bc0b54164f85e9d57d45714d24bafe1a2e6bef7353558fa" in lock
+    # The cooldown waiver is a dated cutoff, never `false`, so later scanner
+    # releases stay under the 7-day exclude-newer cooldown.
+    assert 'plugin-scanner = "2026-10-26T00:00:00Z"' in lock
+    assert "plugin-scanner = false" not in lock
     workflow = (REPO_ROOT / ".github" / "workflows" / "plugin-scanner.yml").read_text(
         encoding="utf-8"
     )
-    assert "ai-plugin-scanner-action@7711de3234c244b562519720ef749f4b432b69be" in workflow
+    assert "ai-plugin-scanner-action@c96833de5070fab4e564010b5ab6e3c3d7e07a3e" in workflow
     assert "min_score: 80" in workflow

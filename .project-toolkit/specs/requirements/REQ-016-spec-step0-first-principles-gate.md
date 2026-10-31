@@ -83,9 +83,13 @@ THE SYSTEM SHALL halt, cite Question 1 as the failing gate, and document the def
 SO THAT aspirational demand does not consume specification resources.
 
 **Operational test for "aspirational" (any one of the three conditions makes Q1 aspirational)**:
-1. The answer names fewer than three specific requesters (people, teams, systems, or data sources). Q1 explicitly asks for three or more; a single named requester or "two teams" is not enough.
+1. The answer names fewer than three specific requesters (people, teams, systems, or data sources), and the evidence path below does not apply. Q1 asks for three or more; "two teams" is not enough.
 2. The answer uses future tense or conditional mood about demand existence (examples: "users would want," "if customers start," "when we have," "would be useful").
 3. The answer is generic ("users in general," "engineers," "the team," "stakeholders," "developers").
+
+**Evidence path (decision 2026-10-30, issue #6990)**: "Evidence substitutes for breadth." Condition 1 does not fire when the answer names at least one specific, non-generic, present-tense requester AND Q3 passes the REQ-016-05 specific test AND Q5 passes the REQ-016-03 speculative test. Conditions 2 and 3 are never relaxed: future or conditional mood and generic categories fail Q1 regardless of count. Multiple invented or generic requesters never satisfy the rule. Aspirational Q1 demand halts as H3 with a deferral that names both admission paths: (a) three or more specific requesters, or (b) one specific present-tense requester plus a specific Q3 plus a non-speculative Q5. Evaluation order: Q5 and Q3 are evaluated before Q1; halt order stays H5, H1, H2, H3, H4. A single requester with a generic Q3 halts as H3.
+
+**Decision record**: approved by the policy owner, Richard Murillo, on 2026-10-30. Rationale: one named owner with a reproducible failure and an accepted outcome is stronger evidence than three unverified names, and requester count is a proxy for evidence, not value. The change reuses the existing H3 halt and Step 0 machinery; no exception registry and no new questionnaire.
 
 ### REQ-016-05: Unnamed blocked entity triggers halt (operational test)
 
@@ -238,7 +242,7 @@ Each AC is split into static (file-level) and dynamic (session-level) checks whe
 - [ ] **AC-1b (dynamic)**: When `/spec` is invoked, the model presents Q1-Q6 to the author before any Step 1 prose. Verifiable by session transcript inspection.
 - [ ] **AC-2**: When any Step 0 answer contains a hedge phrase from the canonical list (REQ-016-02), the halt message contains H1 plus the failing question number, the matched phrase quoted verbatim, and the deferral instruction.
 - [ ] **AC-3**: When Q5 fails the operational speculative test (REQ-016-03), the halt message contains H2 plus Q5, the failing answer, and the specific test condition that failed (no quote, no citation, no named person).
-- [ ] **AC-4**: When Q1 fails the operational aspirational test (REQ-016-04), the halt message contains H3 plus Q1, the failing answer, and the specific condition that failed (no named entity, future tense, OR generic category).
+- [ ] **AC-4**: When Q1 fails the operational aspirational test (REQ-016-04), the halt message contains H3 plus Q1, the failing answer, and the specific condition that failed (too few requesters without the evidence path, future tense, OR generic category), and the deferral names both admission paths.
 - [ ] **AC-5**: When Q3 fails the operational specificity test (REQ-016-05), the halt message contains H4 plus Q3, the failing answer, and the specific test branch that failed.
 - [ ] **AC-6 (dynamic)**: When Step 0 passes, the PRD artifact's first section is `## Step 0 First Principles` with six labelled subfields (`### Q1 Demand Reality`, `### Q2 Status Quo`, etc.) each containing the author's verbatim answer.
 - [ ] **AC-7a (static)**: `.claude/commands/spec.md` Step 1 prose (item "1. Clarify the problem") contains the directive "Do not re-elicit Q1-Q6 here." (or semantically equivalent text grep-verifiable as `Q1-Q6` in Step 1).

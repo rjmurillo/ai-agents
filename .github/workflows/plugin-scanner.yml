@@ -1,20 +1,27 @@
 # Plugin Scanner
 #
 # Runs the HOL AI plugin scanner over the whole repository and fails below a
-# normalized score of 80. That is the listing gate hashgraph-online/
-# awesome-ai-plugins applies in its centralized source scan (SCANNER_GUIDE.md),
-# so a red run here predicts a blocked catalog listing.
+# normalized score of 80. The hashgraph-online/awesome-ai-plugins listing gate
+# is 75 (SCANNER_GUIDE.md, lowered from 80 on 2026-10-27). This gate stays at
+# 80 on purpose: a red run here gives 5 points of warning before a listing
+# would be blocked.
 #
-# The action pin and inputs match that catalog's validate-contribution.yml:
-# same commit, min_score 80, fail_on_severity none (severities are advisory,
-# the score is the gate). The action verifies the scanner wheel's SHA-256 and
-# PyPI provenance before installing it. Repository-owned scanner config is not
-# trusted (trust_repository_policy defaults to false), so the score here is the
-# score the catalog computes.
+# The action pin matches that catalog's validate-contribution.yml (same commit,
+# fail_on_severity none: severities are advisory, the score is the gate). The
+# action verifies the scanner wheel's SHA-256 and PyPI provenance before
+# installing it. Repository-owned scanner config is not trusted
+# (trust_repository_policy defaults to false), so the score here is the score
+# the catalog computes.
 #
-# Margin: this repository scored 80 (160 of 199 points) on 2026-10-24, so one
-# more lost check turns this red. The local twin prints every check that lost
-# points, on a pass too.
+# Bump the action SHA, build/plugin-scanner (to scanner-version.txt at that
+# commit), and the pins in tests/validation/test_check_plugin_scanner_score.py
+# together. That test fails when the workflow or lock disagrees with its
+# literals. It cannot read upstream, so checking scanner-version.txt and
+# scanner-sha256.txt at the new commit is a manual step.
+#
+# Margin: the local twin scored 82 under scanner 3.57.0 on 2026-10-31. Refresh
+# this line on each bump. The twin prints the current score and every check
+# that lost points, on a pass too.
 #
 # No path filter: the score reads the whole tree, so any file can move it
 # (.claude/rules/ci-scripts.md, "Path filters gate the diff, never the tree").
@@ -59,7 +66,7 @@ jobs:
           persist-credentials: false
 
       - name: Run HOL AI Plugin Scanner
-        uses: hashgraph-online/ai-plugin-scanner-action@7711de3234c244b562519720ef749f4b432b69be # v1.2.795
+        uses: hashgraph-online/ai-plugin-scanner-action@c96833de5070fab4e564010b5ab6e3c3d7e07a3e # v1.2.806
         with:
           plugin_dir: "."
           mode: scan

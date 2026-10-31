@@ -8,6 +8,7 @@ exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
 certifi = false
+plugin-scanner = "2026-10-26T00:00:00Z"
 
 [manifest]
 overrides = [{ name = "certifi", specifier = "==2026.10.19" }]
@@ -21,7 +22,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "plugin-scanner", specifier = "==3.51.0" }]
+requires-dist = [{ name = "plugin-scanner", specifier = "==3.57.0" }]
 
 [[package]]
 name = "annotated-types"
@@ -538,7 +539,7 @@ wheels = [
 
 [[package]]
 name = "plugin-scanner"
-version = "3.51.0"
+version = "3.57.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -556,7 +557,7 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d6/7e/c000837c0240e9eff413469f7813c6ba4a1bfd84b892905ef654ad9b9408/plugin_scanner-3.51.0-py3-none-any.whl", hash = "sha256:3468d19afcb95dc384e033665c71d19808b8aed7f32b4b2e2a07820f365ab1a5", size = 6351316, upload-time = "2026-10-20T18:42:38.234Z" },
+    { url = "https://files.pythonhosted.org/packages/58/11/1998551eeb4be98a3eab77d65de35e7c4fffb1b9792a9581928793718fb0/plugin_scanner-3.57.0-py3-none-any.whl", hash = "sha256:408b302ca427fc8b7bc0b54164f85e9d57d45714d24bafe1a2e6bef7353558fa", size = 6666304, upload-time = "2026-10-25T21:40:08.566Z" },
 ]
 
 [[package]]

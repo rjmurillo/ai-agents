@@ -362,19 +362,11 @@ Save to: `.project-toolkit/planning/impact-analysis-qa-[feature].md`
 
 ### Validation Protocol
 
-When orchestrator requests pre-PR validation:
+When orchestrator requests pre-PR validation, take test and coverage commands from the target repository's documented command, manifest or task runner, CI configuration, existing local validation skill, or `autoplan` recon; never invent one. Resolve each independently; for each not found, report `UNRESOLVED EVIDENCE: no <test|coverage> command found in <sources checked>` and leave its gate unmet:
 
 #### Step 1: CI Environment Test Validation
 
 Run tests in CI-equivalent environment:
-
-```powershell
-# Run full test suite
-Invoke-Pester -Path "./tests" -CI -OutputFormat NUnitXml -OutputFile "./test-results.xml"
-
-# For .NET projects
-dotnet test --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
-```
 
 **Pass criteria**:
 
@@ -464,7 +456,7 @@ Verify code coverage meets minimum thresholds:
 
 | Metric | Minimum | Target | Measurement |
 |--------|---------|--------|-------------|
-| Line coverage | 70% | 80% | `dotnet test --collect:"XPlat Code Coverage"` |
+| Line coverage | 70% | 80% | Coverage command |
 | Branch coverage | 60% | 70% | Coverage report |
 | New code coverage | 80% | 90% | Diff coverage analysis |
 
