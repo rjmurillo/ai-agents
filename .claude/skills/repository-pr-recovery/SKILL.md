@@ -81,7 +81,7 @@ Exit codes alone cannot distinguish the three non-evidence verdicts.
 
 `PR_ONLY` means no matching row within the examined history.
 It does not prove a workflow never runs on main.
-Widen history only when schedule or path filters justify it, up to 50 commits.
+Widen history only when schedule or path filters justify it, with `--history-depth` (max 50 commits).
 Cancelled evidence may contain same-name workflows; validate identity before rerunning.
 Different failure signatures can coexist even when both branches are red.
 Read logs through `get_pr_check_logs.py`, not raw `gh`.
@@ -103,16 +103,18 @@ GitHub Actions integration ID `15368` is a verified producer coordinate.
 Read current check contexts from policy instead of maintaining another list here.
 Denied legacy-protection access remains unknown; an empty legacy result does not exclude rulesets.
 
-Before accepting either green or red attribution, inspect the check's producer identity.
-The triage script matches names without integration identity; its verdict is provisional.
-Use supported GitHub GET operations for the evaluated SHA's check runs:
-`repos/rjmurillo/ai-agents/commits/<sha>/check-runs?filter=all&per_page=100`.
-Use `filter=all` to include historical attempts; the default returns only latest checks.
-Paginate completely; join each `name`, `app.id`, `head_sha`, and `check_suite.id`.
-Read `repos/rjmurillo/ai-agents/check-suites/<suite-id>` for its evaluated revision.
-For Actions, read `repos/rjmurillo/ai-agents/actions/runs/<run-id>`.
-Join `event`, `head_sha`, and `run_attempt` with the task's run metadata.
-Retain the evaluated head or test-merge SHA and the required integration ID.
+Before accepting either green or red attribution, join the check's producer identity to the required integration:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-pr-recovery/scripts/required_check_producer_join.py" --repo . --pr "$PR_NUMBER"
+```
+
+It pages the effective rules and the evaluated SHA's check-runs (`filter=all`) to the end, matching `name`, `app.id`, `head_sha`, and `check_suite.id`.
+Each required context reads `produced-by-the-required-app`, `produced-by-another-app`, or `missing`.
+Exit 0 means all produced, 1 means a finding, 2 bad arguments, 3 a failed or incomplete read (the error names the page).
+It does not read legacy commit statuses, merge queues, or the workflow run behind a check-run.
+The triage script matches names without integration identity; its verdict is provisional until this join agrees.
+For Actions, read `repos/rjmurillo/ai-agents/actions/runs/<run-id>` and join `event`, `head_sha`, and `run_attempt` with the task's run metadata.
 For legacy commit statuses, inspect `<sha>/statuses` through the commits endpoint.
 If provider attribution cannot be verified, retain an unknown acceptance result.
 If a merge queue applies, inspect the merge-group evaluation separately.
@@ -141,6 +143,19 @@ Claim recovery only when the actual blocker clears on the evaluated revision.
 If policy access remains missing, name the exact read an authorized operator must perform.
 Do not report the PR accepted or merged from a successful diagnosis alone.
 
+## Scripts
+
+List every linked instrument and confirm it exists:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-pr-recovery/scripts/instruments.py" --repo . list
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-pr-recovery/scripts/instruments.py" --repo . run <id> -- <args>
+```
+
+Ids: `why-pr-blocked`, `triage-red-check`, `check-logs`, `review-threads`, `required-context-conditions`, `producer-join`, `drift-self-check`.
+`required-context-conditions` lints workflows that produce a pinned required context for hidden step conditions.
+It does not prove a rename emits both names; that stays an evidence read of the workflow.
+
 ## Verification
 
 - [ ] PR recovery evidence includes the blocker, revision, producer, and responsible owner.
@@ -153,3 +168,11 @@ Follow the [shared outcome boundary](references/library.md#common-execution-cont
 ## Evolution
 
 Follow the [shared maintenance policy](references/library.md#maintenance).
+
+## Provenance and Maintenance
+
+Checks live in `reverify.json`. Run the drift command after any edit:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name repository-pr-recovery --require
+```

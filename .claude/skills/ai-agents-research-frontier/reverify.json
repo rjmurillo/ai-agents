@@ -1,0 +1,115 @@
+{
+ "checks": [
+  {
+   "id": "R1",
+   "kind": "absent",
+   "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"
+  },
+  {
+   "id": "R2",
+   "kind": "path_exists",
+   "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py"
+  },
+  {
+   "id": "R3",
+   "kind": "path_exists",
+   "path": "scripts/eval/eval-rule-activation.py"
+  },
+  {
+   "id": "R4",
+   "kind": "contains",
+   "path": "scripts/eval/eval-rule-activation.py",
+   "text": "--dry-run"
+  },
+  {
+   "id": "R5",
+   "kind": "path_exists",
+   "path": "tests/evals/rule-scenarios"
+  },
+  {
+   "id": "R6",
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "95.8%"
+  },
+  {
+   "id": "R7",
+   "kind": "contains",
+   "path": ".project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md",
+   "text": "status: proposed"
+  },
+  {
+   "id": "R8",
+   "kind": "contains",
+   "path": ".project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md",
+   "text": "status: accepted"
+  },
+  {
+   "id": "R9",
+   "kind": "contains",
+   "path": ".project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md",
+   "text": "status: accepted"
+  },
+  {
+   "id": "R10",
+   "kind": "path_exists",
+   "path": "scripts/validation/validate_hook_anchoring.py"
+  },
+  {
+   "id": "R11",
+   "kind": "path_exists",
+   "path": "build/generate_agents.py"
+  },
+  {
+   "id": "R12",
+   "kind": "absent",
+   "path": ".claude/hooks/PreToolUse/push_guard_base.py"
+  },
+  {
+   "id": "R13",
+   "kind": "absent",
+   "path": ".claude/skills/guard-maturity"
+  },
+  {
+   "id": "R14",
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-084-vendored-hook-roi-bar.md"
+  },
+  {
+   "id": "R15",
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md"
+  },
+  {
+   "id": "R16",
+   "kind": "path_exists",
+   "path": "src/claude/skills/memory-search/SKILL.md"
+  },
+  {
+   "id": "R17",
+   "kind": "path_exists",
+   "path": "src/claude/skills/reflect/SKILL.md"
+  },
+  {
+   "id": "R18",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-research-frontier/scripts/instruments.py"
+  },
+  {
+   "id": "R19",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-research-frontier/references/program3-self-improving-loop.md"
+  },
+  {
+   "id": "R20",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py"
+  },
+  {
+   "id": "R21",
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "95.8% session-start non-compliance"
+  }
+ ]
+}

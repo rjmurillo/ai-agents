@@ -9,6 +9,34 @@
 # opens. The regex exemption cannot fire for them because it keys on a
 # literal '\.', which a scripts/ pattern never contains. Tracked in #4046.
 
+#
+# Repo-local skills (metadata.distribution: repo-local, never binplaced into
+# src/claude or src/copilot-cli) run this repository's own scripts/ and
+# .project-toolkit/ tooling on purpose: they are contributor-facing
+# knowledge packs for rjmurillo/ai-agents, so the upstream path is the
+# dependency they document. Added with the skill-bootstrap refresh at
+# 42e409325 (2026-10-31).
+.claude/skills/ai-agents-architecture-contract/scripts/contract_probe.py
+.claude/skills/ai-agents-build-and-env/scripts/env_probe.py
+.claude/skills/ai-agents-build-and-env/scripts/instruments.py
+.claude/skills/ai-agents-change-control/scripts/classify_change.py
+.claude/skills/ai-agents-change-control/scripts/instruments.py
+.claude/skills/ai-agents-config-catalog/scripts/flag_locator.py
+.claude/skills/ai-agents-config-catalog/scripts/instruments.py
+.claude/skills/ai-agents-debugging-playbook/scripts/instruments.py
+.claude/skills/ai-agents-diagnostics-toolkit/scripts/baseline_snapshot.py
+.claude/skills/ai-agents-diagnostics-toolkit/scripts/instruments.py
+.claude/skills/ai-agents-docs-of-record/scripts/instruments.py
+.claude/skills/ai-agents-empirical-probe-toolkit/scripts/cli_flags_check.py
+.claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py
+.claude/skills/ai-agents-failure-archaeology/scripts/instruments.py
+.claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py
+.claude/skills/ai-agents-research-frontier/scripts/instruments.py
+.claude/skills/ai-agents-research-methodology/scripts/instruments.py
+.claude/skills/ai-agents-validation-and-qa/scripts/instruments.py
+.claude/skills/ai-agents-validation-and-qa/scripts/test_layout.py
+.claude/skills/repository-consumer-proof/scripts/instruments.py
+.claude/skills/repository-pr-recovery/scripts/instruments.py
 src/claude/skills/adr-review/scripts/detect_adr_changes.py
 src/claude/skills/chestertons-fence/scripts/investigate.py
 src/claude/skills/github/scripts/pr/new_pr.py

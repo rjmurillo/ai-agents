@@ -1,0 +1,225 @@
+{
+ "checks": [
+  {
+   "id": "R1",
+   "kind": "path_exists",
+   "path": "build/generate_agents.py"
+  },
+  {
+   "id": "R2",
+   "kind": "path_exists",
+   "path": "scripts/eval/eval-prompt-change.py"
+  },
+  {
+   "id": "R3",
+   "kind": "path_exists",
+   "path": "scripts/eval/eval-agent-vs-baseline.py"
+  },
+  {
+   "id": "R4",
+   "kind": "path_exists",
+   "path": "tests/evals/analyst-scenarios.json"
+  },
+  {
+   "id": "R5",
+   "kind": "path_exists",
+   "path": "tests/evals/security-scenarios.json"
+  },
+  {
+   "id": "R6",
+   "kind": "path_exists",
+   "path": "scripts/validation/validate_hook_anchoring.py"
+  },
+  {
+   "id": "R7",
+   "kind": "path_exists",
+   "path": "scripts/validation/pre_pr.py"
+  },
+  {
+   "id": "R8",
+   "kind": "path_exists",
+   "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py"
+  },
+  {
+   "id": "R9",
+   "kind": "path_exists",
+   "path": "tests/build_scripts/test_generate_hooks_plugin_root.py"
+  },
+  {
+   "id": "R10",
+   "kind": "path_exists",
+   "path": ".serena/memories/copilot-hooks-observations.md"
+  },
+  {
+   "id": "R11",
+   "kind": "path_exists",
+   "path": ".serena/memories/decision-copilot-cli-hook-plugin-root-contract.md"
+  },
+  {
+   "id": "R12",
+   "kind": "path_exists",
+   "path": ".serena/memories/ci-infrastructure-observations.md"
+  },
+  {
+   "id": "R13",
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md"
+  },
+  {
+   "id": "R14",
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-084-vendored-hook-roi-bar.md"
+  },
+  {
+   "id": "R15",
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md"
+  },
+  {
+   "id": "R16",
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md"
+  },
+  {
+   "id": "R17",
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md"
+  },
+  {
+   "id": "R18",
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md"
+  },
+  {
+   "id": "R19",
+   "kind": "path_exists",
+   "path": ".claude/rules/canonical-source-mirror.md"
+  },
+  {
+   "id": "R20",
+   "kind": "path_exists",
+   "path": ".claude/rules/generated-artifacts.md"
+  },
+  {
+   "id": "R21",
+   "kind": "path_exists",
+   "path": "scripts/validate_session_json.py"
+  },
+  {
+   "id": "R22",
+   "kind": "path_exists",
+   "path": ".agents/governance/FAILURE-MODES.md"
+  },
+  {
+   "id": "R23",
+   "kind": "absent",
+   "path": "build/Generate-Agents.ps1"
+  },
+  {
+   "id": "R24",
+   "kind": "contains",
+   "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py",
+   "text": "def test_negative_control_bare_relative_path_fails"
+  },
+  {
+   "id": "R25",
+   "kind": "contains",
+   "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py",
+   "text": "def test_anchor_is_load_bearing_when_no_plugin_root_var_set"
+  },
+  {
+   "id": "R26",
+   "kind": "contains",
+   "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py",
+   "text": "1.0.57"
+  },
+  {
+   "id": "R27",
+   "kind": "contains",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "text": "--security-critical"
+  },
+  {
+   "id": "R28",
+   "kind": "contains",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "text": "--dry-run"
+  },
+  {
+   "id": "R29",
+   "kind": "contains",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "text": "--base-ref"
+  },
+  {
+   "id": "R30",
+   "kind": "contains",
+   "path": "scripts/eval/eval-agent-vs-baseline.py",
+   "text": "--n-runs"
+  },
+  {
+   "id": "R31",
+   "kind": "contains",
+   "path": ".claude/skills/ai-agents-validation-and-qa/SKILL.md",
+   "text": "ai-agents-empirical-probe-toolkit"
+  },
+  {
+   "id": "R32",
+   "kind": "contains",
+   "path": "scripts/validate_session_json.py",
+   "text": "CONTRADICTION_PATTERNS"
+  },
+  {
+   "id": "R33",
+   "kind": "contains",
+   "path": ".serena/memories/ci-infrastructure-observations.md",
+   "text": "check if the failure exists on main"
+  },
+  {
+   "id": "R34",
+   "kind": "contains",
+   "path": ".project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md",
+   "text": "Total preventable by the as-shipped guards"
+  },
+  {
+   "id": "R35",
+   "kind": "line_count_at_least",
+   "path": ".project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md",
+   "min": 153
+  },
+  {
+   "id": "R36",
+   "kind": "line_count_at_least",
+   "path": ".project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md",
+   "min": 230
+  },
+  {
+   "id": "R37",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-empirical-probe-toolkit/scripts/cli_flags_check.py"
+  },
+  {
+   "id": "R38",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-empirical-probe-toolkit/scripts/instruments.py"
+  },
+  {
+   "id": "R39",
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "Confident-incorrectness recurrence"
+  },
+  {
+   "id": "R40",
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "Customer-facing artifact shipped without runtime verification"
+  },
+  {
+   "id": "R41",
+   "kind": "contains",
+   "path": ".claude/skills/ai-agents-empirical-probe-toolkit/scripts/cli_flags_check.py",
+   "text": "add_argument"
+  }
+ ]
+}

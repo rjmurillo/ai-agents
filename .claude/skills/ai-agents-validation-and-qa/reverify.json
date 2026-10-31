@@ -1,0 +1,239 @@
+{
+ "checks": [
+  {
+   "kind": "contains",
+   "path": "pyproject.toml",
+   "text": "testpaths = [\"tests\"]",
+   "id": "R1"
+  },
+  {
+   "kind": "contains",
+   "path": "pyproject.toml",
+   "text": "safe_push_transport",
+   "id": "R2"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/TESTING-RIGOR.md",
+   "text": "**Status**: BLOCKING for code changes",
+   "id": "R3"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/TESTING-ANTI-PATTERNS.md",
+   "text": "| Read-only/docs | 60-70% |",
+   "id": "R4"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/TESTING-ANTI-PATTERNS.md",
+   "text": "A test that never failed during development may not be testing anything",
+   "id": "R5"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "there is no neutral default for a missing signal",
+   "id": "R6"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "coverage: security 100%, business 80%, docs 60%",
+   "id": "R7"
+  },
+  {
+   "kind": "contains",
+   "path": "conftest.py",
+   "text": "def _guard_real_repo_head(",
+   "id": "R8"
+  },
+  {
+   "kind": "contains",
+   "path": "conftest.py",
+   "text": "#2316",
+   "id": "R9"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/conftest.py",
+   "text": "commit.gpgsign",
+   "id": "R10"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/conftest.py",
+   "text": "AI_AGENTS_PROJECT_REPO",
+   "id": "R11"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validate_session_json.py",
+   "text": "\"SKIPPED: docs-only\"",
+   "id": "R12"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validate_session_json.py",
+   "text": "\"SKIPPED: investigation-only\"",
+   "id": "R13"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validate_session_json.py",
+   "text": "_QA_SKIP_CHECKERS",
+   "id": "R14"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/generated-artifacts.md",
+   "text": "**Ship a runtime-contract test.**",
+   "id": "R15"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/claude-agents.md",
+   "text": "New skills MUST include pytest coverage under `tests/skills/<name>/`",
+   "id": "R16"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py",
+   "text": "def test_negative_control_bare_relative_path_fails(",
+   "id": "R17"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py",
+   "text": "def test_anchor_is_load_bearing_when_no_plugin_root_var_set(",
+   "id": "R18"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "Issue #2063",
+   "id": "R19"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "Issue #1963",
+   "id": "R20"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "check_colocated_skill_tests.py --staged-only",
+   "id": "R21"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/rules/testing.md",
+   "text": "Pester version",
+   "id": "R22"
+  },
+  {
+   "kind": "line_count_at_least",
+   "path": "conftest.py",
+   "min": 540,
+   "id": "R23"
+  },
+  {
+   "kind": "absent",
+   "path": "docs/glue",
+   "id": "R24"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/governance/test-location-standards.md",
+   "id": "R25"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/modules/investigation_allowlist.py",
+   "id": "R26"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/hook_test_helpers.py",
+   "id": "R27"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md",
+   "id": "R28"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-035-exit-code-standardization.md",
+   "id": "R29"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-042-python-migration-strategy.md",
+   "id": "R30"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/pre_pr.py",
+   "id": "R31"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/check_colocated_skill_tests.py",
+   "id": "R32"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md",
+   "id": "R33"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md",
+   "id": "R34"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/context-optimizer/scripts/distill_artifact.py",
+   "id": "R35"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "--include=scripts/ai_review_common/verdict.py",
+   "id": "R36"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "| 11 | Customer-facing artifact shipped without runtime verification",
+   "id": "R37"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-validation-and-qa/scripts/test_layout.py",
+   "id": "R38"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-validation-and-qa/scripts/instruments.py",
+   "id": "R39"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/check_citation_freshness.py",
+   "id": "R40"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-validation-and-qa/test_test_layout.py",
+   "id": "R41"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-validation-and-qa/test_instruments.py",
+   "id": "R42"
+  }
+ ]
+}
