@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SK = ".claude/skills"
 INSTRUMENT_ARGV: dict[str, list[str]] = {
@@ -44,7 +45,7 @@ class StartError(Exception):
     """An external command could not be started or timed out."""
 
 
-def _run(argv: list[str], repo: Path) -> subprocess.CompletedProcess:
+def _run(argv: list[str], repo: Path) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             argv, cwd=repo, capture_output=True, text=True, check=False, timeout=600
@@ -53,7 +54,7 @@ def _run(argv: list[str], repo: Path) -> subprocess.CompletedProcess:
         raise StartError(f"{argv[0]}: {exc}") from exc
 
 
-def _description_budget(out: str) -> dict:
+def _description_budget(out: str) -> dict[str, Any]:
     d = json.loads(out)
     return {
         "skills": d["skills"],
@@ -62,7 +63,7 @@ def _description_budget(out: str) -> dict:
     }
 
 
-def _skill_size(out: str) -> dict:
+def _skill_size(out: str) -> dict[str, Any]:
     def grab(label: str) -> int:
         m = re.search(rf"^\s*{label}:\s+(\d+)", out, re.M)
         if m is None:
@@ -81,7 +82,7 @@ def _skill_size(out: str) -> dict:
     }
 
 
-def _orphan_refs(out: str) -> dict:
+def _orphan_refs(out: str) -> dict[str, Any]:
     marker = out.rfind("VERDICT:")
     if marker < 0:
         raise ValueError("missing VERDICT line")
@@ -95,7 +96,7 @@ def _orphan_refs(out: str) -> dict:
     }
 
 
-def _golden_principles(out: str) -> dict:
+def _golden_principles(out: str) -> dict[str, Any]:
     d = json.loads(out)
     return {
         "files_scanned": d["files_scanned"],
@@ -112,11 +113,11 @@ PARSERS = {
 }
 
 
-def snapshot(repo: Path) -> tuple[dict, int]:
+def snapshot(repo: Path) -> tuple[dict[str, Any], int]:
     head = _run(["git", "rev-parse", "--short=9", "HEAD"], repo)
     if head.returncode != 0:
         raise StartError(f"git rev-parse failed: {head.stderr.strip()}")
-    result: dict = {
+    result: dict[str, Any] = {
         "head": head.stdout.strip(),
         "date": datetime.date.today().isoformat(),
         "instruments": {},

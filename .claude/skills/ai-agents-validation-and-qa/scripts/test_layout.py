@@ -25,6 +25,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-validation-and-qa"
 DOC = ".agents/governance/test-location-standards.md"
@@ -50,7 +51,7 @@ def _walk(root: Path, patterns: tuple[str, ...]) -> list[Path]:
     return sorted(found)
 
 
-def cmd_pester(repo: Path, skill_md: Path) -> tuple[int, dict]:
+def cmd_pester(repo: Path, skill_md: Path) -> tuple[int, dict[str, Any]]:
     if not skill_md.is_file():
         return 2, {"error": f"skill file not found: {skill_md}"}
     files = _walk(repo, ("*.Tests.ps1",))
@@ -88,7 +89,7 @@ def _collect_pytest(repo: Path, name: str) -> tuple[int, list[str], str]:
     return 0, files, ""
 
 
-def cmd_skill_tests(repo: Path, name: str, no_pytest: bool) -> tuple[int, dict]:
+def cmd_skill_tests(repo: Path, name: str, no_pytest: bool) -> tuple[int, dict[str, Any]]:
     if not NAME_RE.match(name):
         return 2, {"error": f"invalid skill name: {name}"}
     base = repo / "tests" / "skills" / name

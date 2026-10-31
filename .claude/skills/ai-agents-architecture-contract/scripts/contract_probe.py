@@ -20,6 +20,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-architecture-contract"
 ADR_DIR = ".project-toolkit/architecture"
@@ -55,7 +56,7 @@ def cited_adrs(repo: Path) -> list[str]:
     return sorted(found)
 
 
-def probe_adrs(repo: Path, wanted: list[str]) -> tuple[dict, int]:
+def probe_adrs(repo: Path, wanted: list[str]) -> tuple[dict[str, Any], int]:
     adr_dir = repo / ADR_DIR
     if not adr_dir.is_dir():
         raise FileNotFoundError(f"{ADR_DIR} not found under {repo}")
@@ -83,7 +84,7 @@ def probe_adrs(repo: Path, wanted: list[str]) -> tuple[dict, int]:
     return {"adrs": rows, "missing": missing, "examined": len(ids)}, 1 if missing else 0
 
 
-def probe_guard(repo: Path) -> tuple[dict, int]:
+def probe_guard(repo: Path) -> tuple[dict[str, Any], int]:
     roots = [repo / "build" / "scripts", repo / "tests"]
     definitions, calls = [], []
     examined = 0

@@ -17,11 +17,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-portability-campaign"
 SCRIPTS = f".claude/skills/{SKILL}/scripts"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "hook-counts",
         "answers": "How many hook events and registrations does each hook manifest hold?",
@@ -71,7 +72,7 @@ def _repo_paths(argv: list[str]) -> list[str]:
     return [a for a in argv[1:] if "/" in a and not a.startswith("-")]
 
 
-def row_exists(repo: Path, row: dict) -> bool:
+def row_exists(repo: Path, row: dict[str, Any]) -> bool:
     return all((repo / p).exists() for p in _repo_paths(row["argv"]))
 
 

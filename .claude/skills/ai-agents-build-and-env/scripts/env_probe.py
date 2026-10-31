@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 EXIT_OK, EXIT_FINDINGS, EXIT_CONFIG, EXIT_EXTERNAL = 0, 1, 2, 3
 
@@ -45,7 +46,7 @@ def _find(text: str, pattern: str, rel: str) -> str:
     return match.group(1)
 
 
-def read_pins(repo: Path) -> dict:
+def read_pins(repo: Path) -> dict[str, Any]:
     py = _read(repo, ".python-version").strip()
     pyproject = _read(repo, "pyproject.toml")
     bootstrap = _read(repo, "scripts/bootstrap-vm.sh")
@@ -83,7 +84,7 @@ def _git_ls_files(repo: Path, rel: str) -> list[str]:
     return [line for line in proc.stdout.splitlines() if line]
 
 
-def read_envfile(repo: Path) -> dict:
+def read_envfile(repo: Path) -> dict[str, Any]:
     example = repo / ".env.example"
     if not example.is_file():
         raise ConfigError("missing source file: .env.example")
@@ -104,14 +105,14 @@ def read_envfile(repo: Path) -> dict:
     }
 
 
-def _run(cmd: list[str], repo: Path) -> subprocess.CompletedProcess:
+def _run(cmd: list[str], repo: Path) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(cmd, cwd=repo, capture_output=True, text=True, check=False)
     except OSError as exc:
         raise ExternalError(f"cannot start {cmd[0]}: {exc}") from exc
 
 
-def run_smoke(repo: Path) -> dict:
+def run_smoke(repo: Path) -> dict[str, Any]:
     pins = read_pins(repo)
     results = []
     ver = _run(["uv", "run", "--frozen", "lefthook", "version"], repo)
@@ -155,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     if not repo.is_dir():
         print(json.dumps({"error": f"not a directory: {repo}", "examined": 0}))
         return EXIT_CONFIG
+    out: dict[str, Any]
     try:
         if args.command == "pins":
             pins = read_pins(repo)

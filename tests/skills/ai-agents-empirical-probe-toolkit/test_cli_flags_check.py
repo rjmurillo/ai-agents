@@ -11,6 +11,7 @@ SPEC = importlib.util.spec_from_file_location(
     "cli_flags_check",
     ROOT / ".claude/skills/ai-agents-empirical-probe-toolkit/scripts/cli_flags_check.py",
 )
+assert SPEC is not None and SPEC.loader is not None
 mod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mod)
 

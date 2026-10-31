@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-config-catalog/scripts/flag_locator.py"
 spec = importlib.util.spec_from_file_location("flag_locator", SCRIPT)
+assert spec is not None and spec.loader is not None
 flag_locator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(flag_locator)
 

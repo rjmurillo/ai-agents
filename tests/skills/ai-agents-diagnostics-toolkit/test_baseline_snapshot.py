@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-diagnostics-toolkit/scripts/baseline_snapshot.py"
 spec = importlib.util.spec_from_file_location("baseline_snapshot", SCRIPT)
+assert spec is not None and spec.loader is not None
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
@@ -39,11 +40,11 @@ ORPHAN = (
 GOLDEN = json.dumps({"files_scanned": 13872, "error_count": 7, "warning_count": 74})
 
 
-def _proc(out: str, rc: int = 0) -> subprocess.CompletedProcess:
+def _proc(out: str, rc: int = 0) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess([], rc, stdout=out, stderr="")
 
 
-def _fake(outputs: dict[str, subprocess.CompletedProcess]):
+def _fake(outputs: dict[str, subprocess.CompletedProcess[str]]):
     def run(argv, repo):
         if argv[0] == "git":
             return _proc("42e409325\n")
@@ -61,7 +62,7 @@ def repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def good() -> dict[str, subprocess.CompletedProcess]:
+def good() -> dict[str, subprocess.CompletedProcess[str]]:
     return {
         "description_budget": _proc(BUDGET),
         "skill_size": _proc(SIZE),

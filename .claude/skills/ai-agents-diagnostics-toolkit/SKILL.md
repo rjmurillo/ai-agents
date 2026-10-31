@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents Diagnostics Toolkit
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers (issue #2050). Declared paths: .claude/skills/skillforge/scripts/_constants.py, build/audit/GENERATION-AUDIT.md, build/generate_agents.py, build/scripts/build_all.py, scripts/baseline_snapshot.py, scripts/eval/_anthropic_api.py, scripts/eval/eval-agent-vs-baseline.py, scripts/eval/eval-prompt-change.py, scripts/instruments.py, scripts/skill_description_budget.py, scripts/validation/run_install_parity_ci.py, scripts/validation/skill_size.py, src/claude/skills/golden-principles/scripts/scan_principles.py, src/claude/skills/orphan-ref-validator/scripts/scan.py -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .claude/skills/skillforge/scripts/_constants.py, build/audit/GENERATION-AUDIT.md, build/generate_agents.py, build/scripts/build_all.py, scripts/baseline_snapshot.py, scripts/eval/_anthropic_api.py, scripts/eval/eval-agent-vs-baseline.py, scripts/eval/eval-prompt-change.py, scripts/instruments.py, scripts/skill_description_budget.py, scripts/validation/run_install_parity_ci.py, scripts/validation/skill_size.py, src/claude/skills/golden-principles/scripts/scan_principles.py, src/claude/skills/orphan-ref-validator/scripts/scan.py -->
 Measure instead of eyeball. Every instrument below leaves the trees it measures unchanged, turning a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline; `build_all.py --check`'s one exception, a gitignored audit file outside those trees, is covered below. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the baseline, and the trap that has already cost someone time.
 
 Vocabulary, defined once: an "instrument" is a script whose output you read, not a gate you must pass. A "drift gate" is a CI check that fails when a generated tree stops matching its canonical source. A "baseline" is the number the instrument reports on a clean checkout of main; you measure your delta against it.
@@ -63,7 +63,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- Every instrument here leaves the owned trees it reads unchanged in the modes shown, `build_all.py --check` included, but that one is not a no-write run overall: it runs its generators and then restores the owned trees from a snapshot (issue #2440, `_snapshot_owned_prefixes` and `_restore_owned_prefixes` in `build/scripts/build_all.py`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though the owned trees end the run as they started, and separately `write_audit` creates or overwrites `build/audit/GENERATION-AUDIT.md` on every invocation, a path outside the snapshot that restore never touches. That file is gitignored (`/build/audit/`) and untracked, so it exists only after a build run. That is why `git status --porcelain` still comes back clean over the owned trees. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
+- Every instrument here leaves the owned trees it reads unchanged in the modes shown, `build_all.py --check` included, but that one is not a no-write run overall: it runs its generators and then restores the owned trees from a snapshot (`_snapshot_owned_prefixes` and `_restore_owned_prefixes` in `build/scripts/build_all.py`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though the owned trees end the run as they started, and separately `write_audit` creates or overwrites `build/audit/GENERATION-AUDIT.md` on every invocation, a path outside the snapshot that restore never touches. That file is gitignored (`/build/audit/`) and untracked, so it exists only after a build run. That is why `git status --porcelain` still comes back clean over the owned trees. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
@@ -98,14 +98,14 @@ Per-instrument detail (the exact command variants, the baseline snapshot, the he
 
 | Anti-pattern | Why it burns you |
 |---|---|
-| Eyeballing ("the diff looks fine") instead of running the instrument | The 2025-12-15 drift inversion and PR #1887's 0/35 prevented-fix audit both started with confident eyeballs |
-| Treating a red baseline as your failure, or silently "fixing" it repo-wide | Mass edits outside your scope; PR #908's scoped-lint lesson. Flag it, keep your delta clean |
+| Eyeballing ("the diff looks fine") instead of running the instrument | The 2025-12-15 drift inversion and an earlier 0/35 prevented-fix audit both started with confident eyeballs |
+| Treating a red baseline as your failure, or silently "fixing" it repo-wide | Mass edits outside your scope; the scoped-lint lesson. Flag it, keep your delta clean |
 | Quoting the chars/4 token estimate as an exact cost | It is a trend instrument, by design |
-| Reading `Mode: Generate` in `--check` output as proof the gate wrote files | #2440 snapshot/restore makes it read-only; check `git status --porcelain` |
+| Reading `Mode: Generate` in `--check` output as proof the gate wrote files | The snapshot/restore makes it read-only; check `git status --porcelain` |
 | Fixing scanner findings inside generated trees | Regenerated over on the next build; fix the `.claude/` canonical source |
-| `--cov=<file path>` or an uncalibrated `--cov-fail-under` pin | 0% "Module never imported" (#2063) or a 63% false trip (#1963) |
+| `--cov=<file path>` or an uncalibrated `--cov-fail-under` pin | 0% "Module never imported" or a 63% false trip |
 | Running a paid eval without `--dry-run` and a written prediction first | Spend with no falsifiable claim; see `ai-agents-research-methodology` |
-| Adding a detector or threshold without replaying it against recent real PRs | #1989 M4 shipped a threshold of 6 in a repo whose max was 4; it could never fire |
+| Adding a detector or threshold without replaying it against recent real PRs | An earlier M4 shipped a threshold of 6 in a repo whose max was 4; it could never fire |
 
 ## Scripts
 
@@ -133,7 +133,7 @@ Checks live in `reverify.json`. Run the drift command after any edit:
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-diagnostics-toolkit --require
 ```
 
-Sources: `scripts/skill_description_budget.py` (docstring, issue #2794), `scripts/validation/skill_size.py` (limits, issue #676), `src/claude/skills/orphan-ref-validator/scripts/scan.py` (`DEFAULT_TARGETS`, directives), `src/claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10 while baseline is red), `build/scripts/build_all.py` (`write_audit`, the `EXIT CODES` docstring), `.github/workflows/pytest.yml` (REQ-009 coverage steps), `scripts/eval/eval-prompt-change.py --help`, `scripts/eval/_anthropic_api.py` (harness), `.claude/skills/skillforge/scripts/_constants.py` (`DESCRIPTION_MAX_LENGTH`, the 1024 cap).
+Sources: `scripts/skill_description_budget.py` (docstring), `scripts/validation/skill_size.py` (limits), `src/claude/skills/orphan-ref-validator/scripts/scan.py` (`DEFAULT_TARGETS`, directives), `src/claude/skills/golden-principles/scripts/scan_principles.py` (rules, exit 10 while baseline is red), `build/scripts/build_all.py` (`write_audit`, the `EXIT CODES` docstring), `.github/workflows/pytest.yml` (REQ-009 coverage steps), `scripts/eval/eval-prompt-change.py --help`, `scripts/eval/_anthropic_api.py` (harness), `.claude/skills/skillforge/scripts/_constants.py` (`DESCRIPTION_MAX_LENGTH`, the 1024 cap).
 
 Facts that go stale:
 
@@ -141,7 +141,7 @@ Facts that go stale:
 |---|---|
 | Any baseline number | `baseline_snapshot.py` above |
 | Drift gates green | the three gate commands in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md) |
-| Push guards and guard-maturity classifier removed under ADR-084 | `ls .claude/hooks/PreToolUse/` (no `push_guard_base.py` or `invoke_*_guard.py`) and `ls -d .claude/skills/guard-maturity` (expect "No such file or directory"; issue #5154) |
+| Push guards and guard-maturity classifier removed under ADR-084 | `ls .claude/hooks/PreToolUse/` (no `push_guard_base.py` or `invoke_*_guard.py`) and `ls -d .claude/skills/guard-maturity` (expect "No such file or directory") |
 | Coverage pin forms | `grep -n "cov-fail-under" .github/workflows/pytest.yml` |
 
 When a baseline here goes stale, rerun the snapshot and update the dated line in the same PR that moved it.

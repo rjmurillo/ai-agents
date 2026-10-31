@@ -13,11 +13,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-research-methodology"
 SK = ".claude/skills"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "corpus-index",
         "answers": "How many retro files exist, and how many does INDEX.md cover?",

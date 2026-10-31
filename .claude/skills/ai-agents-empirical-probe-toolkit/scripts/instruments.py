@@ -16,11 +16,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-empirical-probe-toolkit"
 _HERE = f".claude/skills/{SKILL}"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "eval-flags",
         "answers": "Does every eval-harness flag the skill names exist in the script it is attributed to?",
@@ -70,7 +71,7 @@ def _target(argv: list[str]) -> str | None:
     return None
 
 
-def _rows(repo: Path) -> list[dict]:
+def _rows(repo: Path) -> list[dict[str, Any]]:
     rows = []
     for row in INSTRUMENTS:
         target = _target(row["argv"])

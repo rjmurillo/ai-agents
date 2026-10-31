@@ -23,6 +23,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 BUILD_ALL = "build/scripts/build_all.py"
 BINPLACE = "templates/platforms/binplace.yaml"
@@ -32,7 +33,7 @@ REGEN = "uv run python build/scripts/build_all.py"
 # Each gate: local command and the (file, needle) probes that prove CI or a
 # hook runs it. A probe needle must appear in the file; the nearest enclosing
 # job name is reported.
-GATES: list[dict] = [
+GATES: list[dict[str, Any]] = [
     {
         "id": "agent-template-drift",
         "local": "uv run python build/generate_agents.py --validate",
@@ -98,7 +99,7 @@ def _assigned(tree: ast.Module, name: str) -> ast.expr | None:
     return None
 
 
-def cmd_generators(repo: Path) -> tuple[dict, int]:
+def cmd_generators(repo: Path) -> tuple[dict[str, Any], int]:
     text = _read(repo, BUILD_ALL)
     if text is None:
         return {"error": f"missing {BUILD_ALL}", "examined": 0}, 2
@@ -129,9 +130,9 @@ def cmd_generators(repo: Path) -> tuple[dict, int]:
     return out, 0
 
 
-def parse_binplace(text: str) -> list[dict]:
+def parse_binplace(text: str) -> list[dict[str, Any]]:
     """Parse the flat `rows:` list of binplace.yaml without PyYAML."""
-    rows: list[dict] = []
+    rows: list[dict[str, Any]] = []
     for raw in text.splitlines():
         line = raw.split(" #")[0] if " #" in raw else raw
         if not line.strip() or line.lstrip().startswith("#"):
@@ -148,7 +149,9 @@ def parse_binplace(text: str) -> list[dict]:
 
 
 def _under(path: str, base: str | None) -> bool:
-    return bool(base) and (path == base or path.startswith(base.rstrip("/") + "/"))
+    if not base:
+        return False
+    return path == base or path.startswith(base.rstrip("/") + "/")
 
 
 def _norm(raw: str) -> str:
@@ -165,12 +168,12 @@ _ROLE_KEYS = (
 )
 
 
-def _row_matches(row: dict, path: str) -> list[dict]:
+def _row_matches(row: dict[str, Any], path: str) -> list[dict[str, Any]]:
     """Return one match per binplace tree of `row` that contains `path`."""
     matches = []
     for role, key in _ROLE_KEYS:
         base = row.get(key)
-        if not _under(path, base):
+        if base is None or not _under(path, base):
             continue
         if role == "generated" and base == row.get("source"):
             continue
@@ -191,7 +194,7 @@ def _row_matches(row: dict, path: str) -> list[dict]:
     return matches
 
 
-def _most_specific(matches: list[dict]) -> list[dict]:
+def _most_specific(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
     top = max(m["specificity"] for m in matches)
     best = [m for m in matches if m["specificity"] == top]
     return [{k: v for k, v in m.items() if k != "specificity"} for m in best]
@@ -206,19 +209,23 @@ def _owned_prefix(repo: Path, path: str) -> str | None:
     if not isinstance(owned, ast.Tuple):
         return None
     for e in owned.elts:
-        if isinstance(e, ast.Constant) and (path == e.value or path.startswith(e.value)):
+        if (
+            isinstance(e, ast.Constant)
+            and isinstance(e.value, str)
+            and (path == e.value or path.startswith(e.value))
+        ):
             return e.value
     return None
 
 
-def cmd_path(repo: Path, raw: str) -> tuple[dict, int]:
+def cmd_path(repo: Path, raw: str) -> tuple[dict[str, Any], int]:
     text = _read(repo, BINPLACE)
     if text is None:
         return {"error": f"missing {BINPLACE}", "examined": 0}, 2
     rows = parse_binplace(text)
     path = _norm(raw)
     matches = [m for row in rows for m in _row_matches(row, path)]
-    out: dict = {"path": path, "examined": len(rows)}
+    out: dict[str, Any] = {"path": path, "examined": len(rows)}
     if matches:
         best = _most_specific(matches)
         out["role"] = best[0]["role"]
@@ -252,7 +259,8 @@ def _repo_local_skill(repo: Path, path: str) -> bool:
 
 def _skills(repo: Path) -> tuple[list[str], list[str]]:
     tdir = repo / TEMPLATES
-    names, local = [], []
+    names: list[str] = []
+    local: list[str] = []
     if not tdir.is_dir():
         return names, local
     for f in sorted(tdir.glob("*.SKILL.md.tmpl")):
@@ -267,7 +275,7 @@ def _skills(repo: Path) -> tuple[list[str], list[str]]:
     return names, local
 
 
-def cmd_skills(repo: Path) -> tuple[dict, int]:
+def cmd_skills(repo: Path) -> tuple[dict[str, Any], int]:
     if not (repo / TEMPLATES).is_dir():
         return {"error": f"missing {TEMPLATES}", "examined": 0}, 2
     names, local = _skills(repo)
@@ -289,7 +297,7 @@ def _enclosing(lines: list[str], idx: int, is_lefthook: bool) -> str | None:
     return None
 
 
-def cmd_gates(repo: Path) -> tuple[dict, int]:
+def cmd_gates(repo: Path) -> tuple[dict[str, Any], int]:
     results, bad = [], 0
     examined = 0
     for gate in GATES:

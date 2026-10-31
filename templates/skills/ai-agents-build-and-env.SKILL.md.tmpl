@@ -21,7 +21,7 @@ metadata:
 
 # ai-agents Build and Environment Runbook
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers -->
 Recreate a working dev environment for this repository from a fresh clone, verify
 it actually works, and avoid the traps that have cost prior contributors real
 time. Audience: a zero-context mid-level engineer or Sonnet-class model. Every
@@ -124,7 +124,7 @@ and fill keys (`env_probe.py envfile` lists the key names in `.env.example`). Ne
 
 | Server | Transport | Role | When absent |
 |--------|-----------|------|-------------|
-| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-106) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/` (`env_probe.py pins` reports the entry count). The LSP read gate that could misfire on code files was retired in #3216 |
+| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-106) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/` (`env_probe.py pins` reports the entry count). The LSP read gate that could misfire on code files was retired |
 | deepwiki | http, `https://mcp.deepwiki.com/mcp` | External GitHub repo documentation | No local impact; fall back to web search |
 
 Proxy and TLS note (generic, not environment-specific): the stdio server is
@@ -138,7 +138,7 @@ deprecated as of uv 0.11.26). Never disable TLS verification.
 This repo prefers LSP-first navigation (ADR-062, `.claude/rules/lsp-first.md`):
 use Serena symbol tools over grep for code navigation. This is static steering
 now, not a runtime gate. The PreToolUse LSP gate and its environment escapes
-(`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired in #3216; no Read
+(`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired; no Read
 call is blocked and there is nothing to set.
 
 ## Known Traps
@@ -148,11 +148,11 @@ Each row verified 2026-10-31. Longer stories live with the sibling skills
 
 | Trap | Symptom | Fix |
 |------|---------|-----|
-| CONTRIBUTING.md build commands were DEAD before PR #2871 | CONTRIBUTING.md said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `build/generate_agents.py` (`git show b320f4ac1 -- CONTRIBUTING.md`); zero `.ps1` files exist in the repo (ADR-042) | Real commands: `uv run python build/generate_agents.py` and `uv run python build/scripts/build_all.py` |
+| CONTRIBUTING.md build commands were DEAD before commit b320f4ac1 | CONTRIBUTING.md said `build/Generate-Agents.ps1` PowerShell invocation until commit b320f4ac1 repointed it to `build/generate_agents.py` (`git show b320f4ac1 -- CONTRIBUTING.md`); zero `.ps1` files exist in the repo (ADR-042) | Real commands: `uv run python build/generate_agents.py` and `uv run python build/scripts/build_all.py` |
 | PEP 668: bare pip fails | `pip install X` errors with externally-managed-environment on uv-managed interpreters | Everything goes through uv: `uv sync`, `uv add`, `uv run` (`grep -n "uv sync --frozen" scripts/bootstrap-vm.sh`) |
 | Skill scripts need the project venv | `.claude/skills/github/scripts/pr/*.py` import `github_core`, which imports `yaml` at load; bare `python3` throws `ModuleNotFoundError: No module named 'yaml'` unless `.venv/bin` is first on PATH (bootstrap-vm.sh arranges that; a manual setup usually does not) | Run skill scripts with `uv run python`, which resolves the venv deterministically |
-| Moving a worktree leaves the uv shebangs stale | Direct `.venv/bin/pytest` fails with "bad interpreter" after `mv`; the shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows) still name the old worktree path (issue #3170) | Run `scripts/maintenance/repair_worktree_venv.py` with `uv run python` (or `uv sync --frozen --extra dev --reinstall`: `--reinstall` recreates the launchers a bare `--frozen` sync would leave stale, `--extra dev` keeps pytest/ruff/mypy, `--frozen` matches CI); prefer `uv run python -m pytest` for move-safe validation. Detect without mutating: `instruments.py run venv-stale-check` (exit 1 means stale) |
-| Two floors, not one | `pyproject.toml project.requires-python` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version`. The blocking CI syntax gate parses every file at the hook-portability floor (`syntax_floor` in `env_probe.py pins`), NOT the dev pin, so hooks stay portable to older hosts (issue #2655, decoupled from `requires-python` in issue #3008); see `ai-agents-debugging-playbook` |
+| Moving a worktree leaves the uv shebangs stale | Direct `.venv/bin/pytest` fails with "bad interpreter" after `mv`; the shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows) still name the old worktree path | Run `scripts/maintenance/repair_worktree_venv.py` with `uv run python` (or `uv sync --frozen --extra dev --reinstall`: `--reinstall` recreates the launchers a bare `--frozen` sync would leave stale, `--extra dev` keeps pytest/ruff/mypy, `--frozen` matches CI); prefer `uv run python -m pytest` for move-safe validation. Detect without mutating: `instruments.py run venv-stale-check` (exit 1 means stale) |
+| Two floors, not one | `pyproject.toml project.requires-python` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version`. The blocking CI syntax gate parses every file at the hook-portability floor (`syntax_floor` in `env_probe.py pins`), NOT the dev pin, so hooks stay portable to older hosts (decoupled from `requires-python`); see `ai-agents-debugging-playbook` |
 | LF line endings enforced | CRLF in YAML frontmatter breaks the Copilot CLI parser (github/copilot-cli#694); `.gitattributes:59` sets `* text=auto eol=lf` | Configure your editor for LF; never commit CRLF |
 | Pre-push jobs can take minutes | Lefthook runs the named validators in `lefthook.yml` for matching push files | Budget minutes per push; do not attempt `--no-verify` (prohibited, AGENTS.md Never list) |
 | Skill test location | Skill tests live in `tests/skills/NAME/`, never inside the skill directory | the colocated-test guard blocks test files placed inside a skill; details in `ai-agents-validation-and-qa` |
@@ -219,7 +219,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-boo
 | pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh2.60" AGENTS.md` |
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
 | `build/Generate-Agents.ps1` removed in 7b8347daa | git history | `reverify.json` `absent` check |
-| Stale pwsh commands (historical, fixed by PR #2871) | CONTRIBUTING.md, pre-#2871 | `git show b320f4ac1 -- CONTRIBUTING.md` |
+| Stale pwsh commands (historical, fixed by commit b320f4ac1) | CONTRIBUTING.md, before b320f4ac1 | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | MCP servers serena/deepwiki | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `env_probe.py envfile` |

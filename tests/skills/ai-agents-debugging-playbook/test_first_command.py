@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-debugging-playbook/scripts/first_command.py"
 
 spec = importlib.util.spec_from_file_location("first_command", SCRIPT)
+assert spec is not None and spec.loader is not None
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 

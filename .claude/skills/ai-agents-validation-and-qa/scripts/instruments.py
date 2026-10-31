@@ -16,6 +16,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-validation-and-qa"
 SK = ".claude/skills"
@@ -36,7 +37,7 @@ _SKIP_CODE = (
     "print('\\n'.join(ast.literal_eval(d[0]).keys()) if d else '')"
 )
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "citation-freshness",
         "answers": "Do path:line citations on added lines still point at the cited content?",
@@ -95,10 +96,10 @@ def _exists(repo: Path, argv: list[str]) -> bool:
     return True
 
 
-def _row_exists(repo: Path, row: dict) -> bool:
+def _row_exists(repo: Path, row: dict[str, Any]) -> bool:
     argv = row["argv"]
     if "check_path" in row:
-        return (repo / row["check_path"]).is_file()
+        return bool((repo / row["check_path"]).is_file())
     if "-c" in argv:
         return all((repo / t).is_file() for t in argv[argv.index("-c") + 2 :])
     return _exists(repo, argv)

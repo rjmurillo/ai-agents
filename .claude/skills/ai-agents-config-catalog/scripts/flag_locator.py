@@ -23,13 +23,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import tomllib
 
 _ORPHAN = ".claude/skills/orphan-ref-validator/scripts"
 
 # id -> needle searched for, and the files the catalog attributes the flag to.
-FLAGS: dict[str, dict] = {
+FLAGS: dict[str, dict[str, Any]] = {
     "git-config-count": {"needle": "GIT_CONFIG_COUNT", "files": ["tests/conftest.py"]},
     "push-lock-skip": {
         "needle": "SKIP_PUSH_LOCK_COMMIT_GUARD",
@@ -79,7 +80,7 @@ def _hits(path: Path, needle: str) -> list[int]:
     return [i for i, line in enumerate(text.splitlines(), 1) if needle in line]
 
 
-def _emit(payload: dict) -> None:
+def _emit(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2))
 
 

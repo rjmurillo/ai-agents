@@ -16,6 +16,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-config-catalog"
 _HERE = ".claude/skills/ai-agents-config-catalog/scripts"
@@ -23,12 +24,12 @@ _HOOKS = ".claude/skills/ai-agents-portability-campaign/scripts/hook_inventory.p
 _DRIFT = ".claude/skills/skill-bootstrap/scripts/bootstrap_drift.py"
 
 
-def _row(id_: str, answers: str, argv: str, source: str) -> dict:
+def _row(id_: str, answers: str, argv: str, source: str) -> dict[str, Any]:
     """Build one instrument row from a space-separated command line."""
     return {"id": id_, "answers": answers, "argv": argv.split(), "source": source}
 
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     _row(
         "flag-locate",
         "Which file:line defines this flag, marker, or env var? Pass an id after --, or --list.",
@@ -101,7 +102,7 @@ def _target(argv: list[str]) -> str | None:
     return None
 
 
-def _rows(repo: Path) -> list[dict]:
+def _rows(repo: Path) -> list[dict[str, Any]]:
     rows = []
     for row in INSTRUMENTS:
         target = _target(row["argv"])

@@ -16,11 +16,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "repository-consumer-proof"
 _HERE = ".claude/skills/repository-consumer-proof/scripts"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "generated-output-check",
         "answers": "Does generated output match templates and committed state?",
@@ -99,7 +100,7 @@ def _target(argv: list[str]) -> str | None:
     return None
 
 
-def _rows(repo: Path) -> list[dict]:
+def _rows(repo: Path) -> list[dict[str, Any]]:
     rows = []
     for row in INSTRUMENTS:
         target = _target(row["argv"])

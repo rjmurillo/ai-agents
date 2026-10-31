@@ -19,13 +19,14 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 ALLOWLIST_MODULE = "scripts/modules/investigation_allowlist.py"
 
 # Each class: id, path regexes (any match), obligation, extra gates. This map is
 # canonical for path globs and gates; SKILL.md defers to it and keeps only the
 # obligations. A path can match several classes.
-CLASS_MAP: list[dict] = [
+CLASS_MAP: list[dict[str, Any]] = [
     {
         "id": "docs-only",
         "match": [],  # derived: markdown with no stricter class
@@ -157,7 +158,7 @@ def gates_for(classes: list[str]) -> list[str]:
     return out
 
 
-def analyze(paths: list[str], allow: list[re.Pattern[str]]) -> dict:
+def analyze(paths: list[str], allow: list[re.Pattern[str]]) -> dict[str, Any]:
     rows = []
     for p in paths:
         cls = classify(p, allow)

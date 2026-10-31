@@ -13,6 +13,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-research-frontier"
 SK = ".claude/skills"
@@ -28,7 +29,7 @@ COUNTS_CODE = (
     "'memories_recursive_md':len(glob.glob('.serena/memories/**/*.md',recursive=True))}))"
 )
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "corpus-counts",
         "answers": "How many skills, rules, rule scenario fixtures, retros, and memories exist now?",

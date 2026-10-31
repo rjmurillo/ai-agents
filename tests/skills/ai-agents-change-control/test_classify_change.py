@@ -12,20 +12,22 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-change-control/scripts/classify_change.py"
 
 spec = importlib.util.spec_from_file_location("classify_change", SCRIPT)
+assert spec is not None and spec.loader is not None
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 ALLOW = mod.load_allowlist(ROOT)
 
 
-def run(*args: str, cwd: Path = ROOT) -> subprocess.CompletedProcess:
+def run(*args: str, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, cwd=cwd
     )
 
 
 def _classes(path: str) -> list[str]:
-    return mod.classify(path, ALLOW)
+    classes: list[str] = mod.classify(path, ALLOW)
+    return classes
 
 
 def test_ai_agents_change_control_investigation_only_exits_0():

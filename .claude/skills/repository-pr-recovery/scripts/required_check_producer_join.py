@@ -86,13 +86,13 @@ def _fingerprint(items: list[Any]) -> str:
 
 def paged(
     client: Any, base: str, items_key: str | None = None
-) -> tuple[list[dict], int, int | None]:
+) -> tuple[list[dict[str, Any]], int, int | None]:
     """Read every page. Return (items, pages_read, total_count or None).
 
     Stops only on an empty page. A page identical to the previous one means the
     server ignored the page parameter, which would loop forever, so it fails.
     """
-    items: list[dict] = []
+    items: list[dict[str, Any]] = []
     total: int | None = None
     previous = None
     page = 1
@@ -133,9 +133,9 @@ def paged(
     return items, pages_read, total
 
 
-def required_contexts(rules: list[dict]) -> list[dict]:
+def required_contexts(rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten required_status_checks rules into {context, integration_id, ruleset_id}."""
-    found: dict[tuple[str, Any], dict] = {}
+    found: dict[tuple[str, Any], dict[str, Any]] = {}
     for rule in rules:
         if rule.get("type") != "required_status_checks":
             continue
@@ -155,7 +155,7 @@ def required_contexts(rules: list[dict]) -> list[dict]:
     return sorted(found.values(), key=lambda r: (r["context"], str(r["integration_id"])))
 
 
-def classify(required: dict, runs: list[dict]) -> dict:
+def classify(required: dict[str, Any], runs: list[dict[str, Any]]) -> dict[str, Any]:
     """Classify one required context against the check-runs of the evaluated SHA."""
     named = [r for r in runs if r.get("name") == required["context"]]
     facts = [
@@ -193,7 +193,9 @@ def bad_base(base: str) -> str | None:
     return None
 
 
-def join(client: Any, slug: str, pr: int | None, sha: str | None, base: str | None) -> dict:
+def join(
+    client: Any, slug: str, pr: int | None, sha: str | None, base: str | None
+) -> dict[str, Any]:
     pr_info: dict[str, Any] = {}
     if pr is not None:
         body = _get(client, f"repos/{slug}/pulls/{pr}")

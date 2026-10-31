@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-build-and-env/scripts/env_probe.py"
 spec = importlib.util.spec_from_file_location("env_probe", SCRIPT)
+assert spec is not None and spec.loader is not None
 env_probe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(env_probe)
 

@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 RETRO_DIR = ".project-toolkit/retrospective"
 FM_FILE = ".agents/governance/FAILURE-MODES.md"
@@ -20,9 +21,9 @@ MEMORY_DIR = ".serena/memories"
 ROW = re.compile(r"^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|")
 
 
-def parse_failure_modes(text: str) -> list[dict]:
+def parse_failure_modes(text: str) -> list[dict[str, Any]]:
     """Return {n, name} rows from the '## Index' table, else from '## N. Name' headings."""
-    modes: list[dict] = []
+    modes: list[dict[str, Any]] = []
     in_index = False
     for line in text.splitlines():
         if line.startswith("## "):
@@ -90,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     modes = parse_failure_modes((repo / FM_FILE).read_text(encoding="utf-8", errors="replace"))
     mem_dir = repo / MEMORY_DIR
     memories = len(list(mem_dir.glob("*.md"))) if mem_dir.is_dir() else 0
-    result: dict = {
+    result: dict[str, Any] = {
         "retro_files": total,
         "retro_index_covered": covered,
         "retro_index_missing": missing,

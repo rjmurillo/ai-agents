@@ -19,6 +19,6 @@ Verified 2026-07-03 against the working tree.
 | CONTRIBUTING pwsh commands are dead | `CONTRIBUTING.md:155`; no `.ps1` outside `.venv` | `find . -name '*.ps1' -not -path './.venv/*'` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md:8` | `sed -n '8p' .serena/memories/ci-infrastructure-observations.md` |
 | Runtime-contract exemplar passes (29 test functions at 42e409325) | `tests/build_scripts/test_generate_hooks_runtime_contract.py` | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
-| Failure mode 9 and 11 index rows (names, not FM-N ids) | `.agents/governance/FAILURE-MODES.md:15-29` | `sed -n '15,29p' .agents/governance/FAILURE-MODES.md` |
+| Failure mode 9 and 11 index rows (names, not FM-N ids; row 9 is `Confident-incorrectness recurrence`) | `.agents/governance/FAILURE-MODES.md:27-29` | `sed -n '27,29p' .agents/governance/FAILURE-MODES.md` |
 
 Volatile facts to re-check when touching this skill: Copilot CLI version pins (1.0.57/1.0.58 were the measured versions, not the current ones), the `tests/evals/` scenario inventory, and whether ADR-057's flakiness protocol has been amended.

@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL_NAME = "ai-agents-portability-campaign"
 MANIFESTS = (
@@ -37,7 +38,7 @@ class ConfigError(Exception):
     """Bad input: unreadable or malformed file."""
 
 
-def count_manifest(repo: Path, rel: str) -> dict:
+def count_manifest(repo: Path, rel: str) -> dict[str, Any]:
     path = repo / rel
     if not path.is_file():
         return {"path": rel, "exists": False, "events": 0, "registrations": 0}
@@ -60,12 +61,12 @@ def count_manifest(repo: Path, rel: str) -> dict:
     return {"path": rel, "exists": True, "events": events, "registrations": registrations}
 
 
-def cmd_counts(repo: Path, _args: argparse.Namespace) -> tuple[dict, int]:
+def cmd_counts(repo: Path, _args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     files = [count_manifest(repo, rel) for rel in MANIFESTS]
     return {"files": files, "examined": len(files)}, 0
 
 
-def cmd_phase_tests(repo: Path, args: argparse.Namespace) -> tuple[dict, int]:
+def cmd_phase_tests(repo: Path, args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     skill_md = repo / args.skill_md
     try:
         text = skill_md.read_text(encoding="utf-8")
@@ -106,7 +107,7 @@ def paragraphs(lines: list[str]) -> list[tuple[int, int]]:
     return spans
 
 
-def scan_file(repo: Path, rel: str) -> list[dict]:
+def scan_file(repo: Path, rel: str) -> list[dict[str, Any]]:
     path = repo / rel
     if path.is_symlink() or not path.is_file():
         return []
@@ -133,8 +134,8 @@ def scan_file(repo: Path, rel: str) -> list[dict]:
     return rows
 
 
-def cmd_qualifiers(repo: Path, _args: argparse.Namespace) -> tuple[dict, int]:
-    rows: list[dict] = []
+def cmd_qualifiers(repo: Path, _args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    rows: list[dict[str, Any]] = []
     files = tracked_files(repo)
     for rel in files:
         rows.extend(scan_file(repo, rel))

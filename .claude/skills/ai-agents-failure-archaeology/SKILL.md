@@ -1,6 +1,6 @@
 ---
 name: ai-agents-failure-archaeology
-description: The chronicle of this repo's settled battles. Maps each major incident to symptom, root cause, evidence path, and the artifact that fixed it, so nobody re-fights a decided question. Use when you say `has this failed before`, `why does this rule exist`, `failure archaeology`, `what happened with issue 2205`. Do NOT use for triaging a live failure (use `ai-agents-debugging-playbook`) or for extracting learnings from the current session (use `retrospective`).
+description: The chronicle of this repo's settled battles. Maps each major incident to symptom, root cause, evidence path, and the artifact that fixed it, so nobody re-fights a decided question. Use when you say `has this failed before`, `why does this rule exist`, `failure archaeology`, `what happened with the customer wedge`. Do NOT use for triaging a live failure (use `ai-agents-debugging-playbook`) or for extracting learnings from the current session (use `retrospective`).
 version: 1.0.0
 license: MIT
 metadata:
@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents Failure Archaeology
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers -->
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
 fought and what it cost. The canon lives in `.project-toolkit/retrospective/` and
@@ -31,7 +31,7 @@ below is not enough). This file is the index and the verdict list.
 - `has this failed before`
 - `why does this rule exist`
 - `failure archaeology`
-- `what happened with issue 2205`
+- `what happened with the customer wedge`
 - `are we re-litigating a settled decision`
 
 ## Process
@@ -44,19 +44,19 @@ matching subsection in `references/incidents.md` before doing anything else.
 
 | Incident | One-line summary | Primary retro (in `.project-toolkit/retrospective/`) | Status |
 |----------|------------------|--------------------------------------------|--------|
-| #2205 customer wedge | Bare `./hooks/...` paths + Copilot CLI running hooks from the USER's cwd wedged every plugin customer for 33 days (v0.3.0 to v0.5.6); recovery was uninstall. First fix added 3 new defects; session 1873 fixed it with an empirical probe of Copilot CLI 1.0.57 | `2026-06-02-pr-2205-customer-wedge-incident.md` | Settled; gated by `scripts/validation/validate_hook_anchoring.py` + `tests/build_scripts/test_generate_hooks_runtime_contract.py` |
-| #2290 payload casing | Copilot CLI payload field names depend on event-key casing: camelCase sends `toolName`/`toolArgs` (toolArgs is a JSON string); PascalCase sends `tool_name`/`tool_input`. FM-11 second occurrence | `2026-06-02-issue-2290-copilot-hook-payload-format.md` | Settled (PascalCase + dual-format shim); exit-143 timeout flagged P0, unresolved in that retro |
-| #1887 iteration paradox | Guard framework built to cut review iteration took 69 commits / 254 conversations; Phase-6 audit showed the guards would have prevented 0 of its own 35 fix commits | `2026-05-05-pr-1887-iteration-paradox.md` | Settled diagnosis: bot concurrency (60-70% overlap) + `reviewThreads(first: 100)` pagination cliff drove the cost |
-| #1989 recursive failure | The mitigation PR reproduced the failure modes it mitigated; M1 built on a false premise (pagination already existed), M4 threshold 6 vs repo max 4 could never fire, M5 guard never run on its own branch | `2026-05-10-pr-1989-recursive-failure.md` | Settled: 3 process rules (self-application, memory contradiction check, threshold calibration) |
+| Customer wedge | Bare `./hooks/...` paths + Copilot CLI running hooks from the USER's cwd wedged every plugin customer for 33 days (v0.3.0 to v0.5.6); recovery was uninstall. First fix added 3 new defects; session 1873 fixed it with an empirical probe of Copilot CLI 1.0.57 | `2026-06-02-pr-2205-customer-wedge-incident.md` | Settled; gated by `scripts/validation/validate_hook_anchoring.py` + `tests/build_scripts/test_generate_hooks_runtime_contract.py` |
+| Payload casing | Copilot CLI payload field names depend on event-key casing: camelCase sends `toolName`/`toolArgs` (toolArgs is a JSON string); PascalCase sends `tool_name`/`tool_input`. FM-11 second occurrence | `2026-06-02-issue-2290-copilot-hook-payload-format.md` | Settled (PascalCase + dual-format shim); exit-143 timeout flagged P0, unresolved in that retro |
+| Iteration paradox | Guard framework built to cut review iteration took 69 commits / 254 conversations; Phase-6 audit showed the guards would have prevented 0 of its own 35 fix commits | `2026-05-05-pr-1887-iteration-paradox.md` | Settled diagnosis: bot concurrency (60-70% overlap) + `reviewThreads(first: 100)` pagination cliff drove the cost |
+| Recursive failure | The mitigation PR reproduced the failure modes it mitigated; M1 built on a false premise (pagination already existed), M4 threshold 6 vs repo max 4 could never fire, M5 guard never run on its own branch | `2026-05-10-pr-1989-recursive-failure.md` | Settled: 3 process rules (self-application, memory contradiction check, threshold calibration) |
 | Session 1187 trust incident | `SKIP_PREPUSH` abused 3x within hours of creation; `git checkout --ours` corrupted main's session log; user: "You can't be trusted in the least bit." | `2026-02-08-session-1187-skip-prepush-abuse.md` | Settled: SKIP_PREPUSH removed; session-merge rule binding |
-| PR #908 scope explosion | 59 commits / 95 files; unscoped `markdownlint --fix` reformatted 53 unrelated memory files into the diff | `2026-01-15-pr-908-comprehensive-retrospective.md` | Settled: birthed `scripts/validation/pre_pr.py`, commit caps, scoped lint |
+| Scope explosion | 59 commits / 95 files; unscoped `markdownlint --fix` reformatted 53 unrelated memory files into the diff | `2026-01-15-pr-908-comprehensive-retrospective.md` | Settled: birthed `scripts/validation/pre_pr.py`, commit caps, scoped lint |
 | 2025-12-15 drift inversion | Agent edited the SOURCE (Claude agents) to match the GENERATED (templates); commit `ddb76e0` reverted | `2025-12-15-drift-detection-disaster.md` | Settled: drift shows difference, never direction; always ask which side is canonical |
-| PR #1965 silent defaults | Verdict parser defaulted a missing `VERDICT:` line to non-blocking; 3 fix rounds because parser, exit-code translator, and workflow gate each had their own silent default | `2026-05-10-pr-1965-review-axes-convergence.md` + FM-10 in `FAILURE-MODES.md` | Settled: "there is no neutral default for a missing signal" |
+| Silent defaults | Verdict parser defaulted a missing `VERDICT:` line to non-blocking; 3 fix rounds because parser, exit-code translator, and workflow gate each had their own silent default | `2026-05-10-pr-1965-review-axes-convergence.md` + FM-10 in `FAILURE-MODES.md` | Settled: "there is no neutral default for a missing signal" |
 
-Also settled, no dedicated retro: PR #1942 stale plugin cache. It deleted the
+Also settled, no dedicated retro: the stale plugin cache. It deleted the
 deprecated `workflow` skill from `.claude/skills/` but left `plugin.json` at
 0.3.0; installed plugin caches key off the version, so installs kept shipping
-the dead `/workflow` until the gap was hand-caught in PR #2114. Record and gate:
+the dead `/workflow` until the gap was hand-caught in a later PR. Record and gate:
 `build/scripts/validate_plugin_version_bump.py` docstring (lines 1-20).
 
 ### Phase 2: Check the Settled Battles List
@@ -66,7 +66,7 @@ path in `ai-agents-change-control`, not a fresh opinion.
 
 | Settled position | Verdict | Evidence |
 |------------------|---------|----------|
-| Launcher-level fail-open wrapper | REJECTED. Exiting 0 on a broken launcher silently disables the hook; prevent the bad launcher at generation time, fail closed and loud if one escapes. Issue #2230 closed addressed-by-prevention | `2026-06-02-pr-2205-customer-wedge-incident.md:289-297`, `:411` |
+| Launcher-level fail-open wrapper | REJECTED. Exiting 0 on a broken launcher silently disables the hook; prevent the bad launcher at generation time, fail closed and loud if one escapes. The tracking issue closed addressed-by-prevention | `2026-06-02-pr-2205-customer-wedge-incident.md:289-297`, `:411` |
 | Self-referential tests | BANNED for runtime contracts. A test asserting the generator's own output passes when the generator is consistently wrong; it shipped 2 of the 3 session-1872 defects | `.claude/rules/canonical-source-mirror.md`; `2026-06-02-pr-2205-customer-wedge-incident.md:143` |
 | Copilot CLI plugin-root env contract | SETTLED EMPIRICALLY (CLI 1.0.57, probe + env dump): `COPILOT_PLUGIN_ROOT`, `CLAUDE_PLUGIN_ROOT`, and bare `PLUGIN_ROOT` are all set, though the public docs list none of them. Anchor form: `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}` | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` |
 | Session-file merge conflicts | Always `git checkout --theirs` (keep main's file), rename yours to the next number. Main's session files are immutable audit records | `2026-02-08-session-1187-skip-prepush-abuse.md:334`; merge-resolver agent |
@@ -75,7 +75,7 @@ path in `ai-agents-change-control`, not a fresh opinion.
 | Silent defaults | No neutral default for a missing signal: raise or block, never assume PASS | `.agents/governance/FAILURE-MODES.md:390` (FM-10: `no neutral default for a missing signal`) |
 | Frictionless escape hatches | Get teeth (logging, guards, approval) or get abused within hours. SKIP_PREPUSH is the proof | `2026-02-08-session-1187-skip-prepush-abuse.md:706`; catalog in `ai-agents-config-catalog` |
 | Guards shipped without self-application | A guard PR must show the guard's output run against its own branch | `2026-05-10-pr-1989-recursive-failure.md:129-137` |
-| CLI subcommands proposed from analogy | BANNED. Run `--help` first; two hallucinated install commands cost user trust in the #2290 session | `2026-06-02-issue-2290-copilot-hook-payload-format.md:74-82` |
+| CLI subcommands proposed from analogy | BANNED. Run `--help` first; two hallucinated install commands cost user trust in the payload-casing session | `2026-06-02-issue-2290-copilot-hook-payload-format.md:74-82` |
 
 ### Phase 3: Map to the Failure-Mode Catalog
 
@@ -90,10 +90,10 @@ Anchors this skill routes to most often:
 
 - FM-9 confident incorrectness: `2026-05-05-pr-1887-iteration-paradox.md`,
   `2026-05-08-pr-1897-confident-incorrectness-recurrence.md`.
-- FM-10 silent defaults: PR #1965 rounds 9-11.
-- FM-11 unverified customer artifact: #2205 (first), #2290 (second), #4780 (third).
-- FM-12 post-completion continuation: issue #5404.
-- FM-13 state conflation in a boolean guard: issues #1168, #5097, #5104.
+- FM-10 silent defaults: silent-defaults PR rounds 9-11.
+- FM-11 unverified customer artifact: customer wedge (first), payload casing (second), a hand-authored artifact (third).
+- FM-12 post-completion continuation: index row 12 of `FAILURE-MODES.md`.
+- FM-13 state conflation in a boolean guard: index row 13 of `FAILURE-MODES.md`.
 
 FM-10 is a mechanism that produces FM-4 symptoms; fix at the FM-10 layer
 (harden the parser), not by lecturing the agent about honesty
@@ -112,8 +112,8 @@ When the tables above do not answer the question:
    contracts; `root-cause-*.md` record why gates exist;
    `*-observations.md` record per-domain corrections.
 3. **Resolve ADR references by content, never by number.** Numbers collided
-   historically (8 ADRs renamed in issue #474) and retros cite numbers that
-   later moved: the #2205/#2290 retros say "ADR-063" for the runtime contract,
+   historically (8 ADRs renamed once) and retros cite numbers that
+   later moved: the customer-wedge and payload-casing retros say "ADR-063" for the runtime contract,
    but the shipped ADR is `ADR-071-plugin-hook-runtime-contract-verification.md`;
    the real ADR-063 is memory-skill decomposition. Use
    `grep -rl "<topic>" .project-toolkit/architecture/`.
@@ -124,7 +124,7 @@ When the tables above do not answer the question:
    record.
 5. **Auto-retros are shallow.** Files named `*-auto-retro.md` are unfilled
    Stop-hook skeletons; a later hand-written incident retro may supersede them
-   (the #2205 retro explicitly supersedes three of them, `:452-458`).
+   (the customer-wedge retro explicitly supersedes three of them, `:452-458`).
 6. **Write what you find.** If you settle a new question, record it: a retro
    per `.claude/rules/retros.md` (classify against FAILURE-MODES.md, evidence
    links mandatory), a decision memory for contracts, or both. Use the
@@ -135,12 +135,12 @@ When the tables above do not answer the question:
 
 | Anti-pattern | Why it fails | Instead |
 |--------------|-------------|---------|
-| Proposing a fail-open wrapper "so hooks never break the user" | Re-litigates #2230; silently disabled protection is the worst outcome | Prevent at generation time; fail closed and loud (see `references/incidents.md`, Incident 1) |
-| Testing a generator by asserting its own output string | Self-referential; passed while #2205 shipped broken for 33 days | Runtime-contract test with foreign cwd/env and a negative control (`ai-agents-empirical-probe-toolkit`) |
-| Trusting vendor docs for runtime contracts | Docs were wrong by omission twice (#2205 env vars, #2290 payload) | Probe the pinned CLI version empirically (`agent-harness-reference` for the settled contract table) |
+| Proposing a fail-open wrapper "so hooks never break the user" | Re-litigates the rejected fail-open wrapper; silently disabled protection is the worst outcome | Prevent at generation time; fail closed and loud (see `references/incidents.md`, Incident 1) |
+| Testing a generator by asserting its own output string | Self-referential; passed while the customer wedge shipped broken for 33 days | Runtime-contract test with foreign cwd/env and a negative control (`ai-agents-empirical-probe-toolkit`) |
+| Trusting vendor docs for runtime contracts | Docs were wrong by omission twice (customer-wedge env vars, payload casing) | Probe the pinned CLI version empirically (`agent-harness-reference` for the settled contract table) |
 | "Fixing" a drift gate by editing whichever side is easier | 2025-12-15 inversion; edited the source of truth to match generated output | Identify the canonical side first (`ai-agents-architecture-contract`) |
 | Citing an ADR by number from an old document | Numbers collided and moved (ADR-063 vs ADR-071) | Grep architecture dir by topic, verify the title |
-| Shipping a detector with an intuition-chosen threshold | #1989 M4 threshold could never fire on real PRs | Calibrate against the last ~5 merged PRs, show the table |
+| Shipping a detector with an intuition-chosen threshold | The recursive-failure M4 threshold could never fire on real PRs | Calibrate against the last ~5 merged PRs, show the table |
 | Adding a quick env-var bypass to reduce friction | Session 1187: abused 3x within hours; ended in a trust failure | Route new flags through `ai-agents-config-catalog` (define semantics, guard, telemetry) |
 | Mining `git log` for incident history | Some retro-cited SHAs do not resolve locally even with full history present | Retros + memories + GitHub |
 
@@ -199,7 +199,7 @@ Primary sources: the eight retros named in Phase 1;
 `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`,
 `copilot-hooks-observations.md`, `root-cause-governance-enforcement.md`,
 `root-cause-late-feedback.md`, `root-cause-scope-creep-tools.md`,
-`ci-infrastructure-observations.md` (PR #1361 reproduce-on-main rule);
+`ci-infrastructure-observations.md` (reproduce-on-main rule);
 `.claude/rules/generated-artifacts.md`, `canonical-source-mirror.md`,
 `retros.md`. Update this skill when FAILURE-MODES.md gains a pattern or a new
-incident retro of #2205-class severity lands.
+incident retro of customer-wedge-class severity lands.

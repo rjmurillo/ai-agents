@@ -12,11 +12,12 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-validation-and-qa/scripts/instruments.py"
 
 spec = importlib.util.spec_from_file_location("instruments", SCRIPT)
+assert spec is not None and spec.loader is not None
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 
-def run(*args: str) -> subprocess.CompletedProcess:
+def run(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, cwd=ROOT
     )
@@ -100,6 +101,7 @@ def test_investigation_allowlist_row_lists_adr034_paths():
 def test_investigation_allowlist_argv_matches_change_control():
     cc = ROOT / ".claude/skills/ai-agents-change-control/scripts/instruments.py"
     sp = importlib.util.spec_from_file_location("cc_instruments", cc)
+    assert sp is not None and sp.loader is not None
     other = importlib.util.module_from_spec(sp)
     sp.loader.exec_module(other)
 

@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 _STASH_RE = re.compile(r"^(?:WIP on|On) (?P<branch>[^:]+): ")
 
@@ -46,7 +47,7 @@ def checked_out_branches(repo: Path) -> set[str]:
     return {ln[len(prefix) :] for ln in out.splitlines() if ln.startswith(prefix)}
 
 
-def classify_stashes(repo: Path) -> dict:
+def classify_stashes(repo: Path) -> dict[str, Any]:
     live = checked_out_branches(repo)
     out = _git(repo, "stash", "list", "--format=%gd%x09%gs")
     entries = []
@@ -70,7 +71,7 @@ def classify_stashes(repo: Path) -> dict:
     }
 
 
-def base_lag(repo: Path, base: str = "origin/main") -> dict:
+def base_lag(repo: Path, base: str = "origin/main") -> dict[str, Any]:
     out = _git(
         repo, "rev-list", "--left-right", "--count", "--end-of-options", f"{base}...HEAD"
     ).split()

@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-build-and-env/scripts/instruments.py"
 spec = importlib.util.spec_from_file_location("instruments", SCRIPT)
+assert spec is not None and spec.loader is not None
 instruments = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(instruments)
 

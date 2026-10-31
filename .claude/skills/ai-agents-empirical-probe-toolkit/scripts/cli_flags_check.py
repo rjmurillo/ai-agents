@@ -21,6 +21,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-empirical-probe-toolkit"
 SCRIPT_RE = re.compile(r"(?:[\w.-]+/)*[\w.-]+\.py")
@@ -61,7 +62,7 @@ def cited_flags(text: str) -> list[tuple[str, str, int]]:
     return out
 
 
-def run(repo: Path, skill_md: Path) -> tuple[dict, int]:
+def run(repo: Path, skill_md: Path) -> tuple[dict[str, Any], int]:
     text = skill_md.read_text(encoding="utf-8")
     cites = cited_flags(text)
     cache: dict[str, set[str] | None] = {}

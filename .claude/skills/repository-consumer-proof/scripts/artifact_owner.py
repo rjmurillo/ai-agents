@@ -21,14 +21,15 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 MANIFEST = "templates/platforms/binplace.yaml"
 LAYERS = (("source", "source"), ("plugin_tree", "plugin"), ("install_tree", "installed"))
 
 
-def parse_rows(text: str) -> list[dict]:
+def parse_rows(text: str) -> list[dict[str, Any]]:
     """Parse the flat `rows:` list of the manifest (stdlib only, no PyYAML)."""
-    rows: list[dict] = []
+    rows: list[dict[str, Any]] = []
     in_rows = False
     for raw in text.splitlines():
         line = raw.rstrip()
@@ -59,21 +60,22 @@ def _covers(prefix: str | None, path: str) -> bool:
     return path == prefix or path.startswith(prefix + "/")
 
 
-def _relation(row: dict) -> str:
+def _relation(row: dict[str, Any]) -> str:
     if not row.get("plugin_tree") or not row.get("install_tree"):
         return "render-only"
     return "link" if row.get("link") == "true" else "copy"
 
 
-def _plugin_path(row: dict, path: str) -> str | None:
+def _plugin_path(row: dict[str, Any], path: str) -> str | None:
     """Map a path under the install tree to the same path under the plugin tree."""
-    plugin, install = row.get("plugin_tree"), row.get("install_tree")
+    plugin: str | None = row.get("plugin_tree")
+    install: str | None = row.get("install_tree")
     if plugin and install and _covers(install, path):
         return plugin.rstrip("/") + path[len(install.rstrip("/")) :]
     return plugin if plugin and _covers(plugin, path) and path else None
 
 
-def _upstream(rows: list[dict], row: dict, path: str) -> list[dict]:
+def _upstream(rows: list[dict[str, Any]], row: dict[str, Any], path: str) -> list[dict[str, Any]]:
     """Rows whose plugin_tree produces the plugin-side copy of `path` (the true source)."""
     plugin_path = _plugin_path(row, path) or path
     return [
@@ -87,7 +89,7 @@ def _upstream(rows: list[dict], row: dict, path: str) -> list[dict]:
     ]
 
 
-def owners(rows: list[dict], path: str) -> list[dict]:
+def owners(rows: list[dict[str, Any]], path: str) -> list[dict[str, Any]]:
     found = []
     for row in rows:
         layers = [name for key, name in LAYERS if _covers(row.get(key), path)]

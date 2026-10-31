@@ -12,11 +12,12 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-docs-of-record/scripts/instruments.py"
 
 spec = importlib.util.spec_from_file_location("instruments", SCRIPT)
+assert spec is not None and spec.loader is not None
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 
-def run(*args: str, cwd: Path = ROOT) -> subprocess.CompletedProcess:
+def run(*args: str, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, cwd=cwd
     )

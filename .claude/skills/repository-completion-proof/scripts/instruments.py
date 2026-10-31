@@ -16,17 +16,18 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "repository-completion-proof"
 _PR = ".claude/skills/github/scripts/pr"
 
 
-def _row(id_: str, answers: str, argv: str, source: str = "Phase 2") -> dict:
+def _row(id_: str, answers: str, argv: str, source: str = "Phase 2") -> dict[str, Any]:
     """Build one instrument row from a space-separated command line."""
     return {"id": id_, "answers": answers, "argv": argv.split(), "source": source}
 
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     _row(
         "verify-config",
         "Are the review config and its command files trusted against the remote anchor (verified: true)?",
@@ -88,7 +89,7 @@ def _target(argv: list[str]) -> str | None:
     return None
 
 
-def _rows(repo: Path) -> list[dict]:
+def _rows(repo: Path) -> list[dict[str, Any]]:
     rows = []
     for row in INSTRUMENTS:
         target = _target(row["argv"])

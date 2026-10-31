@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/repository-consumer-proof/scripts/artifact_owner.py"
 spec = importlib.util.spec_from_file_location("artifact_owner", SCRIPT)
+assert spec is not None and spec.loader is not None
 artifact_owner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(artifact_owner)
 

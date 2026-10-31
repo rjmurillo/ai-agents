@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents Generation and Release
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers (issue #2050). Declared paths: .claude/lib, .project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md, .project-toolkit/architecture/ADR-052-template-strategy.md, build/generate_agents.py, build/scripts/build_all.py, build/scripts/check_plugin_manifest_parity.py, build/scripts/detect_agent_drift.py, build/scripts/lib_mirror.py, build/scripts/validate_plugin_version_bump.py, build/scripts/yaml_loader.py, scripts/ai_review_common, scripts/github_core, scripts/hook_utilities, templates/agents, templates/platforms/binplace.yaml -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .claude/lib, .project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md, .project-toolkit/architecture/ADR-052-template-strategy.md, build/generate_agents.py, build/scripts/build_all.py, build/scripts/check_plugin_manifest_parity.py, build/scripts/detect_agent_drift.py, build/scripts/lib_mirror.py, build/scripts/validate_plugin_version_bump.py, build/scripts/yaml_loader.py, scripts/ai_review_common, scripts/github_core, scripts/hook_utilities, templates/agents, templates/platforms/binplace.yaml -->
 Runbook for the build, generation, mirroring, versioning, and release machinery. Facts that change (generator list, owned prefixes, skill counts, gate wiring) come from the script in Phase 1, not from this prose.
 
 Reached from `ai-agents-build-and-env`, which names this skill back. No root router exists; enter by trigger phrase.
@@ -83,7 +83,7 @@ Interpreter: `build/generate_agents.py` and `build_all.py` import PyYAML through
 Flags, read from source:
 
 - `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run), `--templates-path`, `--output-root`. Exit 0 ok, 1 logic error or drift, 2 config error.
-- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes 0, 1, 2, 3 are defined in the `EXIT CODES` block of its module docstring; read that block for the producer list. Only the staleness producer of exit 2 is cleared by regenerating. Every git-read failure is exit 3, which keeps "git is missing" apart from "your tree is stale" (issue #4632).
+- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes 0, 1, 2, 3 are defined in the `EXIT CODES` block of its module docstring; read that block for the producer list. Only the staleness producer of exit 2 is cleared by regenerating. Every git-read failure is exit 3, which keeps "git is missing" apart from "your tree is stale".
 - `build/scripts/lib_mirror.py`: the lib copy, run by `build_all.py`. Do not "fix" `.claude/lib/` imports by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
@@ -110,7 +110,7 @@ Two Claude-plugin manifests exist; `.claude/.claude-plugin/plugin.json` is retir
 
 `.claude/` is not a marketplace-listed root. Its template-owned files are binplaced from `src/claude/`; skill `scripts/`, `references/`, and `tests/` stay hand-maintained.
 
-The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): neither manifest, and no entry in any `marketplace.json`, may carry a `version` field. Claude Code then resolves freshness from the git commit SHA, which moves on every merge. ADR-092 reverses ADR-079's hand-bumped rule (ADR-079 was superseded by ADR-091, and ADR-091 by ADR-092) after issue #4080 measured 14 of 22 conflicting PRs conflicting on that one line.
+The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): neither manifest, and no entry in any `marketplace.json`, may carry a `version` field. Claude Code then resolves freshness from the git commit SHA, which moves on every merge. ADR-092 reverses ADR-079's hand-bumped rule (ADR-079 was superseded by ADR-091, and ADR-091 by ADR-092) after ADR-092 measured 14 of 22 conflicting PRs conflicting on that one line.
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-generation-and-release/scripts/instruments.py" --repo . run version-field
@@ -196,7 +196,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-boo
 | Version-field prohibition and ADR-092 reversal | `build/scripts/validate_plugin_version_bump.py` docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
 | Weekly semantic drift cron, threshold 80 | `.github/workflows/drift-detection.yml`; argparse default in `detect_agent_drift.py` | `grep -n "cron" .github/workflows/drift-detection.yml && grep -n "default=80" build/scripts/detect_agent_drift.py` |
 | Git hook jobs and filters | `lefthook.yml` | `uv run --frozen lefthook validate` |
-| npm package, bun build, dispatch-only publish route (re-verified 2026-10-14 for issue #6590) | packages/ai-agents-cli/package.json; RELEASING.md; the header comment of .github/workflows/publish.yml | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "dormant" RELEASING.md .github/workflows/publish.yml` |
+| npm package, bun build, dispatch-only publish route (re-verified 2026-10-14) | packages/ai-agents-cli/package.json; RELEASING.md; the header comment of .github/workflows/publish.yml | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "dormant" RELEASING.md .github/workflows/publish.yml` |
 | Audit log path, gitignored | `.gitignore` | `grep -n "build/audit" .gitignore` |
 | ADR-036 and ADR-052 superseded, ADR-108 and ADR-109 accepted | the four ADR records | `grep -l "^status: superseded$" .project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md .project-toolkit/architecture/ADR-052-template-strategy.md` |
 

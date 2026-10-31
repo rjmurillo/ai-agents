@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents Portability Campaign
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers (issue #2050). Declared paths: .claude/lib/hook_dispatch.py, .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md, .project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md, .project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md, build/scripts/generate_dispatcher.py, build/scripts/generate_hooks, scripts/hook_inventory.py, scripts/instruments.py, templates/platforms/copilot-cli.yaml -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .claude/lib/hook_dispatch.py, .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md, .project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md, .project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md, build/scripts/generate_dispatcher.py, build/scripts/generate_hooks, scripts/hook_inventory.py, scripts/instruments.py, templates/platforms/copilot-cli.yaml -->
 
 This skill changes hooks. `agent-harness-reference` owns hook facts.
 `ai-agents-empirical-probe-toolkit` owns probe design.
@@ -105,7 +105,7 @@ exit-2 stdout becomes recovery
 context. Copilot drops config-file UserPromptSubmit output, so its stdout is
 redirected to stderr in dispatcher and direct rollback modes. Memory recall uses
 the direct `userPromptTransformed` registration in
-`.github/hooks/memory-recall.json` instead (issue #4727). Stderr is not a
+`.github/hooks/memory-recall.json` instead. Stderr is not a
 documented model-context path. Every unclassified event stays direct until its
 host contract is reviewed.
 
@@ -277,7 +277,7 @@ tests, shipped-artifact tests, real CLI probe, and generated mirrors together.
 - [ ] PreCompact remains available in `eventRemap`, even with no active vendored registration.
 - [ ] Canonical and generated artifacts changed together.
 - [ ] Any new PreToolUse, PostToolUse, PermissionRequest, or PostToolUseFailure registration cleared the ADR-097 re-evaluation triggers.
-- [ ] `hook_inventory.py qualifiers` exits 0 once every reference is qualified. Known red at 42e409325 (2026-10-31): src/AGENTS.md:34 lacks the qualifier.
+- [ ] The hook_inventory.py qualifiers subcommand exits 0 once every reference is qualified. Known red at 42e409325 (2026-10-31): src/AGENTS.md:34 (the `ai-agents-portability-campaign` reference) lacks the qualifier.
 - [ ] Targeted generator and runtime tests pass.
 - [ ] Real CLI ran for runtime-only changes.
 - [ ] Both project-toolkit plugin manifests are still version-free (`validate_plugin_version_bump.py` exits 0).

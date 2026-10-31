@@ -13,17 +13,20 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-diagnostics-toolkit"
 SK = ".claude/skills"
 
 
-def _row(id_: str, answers: str, argv: str, source: str = "SKILL.md Instrument Index") -> dict:
+def _row(
+    id_: str, answers: str, argv: str, source: str = "SKILL.md Instrument Index"
+) -> dict[str, Any]:
     """Build one instrument row from a space-separated command line."""
     return {"id": id_, "answers": answers, "argv": argv.split(), "source": source}
 
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     _row(
         "description-budget",
         "How much standing context do skill descriptions cost?",

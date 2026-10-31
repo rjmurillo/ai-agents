@@ -13,11 +13,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-change-control"
 SK = ".claude/skills"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "classify-change",
         "answers": "Which change class and which gates does each changed path trigger?",
@@ -100,12 +101,12 @@ INSTRUMENTS: list[dict] = [
 ]
 
 
-def _exists(repo: Path, row: dict) -> bool:
+def _exists(repo: Path, row: dict[str, Any]) -> bool:
     if "check_path" in row:
-        return (repo / row["check_path"]).is_file()
+        return bool((repo / row["check_path"]).is_file())
     for tok in row["argv"][1:]:
         if tok.endswith(".py"):
-            return (repo / tok).is_file()
+            return bool((repo / tok).is_file())
     return True
 
 

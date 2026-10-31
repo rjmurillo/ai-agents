@@ -13,11 +13,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-debugging-playbook"
 SK = ".claude/skills"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "first-command-stash",
         "answers": "Which git stash entries are foreign (WIP branch not checked out in any worktree)?",

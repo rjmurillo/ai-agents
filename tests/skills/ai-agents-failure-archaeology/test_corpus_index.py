@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / ".claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py"
 
 spec = importlib.util.spec_from_file_location("corpus_index", SCRIPT)
+assert spec is not None and spec.loader is not None
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
@@ -44,7 +45,7 @@ def make_repo(tmp_path: Path, index_names: list[str], retros: list[str]) -> Path
     return tmp_path
 
 
-def run(*args: str) -> subprocess.CompletedProcess:
+def run(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True)
 
 

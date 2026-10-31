@@ -7,7 +7,7 @@ Facts checked at 42e409325 on 2026-10-31. Issue #1345 is the origin.
 ## Why state of the art fails
 
 - Agent memories decay. Observations pile up and nothing promotes them.
-- Corrections do not become enforcement. The industry pattern stops at "write it to memory", which is advisory. FM-1 recorded 95.8% non-compliance (`.agents/governance/FAILURE-MODES.md:47`) while gates held.
+- Corrections do not become enforcement. The industry pattern stops at writing corrections to memory, which is advisory. FM-1 recorded 95.8% non-compliance (`.agents/governance/FAILURE-MODES.md:47`) while gates held.
 
 ## Live parts
 

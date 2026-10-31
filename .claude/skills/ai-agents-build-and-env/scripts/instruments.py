@@ -16,11 +16,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-build-and-env"
 _HERE = ".claude/skills/ai-agents-build-and-env/scripts"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "env-pins",
         "answers": "What are the interpreter, lefthook, PyYAML, requires-python, Node major, and syntax floor pins right now?",
@@ -74,7 +75,7 @@ def _target(argv: list[str]) -> str | None:
     return None
 
 
-def _rows(repo: Path) -> list[dict]:
+def _rows(repo: Path) -> list[dict[str, Any]]:
     rows = []
     for row in INSTRUMENTS:
         target = _target(row["argv"])

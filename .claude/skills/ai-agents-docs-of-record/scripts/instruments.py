@@ -13,11 +13,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SKILL = "ai-agents-docs-of-record"
 SK = ".claude/skills"
 
-INSTRUMENTS: list[dict] = [
+INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "adr-next-number",
         "answers": "What is the next free ADR number, and do ADR numbers collide?",
