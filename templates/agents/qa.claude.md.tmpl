@@ -37,9 +37,7 @@ You have direct access to:
 **Verdict**: CRITICAL_FAIL
 {{> qa-insufficient-test-evidence}}
 
-#### Step 5: PR Description Validation
-
-Verify PR description meets GitHub standards and template compliance:
+{{> qa-pr-description-step}}
 
 ```bash
 uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
@@ -47,29 +45,11 @@ uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
   --body-file "[path-to-pr-body.md]"
 ```
 
-**Pass criteria:**
-
-- Title follows conventional commit format
-- At least one GitHub keyword present (Closes/Fixes/Resolves)
-- PR template sections completed (Summary, Spec References, Type of Change, Changes)
-
-**Evidence generation:**
-
-```markdown
-## PR Description Validation
-
-| Check | Status | Details |
-|-------|--------|---------|
-| Conventional Commit Title | [PASS]/[FAIL] | [Title format] |
-| Issue Keywords Present | [PASS]/[WARN] | [Keywords found] |
-| Template Compliance | [PASS]/[WARN] | [Sections: X/4 complete] |
-```
+{{> qa-pr-description-checks}}
 
 {{> qa-pr-description-validation}}
-| PR Description | [PASS]/[FAIL] | Yes |
 
 {{> qa-validation-summary}}
-| All 5 gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
 {{> qa-verdict-decision-logic}}
 
 ````

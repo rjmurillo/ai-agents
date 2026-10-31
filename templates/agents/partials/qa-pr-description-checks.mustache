@@ -1,0 +1,17 @@
+**Pass criteria:**
+
+- Title follows conventional commit format (FAIL = gate FAIL; ignore exit code, read each check)
+- A GitHub keyword is present (Closes/Fixes/Resolves)
+- Template sections complete (Summary, Spec References, Type of Change, Changes)
+
+**Evidence generation:**
+
+```markdown
+## PR Description Validation
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Conventional Commit Title | [PASS]/[FAIL] | [Title format] |
+| Issue Keywords Present | [PASS]/[WARN] | [Keywords found] |
+| Template Compliance | [PASS]/[WARN] | [Sections: X/4 complete] |
+```
