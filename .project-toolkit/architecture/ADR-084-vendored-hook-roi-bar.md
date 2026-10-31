@@ -31,8 +31,9 @@ original bar authorizes retiring a genuine security control.
 
 Amendment proposed 2026-10-31 (requested by repo-owner @rjmurillo for
 REQ-048). It adds rule 2a, which separates retro enforcement from an advisory
-nudge, and it corrects rule 5's enforcement record. Rule 2a is not binding
-until its adr-review closes and the owner accepts it; the frontmatter
+nudge, narrows rule 2's word "retros" to "retro enforcement", and corrects
+rule 5's enforcement record. Rule 2a and the rule 2 wording change are not
+binding until their adr-review closes and the owner accepts them; the frontmatter
 `status: accepted` covers the original ADR and its 2026-08-18 amendment only.
 The debate record is
 `.project-toolkit/critique/ADR-084-debate-log-2.md`. Rules 1, 3, 4, and 6 and
@@ -96,7 +97,8 @@ hooks. Concretely, the bar is six rules:
    a consumer does not run this project's protocol.
 2. **Internal enforcement is not vendored.** Session logs, ADR debate, retro
    enforcement, install parity, plugin version bumps, generator drift, and
-   PR-description shape are internal concerns. They live in Lefthook and CI
+   PR-description shape are internal concerns. (Proposed 2026-10-31, not yet
+   binding: "retro enforcement" replaces the accepted word "retros".) They live in Lefthook and CI
    only, never in a vendored surface.
 
    **2a. An advisory nudge is not enforcement (proposed 2026-10-31, not yet
@@ -116,13 +118,18 @@ hooks. Concretely, the bar is six rules:
       `UserPromptSubmit` and `SessionStart`.
    e. It reads only four inputs: the event's stdin payload, the file at that
       payload's `transcript_path`, its own state from condition b, and its own
-      opt-out variable from condition g.
+      opt-out variable from condition g. To locate the state root it may read
+      only `XDG_STATE_HOME`, `LOCALAPPDATA`, and `HOME` or `USERPROFILE`
+      (through `Path.home()`), and no other environment variable. A state
+      root that resolves inside the working tree or git directory is refused,
+      and the hook then writes nothing.
    f. Its output goes to a user-visible channel only, never into model
       context. Its text addresses the user, not the agent, and gives the
       agent no instruction.
    g. It has a documented off switch and a bounded firing rate. One
-      environment variable turns it off. The hook reads that variable before
-      it opens the transcript. The variable's name and its off values appear
+      environment variable turns the whole hook off, every branch, not one
+      advisory only. The hook reads that variable before it opens the
+      transcript. The variable's name and its off values appear
       in the hook's `Customer value:` line. The docstring states the firing
       bound, for example at most once per session per threshold tier.
 
@@ -137,7 +144,11 @@ hooks. Concretely, the bar is six rules:
    deciding ADR, per the field rules in `templates/hooks/dispatch_groups.json`
    (its `description`) and ADR-085 Decision 7. The field is used here for an
    output-contract gap, not a security judgment; this amendment owns that
-   reason. A generator test MUST show that
+   reason. That use MUST meet every item of ADR-085 Decision 7's generic
+   field governance, including a named authorizing issue
+   (`copilotExcludeIssue`), reintroduction criteria, the cleanup obligation,
+   and the presence and boolean-validation tests. REQ-048 TASK-006 owns those
+   items. A generator test MUST show that
    `src/copilot-cli/hooks/hooks.json` carries no entry for it. The reason is in
    the Amendment Record: Copilot documents neither an advisory field nor
    `transcript_path`.
@@ -195,7 +206,9 @@ hooks. Concretely, the bar is six rules:
    `f79e70c01` (2026-08-19, #5172, ADR-097) when the vendored surface emptied.
    The presence test was added in `2c85d2547` (2026-08-18 18:38 -0700) and
    deleted in `f79e70c01` (2026-08-19 16:52 -0700), so it enforced rule 5 for
-   about 22 hours. The "Enforced since 2026-08-19" date above is one day late.
+   about 22 hours. In -0700 local time, the "Enforced since 2026-08-19" date
+   above is one day late. In UTC (`2c85d2547` is 2026-08-19T01:38Z) it is
+   correct.
    Do not count the test as a working control.
    Measured at `9254b9945` (2026-10-31): `src/claude/hooks.json` registers
    zero hooks, and no dispatch group carries `surface: "plugin"`. The
@@ -265,7 +278,9 @@ hooks. Concretely, the bar is six rules:
   the parity suite rather than the standalone CI check first proposed. That test
   is the ratchet against re-accretion. It went 29 days unbuilt while the ADR
   described it as planned, which is the reason the rule now names the file that
-  enforces it instead of an intention.
+  enforces it instead of an intention. Correction (2026-10-31): that test was
+  deleted in `f79e70c01`, so nothing enforces rule 5 today. See the rule 5
+  correction.
 - Rules 3 and 4 push cost off the consumer's hot path: zero-spawn host-native
   surfaces where possible, and no dead hooks spawning per call to no-op.
 - Internal enforcement does not weaken. It moves to Lefthook and CI. CI gates
@@ -286,8 +301,9 @@ hooks. Concretely, the bar is six rules:
   install command closes the local-commit gap, so the enforcement point moves
   but does not disappear.
 - Rules 1, 2, 3, 4, and 6 are policy, not code. They bind future additions only
-  if reviewers apply them. Rule 5 is the single mechanically checkable clause and
-  is now enforced; the rest are not, and this ADR should not be read as claiming
+  if reviewers apply them. Rule 5 is the single mechanically checkable clause. It
+  was enforced for about 22 hours in 2026-08 and is not enforced today (see the
+  rule 5 correction); the rest are not, and this ADR should not be read as claiming
   otherwise.
 
 ### What this ADR does NOT do
@@ -404,7 +420,21 @@ the REQ-048 held-out sample. The figures show the gap exists here. They show no
 consumer demand, and this amendment does not claim any. REQ-048 AC-19 gates the
 default threshold on held-out precision of at least 70 percent. REQ-048's kill
 criterion removes the friction branch 30 days after release if precision is
-under 50 percent or no retrospective followed any nudge.
+under 50 percent or no retrospective followed any nudge. The kill criterion
+is judged on the owner's own transcripts only, because the hook sends no
+telemetry and consumer sessions cannot be seen.
+
+Alternatives considered (REQ-048 Q-1). Narrowing rule 2 alone was rejected:
+the narrowed word draws no line, so a later hook could call any behavior
+advisory. An exception alone was rejected: rule 2 would still list "retros"
+and contradict it. Keeping the hook dogfood-only until consumer evidence
+exists was rejected by the owner, who chose the vendored route on 2026-10-31
+(REQ-048 D3). That decision, not consumer demand, is the reason on record.
+
+Rollback: remove the hook's dispatch group and cut a release. If that
+empties the vendored surface, the same PR removes the two restored rule 5
+tests, since the companion test fails on an empty surface. Consumers keep the
+hook until they upgrade the plugin. Its off switch covers that gap.
 
 Rule 6 is not engaged. Its four events (rule 6 text) exclude `Stop`. ADR-097
 "Neutral" names four events as unaffected by its retirement: `SessionStart`,

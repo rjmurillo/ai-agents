@@ -2,9 +2,9 @@
 
 ## Summary
 
-- **Rounds**: 2 of 10
-- **Prior debate log**: `.project-toolkit/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`
-- **Outcome**: Consensus (2/2 Accept in round 2)
+- **Rounds**: 3 of 10
+- **Prior debate logs**: `.project-toolkit/critique/ADR-084-debate-log.md` (original consensus) and `.project-toolkit/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`
+- **Outcome**: Consensus (round 3: architect Accept, critic Disagree-and-Commit)
 - **Final Status**: proposed (consensus reached; owner acceptance pending)
 - **Subject**: proposed 2026-10-31 amendment to ADR-084 adding rule 2a and correcting rule 5's enforcement record, for REQ-048.
 - **Trigger**: repo-owner @rjmurillo decided on 2026-10-31 to vendor the REQ-048 friction nudge. The decision was relayed from the owner's master session and authorizes TASK-005.
@@ -44,7 +44,7 @@ The architect ran a Chesterton's fence check and it passed.
 | C-P2-1 | P2 | critic | The corpus scope and the shared labeler are stated. The kill criterion is added. |
 | C-P2-2 | P2 | critic | "#3372" now reads "PR #3372 (issue #3349)". |
 | C-P2-3, A-1.5 | P2 | both | This file now exists. |
-| C-P2-4 | P2 | critic | The correction says the check enforced rule 5 for zero days. |
+| C-P2-4 | P2 | critic | The correction says the check enforced rule 5 for zero days (superseded by A2-3). |
 | A-1.6 | P2 | architect | Rule 2a's heading says "proposed, not yet binding". Status says the frontmatter `accepted` covers only prior text. |
 | A-1.7 | P2 | architect | The first vendored hook under rule 2a records a fresh ADR-071 runtime contract. |
 | A-1.8 | P2 | architect | REQ-048 AC-18 points at the restored test. The `tool-use-hook-bar.md` wording is deferred to TASK-006. |
@@ -73,7 +73,7 @@ The architect ran a Chesterton's fence check and it passed.
 | Agent | Position | Notes |
 |-------|----------|-------|
 | architect | Accept | All eight round 1 findings were checked as resolved in the ADR text. Six new P2s. |
-| critic | Accept | No round 1 finding is still open. The critic accepts the C-P1-4 deferral. Three new P2s. |
+| critic | Accept | No round 1 finding is still open. The critic accepts the C-P1-4 deferral. Four new P2s. |
 
 ### Key Issues Addressed
 
@@ -84,11 +84,41 @@ The architect ran a Chesterton's fence check and it passed.
 | C2-3, A2-2 | P2 | both | AC-17 now also checks that the advisory is absent from the next turn's model context (condition f). |
 | C2-log | P2 | critic | The "risk during the gap" line is narrowed to the REQ-048 hook only. |
 | A2-1 | P2 | architect | New AC-22: a planted file outside the four condition e inputs is never opened. |
-| A2-3 | P2 | architect | The rule 5 test lived about 22 hours (`2c85d2547` to `f79e70c01`), not zero days. The correction says so, and it notes the original "Enforced since" date is one day late. |
+| A2-3 | P2 | architect | The rule 5 test lived about 22 hours (`2c85d2547` to `f79e70c01`), not zero days. The correction says so, and it notes the original "Enforced since" date is one day late in -0700 (round 3: correct in UTC). |
 | A2-5 | P2 | architect | REQ-048 now cites both Stop sections of `official-hook-contracts.md` (lines 237-252 and 442-454). |
 | A2-6 | P2 | architect | Rule 2a states that `copilotExclude` is used for an output-contract gap, not a security judgment. |
 
-Round 2 changes are P2 text repairs. No condition, MUST, or scope changed after the Accept votes, so no round 3 was run.
+Round 2 changes are P2 text repairs. Two were not re-reviewed in round 2: AC-22 was added (A2-1) and the rule 5 duration was corrected (A2-3). Round 3 covers them.
+
+## Round 3 Summary
+
+**Trigger**: `/review` on 2026-10-31 returned WARN. The fixes changed rule 2a text after the round 2 votes. Owner decisions, 2026-10-31: the opt-out turns off the whole hook; the owner's vendoring decision replaces the consumer-value argument; the held-out set is a seeded 70/30 session split.
+
+**Round 3 scope**: the rule 2 proposed marker; conditions e and g; the ADR-085 Decision 7 MUST in the Copilot clause; the timezone note on rule 5; the Consequences corrections; the Alternatives, kill-scope, and Rollback paragraphs; REQ-048 Q3, AC-12, AC-15, AC-19, the AC map, and Q-1 and Q-2; and the round 2 items AC-22 and A2-3.
+
+### Agent Positions
+
+| Agent | Position | Notes |
+|-------|----------|-------|
+| architect | Accept | No MUST weakened. AC-12, AC-20, and condition g agree. Two P1 text fixes. |
+| critic | Disagree-and-Commit | Rule 5 duration verified at 22h14m. C3-1 and C3-2 must close before TASK-006. |
+
+### Key Issues Addressed
+
+| ID | Priority | Source | Resolution |
+|----|----------|--------|------------|
+| A3-1, C3-1 | P1 | both | Condition e now lists a closed set of state-root variables. A state root inside the repository is refused. New AC-24 tests the refusal. |
+| C3-2 | P1 | critic | Rollback now removes the restored rule 5 tests when the vendored surface empties. |
+| A3-2, C3-6 | P2 | both | The REQ-048 evidence row now names the seeded split. AC-19 records window dates, seed, split list, and the accepted leakage risk. |
+| A3-3 | P2 | architect | AC-12: an off hook neither reads nor writes its state. |
+| A3-4 | P2 | architect | Not changed. The authorizing issue is a TASK-006 duty under the Copilot clause, and rule 2a binds only after owner acceptance. |
+| A3-5 | P2 | architect | Covered by the AC-19 change above. |
+| C3-3 | P2 | critic | AC-12 off values ignore case and whitespace. New AC-23 is the positive control. |
+| C3-4 | P2 | critic | AC-15 snapshots `.git/` after a priming `git status`. |
+| C3-5 | P2 | critic | AC-22 names `sys.addaudithook` and a recording env mapping, with both branches active. |
+| C3-7 | P2 | critic | The A2-3 row notes UTC. This section logs the full round 3 scope. Status again requires review closure. |
+
+Round 3 fixes apply the fixes the reviewers proposed. The condition e refusal clause is new requirement text, taken from the C3-1 fix. No other condition or MUST changed after the votes.
 
 ### Next Steps
 

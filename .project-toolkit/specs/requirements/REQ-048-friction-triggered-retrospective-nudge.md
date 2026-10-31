@@ -41,7 +41,7 @@ Reframing: automation only. The spec makes an existing advisory see a new signal
 
 The owner is the most blocked. Sessions with heavy tool errors and retries end with no prompt to run a retrospective. The nudge stays silent because no human correction regex matched.
 
-Plugin consumers are not evidenced as blocked. Vendoring is the owner's decision (D3, 2026-10-31). The ADR-084 amendment (TASK-005) must argue consumer value before TASK-006 ships.
+Plugin consumers are not evidenced as blocked. Vendoring is the owner's decision (D3, 2026-10-31). That decision, not consumer demand, is the reason on record (ADR-084 Amendment Record, 2026-10-31). The rule 1 consumer-value statement lives in the hook's `Customer value:` line, written at TASK-006 (AC-18).
 
 ### Q4
 
@@ -100,7 +100,7 @@ Blast-radius count: 0. H11 does not fire.
 | DeepWiki `thedotmack/claude-mem`, 1 question | RAN | Hook list and no friction classifier |
 | Cursor source: `continual-learning-stop.ts`, `hooks.json`, `SKILL.md`, `agents-memory-updater.md` | RAN | Read in full |
 | Transcript corpus measurement | RAN | Q5 figures |
-| Held-out corpus (Claude transcripts, days 31 to 60) | NOT RUN | Deferred to TASK-001 |
+| Held-out split (seeded 30 percent of sessions in the measured window) | NOT RUN | Deferred to TASK-001 |
 
 ## Problem statement
 
@@ -184,7 +184,7 @@ No network, no model call, no writes inside any repository.
 - SLI 2, precision: share of friction nudges a human labels "a retro was worth it" on a held-out corpus. SLO: at least 70 percent.
 - SLI 3, volume: friction nudges per 100 sessions on the owner's corpus. Over 15 means the threshold is too low.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
-- Kill criteria: 30 days after release, remove the friction branch if precision is under 50 percent or no retrospective followed any nudge.
+- Kill criteria: 30 days after release, remove the friction branch if precision is under 50 percent or no retrospective followed any nudge. Judged on the owner's own transcripts only, since the hook sends no telemetry.
 
 ## Acceptance criteria
 
@@ -199,17 +199,19 @@ No network, no model call, no writes inside any repository.
 9. **AC-09** While a FrictionMarker exists for tier n, the hook shall emit no friction nudge until the score reaches tier n+1 (double the tier n threshold).
 10. **AC-10** When a new correction arrives between two Stops and the FrictionTier is unchanged, the hook shall emit no second friction nudge.
 11. **AC-11** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is a positive integer, the hook shall use it as the tier 1 threshold.
-12. **AC-12** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is `0` or `off`, the hook shall skip the friction branch.
+12. **AC-12** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is `0` or `off` (case-insensitive, surrounding whitespace ignored), the hook shall exit 0 with no output from either the friction or the correction branch, and shall neither read nor write its state.
 13. **AC-13** If `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is negative or not an integer, then the hook shall use the calibrated default and exit 0.
 14. **AC-14** If the scan stops on the time or byte budget, then the hook shall emit no friction nudge and shall write one status line naming the budget to stderr.
-15. **AC-15** When the hook runs inside a temporary git repository, the hook shall leave `git status --porcelain` empty.
+15. **AC-15** When the hook runs inside a temporary git repository, the hook shall leave `git status --porcelain` empty, leave the `.git/` tree byte-identical to a snapshot taken after a priming `git status` and before the run, and write its marker to a path outside the repository.
 16. **AC-16** When the plugin from `src/claude/` is installed and the hook runs from a directory that is not the plugin root, the launcher shall find and run the script. A bare relative path in the same harness shall fail (negative control).
 17. **AC-17** When a friction-qualifying Stop runs in the real Claude Code CLI, the `systemMessage` shall reach the user intact through the plugin registration, and the next turn's model context shall not contain the advisory text.
 18. **AC-18** When the hook ships in a `surface: "plugin"` dispatch group, the restored ADR-084 rule 5 presence test shall find one `Customer value:` line in its module docstring that names `AI_AGENTS_RETRO_NUDGE_THRESHOLD` and its off values.
-19. **AC-19** When TASK-001 has chosen weights and the default threshold on the tuning corpus (Claude transcripts, days 1 to 30), the held-out corpus (Claude transcripts, days 31 to 60, labeled by Richard Murillo) shall show at least 70 percent precision before the default ships.
+19. **AC-19** When TASK-001 has chosen weights and the default threshold on the tuning split (a seeded random 70 percent of sessions in the measured 30-day window), the held-out split (the other 30 percent, labeled by Richard Murillo) shall show at least 70 percent precision before the default ships. The TASK-001 report shall record the window dates, the seed, and the split session list, and shall note that both splits share one window (leakage risk accepted under the owner's decision).
 20. **AC-20** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is `0` or `off`, the hook shall not open the transcript.
 21. **AC-21** When the plugin is generated, `src/copilot-cli/hooks/hooks.json` shall carry no entry for the hook, through `copilotExclude: true` on its dispatch group.
-22. **AC-22** When a test fixture plants a readable file outside the four rule 2a condition e inputs, the hook shall not open it during a Stop.
+22. **AC-22** When a test fixture plants a readable file outside the four rule 2a condition e inputs and runs a Stop with both branches active, the hook shall not open it (observed with a `sys.addaudithook` hook on `open`), and shall read no environment variable outside the condition e list (observed through a recording mapping passed to `run()` and a patched `Path.home()`).
+23. **AC-23** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is unset or a positive integer and a correction-qualifying Stop runs, the hook shall still emit the correction nudge (positive control for AC-12).
+24. **AC-24** If the resolved state root lies inside the git working tree or git directory, then the hook shall write no state and shall exit 0.
 
 ## Out of scope
 
@@ -233,8 +235,8 @@ No network, no model call, no writes inside any repository.
 
 | Question | Owner |
 |---|---|
-| Q-1: Does the ADR-084 amendment narrow rule 2 to "retro enforcement", or add a named exception for advisory nudges? | ADR-084 review panel |
-| Q-2: ADR-084 says one hook was vendored when written; `src/claude/hooks.json` registers none today. Does the amendment also correct that count? | ADR-084 review panel |
+| Q-1 (resolved 2026-10-31): both. Rule 2 narrows to "retro enforcement" and rule 2a adds the named exception. The ADR-084 Amendment Record gives the reasons. | ADR-084 review panel |
+| Q-2 (resolved 2026-10-31): yes. The ADR-084 rule 5 correction records zero vendored hooks at `9254b9945`. | ADR-084 review panel |
 
 ## CVA summary
 
@@ -259,17 +261,17 @@ No network, no model call, no writes inside any repository.
 
 ## ADR cross-reference
 
-Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15; c to AC-07; d to the Stop-only registration; e to AC-22; f to AC-17; g to AC-09, AC-11 to AC-13, AC-18, and AC-20. The amendment blocks AC-16 to AC-18 and AC-21 only. AC-01 to AC-15 and AC-19 can land dogfood-first under the existing authorization.
+Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to the Stop-only registration (reviewed at TASK-006); e to AC-22; f to AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18 and AC-21 only. AC-01 to AC-15, AC-19, AC-20, and AC-22 to AC-24 can land dogfood-first under the existing authorization.
 
 ## Tasks (sequenced)
 
 | ID | Task | ACs | Depends on | Estimate (human / AI) |
 |---|---|---|---|---|
-| TASK-001 | Calibration script; tune on days 1 to 30, hold out days 31 to 60; owner labels the sample; check `DENIAL_MARKERS`; pick weights and default; report SLI 4 | AC-19 | none | 2 days / 2 h |
+| TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; pick weights and default; report SLI 4 | AC-19 | none | 2 days / 2 h |
 | TASK-002 | Scanner counts with fixture tests | AC-01 to AC-04 | TASK-001 | 1 day / 1 h |
-| TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20 | TASK-002 | 1 day / 1 h |
-| TASK-004 | Exit, no-block, clean-tree, and input-limit tests | AC-05, AC-06, AC-15, AC-22 | TASK-003 | 0.5 day / 30 min |
+| TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20, AC-23 | TASK-002 | 1 day / 1 h |
+| TASK-004 | Exit, no-block, clean-tree, and input-limit tests | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
 | TASK-005 | ADR-084 amendment with debate log | Q-1, Q-2 | none | 2 days / 2 h plus review |
-| TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, `tool-use-hook-bar.md` wording, ledger text | AC-16 to AC-18, AC-21 | TASK-004, TASK-005 | 1.5 days / 1.5 h |
+| TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance (authorizing issue, reintroduction criteria, cleanup obligation, boolean-validation test), `tool-use-hook-bar.md` wording, ledger text | AC-16 to AC-18, AC-21 | TASK-004, TASK-005 | 1.5 days / 1.5 h |
 
 Total: 8 human days, 8 AI-assisted hours, plus ADR review.
