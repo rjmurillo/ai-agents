@@ -201,6 +201,10 @@ def _run_identity_ok(args: argparse.Namespace, policy: consecutive_breach.Policy
     strict = policy.name == consecutive_breach.POLICY_STRICT
     event, ref = (args.event, args.ref) if strict else (policy.event, policy.ref)
     try:
+        if not strict:
+            for flag, value in (("--event", args.event), ("--ref", args.ref)):
+                if value is not None and (not value.strip() or value != value.strip()):
+                    raise ValueError(f"{flag} must be non-empty with no surrounding whitespace")
         is_enforced(event, ref)
     except ValueError as exc:
         print(f"bad run identity: {exc}", file=sys.stderr)

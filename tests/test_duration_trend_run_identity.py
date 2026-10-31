@@ -116,6 +116,29 @@ def test_main_exits_two_for_a_blank_or_malformed_run_identity_under_consecutive_
     assert "bad run identity" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    "named",
+    [["--event", ""], ["--ref", ""], ["--event", " push"], ["--ref", "refs/heads/main "]],
+)
+def test_empty_flag_is_not_replaced_by_the_github_environment(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    named: list[str],
+) -> None:
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [20.0, 20.0]}, 40.0)
+    history = str(write_history(tmp_path, [10.0, 12.0]))
+
+    rc = trend.main(
+        [str(report), "--history", history, "--breach-policy", "consecutive-main", *named]
+    )
+
+    assert rc == 2
+    assert "bad run identity" in capsys.readouterr().err
+
+
 def test_main_still_runs_when_neither_event_nor_ref_is_given(tmp_path: Path) -> None:
     report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0]}, 1.0)
 
