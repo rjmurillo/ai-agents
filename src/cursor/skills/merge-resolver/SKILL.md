@@ -55,7 +55,7 @@ Run this self-check FIRST, before any context gathering, analysis, or plan. Conf
 | 0.1 | Confirm shell/Bash is available (`git`, worktree creation, `git push`) | A tool result in this run shows a shell command executed |
 | 0.2 | If shell is unavailable: return immediately with status [BLOCKED], one-line reason, route execution back to the orchestrator, and STOP | No resolution plan, phase list, or report is produced |
 
-If shell execution is unavailable, do NOT produce a step-by-step resolution plan. A plan reads as completed work and is the exact failure this precondition prevents (issue #2646). Return BLOCKED and route execution back to the orchestrator.
+If shell execution is unavailable, do NOT produce a step-by-step resolution plan. A plan reads as completed work and is the exact failure this precondition prevents. Return BLOCKED and route execution back to the orchestrator.
 
 **Completion rule (applies to every execution phase below)**: mark a phase complete ONLY when a tool result in this run proves it ran. A plan is not a completion. Never report "create worktree", "merge", "push", or "run gates" as complete from instructions alone.
 
@@ -123,7 +123,7 @@ Priority is a strict priority hierarchy: Security (1) > Bugfix (2) > Feature/Ref
 | Session file conflict | Accept `--theirs`, rename ours with a distinguishing suffix | Accept `--ours` (alters main's record) |
 | Same-numbered session (add/add) | Keep both; rename ours with a suffix, keep the number | Merge both contents into one file |
 
-**Rename, never content-merge.** An add/add conflict on an append-only evidence artifact (session logs `.project-toolkit/sessions/*`, QA reports `.project-toolkit/qa/*`, retrospectives `.project-toolkit/retrospective/*`) means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
+**Rename, never content-merge.** An add/add conflict on an append-only evidence artifact (session logs `.project-toolkit/sessions/*`, QA reports `.project-toolkit/qa/*`, retrospectives `.project-toolkit/retrospective/*`) means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. Merging both sessions' prose into one file would destroy two accurate records to produce one false one.
 
 See `references/strategies.md` for the full session file resolution workflow.
 
@@ -194,7 +194,7 @@ When running with `--dry-run`, exit code `0` indicates that conflicts were fully
 ```json
 {
   "success": true,
-  "message": "Successfully resolved conflicts for PR #123",
+  "message": "Successfully resolved conflicts for PR #<number>",
   "files_resolved": [".agents/governance/PROJECT-CONSTRAINTS.md"],
   "files_blocked": []
 }
@@ -204,13 +204,13 @@ When running with `--dry-run`, exit code `0` indicates that conflicts were fully
 
 ### verify_no_conflict_markers.py
 
-Verifies that resolution is complete: no still-unmerged (UU) files and no leftover conflict markers in any in-flight change. Replaces the broad `git grep -n '<<<<<<<' --` check, which false-fails on intentional fenced examples in committed docs and Serena memories (issue #2424).
+Verifies that resolution is complete: no still-unmerged (UU) files and no leftover conflict markers in any in-flight change. Replaces the broad `git grep -n '<<<<<<<' --` check, which false-fails on intentional fenced examples in committed docs and Serena memories.
 
 ```bash
 python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py [--cwd PATH] [--json]
 ```
 
-Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_HEAD present) to avoid false positives from whitespace already in the incoming branch (issue #4058). Falls back to `git diff HEAD --check` outside merge state. Both forms use `git diff --name-only --diff-filter=U` to catch still-unmerged files.
+Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_HEAD present) to avoid false positives from whitespace already in the incoming branch. Falls back to `git diff HEAD --check` outside merge state. Both forms use `git diff --name-only --diff-filter=U` to catch still-unmerged files.
 
 **Exit codes:**
 
@@ -226,7 +226,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 | Anti-Pattern | Why It Fails | Instead |
 |--------------|--------------|---------|
 | Alter session files from main | Breaks audit trail (immutable records) | Accept `--theirs`, then rename our session file with a distinguishing suffix |
-| Content-merge an add/add session-log conflict | Destroys two accurate records to produce one false one (PR #4856) | Keep both files; rename ours with a suffix; update references |
+| Content-merge an add/add session-log conflict | Destroys two accurate records to produce one false one | Keep both files; rename ours with a suffix; update references |
 | Push without session validation | CI blocks with MUST violations | Run `validate_session_json.py` first |
 | Manual edit of generated files | Lost on regeneration | Edit template, run generator |
 | Accept `--ours` for HANDOFF.md | Branch version often stale | Accept `--theirs` (main is canonical) |
@@ -242,7 +242,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 | Criterion | Evidence |
 |-----------|----------|
 | All conflicts resolved | `python3 -c "import subprocess, sys; r=subprocess.run(['git','diff','--name-only','--diff-filter=U'],capture_output=True,text=True,encoding='utf-8',errors='replace'); u=[l for l in r.stdout.splitlines() if l.strip()]; sys.exit(1 if u else 0)"` exits 0 (`--diff-filter=U` catches every unmerged state -- UU, AA, DU -- not only UU) |
-| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
+| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs) |
 | Any opted-in session log valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
@@ -323,4 +323,4 @@ uv run python scripts/validate_session_json.py ".project-toolkit/sessions/<log>.
 
 </details>
 
-<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, QA reports under .project-toolkit/qa/, retrospectives under .project-toolkit/retrospective/, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. The PR #4856 citation (.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, QA reports under .project-toolkit/qa/, retrospectives under .project-toolkit/retrospective/, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. -->

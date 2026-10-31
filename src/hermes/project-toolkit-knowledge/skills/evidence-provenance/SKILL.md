@@ -109,7 +109,7 @@ This skill owns the lineage and state semantics and nothing else.
 | Concern | Owner |
 |---------|-------|
 | Strong, falsifiable tests and mutation controls | the testing rule |
-| Equivalence without copied contracts | the canonical-source evidence contract (#5399) |
+| Equivalence without copied contracts | the canonical-source evidence contract |
 | Wording of progress and completion reports | the voice rule, "Clear The Gate Or Drop The Claim" |
 | Which validator governs a change | `validation-authority`, `analysis-provenance` |
 | Review verdicts and independent reviewer behavior | `review` (technical-review) |

@@ -14,7 +14,7 @@ metadata:
 
 # AI Agents Change Control
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers -->
 How a change moves through this repository, and the rules that never bend. This
 repo runs verification-based enforcement. Evidence may live in the transcript,
 pull request, per-issue handoff, Serena memory, or an optional session log.
@@ -56,7 +56,7 @@ The OPERATIVE investigation-only allowlist is the enforcement module `scripts/mo
 - `.project-toolkit/architecture/REVIEW-*` (review artifacts)
 - `.project-toolkit/critique/` (critique outputs)
 
-Former divergence, now closed: the ADR-034 text (`.project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md:78-87`) once listed only the first 5 paths, and #2958 reconciled it to the same 8 the module enforces. The code list is still what the gate enforces, so re-check the module rather than the ADR when they disagree.
+Former divergence, now closed: the ADR-034 text (`.project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md:78-87`) once listed only the first 5 paths, and a later change reconciled it to the same 8 the module enforces. The code list is still what the gate enforces, so re-check the module rather than the ADR when they disagree.
 
 One staged file outside the enforced list voids the exemption. The session then needs real QA evidence, or you split the work into two sessions.
 
@@ -79,9 +79,9 @@ There is no commit-message bypass for the agent drift gate. An intentional diver
 
 ### Phase 3: Run the gates, local to CI
 
-The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`uv run python scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. No hook measures commit or file count anymore (ADR-100 deleted the last advisory, issue #5241); scope markdownlint to changed files only.
+The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`uv run python scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. No hook measures commit or file count anymore (ADR-100 deleted the last advisory); scope markdownlint to changed files only.
 
-The full four-rung ladder (shift-left runner, pre-commit, pre-push, CI required checks with their exact commands and exit codes) and the PR #908 story behind the now-deleted commit-discipline caps are in `references/gate-ladder.md`. Consult it before your first push in a session.
+The full four-rung ladder (shift-left runner, pre-commit, pre-push, CI required checks with their exact commands and exit codes) and the story behind the now-deleted commit-discipline caps are in `references/gate-ladder.md`. Consult it before your first push in a session.
 
 ### Phase 4: Hold the non-negotiables
 
@@ -91,20 +91,20 @@ Check this table before any push. The incident column is the answer to "why"; do
 |------|----------------------|----------------------|
 | No new bash scripts; Python for all new scripts | Review + `.claude/rules/universal.md` SHOULD 3 ("MUST NOT create new bash scripts") | ADR-042 (Accepted) |
 | No logic in YAML workflows | ADR-006 + `.claude/rules/universal.md` MUST NOT 3 | Workflow YAML cannot be tested locally. Amendment 2026-04-28 allows pure config-data YAML under 7 conditions in `templates/platforms/` and `build/` only; `run:` block logic stays banned |
-| No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 4: bot reviewers open one or more threads per dash, every PR (Issue #1923) |
+| No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 4: bot reviewers open one or more threads per dash, every PR |
 | SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:180`, `SHA-pinned`) | Tags are mutable, so pinning blocks supply-chain tag-moving. Operative rule: pin everything unless a human explicitly approves the GP-006 first-party `actions/*` tag allowance, and disclose the tension in your PR description when you hit it. Fuller writeup in `references/incident-history.md` |
-| Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Historical carve-out, now moot: the push guards failed open on infrastructure errors by design; the whole family (`push_guard_base.py` and every guard built on it) was deleted under ADR-084 (issue #5154), so no live guard claims this exception. Repo-wide audit tracked in #2271. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | #2205 customer wedge; policy reversal in the incident history |
-| No `version` field in any plugin manifest or marketplace entry | `pre_pr.py` + `validate-plugin-version-bump.yml` | ADR-092: the field pins freshness to a hand-bumped string and conflicts across every concurrent PR (issue #4080 measured 14 of 22) |
+| Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Historical carve-out, now moot: the push guards failed open on infrastructure errors by design; the whole family (`push_guard_base.py` and every guard built on it) was deleted under ADR-084, so no live guard claims this exception. A repo-wide audit of the remaining families is tracked upstream. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | the customer wedge incident; policy reversal in the incident history |
+| No `version` field in any plugin manifest or marketplace entry | `pre_pr.py` + `validate-plugin-version-bump.yml` | ADR-092: the field pins freshness to a hand-bumped string and conflicts across every concurrent PR (measured at 14 of 22 concurrent PRs) |
 | Block-style YAML arrays only in frontmatter | `.agents/governance/PROJECT-CONSTRAINTS.md:188` (`ADR-040 Amendment`) | Copilot CLI frontmatter parser fails on CRLF and related formatting: github/copilot-cli#694, cited at PROJECT-CONSTRAINTS.md:220; ADR-044 |
-| Memory-first: retrieval precedes reasoning | AGENTS.md Retrieval section; session-start gates | ADR-007: Serena memories are canonical; the supplementary tier it describes was decommissioned in #5574, so Serena is the only backend. Search before building; do not re-derive settled decisions |
-| "Matches/mirrors" claims must quote the canonical source verbatim | `.claude/rules/canonical-source-mirror.md`; heuristic citation check in `pre_pr.py` | FM-9 confident-incorrectness; PR #1887 in the incident history |
-| No silent defaults | FM-10 detection table (`.agents/governance/FAILURE-MODES.md:315-399`); `taste-lints` and pre-push scans | PR #1965 verdict-parser; incident history |
+| Memory-first: retrieval precedes reasoning | AGENTS.md Retrieval section; session-start gates | ADR-007: Serena memories are canonical; the supplementary tier it describes was decommissioned, so Serena is the only backend. Search before building; do not re-derive settled decisions |
+| "Matches/mirrors" claims must quote the canonical source verbatim | `.claude/rules/canonical-source-mirror.md`; heuristic citation check in `pre_pr.py` | FM-9 confident-incorrectness; see the incident history |
+| No silent defaults | FM-10 detection table (`.agents/governance/FAILURE-MODES.md:315-399`); `taste-lints` and pre-push scans | verdict-parser incident; incident history |
 | Opted-in session-file merge immutability | Retro rule; validate-if-present session validation | Session 1187 (incident history): preserve both historical files and rename the local record |
 | No secrets, no force-push, no `--no-verify`, no direct commits to main | `.claude/rules/universal.md` MUST 1, MUST 5, MUST NOT 1, MUST NOT 2 | Hooks are the enforcement surface; skipping them is self-disarming |
 
 Escape hatches (env vars, commit markers, skip semantics) exist for several gates. They are deliberately narrow after session 1187, and each is cataloged with its abuse story in `ai-agents-config-catalog`. Do not invent a new one inline; a new flag is itself a governance change.
 
-Six of the table's incidents compress a multi-round failure and are told in full in `references/incident-history.md`: the #2205 fail-closed reversal, the PR #1942 stale-cache plugin bump, the session 1187 escape-hatch abuse, FM-9 and PR #1887 verbatim quoting, FM-10 and PR #1965 silent defaults, and the SHA-pinning tension. The other rationale cells are briefer. Read the incident before you argue with its rule.
+Six of the table's incidents compress a multi-round failure and are told in full in `references/incident-history.md`: the fail-closed reversal, the stale-cache plugin bump, the session 1187 escape-hatch abuse, FM-9 verbatim quoting, FM-10 silent defaults, and the SHA-pinning tension. The other rationale cells are briefer. Read the incident before you argue with its rule.
 
 ## Anti-Patterns
 
@@ -113,10 +113,10 @@ Six of the table's incidents compress a multi-round failure and are told in full
 | Editing the canonical side to match a generated tree, to silence a drift gate | Inverts the source of truth (2025-12-15 incident: the source was edited to match generated output; commit reverted). Ask which side is canonical first |
 | Adding a drift allowlist entry without a stated reason or code-owner approval | The validator rejects an entry with no reason; an unexplained entry reads as the session 1187 pattern |
 | Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-092). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
-| Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |
+| Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the fail-closed reversal failure |
 | Classifying a mixed session as investigation-only | One staged file outside the ADR-034 allowlist voids the exemption; split the work |
-| Fixing a bot-flagged dash or style claim without byte-level verification | Bots false-positive; count the actual bytes before editing (PR #1873 observation: an em-dash flag on a line with zero em-dashes) |
-| Citing ADR-008/033/035/062 fail-open language for a new hook | Stale; the operative policy is fail-closed and loud (the #2205 reversal, told in `references/incident-history.md`) |
+| Fixing a bot-flagged dash or style claim without byte-level verification | Bots false-positive; count the actual bytes before editing (observed once: an em-dash flag on a line with zero em-dashes) |
+| Citing ADR-008/033/035/062 fail-open language for a new hook | Stale; the operative policy is fail-closed and loud (the fail-closed reversal, told in `references/incident-history.md`) |
 | Re-arguing a settled non-negotiable in a PR thread | The incident column is the answer; new evidence goes in an ADR, which fires `adr-review` |
 
 ## Verification

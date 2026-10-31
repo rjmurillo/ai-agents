@@ -135,10 +135,6 @@ Prefer deleting a duplicate over compressing one.
 - [vibe-engineering.md](references/vibe-engineering.md) - 7-step agent interaction protocol for structured context optimization
 - [claude-code-productivity-patterns.md](references/claude-code-productivity-patterns.md) - Cost control, context management, and quality gates
 
-## Related
-
-- Issue #1108: Build passive context tooling suite
-
 <details>
 <summary><strong>Tool Details: Skill/Passive Content Analyzer</strong></summary>
 
@@ -470,4 +466,4 @@ python3 -m pytest tests/ --cov=scripts --cov-report=term-missing  # coverage
 
 </details>
 
-<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/vercel-passive-context-vs-skills-research.md as background reading. It is a documentation citation; the optimizer runs without reading the file, and a vendored install loses only the link target. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/vercel-passive-context-vs-skills-research.md as background reading. It is a documentation citation; the optimizer runs without reading the file, and a vendored install loses only the link target. -->

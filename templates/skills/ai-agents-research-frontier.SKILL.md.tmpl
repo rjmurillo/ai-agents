@@ -1,6 +1,6 @@
 ---
 name: ai-agents-research-frontier
-description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 proposed, ADR-068 accepted), and the self-improving loop (issue #1345). Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
+description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 proposed, ADR-068 accepted), and the self-improving loop. Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
 version: 1.0.0
 license: MIT
 metadata:
@@ -14,7 +14,7 @@ metadata:
 
 # AI Agents Research Frontier
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers -->
 Open problems where this repository can advance the state of the art, ranked in
 owner-confirmed priority order. This skill tells you WHAT is worth working on and
 what "done" would look like. It does not teach experiment discipline (that is
@@ -39,7 +39,7 @@ build on it.
 |------|---------|------------------|---------------------------|-------------------------------------|
 | 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 15 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
-| 3 | Self-improving loop | issue #1345 hooks, `EVENT=` telemetry (retired, ADR-084/#5154) | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
+| 3 | Self-improving loop | Self-improving-loop hooks, `EVENT=` telemetry (retired, ADR-084) | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
 ## Process
 
@@ -81,7 +81,7 @@ cwd/env, negative control).
 Results go through the normal machinery, not around it: write-ups per
 `ai-agents-docs-of-record`, changes through `ai-agents-change-control`, ADR
 edits fire the `adr-review` debate gate. A negative result is a result: record
-it (the #2230 rejected-fix pattern) so the next person does not re-run it.
+it (the rejected-fix pattern) so the next person does not re-run it.
 
 ## Program 1: Verified Governance (ADR-069, PROPOSED)
 
@@ -152,7 +152,7 @@ that would falsify the strong form of ADR-069.
   on matchers, hook cwd, payload field casing, env anchors, and kill budgets
   (settled contract rows live in `agent-harness-reference`).
 - No conformance suites exist: vendors ship docs that were wrong by omission at
-  least twice for this repo (#2205 plugin-root env vars, #2290 payload casing);
+  least twice for this repo (plugin-root env vars, payload casing);
   nothing in the ecosystem lets you certify "this plugin behaves identically on
   harness X and Y."
 
@@ -170,7 +170,7 @@ that would falsify the strong form of ADR-069.
   `scripts/validation/validate_hook_anchoring.py`.
 - A settled env-anchor decision memory:
   `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`.
-- ADR-068 has real measurements to build on: issue #2295 recorded 3 of 197
+- ADR-068 has real measurements to build on: a measurement recorded 3 of 197
   preToolUse invocations killed by the 2 to 3 second budget, and ~246 ms
   measured Python cold start per shim on Windows with 40 PreToolUse shims.
 
@@ -200,7 +200,7 @@ conformance suite green on every harness. The milestone fails, and the
 abstraction is falsified, if the third target requires manual patching of
 generated output or a contract row that cannot be expressed in the spec.
 
-## Program 3: Self-Improving Loop (issue #1345)
+## Program 3: Self-Improving Loop
 
 ### Why current state of the art fails
 
@@ -214,7 +214,7 @@ generated output or a contract row that cannot be expressed in the spec.
 
 - The Detect-Log-Graduate loop is live: Detect via the `reflect` skill, Log via
   Serena observation memories, and Graduate via the skillbook agent. The advisory
-  correction-applier and topical-memory-injection hooks were deleted (issue #3184)
+  correction-applier and topical-memory-injection hooks were deleted
   after being deregistered from both Claude source manifests. Retrieve corrections
   and topical memories explicitly through the `memory` or `memory-search` skill.
   The registration-state test named in
@@ -222,13 +222,12 @@ generated output or a contract row that cannot be expressed in the spec.
   Copilot manifest.
 - Guard telemetry existed at the emitter: `push_guard_base.py` wrote a
   machine-parseable `EVENT={...}` line to stderr on every block and fail-open.
-  That emitter and every guard built on it were deleted under ADR-084 (issue
-  #5154). The skill that consumed the telemetry and its two build scripts
+  That emitter and every guard built on it were deleted under ADR-084. The skill that consumed the telemetry and its two build scripts
   (an aggregator and a classifier, both deleted with it) classified guards
   as Budding,
   Growing, Mature, Proficient, Inert, or Harmful from age, intercept count,
   and fitness, with explicit prune/promote actions. It was retired in the
-  same change (issue #5154) once its only producer was gone: neither the
+  same change once its only producer was gone: neither the
   emitter nor the classifier exists in this repo today.
 - A reflexion write path: `memory-reflexion` (ADR-063) extracts episodes.
   Its derived causal graph was removed by ADR-089 for having no reader.
@@ -236,23 +235,23 @@ generated output or a contract row that cannot be expressed in the spec.
 What is NOT yet built (state this in any pitch):
 
 - UNVERIFIED: no automated `EVENT=` consumer pipeline was found under
-  `scripts/` on 2026-07-03; `push_guard_base.py` (deleted under ADR-084,
-  issue #5154) described a pipeline that "greps for ^EVENT=" but the
+  `scripts/` on 2026-07-03; `push_guard_base.py` (deleted under ADR-084)
+  described a pipeline that "greps for ^EVENT=" but the
   tier-classifier report appeared to be the only consumer, invoked
   manually. Both the emitter and that classifier are gone now, so there is
   no producer and no consumer.
 - Cross-project supplementary recall does not exist: the memory server that
-  backed it was decommissioned in #5574, so Serena memories scoped to this
+  backed it was decommissioned, so Serena memories scoped to this
   repo are the whole of Tier 1.
 - The Graduate step has no calibration gate: nothing today forces a promoted
-  pattern to prove it would have fired correctly on real history (#1989 M4
-  shipped a threshold that could never fire; #1887 Phase-6 audit found its own
+  pattern to prove it would have fired correctly on real history (one milestone
+  shipped a threshold that could never fire; a later audit found its own
   guards would have prevented 0 of 35 fix commits).
 
 ### First three steps
 
 1. Rebuild the telemetry loop from scratch: both the `EVENT=` emitter and its
-   tier-classifier consumer are gone (ADR-084, issue #5154). A revival needs
+   tier-classifier consumer are gone (ADR-084). A revival needs
    a new emitter on whatever guard exists at the time, a scheduled aggregator,
    and a record of where the events persist; there is no existing pipeline to
    "close", only the retired design to reference.
@@ -269,7 +268,7 @@ What is NOT yet built (state this in any pitch):
 
 A correction observed once in a session auto-proposes a guard that survives the
 calibration replay and ships through review. Falsified if, after the pipeline
-exists, proposed guards systematically fail calibration (the #1887 result
+exists, proposed guards systematically fail calibration (an earlier audit result
 generalizes: guards cannot pay for themselves) or the loop only ever proposes
 guards for corrections that a human already hand-coded.
 
@@ -278,11 +277,11 @@ guards for corrections that a human already hand-coded.
 | Anti-pattern | Why it fails here | Do instead |
 |--------------|-------------------|------------|
 | Citing ADR-069/ADR-072 as accepted policy | Both are PROPOSED (as of 2026-07-30); ADR-072 has five unmet conditions to reach Accepted. ADR-068 did reach Accepted, so it is policy | Quote the status line before citing; treat the Proposed pair as research direction, not mandate |
-| Shipping a detector or guard without replaying it on real history | #1989 M4 threshold could never fire; #1887 guards prevented 0/35 of their own fixes | Calibrate against roughly the last 5 real PRs first |
-| Trusting vendor docs for harness behavior | Docs were wrong by omission in #2205 and #2290 | Empirical probe with pinned version and negative control (`ai-agents-empirical-probe-toolkit`) |
+| Shipping a detector or guard without replaying it on real history | One milestone's threshold could never fire; an audit found guards prevented 0/35 of their own fixes | Calibrate against roughly the last 5 real PRs first |
+| Trusting vendor docs for harness behavior | Docs were wrong by omission twice | Empirical probe with pinned version and negative control (`ai-agents-empirical-probe-toolkit`) |
 | Claiming corpus counts or eval coverage from this file | Counts decay; this file is a snapshot | Re-run the Phase 1 verification commands |
 | Starting a new capability outside the three programs without a gate | AGENTS.md requires the buy-vs-build Quick tier before spec for new capabilities | Run `buy-vs-build-framework`, then `ai-agents-research-methodology` |
-| Publishing only positive results | Rejected fixes are load-bearing knowledge (#2230 pattern) | Record negative results in a retro or decision memory |
+| Publishing only positive results | Rejected fixes are load-bearing knowledge (rejected-fix pattern) | Record negative results in a retro or decision memory |
 
 ## Verification
 
@@ -310,16 +309,16 @@ Sources and re-verification:
 
 - ADR-069 thesis and status: `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` (status: proposed, line 2; title at line 9). Re-verify: `head -12 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md`.
 - ADR-072 status, review verdict, five conditions, harness list: `.project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`. Re-verify: `sed -n '1,25p;119,131p' .project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`.
-- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`.
+- ADR-068 status and measurements (3/197 kills, ~246 ms cold start, 40 shims): `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:46`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
-- EVENT telemetry emitter and tier classifier: RETIRED. `push_guard_base.py`, every guard built on it, and the skill that classified guards into Budding/Growing/Mature/Proficient/Inert/Harmful tiers were all deleted under ADR-084 (issue #5154); no live file emits or consumes this schema. Re-verify the removal: `ls .claude/hooks/PreToolUse/` (expect no `push_guard_base.py` or `invoke_*_guard.py`) and `ls .claude/skills/ | grep guard-maturity` (expect no output).
+- EVENT telemetry emitter and tier classifier: RETIRED. `push_guard_base.py`, every guard built on it, and the skill that classified guards into Budding/Growing/Mature/Proficient/Inert/Harmful tiers were all deleted under ADR-084; no live file emits or consumes this schema. Re-verify the removal: `ls .claude/hooks/PreToolUse/` (expect no `push_guard_base.py` or `invoke_*_guard.py`) and `ls .claude/skills/ | grep guard-maturity` (expect no output).
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls tests/build_scripts/test_generate_hooks_runtime_contract.py scripts/validation/validate_hook_anchoring.py`.
 - Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`.
 - Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; run the command, never quote a stored number.
-- Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
+- Incident claims: see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
 Unverified in this document (flagged inline): per-rule traffic data, automated
-EVENT consumer pipeline, issue #1345 and #1859
+EVENT consumer pipeline
 original text (cited via on-disk docstrings and ADR references only).

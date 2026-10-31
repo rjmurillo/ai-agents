@@ -20,7 +20,7 @@ metadata:
 
 # Retrospective
 
-<!-- vendor-portability: declared. This skill reads the consumer's most recent session log under .project-toolkit/sessions/ as evidence and writes the retrospective artifact to .project-toolkit/retrospective/YYYY-MM-DD-[scope].md (creating the directory on demand). The session-log read is best-effort (the skill notes the source as absent when missing); the retrospective path is a write target. A vendored install without .project-toolkit/ gathers from git history alone and creates the output directory. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads the consumer's most recent session log under .project-toolkit/sessions/ as evidence and writes the retrospective artifact to .project-toolkit/retrospective/YYYY-MM-DD-[scope].md (creating the directory on demand). The session-log read is best-effort (the skill notes the source as absent when missing); the retrospective path is a write target. A vendored install without .project-toolkit/ gathers from git history alone and creates the output directory. -->
 
 Turn execution experience into institutional knowledge. This skill orchestrates a fixed
 Phase 0 through Phase 5 workflow that gathers evidence, generates insights, diagnoses root
@@ -28,8 +28,8 @@ causes, decides actions, scores atomicity, and persists learnings. The long-form
 live verbatim in `references/`; this file is the orchestration contract.
 
 This skill replaces the former `retrospective` agent (`.claude/agents/retrospective.md`).
-It is callable from `Skill("retrospective")` and from `/retro fill <date>` (Issue #2079).
-The Stop hook that once invoked it automatically was deleted in #3349, so a
+It is callable from `Skill("retrospective")` and from `/retro fill <date>`.
+The Stop hook that once invoked it automatically was deleted, so a
 retrospective is written when someone asks for one.
 
 ## Triggers
@@ -60,7 +60,7 @@ retrospective is written when someone asks for one.
 The output artifact is a Markdown file. The Learning Extraction Template in
 `references/learning-template.md` defines the exact structure. Save to
 `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`. Nothing writes new auto-retro
-skeletons: the Stop hook that produced them was deleted in #3349. Skeletons
+skeletons: the Stop hook that produced them was deleted. Skeletons
 already on disk are historical and still fillable; when filling one, write to
 its existing `YYYY-MM-DD-auto-retro.md`.
 

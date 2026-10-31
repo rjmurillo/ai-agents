@@ -111,12 +111,12 @@ Re-verified 2026-09-01 against the tree, not carried forward from a prior count:
 - Local repository settings, `.claude/settings.json`: seven registrations across
   four events, SessionStart (4), UserPromptSubmit (1), SessionEnd (1), and
   PreCompact (1). The fourth SessionStart entry is the plugin hook drift check
-  added for issue #5085. ADR-097 retired the two repo-local per-call registrations
+  added later. ADR-097 retired the two repo-local per-call registrations
   this file used to carry (PostToolUse `observation_sync`, PostToolUseFailure
   `memory_capture`).
   These do not feed the vendored Copilot plugin generator.
 - Local Copilot registration, `.github/hooks/memory-recall.json`: one
-  `userPromptTransformed` entry for memory recall (issue #4727). Copilot drops
+  `userPromptTransformed` entry for memory recall. Copilot drops
   config-file `userPromptSubmitted` output, so the settings.json recall entry
   is inert there. This file is hand-authored; the generator does not emit it.
 
@@ -223,10 +223,10 @@ Do not add an existence check to the launcher command strings. The interpreter
 error already names the missing path, so a guard buys only the restart
 sentence, and it costs branching logic inside the highest-blast-radius string in
 the repository, in a generated artifact, in two shell dialects. This is the same
-argument ADR-006 makes against logic in workflow YAML. Evidence: issues #3321
-and #3332, GitHub Copilot CLI 1.0.72-1.
+argument ADR-006 makes against logic in workflow YAML. Evidence: two reports against
+GitHub Copilot CLI 1.0.72-1.
 
-**SUPERSEDED for PreToolUse and PostToolUse launcher commands by issue #4672.**
+**SUPERSEDED for PreToolUse and PostToolUse launcher commands by a later change.**
 
 The advice above remains correct for lifecycle events (SessionStart, etc.)
 where a non-zero exit is informational, not blocking. For PreToolUse and
@@ -256,7 +256,7 @@ stderr naming the plugin, the cause, and the remediation:
 The version check (Python below 3.10) lives inside _dispatch.py, not in the
 shell command, to avoid a second subprocess per invocation.
 
-The old concerns from #3321 and #3332 still hold for: (a) lifecycle events
+The old concerns still hold for: (a) lifecycle events
 where non-zero is not blocking, (b) any check that is not load-bearing for the
 "never deny on infrastructure failure" contract. Do not add speculative guards
 beyond the four above without a demonstrated denial scenario.
@@ -341,7 +341,7 @@ ADRs, refresh Serena memories, regenerate Copilot mirrors, and run
 
 ## Vendored Use
 
-<!-- vendor-portability: .agents/ and .serena/ paths below are upstream maintainer provenance only. Vendored consumers use this skill's bundled references/ sidecars and do not require those repository trees (issue #2050). -->
+<!-- vendor-portability: .agents/ and .serena/ paths below are upstream maintainer provenance only. Vendored consumers use this skill's bundled references/ sidecars and do not require those repository trees -->
 
 The operational contract and refresh procedure ship in this skill's
 `references/` directory. The upstream repository paths below preserve decision

@@ -116,7 +116,6 @@ def test_the_partial_states_the_invariant() -> None:
     assert "edit_memory" in text
     assert "delete_memory" in text
     assert "rename_memory" in text
-    assert "issue #5061" in text
     assert "universal.md" in text
     assert "MUST NOT 11" in text
 

@@ -4,7 +4,7 @@ Run this self-check FIRST, before any context gathering, analysis, or plan. Reso
 
 Self-check: can you run shell/Bash commands (`git`, worktree creation, `git push`) in THIS run?
 
-- If NO: return immediately with status [BLOCKED]. Give a one-line reason ("shell execution unavailable; cannot create worktree, merge, or push"). Route execution back to the orchestrator. STOP. Do NOT produce a step-by-step resolution plan, a phase list, or a report. A plan reads as completed work and is the exact failure this precondition prevents (issue #2646).
+- If NO: return immediately with status [BLOCKED]. Give a one-line reason ("shell execution unavailable; cannot create worktree, merge, or push"). Route execution back to the orchestrator. STOP. Do NOT produce a step-by-step resolution plan, a phase list, or a report. A plan reads as completed work and is the exact failure this precondition prevents.
 - If YES: proceed to Phase 1.
 
 Completion rule for every execution phase below (create worktree, merge, stage, commit, push, run gates): mark a phase complete ONLY when a tool result in this run proves it ran. A plan is not a completion. Do not write [COMPLETE] for a step you described but did not execute.

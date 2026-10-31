@@ -14,7 +14,7 @@ metadata:
 
 Validate code files against configured style rules from project configuration files.
 
-<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/moq-analyzers-reviewer-patterns-2026-02-08.md as the source for one reviewer pattern. It is a documentation citation only; check_style.py reads the consumer's .editorconfig, StyleCop.json, and Directory.Build.props at runtime, not the .agents/ file. A vendored install without .agents/ loses the citation link, not the style checks. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/moq-analyzers-reviewer-patterns-2026-02-08.md as the source for one reviewer pattern. It is a documentation citation only; check_style.py reads the consumer's .editorconfig, StyleCop.json, and Directory.Build.props at runtime, not the .agents/ file. A vendored install without .agents/ loses the citation link, not the style checks. -->
 
 ## Triggers
 

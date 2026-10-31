@@ -3,7 +3,7 @@ name: push-pr
 version: 1.0.0
 description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: MIT
-# Security note: python3 -I is the identity-hardened form (issue #4825).
+# Security note: python3 -I is the identity-hardened form.
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | etc.) should be escaped/rejected before execution.
@@ -106,7 +106,7 @@ Based on the above changes:
    Copilot or Claude plugin root. The `.claude` fallback is only for this
    repository's self-hosted source checkout; `scripts/pr/` is inside the
    shipped github skill, not the upstream-only top-level scripts/ tree.
-   Issue #4764. -->
+   -->
 
    ```bash
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
@@ -116,9 +116,9 @@ Based on the above changes:
 - A rejected body file fails one of these checks: the path must resolve under the repo root, a temp directory, or the git dir; it must be a regular UTF-8 file; and it must no longer hold the `<!-- replace with PR body -->` line. `--prepare-body-file` creates a unique path that passes the path check.
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
 - Body SHOULD include GitHub issue linking keywords to auto-close issues:
-  - `Closes #123`: auto-closes issue when PR merges
-  - `Fixes #456`: auto-fixes issue when PR merges
-  - `Resolves #789`: auto-resolves issue when PR merges
+  - `Closes #<number>`: auto-closes issue when PR merges
+  - `Fixes #<number>`: auto-fixes issue when PR merges
+  - `Resolves #<number>`: auto-resolves issue when PR merges
 - Ensure PR template sections are completed
 
 ## Windows PR Body Fallback
@@ -202,5 +202,5 @@ You have the capability to call multiple tools in a single response. You MUST do
 <!-- vendor-portability: .project-toolkit/scratch is created in the consumer workspace
 for one-run PR body files. It is not an upstream repository dependency. -->
 
-<!-- vendor-portability-exec: step 5 runs scripts/validation/pr_description.py, an upstream-only validator the plugin install does not ship. Step 5 states the fallback. Issue #6405. -->
-<!-- vendor-portability: step 5 reads scripts/validation/pr_description.py only when the consumer checkout carries it, and reports the step as not run otherwise. Issue #6405. -->
+<!-- vendor-portability-exec: step 5 runs scripts/validation/pr_description.py, an upstream-only validator the plugin install does not ship. Step 5 states the fallback. -->
+<!-- vendor-portability: step 5 reads scripts/validation/pr_description.py only when the consumer checkout carries it, and reports the step as not run otherwise. -->

@@ -83,7 +83,7 @@ Before Phase 3 touches any file, decide whether this change can alter
 validation semantics: a validator, a generated mirror of one, a ratchet or
 baseline, a validator config file, or a validation test fixture. Phase 3 lets
 an implementer edit any file; nothing before this phase asks who owns the
-failing check first (issue #5387).
+failing check first.
 
 1. **Decide.** Run the trigger with every planned or verified changed path,
    each as its own argument, plus each effect you verified in the diff body.

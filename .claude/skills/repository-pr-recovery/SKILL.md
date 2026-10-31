@@ -85,7 +85,7 @@ Widen history only when schedule or path filters justify it, up to 50 commits.
 Cancelled evidence may contain same-name workflows; validate identity before rerunning.
 Different failure signatures can coexist even when both branches are red.
 Read logs through `get_pr_check_logs.py`, not raw `gh`.
-These branches reflect [accepted PR #6581](https://github.com/rjmurillo/ai-agents/pull/6581)
+These branches reflect an accepted PR
 and the [current verdict implementation](../../../.claude/skills/github/scripts/pr/triage_red_check.py).
 
 ### Phase 2: Join evidence to the actual acceptance policy

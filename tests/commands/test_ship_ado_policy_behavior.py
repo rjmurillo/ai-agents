@@ -87,7 +87,7 @@ class TestAdoFirstPrDeferral:
         assert len(without_pr) == 1
         assert "DEFERRED" in without_pr[0]
         assert "not skipped" in without_pr[0]
-        assert "6576" in without_pr[0]
+        assert "no policy evaluation to read" in without_pr[0]
 
     def test_branch_build_fallback_is_gone(self, pipeline_item: str) -> None:
         """The latest-completed-branch-build query is the deadlock; it must not return."""

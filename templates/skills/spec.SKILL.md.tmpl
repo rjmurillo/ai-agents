@@ -19,7 +19,7 @@ metadata:
 <!-- vendor-portability: contributor-scoped citation. The retrospective at
      .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md is the evidence for
      why the Step 0 gate exists and lives upstream in the rjmurillo/ai-agents
-     repo; it is cited, not resolved at runtime (ADR-083, issue #5632). -->
+     repo; it is cited, not resolved at runtime (ADR-083). -->
 
 Define what to build: a problem turned into requirements each of which can be
 judged pass or fail, gated twice before any of it is written.
@@ -129,9 +129,8 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 Read `references/writing-style-and-confusion-protocol.md` before the first
 `AskUserQuestion` of a run. It carries the jargon-glossing and outcome-framing
 rules, the `Completeness: X/10` scoring rule, and the Confusion Protocol with
-its unattended-run fallback. They lived in the always-on voice rule until epic
-#5456 M4 moved them here; the body stays under the 200-line spec ceiling (issue
-#3632) by keeping them in a reference, as Step 0.5 already does.
+its unattended-run fallback. They lived in the always-on voice rule until a later change moved them here; the body stays under the 200-line spec ceiling
+by keeping them in a reference, as Step 0.5 already does.
 
 ## Scripts
 

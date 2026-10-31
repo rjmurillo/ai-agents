@@ -20,7 +20,7 @@ metadata:
      repo itself. It cites .claude/lib/ai_review_common/verdict.py and
      .claude/lib/ai_review_common/issue_triage.py as the canonical merge and emoji
      tables, so its audience is repo contributors, not plugin consumers
-     (ADR-083, issue #5632). -->
+     (ADR-083). -->
 
 Run all six quality axes against your working changes, then merge their verdicts
 into one answer about whether this branch is safe to push.
@@ -132,16 +132,16 @@ UNKNOWN a question mark.
 ## Standing Decision
 
 The seven `pr-quality-*` skills (this one and the six axis skills) are kept as a
-standalone surface. Issue #5067 asked whether to delete them, merge them into
+standalone surface. A tracked issue asked whether to delete them, merge them into
 `/review`, or keep them. The decision is keep, recorded 2026-09-29.
 
 Rationale:
 
-- The repository owner's KEEP rule for skills and agents (epic #5456, comment of
+- The repository owner's KEEP rule for skills and agents (comment of
   2026-09-11) holds while a skill exists. Removing a command family breaks
   muscle memory and external docs that name it, and the owner reverted an earlier
-  full removal for that reason (issue #5067, comment of 2026-09-04).
-- The cost the issue targeted is gone. No workflow runs the review axes against a diff: PR #5132
+  full removal for that reason (comment of 2026-09-04).
+- The cost the issue targeted is gone. No workflow runs the review axes against a diff: a merged PR
   deleted `ai-pr-quality-gate.yml`. Keeping the seven skills adds no CI compute.
 - `pr-comment-responder` routes to this skill (see `metadata.routing`), and it is
   the one-verdict, pre-push view. `/review` stays the pre-merge gate and writes

@@ -175,4 +175,4 @@ Investigation reports use the template at the bundled `templates/chestertons-fen
 | `references/boy-scout-rule.md` | Scoped improvement boundaries, connection to investigation workflow |
 | `references/legacy-code-techniques.md` | Bottom-up refactoring approach, inheritance vs composition, reading list |
 
-<!-- vendor-portability: declared. This skill writes investigation reports to .project-toolkit/analysis/ and reads .project-toolkit/architecture/ for related ADRs. The report path is a write target (created on demand); the architecture read is best-effort and returns nothing when the dir is absent in a vendored install. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes investigation reports to .project-toolkit/analysis/ and reads .project-toolkit/architecture/ for related ADRs. The report path is a write target (created on demand); the architecture read is best-effort and returns nothing when the dir is absent in a vendored install. -->

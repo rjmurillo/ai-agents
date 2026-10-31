@@ -478,7 +478,7 @@
     "templates/agents/partials/pr-comment-responder-intro.mustache|templates/agents/task-decomposer.shared.md": 3,
     "templates/agents/partials/pr-comment-responder-only-use-this-for-new-standalone.mustache|templates/agents/pr-comment-responder.shared.md": 7,
     "templates/agents/partials/pr-comment-responder-resolve-only-bot-authored-or-explicitly.mustache|templates/agents/pr-comment-responder.shared.md": 11,
-    "templates/agents/partials/pr-comment-responder-step-1-4-extract-comment-details.mustache|templates/agents/pr-comment-responder.shared.md": 15,
+    "templates/agents/partials/pr-comment-responder-step-1-4-extract-comment-details.mustache|templates/agents/pr-comment-responder.shared.md": 14,
     "templates/agents/partials/pr-comment-responder-step-3-2-delegate-to-orchestrator-2.mustache|templates/agents/pr-comment-responder.shared.md": 21,
     "templates/agents/partials/pr-comment-responder-updating-signal-quality.mustache|templates/agents/pr-comment-responder.shared.md": 14,
     "templates/agents/partials/pr-comment-responder-workflow-paths-reference.mustache|templates/agents/pr-comment-responder.shared.md": 18,

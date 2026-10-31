@@ -14,7 +14,7 @@ user-invocable: true
      (the canonical axis criteria) and emits against
      .agents/schemas/pr-quality-gate-output.schema.json; both live upstream only,
      so this skill's audience is repo contributors, not plugin consumers
-     (ADR-083, issue #5632). -->
+     (ADR-083). -->
 
 Run the analyst axis of the quality gate against your working changes, before you
 push, using the canonical axis criteria.

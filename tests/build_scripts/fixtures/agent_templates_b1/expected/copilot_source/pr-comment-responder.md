@@ -69,7 +69,7 @@ bold field at line start. Dropping the `**` delimiters or the `^` anchor matches
 and reports zero.
 
 `[DEFERRED]` is terminal only when the status line carries an inline `Refs #<issue>`
-reference, as in `**Status**: [DEFERRED] Refs #4054`. A bare `[DEFERRED]` names no
+reference, as in `**Status**: [DEFERRED] Refs #<number>`. A bare `[DEFERRED]` names no
 tracking issue, so nobody can find the work later and the gate keeps it pending.
 
 The issue number matches `#[1-9][0-9]*`, never `#[0-9]+`. GitHub numbers issues and
@@ -79,7 +79,7 @@ non-reference mark deferred work terminal, which is the same lost-work failure a
 
 The terminal pattern ends at `[[:space:]]*$`, so a status line counts as terminal only
 when it ends at the status token, or at the `Refs #<issue>` reference for `[DEFERRED]`.
-`**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #4054garbage` match no
+`**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #<number>garbage` match no
 terminal alternative and stay pending. Without the end anchor a matching prefix was
 enough, so a malformed value passed the gate.
 
@@ -328,11 +328,11 @@ Analyze and implement...
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
-| Quick Fix | Yes | May need regression tests (PR #47 PathInfo example) |
+| Quick Fix | Yes | May need regression tests (PathInfo example) |
 | Standard | Yes | Full test coverage verification |
 | Strategic | Yes | Architectural impact assessment |
 
-Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
+Evidence: QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
 
 ```text
 /agent qa
@@ -921,7 +921,7 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 The `Comment Map Status Vocabulary` section near the top of this agent holds the one
 authoritative table. Do not restate the values here. A second copy is how `[DUPLICATE]`
 and `[DEFERRED]` ended up missing from one table while the gates disagreed about what
-counted as done (issue #4054).
+counted as done.
 
 Phase 8.1 subtracts the terminal count from the total and blocks with `exit 1` when any
 comment remains. Phase 8.2 requires all GitHub conversation threads resolved before merge.
@@ -1156,7 +1156,7 @@ Copilot follow-up PRs match:
 - **Target**: Original PR's base branch (not main)
 - **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
 
-**Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
+**Example**: an original PR → its follow-up PR (branch `copilot/sub-pr-{original_pr_number}`)
 
 #### Step 4.5.1: Query for Follow-Up PRs
 
@@ -1190,7 +1190,7 @@ Analyze the follow-up PR content to determine intent:
 
 **DUPLICATE**: Follow-up contains same changes as fixes already applied
 
-- Example: PR #32/#33 (both address same 5 comments)
+- Example: the original PR and its follow-up PR (both address same 5 comments)
 - Action: Close with explanation linking to original commits
 
 **SUPPLEMENTAL**: Follow-up addresses different/additional issues
@@ -2016,7 +2016,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 > **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
 

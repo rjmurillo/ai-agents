@@ -70,6 +70,7 @@ from check_skill_output_envelopes import validate_skill_output_envelopes
 from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
 from check_subprocess_encoding import validate_subprocess_encoding
+from check_template_repo_refs import validate_template_repo_refs
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
@@ -644,6 +645,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Skill Tree Layout (.claude/skills)",
         _root_only(validate_skill_tree_layout),
+    ),
+    # Vendored installs cannot resolve this repository's issue or PR numbers, and
+    # the numbers can collide with the consumer's own issues.
+    _Gate(
+        "Template Repo References (templates/skills, templates/agents)",
+        _root_only(validate_template_repo_refs),
     ),
     # The skill loader rewrites a bare $<digit> in a shell fence into the
     # invocation arguments, e.g. awk substr($0, 10) (issue #6743).

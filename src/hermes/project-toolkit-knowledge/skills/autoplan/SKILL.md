@@ -44,8 +44,8 @@ skill carries no `intents` for this router's long-tail resolver to match.
 
 The router also fires implicitly. Any concrete request that names no skill
 routes through the table below instead of defaulting to a bare answer, for
-example "why is CI failing", "investigate the flaky test", or "redo #1723
-properly".
+example "why is CI failing", "investigate the flaky test", or "redo the login
+fix properly".
 
 These phrases are grounded in this repo's own Copilot and Claude session
 history. The dominant real openers are continue, proceed, investigate, fix
@@ -109,7 +109,7 @@ issue's scope sits in its own reviewed, extractable commits before acting;
 when it does, extract that slice into its own minimal, mergeable PR rather
 than filing a follow-up issue and reporting the parent issue as handled
 while it stays open with no merged artifact. (Learned from the
-`rjmurillo/ai-agents` repository's issue #5198, 2026-08-25, where
+`rjmurillo/ai-agents` repository, where
 `needs-split` was assigned purely from commit count and proves nothing about
 scope. Also from the same issue: two independently-extracted
 slices of the same blocking PR can race each other and one PR merging first

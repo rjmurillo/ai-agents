@@ -48,7 +48,7 @@ bold field at line start. Dropping the `**` delimiters or the `^` anchor matches
 and reports zero.
 
 `[DEFERRED]` is terminal only when the status line carries an inline `Refs #<issue>`
-reference, as in `**Status**: [DEFERRED] Refs #4054`. A bare `[DEFERRED]` names no
+reference, as in `**Status**: [DEFERRED] Refs #<number>`. A bare `[DEFERRED]` names no
 tracking issue, so nobody can find the work later and the gate keeps it pending.
 
 The issue number matches `#[1-9][0-9]*`, never `#[0-9]+`. GitHub numbers issues and
@@ -58,7 +58,7 @@ non-reference mark deferred work terminal, which is the same lost-work failure a
 
 The terminal pattern ends at `[[:space:]]*$`, so a status line counts as terminal only
 when it ends at the status token, or at the `Refs #<issue>` reference for `[DEFERRED]`.
-`**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #4054garbage` match no
+`**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #<number>garbage` match no
 terminal alternative and stay pending. Without the end anchor a matching prefix was
 enough, so a malformed value passed the gate.
 
