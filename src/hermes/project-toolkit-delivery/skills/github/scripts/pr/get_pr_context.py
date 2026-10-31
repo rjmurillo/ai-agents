@@ -155,7 +155,7 @@ def _run_gh_strict(args: list[str], *, timeout: int, what: str) -> subprocess.Co
     explicit ``errors="strict"`` documents that a decode failure is an error.
     """
     try:
-        return subprocess.run(
+        return subprocess.run(  # subprocess-encoding: strict-ok
             args,
             capture_output=True,
             text=True,
@@ -165,7 +165,8 @@ def _run_gh_strict(args: list[str], *, timeout: int, what: str) -> subprocess.Co
             check=False,
         )
     except UnicodeDecodeError as exc:
-        error_and_exit(f"Failed to decode {what} output as UTF-8: {exc}", 3)
+        print(f"Failed to decode {what} output as UTF-8: {exc}", file=sys.stderr)
+        raise SystemExit(3) from exc
 
 
 def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:

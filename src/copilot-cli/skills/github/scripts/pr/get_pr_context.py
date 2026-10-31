@@ -155,7 +155,7 @@ def _run_gh_strict(args: list[str], *, timeout: int, what: str) -> subprocess.Co
     explicit ``errors="strict"`` documents that a decode failure is an error.
     """
     try:
-        return subprocess.run(
+        return subprocess.run(  # subprocess-encoding: strict-ok
             args,
             capture_output=True,
             text=True,

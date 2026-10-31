@@ -1,4 +1,4 @@
-# taste-lint: ignore file-size, the blast-radius truncation flag pushed this cohesive manifest module past 500 lines.
+# taste-lint: ignore file-size, the truncation flag pushed this module past 500 lines.
 """Fail-closed recovery planning for a bulk Actions cancellation.
 
 Issue #4835. On 2026-08-09 a panic rollback cancelled 818 of 820 queued or
