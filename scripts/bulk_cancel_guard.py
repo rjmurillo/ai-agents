@@ -233,7 +233,7 @@ def format_report(manifest: RecoveryManifest) -> str:
     ]
     if radius.artifact_count is not None:
         suffix = (
-            " or more (TRUNCATED at the page cap, real count is higher)"
+            " or more (TRUNCATED at the page cap, real count may be higher)"
             if radius.artifact_count_truncated
             else ""
         )

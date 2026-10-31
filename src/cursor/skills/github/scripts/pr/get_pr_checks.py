@@ -225,6 +225,9 @@ _DATA_KEYS = (
 )
 # Exit code to Error.Type for failures raised as SystemExit before any query.
 _PREFLIGHT_ERROR_TYPES = {2: "InvalidParams", 3: "ApiError", 4: "AuthError"}
+# assert_gh_authenticated exits 2 when session policy refuses GitHub outright,
+# which is a transport fault, not a bad argument.
+_TRANSPORT_BLOCKED_ERROR_TYPE = "ApiError"
 _MISSING_RECOVERY_HINT = (
     "Recovery: close and reopen the PR to re-fire pull_request workflows "
     "(see fix-ci.md, 'Required check never reported')."
@@ -1121,17 +1124,22 @@ def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]
     with the original exit code.
     """
     captured = io.StringIO()
+    in_auth_check = True
     try:
         with contextlib.redirect_stderr(captured):
             assert_gh_authenticated()
+            in_auth_check = False
             resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) and not isinstance(exc.code, bool) else 1
+        error_type = _PREFLIGHT_ERROR_TYPES.get(code, "General")
+        if in_auth_check and code == 2:
+            error_type = _TRANSPORT_BLOCKED_ERROR_TYPE
         if fmt == "json":
             _emit_failure(
                 captured.getvalue().strip() or f"Preflight failed with exit code {code}",
                 code,
-                _PREFLIGHT_ERROR_TYPES.get(code, "General"),
+                error_type,
                 fmt,
                 failure_data(args.pull_request, args.owner or None, args.repo or None),
             )

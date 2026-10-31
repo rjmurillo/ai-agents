@@ -3854,6 +3854,20 @@ class TestPreflightFailureEnvelope:
         assert envelope["Data"]["Owner"] == "x y"
         assert "Invalid GitHub owner name" in captured.err
 
+    def test_blocked_transport_emits_api_error_not_invalid_params(self, capsys):
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+                side_effect=_fail_with("GitHub is refused in this session", 2),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--pull-request", "9", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out)
+        assert exc.value.code == 2
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert envelope["Error"]["Code"] == 2
+
     def test_non_systemexit_failure_still_flushes_captured_stderr(self, capsys):
         def _boom(*_args, **_kwargs):
             print("partial diagnostic", file=sys.stderr)
