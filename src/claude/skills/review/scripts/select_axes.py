@@ -61,6 +61,10 @@ LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", 
 # than it should be: scripts/setup.bash matched toolkit-governance alone and
 # skipped taste-lints, which reads .bash, and an .mjs or .cjs hook matched
 # agent-artifacts alone and skipped code-qualities-assessment, which reads both.
+# .psd1 and .ps1xml are PowerShell module parts that carry code: a manifest is
+# a PowerShell hashtable, and types.ps1xml embeds ScriptBlock members. No local
+# scanner reads them, but leaving them out made a module change fail closed
+# and run assess and golden-principles over zero files (issue #7004).
 _CODE_SUFFIXES = frozenset(
     {
         ".py",
@@ -73,6 +77,8 @@ _CODE_SUFFIXES = frozenset(
         ".cs",
         ".ps1",
         ".psm1",
+        ".psd1",
+        ".ps1xml",
         ".sh",
         ".bash",
         ".go",

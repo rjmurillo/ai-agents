@@ -215,6 +215,15 @@ class TestOverrideModesAndLocalAxes:
         assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
         assert result["skipped"] == {}
 
+    def test_deep_powershell_module_with_manifest_does_not_fail_closed(self):
+        """A module change with its .psd1 manifest and .ps1xml files narrows too."""
+        module = ["mod/M.psm1", "mod/M.psd1", "mod/M.Format.ps1xml", "README.md"]
+        result = select(module, deep=True)
+        assert result["unclassified_paths"] == []
+        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
+        for axis in ("code-qualities-assessment", "golden-principles"):
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+
     def test_deep_keeps_a_scanner_that_reads_one_changed_file(self):
         """Negative control: narrowing must not drop a scanner with work to do."""
         result = select([*self.POWERSHELL_CHANGE, "src/app.py"], deep=True)
@@ -300,6 +309,19 @@ class TestExecutableCodeCoversEveryScannerSuffix:
         # executable-code speaks for source only.
         non_source = {".yml", ".yaml", ".md", ".json"}
         assert (scanner_suffixes - non_source) <= mod._CODE_SUFFIXES
+
+    @pytest.mark.parametrize(
+        "path", ["mod/M.psd1", "mod/M.Types.ps1xml", "mod/M.Format.PS1XML", "mod/M.PSD1"]
+    )
+    def test_powershell_manifest_and_format_files_are_executable_code(self, path):
+        """Issue #7004: these were unclassified, so the run failed closed and
+        assess and golden-principles scanned zero files."""
+        result = select([path])
+        assert result["fail_closed"] is False
+        assert result["unclassified_paths"] == []
+        assert "code-quality" in result["canonical_selected"]
+        # No local scanner reads them, so none is selected.
+        assert result["local_selected"] == []
 
     def test_bash_under_a_toolkit_path_still_reaches_taste_lints(self):
         """Reported case: toolkit-governance classified it and nothing else ran.
