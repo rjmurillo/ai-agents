@@ -21,6 +21,9 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
+# Issue #6889: fail the run when a stray <tempdir>/.git appears.
+pytest_plugins = ["scripts.testing.system_temp_git_guard"]
+
 # Issue #5123: whether a test's call phase failed, keyed by node, so the
 # teardown-time `_guard_real_repo_head` fixture can tell a real assertion
 # failure apart from one caused by the repository moving under the test.

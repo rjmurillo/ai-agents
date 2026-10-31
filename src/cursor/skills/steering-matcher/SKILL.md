@@ -123,4 +123,4 @@ Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not 
 
 The `orchestrator` agent consumes steering matches. It ships in the same plugin as this skill; invoke it by name rather than by path.
 
-<!-- vendor-portability: declared. This skill links .agents/steering/README.md and .agents/archive/planning/enhancement-PROJECT-PLAN.md as documentation. Both are citations; the matcher reads the steering files the consumer repo actually has, and a vendored install loses only the broken links. Issue #2050. -->
+<!-- vendor-portability: declared. This skill links .agents/steering/README.md and .agents/archive/planning/enhancement-PROJECT-PLAN.md as documentation. Both are citations; the matcher reads the steering files the consumer repo actually has, and a vendored install loses only the broken links. -->

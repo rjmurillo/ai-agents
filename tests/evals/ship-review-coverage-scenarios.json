@@ -1,0 +1,78 @@
+{
+  "scenarios": [
+    {
+      "id": "RC-1",
+      "desc": "Marker declares a subset of axes: report the declared axes, not a full review",
+      "input": "Run /ship in owner mode. Pre-flight check 3 (review) runs the marker validator against HEAD. HEAD is a valid review marker commit. The validator exits 0 and its PASS line prints axes: analyst, security, qa. No axis is required by policy. Decide check 3 and what the ship report states.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "REPORT_DECLARED_AXES",
+      "verdict_options": [
+        "REPORT_DECLARED_AXES",
+        "REPORT_FULL_REVIEW",
+        "CHECK_FAILS"
+      ],
+      "expected_reason_contains": "declared",
+      "rationale": "Changed branch: Reviewed line lists the declared axes and never claims a full review."
+    },
+    {
+      "id": "RC-2",
+      "desc": "Axis absent from the marker is NOT RUN, not passed",
+      "input": "Run /ship in owner mode. Pre-flight check 3 (review) runs the marker validator against HEAD. The marker declares axes: analyst, security. The reader asks whether the architect axis passed. Decide how the ship report treats the architect axis.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "AXIS_NOT_RUN",
+      "verdict_options": [
+        "AXIS_NOT_RUN",
+        "AXIS_PASSED",
+        "AXIS_FAILED"
+      ],
+      "expected_reason_contains": "NOT RUN",
+      "rationale": "Changed branch: an omitted axis is NOT RUN and stays distinct from a passed axis."
+    },
+    {
+      "id": "RC-3",
+      "desc": "Policy requires an axis the marker lacks: check 3 fails",
+      "input": "Run /ship in owner mode. Pre-flight check 3 (review) runs the marker validator against HEAD. Policy requires the security axis, so the validator ran with --require-axis security. The marker declares axes: analyst, qa. The validator exits 1 with 'required axis not declared'. Decide check 3.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "CHECK_FAILS",
+      "verdict_options": [
+        "CHECK_PASSES",
+        "CHECK_FAILS"
+      ],
+      "expected_reason_contains": "axis",
+      "rationale": "Changed branch: a required axis the marker does not declare fails check 3; the fix is to re-run /review with the axis pinned."
+    },
+    {
+      "id": "RC-4",
+      "desc": "No required axis by default: risk-selected review passes",
+      "input": "Run /ship in owner mode. Pre-flight check 3 (review) runs the marker validator against HEAD. The marker is valid and declares axes: analyst, qa. No policy requires any axis and no --require-axis flag was given. Decide check 3.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "CHECK_PASSES",
+      "verdict_options": [
+        "CHECK_PASSES",
+        "CHECK_FAILS"
+      ],
+      "expected_reason_contains": "risk",
+      "rationale": "Changed branch: risk-selected review is acceptable for shipping without a blanket deep review."
+    },
+    {
+      "id": "RC-5",
+      "desc": "Regression: a stale marker still fails check 3",
+      "input": "Run /ship in owner mode. Pre-flight check 3 (review) runs the marker validator against HEAD. HEAD has a review marker, but two commits with code edits landed after it. The validator exits 1: stale marker. Decide check 3.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "CHECK_FAILS",
+      "verdict_options": [
+        "CHECK_PASSES",
+        "CHECK_FAILS"
+      ],
+      "expected_reason_contains": "stale",
+      "rationale": "Regression: SHA binding must keep failing a stale marker."
+    },
+    {
+      "id": "RC-6",
+      "desc": "Regression: no marker still fails check 3",
+      "input": "Run /ship in owner mode. Pre-flight check 3 (review) runs the marker validator against HEAD. HEAD is an ordinary commit with no Reviewed-By trailer. The validator exits 1. Decide check 3.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "CHECK_FAILS",
+      "verdict_options": [
+        "CHECK_PASSES",
+        "CHECK_FAILS"
+      ],
+      "expected_reason_contains": "marker",
+      "rationale": "Regression: a missing marker must keep failing owner-mode check 3."
+    }
+  ]
+}

@@ -108,5 +108,8 @@ jobs:
         env:
           HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          # One body for both steps: on workflow_dispatch the extract step
+          # fetched it, and a second fetch could return an edited body.
+          PR_BODY_FILE: ${{ steps.spec-ref.outputs.pr_body_file }}
           EVENT_NAME: ${{ github.event_name }}
         run: python3 scripts/ci/spec_coverage_verdict.py

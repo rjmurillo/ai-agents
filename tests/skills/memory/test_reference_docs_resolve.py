@@ -109,8 +109,7 @@ def test_the_repo_still_ships_no_powershell() -> None:
     """The premise behind banning cmdlet tokens.
 
     Tracked content only. The local `.venv/` carries an `activate.ps1` that
-    uv writes, and `.PSScriptAnalyzerSettings.psd1` is a linter config rather
-    than a script, so neither offers a command a doc could name.
+    uv writes, which offers no command a doc could name.
 
     If PowerShell ever returns to this repo, this test fails and the ban above
     has to be re-argued rather than silently enforced.

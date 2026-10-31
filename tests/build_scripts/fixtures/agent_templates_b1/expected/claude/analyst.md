@@ -121,8 +121,8 @@ reference is provided, classify it and call the matching MCP tool:
 
 | URL pattern | Tool | Example |
 |-------------|------|---------|
-| `/pull/<N>` or PR #N | `mcp__github__pull_request_read` | `github.com/org/repo/pull/42` |
-| `/issues/<N>` or issue #N | `mcp__github__issue_read` | `github.com/org/repo/issues/99` |
+| `/pull/<N>` or PR #N | `mcp__github__pull_request_read` | `github.com/owner/repo/pull/<N>` |
+| `/issues/<N>` or issue #N | `mcp__github__issue_read` | `github.com/owner/repo/issues/<N>` |
 | `/actions/runs/<ID>` | `mcp__github__get_workflow_run` | `github.com/org/repo/actions/runs/123` |
 | `/actions/runs/<ID>/job/<JID>` | `mcp__github__get_job_logs` | job log retrieval |
 | `/actions` (list) | `mcp__github__list_workflow_runs` | CI overview |

@@ -101,7 +101,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 
@@ -152,7 +152,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 
@@ -200,15 +200,15 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@anthropic-ai/claude-code
-      CLAUDE_CODE_VERSION: '2.1.296'
+      CLAUDE_CODE_VERSION: '2.1.310'
       # renovate: datasource=npm depName=@github/copilot
-      COPILOT_CLI_VERSION: '1.0.97'
+      COPILOT_CLI_VERSION: '1.0.103'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 
@@ -231,13 +231,13 @@ jobs:
 
       - name: Setup Python
         # yamllint disable-line rule:line-length
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.15'
 
       - name: Install uv
         # yamllint disable-line rule:line-length
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
         with:
           enable-cache: true
 
@@ -417,13 +417,13 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@openai/codex
-      CODEX_CLI_VERSION: '0.162.1'
+      CODEX_CLI_VERSION: '0.164.0'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 
@@ -444,13 +444,13 @@ jobs:
 
       - name: Setup Python
         # yamllint disable-line rule:line-length
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.15'
 
       - name: Install uv
         # yamllint disable-line rule:line-length
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
         with:
           enable-cache: true
 
@@ -496,13 +496,13 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
-      PI_CLI_VERSION: '1.2.0'
+      PI_CLI_VERSION: '1.4.0'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 
@@ -523,13 +523,13 @@ jobs:
 
       - name: Setup Python
         # yamllint disable-line rule:line-length
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.15'
 
       - name: Install uv
         # yamllint disable-line rule:line-length
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
         with:
           enable-cache: true
 
@@ -575,7 +575,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 

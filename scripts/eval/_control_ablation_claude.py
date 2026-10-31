@@ -10,10 +10,11 @@ model than requested. `eval_control_ablation.py` owns the run loop.
 from __future__ import annotations
 
 import os
+import re
 import stat
 import subprocess
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 
 import _control_ablation_tasks as ablation_tasks
@@ -250,3 +251,131 @@ def tool_results(events: Sequence[Mapping[str, object]]) -> list[Mapping[str, ob
 
 def tool_failures(events: Sequence[Mapping[str, object]]) -> int:
     return sum(1 for block in tool_results(events) if block.get("is_error"))
+
+
+#: A shell segment that invokes a test runner: `pytest ...`, or `python -m pytest|unittest`
+#: (any `python`, `python3`, or interpreter path), optionally after `uv run` or `cd x &&`.
+_TEST_INVOCATION = re.compile(
+    r"(?:^|[;&|(]\s*)(?:uv\s+run\s+(?:--\S+\s+)*)?"
+    r"(?:pytest\b|\S*python[\d.]*\s+(?:-\S+\s+)*-m\s+(?:pytest|unittest)\b)",
+    re.MULTILINE,
+)
+#: A heredoc opener (`<<'E'`, `<<-EOF`, `<< "X"`): its body is data, not commands.
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+
+
+def _without_heredoc_bodies(command: str) -> str:
+    """Drop each heredoc body, so code a heredoc writes is never read as a command."""
+    kept: list[str] = []
+    terminator: str | None = None
+    for line in command.split("\n"):
+        if terminator is not None:
+            if line.strip() == terminator:
+                terminator = None
+            continue
+        kept.append(line)
+        opener = _HEREDOC.search(line)
+        if opener:
+            terminator = opener.group(2)
+    return "\n".join(kept)
+
+
+def is_test_invocation(command: str) -> bool:
+    """True when a Bash command runs a test suite, not merely mentions one."""
+    return _TEST_INVOCATION.search(_without_heredoc_bodies(command)) is not None
+
+
+def _strings(value: object) -> Iterator[str]:
+    """Every raw string inside a tool input, so a marker is matched before any escaping."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, Mapping):
+        for item in value.values():
+            yield from _strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _strings(item)
+
+
+def _tool_uses(events: Sequence[Mapping[str, object]]) -> list[Mapping[str, object]]:
+    uses: list[Mapping[str, object]] = []
+    for event in events:
+        message = event.get("message")
+        content = message.get("content") if isinstance(message, Mapping) else None
+        if isinstance(content, list):
+            uses += [b for b in content if isinstance(b, Mapping) and b.get("type") == "tool_use"]
+    return uses
+
+
+#: Longest string kept per tool-input field: enough to audit which path a
+#: Read, Grep, or Glob touched, without copying whole edited files into the report.
+_INPUT_CLIP = 200
+
+
+def _clip(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(k): _clip(v) for k, v in value.items()}
+    if isinstance(value, str) and len(value) > _INPUT_CLIP:
+        return value[:_INPUT_CLIP] + "..."
+    return value
+
+
+def _denied_ids(denials: object) -> set[str]:
+    if not isinstance(denials, list):
+        return set()
+    return {
+        str(item["tool_use_id"])
+        for item in denials
+        if isinstance(item, Mapping) and item.get("tool_use_id")
+    }
+
+
+def trajectory(
+    events: Sequence[Mapping[str, object]], withheld_markers: Sequence[str] = ()
+) -> dict[str, object]:
+    """Trajectory evidence of one run, kept apart from its output correctness (issue #6814).
+
+    `bash_commands` lists every Bash command the agent issued and
+    `other_tool_inputs` every other tool call's input, clipped, so a leak audit
+    can see which paths a Read, Grep, or Glob touched. `test_commands` lists the
+    Bash commands that ran a test suite, and `denied_test_commands` the ones the
+    harness refused (matched on the denial's `tool_use_id`), so an attempted check
+    is never read as an executed one. `permission_denials` counts every refused
+    call (`None` when the stream reports none), and `withheld_marker_hits` lists
+    each tool call whose input names a withheld marker (a hidden check path, the
+    fix commit, the fix PR, the runner's checkout): a non-empty list means the
+    agent may have seen withheld evidence.
+    """
+    uses = _tool_uses(events)
+    denials: object = None
+    for event in events:
+        if event.get("type") == "result":
+            denials = event.get("permission_denials")
+    denied = _denied_ids(denials)
+    bash = [
+        (str(tool_input.get("command", "")), str(use.get("id", "")) in denied)
+        for use in uses
+        if use.get("name") == "Bash" and isinstance(tool_input := use.get("input"), Mapping)
+    ]
+    tests = [(c, was_denied) for c, was_denied in bash if is_test_invocation(c)]
+    hits = sorted(
+        {
+            f"{use.get('name')}: {marker}"
+            for use in uses
+            for marker in withheld_markers
+            if marker and any(marker in text for text in _strings(use.get("input")))
+        }
+    )
+    return {
+        "tool_calls": len(uses),
+        "other_tool_inputs": [
+            {"name": str(use.get("name")), "input": _clip(use.get("input"))}
+            for use in uses
+            if use.get("name") != "Bash"
+        ],
+        "bash_commands": [c for c, _ in bash],
+        "test_commands": [c for c, was_denied in tests if not was_denied],
+        "denied_test_commands": [c for c, was_denied in tests if was_denied],
+        "permission_denials": len(denials) if isinstance(denials, list) else None,
+        "withheld_marker_hits": hits,
+    }

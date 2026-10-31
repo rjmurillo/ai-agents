@@ -1,0 +1,280 @@
+{
+  "checks": [
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/build_all.py",
+      "id": "R1"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/generate_agents.py",
+      "id": "R2"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/lib_mirror.py",
+      "id": "R3"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/generate_dispatcher.py",
+      "id": "R4"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/validate_install_parity.py",
+      "id": "R5"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/validate_plugin_version_bump.py",
+      "id": "R6"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/check_plugin_manifest_parity.py",
+      "id": "R7"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/detect_agent_drift.py",
+      "id": "R8"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/generate_rules.py",
+      "id": "R9"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/generate_hooks.py",
+      "id": "R10"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/generate_skills.py",
+      "id": "R11"
+    },
+    {
+      "kind": "path_exists",
+      "path": "templates/platforms/binplace.yaml",
+      "id": "R12"
+    },
+    {
+      "kind": "path_exists",
+      "path": "scripts/validation/validate_hook_anchoring.py",
+      "id": "R13"
+    },
+    {
+      "kind": "path_exists",
+      "path": "scripts/validation/check_commands_retired.py",
+      "id": "R14"
+    },
+    {
+      "kind": "path_exists",
+      "path": "scripts/validation/check_agent_skill_discriminator.py",
+      "id": "R15"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".agents/governance/GENERATOR-FILES.md",
+      "id": "R16"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".agents/governance/SKILL-CREATION-CRITERIA.md",
+      "id": "R17"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/settings.json",
+      "id": "R18"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/hooks/hooks.json",
+      "id": "R19"
+    },
+    {
+      "kind": "path_exists",
+      "path": "src/copilot-cli/hooks/hooks.json",
+      "id": "R20"
+    },
+    {
+      "kind": "path_exists",
+      "path": "src/claude/skills/memory/memory_core/memory_router.py",
+      "id": "R21"
+    },
+    {
+      "kind": "path_exists",
+      "path": "src/claude/.claude-plugin/plugin.json",
+      "id": "R22"
+    },
+    {
+      "kind": "path_exists",
+      "path": "src/copilot-cli/.claude-plugin/plugin.json",
+      "id": "R23"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude-plugin/marketplace.json",
+      "id": "R24"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".github/plugin/marketplace.json",
+      "id": "R25"
+    },
+    {
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_hook_contract_knowledge.py",
+      "id": "R26"
+    },
+    {
+      "kind": "contains",
+      "path": "build/scripts/build_all.py",
+      "text": "def assert_no_claude_writes(",
+      "id": "R27"
+    },
+    {
+      "kind": "contains",
+      "path": "build/scripts/build_all.py",
+      "text": "# REQ-003-010: enforce .claude/ no-write invariant.",
+      "id": "R28"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md",
+      "text": "status: accepted",
+      "id": "R29"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-007-memory-first-architecture.md",
+      "text": "superseded-by: ADR-106",
+      "id": "R30"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md",
+      "text": "superseded-by: ADR-052",
+      "id": "R31"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-052-template-strategy.md",
+      "text": "superseded-by: ADR-109",
+      "id": "R32"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md",
+      "text": "supersedes: [ADR-052]",
+      "id": "R33"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-030-skills-pattern-superiority.md",
+      "text": "status: rejected",
+      "id": "R34"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md",
+      "text": "status: proposed",
+      "id": "R35"
+    },
+    {
+      "kind": "absent",
+      "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py",
+      "id": "R36"
+    },
+    {
+      "kind": "absent",
+      "path": ".claude/.claude-plugin/plugin.json",
+      "id": "R37"
+    },
+    {
+      "kind": "absent",
+      "path": ".claude-plugin/plugin.json",
+      "id": "R38"
+    },
+    {
+      "kind": "absent",
+      "path": ".agents/SESSION-PROTOCOL.md",
+      "id": "R39"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/scripts/contract_probe.py",
+      "id": "R40"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/scripts/instruments.py",
+      "id": "R41"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/references/adr-decisions.md",
+      "id": "R42"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/references/source-of-truth.md",
+      "id": "R43"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/references/drift-detector.md",
+      "id": "R44"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/references/provenance.md",
+      "id": "R45"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/references/weak-points.md",
+      "id": "R46"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-architecture-contract/references/hook-runtime.md",
+      "id": "R47"
+    },
+    {
+      "kind": "path_exists",
+      "path": "tests/skills/ai-agents-architecture-contract/test_contract_probe.py",
+      "id": "R48"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-119-symlinked-dogfood-agents-and-skills.md",
+      "text": "status: proposed",
+      "id": "R49"
+    },
+    {
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md",
+      "text": "status: accepted",
+      "id": "R50"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-portability-campaign/scripts/hook_inventory.py",
+      "id": "R51"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py",
+      "id": "R52"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/skill-bootstrap/scripts/bootstrap_mine.py",
+      "id": "R53"
+    }
+  ]
+}

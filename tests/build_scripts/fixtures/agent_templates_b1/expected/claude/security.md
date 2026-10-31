@@ -11,22 +11,22 @@ argument-hint: Specify the code, feature, or changes to security review
 # (https://code.claude.com/docs/en/sub-agents, "Supported frontmatter fields"
 # and "Available tools"; its worked example is `tools: Read, Grep, Glob, Bash`).
 # A parenthesised entry such as `Bash(git diff:*)` is permission-rule syntax,
-# not a tool name, so it grants no Bash at all: that spelling reproduced #4781's
-# symptom deterministically instead of fixing it.
+# not a tool name, so it grants no Bash at all: that spelling reproduced the
+# missing-shell symptom deterministically instead of fixing it.
 # No shell is granted, and that absence is this agent's enforcement. The field
 # cannot scope a shell grant, and the settings-file deny layer cannot substitute
 # for one: those rules match command text case-sensitively while git config keys
 # are case-insensitive, so `git -c Diff.External=<cmd>` reaches the same handler
 # as the denied lowercase spelling. Enumerating casings is not a control, and a
 # session-wide deny on the mutating subcommands would break every other agent
-# (the incident #5013 shape). Without `Bash`, mutating git, the `--output`
+# (the same shape as an earlier incident). Without `Bash`, mutating git, the `--output`
 # file-write flags, and config injection are unreachable rather than merely
 # forbidden. A review is enumerated through the pinned GitHub readers or a
 # caller-supplied diff artifact, the same path the Copilot and VS Code surfaces
 # use. `Edit` is dropped with it: the deliverables are new report files, so it
 # added a source-mutation vector for no capability. `Write` is retained for
 # those reports and stays unscoped, so the report-path limit is still an
-# obligation stated in the body, not a control. See #4781.
+# obligation stated in the body, not a control.
 tools:
   - Read
   - Grep
@@ -450,19 +450,12 @@ executing any of it would contradict the tool contract above. Ask the caller or
 the implementer to run the block and return its output, then verify the results
 against your PIV checklist. Treat a missing or failed run as an unmet PIV item
 and say so in the verdict rather than assuming it passed. The block is recorded
-here so the request names exact commands rather than a vague ask:
+here so the request names exact commands rather than a vague ask. **Take the security test command from the target repository**: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. It is mandatory: if none names one, record `UNRESOLVED EVIDENCE: no security test command found in <sources checked>` as an unmet PIV item. The hook and secrets steps below apply only when the target has that capability: use its own command, or if it has none record `NOT APPLICABLE: <step>, checked <sources>`, which is not an unmet item. Reuse what you find; do not re-ask. Ask the caller to run each. Never invent a command, skip an item silently, or report it as passed.
 
 ```powershell
 # Set CI environment
 $env:GITHUB_ACTIONS = 'true'
 $env:CI = 'true'
-
-# Run security-focused tests
-dotnet test --filter "Category=Security"
-if ($LASTEXITCODE -ne 0) {
-    throw "[FAIL] Security tests failed. Exit code: $LASTEXITCODE. Review test output above."
-}
-Write-Host "[PASS] Security tests completed successfully"
 
 # Verify Git hook manager configuration
 uv run --frozen lefthook validate
@@ -702,7 +695,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 > **Fallback**: If the Serena tools are unavailable, read `.serena/memories/` directly with the Read tool.
 
@@ -724,7 +717,7 @@ See `universal.md` MUST NOT 11 and issue #5061.
 ### Dependency Review
 
 ```markdown
-- [ ] Run `dotnet list package --vulnerable`
+- [ ] Run the target repository's vulnerable-dependency check (for example `dotnet list package --vulnerable` for .NET)
 - [ ] Check NVD for known CVEs
 - [ ] Verify package signatures
 - [ ] Review transitive dependencies

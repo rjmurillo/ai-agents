@@ -845,6 +845,39 @@ and the API failed, while 4 says the run never got that far. A caller that
 branches on these should treat 4 as "nothing ran" rather than as a worse 3.
 A dry run skips credential loading entirely and so cannot return 4.
 
+### One scenario, repeated
+
+`--scenario-id S7 --repeats 12` runs one scenario of one file twelve times.
+`--arms` picks the arms and their order. Such a run measures one scenario, so
+it cannot certify the target. It reports `NOT_GATED` (exit 0) when every cell
+was graded, and `NOT_GATED_INCOMPLETE` (exit 3) when a cell errored or the
+judge failed. Each repeat keeps the whole response text in `response`. The
+file must still hold both pools, because that check costs no call: an
+unselected scenario is never sent.
+
+Two harness arms run Claude Code itself, through `_claude_skill_harness.py`
+(issue #6737). `skill-routed` copies the target skill under
+`.claude/skills/<name>/` in a fresh workspace and sends `/<name> <input>`. The
+CLI discovers the skill and expands it, as it does for a user. `harness-baseline`
+sends the bare input to the same argv in an empty workspace. Neither turn is
+wrapped in the text-eval envelope, and `--tools ""` leaves no tool to call.
+Both arms need `EVAL_PROVIDER=claude-cli`, so the judge runs on the same
+transport. `skill-routed` needs a `skill_path` target. Each harness cell
+records `input_tokens_total`, which shows whether the skill body was loaded.
+
+A scenario may declare `proof_points`: a list of `{id, desc, pattern}`. The
+loader refuses an empty list, a repeated id, or a pattern that does not
+compile. Each graded cell then records `proof_points`, one boolean per id, from
+a case-insensitive search of the response. No judge reads it and no gate uses
+it. Fix the pattern before the run, so the read is decided before any response
+exists.
+
+```bash
+EVAL_PROVIDER=claude-cli uv run python scripts/eval/eval-rule-activation.py \
+  --scenarios tests/evals/skill-scenarios/spec.json --scenario-id S7 \
+  --repeats 12 --arms harness-baseline skill-routed --judge-repeats 1 --dry-run
+```
+
 Per-rule or per-reference scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
 `rule_id` names the population every number in that file is published under, and one run refuses two files that claim the same id rather than letting the second overwrite the first. Omitting it is safe but not free: a reference target then defaults to the reference filename, so two references under one skill router stay distinct only as long as their filenames do. When present, `rule_id` and `skill_id` MUST be non-empty strings. The published record is a JSON object keyed by this value, and JSON keys are strings, so a declared `1` and a declared `"1"` are two distinct keys in memory that clear the duplicate check and then collapse to one key on serialization, dropping a measured target from the record without a word. The loader refuses the type before any API call rather than losing the result after all of them.
@@ -1453,16 +1486,22 @@ named. Nothing is normalized away.
 
 `--live` is the only way to spend. It needs a credential in the environment for
 every planned harness, taken from `HARNESS_AUTH_ENV` in `_runtime_harness.py`.
-Without one the run exits 4 before a process starts. The live backend runs one
+Without one the run exits 4 before a process starts. It then reads
+`<cli> --version` for every planned harness and exits 2 unless each equals the
+capability matrix pin, because every result row stamps that pin as its harness
+version. It reads the version again before every row: a CLI that auto-updates
+between rows stops the run, and that row and every later row are written
+`NOT_RUN` with the reason. An update during a row is caught at the next row, so
+at most one row can carry a stale label. The live backend runs one
 harness process per invocation, one at a time, so fan-out workers never overlap.
-Each planned row gets a fresh scratch copy of its scenario. It records observed
-model and effort as unverified, because it does not yet read backend evidence,
-and it hashes the plan file for the arm F handoff. It has not run
-against a real harness; its tests use a fake process runner.
+Each planned row gets a fresh scratch copy of its scenario. Codex invocations
+read the backend's own model and effort from its response frames; Copilot
+observations stay unverified. It hashes the plan file for the arm F handoff.
 
 Exit codes: `0` a plan with at least one planned row, or a live run with no
-harness failure. `1` nothing is plannable. `2` invalid input. `3` a live run hit
-a harness failure. `4` `--live` without credentials.
+harness failure. `1` nothing is plannable. `2` invalid input, or an installed
+harness CLI that differs from its matrix pin. `3` a live run hit a harness
+failure, or a CLI version could not be read. `4` `--live` without credentials.
 
 The deterministic fake, `_routing_backend.ScriptedBackend`, grades with the real
 corpus and detects model and effort mismatch, silent inheritance from the
@@ -1590,6 +1629,57 @@ its `--output-dir` already records. The task file is trusted repository data: it
 `--tasks` only a file you would run as a test. Under `--real-home` the agent
 under test can read your `~/.claude` by absolute path while it runs, so keep
 live workspaces and reports out of the repository.
+
+### Historical issue-to-fix tasks and one-file subtraction (issue #6814)
+
+A `schema_version: 2` task file replaces fixture files with a real, shipped
+issue from this repository. Each task names `source.base_sha` (the pre-fix
+commit), `source.fix_sha` (the shipped fix), `seed_paths` copied from the base
+into the agent's workspace, and `withheld_files` (`{workspace path: path at the
+fix}`) written only after the agent exits. `controls.known_good` takes
+`files_from_fix`; `controls.known_bad` takes `edits` (`{path, old, new}`, each
+`old` unique in the base file). An argv element `{python}` becomes the runner's
+interpreter, so checks run with the locked environment. Every task in one file
+shares one base commit, and the controls are read from that commit's tree, not
+from the current checkout. The workspace is a fresh `git init` of the seeded
+files, so no history reveals the fix. A shallow clone needs the commits:
+`git fetch --depth=N origin main`.
+
+`--controls full,minus:<path>` compares the full control with the same set
+minus one file. A path the full control does not load, `universal.md`, `AGENTS.md`,
+root `CLAUDE.md` (it imports `AGENTS.md`), and any
+path naming `security`, `secret`, or `permission` refuse (exit 2).
+
+`--max-cost-usd USD` (finite, above 0) stops launching once recorded spend
+reaches the cap, or once any cell's cost is unmeasured (a timeout, a failure
+that reported no cost, or a record with no cost). A resumed batch starts from
+what earlier invocations into the same `--output-dir` spent. A skipped cell is
+listed in `report.json` and the batch exits 3. `--pass-env NAME,...` forwards
+named variables to the Claude child for hosts whose CLI login needs variables
+`runtime_env` drops; an unset or harness-owned name (`HOME`, `PATH`,
+`CLAUDE_CONFIG_DIR`, `XDG_*`, ...) refuses. The report lists names, never
+values: each forwarded value, a small file it names (a token file), and known
+token shapes are redacted from replies, trajectories, failures, and patches.
+
+A live run entry also carries `checks` (each check's argv and exit code) and
+`trajectory` (Bash commands; other tool inputs, clipped; test-runner
+invocations executed and refused; permission denials; and
+`withheld_marker_hits`, any tool call naming a withheld path, the abbreviated
+fix commit, `/pull/<fix_pr>`, or the runner's checkout). A graded historical
+cell, and the extracted base tree, are deleted before the next launch.
+`report.json` carries `provenance`, taken before the first launch: runner
+commit, whether tracked or untracked files differed from it (with a hash),
+task file and per-task SHA-256, each task's source, and each control's files
+by SHA-256.
+
+```bash
+uv run python scripts/eval/eval_control_ablation.py --dry-run \
+  --tasks scripts/eval/examples/control-ablation-historical-tasks.json \
+  --workspace-root "$(mktemp -d)" --output-dir /tmp/historical-dry
+```
+
+The frozen protocol and result of the first experiment are in
+`evals/control-ablation-historical/`.
 
 ## Held-Out-Gated Optimization
 
@@ -2491,6 +2581,7 @@ Optional: `expected_reason_contains`, `rationale`.
 - **Base unstable.** A base side is excluded from the regression list and from the before and after scores when it passes the threshold without passing every scored run, or when it was scored on fewer runs than the tier requires (3, or 5 with `--security-critical`). It is listed under `Base unstable` with an excluded count.
 - **Stable-baseline floor.** The verdict is FAIL as inconclusive unless at least `max(1, ceil(total / 2))` scenarios keep a stable base. Thin or flaky base scoring can therefore fail the gate even when no regression is found.
 - **Narrow exclusion.** An excluded scenario can still block through after-side flakiness above `FLAKINESS_BLOCK_THRESHOLD`, an after side scored on fewer than the required runs, or the security all-runs criterion. A base that passes every scored run while the after side fails still blocks.
+- **Reply budget.** `--max-tokens N` sets the reply token budget for every judge call (default 1024, range 1 to 16384). A reply cut off at the budget is `token_limit` and goes unscored, so raise it when a scenario reports unscored runs.
 - **Base resample.** When a scenario's base passed and its after side failed, the base is sampled `--base-resamples N` more times (default 3, 0 disables) before the scenario counts as a regression. If any resample run fails, the base is marked unstable and excluded, so a base that drew 3/3 once cannot manufacture a regression. A base that stays all-pass keeps the regression. Cost is incurred only on suspected regressions. Issue #5601 reported 0/3, 2/3, and 3/3 on the same base. The 2/3 case is excluded up front, and the 3/3 case is excluded by the resample.
 
 ## Scenario File Locations

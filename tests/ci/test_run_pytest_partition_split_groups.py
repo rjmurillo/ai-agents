@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from scripts.ci import pytest_module_split as module_split
 from scripts.ci import run_pytest_partition as mod
 
 _SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4", "split-5")
@@ -30,20 +31,29 @@ def _flag_value(args: list[str], flag: str) -> str:
 
 @pytest.mark.parametrize("index", range(1, 6))
 def test_split_group_flags(index: int) -> None:
-    """AC2: group i of N runs the shared pool by recorded duration."""
+    """AC2: group i of N runs the shared pool by recorded duration, whole modules at a time."""
     args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
-    assert _flag_value(args, "--splits") == "5"
-    assert _flag_value(args, "--group") == str(index)
-    assert _flag_value(args, "--splitting-algorithm") == "duration_based_chunks"
+    assert _flag_value(args, "-p") == "scripts.ci.pytest_module_split"
+    assert _flag_value(args, "--module-splits") == "5"
+    assert _flag_value(args, "--module-group") == str(index)
     assert _flag_value(args, "--durations-path") == f"artifacts/durations-split-{index}.json"
+    assert "--store-durations" in args
+    assert "--clean-durations" in args
     assert args[-1] == "tests/"
+
+
+@pytest.mark.parametrize("index", range(1, 6))
+def test_split_group_does_not_also_run_the_pytest_split_split(index: int) -> None:
+    """Issue #6846: pytest-split's own split would deselect again by single test."""
+    args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
+    assert not {"--splits", "--group", "--splitting-algorithm"} & set(args)
 
 
 def test_split_groups_differ_only_in_the_group_number() -> None:
     """AC2: one pool, so no group can leave a file out or take it twice."""
 
     def without_group(args: list[str]) -> list[str]:
-        for flag in ("--group", "--durations-path"):
+        for flag in ("--module-group", "--durations-path"):
             position = args.index(flag)
             args = args[:position] + args[position + 2 :]
         return args
@@ -74,3 +84,63 @@ def test_dedicated_legs_run_only_their_files() -> None:
     assert mod._PARTITION_FULL_ARGS["pr-autofix"] == [
         "tests/test_pr_autofix_late_live_state_gate.py"
     ]
+
+
+class _Item:
+    """The one attribute the module split reads from a collected item."""
+
+    def __init__(self, nodeid: str) -> None:
+        self.nodeid = nodeid
+
+    def __str__(self) -> str:
+        return self.nodeid
+
+
+def test_adjacent_slow_tests_land_on_different_legs() -> None:
+    """Issue #6828: slow tests that sort together must not share one leg.
+
+    Mirrors the tests/ci/ cluster: three long tests side by side, then many
+    short ones. Contiguous chunks put all three on split-1 and pushed it past
+    the job timeout. The configured algorithm must spread them out.
+    """
+    slow = {"tests/ci/test_a.py::t": 180.0, "tests/ci/test_b.py::t": 116.0}
+    slow["tests/ci/test_c.py::t"] = 71.0
+    fast = {f"tests/z/test_{i:03}.py::t": 2.0 for i in range(400)}
+    durations = {**slow, **fast}
+    items = [_Item(node_id) for node_id in durations]
+
+    groups = module_split.split_by_module(mod.SPLIT_COUNT, items, durations)
+
+    homes = {
+        index
+        for index, group in enumerate(groups)
+        for item in group.selected
+        if item.nodeid in slow
+    }
+    assert len(homes) == len(slow)
+    totals = [group.duration for group in groups]
+    assert max(totals) - min(totals) <= max(slow.values())
+
+
+def test_tests_that_share_a_module_stay_on_one_leg() -> None:
+    """Issue #6846: a module's slow tests share one leg, and so share one scan.
+
+    Mirrors tests/test_guard_diff.py: three tests that each pay a cached
+    whole-repo scan on a cold worker, recorded at about 14s apiece, beside many
+    short modules. Placing single tests put them on three legs, so the scan ran
+    three times.
+    """
+    shared = {f"tests/test_guard_diff.py::test_corpus_{name}": 14.0 for name in "abc"}
+    fast = {f"tests/z/test_{i:03}.py::t": 2.0 for i in range(400)}
+    durations = {**shared, **fast}
+    items = [_Item(node_id) for node_id in durations]
+
+    groups = module_split.split_by_module(mod.SPLIT_COUNT, items, durations)
+
+    homes = {
+        index
+        for index, group in enumerate(groups)
+        for item in group.selected
+        if item.nodeid in shared
+    }
+    assert len(homes) == 1

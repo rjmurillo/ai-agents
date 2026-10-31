@@ -105,4 +105,4 @@ def test_provenance_marks_release_row_reverified():
     text = _text()
     start = text.index("## Provenance and Maintenance")
     provenance = text[start:]
-    assert "re-verified 2026-10-14 for issue #6590" in provenance
+    assert "re-verified 2026-10-14" in provenance

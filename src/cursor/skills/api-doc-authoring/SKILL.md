@@ -39,8 +39,8 @@ does not own claim checking, prose style, or API design:
 | Behavioral and cross-document claims | `doc-accuracy` | Runs through the existing lifecycle gates. No second accuracy gate here. |
 | DRY, YAGNI, derived mutable facts | `code-qualities-assessment` | Link to the canonical fact. Do not restate it in each example. |
 | Voice, banned words, dashes | `voice.md` and `universal.md` | Consumed as written. This skill adds no style guide. |
-| API and schema design | the business-behavior-first design owner (#5411) | Describe the resulting contract. Never redefine it. |
-| Capability graph | `check_capability_graph.py` (#5396) | This skill's `owns` and `depends-on` metadata. `doc-accuracy` declares no capability block, so it is cited, not declared. |
+| API and schema design | the business-behavior-first design owner | Describe the resulting contract. Never redefine it. |
+| Capability graph | `check_capability_graph.py` | This skill's `owns` and `depends-on` metadata. `doc-accuracy` declares no capability block, so it is cited, not declared. |
 
 ## Triggers
 

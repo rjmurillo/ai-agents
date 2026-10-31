@@ -69,6 +69,8 @@ from scripts.github_core.validation import (
     is_allowed_body_file_path,
     is_github_name_valid,
     is_safe_file_path,
+    read_body_file_text,
+    resolved_body_error,
 )
 
 __all__ = [
@@ -93,7 +95,9 @@ __all__ = [
     "error_and_exit",
     "escaped_newline_body_error",
     "inline_body_error",
+    "resolved_body_error",
     "is_allowed_body_file_path",
+    "read_body_file_text",
     "filter_unresolved_threads",
     "get_all_prs_with_comments",
     "get_bot_authors",

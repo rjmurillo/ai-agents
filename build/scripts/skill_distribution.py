@@ -29,6 +29,7 @@ import re
 from pathlib import Path
 
 import yaml
+from yaml_text_cache import load_yaml_text
 
 DISTRIBUTION_KEY = "distribution"
 REPO_LOCAL = "repo-local"
@@ -83,7 +84,7 @@ def distribution_of_text(text: str, source: str) -> str:
     if match is None:
         return SHIPPED
     try:
-        frontmatter = yaml.safe_load(match.group(1))
+        frontmatter = load_yaml_text(match.group(1))
     except yaml.YAMLError as exc:
         raise SkillDistributionError(
             f"{source}: unparseable frontmatter{_yaml_where(exc)}"

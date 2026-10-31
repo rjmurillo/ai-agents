@@ -16,6 +16,7 @@ import pytest
 from tests.eval._routing_runner_test_support import cli, config_dict
 from tests.eval.test_eval_routing_benchmark_cli import (  # noqa: F401
     ScriptedLive,
+    _installed_matches_pin,
     _live_args,
     _no_ambient_credentials,
     scripted_live,
@@ -42,7 +43,13 @@ def test_live_requires_an_invocation_budget(
 
 
 @pytest.mark.parametrize(
-    "flag", [["--real-home"], ["--max-invocations", "5"], ["--repetitions", "2"]]
+    "flag",
+    [
+        ["--real-home"],
+        ["--max-invocations", "5"],
+        ["--repetitions", "2"],
+        ["--harnesses", "claude"],
+    ],
 )
 def test_live_only_flags_are_refused_without_live(flag: list[str], capsys: Any) -> None:
     assert cli.main(flag) == cli.EXIT_CONFIG
@@ -150,3 +157,49 @@ def test_arms_that_select_nothing_do_not_spend(
     assert exit_code == cli.EXIT_NOTHING_PLANNED
     assert "selects no planned row" in capsys.readouterr().err
     assert scripted_live.created == [] and not output.exists()
+
+
+def test_harnesses_runs_only_the_named_harness_and_asks_only_its_credential(
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODEX_API_KEY", "a")
+    output = tmp_path / "results.jsonl"
+
+    exit_code = cli.main([*_live_args(verified, small_config, output), "--harnesses", " codex "])
+
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert exit_code == cli.EXIT_OK and len(lines) == 6 * 2
+    assert {line["harness"]["name"] for line in lines} == {"codex"}
+
+
+def test_harnesses_that_select_nothing_do_not_spend(
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("CODEX_API_KEY", "a")
+    monkeypatch.setenv("GH_TOKEN", "b")
+    output = tmp_path / "results.jsonl"
+
+    exit_code = cli.main([*_live_args(verified, small_config, output), "--harnesses", "claude"])
+
+    assert exit_code == cli.EXIT_NOTHING_PLANNED
+    assert "--harnesses claude selects no planned row" in capsys.readouterr().err
+    assert scripted_live.created == [] and not output.exists()
+
+
+def test_the_ambient_record_names_what_each_harness_could_not_isolate() -> None:
+    claude = cli._ambient_home("claude")
+    codex = cli._ambient_home("codex")
+
+    assert "Bash(python) can write outside the workdir: no OS sandbox" in claude["not_isolated"]
+    assert codex["codex_home"] == "real"
+    claude["isolated"].append("tampered")
+    assert "tampered" not in cli._ambient_home("claude")["isolated"]

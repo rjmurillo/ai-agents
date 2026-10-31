@@ -49,7 +49,11 @@ from _routing_scenario import (
 
 OUTPUT_LIMIT_CHARS = 4000
 OVERLAY_NAMES: tuple[str, ...] = ("known_good", "known_bad", "hidden_regression")
-_IGNORED_PARTS = frozenset({"__pycache__"})
+# Caches that running a check writes. A worker that runs the tests is not
+# editing the tree (PREDICTIONS.md Amendment 5).
+_IGNORED_PARTS = frozenset(
+    {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis"}
+)
 _ENV_ALLOWLIST = ("PATH", "SYSTEMROOT", "TMPDIR", "TEMP", "TMP")
 
 

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from tests import new_pr_harness
+from tests.containment_fixtures import private_dir
 from tests.new_pr_harness import completed, main, new_pr
 
 _pr_val = new_pr._pr_val
@@ -194,6 +197,23 @@ class TestRequireHeadOnOrigin:
 
         assert "could not read origin" in capsys.readouterr().err
 
+    def test_unreadable_origin_is_recorded_for_the_summary(self, capsys) -> None:
+        warnings: list[str] = []
+        with patch.object(_pr_val, "head_on_origin", return_value=None):
+            assert _pr_val.require_head_on_origin("feat/x", warnings) is True
+        capsys.readouterr()
+
+        assert len(warnings) == 1
+        assert "could not read origin" in warnings[0]
+
+    def test_pushed_and_missing_branches_record_no_warning(self) -> None:
+        warnings: list[str] = []
+        for found in (True, False):
+            with patch.object(_pr_val, "head_on_origin", return_value=found):
+                _pr_val.require_head_on_origin("feat/x", warnings)
+
+        assert warnings == []
+
     def test_pushed_branch_is_silent(self, capsys) -> None:
         with patch.object(_pr_val, "head_on_origin", return_value=True):
             assert _pr_val.require_head_on_origin("feat/x") is True
@@ -250,7 +270,37 @@ class TestMainRequiresPushedHead:
         assert rc == 0
         assert any(command[:3] == ["gh", "pr", "create"] for command in commands)
 
+    def test_unreadable_origin_warning_is_handed_to_validation(self, tmp_path) -> None:
+        def _side(argv, **kwargs):
+            return completed(stdout=str(tmp_path) if "--show-toplevel" in argv else "")
 
+        with (
+            patch("subprocess.run", side_effect=_side),
+            patch.object(_pr_val, "head_on_origin", return_value=None),
+            patch.object(new_pr, "run_validations") as validations,
+        ):
+            rc = main(["--title", "feat: test", "--head", "feat/x"])
+
+        assert rc == 0
+        handed = validations.call_args.kwargs["preflight_warnings"]
+        assert len(handed) == 1
+        assert "could not read origin" in handed[0]
+
+    def test_pushed_head_hands_no_preflight_warning_to_validation(self, tmp_path) -> None:
+        def _side(argv, **kwargs):
+            return completed(stdout=str(tmp_path) if "--show-toplevel" in argv else "")
+
+        with (
+            patch("subprocess.run", side_effect=_side),
+            patch.object(_pr_val, "head_on_origin", return_value=True),
+            patch.object(new_pr, "run_validations") as validations,
+        ):
+            main(["--title", "feat: test", "--head", "feat/x"])
+
+        assert validations.call_args.kwargs["preflight_warnings"] == []
+
+
+@pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 class TestPreflight:
     def _prepared(self, repo: Path, content: str = "## Summary\n\nDone.\n") -> str:
         relative = new_pr.prepare_pr_body(repo)
@@ -284,18 +334,53 @@ class TestPreflight:
 
         assert self._preflight(tmp_path, ["--body-file", body]) == 2
 
-    def test_body_outside_scratch_fails_and_names_the_allocator(
-        self, tmp_path: Path, capsys
+    def test_scratchpad_body_outside_the_repo_passes(self, tmp_path: Path, capsys) -> None:
+        """Issue #6667: a /tmp/claude-<uid>/ scratchpad path is accepted."""
+        scratchpad = private_dir(tmp_path / "claude-1000" / "scratchpad")
+        body = scratchpad / "pr7.md"
+        body.write_text("## Summary\n\nDone.\n", encoding="utf-8")
+
+        rc = self._preflight(
+            tmp_path / "repo-root", ["--title", "feat: test", "--body-file", str(body)]
+        )
+
+        assert rc == 0
+        assert "Preflight OK" in capsys.readouterr().out
+
+    def test_fixed_name_body_in_scratch_passes(self, tmp_path: Path) -> None:
+        scratch = private_dir(tmp_path / ".project-toolkit" / "scratch")
+        (scratch / "body.md").write_text("text", encoding="utf-8")
+
+        rc = self._preflight(
+            tmp_path,
+            ["--title", "feat: test", "--body-file", ".project-toolkit/scratch/body.md"],
+        )
+
+        assert rc == 0
+
+    def test_body_outside_every_root_fails(
+        self, external_tmp_path: Path, stub_temp_roots, capsys
     ) -> None:
-        stray = tmp_path / "body.md"
+        stub_temp_roots()
+        stray = external_tmp_path / "body.md"
         stray.write_text("text", encoding="utf-8")
 
-        rc = self._preflight(tmp_path, ["--title", "feat: test", "--body-file", str(stray)])
+        rc = self._preflight(
+            external_tmp_path, ["--title", "feat: test", "--body-file", str(stray)]
+        )
 
         assert rc == 2
-        assert "--prepare-body-file" in capsys.readouterr().err
+        assert "must be under the repo root" in capsys.readouterr().err
 
-    def test_group_readable_body_fails(self, tmp_path: Path, capsys) -> None:
+    def test_missing_body_fails(self, tmp_path: Path, capsys) -> None:
+        rc = self._preflight(
+            tmp_path, ["--title", "feat: test", "--body-file", str(tmp_path / "missing.md")]
+        )
+
+        assert rc == 2
+        assert "Invalid body file" in capsys.readouterr().err
+
+    def test_group_readable_prepared_body_is_refused(self, tmp_path: Path, capsys) -> None:
         body = self._prepared(tmp_path)
         (tmp_path / body).chmod(0o644)
 
@@ -316,3 +401,37 @@ class TestPreflight:
 
     def test_preflight_without_body_file_checks_only_the_title(self, tmp_path: Path) -> None:
         assert self._preflight(tmp_path, ["--title", "fix: test"]) == 0
+
+
+def test_isolated_script_reads_a_scratchpad_body_file(tmp_path: Path) -> None:
+    """Under ``python -I`` the shared rule loads by path and approves a temp-root file (#6667)."""
+    scratchpad = private_dir(tmp_path / "claude-1000" / "scratchpad")
+    body = scratchpad / "pr7.md"
+    body.write_text("## Summary\n\nDone.\n", encoding="utf-8")
+    env = {**os.environ, "TMPDIR": str(tmp_path)}
+    env.pop("CLAUDE_PLUGIN_ROOT", None)
+    env.pop("COPILOT_PLUGIN_ROOT", None)
+    env.pop("GITHUB_WORKSPACE", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            str(new_pr_harness.SCRIPTS_DIR / "new_pr.py"),
+            "--preflight",
+            "--title",
+            "feat: test",
+            "--body-file",
+            str(body),
+        ],
+        cwd=new_pr_harness.REPO_ROOT,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Preflight OK" in result.stdout

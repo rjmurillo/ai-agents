@@ -70,10 +70,10 @@ Use [github](../github/SKILL.md) instead when:
 
 | Pattern | Example | Why Intercept |
 |---------|---------|---------------|
-| `github.com/.../pull/` | `https://github.com/owner/repo/pull/123` | PR HTML is 5-10MB |
-| `github.com/.../pull/.../checks` | `https://github.com/owner/repo/pull/123/checks?check_run_id=...` | CI checks page bloat |
-| `github.com/.../pull/.../files` or `/changes` | `https://github.com/owner/repo/pull/123/files#r123456` | Diff view with comment fragment |
-| `github.com/.../issues/` | `https://github.com/owner/repo/issues/456` | Issue HTML is 2-5MB |
+| `github.com/.../pull/` | `https://github.com/owner/repo/pull/<number>` | PR HTML is 5-10MB |
+| `github.com/.../pull/.../checks` | `https://github.com/owner/repo/pull/<number>/checks?check_run_id=...` | CI checks page bloat |
+| `github.com/.../pull/.../files` or `/changes` | `https://github.com/owner/repo/pull/<number>/files#r123456` | Diff view with comment fragment |
+| `github.com/.../issues/` | `https://github.com/owner/repo/issues/<number>` | Issue HTML is 2-5MB |
 | `github.com/.../actions/runs/` | `https://github.com/owner/repo/actions/runs/123/job/456` | Workflow run page bloat |
 | `github.com/.../blob/` | `https://github.com/owner/repo/blob/main/file.py` | File page has nav bloat |
 | `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
@@ -238,7 +238,7 @@ https://gist.githubusercontent.com/{owner}/{id}/raw/{revision}/{path}
 ### Bare URL Pasted (Most Common!)
 
 ```text
-Input: "https://github.com/rjmurillo/ai-agents/pull/735/checks?check_run_id=59355308734"
+Input: "https://github.com/owner/repo/pull/<number>/checks?check_run_id=59355308734"
 
 Action:
   1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
@@ -262,7 +262,7 @@ API. Pinned revisions stay pinned. Raw file URLs return only the requested file.
 ### URL with Question After It
 
 ```text
-Input: "https://github.com/owner/repo/pull/715/changes#r2656144507 are the graph refactoring items part of Issue 722?"
+Input: "https://github.com/owner/repo/pull/<number>/changes#r2656144507 are the graph refactoring items part of Issue <N>?"
 
 Action:
   1. Extract fragment: r2656144507 (review comment ID)
@@ -273,7 +273,7 @@ Action:
 ### Multiple URLs in One Prompt
 
 ```text
-Input: "https://github.com/owner/repo/pull/715#discussion_r123 https://github.com/owner/repo/pull/715#discussion_r456"
+Input: "https://github.com/owner/repo/pull/<number>#discussion_r123 https://github.com/owner/repo/pull/<number>#discussion_r456"
 
 Action:
   1. Parse each URL
@@ -304,7 +304,7 @@ Action:
 ### PR URL → Script
 
 ```text
-Input: "Review this: https://github.com/owner/repo/pull/123"
+Input: "Review this: https://github.com/owner/repo/pull/<number>"
 
 Action:
   python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123 --owner owner --repo repo

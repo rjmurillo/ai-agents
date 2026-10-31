@@ -163,4 +163,3 @@ Domain knowledge for observability analysis:
 
 - [Event Schema](schema.json)
 - [Agent Metrics Skill](../metrics/SKILL.md)
-- [Issue #1301](https://github.com/rjmurillo/ai-agents/issues/1301)

@@ -52,19 +52,6 @@ def collect_with_code(args: list[str]) -> tuple[list[str], int, str]:
     return node_ids, result.returncode, result.stdout[-2000:] + result.stderr[-2000:]
 
 
-_STORE_FLAGS = frozenset({"--store-durations", "--clean-durations"})
-
-
-def without_parallel_flags(args: list[str]) -> list[str]:
-    """Drop xdist flags: collection needs no workers.
-
-    Also drops the store flags, which would make a collect-only run rewrite the
-    leg's durations file at session finish.
-    """
-    assert args[:4] == runner._PARALLEL
-    return [arg for arg in args[4:] if arg not in _STORE_FLAGS]
-
-
 def pool_args() -> list[str]:
     """The pool with no split flags: what the split groups must add up to."""
     return [*runner._POOL_IGNORES, "tests/"]

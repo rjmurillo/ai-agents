@@ -38,34 +38,48 @@ PYTEST_DIST_MODE = "worksteal"
 _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 
 # The pool is every test file outside the dedicated legs and the unpartitioned
-# pins, split into SPLIT_COUNT groups by recorded duration (pytest-split).
+# pins, split into SPLIT_COUNT groups of whole modules by recorded duration
+# (scripts/ci/pytest_module_split.py, loaded with `-p`).
 #
 # Nobody maintains a durations file. Timings ride in the Actions cache:
 # pytest.yml restores the newest map to DURATIONS_RESTORE_PATH on every split
 # leg, and the test-durations job saves a fresh one only on a push to main.
-# pytest-split has a single `--durations-path` that it both reads and writes, so
-# this runner copies the restored map to a per-leg file (_leg_durations_path)
-# and points pytest-split at the copy. The leg then reads the restored timings,
-# and `--store-durations --clean-durations` rewrites the copy with only the tests
+# pytest-split records the timings, and its single `--durations-path` is both
+# what the split reads and what `--store-durations` writes, so this runner
+# copies the restored map to a per-leg file (_leg_durations_path) and points
+# both at the copy. The leg then reads the restored timings, and
+# `--store-durations --clean-durations` rewrites the copy with only the tests
 # that leg ran. The split legs run disjoint groups, so their files union into the
 # full map (scripts/testing/duration_split_merge.py) and a deleted test drops out
 # of the cache on the next main run. The restored file is never written.
 #
-# When nothing restored, pytest-split splits evenly by test count and this runner
-# emits a CI warning annotation. A test missing from the map gets the average
-# recorded duration. Either way every test still runs; only the balance degrades.
+# When nothing restored, every test counts one second, so modules balance by
+# test count, and this runner emits a CI warning annotation. A test missing from
+# the map gets the average recorded duration. Either way every test still runs;
+# only the balance degrades.
 #
 # Each group must stay under the ten minute job contract of issue #4854.
 # split-1 is the `primary` matrix leg and carries the extra pin, lint, and
 # ratchet steps in pytest.yml, so its share must leave room for them.
 #
+# The split places the longest module first, each on the least loaded group,
+# then runs each group longest module first, so a long test cannot start late
+# and set the leg's tail (issue #6846). Two earlier choices failed.
+# pytest-split `duration_based_chunks` cut the pool into contiguous runs, so the
+# whole-repo scans clustered under tests/ci/ (180s, 116s, and 71s alone) all
+# landed on split-1 and pushed it past the job timeout; a cancelled leg never
+# saves a new map, so every later main run restored the same split (issue
+# #6828). pytest-split `least_duration` fixed that but places single tests, so
+# it spread 1835 of 1984 modules across legs, and tests that share a cached
+# whole-repo scan ran that scan once per leg (issue #6846).
+#
 # Both paths stay relative on purpose: run_pytest_non_tmp starts pytest with
-# cwd=PROJECT_ROOT, so pytest-split resolves them against the repo root whatever
+# cwd=PROJECT_ROOT, so pytest resolves them against the repo root whatever
 # directory this script is launched from (a test pins that).
 SPLIT_COUNT = 5
 DURATIONS_RESTORE_PATH = ".pytest-split/durations.json"
 LEG_DURATIONS_DIR = "artifacts"
-SPLITTING_ALGORITHM = "duration_based_chunks"
+MODULE_SPLIT_PLUGIN = "scripts.ci.pytest_module_split"
 _SPLIT_PREFIX = "split-"
 
 _SAFE_PUSH_ARGS = [
@@ -102,19 +116,26 @@ def _leg_durations_path(partition: str) -> str:
     return f"{LEG_DURATIONS_DIR}/durations-{partition}.json"
 
 
+def split_flags(group: int, durations_path: str) -> list[str]:
+    """The flags that pick split group ``group`` of SPLIT_COUNT whole-module groups."""
+    return [
+        "-p",
+        MODULE_SPLIT_PLUGIN,
+        "--module-splits",
+        str(SPLIT_COUNT),
+        "--module-group",
+        str(group),
+        "--durations-path",
+        durations_path,
+    ]
+
+
 def _split_group_args(index: int) -> list[str]:
     return [
         *_PARALLEL,
-        "--splits",
-        str(SPLIT_COUNT),
-        "--group",
-        str(index),
-        "--splitting-algorithm",
-        SPLITTING_ALGORITHM,
+        *split_flags(index, _leg_durations_path(f"{_SPLIT_PREFIX}{index}")),
         "--store-durations",
         "--clean-durations",
-        "--durations-path",
-        _leg_durations_path(f"{_SPLIT_PREFIX}{index}"),
         *_POOL_IGNORES,
         "tests/",
     ]
@@ -142,7 +163,10 @@ def _durations_digest() -> str:
 
 
 def _seed_leg_durations(partition: str) -> None:
-    """Give pytest-split this leg's file: a copy of the restored map, or nothing.
+    """Give this leg its durations file: a copy of the restored map, or nothing.
+
+    The module split reads the file to pick the leg's modules, and pytest-split
+    rewrites it with the leg's own timings at session end.
 
     A stale leg file from an earlier local run is removed when nothing restored,
     so a leg never reads timings the missing-file warning says it lacks.

@@ -7,7 +7,9 @@ import argparse
 import re
 import subprocess
 import sys
+import threading
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,6 +35,10 @@ EXIT_OK = 0
 EXIT_CONFIG = 2
 DEFAULT_REPO = "rjmurillo/ai-agents"
 GH_TIMEOUT_SECONDS = 30
+# Concurrent ``gh issue view`` calls. Each call is a network round trip, so the
+# serial loop cost one round trip per reference (issue #6734). Eight keeps the
+# burst well under GitHub's secondary rate limits.
+MAX_LOOKUP_WORKERS = 8
 TERMINAL_STATES = frozenset({"CLOSED", "MERGED"})
 NONTERMINAL_STATES = frozenset({"OPEN", "DRAFT", "LOCKED"})
 KNOWN_STATES = TERMINAL_STATES | NONTERMINAL_STATES
@@ -118,7 +124,24 @@ def _print_lookup_advisory(issue_number: int, reason: str, message: str) -> None
         outcome = CheckOutcome.unknown(_VALIDATOR, reason=reason, scope=_SCOPE, detail=detail)
     else:
         outcome = CheckOutcome.blocked(_VALIDATOR, reason=reason, scope=_SCOPE, detail=detail)
-    print(outcome.report_line())
+    _emit_advisory(outcome.report_line())
+
+
+_advisory_sink = threading.local()
+
+
+def _emit_advisory(line: str) -> None:
+    """Print an advisory line, or buffer it when a prefetch worker is capturing.
+
+    A worker thread buffers its lines so the main thread can replay them in
+    plan order. Output then matches the serial run whatever order the lookups
+    finish in.
+    """
+    buffer: list[str] | None = getattr(_advisory_sink, "lines", None)
+    if buffer is None:
+        print(line)
+    else:
+        buffer.append(line)
 
 
 _REPO_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
@@ -180,6 +203,53 @@ def gh_issue_state(
     return state
 
 
+@dataclass(frozen=True, slots=True)
+class _FetchedState:
+    """One prefetched lookup: its state, buffered advisory lines, and any error."""
+
+    state: str | None
+    advisories: tuple[str, ...]
+    error: Exception | None = None
+
+
+def _fetch_buffered(issue_number: int, repo: str) -> _FetchedState:
+    """Run one lookup on a worker thread, capturing its advisory lines."""
+    lines: list[str] = []
+    _advisory_sink.lines = lines
+    try:
+        state = gh_issue_state(issue_number, repo=repo)
+    except Exception as exc:  # Replayed on the main thread, as the serial run raised it.
+        return _FetchedState(None, tuple(lines), exc)
+    finally:
+        del _advisory_sink.lines
+    return _FetchedState(state, tuple(lines))
+
+
+def _active_plan_issue_numbers(repo_root: Path) -> list[int]:
+    """Return the unique issue numbers referenced by the active plans, sorted."""
+    active_dir = repo_root / ".project-toolkit" / "plans" / "active"
+    if not active_dir.is_dir():
+        return []
+    numbers: set[int] = set()
+    try:
+        for plan in active_dir.glob("*.md"):
+            numbers.update(issue_refs(plan.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        # Prefetch is an optimization. Let the serial pass hit and report the error.
+        return []
+    return sorted(numbers)
+
+
+def _prefetch_states(repo_root: Path, repo: str) -> dict[int, _FetchedState]:
+    """Look up every distinct referenced issue concurrently, once each."""
+    numbers = _active_plan_issue_numbers(repo_root)
+    if len(numbers) < 2:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(MAX_LOOKUP_WORKERS, len(numbers))) as pool:
+        fetched = pool.map(lambda number: _fetch_buffered(number, repo), numbers)
+        return dict(zip(numbers, fetched, strict=True))
+
+
 def _findings_detail(plans: int, unresolved: int, lookups: int) -> str:
     detail = f"{plans} active plan(s) have only closed tracking issues"
     if unresolved:
@@ -200,11 +270,21 @@ def validate_active_plan_closeout(repo_root: Path, *, repo: str = DEFAULT_REPO) 
     """
     lookups = 0
     unresolved = 0
+    prefetched = _prefetch_states(repo_root, repo)
 
     def counted_lookup(issue: int) -> str | None:
         nonlocal lookups, unresolved
         lookups += 1
-        state = gh_issue_state(issue, repo=repo)
+        fetched = prefetched.get(issue)
+        if fetched is None:
+            state = gh_issue_state(issue, repo=repo)
+        else:
+            # Replay what the serial lookup would have printed, at the same point.
+            for line in fetched.advisories:
+                print(line)
+            if fetched.error is not None:
+                raise fetched.error
+            state = fetched.state
         if _normalize_state(state) not in KNOWN_STATES:
             unresolved += 1
         return state

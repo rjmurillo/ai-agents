@@ -110,15 +110,22 @@ class TestEditIssueBodySuccess:
         assert data["Data"]["status"] == "updated"
         assert data["Data"]["issue"] == 42
 
-    def test_body_file_passes_through(self, mock_auth, tmp_path, capsys):
-        # Coderabbit eoz/epC: when --body-file is provided, gh should be
-        # called with --body-file <path>, not --body <content>.
+    def test_body_file_passes_through(
+        self, mock_auth, stub_git_probes, tmp_path_is_temp_root, capsys
+    ):
+        tmp_path = tmp_path_is_temp_root
+        # Coderabbit eoz/epC: the body must not become a process arg. Since
+        # issue #6919 the strict reader checks the file and gh gets the text
+        # on stdin through --body-file -, so gh never reopens the path.
         body_file = tmp_path / "body.md"
         body_file.write_text("file body\n", encoding="utf-8")
+        body_file.chmod(0o600)
         captured_args = []
+        captured_input = []
 
         def fake_run(args, **kwargs):
             captured_args.extend(args)
+            captured_input.append(kwargs.get("input"))
             return _make_proc(returncode=0)
 
         with (
@@ -128,9 +135,10 @@ class TestEditIssueBodySuccess:
             result = main(["--issue", "42", "--body-file", str(body_file)])
         assert result == 0
         assert "--body-file" in captured_args
-        # The argument after --body-file should be the resolved path
         idx = captured_args.index("--body-file")
-        assert captured_args[idx + 1].endswith("body.md")
+        assert captured_args[idx + 1] == "-"
+        assert captured_input == ["file body\n"]
+        assert str(body_file) not in captured_args
         # Bare --body should NOT appear with file content as the next arg
         assert "--body" not in captured_args
 

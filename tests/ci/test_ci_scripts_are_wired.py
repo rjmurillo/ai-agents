@@ -95,6 +95,14 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "which are workflow-invoked. It has no main() and no shebang; "
         "tests/ci/test_base_derived_ratchet.py covers it directly (issue #5363)."
     ),
+    "consecutive_breach.py": (
+        "Library holding the consecutive-main breach policy. "
+        "scripts/testing/slow_test_budget.py, scripts/testing/duration_trend.py and "
+        "scripts/testing/duration_gate_check.py import it and pytest.yml runs all "
+        "three scripts. It has no main() and no shebang; "
+        "tests/test_consecutive_breach.py and tests/test_consecutive_breach_io.py "
+        "cover it directly (issues #6757, #6796, #6751)."
+    ),
     "lefthook_budget_model.py": (
         "Library holding the lefthook scheduling model shared by "
         "scripts/metrics/control_plane_baseline.py and the declared-budget "
@@ -150,6 +158,12 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "for every partition (issue #5050). It keeps the repo-isolated temp root; "
         "tests/ci/test_pytest_non_tmp_policy.py covers it directly and asserts the "
         "workflow routes through the selection runner that calls it."
+    ),
+    "pytest_module_split.py": (
+        "pytest plugin that run_pytest_partition.py loads with -p on every split "
+        "leg, and pytest.yml runs that runner for every partition (issue #6846). "
+        "tests/ci/test_pytest_module_split.py covers it directly, and "
+        "tests/ci/test_pytest_split_pool.py runs it over the real pool."
     ),
     "spec_nonexecutable_criteria.py": (
         "Library holding the acceptance-criteria classifier for "

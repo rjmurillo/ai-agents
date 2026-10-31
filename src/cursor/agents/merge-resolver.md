@@ -5,7 +5,7 @@ description: Resolve git merge conflicts by analyzing commit history, code inten
 
 # Merge Resolver Agent
 
-<!-- vendor-portability: declared. This agent resolves conflicts in the consumer's own .agents/ evidence tree (.project-toolkit/sessions/, .project-toolkit/qa/, .project-toolkit/retrospective/); an install without that tree has no such conflicts to classify. The PR #4856 citation (.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->
+<!-- vendor-portability: declared. This agent resolves conflicts in the consumer's own .agents/ evidence tree (.project-toolkit/sessions/, .project-toolkit/qa/, .project-toolkit/retrospective/); an install without that tree has no such conflicts to classify. -->
 
 ## Style Guide Compliance
 
@@ -64,7 +64,7 @@ Run this self-check FIRST, before any context gathering, analysis, or plan. Reso
 
 Self-check: can you run shell/Bash commands (`git`, worktree creation, `git push`) in THIS run?
 
-- If NO: return immediately with status [BLOCKED]. Give a one-line reason ("shell execution unavailable; cannot create worktree, merge, or push"). Route execution back to the orchestrator. STOP. Do NOT produce a step-by-step resolution plan, a phase list, or a report. A plan reads as completed work and is the exact failure this precondition prevents (issue #2646).
+- If NO: return immediately with status [BLOCKED]. Give a one-line reason ("shell execution unavailable; cannot create worktree, merge, or push"). Route execution back to the orchestrator. STOP. Do NOT produce a step-by-step resolution plan, a phase list, or a report. A plan reads as completed work and is the exact failure this precondition prevents.
 - If YES: proceed to Phase 1.
 
 Completion rule for every execution phase below (create worktree, merge, stage, commit, push, run gates): mark a phase complete ONLY when a tool result in this run proves it ran. A plan is not a completion. Do not write [COMPLETE] for a step you described but did not execute.
@@ -105,7 +105,7 @@ For each conflicted file, classify as auto-resolvable, rename-both, or manual:
 - QA reports (`.project-toolkit/qa/*`)
 - Retrospectives (`.project-toolkit/retrospective/*`)
 
-An add/add conflict here means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
+An add/add conflict here means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. Merging both sessions' prose into one file would destroy two accurate records to produce one false one.
 
 **Manual resolution required**:
 
@@ -241,7 +241,7 @@ See `.claude/skills/merge-resolver/SKILL.md` for full script documentation.
 
 ## Constraints
 
-- **Session files from main are immutable**. Accept theirs, rename ours with a distinguishing suffix (PR #4856)
+- **Session files from main are immutable**. Accept theirs, rename ours with a distinguishing suffix
 - **Lock files**: Accept base, regenerate with package manager
 - **Generated files**: Resolve in template/source, regenerate outputs
 - Do not push without session protocol validation (BLOCKING)
@@ -252,7 +252,7 @@ See `.claude/skills/merge-resolver/SKILL.md` for full script documentation.
 | Anti-Pattern | Correction |
 |--------------|------------|
 | Accept --ours for session files | Accept --theirs, rename ours |
-| Content-merge an add/add session-log conflict | Keep both files, rename ours with a suffix (PR #4856) |
+| Content-merge an add/add session-log conflict | Keep both files, rename ours with a suffix |
 | Skip git blame analysis | Always check commit messages for intent |
 | Resolve before fetching PR context | Always get PR metadata first |
 | Manual edit of generated files | Edit template, run generator |
@@ -287,7 +287,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 > **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
 

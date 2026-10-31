@@ -10,9 +10,16 @@ The table is a map of module path to seconds. A budgeted module absent from the
 report is not a violation: partitioned and change-scoped CI runs legitimately do
 not execute every suite, and the printed counts say which case a green run was.
 
-Exit codes: 0 ok (nothing over budget), 1 logic (a module over budget, or no
-records at all), 2 config (unreadable budget or arguments), 3 external
-(unreadable input).
+By default any overrun fails. ``--breach-policy consecutive-main`` applies the
+owner decision of issue #6757: one sample on a shared runner swings 3x, so an
+overrun only warns on a pull request, and on a push to main it fails only when
+the same module also overran on the previous main run
+(``scripts/ci/consecutive_breach.py``). A first overrun on main warns and is
+recorded; an unknown previous run counts as an overrun.
+
+Exit codes: 0 ok (nothing over budget, or only warnings under the policy), 1 logic
+(a failing overrun, or no records at all), 2 config (unreadable budget or
+arguments), 3 external (unreadable input, unwritable breach record).
 """
 
 from __future__ import annotations
@@ -35,6 +42,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scripts.ci import consecutive_breach  # noqa: E402
 from scripts.testing.slow_test_report import (  # noqa: E402
     ModuleGroup,
     group_by_module,
@@ -71,8 +79,20 @@ def overruns(
     ]
 
 
-def report(groups: Sequence[ModuleGroup], budget: dict[str, float]) -> int:
-    """Print the verdict and return the exit code it implies."""
+GATE = "slow-test-budget"
+
+
+def report(
+    groups: Sequence[ModuleGroup],
+    budget: dict[str, float],
+    policy: consecutive_breach.Policy | None = None,
+    fetch: consecutive_breach.Fetch | None = None,
+) -> int:
+    """Print the verdict and return the exit code it implies.
+
+    With no ``policy`` every overrun fails. A policy decides, per module, whether
+    an overrun warns or fails (issue #6757).
+    """
     present = [g for g in groups if g.module in budget]
     over = overruns(groups, budget)
     for module, seconds, limit in over:
@@ -85,7 +105,14 @@ def report(groups: Sequence[ModuleGroup], budget: dict[str, float]) -> int:
         f"modules present, {len(groups)} modules in this report",
         file=sys.stderr,
     )
-    return 1 if over else 0
+    verdict = consecutive_breach.apply_policy(
+        GATE,
+        {m: f"recorded {s:.2f}s against {limit:.2f}s" for m, s, limit in over},
+        policy or consecutive_breach.Policy(),
+        fetch,
+        title="Slow-test budget",
+    )
+    return 1 if verdict.failing else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -102,6 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="TOML",
         help="TOML file holding [tool.slow-test-budget] (default: pyproject.toml).",
     )
+    consecutive_breach.add_policy_arguments(parser)
     return parser
 
 
@@ -129,7 +157,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not records:
         print("no test records in the given inputs", file=sys.stderr)
         return 1
-    return report(group_by_module(records.values(), min_seconds=0.0), budget)
+    try:
+        policy = consecutive_breach.policy_from_args(args)
+    except ValueError as exc:
+        print(f"bad breach policy: {exc}", file=sys.stderr)
+        return 2
+    try:
+        return report(group_by_module(records.values(), min_seconds=0.0), budget, policy)
+    except OSError as exc:
+        print(f"could not write the breach record: {exc}", file=sys.stderr)
+        return 3
 
 
 if __name__ == "__main__":

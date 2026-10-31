@@ -96,10 +96,12 @@ ROOT_SCRATCH_ALLOWLIST = frozenset(
         "LICENSE",
         "README.md",
         "RELEASING.md",
+        "SECURITY.md",
         "THIRD-PARTY-NOTICES.TXT",
         "conftest.py",
         "lefthook.yml",
         "llms.txt",
+        "package-lock.json",
         "package.json",
         "pyproject.toml",
         "renovate.json",
@@ -111,7 +113,6 @@ EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     {
-        ".PSScriptAnalyzerSettings.psd1",
         ".actrc",
         ".agents",
         ".claude-mem",
@@ -148,6 +149,8 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         "LICENSE",
         "README.md",
         "RELEASING.md",
+        # GitHub and the HOL plugin scanner read the security policy only here.
+        "SECURITY.md",
         "THIRD-PARTY-NOTICES.TXT",
         "build",
         "conftest.py",
@@ -156,6 +159,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         "lefthook.yml",
         "llms.txt",
         "memory_enhancement",
+        "package-lock.json",
         "package.json",
         "packages",
         "pyproject.toml",

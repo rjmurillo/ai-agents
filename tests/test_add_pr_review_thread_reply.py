@@ -37,8 +37,15 @@ query_thread_state = _mod.query_thread_state
 _UNRESOLVED_STATE: dict = {
     "id": "PRRT_abc",
     "isResolved": False,
-    "pullRequest": {"number": 42},
+    "pullRequest": {
+        "number": 42,
+        "state": "OPEN",
+        "headRefOid": "aaa111",
+        "baseRefName": "main",
+        "baseRefOid": "bbb222",
+    },
 }
+_HEAD_ARGS = ["--expected-head-sha", "aaa111"]
 _AUTO_MERGE_GUARD_NOOP: dict = {
     "action": "NOOP",
     "reason": "auto_merge_not_armed",
@@ -186,7 +193,7 @@ class TestMain:
                 side_effect=[reply_data, resolve_data],
             ),
         ):
-            rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+            rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve", *_HEAD_ARGS])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)["Data"]
         assert output["thread_resolved"] is True
@@ -246,7 +253,7 @@ class TestMain:
                 side_effect=fake_graphql,
             ),
         ):
-            rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+            rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve", *_HEAD_ARGS])
 
         assert rc == 0
         assert calls == ["reply", "guard", "resolve"]
@@ -300,6 +307,7 @@ class TestMain:
                     "--body",
                     "Fixed.",
                     "--resolve",
+                    *_HEAD_ARGS,
                 ]
             )
         assert rc == 0
@@ -355,7 +363,7 @@ class TestMain:
             ),
         ):
             with pytest.raises(SystemExit) as exc:
-                main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+                main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve", *_HEAD_ARGS])
 
         assert exc.value.code == 3
         assert calls == ["reply"]
@@ -396,7 +404,9 @@ class TestMain:
         assert output["action"] == "SKIP"
         assert output["reason"] == "thread_state_query_failed"
 
-    def test_body_from_file(self, tmp_path, capsys):
+    def test_body_from_file(self, stub_git_probes, tmp_path_is_temp_root, capsys):
+        # The strict reader needs a temp root; CI puts basetemp outside /tmp.
+        tmp_path = tmp_path_is_temp_root
         body_file = tmp_path / "reply.md"
         body_file.write_text("File content")
         reply_data = {
@@ -605,16 +615,20 @@ class TestExpectedIdentity:
         assert rc == 0
         assert calls == ["reply"]
 
-    def test_moved_head_without_expectation_keeps_existing_behavior(self):
-        """Negative control: no expected arguments means no identity check."""
-        rc, calls, guard_calls = _run_with_identity(
-            [_live_state(headRefOid="ccc333")] * 3,
-            ["--resolve"],
-        )
+    def test_resolve_without_identity_flags_exits_two_before_any_api_call(self, capsys):
+        with (
+            patch.object(_mod, "assert_gh_authenticated") as auth,
+            patch.object(_mod, "gh_graphql") as graphql,
+            patch.object(_mod, "query_thread_state") as state,
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
 
-        assert rc == 0
-        assert calls == ["reply", "guard", "resolve"]
-        assert guard_calls == [("PRRT_abc", None)]
+        assert exc.value.code == 2
+        auth.assert_not_called()
+        graphql.assert_not_called()
+        state.assert_not_called()
+        assert "--resolve requires at least one of" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

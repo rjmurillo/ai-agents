@@ -15,12 +15,16 @@ Coverage:
 - positive: the hook is still piped, which the fast-fail staging depends on.
 - negative: a synthetic glob on any target makes the soundness check fail.
 - edge: direct pre-PR callers leave the scheduler flag unset.
+- issue #6884: no pre-push glob matches the runner's placeholder path, and every
+  job that takes a file template carries a glob, so a delete-only push runs the
+  ref guards and hands no file-scoped job a fake file.
 """
 
 from __future__ import annotations
 
+import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
@@ -33,6 +37,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import pre_pr_sequence  # noqa: E402
+import push_file_list  # noqa: E402
 
 FAST_STAGE_FLAG = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
 EXPECTED_DEFERRALS = {
@@ -68,6 +73,28 @@ def _all_jobs(hook: str) -> list[dict[str, Any]]:
         if isinstance(entry, dict):
             out.extend(_jobs_in_entry(entry))
     return out
+
+
+def _ancestors_of(hook: str, name: str) -> list[dict[str, Any]]:
+    """Group entries enclosing the named job, outermost first. Empty if top level."""
+
+    def walk(entry: dict[str, Any], trail: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        group = entry.get("group")
+        if not isinstance(group, dict):
+            return trail if entry.get("name") == name else None
+        for child in group.get("jobs", []):
+            if isinstance(child, dict):
+                found = walk(child, [*trail, entry])
+                if found is not None:
+                    return found
+        return None
+
+    for entry in _config()[hook]["jobs"]:
+        if isinstance(entry, dict):
+            found = walk(entry, [])
+            if found is not None:
+                return found
+    return []
 
 
 def _job_named(hook: str, name: str) -> dict[str, Any] | None:
@@ -170,35 +197,89 @@ class TestTheDeferredGatesStillExist:
             self.test_every_formerly_deferred_gate_is_still_in_the_sequence()
 
 
+# Job keys that can stop a lefthook job from running on a push. Source: the
+# lefthook v2.2.2 schema.json (the version pinned in pyproject.toml) and its
+# configuration docs. `glob`, `exclude`, `file_types`, and `files` filter by the
+# staged or pushed file set, `skip` and `only` gate on branch, ref, or run
+# conditions, and `tags` lets `exclude_tags` or LEFTHOOK_EXCLUDE drop the job.
+# A deferral target carrying any of them records the pre_pr gate as passed
+# with nothing run (issue #5317).
+CONDITIONAL_JOB_KEYS = ("glob", "files", "skip", "only", "exclude", "file_types", "tags")
+
+
 def _unsound_deferrals() -> list[str]:
     unsound: list[str] = []
     for gate_name, job_name in _deferrals().items():
         job = _job_named("pre-push", job_name)
         if job is None:
             unsound.append(f"{gate_name} defers to {job_name!r}, which does not exist")
-        elif job.get("glob") is not None:
-            unsound.append(
-                f"{gate_name} defers to {job_name!r}, which carries "
-                f"glob={job['glob']!r} and so does not run on every push"
-            )
+            continue
+        # A group's conditions apply to every job nested in it, so each
+        # enclosing group counts as well as the target itself.
+        for carrier in [*_ancestors_of("pre-push", job_name), job]:
+            for key in CONDITIONAL_JOB_KEYS:
+                if carrier.get(key) is not None:
+                    unsound.append(
+                        f"{gate_name} defers to {job_name!r}, which carries "
+                        f"{key}={carrier[key]!r} (on "
+                        f"{carrier.get('name', 'an enclosing group')!r}) and so may "
+                        "not run on every push"
+                    )
     return unsound
 
 
 class TestEveryDeferralIsSound:
-    def test_a_deferral_target_must_not_be_glob_gated(self) -> None:
+    def test_a_deferral_target_must_not_be_conditional(self) -> None:
         assert _unsound_deferrals() == []
 
-    def test_the_rule_rejects_a_globbed_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize(
+        ("key", "value"),
+        [
+            ("glob", "**/*.py"),
+            ("files", "git diff --name-only"),
+            ("skip", ["merge", "rebase"]),
+            ("only", [{"ref": "main"}]),
+            ("exclude", ["docs/**"]),
+            ("file_types", ["text"]),
+            ("tags", ["slow"]),
+        ],
+    )
+    def test_the_rule_rejects_a_conditional_target(
+        self, monkeypatch: pytest.MonkeyPatch, key: str, value: Any
+    ) -> None:
         real_lookup = _job_named
 
         def lookup(hook: str, name: str) -> dict[str, Any] | None:
             job = real_lookup(hook, name)
             if name == "count-ratchets" and job is not None:
-                return {**job, "glob": "**/*.py"}
+                return {**job, key: value}
             return job
 
         monkeypatch.setattr(sys.modules[__name__], "_job_named", lookup)
-        assert any("Count Ratchets" in item for item in _unsound_deferrals())
+        assert any("Count Ratchets" in item and f"{key}=" in item for item in _unsound_deferrals())
+
+
+@pytest.mark.parametrize("key", ["glob", "skip"])
+def test_the_rule_rejects_a_target_under_a_conditional_group(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    """Negative control: a clean target nested in a group that carries `key`."""
+    config = {
+        "pre-push": {
+            "jobs": [
+                {
+                    "name": "outer",
+                    key: "**/*.py" if key == "glob" else ["merge"],
+                    "group": {"jobs": [{"name": "count-ratchets", "run": "true"}]},
+                }
+            ]
+        }
+    }
+    monkeypatch.setattr(sys.modules[__name__], "_config", lambda: config)
+    assert any(
+        "Count Ratchets" in item and f"{key}=" in item and "'outer'" in item
+        for item in _unsound_deferrals()
+    )
 
 
 # ADR-104 rule 9. A job that cannot fail is not a gate, and pre-push carries six
@@ -263,3 +344,77 @@ class TestNonBlockingJobsAreDeclaredNotDiscovered:
                 "blocking gate now, drop it from EXIT_SWALLOWING_PREPUSH_JOBS "
                 "and size its cap as a gate rather than as a reporter."
             )
+
+
+# Templates that hand a job the pre-push file list (lefthook 2.2.2).
+_FILE_TEMPLATES = ("{push_files}", "{files}", "{all_files}", "{staged_files}")
+_BRACES = re.compile(r"\{([^{}]*)\}")
+
+
+def _expand_braces(pattern: str) -> list[str]:
+    """Expand ``{a,b}`` alternatives, which pathlib matching does not support."""
+    match = _BRACES.search(pattern)
+    if match is None:
+        return [pattern]
+    head, tail = pattern[: match.start()], pattern[match.end() :]
+    return [
+        expanded
+        for option in match.group(1).split(",")
+        for expanded in _expand_braces(f"{head}{option}{tail}")
+    ]
+
+
+def _globs(job: dict[str, Any]) -> list[str]:
+    value = job.get("glob")
+    if value is None:
+        return []
+    return [value] if isinstance(value, str) else list(value)
+
+
+def _matches(path: str, pattern: str) -> bool:
+    """Doublestar match, as `glob_matcher: doublestar` sets: `**` spans zero or more dirs."""
+    return any(PurePosixPath(path).full_match(item) for item in _expand_braces(pattern))
+
+
+def _placeholder_leaks(jobs: list[dict[str, Any]]) -> list[str]:
+    leaks: list[str] = []
+    for job in jobs:
+        name = job.get("name", "an unnamed job")
+        for pattern in _globs(job):
+            if _matches(push_file_list.PLACEHOLDER, pattern):
+                leaks.append(f"{name!r} glob {pattern!r} matches the placeholder")
+        run = str(job.get("run", ""))
+        if any(template in run for template in _FILE_TEMPLATES) and not _globs(job):
+            leaks.append(f"{name!r} takes a file template with no glob")
+    return leaks
+
+
+class TestThePlaceholderReachesNoFileScopedJob:
+    """Issue #6884: a push that changes no file passes the runner's placeholder."""
+
+    def test_no_pre_push_job_sees_the_placeholder(self) -> None:
+        assert _placeholder_leaks(_all_jobs("pre-push")) == []
+
+    @pytest.mark.parametrize("pattern", ["**", "*", ".*", ".lefthook-*", "{*.py,*}"])
+    def test_a_glob_that_matches_the_placeholder_is_caught(self, pattern: str) -> None:
+        job = {"name": "synthetic", "run": "echo {push_files}", "glob": pattern}
+        assert _placeholder_leaks([job]) == [
+            f"'synthetic' glob {pattern!r} matches the placeholder"
+        ]
+
+    @pytest.mark.parametrize("template", _FILE_TEMPLATES)
+    def test_a_file_template_without_a_glob_is_caught(self, template: str) -> None:
+        job = {"name": "synthetic", "run": f"echo {template}"}
+        assert _placeholder_leaks([job]) == ["'synthetic' takes a file template with no glob"]
+
+    @pytest.mark.parametrize(
+        ("path", "pattern", "expected"),
+        [
+            ("a.py", "**/*.py", True),
+            ("src/a.py", "**/*.py", True),
+            (".github/workflows/x.yaml", ".github/workflows/**/*.{yml,yaml}", True),
+            ("a.md", "**/*.py", False),
+        ],
+    )
+    def test_the_matcher_follows_doublestar(self, path: str, pattern: str, expected: bool) -> None:
+        assert _matches(path, pattern) is expected

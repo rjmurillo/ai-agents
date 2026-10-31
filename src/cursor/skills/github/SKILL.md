@@ -126,6 +126,7 @@ Need GitHub data?
    ├─ Assign Copilot → invoke_copilot_assignment.py
    ├─ Enable/disable auto-merge → set_pr_auto_merge.py
    ├─ Update PR branch with its base (server side) → update_pr_branch.py
+   ├─ Rerun failed CI jobs on a PR or run → rerun_failed_jobs.py
    ├─ Close PR → close_pr.py
    └─ Merge PR → merge_pr.py
 ```
@@ -141,7 +142,7 @@ scripts under `scripts/pr/` with bare `python3`, not `uv run`.
 `anthropic==0.116.0` (a core dependency in `pyproject.toml`) from PyPI and times
 out with no network. The read-only PR scripts never import the anthropic SDK.
 They import only `github_core`, which parses YAML with a vendored fallback when
-PyYAML is absent (issue #1844), so no third-party import is required.
+PyYAML is absent, so no third-party import is required.
 
 ```bash
 # No PyPI round trip. Runs read-only PR status offline.
@@ -153,7 +154,7 @@ python3 "$SCRIPTS_DIR/get_pr_checks.py" --pr <N>
 ```
 
 Any `python3` works: `github_core` falls back to a vendored YAML parser when
-PyYAML is absent (issue #1844), confirmed by running these scripts with both
+PyYAML is absent, confirmed by running these scripts with both
 PyYAML and the anthropic SDK blocked. The interpreter from
 `scripts/bootstrap-vm.sh` and a project `.venv/bin/python3` both ship PyYAML for
 the faster path. Do not use `uv run` for read-only triage offline; it forces the
@@ -187,7 +188,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `detect_copilot_followup_pr.py` | Detect Copilot follow-up PRs | `--pr-number`, `--owner`, `--repo` |
 | `new_pr_review_comment.py` | New diff-line comment | `--pull-request`, `--path`, `--line`, `--side` (default RIGHT), `--body` or `--body-file` |
 | `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |
-| `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` |
+| `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` (needs one of `--expected-head-sha`, `--expected-base-ref`, `--expected-base-sha`) |
 | `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id --expected-pull-request` or `--pull-request --all` |
 | `unresolve_pr_review_thread.py` | Mark threads unresolved | `--thread-id` or `--pull-request --all` |
 | `get_thread_by_id.py` | Get single thread by ID | `--thread-id` |
@@ -199,11 +200,12 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
+| `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies body (Markdown) and commit/override (plain-text) context; flags a claim unsupported when it can reach the squash commit without a matching active body claim (exit 1). Needs a token with administration read (GitHub hides `squash_merge_commit_message` otherwise); without it the audit exits 3 instead of reporting a clean fleet | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
-| `edit_pr_body.py` | PR body edit, SHA-256 guard; prepared `--body-file` | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
+| `edit_pr_body.py` | PR body edit, SHA-256 guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 
 ### Issue Operations (`scripts/issue/`)
 
@@ -336,9 +338,9 @@ GitHub automatically links and closes issues when PRs use specific keywords in P
 
 | Keyword | Variations | Example |
 |---------|-----------|---------|
-| Closes | close, closed | `Closes #123` |
-| Fixes | fix, fixed | `Fixes #456` |
-| Resolves | resolve, resolved | `Resolves #789` |
+| Closes | close, closed | `Closes #<number>` |
+| Fixes | fix, fixed | `Fixes #<number>` |
+| Resolves | resolve, resolved | `Resolves #<number>` |
 
 ### Usage Patterns
 
@@ -348,8 +350,8 @@ GitHub automatically links and closes issues when PRs use specific keywords in P
 ## Summary
 This PR adds feature X.
 
-Closes #123
-Fixes #456
+Closes #<number>
+Fixes #<number>
 ```
 
 **In Commit Messages:**
@@ -359,7 +361,7 @@ feat: Add feature X
 
 Implements the new feature as specified.
 
-Closes #123
+Closes #<number>
 ```
 
 **Best Practices:**
@@ -373,7 +375,7 @@ Closes #123
 
 ## Linking Issues to Each Other
 
-A `#123` in an issue body is text only. It sets no parent, no dependency, and
+A `#<number>` in an issue body is text only. It sets no parent, no dependency, and
 no relation. Whenever an issue body names another issue as a parent, child,
 blocker, or context, add the native link with `set_issue_relationship.py`.
 
@@ -439,7 +441,7 @@ author gets `source:human`. It only labels.
 | Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
 | Retrying `gh` after a session refusal | The refusal has no reset; retries only burn the budget | Run the transport preflight, then use the GitHub MCP operations |
 | Reporting a PR blocked because a call failed | An unreachable API is an unknown, not a verdict | Name the transport failure as the cause |
-| Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory | It is a cached, frequently-stale field. `why_pr_blocked.py` decomposes it into required checks, review threads, and merge conflicts, but does not query `reviewDecision` or the required-approving-review count, so a repo that requires approvals can still be blocked on that even when the script reports no cause | Run `why_pr_blocked.py` first. GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them (`resolve_pr_review_thread.py`). If the script reports no cause but the PR is still blocked, also check `get_pr_context.py`'s `review_decision` field against the target branch's required-approving-review count |
+| Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory | It is a cached, frequently-stale field. `why_pr_blocked.py` does not query `reviewDecision` or the required-approving-review count | Run `why_pr_blocked.py` first and resolve unresolved threads with `resolve_pr_review_thread.py`. Details: `references/api-reference.md`, "Blocked PR diagnosis" |
 
 ---
 

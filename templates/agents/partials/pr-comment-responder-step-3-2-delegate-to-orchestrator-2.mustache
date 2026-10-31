@@ -72,7 +72,7 @@ Copilot follow-up PRs match:
 - **Target**: Original PR's base branch (not main)
 - **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
 
-**Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
+**Example**: an original PR → its follow-up PR (branch `copilot/sub-pr-{original_pr_number}`)
 
 #### Step 4.5.1: Query for Follow-Up PRs
 
@@ -106,7 +106,7 @@ Analyze the follow-up PR content to determine intent:
 
 **DUPLICATE**: Follow-up contains same changes as fixes already applied
 
-- Example: PR #32/#33 (both address same 5 comments)
+- Example: the original PR and its follow-up PR (both address same 5 comments)
 - Action: Close with explanation linking to original commits
 
 **SUPPLEMENTAL**: Follow-up addresses different/additional issues

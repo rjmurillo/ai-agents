@@ -13,6 +13,8 @@ You need one of these AI coding tools:
 
 For development work on this repository, see [CONTRIBUTING.md](../CONTRIBUTING.md#prerequisites) for Python, uv, and test setup.
 
+The monthly API credits included with Claude Max plans don't cover Claude Code ([Anthropic Help Center](https://support.claude.com/en/articles/17154008-monthly-api-credits-for-max-and-team-plans)). See [COST-GOVERNANCE.md](COST-GOVERNANCE.md#claude-max-monthly-api-credits) for how the credits apply to this repository's workflows.
+
 ## Fastest Start
 
 Use the built-in marketplace support in the CLI you are actually running.

@@ -2500,6 +2500,35 @@ def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
     return sorted(found, key=lambda load: load.line)
 
 
+# One caller-owned memo for _dynamic_loads, keyed on the exact script path and
+# its source bytes. The caller creates it for one run and drops it after.
+_DynamicLoadCache = dict[tuple[Path, bytes], tuple[_DynamicLoad, ...]]
+
+
+def _memoized_dynamic_loads(
+    source: bytes,
+    script: Path,
+    cache: _DynamicLoadCache | None,
+) -> list[_DynamicLoad]:
+    """:func:`_dynamic_loads`, served from ``cache`` when the same input was seen.
+
+    ``_dynamic_loads`` reads no file and no global state, so its result is a
+    pure function of ``(source, script)``. The key is both values, unchanged.
+    ``script`` is not resolved: a load built from ``__file__`` derives its path
+    from it, so two link spellings of one file can yield different loads. The
+    source bytes are in the key, so a file rewritten mid-run misses the cache.
+    With no cache this is a plain call.
+    """
+    if cache is None:
+        return _dynamic_loads(source, script)
+    key = (script, source)
+    loads = cache.get(key)
+    if loads is None:
+        loads = tuple(_dynamic_loads(source, script))
+        cache[key] = loads
+    return list(loads)
+
+
 def _resolve_dynamic_target(
     load: _DynamicLoad,
     roots: list[Path],
@@ -2523,7 +2552,12 @@ def _resolve_dynamic_target(
     return [candidate.relative_to(toplevel).as_posix()]
 
 
-def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
+def _unresolvable_dynamic_sites(
+    rel_paths: list[str],
+    toplevel: Path,
+    *,
+    load_cache: _DynamicLoadCache | None = None,
+) -> list[str]:
     """``path:line: message`` for every dynamic load in ``rel_paths`` that fails closed.
 
     A file load is unresolvable when its path is computed, names a file that
@@ -2531,6 +2565,10 @@ def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[st
     a computed or relative name is unresolvable. A module named literally that
     resolves nowhere in the tree is standard library or an installed package,
     which is not PR content, so it is not reported.
+
+    ``load_cache`` is the memo :func:`_expand_import_closure` filled in the
+    same run, so each file is parsed for loads once (see
+    :func:`_memoized_dynamic_loads`).
     """
     sites: list[str] = []
     for rel in rel_paths:
@@ -2542,7 +2580,7 @@ def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[st
         except OSError:
             continue
         roots = _import_roots(script, toplevel)
-        for load in _dynamic_loads(source, script):
+        for load in _memoized_dynamic_loads(source, script, load_cache):
             if load.module is not None:
                 continue
             if load.path is not None and _resolve_dynamic_target(load, roots, toplevel):
@@ -2691,7 +2729,12 @@ def _shadowing_import_files(rel_paths: list[str], toplevel: Path) -> list[str]:
     return found
 
 
-def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
+def _expand_import_closure(
+    rel_paths: list[str],
+    toplevel: Path,
+    *,
+    load_cache: _DynamicLoadCache | None = None,
+) -> list[str]:
     """``rel_paths`` plus every work-tree module they transitively import.
 
     Closes the transitive-import half of CWE-829. Verifying only the
@@ -2715,6 +2758,9 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
     :func:`_unresolvable_dynamic_sites`, not silently dropped here.
     ``sys.path`` entries this function does not model are not covered; see
     the module docstring's scope section.
+
+    Pass the same ``load_cache`` dict to :func:`_unresolvable_dynamic_sites`
+    to skip its second parse of each file. None keeps both uncached.
     """
     seen = list(rel_paths)
     queue = [path for path in rel_paths if path.endswith(".py")]
@@ -2732,7 +2778,7 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
                 if found not in seen:
                     seen.append(found)
                     queue.append(found)
-        for load in _dynamic_loads(source, script):
+        for load in _memoized_dynamic_loads(source, script, load_cache):
             for found in _resolve_dynamic_target(load, absolute_roots, toplevel):
                 if found not in seen:
                     seen.append(found)

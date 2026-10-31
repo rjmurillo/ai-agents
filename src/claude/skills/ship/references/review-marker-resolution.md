@@ -48,5 +48,19 @@ The default form, when nothing else resolves, is
 | Code | Meaning | What ship does |
 |------|---------|----------------|
 | 0 | HEAD is a review marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip, its parent, and whose body holds the review report its `Review-Artifact` digest covers. HEAD may also be a clean merge of `origin/main` above such a marker | Check 3 PASSES |
-| 1 | No marker, a stale marker, new code after review (a merge with conflict edits or an extra edit counts), an unknown or repeated axis name, or a missing or altered review report | Check 3 FAILS: run review, then re-run ship |
+| 1 | No marker, a stale marker, new code after review (a merge with conflict edits or an extra edit counts), an unknown or repeated axis name, a missing or altered review report, or a `--require-axis` axis the marker does not declare | Check 3 FAILS: run review (with the required axis pinned when that is the cause), then re-run ship |
 | 2 | Configuration error | Check 3 FAILS |
+
+## Coverage
+
+The marker proves only the axes its `Reviewed-By: /review@<axes>` trailer declares. The
+validator PASS line prints them. `/review` is risk-selected, so a valid marker may name a
+subset; deep review declares the full set. Risk-selected review is acceptable for shipping
+without a blanket deep review.
+
+- Report the declared axes. Never call the result a full review.
+- An axis absent from the marker is `NOT RUN`. Keep it distinct from a passed axis.
+- `/ship` requires no axis by default. To require one, add `--require-axis <axis>`
+  (repeatable) to the validator command. Exit `1` with "required axis not declared" means
+  the axis is not verified and check 3 FAILS. Re-run `/review` with that axis pinned.
+- SHA binding, the `Review-Artifact` digest, unknown axes, and repeated axes fail as before.

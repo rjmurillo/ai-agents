@@ -150,6 +150,37 @@ def test_manifest_ignores_bytecode_and_cache_directories(tmp_path: Path) -> None
     assert list(grader.manifest(tmp_path)) == ["pkg/m.py"]
 
 
+@pytest.mark.parametrize("cache", [".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis"])
+def test_manifest_ignores_caches_that_running_a_check_writes(tmp_path: Path, cache: str) -> None:
+    (tmp_path / cache / "v" / "cache").mkdir(parents=True)
+    (tmp_path / cache / "v" / "cache" / "nodeids").write_text("[]\n", encoding="utf-8")
+    (tmp_path / cache / "README.md").write_text("cache\n", encoding="utf-8")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "m.py").write_text("x = 1\n", encoding="utf-8")
+
+    assert list(grader.manifest(tmp_path)) == ["pkg/m.py"]
+
+
+def test_manifest_keeps_files_that_only_resemble_a_cache_name(tmp_path: Path) -> None:
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "pytest_cache.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / ".pytest_cache_notes.md").write_text("notes\n", encoding="utf-8")
+
+    assert sorted(grader.manifest(tmp_path)) == [".pytest_cache_notes.md", "pkg/pytest_cache.py"]
+
+
+def test_changed_paths_ignores_a_pytest_cache_written_by_a_test_run(tmp_path: Path) -> None:
+    item = _load(REAL_CORPUS, BOUNDED)
+    workdir = tmp_path / "work"
+    grader.materialize(item, workdir)
+    before = grader.manifest(workdir)
+    (workdir / ".pytest_cache" / "v" / "cache").mkdir(parents=True)
+    (workdir / ".pytest_cache" / "v" / "cache" / "nodeids").write_text("[]\n", encoding="utf-8")
+    (workdir / ".pytest_cache" / "CACHEDIR.TAG").write_text("tag\n", encoding="utf-8")
+
+    assert grader.manifest(workdir) == before
+
+
 def test_changed_paths_reports_added_modified_and_deleted_files(tmp_path: Path) -> None:
     item = _load(REAL_CORPUS, BOUNDED)
     workdir = tmp_path / "work"

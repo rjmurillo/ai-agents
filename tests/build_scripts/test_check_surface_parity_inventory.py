@@ -363,8 +363,13 @@ def test_find_repo_root_raises_outside_a_repo(tmp_path: Path) -> None:
 # --- build_all --check wiring --------------------------------------------
 
 
-def test_build_all_check_passes_without_a_manifest(tmp_path: Path) -> None:
-    assert build_all._surface_parity_exit(tmp_path, []) == 0
+def test_build_all_check_fails_closed_without_a_manifest(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert build_all._surface_parity_exit(tmp_path, []) == 2
+    err = capsys.readouterr().err
+    assert "surface parity manifest missing" in err
+    assert "templates/platforms/surface-parity.yaml" in err
 
 
 def test_build_all_check_passes_on_a_clean_repo(repo: Path) -> None:

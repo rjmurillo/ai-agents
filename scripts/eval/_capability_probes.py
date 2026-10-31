@@ -156,11 +156,17 @@ class _RequestTemplate:
 # codex-cli 0.156.0, 2026-09-24). `copilot --help` (1.0.89) lists no concurrency
 # option, so copilot has no entry, and `probe_concurrency` records UNVERIFIED
 # "not trusted" rather than guessing a flag the CLI does not honor.
+#
+# Claude Code (2.1.307, `claude --help` and live runs 2026-10-23) takes
+# `--model` and `--effort <level>`. Its subagent cap is the environment variable
+# `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, not a flag, so it has no entry here.
 TRUSTED_REQUEST_TEMPLATES: Mapping[tuple[str, str], _RequestTemplate] = {
     ("codex", "model_override"): _RequestTemplate("--model"),
     ("codex", "effort_override"): _RequestTemplate("-c", "model_reasoning_effort={}"),
     ("codex", "sol_ultra"): _RequestTemplate("-c", "model_reasoning_effort={}"),
     ("codex", "concurrency_limit"): _RequestTemplate("-c", "agents.max_threads={}"),
+    ("claude", "model_override"): _RequestTemplate("--model"),
+    ("claude", "effort_override"): _RequestTemplate("--effort"),
     ("copilot", "model_override"): _RequestTemplate("--model"),
     ("copilot", "effort_override"): _RequestTemplate("--reasoning-effort"),
     ("copilot", "sol_ultra"): _RequestTemplate("--reasoning-effort"),

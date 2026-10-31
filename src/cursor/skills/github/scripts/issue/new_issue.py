@@ -70,7 +70,11 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
-from github_core.validation import escaped_newline_body_error, is_allowed_body_file_path
+from github_core.validation import (
+    escaped_newline_body_error,
+    is_allowed_body_file_path,
+    read_body_file_text,
+)
 
 
 def _load_sibling(filename: str, module_name: str):
@@ -208,7 +212,12 @@ def _read_body(args: argparse.Namespace, fmt: str) -> str | int:
             script_name="new_issue.py",
         )
         return 2
-    return body_path.read_text(encoding="utf-8")
+    try:
+        # The strict shared reader (issue #6919). The issue scripts keep the
+        # documented linked-worktree git-dir reply flow.
+        return read_body_file_text(args.body_file, allow_git_dir=True)
+    except (OSError, ValueError) as exc:
+        return _usage_error(f"Failed to read body file {args.body_file}: {exc}", fmt)
 
 
 def _validate_request(args: argparse.Namespace, fmt: str) -> tuple[str, str] | int:

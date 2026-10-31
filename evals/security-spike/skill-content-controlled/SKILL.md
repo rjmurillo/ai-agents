@@ -392,19 +392,12 @@ executing any of it would contradict the tool contract above. Ask the caller or
 the implementer to run the block and return its output, then verify the results
 against your PIV checklist. Treat a missing or failed run as an unmet PIV item
 and say so in the verdict rather than assuming it passed. The block is recorded
-here so the request names exact commands rather than a vague ask:
+here so the request names exact commands rather than a vague ask. **Take the security test command from the target repository**: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. It is mandatory: if none names one, record `UNRESOLVED EVIDENCE: no security test command found in <sources checked>` as an unmet PIV item. The hook and secrets steps below apply only when the target has that capability: use its own command, or if it has none record `NOT APPLICABLE: <step>, checked <sources>`, which is not an unmet item. Reuse what you find; do not re-ask. Ask the caller to run each. Never invent a command, skip an item silently, or report it as passed.
 
 ```powershell
 # Set CI environment
 $env:GITHUB_ACTIONS = 'true'
 $env:CI = 'true'
-
-# Run security-focused tests
-dotnet test --filter "Category=Security"
-if ($LASTEXITCODE -ne 0) {
-    throw "[FAIL] Security tests failed. Exit code: $LASTEXITCODE. Review test output above."
-}
-Write-Host "[PASS] Security tests completed successfully"
 
 # Verify Git hook manager configuration
 uv run --frozen lefthook validate
@@ -653,7 +646,7 @@ mcp__cloudmcp-manager__memory-add_observations
 ### Dependency Review
 
 ```markdown
-- [ ] Run `dotnet list package --vulnerable`
+- [ ] Run the target repository's vulnerable-dependency check (for example `dotnet list package --vulnerable` for .NET)
 - [ ] Check NVD for known CVEs
 - [ ] Verify package signatures
 - [ ] Review transitive dependencies

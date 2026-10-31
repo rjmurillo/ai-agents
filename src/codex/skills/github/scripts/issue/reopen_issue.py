@@ -54,7 +54,7 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
-from github_core.validation import is_allowed_body_file_path
+from github_core.validation import is_allowed_body_file_path, read_body_file_text
 
 _SCRIPT = "reopen_issue.py"
 _AUTH_ERROR_MARKERS = (
@@ -137,7 +137,8 @@ def _resolve_comment_file(comment_file: str, fmt: str) -> Path:
             extra={"issue": None},
         )
         raise SystemExit(2)
-    return resolved
+    # The unresolved path goes to the reader, so a symlinked file is refused.
+    return path
 
 
 def _resolve_comment(comment: str, comment_file: str, fmt: str) -> str:
@@ -145,8 +146,9 @@ def _resolve_comment(comment: str, comment_file: str, fmt: str) -> str:
     if comment_file:
         path = _resolve_comment_file(comment_file, fmt)
         try:
-            return path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
+            # The issue scripts keep the documented git-dir reply flow.
+            return read_body_file_text(str(path), allow_git_dir=True)
+        except (OSError, ValueError) as exc:
             write_skill_error(
                 f"Failed to read comment file {comment_file}: {exc}",
                 2,

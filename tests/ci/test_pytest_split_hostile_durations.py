@@ -11,7 +11,7 @@ from scripts.ci import run_pytest_partition as runner
 from tests.ci.pytest_split_collect_helpers import collect, collect_with_code
 
 # A small real slice keeps four extra collections cheap. The property under test
-# belongs to pytest-split, not to the pool, so any multi-file slice shows it.
+# belongs to the module split, not to the pool, so any multi-file slice shows it.
 _HOSTILE_SLICE = "tests/workflows"
 
 
@@ -26,13 +26,11 @@ def _hostile_durations(slice_ids: list[str], shape: str) -> dict[str, float]:
 
 def _run_groups(durations: Path) -> tuple[list[str], list[int]]:
     """Collect every group of the hostile slice; keep node IDs only from exit 0 groups."""
-    split_flags = ["--splits", str(runner.SPLIT_COUNT), "--splitting-algorithm"]
-    split_flags += [runner.SPLITTING_ALGORITHM, "--durations-path", str(durations)]
     union: list[str] = []
     codes: list[int] = []
     for group in range(1, runner.SPLIT_COUNT + 1):
         node_ids, returncode, output = collect_with_code(
-            [*split_flags, "--group", str(group), _HOSTILE_SLICE]
+            [*runner.split_flags(group, str(durations)), _HOSTILE_SLICE]
         )
         assert returncode != 0 or node_ids, output
         codes.append(returncode)
@@ -78,7 +76,7 @@ def test_a_malformed_durations_file_fails_every_group(tmp_path: Path) -> None:
 def test_an_absent_or_empty_durations_file_still_covers_the_slice(
     fallback: str, tmp_path: Path
 ) -> None:
-    """AC2: with no usable timings pytest-split splits evenly; no test drops or doubles."""
+    """AC2: with no usable timings modules balance by test count; no test drops or doubles."""
     path = tmp_path / "durations.json"
     if fallback == "empty_object":
         path.write_text("{}", encoding="utf-8")

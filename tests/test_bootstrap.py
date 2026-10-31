@@ -377,7 +377,6 @@ def test_setup_action_verification_gates_lefthook_on_both_inputs(monkeypatch) ->
 
     monkeypatch.setattr(verify, "verify_lefthook", _verify_lefthook)
     monkeypatch.setattr(verify.shutil, "which", lambda _name: None)
-    monkeypatch.setenv("ENABLE_PESTER", "false")
     for hooks, python, expected in [
         ("true", "true", 1),
         ("true", "false", 0),
@@ -398,7 +397,6 @@ def test_setup_action_verification_propagates_lefthook_exit_code(monkeypatch) ->
     monkeypatch.setattr(verify.shutil, "which", lambda _name: None)
     monkeypatch.setenv("ENABLE_GIT_HOOKS", "true")
     monkeypatch.setenv("ENABLE_PYTHON", "true")
-    monkeypatch.setenv("ENABLE_PESTER", "false")
 
     assert verify.verify_lefthook() == 5
     assert verify.main([]) == 5, "main must propagate the failing exit code, not swallow it"

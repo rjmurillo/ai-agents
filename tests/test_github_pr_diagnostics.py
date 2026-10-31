@@ -1044,7 +1044,6 @@ class TestBodyHashAndValidate:
             ("pr body", "pr body\n"),
             ("pr body", "pr body\r\n"),
             ("pr body\n", "pr body\n"),
-            ("pr body\n", "pr body"),
             ("pr body\n", "pr body\n\n"),
             ("line1\r\nline2", "line1\nline2\n"),
             ("", ""),
@@ -1063,6 +1062,9 @@ class TestBodyHashAndValidate:
             ("pr body", "pr body \n"),
             ("pr body", "pr body\n\nextra"),
             ("pr body", "pr body\n\n\n"),
+            ("pr body", "pr body\n\n"),
+            ("pr body\n", "pr body"),
+            ("pr body\n\n", "pr body"),
             ("", "x"),
         ],
     )

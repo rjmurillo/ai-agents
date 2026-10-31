@@ -114,7 +114,7 @@ jobs:
       release_eligible: ${{ steps.manifest.outputs.release_eligible }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 
@@ -132,7 +132,6 @@ jobs:
           # The setup action only checks that gh runs and exports this value as
           # GH_TOKEN, so it gets none. Only the fetch steps hold a token.
           gh-token: ''
-          enable-pester: false
           enable-git-hooks: false
 
       # ADR-113 decisions 2 and 5. The program asks the API for the candidate's
@@ -223,7 +222,7 @@ jobs:
       contents: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2  # v2.22.2
         with:
           egress-policy: audit
 

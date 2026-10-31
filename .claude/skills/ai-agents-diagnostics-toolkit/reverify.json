@@ -1,0 +1,278 @@
+{
+ "checks": [
+  {
+   "kind": "path_exists",
+   "path": "scripts/skill_description_budget.py",
+   "id": "R1"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/skill_size.py",
+   "id": "R2"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/skill_size.py",
+   "text": "SKILL_SIZE_LIMIT: int = 500",
+   "id": "R3"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/skill_size.py",
+   "text": "SKILL_SIZE_WARNING: int = 300",
+   "id": "R4"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/skill_size.py",
+   "text": "SKILL_BYTE_TARGET: int = 20_480",
+   "id": "R5"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/scan.py",
+   "id": "R6"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/scan.py",
+   "text": "text.splitlines()[:50]",
+   "id": "R7"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/scan.py",
+   "text": "\".claude-plugin/marketplace.json\"",
+   "id": "R8"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/scan.py",
+   "text": "DEFAULT_TARGETS = (",
+   "id": "R9"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/scan.py",
+   "text": "src/claude/.claude-plugin/plugin.json",
+   "id": "R10"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/skills/golden-principles/scripts/scan_principles.py",
+   "id": "R11"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/golden-principles/scripts/scan_principles_core.py",
+   "text": "EXIT_VIOLATIONS = 10",
+   "id": "R12"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/golden-principles/scripts/scan_principles.py",
+   "text": "--diff-scope",
+   "id": "R13"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/governance/golden-principles.md",
+   "id": "R14"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/skillforge/scripts/_constants.py",
+   "text": "DESCRIPTION_MAX_LENGTH = 1024",
+   "id": "R15"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/skillforge/scripts/validate-skill.py",
+   "text": "DESCRIPTION_MAX_LENGTH = 1024  # noqa",
+   "id": "R16"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/generate_agents.py",
+   "id": "R17"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/build_all.py",
+   "id": "R18"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "def write_audit",
+   "id": "R19"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "repo_root / \"build\" / \"audit\" / \"GENERATION-AUDIT.md\"",
+   "id": "R20"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "def _snapshot_owned_prefixes",
+   "id": "R21"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "def _restore_owned_prefixes",
+   "id": "R22"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "REQ-003-010",
+   "id": "R23"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "EXIT CODES:",
+   "id": "R24"
+  },
+  {
+   "kind": "contains",
+   "path": ".gitignore",
+   "text": "/build/audit/",
+   "id": "R25"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/run_install_parity_ci.py",
+   "id": "R26"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/governance/GENERATOR-FILES.md",
+   "id": "R27"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "alone reports 63%",
+   "id": "R28"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "REQ-009",
+   "id": "R29"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "id": "R30"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/eval/eval-agent-vs-baseline.py",
+   "id": "R31"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/eval/_anthropic_api.py",
+   "id": "R32"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "text": "--scenarios",
+   "id": "R33"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "text": "--dry-run",
+   "id": "R34"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/skill_description_budget.py",
+   "text": "--max-total-tokens",
+   "id": "R35"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/skill_description_budget.py",
+   "text": "--output-format",
+   "id": "R36"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/skill_description_budget.py",
+   "text": "--top",
+   "id": "R37"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude/skills/guard-maturity",
+   "id": "R38"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude/.claude-plugin/plugin.json",
+   "id": "R39"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/skills/context-optimizer/scripts/distill_artifact.py",
+   "id": "R40"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-diagnostics-toolkit/scripts/instruments.py",
+   "id": "R41"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-diagnostics-toolkit/scripts/baseline_snapshot.py",
+   "id": "R42"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-diagnostics-toolkit/references/instrument-guides.md",
+   "id": "R43"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-diagnostics-toolkit/test_instruments.py",
+   "id": "R44"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-diagnostics-toolkit/test_baseline_snapshot.py",
+   "id": "R45"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/skills/ai-agents-diagnostics-toolkit/references/instrument-guides.md",
+   "text": "_constants.py:74",
+   "id": "R46"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/skills/ai-agents-diagnostics-toolkit/references/instrument-guides.md",
+   "text": "validate-skill.py:286-287",
+   "id": "R47"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/skill-passive-compliance.yml",
+   "text": "--budget-file scripts/skill_description_budget.json",
+   "id": "R48"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/skill_description_budget.json",
+   "text": "49300",
+   "id": "R49"
+  }
+ ]
+}

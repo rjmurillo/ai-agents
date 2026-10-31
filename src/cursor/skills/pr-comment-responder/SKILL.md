@@ -4,7 +4,7 @@ description: PR review coordinator who gathers comment context, acknowledges eve
   piece of feedback, and ensures all reviewer comments are addressed systematically.
   Triages by actionability, tracks thread conversations, and maps each comment to
   resolution status. Use when you say "respond to PR comments", "address review
-  feedback on PR 123", "handle PR review comments", "fix PR review issues", or
+  feedback on this PR", "handle PR review comments", "fix PR review issues", or
   "reply to reviewer". Do NOT use for a single-comment reply with a known response
   (use post_pr_comment_reply.py directly), for a full pre-merge code review (use review),
   or to run the local quality gates before pushing (use pr-quality-all).
@@ -55,10 +55,10 @@ verdict.
 | Phrase | Action |
 |--------|--------|
 | `respond to PR comments` | Full workflow |
-| `address review feedback on PR #123` | Full workflow |
+| `address review feedback on this PR` | Full workflow |
 | `handle PR review comments` | Full workflow |
 | `fix PR review issues` | Full workflow |
-| `reply to reviewer on PR #123` | Target specific PR |
+| `reply to reviewer on this PR` | Target specific PR |
 
 ## Quick Reference
 
@@ -75,8 +75,8 @@ python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --requi
 
 Supported patterns:
 
-- Text: `PR 806`, `PR #806`, `pull request 123`, `#806`
-- URLs: `github.com/owner/repo/pull/123`
+- Text: `PR <number>`, `PR #<number>`, `pull request <number>`, `#<number>`
+- URLs: `github.com/owner/repo/pull/<number>`
 
 See [references/workflow.md](references/workflow.md) Phase -1 for full details.
 
@@ -183,7 +183,7 @@ spec problem) restated on several files. Patching each file in turn does not
 close the cluster; retiring the framing in the source artifact once does.
 
 This step mechanizes the `feedback_bot_thread_clustering.md` mental model. It
-exists because PR #1897 round 7 surfaced 17 unresolved threads where 8 were the
+exists because one PR round surfaced 17 unresolved threads where 8 were the
 same "model_tier=opus contradicts cheaper-tier reviewer claim" framing on
 different files; rounds 5 and 6 patched per-file and did not collapse the
 cluster (see `.project-toolkit/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`).
@@ -329,4 +329,4 @@ See [references/bots.md](references/bots.md) for:
 - Add reviewer priority entries for new bot integrations
 - Add response templates in `references/templates.md`
 
-<!-- vendor-portability: declared. This skill cites a retrospective under .project-toolkit/retrospective/ and writes a comment map under .project-toolkit/pr-comments/PR-[N]/. The retrospective is a documentation citation; the pr-comments path is a write target created on demand for the consumer's review run. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites a retrospective under .project-toolkit/retrospective/ and writes a comment map under .project-toolkit/pr-comments/PR-[N]/. The retrospective is a documentation citation; the pr-comments path is a write target created on demand for the consumer's review run. -->

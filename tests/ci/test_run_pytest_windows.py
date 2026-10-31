@@ -9,11 +9,13 @@ way textual discovery can under-select.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import tomllib
 
 from scripts.ci import run_pytest_windows as _rpw
 
@@ -38,13 +40,24 @@ _COLLECT_BASE = [
 
 
 # Whole-tree collection measured at 26.70s on a 4-CPU container and narrowed
-# collection at 1.67s. This bound is roughly 10x the slower of the two, so it
-# reports a hung collect rather than sitting until the job's own cap, and has
-# enough headroom that a loaded runner does not trip it.
+# collection at 1.67s on 2026-09-09 (fdf4a3813e), with 1022 test modules. Each
+# bound reports a hung collect rather than sitting until the job's own cap, and
+# has enough headroom that a loaded runner does not trip it. The whole-tree
+# bound is roughly 10x its measurement; the narrowed one is roughly 35x.
 _COLLECT_TIMEOUT_SECONDS = 300
+_NARROWED_COLLECT_TIMEOUT_SECONDS = 60
+
+# The suite-wide pytest-timeout (120s in pyproject.toml) is shorter than the
+# bounds above, so it used to kill the drift gate first. By 2026-10-22
+# (8dc469d877) the tree held 1982 test modules and 59044 items, and this module
+# took a median 75.7s, p90 113.1s, and max 120.9s across 40 main runs (issue
+# #6849). The collection is the proof and cannot shrink. The test runs both
+# collections in turn, so its limit sits above their sum: a hung collect still
+# fails with its own TimeoutExpired message, not a bare pytest-timeout.
+_DRIFT_GATE_TIMEOUT_SECONDS = _COLLECT_TIMEOUT_SECONDS + _NARROWED_COLLECT_TIMEOUT_SECONDS + 60
 
 
-def _collect(extra: list[str]) -> set[str]:
+def _collect(extra: list[str], timeout: float = _COLLECT_TIMEOUT_SECONDS) -> set[str]:
     """Node IDs `pytest -m windows_path` collects for ``extra`` arguments."""
     result = subprocess.run(
         [*_COLLECT_BASE, *extra],
@@ -54,7 +67,7 @@ def _collect(extra: list[str]) -> set[str]:
         encoding="utf-8",
         errors="replace",
         check=False,
-        timeout=_COLLECT_TIMEOUT_SECONDS,
+        timeout=timeout,
     )
     return {line.strip() for line in result.stdout.splitlines() if "::" in line}
 
@@ -82,6 +95,7 @@ def test_marked_files_skips_a_module_that_does_not_name_the_marker(tmp_path: Pat
     assert _rpw.marked_files(tmp_path) == [f"{_rpw.TESTS_DIR}/nested/test_marked.py"]
 
 
+@pytest.mark.timeout(_DRIFT_GATE_TIMEOUT_SECONDS)
 def test_narrowed_collection_matches_whole_tree(tmp_path: Path) -> None:
     """The drift gate: textual discovery must select the whole-tree node IDs.
 
@@ -91,7 +105,7 @@ def test_narrowed_collection_matches_whole_tree(tmp_path: Path) -> None:
     see that, so this test collects both ways.
     """
     whole_tree = _collect([])
-    narrowed = _collect(_rpw.marked_files(REPO_ROOT))
+    narrowed = _collect(_rpw.marked_files(REPO_ROOT), _NARROWED_COLLECT_TIMEOUT_SECONDS)
 
     assert whole_tree, "whole-tree collection produced no windows_path node IDs"
     missing = whole_tree - narrowed
@@ -100,6 +114,52 @@ def test_narrowed_collection_matches_whole_tree(tmp_path: Path) -> None:
         f"so the Windows job would not run them: {sorted(missing)[:5]}"
     )
     assert narrowed == whole_tree
+
+
+def _timeout_mark_seconds(test: object) -> float | None:
+    """The seconds a ``@pytest.mark.timeout`` on ``test`` sets, or None without one."""
+    marks = [mark for mark in getattr(test, "pytestmark", []) if mark.name == "timeout"]
+    return float(marks[0].args[0]) if marks else None
+
+
+def _suite_default_timeout_seconds() -> float:
+    """The ``--timeout`` in pyproject's pytest addopts."""
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    addopts = pyproject["tool"]["pytest"]["ini_options"]["addopts"]
+    found = re.search(r"--timeout[= ](\d+(?:\.\d+)?)", addopts)
+    assert found, f"pyproject addopts carry no --timeout: {addopts!r}"
+    return float(found.group(1))
+
+
+def test_drift_gate_limit_outlasts_its_collect_bound() -> None:
+    """Issue #6849: a hung collect must fail on its own bound, not on pytest-timeout.
+
+    The two collections run in turn. A test limit at or under their summed
+    bounds can kill the test while the second collect still waits, before
+    ``subprocess.run`` raises ``TimeoutExpired``, so the diagnostic that names
+    the hung command never fires.
+    """
+    limit = _timeout_mark_seconds(test_narrowed_collection_matches_whole_tree)
+
+    assert limit is not None, "the drift gate needs its own pytest-timeout"
+    assert limit > _COLLECT_TIMEOUT_SECONDS + _NARROWED_COLLECT_TIMEOUT_SECONDS
+
+
+def test_drift_gate_limit_exceeds_the_suite_default() -> None:
+    """Issue #6849: the suite default is what killed the gate on a loaded runner."""
+    limit = _timeout_mark_seconds(test_narrowed_collection_matches_whole_tree)
+
+    assert limit is not None
+    assert limit > _suite_default_timeout_seconds()
+
+
+def test_timeout_mark_seconds_is_none_without_a_mark() -> None:
+    """The helper reports a missing mark as None, so the pins above cannot pass vacuously."""
+
+    def unmarked() -> None:
+        pass
+
+    assert _timeout_mark_seconds(unmarked) is None
 
 
 def test_main_exits_config_when_no_module_names_the_marker(

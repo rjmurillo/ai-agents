@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents-docs-of-record
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .agents/HANDOFF.md, .agents/governance/FAILURE-MODES.md, .agents/governance/PROJECT-CONSTRAINTS.md, .agents/schemas/session-log.schema.json, .agents/templates/HANDOFF.md, .claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py, .project-toolkit/architecture, .project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md, .project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md, .project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md, .project-toolkit/architecture/ADR-NNN-slug.md, .project-toolkit/architecture/ADR-TEMPLATE.md, .project-toolkit/retrospective, .project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md, .project-toolkit/sessions, .project-toolkit/sessions/YYYY-MM-DD-session-NN, .project-toolkit/sessions/handoffs, .project-toolkit/sessions/handoffs/README.md, build/Generate-Agents.ps1, build/generate_agents.py, scripts/instruments.py, scripts/validate_session_json.py, scripts/validation/check_adr_uniqueness.py, scripts/validation/check_canonical_citations.py -->
 This repo runs on verification-based governance. Continuity lives in per-issue
 handoffs and Serena memory. Session log creation is discontinued; transcript
 and pull request evidence remain valid, and the ~1,500 historical logs under
@@ -44,7 +44,7 @@ and pull request evidence remain valid, and the ~1,500 historical logs under
 
 | Situation | Record | Why |
 |-----------|--------|-----|
-| Issue spans multiple sessions | Per-issue handoff | Cold-start continuity (Issue #1725: 95.8% protocol failure without file-based gates) |
+| Issue spans multiple sessions | Per-issue handoff | Cold-start continuity (95.8% protocol failure without file-based gates) |
 | Architectural or irreversible decision | ADR | Fires `adr-review` multi-agent debate |
 | Incident, failure, or "what went wrong" | Retrospective | Feeds the failure canon; see `ai-agents-failure-archaeology` |
 | Reusable pattern, correction, gotcha | Serena memory | Only memories are read by future sessions at start |
@@ -87,16 +87,19 @@ to the next free number (see `ai-agents-failure-archaeology`).
 ### Phase 3: ADRs
 
 Numbering collides here; treat numbers as claims, not identity. History:
-concurrent ADR PRs each picked the same "next" number (Issue #2253), and
+concurrent ADR PRs each picked the same "next" number, and
 ADR-058/062/063 each existed twice until the duplicates were renumbered to
-069/070/071 (Issue #2228, per the docstring of
+069/070/071 (per the docstring of
 `scripts/validation/check_adr_uniqueness.py`). ADR-055 and ADR-024 share the
 slug `github-actions-runner-selection` (055 supersedes 024). Rule: when citing
 an ADR, verify the file content says what you claim, not just the number.
 
 ```bash
-python3 scripts/validation/check_adr_uniqueness.py --print-next
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . run adr-next-number
 ```
+
+This runs `scripts/validation/check_adr_uniqueness.py --print-next` and prints
+the next free ADR number. It does not check that a cited ADR says what you claim.
 
 Workflow:
 
@@ -106,7 +109,7 @@ Workflow:
 3. Claim the number from `--print-next` at the last moment before commit.
 4. Expect the gate: any `ADR-*.md` create or edit fires the `adr-review`
    multi-agent debate (AGENTS.md, "ADR Review").
-   Governance-level changes additionally need human approval (AGENTS.md
+   Governance-level changes also need human approval (AGENTS.md
    Boundaries: "Ask First: Architecture|New ADRs|Breaking|Security").
 5. Lifecycle frontmatter per ADR-073 (accepted 2026-06-19): optional,
    unenforced Phase-1 fields `id`, `status`, `date`, `decision-makers`,
@@ -120,12 +123,12 @@ mid-conversation while context is hot. `retrospective` produces the full
 artifact (timeline, Five Whys, learning matrix) in `.project-toolkit/retrospective/`.
 
 Retrospectives are written on demand: `/retro` here, plus the Post-PR
-Retrospective workflow in CI. Until #3349 a Stop hook also wrote a skeleton
-at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue #2079); that hook is deleted, but skeletons it already wrote are still
+Retrospective workflow in CI. Until a later change a Stop hook also wrote a skeleton
+at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->`; that hook is deleted, but skeletons it already wrote are still
 placeholders rather than records, so fill them with `/retro fill YYYY-MM-DD`.
 
-`INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 5
-rows against 95 retro files as of 2026-07-03. Nothing appends to it now.
+`INDEX.md` was auto-appended by that hook and is incomplete: it
+covers 11 of 241 retro files at 42e409325 (2026-10-31). Nothing appends to it now.
 Never treat INDEX.md as the catalog; list the directory. Also note retro-cited short SHAs do not resolve
 locally even with full history present (~1471 commits as of 2026-07-03), so
 retros and memories, not git archaeology, are the durable history (depth in
@@ -158,7 +161,7 @@ and Tier 2.
 
 Separate-PR rule: `.claude/rules/claude-agents.md` MUST NOT item 2: "MUST NOT
 bundle skill code changes with memory changes in the same PR (separate
-concerns)." Memory edits ride their own PR. The cautionary tale is PR #908,
+concerns)." Memory edits ride their own PR. The cautionary tale is the scope-explosion PR,
 where 53 memory files changed in a PR that started as one CI fix
 (`.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md`).
 
@@ -173,9 +176,8 @@ Tier model per ADR-014 and `.project-toolkit/sessions/handoffs/README.md`:
 | Per-branch handoff | `.project-toolkit/handoffs/{branch}/{session}.md` | Multi-session branch coordination |
 
 Start from the template `.agents/templates/HANDOFF.md`. A handoff must carry a
-"Verification on Resume" checklist; the next session executes it before any
-Edit or Write (`templates/agents/implementer.shared.md`, "Session Start", a
-blocking gate). The old project-wide `.agents/HANDOFF.md` dashboard is
+"Verification on Resume" checklist; the next session executes it before it
+changes any file. The old project-wide `.agents/HANDOFF.md` dashboard is
 deleted: it had grown to 122KB with an 80%+ per-PR merge conflict rate before
 ADR-014 froze it, and per-issue handoffs plus Serena memory now carry the
 continuity it used to
@@ -213,7 +215,7 @@ MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    comments to any file. Generated output must read as hand-written: headers
    waste tokens and hide the content. If a script emits one, delete the emitter.
 
-Markdown lint is SCOPED to files you changed. The PR #908 Five Whys traced 53
+Markdown lint is SCOPED to files you changed. The scope-explosion PR Five Whys traced 53
 unrelated memory-file changes to `markdownlint --fix **/*.md` run repo-wide
 (retro, Q1-Q4). Lefthook filters staged Markdown and runs the named validator
 declared in `lefthook.yml`. Config is `.markdownlint-cli2.yaml`. Never widen
@@ -225,11 +227,11 @@ load-bearing fragment character-for-character; intentional divergence gets a
 named divergence section (`.agents/governance/FAILURE-MODES.md`, failure mode
 9; rule text in `.claude/rules/canonical-source-mirror.md`; heuristic gate
 `scripts/validation/check_canonical_citations.py`, warn-only unless
-`STRICT_CANONICAL_CHECK=1`). Cost of ignoring it: PR #1887 took 7 fix commits
+`STRICT_CANONICAL_CHECK=1`). Cost of ignoring it: one PR took 7 fix commits
 on confident-incorrectness claims.
 
-Fix stale docs on contact. Worked example from before PR #2871:
-`CONTRIBUTING.md` line 155 said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871
+Fix stale docs on contact. Worked example from before commit b320f4ac1:
+`CONTRIBUTING.md` line 155 said `build/Generate-Agents.ps1` PowerShell invocation until that commit
 repointed it to `build/generate_agents.py`. Zero `.ps1` build scripts
 exist (ADR-042 Python migration). When you touch a stale doc: fix the lines on
 your path, quote the canonical source per FM-9, and flag (do not silently expand
@@ -241,11 +243,11 @@ into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 |--------------|------------------|----------|
 | Creating any new session log | Session log creation is discontinued | `.claude/rules/session-logs.md` MUST 1 |
 | Trusting an ADR number without reading the file | Numbers collided (058/062/063 dupes; 024 vs 055 same slug) | `check_adr_uniqueness.py` docstring |
-| Repo-wide `markdownlint --fix` | Reformatted 53 unrelated memory files in PR #908 | PR #908 retro Five Whys |
-| Bundling memory changes with skill code in one PR | Violates `claude-agents.md` MUST NOT 2; scope explosion | PR #908 retro |
-| "Matches X" without a verbatim quote | FM-9 confident-incorrectness; 7 fix commits on PR #1887 | FAILURE-MODES.md section 9 |
+| Repo-wide `markdownlint --fix` | Reformatted 53 unrelated memory files in the scope-explosion PR | Scope-explosion retro Five Whys |
+| Bundling memory changes with skill code in one PR | Violates `claude-agents.md` MUST NOT 2; scope explosion | Scope-explosion retro |
+| "Matches X" without a verbatim quote | FM-9 confident-incorrectness; 7 fix commits on one PR | FAILURE-MODES.md section 9 |
 | Leaving learnings only in the retro artifact | Never read by future sessions | `retrospective-accuracy` memory |
-| Treating INDEX.md or `git log` as complete history | 5 index rows vs 95 retro files; retro-cited SHAs do not resolve locally | Phase 4 |
+| Treating INDEX.md or `git log` as complete history | INDEX.md covers a fraction of the retro files (run `retro-index-coverage`); retro-cited SHAs do not resolve locally | Phase 4 |
 | `git checkout --ours` on session-log conflicts | Corrupted the main session log once | session 1187 incident |
 | Em/en dashes, banned vocab, generated headers | One bot thread per dash, every PR | universal.md MUST NOT 4 and 5 |
 
@@ -261,9 +263,21 @@ Before ending any session that produced records:
 - [ ] `grep -rPn '[\x{2013}\x{2014}]' <changed .md files>` returns nothing; lint ran scoped to changed files only.
 - [ ] Every "matches/mirrors" claim quotes its canonical source verbatim.
 
+## Scripts
+
+`scripts/instruments.py` lists and runs the checks this skill links (ADR next
+number, retro index coverage, session-log validation, drift). Exit codes: 0 ok,
+1 a listed instrument file is missing, 2 bad arguments or unknown id, 3 the run
+target failed to start. A `run` passes the child exit code through unchanged.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . list
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . run <id>
+```
+
 ## Provenance and Maintenance
 
-Verified 2026-07-03 against the working tree. Re-verify volatile facts before
+Verified 2026-10-31 (HEAD 42e409325) against the working tree. Re-verify volatile facts before
 relying on them:
 
 | Fact | Source | Re-verify |
@@ -271,18 +285,32 @@ relying on them:
 | Session-log creation discontinued | `.claude/rules/session-logs.md` MUST 1 | `grep -n "Do not create a new session log" .claude/rules/session-logs.md` |
 | Branch naming pattern | `scripts/validate_session_json.py` (`BRANCH_PATTERN`) | `grep -n "^BRANCH_PATTERN = re.compile" scripts/validate_session_json.py` |
 | Schema required keys, top level and nested session | `.agents/schemas/session-log.schema.json` | `python3 -c "import json;s=json.load(open('.agents/schemas/session-log.schema.json'));print(s['required'], s['properties']['session']['required'])"` |
-| ADR collision history, next-number helper | `scripts/validation/check_adr_uniqueness.py` docstring | `python3 scripts/validation/check_adr_uniqueness.py --print-next` |
+| ADR collision history, next-number helper | `scripts/validation/check_adr_uniqueness.py` docstring | `instruments.py run adr-next-number` |
 | ADR-073 lifecycle fields (`implemented`) | `.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md:1-9` | `head -10 .project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md` |
-| adr-review fires on ADR edits | `AGENTS.md` "ADR Review" | `grep -n "adr-review" AGENTS.md` |
-| Auto-retro skeleton + marker + /retro fill | `.claude/skills/retro/SKILL.md:20` | `grep -n "RETRO-STATE" .claude/skills/retro/SKILL.md` |
-| Retro corpus size vs INDEX.md coverage | `.project-toolkit/retrospective/` | `python3 -c "import pathlib;d=pathlib.Path('.project-toolkit/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
+| adr-review fires on ADR edits | `AGENTS.md` "ADR review" (line 12) | `grep -n "ADR review" AGENTS.md` |
+| Auto-retro skeleton + marker + /retro fill | `.claude/skills/retro/SKILL.md` (RETRO-STATE marker) | `grep -n "RETRO-STATE" .claude/skills/retro/SKILL.md` |
+| Retro corpus size vs INDEX.md coverage | `.project-toolkit/retrospective/` | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/corpus_index.py" --repo .` |
 | Memory naming + index-row hazard | `.claude/skills/memory/SKILL.md` "Serena Write Conventions" | `grep -n "Serena Write Conventions" .claude/skills/memory/SKILL.md` |
 | Memory/skill separate-PR rule | `.claude/rules/claude-agents.md` MUST NOT item 2 | `grep -n "same PR" .claude/rules/claude-agents.md` |
 | Handoff tiers (session log, per-issue, per-branch) | `.project-toolkit/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "Tier" .project-toolkit/sessions/handoffs/README.md` |
 | FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:286-309` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
-| PR #908 lint scope story | `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
-| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
+| Scope-explosion lint scope story | `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
+| CONTRIBUTING.md staleness example | Commit b320f4ac1 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Serena is the only memory backend | `.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md:87` | `grep -n "the only memory backend" .project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md` |
+
+Instruments (`list` shows each row and whether its file exists; `run <id>`
+passes the child exit code through):
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-docs-of-record/scripts/instruments.py" --repo . list
+```
+
+Rows: `adr-next-number`, `retro-index-coverage` (exits 1 at HEAD `42e409325`,
+2026-10-31, because INDEX.md covers 11 of 241 retros; read the JSON, not the
+exit code), `session-log-validate` (pass the log path after `--`), and
+`drift-self-check`. Drift check, with `reverify.json`:
+
+`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-docs-of-record --require`
 
 Maintenance: when a validator, template path, or protocol phase changes, update
 the matching row here in the same PR. This file is itself a document of record;

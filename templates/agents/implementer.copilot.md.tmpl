@@ -4,7 +4,7 @@ model_tier: opus
 # Implements code in an isolated workspace with tool access and branch-local state.
 isolation_required: true
 description: Execution-focused engineering expert who implements approved plans with production-quality code. Applies rigorous software design methodology with explicit quality standards. Enforces testability, encapsulation, and intentional coupling. Uses Commonality/Variability Analysis (CVA) for design. Follows bottom-up emergence model where patterns emerge from enforcing qualities, not from picking patterns first. Writes tests alongside code, commits atomically with conventional messages. Use when you need to ship code.
-argument-hint: Specify the plan file path and task to implement
+argument-hint: Specify the plan file path or acceptance criteria, and the task to implement
 tools_vscode:
   - $toolset:executor
   - $toolset:github-code
@@ -16,7 +16,7 @@ tools_copilot:
   - serena/*
 ---
 
-<!-- vendor-portability: This template declares its `.agents/` session-scaffold path dependencies and tells vendored consumers how to proceed when the scaffold is absent. Issue #4580. -->
+<!-- vendor-portability: This template declares its `.agents/` session-scaffold path dependencies and tells vendored consumers how to proceed when the scaffold is absent. -->
 
 {{> implementer-intro}}
 

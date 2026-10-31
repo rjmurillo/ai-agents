@@ -53,7 +53,7 @@ QA-specific requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze code and tests
-- **Bash**: `dotnet test --collect:"XPlat Code Coverage"`
+- **Bash**: the target repository's own test and coverage commands
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
@@ -371,19 +371,11 @@ Save to: `.project-toolkit/planning/impact-analysis-qa-[feature].md`
 
 ### Validation Protocol
 
-When orchestrator requests pre-PR validation:
+When orchestrator requests pre-PR validation, take test and coverage commands from the target repository's documented command, manifest or task runner, CI configuration, existing local validation skill, or `autoplan` recon; never invent one. Resolve each independently; for each not found, report `UNRESOLVED EVIDENCE: no <test|coverage> command found in <sources checked>` and leave its gate unmet:
 
 #### Step 1: CI Environment Test Validation
 
 Run tests in CI-equivalent environment:
-
-```powershell
-# Run full test suite
-Invoke-Pester -Path "./tests" -CI -OutputFormat NUnitXml -OutputFile "./test-results.xml"
-
-# For .NET projects
-dotnet test --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
-```
 
 **Pass criteria**:
 
@@ -473,7 +465,7 @@ Verify code coverage meets minimum thresholds:
 
 | Metric | Minimum | Target | Measurement |
 |--------|---------|--------|-------------|
-| Line coverage | 70% | 80% | `dotnet test --collect:"XPlat Code Coverage"` |
+| Line coverage | 70% | 80% | Coverage command |
 | Branch coverage | 60% | 70% | Coverage report |
 | New code coverage | 80% | 90% | Diff coverage analysis |
 
@@ -497,7 +489,7 @@ Verify code coverage meets minimum thresholds:
 
 #### Step 5: PR Description Validation
 
-Verify PR description meets GitHub standards and template compliance:
+Verify the PR description:
 
 ```bash
 uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
@@ -507,9 +499,9 @@ uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
 
 **Pass criteria:**
 
-- Title follows conventional commit format
-- At least one GitHub keyword present (Closes/Fixes/Resolves)
-- PR template sections completed (Summary, Spec References, Type of Change, Changes)
+- Title follows conventional commit format (FAIL = gate FAIL; ignore exit code, read each check)
+- A GitHub keyword is present (Closes/Fixes/Resolves)
+- Template sections complete (Summary, Spec References, Type of Change, Changes)
 
 **Evidence generation:**
 
@@ -546,7 +538,7 @@ Generate validation report at `.project-toolkit/qa/pre-pr-validation-[feature].m
 
 ## Evidence
 
-[Include Step 1-4 evidence sections above]
+[Include Step 1-5 evidence above]
 
 ## Issues Found
 
@@ -578,10 +570,10 @@ Numeric thresholds are explicit. Do not interpolate.
 
 | Condition | Verdict | Trigger |
 |-----------|---------|---------|
-| All 5 gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
+| All gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
 | Coverage in 70-79% (line) or 60-69% (branch) AND no other gate fails | CONDITIONAL | Document gap, flag it to the owner, proceed with warning |
 | Any gate FAIL, OR line coverage <70%, OR branch coverage <60%, OR new-code coverage <70% | BLOCKED | Specify failing gate and missing threshold by number |
-| Cannot run coverage tool, missing CI environment, missing test infrastructure | BLOCKED | Return `[BLOCKED] Cannot evaluate: <specific missing artifact>` |
+| Cannot run coverage tool, missing CI environment, test infrastructure, or gate evidence | BLOCKED | Return `[BLOCKED] Cannot evaluate: <specific missing artifact>` |
 
 A CONDITIONAL verdict must name the remaining gap and flag it to the owner. Do not file an issue to clear it. A BLOCKED verdict must name the failing gate and the numeric value that triggered it. Verdicts without these are returned for rework.
 
@@ -730,19 +722,7 @@ Result: PASS | FAIL
 
 ## Test Commands
 
-```bash
-# Run all tests
-dotnet test Qwiq.sln -c Release --no-build
-
-# Run with coverage
-dotnet test Qwiq.sln -c Release --settings coverage.runsettings
-
-# Run specific tests
-dotnet test --filter "FullyQualifiedName~[ClassName]"
-
-# Generate coverage report
-dotnet reportgenerator -reports:coverage.xml -targetdir:coverage-report
-```
+Use the commands resolved in the Validation Protocol. When one is unresolved, report `UNRESOLVED EVIDENCE:` and do not substitute a guess.
 
 ## Memory Protocol
 
@@ -772,7 +752,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 ## Degraded Mode Protocol
 

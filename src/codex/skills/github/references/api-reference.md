@@ -114,17 +114,30 @@ All scripts import `modules/GitHubCore.psm1`:
 
 ## Body and Comment Files
 
-One rule covers every github skill script that reads `--body-file` or `--comment-file`: `post_issue_comment.py`, `new_issue.py`, `close_issue.py`, `reopen_issue.py`, `close_pr.py`, `edit_issue_body.py`, `post_pr_comment_reply.py`, `add_pr_review_thread_reply.py`, and `new_pr_review_comment.py`.
+One rule covers every github skill script that reads `--body-file` or `--comment-file`: `post_issue_comment.py`, `new_issue.py`, `close_issue.py`, `reopen_issue.py`, `close_pr.py`, `edit_issue_body.py`, `post_pr_comment_reply.py`, `add_pr_review_thread_reply.py`, `new_pr_review_comment.py`, `new_pr.py`, and `edit_pr_body.py`.
 
-Relative paths resolve differently per script, so pass an absolute path. `close_issue.py` resolves against `GITHUB_WORKSPACE` when set, else the checkout that holds the script. `reopen_issue.py` resolves against `GITHUB_WORKSPACE` when set, else the git root of the working directory. Every other script resolves against the working directory. That base only resolves the path and is not an extra root. The file must resolve under the repo root, a temp directory (`TMPDIR`, the system temp dir, `/tmp`, `/private/tmp`), or the git dir. Any other path exits 2, including a symlink that points out of those roots. A session scratchpad under `/tmp` passes, so write the body there and pass the path. Do not inline it with `--comment "$(cat file)"`.
+Relative paths resolve differently per script, so pass an absolute path. `close_issue.py` resolves against `GITHUB_WORKSPACE` when set, else the checkout that holds the script. `reopen_issue.py` resolves against `GITHUB_WORKSPACE` when set, else the git root of the working directory. `new_pr.py` and `edit_pr_body.py` resolve against the repo root. Every other script resolves against the working directory. That base only resolves the path and is not an extra root. The file must resolve under the repo root, a temp directory (`TMPDIR`, the system temp dir, `/tmp`, `/private/tmp`), or the git dir; `new_pr.py` and `edit_pr_body.py` refuse the git dir (see below). Outside a repository there is no repo root, and the working directory is never a root. A path under `/proc`, `/sys` or `/dev` exits 2 under every root. Files below `/dev/shm` are exempt from that rule, so they pass only when `/dev/shm` is the temp directory, such as with `TMPDIR=/dev/shm`. Any other path exits 2, including a symlink that points out of those roots. A session scratchpad under `/tmp` passes, so write the body there and pass the path. Do not inline it with `--comment "$(cat file)"`.
 
-The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_valid_body_file` wraps it for scripts that exit directly. `close_issue.py`, `reopen_issue.py` and `new_issue.py` call the predicate so they keep their JSON error envelope.
+The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_valid_body_file` wraps it for scripts that exit directly. `close_issue.py`, `reopen_issue.py` and `new_issue.py` call the predicate so they keep their JSON error envelope. Every script listed above then reads the file with `read_body_file_text` (issue #6919). `new_pr.py` loads `github_core` by path because it runs under `python3 -I`. `new_pr.py` and `edit_pr_body.py` also refuse a body that still holds the `<!-- replace with PR body -->` line.
 
-The check and the read are two steps. A script resolves symlinks to test containment, then opens the path it was given. A writer who controls a directory under a shared temp root could swap the file for a symlink in between. Keep body files in a private directory such as the session scratchpad. `prepare_pr_body.py` closes the gap with `O_NOFOLLOW` and is the model if a script needs to.
+`read_body_file_text` resolves the parent directory once and leaves the file name unresolved. It opens the file by walking down from the filesystem root, one directory at a time, with `O_NOFOLLOW` on every step and `O_NONBLOCK` on the file. A symlinked file, a parent swapped for a symlink after the check, and a FIFO all fail. The checks then run on the opened objects:
+
+- A regular file with one hard link, owned by you, and not world-writable.
+- At most 65536 characters, GitHub's body limit. A larger file is refused before the API call.
+- A `pr-body-*.md` file from `--prepare-body-file` must be mode 600.
+- Below a temp root, every directory down to the file must be owned by you with no group or other write bit. The walk starts at the broadest root, so a `TMPDIR` inside `/tmp` is checked too.
+- Below the repo root or the git dir, every directory down to the file must belong to you or to root. One that anyone can write needs the sticky bit. Group write is allowed there, since umask 002 leaves repo directories at mode 775. For a linked worktree's git dir the walk starts at the common git dir. The clone root above it is not checked: whoever can write there can already replace `.git`. A checkout another user owns is refused, even when you run as root. ACLs are not read, only mode bits.
+- A group-writable file, such as mode 664 from umask 002, passes only inside a directory only you can enter (mode 700). Every directory between that one and the file must be yours and refuse other writers. The session scratchpad qualifies. Otherwise run `chmod 600` on the file.
+- No dotfile and no dot directory at any depth below the root, so `.env`, `service/.env` and `.git/config` all fail. The scratch directory that `--prepare-body-file` uses is the one exception.
+- A temp root that others can write, such as `/tmp`, needs the sticky bit and must belong to root or to you.
+- No component that NTFS could read as another name: one with `:` (a stream), `~` and a digit (an 8.3 short name such as `GIT~1`), or a trailing dot or space. This applies on every platform. On Windows the checks run again on the real name of the opened file. Windows also refuses any junction or other reparse point on the path, so a OneDrive Files On-Demand file is refused; copy the body to a local folder first.
+- `new_pr.py` and `edit_pr_body.py` refuse the git dir and the common git dir, even though the general rule above lists the git dir. Every other script listed above keeps the documented git-dir reply flow: they accept a linked worktree's own git dir (`.git/worktrees/<name>/`). They refuse its `config` and `config.worktree` files and a primary clone's `.git`.
+
+`edit_issue_body.py` sends the checked text to `gh` on stdin, so `gh` never reopens the path. Keep body files in a private directory such as the session scratchpad.
 
 These readers differ on purpose:
 
-- `new_pr.py` and `edit_pr_body.py` read only a file allocated by `--prepare-body-file`. It is stricter than the rule above and stays that way.
+- `new_pr.py --prepare-body-file` still allocates a unique, random file name in the repo's scratch directory, which passes the rule. Use it when several sessions share one scratch directory: a fixed name such as `body.md` lets one session publish another's text, and the rule does not prevent that (owner decision D14, 2026-10-24, issue #6667).
 - `validate_pr_description.py` only reads the file and posts nothing, so it has no containment check.
 - `new_validated_pr.py` (the repo-level PR wrapper, not a skill script) reads the source body path with no containment check, then copies it into the allocated scratch file that `new_pr.py` reads.
 - CI-only scripts in the workflow scripts directory are outside the rule. Its own `post_issue_comment.py` reads any `--body-file`; workflows (`ai-spec-review.yml`, `investigation-claim-backstop.yml`, `pr-validation.yml`) supply the path.
@@ -157,6 +170,32 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 - Exit 0 with `already_up_to_date: true` means the head already contains the base.
 - With `--wait`, the wait ends only when compare shows the PR is not behind. A timeout exits 3.
 - Exit 1 with `reason: head_moved` means the head differs from `--expected-head-sha`.
+
+## Blocked PR diagnosis
+
+`mergeable_state` and `mergeStateStatus: blocked` are cached and frequently stale. `why_pr_blocked.py` decomposes them into required checks, review threads, and merge conflicts. It does not query `reviewDecision` or the required-approving-review count, so a repository that requires approvals can still be blocked on that when the script reports no cause.
+
+- GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them with `resolve_pr_review_thread.py`.
+- If the script reports no cause and the PR is still blocked, compare `get_pr_context.py`'s `review_decision` field with the target branch's required-approving-review count.
+
+## rerun_failed_jobs.py details
+
+Reruns failed Actions jobs through `POST .../actions/runs/{id}/rerun-failed-jobs` and `POST .../actions/jobs/{id}/rerun`. Use `--pull-request N` (open PR; failed runs for the head SHA) or `--run-id ID` (add `--job-id` for one job, which must belong to that run).
+
+PR mode keeps the newest run per workflow and event, so a superseded run is not rerun. It drops runs whose `pull_requests` list is non-empty and lacks this PR (two branches can share a commit) and lists their ids in `skipped_other_pr_run_ids`; a run with no PR link, such as a fork PR run, is kept. It never reruns a `cancelled` run by run, in either mode: it lists them in `skipped_cancelled`, because GitHub's docs do not say whether `rerun-failed-jobs` covers cancelled jobs. An explicit `--job-id` reruns that job whatever the run conclusion, and `skipped_cancelled` is then empty. `timed_out` and `startup_failure` count as failed. Branch on `Data.reason`, not `Error.Type`.
+
+| Exit | `Data.reason` | Meaning |
+|------|---------------|---------|
+| 0 | `rerun_requested`, `no_failed_runs` | Reruns requested, or nothing failed. Runs still in progress are listed in `skipped_in_progress` |
+| 1 | `run_in_progress`, `pr_not_open`, `job_run_mismatch` | Only in-progress runs, a PR that is not open, or a job from another run |
+| 2 | `invalid_params`, `not_found` | Bad arguments (ADR-035 usage error; argparse type errors print usage with no envelope), or PR, run, or job not found on a read |
+| 3 | `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The run list had a gap, or a call failed. After a POST timeout the outcome is unknown |
+| 4 | `auth` | Credential or permission fault, including a permission 403 on a POST |
+| 100 | `cannot_be_retried` | GitHub refused. Do not retry. The fallbacks are in `Data.fallbacks` and on stderr |
+
+Pass `--output-format json` to read the envelope; the default `auto` prints a summary line only. Every envelope from the rerun step (exit 0, 3, 4, 100) lists `reruns`, `refused`, `failed`, `not_attempted_run_ids`, `skipped_in_progress`, `skipped_cancelled`, and (PR mode) `skipped_other_pr_run_ids`, so a failure never hides what was already requested. When an auth or rate-limit fault stops the batch, the run that hit it is in `failed` with `stopped_batch: true`. Early exits (1, 2, and 3 before any POST) carry `reason` only. The preflight auth check allows a session where GraphQL is blocked but REST works.
+
+On exit 100, merge the PR base branch into the branch cleanly if it has moved (the pre-push marker gate allows a clean merge of its base ref: `origin/main` by default, `--base-ref` otherwise), or ask a human. Never push an empty commit: it invalidates the SHA-bound review marker.
 
 ## new_pr_review_comment.py
 

@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import ast
 import codecs
+import gc
 import time
 from collections import Counter, deque
 from pathlib import Path
@@ -4821,6 +4822,127 @@ def test_detector_over_approximates_deliberately(source: str, why: str) -> None:
     assert unpinned_lines(source) != [], f"expected over-approximation: {why}"
 
 
+# Linear work grows 4x when the input grows 4x. The quadratic sweeps the tests
+# below guard against grow 16x. The geometric midpoint, 8, separates the two
+# without depending on how fast the host runs. Tracing tools such as testmon
+# multiply CPU time by a roughly constant factor, which cancels in the ratio
+# and would break any absolute ceiling.
+_GROWTH_RATIO_LIMIT = 8.0
+_GROWTH_FACTOR = 4
+
+
+def _timed(run, argument):
+    """CPU seconds for ``run(argument)``, and its result.
+
+    The collector is drained before the clock starts and paused while it runs,
+    as ``timeit`` does, so garbage left by one run is not billed to the next.
+    """
+    gc.collect()
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        started = time.process_time()
+        result = run(argument)
+        return time.process_time() - started, result
+    finally:
+        if was_enabled:
+            gc.enable()
+
+
+def _cpu_growth(run, small_input, large_input, tries: int = 3):
+    """CPU time of ``run(large_input)`` over ``run(small_input)``, and the large result.
+
+    Each side keeps its minimum over ``tries`` runs, which discards scheduler
+    noise that only ever adds time. The two sides are interleaved so a slow
+    stretch of the host hits both. The clock is CPU time
+    (`time.process_time`), not wall time, so load average does not matter.
+    The large result comes back so a caller can check it without another run.
+
+    Raises ``AssertionError`` when the small run is too fast to measure: a
+    zero denominator would make any workload look infinitely slow or, with a
+    guard that returned 0, make a quadratic one pass vacuously.
+    """
+    small_best = large_best = float("inf")
+    large_result = None
+    for _ in range(tries):
+        seconds, _small_result = _timed(run, small_input)
+        small_best = min(small_best, seconds)
+        seconds, large_result = _timed(run, large_input)
+        large_best = min(large_best, seconds)
+    assert small_best > 0.0, (
+        "the small input ran in zero CPU time, so no growth ratio can be "
+        "measured; enlarge the small input"
+    )
+    return large_best / small_best, large_result
+
+
+def _assert_linear(run, small_input, large_input, what: str):
+    """Fail unless ``run`` grows under the ratio limit; return the large result."""
+    ratio, large_result = _cpu_growth(run, small_input, large_input)
+    assert ratio < _GROWTH_RATIO_LIMIT, (
+        f"{what}: CPU time grew {ratio:.1f}x for {_GROWTH_FACTOR}x the input, "
+        f"limit {_GROWTH_RATIO_LIMIT:.0f}x (linear is about {_GROWTH_FACTOR}x)"
+    )
+    return large_result
+
+
+def _burn(units: int) -> int:
+    total = 0
+    for index in range(units):
+        total += index
+    return total
+
+
+def _burn_quadratic(units: int) -> int:
+    total = 0
+    for _ in range(units):
+        total += _burn(units)
+    return total
+
+
+def test_assert_linear_passes_a_linear_workload_and_returns_its_large_result() -> None:
+    large = 100_000 * _GROWTH_FACTOR
+
+    assert _assert_linear(_burn, 100_000, large, "linear") == _burn(large)
+
+
+def test_cpu_growth_refuses_a_small_run_too_fast_to_measure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(time, "process_time", lambda: 1.0)
+    with pytest.raises(AssertionError, match="zero CPU time"):
+        _cpu_growth(lambda _: None, 1, 4, tries=1)
+
+
+def test_timed_leaves_the_collector_as_it_found_it() -> None:
+    was_enabled = gc.isenabled()
+    try:
+        gc.enable()
+        _timed(_burn, 10)
+        assert gc.isenabled()
+        gc.disable()
+        _timed(_burn, 10)
+        assert not gc.isenabled()
+    finally:
+        if was_enabled:
+            gc.enable()
+        else:
+            gc.disable()
+
+
+def test_assert_linear_fails_a_quadratic_workload() -> None:
+    with pytest.raises(AssertionError, match="CPU time grew"):
+        _assert_linear(_burn_quadratic, 150, 150 * _GROWTH_FACTOR, "quadratic")
+
+
+def _reverse_chain_source(depth: int) -> str:
+    return "\n".join(
+        ["import subprocess"]
+        + [f"v{index} = v{index + 1}" for index in range(depth)]
+        + [f"v{depth} = subprocess.run", 'v0(["x"], capture_output=True, text=True)']
+    )
+
+
 def test_name_resolution_stays_linear_on_a_deep_reverse_chain() -> None:
     """A long chain resolved in the worst order must not cost quadratic work.
 
@@ -4829,25 +4951,31 @@ def test_name_resolution_stays_linear_on_a_deep_reverse_chain() -> None:
     bindings. The queue learns the whole chain in one pass over the dependency
     edges instead.
 
-    The bound is deliberately loose. Measured on this machine the queue takes
-    0.36 seconds and a repeated sweep takes about 40, so anything under the
-    ceiling is the linear implementation and anything over it is a regression
-    to the sweep, not a slow CI runner. The clock is CPU time
-    (`time.process_time`), not wall time, so a host running at load average
-    above its core count does not turn a linear run into a failure.
+    The rule is a growth ratio, not a time ceiling: the same chain at 2500 and
+    at 10000 bindings must grow by less than 8x in CPU time. Linear work grows
+    about 4x. The repeated sweep makes N passes over N bindings, so it grows
+    about 16x; it took about 40 seconds at 20000, against about 1.6 seconds
+    for the queue on a local run on 2026-10-22. A ratio holds under testmon
+    line tracing and on slow runners, where an absolute ceiling does not.
     """
-    depth = 20000
-    source = "\n".join(
-        ["import subprocess"]
-        + [f"v{index} = v{index + 1}" for index in range(depth)]
-        + [f"v{depth} = subprocess.run", 'v0(["x"], capture_output=True, text=True)']
+    small, large = 2500, 10000
+
+    flagged = _assert_linear(
+        unpinned_lines,
+        _reverse_chain_source(small),
+        _reverse_chain_source(large),
+        f"name resolution over {small} then {large} bindings",
     )
-    started = time.process_time()
-    flagged = unpinned_lines(source)
-    elapsed = time.process_time() - started
 
     assert flagged, "a chain of any depth still reaches a subprocess entry point"
-    assert elapsed < 10.0, f"name resolution took {elapsed:.1f}s for {depth} bindings"
+
+
+def _alias_chain_source(depth: int) -> str:
+    return "\n".join(
+        ["import subprocess"]
+        + [f"m{index} = m{index + 1}" for index in range(depth)]
+        + [f"m{depth} = subprocess", 'm0.run(["x"], capture_output=True, text=True)']
+    )
 
 
 def test_a_deep_module_alias_chain_stays_linear() -> None:
@@ -4860,27 +4988,24 @@ def test_a_deep_module_alias_chain_stays_linear() -> None:
     makes every link resolvable, and a sweep that repeats until nothing
     changes then learns exactly one link per pass.
 
-    That difference is worth 14.0 seconds at this depth: repeated sweeps
+    That difference is worth 14.0 seconds at 8000 links: repeated sweeps
     measured 0.235s at 1000 links, 0.887 at 2000, 3.425 at 4000 and 14.047 at
     8000, near enough 4x per doubling. Propagating along the dependency edges
     instead settles the whole chain in one pass over the edges.
 
-    The loaded pre-push suite measured 3.8 seconds. Five seconds keeps margin
-    for shared CPU while still rejecting the repeated full-chain sweep.
+    The rule is a growth ratio: 2000 and 8000 links must grow by less than 8x
+    in CPU time. Linear work grows about 4x, the repeated sweep about 16x.
     """
-    depth = 8000
-    source = "\n".join(
-        ["import subprocess"]
-        + [f"m{index} = m{index + 1}" for index in range(depth)]
-        + [f"m{depth} = subprocess", 'm0.run(["x"], capture_output=True, text=True)']
+    small, large = 2000, 8000
+
+    flagged = _assert_linear(
+        unpinned_lines,
+        _alias_chain_source(small),
+        _alias_chain_source(large),
+        f"alias resolution over {small} then {large} links",
     )
 
-    started = time.process_time()
-    flagged = unpinned_lines(source)
-    elapsed = time.process_time() - started
-
-    assert flagged == [depth + 3], "the module survives every alias on the way"
-    assert elapsed < 5.0, f"alias resolution took {elapsed:.1f}s for {depth} links"
+    assert flagged == [large + 3], "the module survives every alias on the way"
 
 
 def test_unwinding_a_wide_container_stays_linear() -> None:
@@ -4911,6 +5036,12 @@ def test_unwinding_a_wide_container_stays_linear() -> None:
     assert elapsed < 0.3, f"unwinding took {elapsed:.2f}s for {width} elements"
 
 
+def _wide_unpack_source(width: int) -> str:
+    names = ", ".join(f"a{index}" for index in range(width))
+    values = ", ".join(f"b{index}" for index in range(width))
+    return f"import subprocess\n{names} = {{{values}}}\n"
+
+
 def test_unpacking_a_wide_container_stays_linear() -> None:
     """One value shared by many names must be read once, not once per name.
 
@@ -4922,18 +5053,28 @@ def test_unpacking_a_wide_container_stays_linear() -> None:
     Grouping the bindings that share a value node bounds the work at one read
     per node. Nothing here resolves, which is the point: the cost has to stay
     bounded even when no answer is ever found.
-    """
-    width = 4000
-    names = ", ".join(f"a{index}" for index in range(width))
-    values = ", ".join(f"b{index}" for index in range(width))
-    source = f"import subprocess\n{names} = {{{values}}}\n"
 
-    started = time.process_time()
-    flagged = unpinned_lines(source)
-    elapsed = time.process_time() - started
+    The rule is a growth ratio: 1000 and 4000 names must grow by less than 8x
+    in CPU time. Linear work grows about 4x, the per-name walk about 16x.
+    """
+    small, large = 1000, 4000
+
+    flagged = _assert_linear(
+        unpinned_lines,
+        _wide_unpack_source(small),
+        _wide_unpack_source(large),
+        f"unpacking {small} then {large} names",
+    )
 
     assert flagged == [], "no call is made, so nothing can decode"
-    assert elapsed < 3.0, f"unpacking took {elapsed:.1f}s for {width} names"
+
+
+def _container_chain_source(depth: int) -> str:
+    lines = ["import subprocess"]
+    lines += [f"m{index} = [m{index + 1}][0]" for index in range(depth)]
+    lines.append(f"m{depth} = subprocess")
+    lines.append('m0.run(["x"], capture_output=True, text=True)')
+    return "\n".join(lines)
 
 
 def test_one_value_reading_many_names_stays_linear() -> None:
@@ -4943,25 +5084,25 @@ def test_one_value_reading_many_names_stays_linear() -> None:
     the fixpoint that resolves names and the unwinding that reads through a
     subscript. Reading the sources of a link once per pass rather than once
     per node turns that into a walk per pass per link: 20000 plain links took
-    83.2 seconds that way against a 10 second budget.
+    83.2 seconds that way.
 
     The spawn at the end is what makes this a correctness test and not only a
     timing one. A chain that settles fast but loses the module answers
     nothing.
+
+    The rule is a growth ratio: 500 and 2000 links must grow by less than 8x
+    in CPU time. Linear work grows about 4x, the per-pass walk about 16x.
     """
-    depth = 2000
-    lines = ["import subprocess"]
-    lines += [f"m{index} = [m{index + 1}][0]" for index in range(depth)]
-    lines.append(f"m{depth} = subprocess")
-    lines.append('m0.run(["x"], capture_output=True, text=True)')
-    source = "\n".join(lines)
+    small, large = 500, 2000
 
-    started = time.process_time()
-    flagged = unpinned_lines(source)
-    elapsed = time.process_time() - started
+    flagged = _assert_linear(
+        unpinned_lines,
+        _container_chain_source(small),
+        _container_chain_source(large),
+        f"chain resolution over {small} then {large} links",
+    )
 
-    assert flagged == [depth + 3], "the module survives every container on the way"
-    assert elapsed < 3.0, f"chain resolution took {elapsed:.1f}s for {depth} links"
+    assert flagged == [large + 3], "the module survives every container on the way"
 
 
 def test_a_value_reading_many_names_is_walked_once(
@@ -5005,6 +5146,13 @@ def test_a_value_reading_many_names_is_walked_once(
     assert wide_walks == 1, f"the wide value was walked {wide_walks} times"
 
 
+def _nested_file_source(depth: int, width: int) -> str:
+    lines = [("  " * level) + f"def f{level}():" for level in range(depth)]
+    lines += [("  " * depth) + f"x{index} = {index}" for index in range(width)]
+    lines.append(("  " * depth) + "return 1")
+    return "\n".join(lines)
+
+
 def test_return_bindings_stay_linear_in_a_deeply_nested_file() -> None:
     """Collecting returns walks each function body once per enclosing function.
 
@@ -5013,20 +5161,33 @@ def test_return_bindings_stay_linear_in_a_deeply_nested_file() -> None:
     100 indentation levels, which bounds that multiplier at a constant the
     parser enforces rather than one this scan has to police, so the work stays
     linear in file size. The nesting here sits just under that ceiling.
-    """
-    depth, width = 90, 2000
-    lines = [("  " * level) + f"def f{level}():" for level in range(depth)]
-    lines += [("  " * depth) + f"x{index} = {index}" for index in range(width)]
-    lines.append(("  " * depth) + "return 1")
-    source = "\n".join(lines)
 
-    started = time.process_time()
-    flagged = unpinned_lines(source)
-    elapsed = time.process_time() - started
+    The rule is two growth ratios, each under 8x in CPU time. At the fixed
+    depth of 90, widths of 500 and 2000 statements: linear work grows about 4x,
+    a cost quadratic in width about 16x. At a fixed width of 1000, depths of
+    22 and 88: one walk per enclosing function grows at most about 4x, and a
+    walk per pair of enclosing functions about 16x.
+    """
+    depth, small, large = 90, 500, 2000
+
+    flagged = _assert_linear(
+        unpinned_lines,
+        _nested_file_source(depth, small),
+        _nested_file_source(depth, large),
+        f"resolution at depth {depth} over widths {small} then {large}",
+    )
 
     assert flagged == [], "nothing here reaches subprocess"
-    # The loaded pre-push suite measured 3.7 seconds for this fixed-size input.
-    assert elapsed < 5.0, f"resolution took {elapsed:.1f}s at depth {depth}"
+
+    width, shallow, deep = 1000, 22, 88
+    flagged = _assert_linear(
+        unpinned_lines,
+        _nested_file_source(shallow, width),
+        _nested_file_source(deep, width),
+        f"resolution at width {width} over depths {shallow} then {deep}",
+    )
+
+    assert flagged == [], "nothing here reaches subprocess"
 
 
 @pytest.mark.parametrize(

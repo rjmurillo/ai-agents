@@ -34,6 +34,13 @@ def _check_coverage(collected: dict[str, list[str]], subtests: pytest.Subtests) 
     for name in runner.split_names():
         with subtests.test("every group collects something", group=name):
             assert collected[name], name
+    with subtests.test("no module spans two groups (issue #6846)"):
+        homes: dict[str, set[str]] = {}
+        for name in runner.split_names():
+            for node_id in collected[name]:
+                homes.setdefault(node_id.split("::", 1)[0], set()).add(name)
+        split_modules = sorted(module for module, groups in homes.items() if len(groups) > 1)
+        assert not split_modules, split_modules[:5]
 
 
 def _check_exclusions(collected: dict[str, list[str]], subtests: pytest.Subtests) -> None:

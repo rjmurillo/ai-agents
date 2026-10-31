@@ -1,7 +1,7 @@
 ---
 id: ADR-111
 status: accepted
-date: 2026-09-27
+date: 2026-10-29
 decision-makers: [rjmurillo]
 supersedes: [ADR-080]
 superseded-by: null
@@ -129,13 +129,19 @@ Default every skill, agent, and command to the harness-inherited model.
    `build_all.py --check`, which fails when a mirror differs from its
    regeneration.
 
-Rule 3's new clause is a skill rule. Generated agents are out of its scope:
-`build/generate_agents_common.py` still resolves `model_tier: haiku` to
-`claude-haiku-4.5`, because Copilot agents do read `model:`. Whether that
-override is acceptable remains the open question ADR-080 finding 4 recorded.
-Since 2026-10-17 (ADR-119 decision 11) no template sets `model_tier` on a
-Copilot agent, because `.github/agents/` links to that render and is
-inherit-only; the resolution path stays but must not fire.
+Rule 3's new clause is a skill rule. Generated agents are out of its scope.
+Since 2026-10-17 (ADR-119 decision 11) no template sets `model_tier: haiku`
+on a Copilot agent, because `.github/agents/` links to that render and is
+inherit-only.
+
+Amended 2026-10-29 (issue #6638): `build/generate_agents_common.py` no
+longer turns `model_tier: haiku` into `claude-haiku-4.5`, so no tier emits
+an agent pin. This carries out ADR-119 decision 11 and closes the question
+ADR-080 finding 4 recorded. A user reported that Copilot CLI 1.0.99-3
+refused that pin on a host without the model, so the reviewer never
+started. Known gap: the generator still formats a fresh manifest KEEP_PIN
+for Copilot-side platforms, and `check_model_pins.py` accepts a backed pin.
+The manifest holds zero pins, so nothing reaches that path today.
 
 ## Rationale
 

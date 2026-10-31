@@ -18,6 +18,8 @@ Outputs:
   azure_refs         - space-delimited Azure Boards tokens, literally `AB#<n>`
   incremental_scope  - incremental scope declaration from PR title
   has_specs          - "true" if any references were found, else "false"
+  pr_body_file       - path to the body this step read, newline-terminated, so a
+                       later step grades the same body instead of fetching again
 
 Source-platform contract (issue #5621). This script runs on GitHub pull
 requests, so the text it reads is GitHub text. Two reference systems appear in
@@ -250,7 +252,12 @@ def _gh_pr_field(pr_number: str, repository: str, field: str) -> tuple[int, str]
             file=sys.stderr,
         )
         return EXIT_EXTERNAL, ""
-    return EXIT_OK, result.stdout.strip()
+    out = result.stdout
+    if field == "body":
+        # gh appends one newline. Leading spaces can decide whether a heading
+        # counts, so only that newline is removed from a body.
+        return EXIT_OK, out.removesuffix("\n")
+    return EXIT_OK, out.strip()
 
 
 def _extract_spec_refs(combined: str) -> str:
@@ -371,12 +378,13 @@ def run(_argv: list[str] | None = None) -> int:
     write_github_output("issue_refs", issue_refs)
     write_github_output("azure_refs", azure_refs)
     write_github_output("incremental_scope", incremental_scope)
+    # The body file stays for the verdict step; the runner clears RUNNER_TEMP
+    # when the job ends.
+    write_github_output("pr_body_file", str(body_file))
 
     _announce_references(spec_refs, issue_refs, azure_refs)
 
-    # Clean up temp files
     title_file.unlink(missing_ok=True)
-    body_file.unlink(missing_ok=True)
 
     return EXIT_OK
 

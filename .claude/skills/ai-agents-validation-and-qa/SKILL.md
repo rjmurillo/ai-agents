@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents Validation and QA
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths because its audience is repo contributors, not plugin consumers. Declared paths: .agents/governance/FAILURE-MODES.md, .agents/governance/TESTING-ANTI-PATTERNS.md, .agents/governance/TESTING-RIGOR.md, .agents/governance/test-location-standards.md, .project-toolkit/architecture/ADR-, .project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md, .project-toolkit/retrospective, scripts/instruments.py, scripts/modules/investigation_allowlist.py, scripts/validate_session_json.py, scripts/validation/pre_pr.py -->
 This repo runs verification-based governance: a claim is true when a gate, test, or command output says it is, not when an agent asserts it. This skill defines the evidence bar for code changes, where tests live and how they are collected, the anti-pattern canon (each entry paid for by a real incident), and the QA gate semantics at session end.
 
 Audience: a zero-context contributor (human or model) about to write, run, or skip tests in this repository.
@@ -54,7 +54,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | CLI contract | argv-failure exits, exit codes, stdout vs `--output` tested |
 | Coverage proof | 100% block coverage on changed files (see Phase 4) |
 
-Origin story: in PR #1756, the original 20 unit tests gave 24% block coverage; adding negative, edge, and branch tests raised it to 100% and caught real defects the happy-path tests missed (whitespace handling on verdict matching, conditional OTHER-hint emission, type validation). That review created TESTING-RIGOR.md (TESTING-RIGOR.md:3-16). The rule exists because bots (Copilot, CodeRabbit, Gemini) reliably catch what happy-path tests skip, at roughly 10x the cost of writing the tests up front (TESTING-RIGOR.md:81).
+Origin story: in one PR, the original 20 unit tests gave 24% block coverage; adding negative, edge, and branch tests raised it to 100% and caught real defects the happy-path tests missed (whitespace handling on verdict matching, conditional OTHER-hint emission, type validation). That review created TESTING-RIGOR.md (TESTING-RIGOR.md:3-16). The rule exists because bots (Copilot, CodeRabbit, Gemini) reliably catch what happy-path tests skip, at roughly 10x the cost of writing the tests up front (TESTING-RIGOR.md:97).
 
 Coverage targets by risk tier (AGENTS.md Standards; TESTING-ANTI-PATTERNS.md:165-172): 100% security-critical, 80% business logic, 60-70% docs/glue. "Security-critical" includes secret handling, input validation, command execution, path sanitization, auth checks.
 
@@ -73,7 +73,7 @@ Skill tests live under `tests/skills/NAME/` so customer installs contain
 runtime assets only. Never colocate a `tests/` directory inside a skill;
 the pre-commit colocated-test guard blocks new ones.
 
-Useful invocations, all verified (as of 2026-07-03):
+Useful invocations (the `--collect-only` form re-run 2026-10-31):
 
 ```bash
 uv run pytest tests/ -x                                    # full default suite, stop on first failure
@@ -83,17 +83,24 @@ uv run pytest tests/skills/NAME/ --collect-only -q         # prove new skill tes
 uv run pytest tests/skills/prose-self-check/ -q            # one skill's suite
 ```
 
-Markers (`pyproject.toml [tool.pytest.ini_options].markers`): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `claude`, `copilot`, `codex`, `grok`, `pi`, `hermes`, `cursor`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits or an installed CLI, run on pull requests by `plugin-cli-smoke.yml` (except `grok` and `hermes`, which no CI leg selects: run them locally with `RUN_CLI_E2E=1`); the smoke gate asserts they were not skipped (issue #2231 item 4). `claude`, `copilot`, and `codex` name the CLI a real-CLI test needs; each CLI smoke leg selects `smoke and <cli>`. `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
+Markers (`pyproject.toml [tool.pytest.ini_options].markers`): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `claude`, `copilot`, `codex`, `grok`, `pi`, `hermes`, `cursor`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits or an installed CLI, run on pull requests by `plugin-cli-smoke.yml` (except `grok` and `hermes`, which no CI leg selects: run them locally with `RUN_CLI_E2E=1`); the smoke gate asserts they were not skipped. `claude`, `copilot`, and `codex` name the CLI a real-CLI test needs; each CLI smoke leg selects `smoke and <cli>`. `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
 
-Stale doc warning: `.agents/governance/test-location-standards.md` still describes a Pester/`*.Tests.ps1` layout. Zero `*.Tests.ps1` files exist (as of 2026-07-03; ADR-042 Python migration). Trust the table above and pyproject.toml, not that file.
+Stale doc warning: `.agents/governance/test-location-standards.md` still describes a Pester/`*.Tests.ps1` layout. Zero `*.Tests.ps1` files exist (checked 2026-10-31; ADR-042 Python migration; run `pester-count` to re-measure). Trust the table above and pyproject.toml, not that file.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/test_layout.py" --repo . pester
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/test_layout.py" --repo . skill-tests NAME
+```
+
+`pester` counts `*.Tests.ps1` files and exits 1 only when this warning is dead prose (count is 0 and the governance doc no longer mentions Pester). `skill-tests` lists the files `uv run pytest tests/skills/NAME --collect-only -q` collects (add `--no-pytest` for a `test_*.py` walk) and exits 1 when none. Neither says whether the tests pass or cover the code.
 
 ### Phase 3: Write tests that count
 
 Beyond pos+neg+edge, this repo demands five specific disciplines:
 
-**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 435-548) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
+**1. Isolation from the real repo.** The root `conftest.py` (repo root, fixture `_guard_real_repo_head`, helper `_check_head_change`) fails any test that moves the REAL repo HEAD: every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (fixture `_isolate_git_config_for_test_git` in tests/conftest.py), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (fixture `_default_project_repo` in tests/conftest.py). Consumer-repo simulation tests override that env var to `"0"`.
 
-**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:67-73` requires:
+**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:29, index row 11; the plugin-root incident wedged every plugin customer for 33 days). The `**Ship a runtime-contract test.**` item in `.claude/rules/generated-artifacts.md` (lines 68-74) requires:
 
 The artifact MUST have a test that executes
    it under the verified contract: set the cwd the host sets (for a plugin hook,
@@ -105,28 +112,29 @@ The artifact MUST have a test that executes
 
 See `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
 
-**3. Negative controls beat self-reference.** A test that string-matches the generator's own output passes when the generator is consistently wrong. The first #2205 fix shipped exactly this (retro 2026-06-02-pr-2205-customer-wedge-incident.md:49,83) and it hid two more defects. Every contract test needs a case where the wrong artifact fails.
+**3. Negative controls beat self-reference.** A test that string-matches the generator's own output passes when the generator is consistently wrong. The first plugin-root fix shipped exactly this (retro 2026-06-02-pr-2205-customer-wedge-incident.md:49,83) and it hid two more defects. Every contract test needs a case where the wrong artifact fails.
 
-**4. Threshold detectors need calibration.** Any threshold-based signal (rework count, thread count, file count) must be replayed against roughly the last 5 real merged PRs and shown to fire correctly before shipping. PR #1989's M4 warning shipped with threshold 6 in a repo whose PRs maxed at 4 file edits: it could never fire (retro 2026-05-10-pr-1989-recursive-failure.md:151-157). A detector that cannot fire on recent real work is not calibrated.
+**4. Threshold detectors need calibration.** Any threshold-based signal (rework count, thread count, file count) must be replayed against roughly the last 5 real merged PRs and shown to fire correctly before shipping. The recursive-failure PR's M4 warning shipped with threshold 6 in a repo whose PRs maxed at 4 file edits: it could never fire (retro 2026-05-10-pr-1989-recursive-failure.md:151-157). A detector that cannot fire on recent real work is not calibrated.
 
 **5. Guards run on their own branch.** A PR shipping a pre-push or pre-commit guard must show that guard running against its own branch, terminal output in the PR description (retro 2026-05-10-pr-1989-recursive-failure.md:131-137; M5 was never applied to the PR that shipped it).
 
 ### Phase 4: Prove coverage
 
-100% block coverage on changed files, with only defensive-unreachable exclusions (`# pragma: no cover`) plus written justification (TESTING-RIGOR.md:53).
+100% block coverage on changed files, with only defensive-unreachable exclusions (`# pragma: no cover`) plus written justification (TESTING-RIGOR.md:54).
 
 ```bash
-uv run pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
+uv run pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov --cov-branch --cov-report=
+coverage report --include=scripts/ai_review_common/verdict.py --fail-under=100
 ```
 
-Two traps, both fossilized in `.github/workflows/pytest.yml` comments:
+`.github/workflows/pytest.yml` pins two modules this way: step `Pin ai_review_common.verdict coverage collection (REQ-008-07)` with its `Enforce ... at 100%` step (lines 512-522), and the REQ-009 pair after it. Two traps, both fossilized in comments there:
 
 | Trap | Rule | Evidence |
 |------|------|----------|
-| File-set sensitivity | A `--cov-fail-under=100` pin must run EVERY test file that exercises the module. After a test-file split, running one file alone reported 63% and tripped the gate | Issue #1963; pytest.yml:196-205 |
-| Coverage target form | Use the module-name form (`--cov=wait_for_unresolved_zero`), never the file-path form. File paths produce "Module never imported" + 0% with pytest-cov 7.x on Python 3.14 | Issue #2063, tested in PR #2078; pytest.yml:207-222 |
+| File-set sensitivity | Collect with EVERY test file that exercises the module. After a test-file split, `test_ai_review.py` alone reported 63% and tripped the gate | pytest.yml:508 |
+| Coverage target form | Collect with bare `--cov --cov-branch`, then isolate the module with `coverage report --include=<path> --fail-under=100`. A module-name `--cov=<name>` target fails when the module is a file-path target not importable by name | pytest.yml:524 |
 
-Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:387). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). PR #1965 still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
+Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:390). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). The verdict-parser PR still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
 
 ### Phase 5: QA evidence semantics
 
@@ -158,8 +166,8 @@ session log.
 - [ ] Hook: add `tests/hooks/test_NAME.py`; use `tests/hook_test_helpers.py`; cover exit 0 (allow, stdout context), exit 2 (block, stdout message), and malformed-stdin input.
 - [ ] Validation/build script: add `tests/test_NAME.py` or `tests/build_scripts/test_NAME.py`; test exit codes per ADR-035 (0 ok, 1 logic, 2 config, 3 external, 4 auth).
 - [ ] Generated artifact: add a runtime-contract test with a negative control (Phase 3, item 2).
-- [ ] All git-mutating tests isolated in `tmp_path` repos (the #2316 guard will fail you otherwise).
-- [ ] Prove collection: `uv run pytest PATH --collect-only -q` shows your tests; then run them; then run the coverage pin form from Phase 4 on changed files.
+- [ ] All git-mutating tests isolated in `tmp_path` repos (the repo-root HEAD guard will fail you otherwise).
+- [ ] Prove collection: `uv run pytest PATH --collect-only -q` shows your tests; then run them; then run the coverage form from Phase 4 on changed files (`test_layout.py skill-tests NAME` lists what is collected).
 - [ ] Run `uv run python scripts/validation/pre_pr.py` before the PR (the local shift-left aggregate; see `ai-agents-change-control` for the full gate ladder).
 - [ ] Save the `pre_pr.py` output and its exit code to a file, then distill the file with `distill_artifact.py` (usage: context-optimizer skill, Tool Details: Distill Artifact), and use the digest to locate failures; search the raw log for any detail it omits.
 
@@ -169,13 +177,13 @@ Each row cost real time. Do not re-earn these lessons.
 
 | Anti-pattern | Incident | Binding rule |
 |--------------|----------|--------------|
-| Self-referential test (asserts generator output against itself) | First #2205 fix shipped one; it passed while the artifact was broken (retro :49, :83) | Runtime-contract test + negative control (generated-artifacts.md:67-73) |
-| Happy-path-only test suite | PR #1756: 20 tests, 24% coverage, bots caught the rest | TESTING-RIGOR.md pos+neg+edge, BLOCKING |
-| Threshold detector never calibrated | #1989 M4: threshold 6, repo max 4, could never fire | Calibration table against last ~5 real PRs before commit |
-| Guard not run on its own branch | #1989 M5: bot-cascade hook shipped but never applied to its own PR | Guard output on the shipping branch in the PR description |
-| Test mutates the real repo | Repo-root conftest.py:435-548 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
-| Silent default for missing signal | PR #1965 verdict parser defaulted missing to PASS, 3 fix rounds (FM-10) | Test the missing-signal case; assert raise/block |
-| Coverage theater (assertion-free tests, tautologies) | Issue #749 philosophy work | TESTING-ANTI-PATTERNS.md 1: each test answers a stakeholder concern |
+| Self-referential test (asserts generator output against itself) | First plugin-root fix shipped one; it passed while the artifact was broken (retro :49, :83) | Runtime-contract test + negative control (generated-artifacts.md:68-74) |
+| Happy-path-only test suite | Origin-story PR: 20 tests, 24% coverage, bots caught the rest | TESTING-RIGOR.md pos+neg+edge, BLOCKING |
+| Threshold detector never calibrated | Recursive-failure M4: threshold 6, repo max 4, could never fire | Calibration table against last ~5 real PRs before commit |
+| Guard not run on its own branch | Recursive-failure M5: bot-cascade hook shipped but never applied to its own PR | Guard output on the shipping branch in the PR description |
+| Test mutates the real repo | Repo-root conftest.py `_guard_real_repo_head` | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
+| Silent default for missing signal | Verdict parser defaulted missing to PASS, 3 fix rounds (FM-10) | Test the missing-signal case; assert raise/block |
+| Coverage theater (assertion-free tests, tautologies) | Testing philosophy work | TESTING-ANTI-PATTERNS.md 1: each test answers a stakeholder concern |
 | Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + `pyproject.toml [tool.pytest.ini_options].testpaths` |
 | Skipping QA on a mixed session | ADR-034 allowlist exists precisely to fence this | Split the session; skip evidence only with allowlisted paths staged |
 
@@ -186,24 +194,32 @@ Before claiming a change meets the evidence bar:
 - [ ] Every new/changed function has pos, neg, and edge tests; every error and conditional branch exercised
 - [ ] External I/O mocked in unit tests; CLI exit codes tested where a CLI changed
 - [ ] `uv run pytest tests/ -x` green locally, plus `uv run pytest tests/skills/NAME/ -q` for any skill you touched
-- [ ] Coverage proven at 100% on changed files using the module-name `--cov` form
+- [ ] Coverage proven at 100% on changed files using bare `--cov` plus `coverage report --include=<file> --fail-under=100`
 - [ ] Generated artifacts have a runtime-contract test with a negative control
 - [ ] Any new threshold or guard shows calibration/self-application evidence in the PR description
 - [ ] QA row in the session log carries a report path or a legal `SKIPPED:` evidence string with allowlisted staged files
 
-## Provenance and Maintenance
+## Scripts
 
-Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml [tool.pytest.ini_options]`, repo-root `conftest.py` (`#2316` guard, cited with its line range in the Anti-Patterns table above), `tests/conftest.py` (cited with precise ranges at :26-61 and :64-76 above), `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), `.agents/governance/FAILURE-MODES.md:14-30,387`, `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`. <!-- citation-freshness: ignore -- dense bibliography line; the checker's anchor pool is shared across the whole line (citation_anchors.py _anchor_candidates), so editing one citation's neighboring prose can fail an unrelated citation on the same line regardless of its own accuracy; every range above is verified directly against HEAD -->
-
-Re-verify volatile facts:
+`scripts/instruments.py` lists and runs every checker this skill relies on:
 
 ```bash
-grep -n testpaths pyproject.toml                                  # collection roots
-sed -n '435,548p' conftest.py                                     # #2316 HEAD guard still present
-grep -n "cov-fail-under" .github/workflows/pytest.yml             # coverage pins and forms
-grep -n "_QA_SKIP_CHECKERS" -A5 scripts/validate_session_json.py   # QA skip evidence strings
-ls tests/skills/prose-self-check/                                  # the skill-test location
-git ls-files '*.Tests.ps1' | wc -l                                # Pester doc still stale if 0
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/instruments.py" --repo . list
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-validation-and-qa/scripts/instruments.py" --repo . run <id>
 ```
+
+Ids: `citation-freshness` (do `path:line` cites still hold), `investigation-allowlist` and `qa-skip-evidence` (Phase 5 paths and legal skip strings, read from source), `pester-count`, `skill-tests` (Phase 2), `drift-self-check`. A listing only proves the files exist. The prose keeps the reasons and the edges (mixed sessions, what a skip may hide).
+
+## Provenance and Maintenance
+
+Re-verified 2026-10-31 at `42e409325`: line cites, the Phase 4 workflow pins, the Pester count, and the two QA skip strings. Facts live in `reverify.json`; run the drift command after any edit to a cited file.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-validation-and-qa --require
+```
+
+Sources: `.agents/governance/TESTING-RIGOR.md` (Status :5, origin :3-16, pragma :54, cost :97), `.agents/governance/TESTING-ANTI-PATTERNS.md` (:91, :165-172), `.agents/governance/FAILURE-MODES.md` (:29, :390), `.claude/rules/generated-artifacts.md` (:68-74), `.claude/rules/claude-agents.md` (:29), `pyproject.toml [tool.pytest.ini_options]`, root `conftest.py`, `tests/conftest.py`, `.github/workflows/pytest.yml` (:508-524), ADR-034, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), and the 2026-05-10 and 2026-06-02 retros in `.project-toolkit/retrospective/`.
+
+Calibration replay of a threshold detector over merged PRs (Phase 3, item 4) stays manual: it needs the GitHub API.
 
 If TESTING-RIGOR.md, ADR-034, or the pytest.yml pins change, update the matching phase here in the same PR.

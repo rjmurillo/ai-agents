@@ -1,6 +1,6 @@
 ---
 name: skillforge
-description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Uses deep iterative analysis with 11 thinking models, regression questioning, evolution lens, and multi-agent synthesis panel. Phase 0 triage ensures you never duplicate existing functionality. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify)."
+description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Sizes depth to outcome and risk: bounded edits stay light; ambiguous or consequential work gets deeper lenses and an independent panel. Phase 0 triage ensures you never duplicate existing functionality. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Do NOT use for context optimization, placement analysis, markdown compression, extraction and indexing, or rule audits (use context-optimizer), eval-gated optimization of an existing skill (use skillopt), or saving finished work as a skill (use skillify)."
 license: MIT
 user-invocable: true
 allowed-tools:
@@ -82,7 +82,7 @@ flow and script examples.
 | Input | Output | Quality Gate |
 |-------|--------|--------------|
 | Any input | Triage -> Route -> Action | Phase 0 analysis |
-| Explicit create | New skill | Unanimous panel approval |
+| Explicit create | New skill | Depth Contract tier; unanimous panel when it runs |
 | Skill question | Skill recommendation | Match confidence >=60% |
 
 ---
@@ -91,22 +91,25 @@ flow and script examples.
 
 ```text
 Any user input
+  -> Accepted outcome: what must be true, its check, and who accepts it
   -> Phase 0: Skill triage
      -> USE_EXISTING, IMPROVE_EXISTING, CREATE_NEW, COMPOSE, or CLARIFY
-  -> Phase 1: Deep analysis when creation or improvement is needed
-  -> Phase 2: Specification with rationale and evolution score
+  -> Depth Contract: pick the tier from the triage route and the outcome
+  -> Phase 1: Analysis the tier calls for (skipped for a bounded edit)
+  -> Phase 2: Specification with rationale and evolution score (Standard and Full tiers)
   -> Phase 3: Generation of SKILL.md, references/, assets/, and scripts/
-  -> Phase 4: Synthesis panel until unanimous approval
+  -> Phase 4: Independent review; full panel until unanimous approval when the tier requires it
   -> Production-ready agentic skill
 ```
 
 Key principles:
 
 - Phase 0 prevents duplicate skills before any creation work starts.
-- Evolution and timelessness scoring stays at the center. Score >=7 is required.
+- Evolution and timelessness scoring stays at the center at the Standard and Full tiers. Score >=7 is required there; a Bounded edit skips it.
 - Every decision includes WHY.
 - Scripts are added when deterministic automation improves verification.
-- Panel approval is unanimous before finalization.
+- Depth follows the accepted outcome and its risk, not a fixed step count. See Depth Contract.
+- When the panel runs, approval is unanimous before finalization.
 
 ### Tool Escalation Policy
 
@@ -122,12 +125,52 @@ local scripts, external facts, or true parallel sub-agent orchestration.
 |---------|--------|
 | `SkillForge: {goal}` | Full autonomous execution |
 | `SkillForge --plan-only {goal}` | Generate specification only |
-| `SkillForge --quick {goal}` | Reduced depth, not recommended |
+| `SkillForge --quick {goal}` | Bounded tier for a low-risk edit with a deterministic verifier; escalates when the Depth Contract says so |
 | `SkillForge --triage {input}` | Run Phase 0 triage only |
 | `SkillForge --improve {skill}` | Enter improvement mode for existing skill |
 
 Measured improvement against a scored eval set routes to `skillopt`. Improve mode
 (`--improve`, `IMPROVE_EXISTING`) is for unscored structural edits.
+
+---
+
+## Depth Contract
+
+Define the accepted outcome before choosing steps: one sentence naming what must
+be true, the check that proves it, and who accepts it. Then pick the lightest
+tier whose analysis covers the unresolved risk. Three inputs choose the tier:
+uncertainty (open requirements, unknown triggers), consequence (who ships it,
+what breaks if wrong, whether it is reversible), and missing evidence (no
+verifier, no prior art checked).
+
+| Tier | Typical case | Path |
+|------|--------------|------|
+| Bounded | Structural edit to an existing skill, known scope, a deterministic verifier | Phase 0 triage, `--improve` or `--quick`, Phase 3 edit, validators. No Phase 1 discovery, no long-horizon scoring. |
+| Standard | Scoped change with a few open questions | Bounded path plus only the Phase 1 lenses and regression questions that address a named open risk |
+| Full | New ambiguous capability, or two or more high inputs | Phases 0 to 4, all 11 lenses, panel review |
+
+Consequential changes override the tier. A change to a safety control, a
+permission or authority boundary, a shipped default, or anything irreversible
+keeps the human decision and an independent review, whatever the step count.
+Get explicit human acceptance before Phase 3 writes any such change.
+
+Choose each step's executor on purpose. Existing scripts do computable work
+(`triage_skill_request.py`, `discover_skills.py`, the validators). Models
+interpret and synthesize. The accountable human keeps tradeoffs and authority
+decisions. Follow Design Selection (map, GPS, or hybrid) in the script
+integration framework for the split.
+
+Reuse context only with its scope and freshness: record the skill or repo it
+covers and the SHA or date it was read. Revalidate when scope widens, the
+touched paths changed since that SHA, or a verifier fails. Stale context is
+re-read, never reused.
+
+Report a depth reduction as an improvement only when accepted outcomes hold and
+trust does not regress. Report accepted outcomes, human effort, cost, and
+latency, and mark any figure not measured as `unknown`.
+
+See [references/depth-contract.md](references/depth-contract.md) for the tier
+rules, escalation triggers, and the before/after cases.
 
 ---
 
@@ -165,9 +208,12 @@ See [references/external-skill-source-adaptation.md](references/external-skill-s
 
 ## Phase 1: Deep Analysis
 
-Expand explicit requirements, implicit requirements, unknown unknowns, and
-domain context. Apply all 11 thinking models, run regression questioning until
-three rounds add no new insight, and identify automation opportunities.
+Run at Standard and Full tiers, scoped by the Depth Contract. Expand explicit
+requirements, implicit requirements, unknown unknowns, and domain context. At the
+Full tier, apply all 11 thinking models and run regression questioning until
+three rounds add no new insight. At the Standard tier, apply only the models that
+address a named open risk and stop when a round adds no new unresolved risk.
+Identify automation opportunities at both tiers.
 
 See [references/phase1-analysis-deep-dive.md](references/phase1-analysis-deep-dive.md),
 [references/multi-lens-framework.md](references/multi-lens-framework.md), and
@@ -205,7 +251,9 @@ and [references/script-patterns-catalog.md](references/script-patterns-catalog.m
 
 ## Phase 4: Synthesis Panel
 
-Run 3-4 independent evaluators: design and architecture, audience and usability,
+Required at the Full tier and for any consequential change; a Bounded edit is
+reviewed by the validators and the repository gates instead. Run 3-4
+independent evaluators: design and architecture, audience and usability,
 evolution and timelessness, plus script and automation when scripts exist. All
 agents must approve. Rejections loop back into targeted analysis and generation.
 
@@ -334,6 +382,7 @@ See [references/script-integration-framework.md](references/script-integration-f
 | Reference | Contents |
 |-----------|----------|
 | [Overview and Triggers](references/overview-and-triggers.md) | Original examples, trigger lists, routing diagram, commands |
+| [Depth Contract](references/depth-contract.md) | Outcome-first tiers, escalation, evidence reuse, before/after cases |
 | [Phase 0 Triage](references/phase0-triage.md) | Input classification, ecosystem scan, decision matrix, triage scripts |
 | [External Skill Source Adaptation](references/external-skill-source-adaptation.md) | Gates for adapting a foreign skill catalog: pinned source, reuse over duplication, reject product coupling |
 | [Phase 1 Deep Dive](references/phase1-analysis-deep-dive.md) | Input expansion, lens scan, regression questioning, automation analysis |

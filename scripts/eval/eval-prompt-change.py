@@ -94,6 +94,10 @@ RATE_LIMIT_SLEEP_SEC = 1.0
 DEFAULT_RUNS = 3
 SECURITY_RUNS = 5
 DEFAULT_BASE_RESAMPLES = 3
+# Judge reply budget. Scenarios that elicit long replies hit `token_limit` at the
+# default and go unscored (REQ-037 AC-9), so --max-tokens raises it per run.
+DEFAULT_MAX_TOKENS = 1024
+MAX_TOKENS_UPPER_BOUND = 16384
 FLAKINESS_BLOCK_THRESHOLD = 0.4
 EXIT_EXTERNAL = 3  # ADR-035 exit 3: an external dependency failed, including a provider outage
 EXIT_BILLING = 4  # ADR-035 exit 4: the credential cannot be used because the account has no credit
@@ -301,6 +305,7 @@ def judge_scenario(
     prompt_text: str,
     scenario: dict[str, Any],
     model: str,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> dict[str, Any]:
     """Invoke the LLM with prompt as system + scenario input as user message.
 
@@ -337,7 +342,7 @@ def judge_scenario(
             [{"role": "user", "content": user_message}],
             system=system_prompt,
             model=model,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             provider=provider,
             metadata=metadata,
         )
@@ -347,7 +352,7 @@ def judge_scenario(
             [{"role": "user", "content": user_message}],
             system=system_prompt,
             model=model,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             metadata=metadata,
         )
 
@@ -457,6 +462,7 @@ def run_scenario_multi(
     scenario: dict[str, Any],
     model: str,
     runs: int,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> dict[str, Any]:
     """Run a scenario multiple times and aggregate per ADR-057 flakiness protocol.
 
@@ -474,7 +480,7 @@ def run_scenario_multi(
     """
     run_results = []
     for _ in range(runs):
-        result = judge_scenario(api_key, prompt_text, scenario, model)
+        result = judge_scenario(api_key, prompt_text, scenario, model, max_tokens=max_tokens)
         result["passed"] = check_scenario_pass(result, scenario)
         result["reason_match"] = reason_signal(result, scenario)
         result["model_used"] = model
@@ -561,6 +567,7 @@ def _resample_base(
     model: str,
     before: dict[str, Any],
     extra_runs: int,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> dict[str, Any]:
     """Pool `extra_runs` more base samples into `before` (issue #5601).
 
@@ -572,7 +579,9 @@ def _resample_base(
     scenario. A base that stays all-pass keeps its stable status and the
     regression stands.
     """
-    extra = run_scenario_multi(api_key, base_text, scenario, model, extra_runs)
+    extra = run_scenario_multi(
+        api_key, base_text, scenario, model, extra_runs, max_tokens=max_tokens
+    )
     scored = before["runs"] + extra["runs"]
     passes = before["passes"] + extra["passes"]
     pooled = dict(before)
@@ -604,6 +613,7 @@ def run_comparison(
     runs: int,
     security_critical: bool = False,
     base_resamples: int = DEFAULT_BASE_RESAMPLES,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> dict[str, Any]:
     """Run all scenarios against before and after prompt text.
 
@@ -624,18 +634,30 @@ def run_comparison(
         print(f"  [{i + 1}/{total}] {scenario['id']}: {scenario['desc'][:60]}...", file=sys.stderr)
 
         print(f"    BEFORE ({runs} runs)...", file=sys.stderr)
-        before = run_scenario_multi(api_key, before_text, scenario, model, runs)
+        before = run_scenario_multi(
+            api_key, before_text, scenario, model, runs, max_tokens=max_tokens
+        )
         before_results.append(before)
         api_call_count += runs
 
         print(f"    AFTER  ({runs} runs)...", file=sys.stderr)
-        after = run_scenario_multi(api_key, after_text, scenario, model, runs)
+        after = run_scenario_multi(
+            api_key, after_text, scenario, model, runs, max_tokens=max_tokens
+        )
         after_results.append(after)
         api_call_count += runs
 
         if base_resamples > 0 and _is_suspected_regression(before, after):
             print(f"    RESAMPLE BASE (+{base_resamples} runs)...", file=sys.stderr)
-            before = _resample_base(api_key, before_text, scenario, model, before, base_resamples)
+            before = _resample_base(
+                api_key,
+                before_text,
+                scenario,
+                model,
+                before,
+                base_resamples,
+                max_tokens=max_tokens,
+            )
             before_results[-1] = before
             api_call_count += base_resamples
 
@@ -921,6 +943,16 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help=(
+            "Reply token budget per judge call "
+            f"(default: {DEFAULT_MAX_TOKENS}, max: {MAX_TOKENS_UPPER_BOUND}). "
+            "Raise it when scenarios report token_limit unscored runs."
+        ),
+    )
+    parser.add_argument(
         "--security-critical",
         action="store_true",
         help=f"Security-critical tier: {SECURITY_RUNS} runs, 100%% pass required",
@@ -967,6 +999,9 @@ def _parse_args() -> argparse.Namespace:
 
     if args.runs < 1:
         parser.error("--runs must be at least 1")
+
+    if not 1 <= args.max_tokens <= MAX_TOKENS_UPPER_BOUND:
+        parser.error(f"--max-tokens must be between 1 and {MAX_TOKENS_UPPER_BOUND}")
 
     if args.base_resamples < 0:
         parser.error("--base-resamples must be 0 or greater")
@@ -1049,6 +1084,7 @@ def _run_and_report(
         args.runs,
         security_critical=args.security_critical,
         base_resamples=args.base_resamples,
+        max_tokens=args.max_tokens,
     )
     gate = acceptance_gate(comparison, security_critical=args.security_critical)
 
@@ -1058,6 +1094,7 @@ def _run_and_report(
         "model": args.model,
         "source": source,
         "runs_per_scenario": args.runs,
+        "max_tokens": args.max_tokens,
         "security_critical": args.security_critical,
         "comparison": {
             "before_score": comparison["before_score"],
@@ -1265,6 +1302,7 @@ def main() -> None:
                     "before_chars": len(before_text),
                     "after_chars": len(after_text),
                     "runs": args.runs,
+                    "max_tokens": args.max_tokens,
                     "security_critical": args.security_critical,
                     "est_api_calls": len(scenarios) * 2 * args.runs,
                     "max_resample_api_calls": len(scenarios) * args.base_resamples,

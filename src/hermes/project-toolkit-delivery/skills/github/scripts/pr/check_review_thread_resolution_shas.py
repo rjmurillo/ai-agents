@@ -58,6 +58,13 @@ TEXT_MODE_PARSED = "parsed"
 TEXT_MODE_RAW_PARSER_MISSING = "raw-parser-missing"
 TEXT_MODE_RAW_NESTING_LIMIT = "raw-nesting-limit"
 _SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
+# Actions run IDs are decimal. A digits-only token after "run", "run ID", or
+# "runs/" (as in actions/runs/<id>) is a run ID, not a commit.
+_RUN_ID_RE = re.compile(r"\bruns?(?:[ \t]+id)?[ \t/#:=(\[\"'`-]{0,4}(\d+)\b", re.IGNORECASE)
+_RUN_URL_RE = re.compile(r"/actions/runs/\d+", re.IGNORECASE)
+# Run IDs are 9 to 11 digits today. Shorter digits-only tokens stay candidates,
+# since about 4% of 7-character abbreviated SHAs are all digits.
+_MIN_BARE_RUN_ID_DIGITS = 10
 _COMMIT_URL_RE = re.compile(r"/commits?/([0-9a-f]{7,40})\b", re.IGNORECASE)
 
 _THREADS_QUERY = """\
@@ -112,12 +119,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Markdown that GitHub hides or shows as code must not feed the SHA regex. Bots
-# hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
-# markdown-it-py parses the body; html.parser reads raw HTML blocks. Fenced and
-# indented code blocks are skipped on purpose, since they quote commands, not fix
-# references. A link target counts only when its URL names a commit
-# (/commit/<sha>); unused reference definitions do not render, so they are not read.
+# Markdown that GitHub hides must not feed the SHA regex; text GitHub shows,
+# code spans and code blocks included, is read. Bots hide hex IDs in HTML
+# comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->). markdown-it-py parses
+# the body; html.parser reads raw HTML blocks. A commit cited only inside a
+# fenced or indented code block is still reachability-checked (fail closed). A
+# link target counts only when its URL names a commit (/commit/<sha>); unused
+# reference definitions do not render, so they are not read.
 #
 # html.parser changed across CPython patch releases (gh-135664): older builds end
 # "<!-->" at a later "-->" and parse fewer raw-text elements. _HtmlText pins the
@@ -171,7 +179,11 @@ class _HtmlText(HTMLParser):
             # GitHub strips the element with its attributes, so no href counts.
             self._unrendered_tag = tag
             return
-        self.parts.extend(_commit_refs(value) for name, value in attrs if name == "href" and value)
+        for name, value in attrs:
+            if name == "href" and value:
+                # A link to an Actions run makes its label a run ID, as in _inline_text.
+                run_context = " run " if _RUN_URL_RE.search(value) else ""
+                self.parts.append(_commit_refs(value) + run_context)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # HTML ignores "/>" on raw-text elements, so their text still runs to the end tag.
@@ -213,7 +225,10 @@ def _inline_text(token: Token) -> str:
         elif child.type in ("softbreak", "hardbreak"):
             parts.append("\n")
         elif child.type == "link_open":
-            parts.append(f" {_commit_refs(str(child.attrs.get('href', '')))} ")
+            href = str(child.attrs.get("href", ""))
+            # A link to an Actions run makes its label a run ID, whatever the label says.
+            run_context = " run " if _RUN_URL_RE.search(href) else ""
+            parts.append(f" {_commit_refs(href)} {run_context}")
         elif child.type == "html_inline" and child.content.startswith("<!--"):
             parts.append(" " if _is_gfm_comment(child.content) else child.content)
         elif child.type == "html_inline":
@@ -246,14 +261,28 @@ def _visible_text(body: str) -> tuple[str, str]:
             parts.append(_inline_text(token))
         elif token.type == "html_block":
             parts.append(_html_block_text(token.content))
+        elif token.type in ("fence", "code_block"):
+            parts.append(token.content)
     return "\n".join(parts), TEXT_MODE_PARSED
+
+
+def _is_run_id(match: re.Match[str], run_ids: set[int]) -> bool:
+    token = match.group(1)
+    if not token.isdigit():
+        return False
+    return match.start(1) in run_ids or len(token) >= _MIN_BARE_RUN_ID_DIGITS
 
 
 def scan_comment(body: str) -> tuple[list[str], str]:
     """Return the SHAs a comment shows and the text mode that found them."""
     visible, text_mode = _visible_text(body)
     # A link and its definition name the same commit; check each SHA once.
-    shas = dict.fromkeys(match.group(1).lower() for match in _SHA_RE.finditer(visible))
+    run_ids = {match.start(1) for match in _RUN_ID_RE.finditer(visible)}
+    shas = dict.fromkeys(
+        match.group(1).lower()
+        for match in _SHA_RE.finditer(visible)
+        if not _is_run_id(match, run_ids)
+    )
     return list(shas), text_mode
 
 

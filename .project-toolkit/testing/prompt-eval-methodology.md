@@ -3,7 +3,7 @@
 Status: active
 Version: 1.0.0
 Date: 2026-04-19
-Related: [ADR-023](../architecture/ADR-023-quality-gate-prompt-testing.md), [testing-approach.md](../../.agents/steering/testing-approach.md)
+Related: [ADR-023](../architecture/ADR-023-quality-gate-prompt-testing.md)
 
 ## Purpose
 
@@ -130,4 +130,3 @@ Run evals:
 - [Issue #1686](https://github.com/rjmurillo/ai-agents/issues/1686): Stop-condition fix that motivated this methodology.
 - [Issue #1688](https://github.com/rjmurillo/ai-agents/issues/1688): Source issue for this document.
 - [.project-toolkit/security/benchmarks/test_agent_review_quality.py](../security/benchmarks/test_agent_review_quality.py): Scenario-based test template.
-- [.agents/steering/testing-approach.md](../../.agents/steering/testing-approach.md): Pester testing conventions, cross-referenced from this doc.

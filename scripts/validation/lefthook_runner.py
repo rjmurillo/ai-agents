@@ -24,8 +24,19 @@ Resolution order:
 ``LEFTHOOK_BIN`` is handled by the shim before this program runs, so it is not
 read here. Bypass switches stay forbidden by ADR-086 and are not offered.
 
-Exit codes: the child's exit status when a runner started, 3 (external) when no
-runner is available.
+Pre-push file list (issue #6884): Lefthook skips every pre-push job, the
+ref guards included, when ``git diff HEAD @{push}`` is empty. For ``run
+pre-push`` this program reads the ref lines git writes to stdin, asks
+``push_file_list.py`` for the files of the refs being pushed, and passes them
+as ``--file`` arguments. The ref lines are replayed to Lefthook unchanged. When
+the list cannot be built the push stops with exit 1. It never skips.
+
+Failure report (issue #6734, item 5): ``run <hook>`` goes through
+``lefthook_failure_report.py``, which names the failed stage and job and prints a
+rerun command.
+
+Exit codes: the child's exit status when a runner started, 1 when the pre-push
+file list cannot be built, 3 (external) when no runner is available.
 """
 
 from __future__ import annotations
@@ -33,9 +44,26 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
-from collections.abc import Sequence
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from lefthook_failure_report import (  # noqa: E402
+    ChildStartError,
+    hook_name,
+    recorded_stdin,
+    run_hook_with_report,
+    should_report,
+)
+from push_file_list import (  # noqa: E402
+    PushFileListError,
+    caller_chose_files,
+    lefthook_file_args,
+)
+
+EXIT_FILE_LIST = 1
 EXIT_UNAVAILABLE = 3
 PROBE_TIMEOUT_SECONDS = 60
 _UV_RUNNER = ("uv", "run", "--frozen", "lefthook")
@@ -85,19 +113,93 @@ def resolve_command(project_root: Path = _PROJECT_ROOT) -> list[str] | None:
     return [binary] if binary is not None else None
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _cannot_start(command: list[str], error: Exception) -> int:
+    """Report that the Lefthook child did not start, and return the exit code."""
+    sys.stderr.write(f"lefthook_runner: cannot start {command[0]}: {error}\n{DIAGNOSIS}")
+    return EXIT_UNAVAILABLE
+
+
+# Lefthook ``run`` flags that take a separate value.
+_VALUE_FLAGS = frozenset({"--job", "--tag", "--command", "--exclude", "--file"})
+
+
+def _split_hook_arguments(rest: list[str], from_git: bool) -> tuple[list[str], list[str]]:
+    """Split the arguments after ``run pre-push`` into Lefthook flags and git's arguments.
+
+    Git passes a pre-push hook exactly two arguments, the remote name and its
+    URL, after any flags a rerun adds. Taking them from the end, not by their
+    shape, keeps a remote named like a flag (``git remote add -- --job x``)
+    from being read as one. ``from_git`` is True when stdin carries ref lines,
+    which only git or a printed rerun sends, so the last two are always git's.
+    Otherwise a trailing value flag such as ``--job x`` marks a manual call.
+    """
+    if len(rest) >= 2 and (from_git or rest[-2] not in _VALUE_FLAGS):
+        return rest[:-2], rest[-2:]
+    return rest, []
+
+
+def _child_arguments(arguments: list[str], stdin_bytes: bytes | None) -> list[str]:
+    """Return what Lefthook receives: for pre-push, the file list and a ``--`` boundary.
+
+    ``--`` ends Lefthook's flags, so git's arguments always reach ``{1}`` and
+    ``{2}`` and never act as a flag. With an empty stdin there is no push and
+    no file list. Raises :class:`PushFileListError` when the list cannot be built.
+    """
+    if hook_name(arguments) != "pre-push":
+        return arguments
+    flags, git_arguments = _split_hook_arguments(arguments[2:], bool(stdin_bytes))
+    file_args: list[str] = []
+    if stdin_bytes and not caller_chose_files(flags):
+        remote = git_arguments[0] if git_arguments else None
+        file_args = lefthook_file_args(stdin_bytes, remote)
+    boundary = ["--", *git_arguments] if git_arguments else []
+    return [*arguments[:2], *file_args, *flags, *boundary]
+
+
+# The command the shim runs, from lefthook.yml. Git hooks run at the repository root.
+RUNNER_COMMAND = ("python3", "scripts/validation/lefthook_runner.py")
+
+
+def _rerun_command(arguments: list[str], command: list[str]) -> list[str]:
+    """Return the command a printed rerun uses: this runner for pre-push, else Lefthook."""
+    return list(RUNNER_COMMAND) if hook_name(arguments) == "pre-push" else command
+
+
+def main(argv: list[str] | None = None) -> int:
     """Run Lefthook with ``argv`` through the first working runner."""
     arguments = list(sys.argv[1:] if argv is None else argv)
     command = resolve_command()
     if command is None:
         sys.stderr.write(DIAGNOSIS)
         return EXIT_UNAVAILABLE
+    stdin_bytes = recorded_stdin(hook_name(arguments))
+    try:
+        child_arguments = _child_arguments(arguments, stdin_bytes)
+    except PushFileListError as error:
+        sys.stderr.write(
+            f"lefthook_runner: pre-push stopped. The pushed file list cannot be built: "
+            f"{error}\nNo pre-push check ran, so the push is refused.\n"
+        )
+        return EXIT_FILE_LIST
+    if should_report(arguments):
+        try:
+            reported: int = run_hook_with_report(
+                command,
+                arguments,
+                stdin_bytes,
+                child_arguments,
+                _rerun_command(arguments, command),
+            )
+        except ChildStartError as error:
+            return _cannot_start(command, error)
+        return reported
     try:
         sys.stdout.flush()
-        return subprocess.run([*command, *arguments], check=False).returncode
+        return subprocess.run(
+            [*command, *child_arguments], input=stdin_bytes, check=False
+        ).returncode
     except OSError as error:
-        sys.stderr.write(f"lefthook_runner: cannot start {command[0]}: {error}\n{DIAGNOSIS}")
-        return EXIT_UNAVAILABLE
+        return _cannot_start(command, error)
 
 
 if __name__ == "__main__":

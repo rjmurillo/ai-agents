@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==1.13.0",
+    "anthropic==2.3.0",
     "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
@@ -23,7 +23,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.180.0",
+    "semgrep==1.182.1",
     "lefthook==2.2.2",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
@@ -35,7 +35,7 @@ dev = [
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
     # anthropic is already a core dependency; the default eval needs no extra.
-    "openai>=1.40",
+    "openai>=2.45.0",
 ]
 
 [tool.uv]
@@ -43,24 +43,51 @@ eval = [
 # work with the fixed releases and reviewed exact overrides below.
 exclude-newer = "7 days"
 override-dependencies = [
+    # certifi skips the cooldown below for PYSEC-2026-4320, so pin it exactly.
+    # A later `uv lock` must not take an unreviewed CA bundle release.
+    "certifi==2026.10.19",
     "click==8.3.3",
     "cryptography==50.0.0",
+    # filelock 4.1.1 has six CVE-2026-1129xx findings fixed in 4.2.1.
+    "filelock==4.2.1",
     "mcp==1.30.0",
+    # semgrep 1.181.0 pins opentelemetry-api<1.38. 1.45.1 fixes
+    # CVE-2026-114603. The whole family moves together because each package
+    # pins the exact api release.
+    "opentelemetry-api==1.45.1",
+    "opentelemetry-exporter-otlp-proto-common==1.45.1",
+    "opentelemetry-exporter-otlp-proto-http==1.45.1",
+    "opentelemetry-instrumentation==0.66b1",
+    "opentelemetry-instrumentation-requests==0.66b1",
+    "opentelemetry-instrumentation-threading==0.66b1",
+    "opentelemetry-proto==1.45.1",
+    "opentelemetry-sdk==1.45.1",
+    "opentelemetry-semantic-conventions==0.66b1",
+    "opentelemetry-util-http==0.66b1",
     # semgrep 1.178.0 still pins pyjwt~=2.13.0. 2.15.0 fixes the 2.13.0 CVEs
     # pip-audit reports and GHSA-42vr-xj54-vc7v (issue #6028).
     "pyjwt[crypto]==2.15.0",
+    # setuptools 84.0.0 has GHSA-xmj3-9gf7-h52w, fixed in 84.1.0.
+    "setuptools==84.1.0",
 ]
 
 [tool.uv.exclude-newer-package]
 anthropic = false
+# PYSEC-2026-4320 affects certifi 2026.7.22 and is fixed in 2026.10.19. The
+# 7-day cooldown holds the fix, so opt this package out like cryptography.
+certifi = false
 click = false
 # CVE-2026-69247 affects cryptography 49.0.0 and is fixed in 50.0.0. The
 # 7-day cooldown held the vulnerable release, so opt this package out to make
 # security fixes reachable immediately.
 cryptography = false
+# filelock 4.2.1 fixes six CVE-2026-1129xx findings the cooldown holds back.
+filelock = false
 lefthook = false
 mcp = false
 semgrep = false
+# setuptools 84.1.0 fixes GHSA-xmj3-9gf7-h52w.
+setuptools = false
 
 [build-system]
 requires = ["setuptools>=82.0.1"]
@@ -328,7 +355,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.180.0",
+    "semgrep==1.182.1",
     "lefthook==2.2.2",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
@@ -365,6 +392,12 @@ dev = [
 # it (run 39161002142). Locally without coverage the same sums are 49.6s and
 # 12.5s. A 25s budget failed the fixed code in CI. At 45s the fixed code has
 # about 1.4x headroom and a revert fails by about 1.3x.
+#
+# One sample on a shared runner swings about 3x (issue #6757: the portability
+# module summed 14.9s to 47.2s on identical code). CI therefore warns on a pull
+# request and fails on main only when the same module is over budget on two main
+# runs in a row (scripts/ci/consecutive_breach.py). The limits below are not
+# raised for that noise.
 [tool.slow-test-budget]
 "tests/test_validate_session_json.py" = 120.0
 "tests/test_guard_diff.py" = 35.0

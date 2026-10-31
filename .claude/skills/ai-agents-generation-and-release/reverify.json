@@ -1,0 +1,255 @@
+{
+ "checks": [
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/build_all.py",
+   "id": "R1"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/generate_agents.py",
+   "id": "R2"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/lib_mirror.py",
+   "id": "R3"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/yaml_loader.py",
+   "id": "R4"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/check_plugin_manifest_parity.py",
+   "id": "R5"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "id": "R6"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/detect_agent_drift.py",
+   "id": "R7"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/run_install_parity_ci.py",
+   "id": "R8"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/pre_pr.py",
+   "id": "R9"
+  },
+  {
+   "kind": "path_exists",
+   "path": "RELEASING.md",
+   "id": "R10"
+  },
+  {
+   "kind": "path_exists",
+   "path": "packages/ai-agents-cli/package.json",
+   "id": "R11"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/e2e/test_installed_plugin_hook_e2e.py",
+   "id": "R12"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/actions/setup-code-env/action.yml",
+   "id": "R13"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/validate-generated-agents.yml",
+   "id": "R14"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/agent-drift-detection.yml",
+   "id": "R15"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/drift-detection.yml",
+   "id": "R16"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/publish.yml",
+   "id": "R17"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/validate-plugin-version-bump.yml",
+   "id": "R18"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude-plugin/marketplace.json",
+   "id": "R19"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/.claude-plugin/plugin.json",
+   "id": "R20"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/copilot-cli/.claude-plugin/plugin.json",
+   "id": "R21"
+  },
+  {
+   "kind": "path_exists",
+   "path": "docs/agent-catalog.md",
+   "id": "R22"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md",
+   "id": "R23"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [",
+   "id": "R24"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "Exit 2 has five producers",
+   "id": "R25"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "OWNED_PREFIXES: tuple[str, ...] = (",
+   "id": "R26"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "REQ-003-010",
+   "id": "R27"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "def assert_no_claude_writes(",
+   "id": "R28"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "text": "WHY THE FIELD MUST BE ABSENT",
+   "id": "R29"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/validate-generated-agents.yml",
+   "text": "build-all-staleness",
+   "id": "R30"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/validate-generated-agents.yml",
+   "text": "build_all.py --check",
+   "id": "R31"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/drift-detection.yml",
+   "text": "cron: '0 9 * * 1'",
+   "id": "R32"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/detect_agent_drift.py",
+   "text": "default=80",
+   "id": "R33"
+  },
+  {
+   "kind": "contains",
+   "path": "RELEASING.md",
+   "text": "dormant",
+   "id": "R34"
+  },
+  {
+   "kind": "contains",
+   "path": "packages/ai-agents-cli/package.json",
+   "text": "\"build\": \"bun build src/cli.ts --outdir dist --target node\"",
+   "id": "R35"
+  },
+  {
+   "kind": "contains",
+   "path": "templates/platforms/binplace.yaml",
+   "text": "class: agents",
+   "id": "R36"
+  },
+  {
+   "kind": "contains",
+   "path": "pyproject.toml",
+   "text": "\"src/copilot-cli/hooks/**/*.py\"",
+   "id": "R37"
+  },
+  {
+   "kind": "contains",
+   "path": ".gitignore",
+   "text": "/build/audit/",
+   "id": "R38"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude/.claude-plugin/plugin.json",
+   "id": "R39"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude-plugin/plugin.json",
+   "id": "R40"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py",
+   "id": "R41"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-generation-and-release/scripts/instruments.py",
+   "id": "R42"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-generation-and-release/references/seam-tables.md",
+   "id": "R43"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-generation-and-release/references/drift-gates.md",
+   "id": "R44"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-generation-and-release/test_generator_inventory.py",
+   "id": "R45"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-generation-and-release/test_instruments.py",
+   "id": "R46"
+  },
+  {
+   "kind": "line_count_at_least",
+   "path": ".claude/skills/ai-agents-generation-and-release/scripts/generator_inventory.py",
+   "min": 100,
+   "id": "R47"
+  }
+ ]
+}

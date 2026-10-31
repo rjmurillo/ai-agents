@@ -82,7 +82,6 @@ class TestGateActivation:
             calls.clear()
             monkeypatch.setenv("ENABLE_GIT_HOOKS", hooks)
             monkeypatch.setenv("ENABLE_PYTHON", python)
-            monkeypatch.setenv("ENABLE_PESTER", "false")
             vce.main([])
             assert len(calls) == expected, (hooks, python)
 
@@ -109,7 +108,7 @@ class TestSkipAutofixLine:
         self, monkeypatch: pytest.MonkeyPatch, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.delenv("SKIP_AUTOFIX", raising=False)
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON", "ENABLE_PESTER"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             monkeypatch.setenv(name, "false")
         vce.main([])
         assert "SKIP_AUTOFIX: 0 (0=enabled, 1=disabled)" in capsys.readouterr().out
@@ -118,7 +117,7 @@ class TestSkipAutofixLine:
         self, monkeypatch: pytest.MonkeyPatch, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.setenv("SKIP_AUTOFIX", "1")
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON", "ENABLE_PESTER"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             monkeypatch.setenv(name, "false")
         vce.main([])
         assert "SKIP_AUTOFIX: 1 (0=enabled, 1=disabled)" in capsys.readouterr().out
@@ -128,7 +127,7 @@ class TestToolReport:
     def test_missing_tools_report_nothing(
         self, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        vce.report_tools(python=True, pester=True)
+        vce.report_tools(python=True)
         assert capsys.readouterr().out == ""
 
     def test_npx_warms_the_markdownlint_cache(
@@ -142,7 +141,7 @@ class TestToolReport:
             return _completed(1)
 
         monkeypatch.setattr(vce, "_run", _run)
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         out = capsys.readouterr().out
         assert "[PASS] npx is available" in out
         assert "[PASS] markdownlint-cli2 is installed" in out
@@ -153,7 +152,7 @@ class TestToolReport:
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda name: "/x" if name == "ruff" else None)
         monkeypatch.setattr(vce, "_run", lambda _argv: _completed(0))
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         assert "ruff" not in capsys.readouterr().out
 
     def test_python_version_is_reported(
@@ -161,7 +160,7 @@ class TestToolReport:
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda name: "/x" if name == "python3" else None)
         monkeypatch.setattr(vce, "_run", lambda _argv: _completed(0, "Python 3.14.6\n"))
-        vce.report_tools(python=True, pester=False)
+        vce.report_tools(python=True)
         assert "[PASS] Python 3.14.6 is installed" in capsys.readouterr().out
 
     def test_gh_is_reported_independently_of_python(
@@ -169,28 +168,18 @@ class TestToolReport:
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda name: "/x" if name == "gh" else None)
         monkeypatch.setattr(vce, "_run", lambda _argv: _completed(0))
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         assert "[PASS] GitHub CLI is available for workflow monitoring" in capsys.readouterr().out
 
-    def test_pester_is_skipped_when_off(
+    def test_powershell_yaml_version_is_reported(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.setattr(vce.shutil, "which", lambda _name: None)
         monkeypatch.setattr(vce, "_module_version", lambda name: "5.7.1")
-        vce.report_tools(python=False, pester=False)
+        vce.report_tools(python=False)
         out = capsys.readouterr().out
         assert "Pester" not in out
         assert "[PASS] powershell-yaml 5.7.1 is installed" in out
-
-    def test_pester_version_is_reported_when_on(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        monkeypatch.setattr(vce.shutil, "which", lambda _name: None)
-        monkeypatch.setattr(
-            vce, "_module_version", lambda name: "5.7.1" if name == "Pester" else None
-        )
-        vce.report_tools(python=False, pester=True)
-        assert "[PASS] Pester 5.7.1 is installed" in capsys.readouterr().out
 
 
 class TestModuleVersion:
@@ -233,7 +222,7 @@ class TestCli:
     def test_a_clean_run_exits_zero_and_prints_the_banner(
         self, monkeypatch: pytest.MonkeyPatch, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON", "ENABLE_PESTER"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             monkeypatch.setenv(name, "false")
         assert vce.main([]) == 0
         out = capsys.readouterr().out
@@ -253,5 +242,5 @@ class TestWorkflowWiring:
 
     def test_the_inputs_are_still_passed_as_env(self) -> None:
         text = ACTION.read_text(encoding="utf-8")
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PESTER", "ENABLE_PYTHON"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             assert name in text

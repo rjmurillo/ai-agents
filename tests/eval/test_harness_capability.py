@@ -87,7 +87,7 @@ def test_fully_backed_record_validates() -> None:
 
 def test_load_matrix_reads_checked_in_deliverable() -> None:
     records = capability.load_matrix(MATRIX)
-    assert {record.harness for record in records} == {"codex", "copilot"}
+    assert {record.harness for record in records} == {"codex", "copilot", "claude"}
 
 
 def test_checked_in_matrix_never_verifies_sol_ultra_as_another_tier() -> None:
@@ -337,7 +337,7 @@ def test_build_report_covers_all_six_arms() -> None:
     arm_ids = {row["arm"] for row in report["arm_eligibility"]}
     assert arm_ids == {"A", "B", "C", "D", "E", "F"}
     for row in report["arm_eligibility"]:
-        assert set(row["eligibility"]) == {"codex", "copilot"}
+        assert set(row["eligibility"]) == {"codex", "copilot", "claude"}
 
 
 # --- CLI ----------------------------------------------------------------------

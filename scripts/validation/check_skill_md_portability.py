@@ -108,6 +108,8 @@ from scripts.utils.markdown_parser import (
     blank_code_block_lines,
 )
 from scripts.validation.check_skill_md_drift import (
+    UPSTREAM_CORE_SOURCES,
+    UPSTREAM_CORES,
     _load_drift_baseline,
 )
 from scripts.validation.check_skill_md_drift import (
@@ -397,9 +399,19 @@ def has_portability_marker(text: str) -> bool:
 # milliseconds, so an unmarked file was parsed several times where once is
 # enough (issue #5382). A marked file still takes a second parse, because
 # ``count_marker_suppressed_refs`` strips the text with its marker removed.
-# The result is a pure function of an immutable string, so it is cached. 128
-# entries hold one file's working set. A failed parse raises and is not cached.
-@functools.lru_cache(maxsize=128)
+# The result is a pure function of an immutable string, so it is cached.
+#
+# The scan reads about 990 files, and the generated plugin trees mirror one
+# another, so byte-identical text recurs across roots (588 distinct texts in
+# 984 files at c85a85f32c, issue #6734). A 128-entry cache held one file's
+# working set but evicted every entry before the mirror root repeated it, so
+# the second copy parsed again. 2048 entries cover the whole corpus with
+# headroom for growth. Memory is bounded: each entry holds one file's text and
+# its stripped copy. A failed parse raises and is not cached.
+_STRIP_CACHE_SIZE = 2048
+
+
+@functools.lru_cache(maxsize=_STRIP_CACHE_SIZE)
 def _strip_code(text: str) -> str:
     """Remove fenced and indented code blocks, leaving prose and inline code.
 
@@ -427,6 +439,36 @@ def _strip_inline_code(text: str) -> str:
     return re.sub(r"`[^`\n]*`", " ", text)
 
 
+# ``UPSTREAM_CORE_SOURCES`` (defined beside the drift extractor, which shares it)
+# holds the literal core each ``UPSTREAM_PATTERNS`` entry needs, whatever the
+# boundary and terminator around it, in the same order. Searching for a core
+# first lets a prose string skip every boundary-anchored scan whose core is
+# absent. Those scans try three lookbehind alternatives at every position and
+# dominated the run (issue #6734). A core is a strict superset test, so "core
+# not found" implies "pattern does not match" and that pattern counts 0 exactly
+# as the full scan would. The case-insensitive flag matches the patterns', so a
+# case or Unicode fold a pattern accepts, its core accepts too. ``strict=True``
+# fails the import when a pattern is added without its core.
+_CORED_PATTERNS: tuple[tuple[re.Pattern[str], re.Pattern[str]], ...] = tuple(
+    (re.compile(core, re.IGNORECASE), pat)
+    for core, pat in zip(UPSTREAM_CORE_SOURCES, UPSTREAM_PATTERNS, strict=True)
+)
+
+
+@functools.lru_cache(maxsize=_STRIP_CACHE_SIZE)
+def _count_prose_refs(prose: str) -> int:
+    """Count ``UPSTREAM_PATTERNS`` matches in already-stripped prose.
+
+    Cached on the prose string for the same reason ``_strip_code`` is: mirrored
+    files strip to identical prose, and the count is a pure function of it.
+    """
+    if UPSTREAM_CORES.search(prose) is None:
+        return 0
+    return sum(
+        len(pat.findall(prose)) for core, pat in _CORED_PATTERNS if core.search(prose) is not None
+    )
+
+
 def count_upstream_refs(text: str) -> int:
     """Count upstream-only path references in Markdown prose.
 
@@ -436,8 +478,7 @@ def count_upstream_refs(text: str) -> int:
     Does NOT honor the opt-out marker; use
     :func:`count_file_refs` for the marker-aware per-file count.
     """
-    prose = _strip_code(text)
-    return sum(len(pat.findall(prose)) for pat in UPSTREAM_PATTERNS)
+    return _count_prose_refs(_strip_code(text))
 
 
 def count_file_refs(text: str) -> int:
@@ -447,8 +488,7 @@ def count_file_refs(text: str) -> int:
     """
     if has_portability_marker(text):
         return 0
-    prose = _strip_code(text)
-    return sum(len(pat.findall(prose)) for pat in UPSTREAM_PATTERNS)
+    return _count_prose_refs(_strip_code(text))
 
 
 def count_marker_suppressed_refs(text: str) -> int:

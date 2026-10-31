@@ -45,7 +45,8 @@ ls ~/.claude/skills/
 
 ## 1B: Multi-Lens Analysis
 
-Apply all 11 thinking models systematically:
+At the Full tier, apply all 11 thinking models. At the Standard tier, apply the
+ones that address a named open risk (see [depth-contract.md](depth-contract.md)):
 
 | Lens | Core Question | Application |
 |------|---------------|-------------|
@@ -61,7 +62,7 @@ Apply all 11 thinking models systematically:
 | **Comparative** | How do options compare? | Weighted decision matrix |
 | **Opportunity Cost** | What are we giving up? | Explicit trade-offs |
 
-**Minimum requirement:** All 11 lenses scanned, at least 5 applied in depth.
+**Minimum requirement (Full tier):** All 11 lenses scanned, at least 5 applied in depth.
 
 See: [multi-lens-framework.md](multi-lens-framework.md)
 
@@ -87,8 +88,8 @@ ROUND N:
 
 **Termination Criteria:**
 
-- Three consecutive rounds produce no new insights
-- All 11 thinking models have been applied
+- Three consecutive rounds produce no new insights (Full tier); Standard stops when a round adds no new unresolved risk
+- The thinking models the tier requires have been applied
 - At least 3 simulated expert perspectives considered
 - Evolution/timelessness explicitly evaluated
 - Automation opportunities identified

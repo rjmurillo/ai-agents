@@ -14,13 +14,13 @@ metadata:
 
 Proactive vulnerability detection for command injection (CWE-78) before PR submission.
 
-<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/closed-pr-reviewer-patterns-2026-02-08.md as the source for its detection patterns. It is a documentation citation only; scan_vulnerabilities.py scans the consumer's staged or specified files at runtime and does not read the .agents/ file. A vendored install without .agents/ loses the citation link, not the scan. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/closed-pr-reviewer-patterns-2026-02-08.md as the source for its detection patterns. It is a documentation citation only; scan_vulnerabilities.py scans the consumer's staged or specified files at runtime and does not read the .agents/ file. A vendored install without .agents/ loses the citation link, not the scan. -->
 
 ## Scope
 
 This skill detects **CWE-78 (command injection)** patterns only. The regex patterns target unambiguous shapes (`subprocess.run(..., shell=True)`, `eval(user_input)`, backtick command substitution, etc.) that produce reliable signal without taint analysis.
 
-**CWE-22 (path traversal) is delegated to CodeQL.** The CodeQL workflow runs `python-security-extended.qls` and `actions-security-extended.qls` on every PR, authoritatively detecting CWE-22 across **Python and GitHub Actions** code (the two languages CodeQL supports for this repo per `codeql-config.yml`). PowerShell, Bash, and C# are NOT covered by CodeQL; for those languages, CWE-22 detection relies on code review and any future static analyzer adoption. Per the buy-vs-build framework analysis (issue #1843), maintaining a custom regex-based CWE-22 detector created false positives (PR #1841 added seven suppression annotations to silence them) without comparable coverage of real CWE-22 vectors that CodeQL catches in CI. Path-traversal checking is Context (table stakes security, not a competitive differentiator); CodeQL is the right tool for the languages it supports.
+**CWE-22 (path traversal) is delegated to CodeQL.** The CodeQL workflow runs `python-security-extended.qls` and `actions-security-extended.qls` on every PR, authoritatively detecting CWE-22 across **Python and GitHub Actions** code (the two languages CodeQL supports for this repo per `codeql-config.yml`). PowerShell, Bash, and C# are NOT covered by CodeQL; for those languages, CWE-22 detection relies on code review and any future static analyzer adoption. Per the buy-vs-build framework analysis, maintaining a custom regex-based CWE-22 detector created false positives (seven suppression annotations were added to silence them) without comparable coverage of real CWE-22 vectors that CodeQL catches in CI. Path-traversal checking is Context (table stakes security, not a competitive differentiator); CodeQL is the right tool for the languages it supports.
 
 If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or flag it to the owner. Do not add a regex-based CWE-22 check to this scanner.
 
@@ -168,6 +168,20 @@ Machine-readable JSON format including scan timestamp, files scanned, vulnerabil
 - Unquoted variable expansion in shell scripts
 - Dynamic command building from external input
 
+### Bash Here-Documents: Quote the Delimiter
+
+An unquoted delimiter (`<<EOF`) makes the shell expand the body, so the scanner flags each `$var` there as an unquoted expansion. This includes plain help text such as `Usage: $0 --dest $target`. Quote the delimiter (`<<'EOF'`, `<<"EOF"`, or `<<\EOF`) and the body is not expanded. The scanner then blanks it only when every command that reads the body is a known print or filter command such as `cat`, `echo`, `printf`, `tee`, `read`, `grep`, `sed`, `awk`, or `jq`. Any other reader (a shell, `ssh`, `sudo`, `psql`, or a pipe into one, as in `cat <<'EOF' | sh`) may run the body, so it is still scanned.
+
+```bash
+cat <<'EOF'
+Usage: $prog --dest <dir>
+EOF
+```
+
+If the body must expand, quote each expansion (`"$target"`) or add a justified suppression.
+
+This is a deliberate limit, not a pending fix (owner decisions D17 and D23). A per-line scanner cannot prove an unquoted body is never fed to a shell or a file that later runs. Four review rounds on a narrowing that cleared "print-only" bodies kept finding bypasses: a body read into a variable that is later run (`read`, `mapfile -C eval`), `>&1word` file redirects, a `}` argument closing a group early, a line continuation into the opener, a quoted or split `exec >file`, `case`, `#`, or `${` inside a body `$( )`, array subscripts (`${a[$i]}`), and a redefined `cat`.
+
 ---
 
 ## Integration
@@ -290,7 +304,7 @@ After running security scan:
 | Extension | How to Add |
 |-----------|------------|
 | New CWE-78 patterns | Add to `CWE78_PATTERNS` dict in scan_vulnerabilities.py |
-| New CWE class detection | Do NOT add to this scanner. Configure CodeQL queries in `.github/codeql/codeql-config.yml` instead. The buy-vs-build analysis (issue #1843) established that CWE detection beyond CWE-78's narrow regex shapes belongs in CodeQL. |
+| New CWE class detection | Do NOT add to this scanner. Configure CodeQL queries in `.github/codeql/codeql-config.yml` instead. The buy-vs-build analysis established that CWE detection beyond CWE-78's narrow regex shapes belongs in CodeQL. |
 | New language support | Add language detection and patterns |
 | Custom severity rules | Modify severity calculation logic |
 | Integration with other tools | Add output format adapters |

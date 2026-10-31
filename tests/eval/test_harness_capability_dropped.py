@@ -45,7 +45,7 @@ def test_the_dropped_flag_round_trips_into_the_report() -> None:
     report = capability.build_report(capability.load_matrix(MATRIX))
 
     flags = {h["harness"]: h.get("dropped") for h in report["harnesses"]}
-    assert flags == {"codex": None, "copilot": True}
+    assert flags == {"codex": None, "copilot": True, "claude": None}
 
 
 @pytest.mark.parametrize("bad", ["yes", 1, None, []])

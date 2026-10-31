@@ -29,10 +29,19 @@ QA-specific requirements:
 **Verdict**: [FAIL]
 {{> qa-insufficient-test-evidence}}
 
+{{> qa-pr-description-step}}
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/validate_pr_description.py" \
+  --title "[PR title]" \
+  --body-file "[path-to-pr-body.md]"
+```
+
+{{> qa-pr-description-checks}}
+
 {{> qa-pr-description-validation}}
 
 {{> qa-validation-summary}}
-| All 4 gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
 {{> qa-verdict-decision-logic}}
 ````
 

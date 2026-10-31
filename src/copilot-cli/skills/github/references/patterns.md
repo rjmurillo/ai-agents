@@ -38,10 +38,17 @@ python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --ma
 
 For multi-line content, use `--body-file` to avoid escaping issues.
 
-`new_pr.py` and `edit_pr_body.py` take only a private file from the prepare
-step. Run `new_pr.py --prepare-body-file`, fill the relative path it prints,
-and pass that path. Any other path, including an absolute one, is refused.
-Other scripts still accept an arbitrary file.
+`new_pr.py`, `edit_pr_body.py`, `close_issue.py`, `reopen_issue.py` and
+`post_issue_comment.py` read the body file through the strict shared reader.
+The path must be under the repo root or a temp directory, and the file must be
+yours, with one link, and not a symlink. A group-writable file needs an
+owner-only directory above it; otherwise run `chmod 600` on it. The PR scripts
+refuse the git dir, and the three issue scripts accept only a linked worktree's
+own git dir. The other body-file scripts, such as `new_issue.py`, still accept
+any path under the repo root, a temp directory, or the git dir. A session
+scratchpad passes. When sessions share one scratch directory, run
+`new_pr.py --prepare-body-file` for a unique name, fill the relative path it
+prints, and pass that path.
 
 ---
 
@@ -49,13 +56,15 @@ Other scripts still accept an arbitrary file.
 
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-# 1. Get unresolved threads
+# 1. Get unresolved threads and the PR head SHA
+HEAD_SHA=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --output-format json | jq -r '.Data.head_sha')
 threads=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request 50 --unresolved-only)
 
 # 2. Reply to each thread using thread ID and resolve (recommended)
 echo "$threads" | jq -r '.threads[].thread_id' | while read -r tid; do
     python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
-      --pull-request 50 --thread-id "$tid" --body "Fixed." --resolve
+      --pull-request 50 --thread-id "$tid" --body "Fixed." --resolve \
+      --expected-head-sha "$HEAD_SHA"
 done
 
 # 3. Or reply using comment ID (REST API) then batch resolve

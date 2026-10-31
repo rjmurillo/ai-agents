@@ -145,11 +145,13 @@ class TestMatrixStructure:
 
     def test_split_groups_run_the_same_pool_in_distinct_groups(self) -> None:
         groups = [
-            _partition_args(name)[_partition_args(name).index("--group") + 1]
+            _partition_args(name)[_partition_args(name).index("--module-group") + 1]
             for name in _SPLIT_LEGS
         ]
         assert groups == ["1", "2", "3", "4", "5"]
-        splits = {_partition_args(n)[_partition_args(n).index("--splits") + 1] for n in _SPLIT_LEGS}
+        splits = {
+            _partition_args(n)[_partition_args(n).index("--module-splits") + 1] for n in _SPLIT_LEGS
+        }
         assert splits == {str(len(_SPLIT_LEGS))}
 
     def test_classify_partition_puts_pool_files_in_the_split_kind(self) -> None:

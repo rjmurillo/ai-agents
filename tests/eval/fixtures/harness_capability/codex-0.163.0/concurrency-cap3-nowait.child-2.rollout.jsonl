@@ -1,0 +1,4 @@
+{"timestamp":"2026-10-20T14:41:33.640Z","type":"session_meta","payload":{"id":"01a159c2-afa8-7321-b151-ece123cdd5a8","timestamp":"2026-10-20T14:41:33.608Z","cli_version":"0.163.0","source":{"subagent":{"thread_spawn":{"parent_thread_id":"01a159c2-9571-7042-8f2a-7d8013f740a5","depth":1,"agent_path":"/root/river_2","agent_nickname":"Anscombe","agent_role":null}}},"thread_source":"subagent"}}
+{"timestamp":"2026-10-20T14:41:33.640Z","type":"event_msg","payload":{"type":"task_started","turn_id":"01a159c2-afc4-79e2-aca8-47eaf2d1fd38","started_at":1792507293}}
+{"timestamp":"2026-10-20T14:41:34.801Z","type":"turn_context","payload":{"turn_id":"01a159c2-afc4-79e2-aca8-47eaf2d1fd38","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-20T14:41:41.249Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"01a159c2-afc4-79e2-aca8-47eaf2d1fd38","started_at":1792507293,"reason":"interrupted"}}

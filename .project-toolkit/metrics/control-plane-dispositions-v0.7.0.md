@@ -677,6 +677,16 @@ below.
   not by filename, and a still-documented manual import procedure names
   it. Deleting the blob without first retiring that procedure would leave
   the documented command pointing at nothing.
+- Status, blob: released 2026-10-24. Owner decision D21 (2026-10-24) retired
+  the import procedure, and issue #5583 removed the blob, the importer
+  script, its six test modules, and the import documentation in one PR.
+  The blob stays in history, and this command restores it:
+
+  ```bash
+  git checkout 97ea576195 -- .claude-mem/memories/direct-backup-2026-01-03-1434-ai-agents.json
+  ```
+
+  (commit dated 2026-10-24, blob `5f1ef7d787a548cd3ca3f4723c656c5c81eedb6d`).
 - Evidence, delete: `.project-toolkit/projects/v0.3.0/` and `v0.3.1/` (audit
   finding 7) were frozen history under this owner's stated convention of
   archiving rather than deleting completed project state. Reclassified

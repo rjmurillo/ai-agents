@@ -57,10 +57,40 @@ REQUIRED_DEV_TOOLS = frozenset(
     }
 )
 SAFE_SEMGREP_OVERRIDES = frozenset(
-    {"click==8.3.3", "cryptography==50.0.0", "mcp==1.30.0", "pyjwt[crypto]==2.15.0"}
+    {
+        "click==8.3.3",
+        "cryptography==50.0.0",
+        "filelock==4.2.1",
+        "mcp==1.30.0",
+        "opentelemetry-api==1.45.1",
+        "opentelemetry-exporter-otlp-proto-common==1.45.1",
+        "opentelemetry-exporter-otlp-proto-http==1.45.1",
+        "opentelemetry-instrumentation==0.66b1",
+        "opentelemetry-instrumentation-requests==0.66b1",
+        "opentelemetry-instrumentation-threading==0.66b1",
+        "opentelemetry-proto==1.45.1",
+        "opentelemetry-sdk==1.45.1",
+        "opentelemetry-semantic-conventions==0.66b1",
+        "opentelemetry-util-http==0.66b1",
+        "pyjwt[crypto]==2.15.0",
+        "setuptools==84.1.0",
+    }
 )
+# certifi is exempt from the cooldown for PYSEC-2026-4320, so an exact
+# override keeps a later lock from taking an unreviewed CA bundle.
+CERTIFI_OVERRIDE = "certifi==2026.10.19"
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
-    {"anthropic", "click", "cryptography", "lefthook", "mcp", "semgrep"}
+    {
+        "anthropic",
+        "certifi",
+        "click",
+        "cryptography",
+        "filelock",
+        "lefthook",
+        "mcp",
+        "semgrep",
+        "setuptools",
+    }
 )
 
 # Splits a PEP 508 requirement string at the first character that ends the
@@ -145,6 +175,15 @@ def test_semgrep_transitive_security_overrides_remain_pinned() -> None:
     overrides = set(data["tool"]["uv"]["override-dependencies"])
 
     assert SAFE_SEMGREP_OVERRIDES <= overrides
+
+
+def test_cooldown_exempt_certifi_is_pinned_exactly() -> None:
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    overrides = data["tool"]["uv"]["override-dependencies"]
+    certifi_overrides = [entry for entry in overrides if normalize_name(entry) == "certifi"]
+
+    assert certifi_overrides == [CERTIFI_OVERRIDE]
 
 
 def test_dependency_cooldown_exempts_only_reviewed_exact_pins() -> None:

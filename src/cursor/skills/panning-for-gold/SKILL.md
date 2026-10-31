@@ -13,7 +13,7 @@ metadata:
 
 Turn raw, unstructured capture into an evaluated, actionable inventory of threads. Four phases: Front-gate, Extract, Evaluate, Synthesize.
 
-<!-- vendor-portability: declared. During synthesis this skill cross-references the consumer's existing artifacts to wire each High-Signal thread to a prior entity: .claude/skills/ SKILL.md files, .project-toolkit/architecture/ADR-*.md, .serena/memories/**, open GitHub issues, and .project-toolkit/sessions/*.json. These are best-effort read targets for the elaboration gate; a vendored install without .agents/ or .serena/ simply has fewer connection candidates, not a broken run. Issue #2050. -->
+<!-- vendor-portability: declared. During synthesis this skill cross-references the consumer's existing artifacts to wire each High-Signal thread to a prior entity: .claude/skills/ SKILL.md files, .project-toolkit/architecture/ADR-*.md, .serena/memories/**, open GitHub issues, and .project-toolkit/sessions/*.json. These are best-effort read targets for the elaboration gate; a vendored install without .agents/ or .serena/ simply has fewer connection candidates, not a broken run. -->
 
 ## Triggers
 

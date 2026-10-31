@@ -14,9 +14,6 @@ metadata:
 Implement in thin vertical slices, test-first, committing atomically, and do not
 declare done until four gates return clean.
 
-Migrated from `.claude/commands/build.md` under ADR-064, which makes skills the
-single user-invocable surface.
-
 ## Triggers
 
 `build this`, `implement this slice`, `write the code for this task`,
@@ -78,9 +75,7 @@ recommended oversight level. Calibrate the implementation approach:
 
 Before any code changes, invoke `Skill(skill="pre-mortem")` on the task as
 briefed. Capture the top 2-3 critical risks and their mitigations in the active
-plan or issue handoff. Risks surfaced by reviewers late in the cycle are usually
-knowable up front. A five-minute pre-mortem is cheaper than a ten-round bot
-review.
+plan or issue handoff.
 
 ### Phase 2b: Provenance and authority gate
 
@@ -88,7 +83,7 @@ Before Phase 3 touches any file, decide whether this change can alter
 validation semantics: a validator, a generated mirror of one, a ratchet or
 baseline, a validator config file, or a validation test fixture. Phase 3 lets
 an implementer edit any file; nothing before this phase asks who owns the
-failing check first (issue #5387).
+failing check first.
 
 1. **Decide.** Run the trigger with every planned or verified changed path,
    each as its own argument, plus each effect you verified in the diff body.
@@ -242,22 +237,32 @@ If any answer is "no" or "not sure," adjust before proceeding.
 > When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
 
 The build is not complete until all four gates below return clean. These are
-**hard preconditions for declaring done**, not advisory output. If any gate
-returns findings, the implementer must address them in the same build cycle. Do
-not kick the can to PR review; advisory framing here produces the iteration
-paradox where reviewers flag what the implementer should have caught,
-multiplying the cost of every revision.
+**hard preconditions for done**, not advisory. If any gate
+returns findings, address in-scope ones in the same build cycle; see "Gate failure disposition". Do
+not defer in-scope findings to PR review.
 
 Run, in order:
 
-1. `Skill(skill="code-qualities-assessment")` with `--changed-only --base origin/main --gate-mode regression` against the changed files. Reject the build if any changed method regresses below the configured thresholds in `.qualityrc.json`, or if a new method fails the absolute gate.
-2. `Skill(skill="taste-lints")` against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
+1. `Skill(skill="code-qualities-assessment")` with `--changed-only --base origin/main --gate-mode regression` against the changed files. Reject the build if any changed method regresses below the `.qualityrc.json` thresholds, or a new method fails the absolute gate.
+2. `Skill(skill="taste-lints")` against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning on lines you touched.
 3. Documentation gate: run the `test` skill's `doc_accuracy_trigger.py` per "Build handoff" in `test/references/doc-accuracy-gate.md`. On `"activate"` and a non-empty `changed_documents`, run `Skill(skill="doc-accuracy")` with `--diff-base origin/main`; reject critical or high findings in your prose.
-4. `Skill(skill="orphan-ref-validator")`. Reject the build on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`. Catches references to deleted skills and missing script paths before they reach review. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. The first three gates run in `--changed-only` mode and ignore preexisting drift; gate 4 scans the default targets across the repo because skill-name and script-path orphans are repo-state global, not per-PR. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in that skill's own SKILL.md).
+4. `Skill(skill="orphan-ref-validator")`. Reject the build on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`. Re-run with `--output human` for `path:line`. Gates 1-3 run `--changed-only`; gate 4 scans repo-wide, so it can fail on drift this build did not cause: apply "Gate failure disposition" below.
 
-If a gate flags an item that is genuinely out of scope for this build, document
-the rationale in the PR body or issue handoff and flag the item to the owner.
-"I will fix it in review" is not an acceptable rationale.
+### Gate failure disposition
+
+Scope is the allowed paths in the work order's `NON-GOALS` field (`orchestrator-routing-algorithm` Handoff Contract). For exit-gate findings, this table overrides the `avoiding-manufactured-work` Blocker row: a Blocker outside the allowed paths stops the branch instead of being kept and repaired.
+
+| Finding | Disposition |
+|---|---|
+| Caused by this diff, or inside allowed paths | In scope. Repair it this cycle, rerun the gate. |
+| Pre-existing, outside allowed paths | Out of scope. No edit to those files. Record it. |
+| Out of scope and the gate blocks delivery | Blocker. Stop this branch, report the gate FAILED, name the owner from ESCALATE TO. |
+| Out of scope, and the work order or user explicitly authorizes repair | Separate bounded repair: own commit, authorized paths only, named in PR body. |
+
+- A failed required gate stays FAILED. A rationale or recorded finding never turns it into PASS.
+- Never weaken the gate, add suppression directives (including `<!-- orphan-ref-ignore -->`), change baselines, broaden permissions, or skip hooks.
+- Record out-of-scope findings in existing handoff fields only: command, result, failing paths, scope decision in CONTEXT; owner in ESCALATE TO; stop reason in STOP CONDITIONS.
+- Reuse a recorded blocker only after a freshness check: head SHA and failing paths match and the command returns the same result. Otherwise discard the record and reclassify.
 
 ## Verification
 
@@ -266,7 +271,7 @@ the rationale in the PR body or issue handoff and flag the item to the owner.
 - [ ] Every test traces to a named AC identifier
 - [ ] Every test was seen failing on the right assertion before its code existed
 - [ ] Any guard or detector added in this build was run against the branch and observed firing
-- [ ] All four exit gates returned clean, or each finding has a documented out-of-scope rationale and a linked issue
+- [ ] All four exit gates returned clean, or each failing gate is reported FAILED with its "Gate failure disposition"
 - [ ] Commits are atomic, with test and implementation committed together
 - [ ] Phase 2b trigger ran before any Phase 3 edit; on activation, the decision record passed `validation_record.py` before editing a validation target
 
@@ -277,9 +282,9 @@ the rationale in the PR body or issue handoff and flag the item to the owner.
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Writing code before a failing test | A test written after the code confirms the code's behavior, not the spec's contract | Write the test, watch it fail on the right assertion, then implement |
-| Treating the exit gates as advisory | Produces the iteration paradox: reviewers flag what the implementer should have caught, and every revision costs more | Clear all four in the same build cycle |
+| Treating the exit gates as advisory | Produces the iteration paradox: reviewers flag what the implementer should have caught, and every revision costs more | Clear every in-scope finding in the same build cycle; apply "Gate failure disposition" to the rest |
 | Shipping a detector without self-applying it | A guard that does not fire on conditions already in the branch has wrong logic, and nobody finds out until it matters | Run it against the branch before committing |
-| "I will fix it in review" | Moves work to the most expensive place to do it | Fix it now, or document the rationale and link the follow-up |
+| "I will fix it in review" | Moves work to the most expensive place | Fix it now if in scope, else record it and name the owner |
 | Editing whatever file makes a failing validator pass | Might edit a generated mirror, a vendored file, or an unjustified baseline instead of the true owner | Run Phase 2b first; edit only the record's `permitted_change_location` |
 
 ## Guardrails
@@ -289,10 +294,7 @@ the rationale in the PR body or issue handoff and flag the item to the owner.
 - No feature flags or compat shims when you can change the code. Validate only at boundaries.
 - No generated headers, timestamps, or "do not edit" banners in any file. If a script emits one, delete the emitter.
 - .NET projects: target net10.0 (C# 14 implied; do not pin LangVersion). Use central package management, global.json to pin the SDK, and standard .editorconfig, .gitattributes, and .gitignore files.
-- Before modifying an existing system (changing behavior of a validator, hook, ADR constraint,
-  or shared infrastructure component), invoke `Skill(skill="memory-gate")` to surface the "why"
-  behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
-  or explicitly acknowledge them in the active plan or issue handoff before proceeding.
+- Before changing the behavior of a validator, hook, ADR constraint, or shared infrastructure, invoke `Skill(skill="memory-gate")`. If it returns findings, address or acknowledge them in the plan or issue handoff first.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Verify CLI flags and argparse patterns against live output before committing.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.

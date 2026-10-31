@@ -13,8 +13,10 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 # Add build directory to path for imports
 _BUILD_DIR = Path(__file__).resolve().parent.parent / "build"
@@ -312,23 +314,43 @@ class TestConvertFrontmatterForPlatform:
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert result.get("tools") == "['read', 'edit']"
 
-    def test_haiku_tier_resolves_to_versioned_id(self) -> None:
-        """The sole ADR-080 rule 3 cost exception still resolves (issue #5313)."""
-        fm: dict[str, str | None] = {
-            "description": "test",
-            "model_tier": "haiku",
-        }
+    @pytest.mark.parametrize(
+        ("platform", "frontmatter_cfg", "tiers"),
+        [
+            (
+                "copilot-cli",
+                {"includeNameField": True},
+                {"opus": "claude-opus-4.6", "haiku": "claude-haiku-4.5"},
+            ),
+            (
+                "vscode",
+                {"includeNameField": False},
+                {"opus": "Claude Opus 4.6 (copilot)", "haiku": "Claude Haiku 4.5 (copilot)"},
+            ),
+            (
+                "visual-studio",
+                {"includeNameField": False},
+                {"opus": "Claude Opus 4.6 (copilot)", "haiku": "Claude Haiku 4.5 (copilot)"},
+            ),
+        ],
+    )
+    def test_haiku_tier_without_manifest_omits_model(
+        self,
+        platform: str,
+        frontmatter_cfg: dict[str, object],
+        tiers: dict[str, str],
+    ) -> None:
+        """Issue #6638: the haiku-tier fallback is removed. model_tier: haiku
+        with no manifest entry omits model on every Copilot-side platform."""
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         config: dict[str, object] = {
-            "platform": "copilot-cli",
-            "frontmatter": {"includeNameField": True},
-            "model_tiers": {
-                "opus": "claude-opus-4.6",
-                "sonnet": "claude-sonnet-4.6",
-                "haiku": "claude-haiku-4.5",
-            },
+            "platform": platform,
+            "frontmatter": frontmatter_cfg,
+            "model_tiers": tiers,
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
-        assert result["model"] == "claude-haiku-4.5"
+        assert "model" not in result
+        assert "model_tier" not in result
 
     def test_non_haiku_tier_omits_model(self) -> None:
         """ADR-080 rule 5 / issue #5313: opus/sonnet tiers carry no manifest
@@ -393,6 +415,15 @@ class TestConvertFrontmatterForPlatform:
     }
     _VSCODE_CONFIG: dict[str, object] = {
         "platform": "vscode",
+        "frontmatter": {"includeNameField": False},
+        "model_tiers": {
+            "opus": "Claude Opus 4.6 (copilot)",
+            "sonnet": "Claude Sonnet 4.6 (copilot)",
+            "haiku": "Claude Haiku 4.5 (copilot)",
+        },
+    }
+    _VS_CONFIG: dict[str, object] = {
+        "platform": "visual-studio",
         "frontmatter": {"includeNameField": False},
         "model_tiers": {
             "opus": "Claude Opus 4.6 (copilot)",
@@ -465,9 +496,9 @@ class TestConvertFrontmatterForPlatform:
             )
         return {self._UNIT: entry}
 
-    def test_manifest_keep_pin_resolves_ahead_of_haiku_tier(self, tmp_path: Path) -> None:
-        """A fresh KEEP_PIN entry wins even when model_tier also says haiku:
-        manifest resolution is step 1, haiku-tier fallback is step 2."""
+    def test_manifest_keep_pin_emits_model_despite_haiku_tier(self, tmp_path: Path) -> None:
+        """A fresh KEEP_PIN entry still emits model when model_tier says haiku:
+        the manifest is the only path to a model pin (issue #6638)."""
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
             fm,
@@ -498,12 +529,21 @@ class TestConvertFrontmatterForPlatform:
             source_unit=self._UNIT,
             repo_root=tmp_path,
         )
+        vs_result = convert_frontmatter_for_platform(
+            fm,
+            self._VS_CONFIG,
+            "architect",
+            manifest=manifest,
+            source_unit=self._UNIT,
+            repo_root=tmp_path,
+        )
         assert copilot_result["model"] == "claude-opus-4.6"
         assert vscode_result["model"] == "Claude Opus 4.6 (copilot)"
+        assert vs_result["model"] == "Claude Opus 4.6 (copilot)"
 
     def test_manifest_entry_for_different_unit_does_not_resolve(self, tmp_path: Path) -> None:
         """Negative control: the manifest carries evidence, but not for this
-        unit, so generation must fall back to the (empty) tier logic."""
+        unit, so generation omits model."""
         fm: dict[str, str | None] = {"description": "test"}
         result = convert_frontmatter_for_platform(
             fm,
@@ -515,7 +555,7 @@ class TestConvertFrontmatterForPlatform:
         )
         assert "model" not in result
 
-    def test_manifest_decision_not_keep_pin_falls_back(self, tmp_path: Path) -> None:
+    def test_manifest_decision_not_keep_pin_omits_model(self, tmp_path: Path) -> None:
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
             fm,
@@ -525,13 +565,13 @@ class TestConvertFrontmatterForPlatform:
             source_unit=self._UNIT,
             repo_root=tmp_path,
         )
-        assert result["model"] == "claude-haiku-4.5"
+        assert "model" not in result
 
-    def test_manifest_missing_repo_root_falls_back(self) -> None:
+    def test_manifest_missing_repo_root_omits_model(self) -> None:
         """repo_root=None (the default) must not resolve a manifest pin,
         even with a valid manifest and source_unit: resolve_manifest_model
         needs repo_root for the artifact path-safety check, so a caller
-        that omits it gets the pre-wiring fallback rather than a crash."""
+        that omits it gets no model rather than a crash."""
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
             fm,
@@ -540,14 +580,29 @@ class TestConvertFrontmatterForPlatform:
             manifest=self._keep_pin_manifest(),
             source_unit=self._UNIT,
         )
-        assert result["model"] == "claude-haiku-4.5"
+        assert "model" not in result
 
-    def test_manifest_none_reproduces_pre_wiring_behavior(self) -> None:
-        """manifest=None, source_unit=None (the default) is unaffected by
-        this feature: same output as before the manifest wiring existed."""
+    def test_manifest_expired_keep_pin_omits_model(self, tmp_path: Path) -> None:
+        """Edge: a KEEP_PIN entry older than the manifest max age (180 days)
+        is stale, so the haiku tier must not step in as a fallback."""
+        stale = (datetime.now(timezone.utc).date() - timedelta(days=181)).isoformat()
+        fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
+        result = convert_frontmatter_for_platform(
+            fm,
+            self._COPILOT_CONFIG,
+            "architect",
+            manifest=self._keep_pin_manifest(tmp_path, date=stale),
+            source_unit=self._UNIT,
+            repo_root=tmp_path,
+        )
+        assert "model" not in result
+
+    def test_manifest_none_omits_model(self) -> None:
+        """manifest=None, source_unit=None (the default) omits model, even
+        for the haiku tier that emitted claude-haiku-4.5 before #6638."""
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(fm, self._COPILOT_CONFIG, "architect")
-        assert result["model"] == "claude-haiku-4.5"
+        assert "model" not in result
 
 
 class TestFormatFrontmatterYaml:

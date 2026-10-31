@@ -14,6 +14,7 @@ if str(EVAL_DIR) not in sys.path:
 
 import _harness_capability as cap  # noqa: E402
 import _routing_backend as backend_mod  # noqa: E402
+import _routing_claude as claude_mod  # noqa: E402
 import _routing_config as config_mod  # noqa: E402
 import _routing_dag as dag_mod  # noqa: E402
 import _routing_live as live_mod  # noqa: E402
@@ -29,7 +30,7 @@ CORPUS = cli.DEFAULT_CORPUS
 
 BOUNDED = "RB-01-bounded-implementation"
 MULTI_FILE = "RB-02-multi-file-invariants"
-CODEX_VERSION = "codex-cli 0.160.0"
+CODEX_VERSION = "codex-cli 0.163.0"
 COPILOT_VERSION = "GitHub Copilot CLI 1.0.89-1."
 MODELS = ("gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra")
 EFFORTS = ("high", "low", "medium")
@@ -44,10 +45,12 @@ __all__ = [
     "REAL_MATRIX",
     "backend_mod",
     "cap",
+    "claude_mod",
     "cli",
     "config_dict",
     "config_mod",
     "dag_mod",
+    "full_config_dict",
     "live_mod",
     "make_record",
     "matched_records",
@@ -58,6 +61,7 @@ __all__ = [
     "scenario_mod",
     "scenarios",
     "strategy",
+    "without_harness",
     "write_matrix",
 ]
 
@@ -109,9 +113,29 @@ def write_matrix(path: Path, records: list[cap.HarnessCapabilityRecord]) -> Path
     return path
 
 
-def config_dict() -> dict[str, Any]:
-    """A fresh copy of the checked-in example config."""
+def full_config_dict() -> dict[str, Any]:
+    """A fresh copy of the checked-in example config, every harness it names."""
     return copy.deepcopy(json.loads(EXAMPLE_CONFIG.read_text(encoding="utf-8")))
+
+
+def without_harness(document: dict[str, Any], harness: str) -> dict[str, Any]:
+    """`document` with `harness` removed from the harness list and every strategy override."""
+    document["harnesses"] = [h for h in document["harnesses"] if h["harness"] != harness]
+    for item in document["strategies"]:
+        item.get("harness_overrides", {}).pop(harness, None)
+        if not item.get("harness_overrides", True):
+            del item["harness_overrides"]
+    return document
+
+
+def config_dict() -> dict[str, Any]:
+    """The checked-in example config on the codex and copilot harnesses.
+
+    The generic runner tests classify those two harnesses with `matched_records()`. Claude is
+    a standalone harness with its own tests (`test_routing_claude_config.py`), so it is left
+    out here. `full_config_dict()` keeps every harness.
+    """
+    return without_harness(full_config_dict(), "claude")
 
 
 def parse(document: dict[str, Any]) -> config_mod.BenchmarkConfig:

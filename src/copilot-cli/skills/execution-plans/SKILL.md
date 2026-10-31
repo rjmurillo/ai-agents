@@ -15,7 +15,7 @@ metadata:
 
 Treat execution plans as first-class artifacts, versioned in the repository.
 
-<!-- vendor-portability: declared. This skill reads and writes plan artifacts under the consumer's .project-toolkit/plans/ (active/, completed/, abandoned/) and .project-toolkit/debt/tech-debt-registry.md, seeded from .project-toolkit/plans/TEMPLATE.md. These are consumer-side write targets created on demand; a vendored install without .project-toolkit/ creates the directories when the first plan is written rather than failing silently. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads and writes plan artifacts under the consumer's .project-toolkit/plans/ (active/, completed/, abandoned/) and .project-toolkit/debt/tech-debt-registry.md, seeded from .project-toolkit/plans/TEMPLATE.md. These are consumer-side write targets created on demand; a vendored install without .project-toolkit/ creates the directories when the first plan is written rather than failing silently. -->
 
 ## Directory Structure
 

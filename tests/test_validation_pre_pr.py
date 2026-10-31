@@ -335,10 +335,18 @@ class TestBuildParser:
         consumer.
 
         ``summary_json`` joined the set with issue #5635; ``main`` reads it in
-        ``_write_summary_json``.
+        ``_write_summary_json``. ``compact`` joined with issue #6734; ``_main``
+        copies it to ``ValidationState.compact``, which ``run_validation``,
+        ``_print_summary``, and ``run_all_validations`` read.
         """
         dests = {action.dest for action in build_parser()._actions if action.dest != "help"}
-        assert dests == {"quick", "markdown_lint_only", "markdown_files", "summary_json"}
+        assert dests == {
+            "quick",
+            "markdown_lint_only",
+            "markdown_files",
+            "summary_json",
+            "compact",
+        }
 
 
 class TestRemovedFlagsAreRejected:

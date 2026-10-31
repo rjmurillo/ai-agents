@@ -630,7 +630,9 @@ HAS_SPECS=true PR_BODY="$(cat body.md)" python3 scripts/ci/spec_coverage_verdict
 ```
 
 Exit 0 is PASS, 1 is FAIL, 2 is a config error: `HAS_SPECS` is anything other
-than `true` or `false`, or the `workflow_dispatch` body fetch failed. Editing
+than `true` or `false`, the saved `PR_BODY_FILE` is unreadable, or a
+`workflow_dispatch` run has neither `PR_BODY` nor `PR_BODY_FILE`. The script
+never fetches a body itself. Editing
 the body re-triggers the check on `pull_request: edited`, so no new commit is
 needed. "Re-run jobs" replays the old event with the old body, so edit the body
 (even whitespace) to get a fresh run.

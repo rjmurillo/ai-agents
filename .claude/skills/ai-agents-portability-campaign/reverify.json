@@ -1,0 +1,208 @@
+{
+  "checks": [
+    {
+      "id": "R1",
+      "kind": "path_exists",
+      "path": ".claude/skills/agent-harness-reference/SKILL.md"
+    },
+    {
+      "id": "R2",
+      "kind": "path_exists",
+      "path": "src/claude/skills/agent-harness-reference/SKILL.md"
+    },
+    {
+      "id": "R3",
+      "kind": "path_exists",
+      "path": "src/claude/skills/agent-harness-reference/references/official-hook-contracts.md"
+    },
+    {
+      "id": "R4",
+      "kind": "path_exists",
+      "path": "src/claude/skills/agent-harness-reference/references/probe-evidence.md"
+    },
+    {
+      "id": "R5",
+      "kind": "path_exists",
+      "path": ".project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md"
+    },
+    {
+      "id": "R6",
+      "kind": "path_exists",
+      "path": ".project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md"
+    },
+    {
+      "id": "R7",
+      "kind": "path_exists",
+      "path": ".project-toolkit/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md"
+    },
+    {
+      "id": "R8",
+      "kind": "path_exists",
+      "path": ".project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md"
+    },
+    {
+      "id": "R9",
+      "kind": "path_exists",
+      "path": ".claude/rules/generated-artifacts.md"
+    },
+    {
+      "id": "R10",
+      "kind": "path_exists",
+      "path": "templates/platforms/copilot-cli.yaml"
+    },
+    {
+      "id": "R11",
+      "kind": "path_exists",
+      "path": "build/scripts/generate_dispatcher.py"
+    },
+    {
+      "id": "R12",
+      "kind": "path_exists",
+      "path": "build/scripts/generate_hooks.py"
+    },
+    {
+      "id": "R13",
+      "kind": "path_exists",
+      "path": ".claude/lib/hook_dispatch.py"
+    },
+    {
+      "id": "R14",
+      "kind": "path_exists",
+      "path": "build/scripts/build_all.py"
+    },
+    {
+      "id": "R15",
+      "kind": "path_exists",
+      "path": "build/scripts/validate_plugin_version_bump.py"
+    },
+    {
+      "id": "R16",
+      "kind": "path_exists",
+      "path": ".github/hooks/memory-recall.json"
+    },
+    {
+      "id": "R17",
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_generate_dispatcher.py"
+    },
+    {
+      "id": "R18",
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_generate_hooks.py"
+    },
+    {
+      "id": "R19",
+      "kind": "path_exists",
+      "path": "tests/test_hook_dispatch.py"
+    },
+    {
+      "id": "R20",
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py"
+    },
+    {
+      "id": "R21",
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_generate_hooks_plugin_root.py"
+    },
+    {
+      "id": "R22",
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_hook_contract_knowledge.py"
+    },
+    {
+      "id": "R23",
+      "kind": "path_exists",
+      "path": "tests/e2e/test_cli_hook_e2e.py"
+    },
+    {
+      "id": "R24",
+      "kind": "path_exists",
+      "path": "tests/e2e/test_plugin_load_smoke.py"
+    },
+    {
+      "id": "R25",
+      "kind": "absent",
+      "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"
+    },
+    {
+      "id": "R26",
+      "kind": "contains",
+      "path": "src/copilot-cli/hooks/hooks.json",
+      "text": "\"hooks\": {}"
+    },
+    {
+      "id": "R27",
+      "kind": "contains",
+      "path": ".claude/settings.json",
+      "text": "PreCompact"
+    },
+    {
+      "id": "R28",
+      "kind": "contains",
+      "path": "src/claude/skills/agent-harness-reference/SKILL.md",
+      "text": "ADR-097 retired the dispatcher itself"
+    },
+    {
+      "id": "R29",
+      "kind": "contains",
+      "path": "templates/platforms/copilot-cli.yaml",
+      "text": "PreCompact: PreCompact"
+    },
+    {
+      "id": "R30",
+      "kind": "contains",
+      "path": ".claude/skills/autoplan/SKILL.md",
+      "text": "in the ai-agents repository: ai-agents-portability-campaign"
+    },
+    {
+      "id": "R31",
+      "kind": "contains",
+      "path": "src/claude/rules/generated-artifacts.md",
+      "text": "(in the ai-agents repository only)"
+    },
+    {
+      "id": "R32",
+      "kind": "contains",
+      "path": "src/claude/skills/build/SKILL.md",
+      "text": "In the ai-agents repository, execute the change through"
+    },
+    {
+      "id": "R33",
+      "kind": "contains",
+      "path": "src/claude/skills/test/SKILL.md",
+      "text": "In the ai-agents repository, run the verification path"
+    },
+    {
+      "id": "R34",
+      "kind": "contains",
+      "path": "src/AGENTS.md",
+      "text": "route through `ai-agents-portability-campaign`"
+    },
+    {
+      "id": "R35",
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-portability-campaign/scripts/hook_inventory.py"
+    },
+    {
+      "id": "R36",
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-portability-campaign/scripts/instruments.py"
+    },
+    {
+      "id": "R37",
+      "kind": "path_exists",
+      "path": "tests/skills/ai-agents-portability-campaign/test_hook_inventory.py"
+    },
+    {
+      "id": "R38",
+      "kind": "path_exists",
+      "path": "tests/skills/ai-agents-portability-campaign/test_instruments.py"
+    },
+    {
+      "id": "R39",
+      "kind": "path_exists",
+      "path": "build/scripts/generate_hooks_events.py"
+    }
+  ]
+}

@@ -36,6 +36,12 @@ Usage:
         --scenarios tests/evals/rule-scenarios/working-with-legacy-code.json \
         --output rule-activation-results.json
 
+    # One scenario, repeated, on chosen arms. skill-routed installs the skill
+    # in a Claude Code workspace and invokes it as /<name> (#6737).
+    EVAL_PROVIDER=claude-cli python3 scripts/eval/eval-rule-activation.py \
+        --scenarios tests/evals/skill-scenarios/spec.json --scenario-id S7 \
+        --repeats 10 --arms harness-baseline skill-routed --judge-repeats 1
+
 Exit codes:
     0 ok
     1 logic (one or more rules failed activation gate)
@@ -60,8 +66,9 @@ import sys
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+import _claude_skill_harness
 import _load_bearing
 from _anthropic_api import DEFAULT_MODEL, verify_model_available
 from _anthropic_api import call_api as _call_api
@@ -94,6 +101,22 @@ MECHANISMS = ("baseline", "description", "full")
 # Opt-in contrast arm (#5405). Not a member of MECHANISMS: no gate, ranking, or
 # decision check reads it, so declaring one cannot move an existing verdict.
 CONTROL_MECHANISM = "control"
+# Opt-in harness arms (#6737), selectable only with --scenario-id. Both run the
+# Claude Code CLI itself through `_claude_skill_harness`: `skill-routed`
+# installs the target skill in the workspace and invokes it as /<name>, and
+# `harness-baseline` sends the bare request to the same argv with no skill.
+# Not members of MECHANISMS, so no gate or ranking reads them.
+HARNESS_BASELINE = "harness-baseline"
+SKILL_ROUTED = "skill-routed"
+HARNESS_ARMS = (HARNESS_BASELINE, SKILL_ROUTED)
+SELECTABLE_ARMS = (*MECHANISMS, *HARNESS_ARMS)
+#: The only transport the harness arms can run on. The judge shares it, so a
+#: run never mixes subscription arms with an API-billed judge.
+HARNESS_PROVIDER = "claude-cli"
+# Verdicts for a selected-scenario run. It measures one scenario, so it
+# cannot certify the target; it reports whether every cell was measured.
+VERDICT_NOT_GATED = "NOT_GATED"
+VERDICT_NOT_GATED_INCOMPLETE = "NOT_GATED_INCOMPLETE"
 
 # Rule passes activation gate when the single best non-baseline mechanism
 # averages >= MIN_ACTIVATION_SCORE across all non-negative-case scenarios,
@@ -678,6 +701,47 @@ def _apply_forbidden_claims(
     result["forbidden_claim_hits"] = hits
 
 
+def _proof_point_spec_error(value: object) -> str | None:
+    """Return why a scenario's `proof_points` cannot be graded, or None.
+
+    Each entry is `{id, desc, pattern}`. The pattern is fixed in the file
+    before a run, so the read of each response is decided before any response
+    exists (#6737: the first S7 record changed a regex after reading).
+    """
+    if not isinstance(value, list) or not value:
+        return "proof_points must be a non-empty list"
+    seen: set[str] = set()
+    for idx, entry in enumerate(value):
+        if not isinstance(entry, dict):
+            return f"proof_points[{idx}] must be an object"
+        point_id = entry.get("id")
+        if not isinstance(point_id, str) or not point_id.strip():
+            return f"proof_points[{idx}].id must be a non-empty string"
+        if point_id in seen:
+            return f"proof_points[{idx}].id {point_id!r} repeats"
+        seen.add(point_id)
+        pattern = entry.get("pattern")
+        if not isinstance(pattern, str) or not pattern.strip():
+            return f"proof_points[{idx}].pattern must be a non-empty string"
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            return f"proof_points[{idx}].pattern does not compile: {exc}"
+    return None
+
+
+def grade_proof_points(scenario: dict[str, Any], response: str) -> dict[str, bool]:
+    """Return each declared proof point and whether its pattern matched.
+
+    Case-insensitive and multiline. No judge reads it and no gate uses it: it
+    is a deterministic second read beside the judge scores.
+    """
+    return {
+        entry["id"]: re.search(entry["pattern"], response, re.IGNORECASE | re.MULTILINE) is not None
+        for entry in scenario.get("proof_points", [])
+    }
+
+
 def _clamp_score(value: object) -> int:
     """Return an exact judge score, or 0 after shape validation fails."""
     if isinstance(value, int) and not isinstance(value, bool) and value in _SCORE_RANGE:
@@ -1183,6 +1247,51 @@ def _score_judge_sample(
     return sample
 
 
+def _call_harness_arm(
+    rule: dict[str, str],
+    scenario: dict[str, Any],
+    model: str,
+    mechanism: str,
+    metadata: dict[str, object],
+) -> tuple[str, dict[str, Any]]:
+    """Run one harness arm and fill `metadata` the way `_call_api` would.
+
+    `skill-routed` needs `harness_skill_dir` and `harness_skill_name` on the
+    target, which `_harness_target` sets. The CLI ignores `max_tokens`, so the
+    reply is never cut and `termination` stays `unknown`, as for `claude-cli`.
+    """
+    routed = mechanism == SKILL_ROUTED
+    skill_dir = Path(rule["harness_skill_dir"]) if routed else None
+    skill_name = rule["harness_skill_name"] if routed else None
+    from _providers import _cli_kwargs
+
+    # The same CLAUDE_CLI_BIN and CLAUDE_CLI_TIMEOUT overrides the judge's
+    # claude-cli provider reads, so arms and judge run one binary.
+    overrides = _cli_kwargs("CLAUDE_CLI_TIMEOUT", "CLAUDE_CLI_BIN")
+    reply = _claude_skill_harness.run_harness(
+        scenario["input"],
+        model=model,
+        skill_dir=skill_dir,
+        skill_name=skill_name,
+        executable=str(overrides.get("executable", "claude")),
+        timeout=float(cast(float, overrides.get("timeout", 900.0))),
+    )
+    metadata["termination"] = "unknown"
+    if reply.output_tokens is not None:
+        metadata["output_tokens"] = reply.output_tokens
+    if reply.model is not None:
+        metadata["system_fingerprint"] = reply.model
+    facts = {
+        "invocation": reply.invocation,
+        "skill_installed": skill_name,
+        "input_tokens_total": reply.input_tokens_total,
+        "tool_calls": list(reply.tool_calls),
+        "cli_version": reply.cli_version,
+        "credential_step": reply.credential_step,
+    }
+    return reply.text, facts
+
+
 def eval_one_scenario(
     api_key: str,
     rule: dict[str, str],
@@ -1194,6 +1303,8 @@ def eval_one_scenario(
     judge_repeats: int = DEFAULT_JUDGE_REPEATS,
     judge_reducer: str = DEFAULT_JUDGE_REDUCER,
     control_instruction: str | None = None,
+    arms: tuple[str, ...] | None = None,
+    keep_response: bool = False,
 ) -> dict[str, Any]:
     """Run all mechanisms on one scenario.
 
@@ -1201,6 +1312,10 @@ def eval_one_scenario(
     system prompt is that text and no rule (#5405). It is a contrast arm, not
     a gate arm: the gates and the best-mechanism ranking read `MECHANISMS`
     only, and `_load_bearing` reads the control cell.
+
+    `arms` replaces that set with exactly the named arms, which may include
+    the harness arms (#6737). `keep_response` stores the whole response text
+    beside the 400-character preview, so a later read can grade it.
     """
     result: dict[str, Any] = {
         "id": scenario["id"],
@@ -1212,18 +1327,26 @@ def eval_one_scenario(
     if decision_spec is not None:
         result["decision_declared"] = True
 
-    arms = (*MECHANISMS, CONTROL_MECHANISM) if control_instruction else MECHANISMS
+    if arms is None:
+        arms = (*MECHANISMS, CONTROL_MECHANISM) if control_instruction else MECHANISMS
     for mechanism in arms:
         is_control = mechanism == CONTROL_MECHANISM
-        system = (
-            (control_instruction or "")
-            if is_control
-            else build_system_prompt(mechanism, rule, rule_id)
-        )
-        if not is_control and _prompt_collapses_to_baseline(mechanism, system, rule, rule_id):
+        is_harness = mechanism in HARNESS_ARMS
+        if is_harness:
+            system = ""
+        elif is_control:
+            system = control_instruction or ""
+        else:
+            system = build_system_prompt(mechanism, rule, rule_id)
+        if (
+            not is_control
+            and not is_harness
+            and _prompt_collapses_to_baseline(mechanism, system, rule, rule_id)
+        ):
             result["mechanisms"][mechanism] = _declined_cell(system)
             continue
         routing: dict[str, Any] | None = None
+        harness: dict[str, Any] | None = None
         if dry_run:
             result["mechanisms"][mechanism] = {
                 "response_preview": "(dry-run, no API call)",
@@ -1237,7 +1360,9 @@ def eval_one_scenario(
 
         try:
             metadata: dict[str, object] = {}
-            if mechanism == "description" and rule.get("skill_name"):
+            if is_harness:
+                response, harness = _call_harness_arm(rule, scenario, model, mechanism, metadata)
+            elif mechanism == "description" and rule.get("skill_name"):
                 route_response = _call_api(
                     api_key,
                     [{"role": "user", "content": build_skill_route_prompt(rule, scenario)}],
@@ -1294,15 +1419,16 @@ def eval_one_scenario(
                 }
                 system = _build_routed_reference_prompt(rule, selected_reference)
                 metadata = {}
-            response = _call_api(
-                api_key,
-                [{"role": "user", "content": scenario["input"]}],
-                system=system,
-                model=model,
-                max_tokens=600,
-                seed=seed,
-                metadata=metadata,
-            )
+            if not is_harness:
+                response = _call_api(
+                    api_key,
+                    [{"role": "user", "content": scenario["input"]}],
+                    system=system,
+                    model=model,
+                    max_tokens=600,
+                    seed=seed,
+                    metadata=metadata,
+                )
             fingerprint = require_str_or_none(
                 metadata.get("system_fingerprint"), "system_fingerprint"
             )
@@ -1351,6 +1477,12 @@ def eval_one_scenario(
                 # prose cannot move it. The judge scores above are unchanged.
                 mechanism_result["decision"] = grade_decision(decision_spec, response).to_dict()
         _add_mechanism_metadata(mechanism_result, routing, fingerprint)
+        if harness is not None:
+            mechanism_result["harness"] = harness
+        if keep_response:
+            mechanism_result["response"] = response
+        if "proof_points" in scenario:
+            mechanism_result["proof_points"] = grade_proof_points(scenario, response)
         # A response cut at the token cap, refused, or otherwise unfinished is
         # shorter than the full answer, so its size says nothing about the rule.
         # Record why, and leave the size fields off: `_size_covers_pool` then
@@ -2328,7 +2460,60 @@ def _parse_args() -> argparse.Namespace:
         choices=tuple(_SCORE_REDUCERS),
         help="Reducer used for repeated judge samples.",
     )
+    parser.add_argument(
+        "--scenario-id",
+        help=(
+            "Run only this scenario from the one --scenarios file. The run "
+            f"reports {VERDICT_NOT_GATED} instead of a gate verdict."
+        ),
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=1,
+        help="Run the selected scenario this many times. Needs --scenario-id.",
+    )
+    parser.add_argument(
+        "--arms",
+        nargs="+",
+        choices=SELECTABLE_ARMS,
+        help=(
+            "Arms to run for the selected scenario, in this order. Needs "
+            f"--scenario-id. The harness arms need EVAL_PROVIDER={HARNESS_PROVIDER}, "
+            f"and {SKILL_ROUTED} needs a skill_path target."
+        ),
+    )
     return parser.parse_args()
+
+
+def _selection_error(args: argparse.Namespace) -> str | None:
+    """Return why the selection flags cannot run together, or None.
+
+    Checked before any credential is loaded, so a bad combination costs nothing.
+    """
+    scenario_id = getattr(args, "scenario_id", None)
+    repeats = getattr(args, "repeats", 1)
+    arms = getattr(args, "arms", None)
+    if scenario_id is None:
+        if repeats != 1 or arms is not None:
+            return "--repeats and --arms need --scenario-id"
+        return None
+    if not scenario_id.strip():
+        return "--scenario-id must be a non-empty scenario id"
+    if len(args.scenarios) != 1:
+        return "--scenario-id needs exactly one --scenarios file"
+    if repeats < 1:
+        return "--repeats must be positive"
+    if arms is not None and len(set(arms)) != len(arms):
+        return "--arms names an arm twice"
+    if arms is not None and any(arm in HARNESS_ARMS for arm in arms):
+        provider = (os.environ.get("EVAL_PROVIDER") or "").strip().lower()
+        if provider != HARNESS_PROVIDER:
+            return (
+                f"the harness arms run on the Claude Code CLI, so EVAL_PROVIDER must be "
+                f"{HARNESS_PROVIDER} for the judge to share that transport"
+            )
+    return None
 
 
 RULES_DIR = (REPO_ROOT / ".claude" / "rules").resolve()
@@ -2476,6 +2661,11 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
                     f"ERROR: scenarios[{idx}].{required} must be a non-empty string in {spath}",
                     file=sys.stderr,
                 )
+                return 2
+        if "proof_points" in sc:
+            proof_error = _proof_point_spec_error(sc["proof_points"])
+            if proof_error is not None:
+                print(f"ERROR: scenarios[{idx}]: {proof_error} in {spath}", file=sys.stderr)
                 return 2
         if "decision" in sc:
             decision_error = validate_decision_spec(sc["decision"])
@@ -2768,6 +2958,151 @@ def _process_one_rule(
     )
 
 
+def _harness_target(
+    primary_path: Path, rule: dict[str, str], reference_path: Path | None = None
+) -> dict[str, str] | int:
+    """Return the skill fields the `skill-routed` arm installs, or exit code 2.
+
+    The slash name is the frontmatter `name`, else the directory name, and it
+    must pass the harness's slash-name check: it is written into the user turn.
+    A reference target is refused: the CLI expands the whole router, and no
+    step would select or check the reference the result is filed under.
+    """
+    if primary_path.name != "SKILL.md" or reference_path is not None:
+        print(
+            f"ERROR: {SKILL_ROUTED} needs a skill_path target with no reference_path",
+            file=sys.stderr,
+        )
+        return 2
+    match = re.search(r"^name:\s*(.+?)$", rule.get("frontmatter", ""), re.MULTILINE)
+    name = match.group(1).strip().strip("\"'") if match else primary_path.parent.name
+    error = _claude_skill_harness.skill_name_error(name)
+    if error is not None:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    return {"harness_skill_dir": str(primary_path.parent), "harness_skill_name": name}
+
+
+def _selected_summary(repeats: list[dict[str, Any]], arms: tuple[str, ...]) -> dict[str, Any]:
+    """Per-arm means over the repeats, and whether every cell was measured.
+
+    Reuses `_mechanism_summary`, so an errored or judge-failed cell is left out
+    of a mean and counted, never scored as zero.
+    """
+    per_arm = {arm: _mechanism_summary(repeats, arm) for arm in arms}
+    # A declined cell (prompt identical to baseline) is a fixed property of the
+    # target, not a failed measurement, so it does not make the run incomplete.
+    declined = {
+        arm: sum(1 for r in repeats if "declined" in r["mechanisms"].get(arm, {})) for arm in arms
+    }
+    for arm, cell in per_arm.items():
+        cell["declined_count"] = declined[arm]
+    incomplete = any(
+        cell["judge_failures"]
+        or cell["graded_count"] + cell["declined_count"] < cell["scenario_count"]
+        for cell in per_arm.values()
+    )
+    return {
+        "verdict": VERDICT_NOT_GATED_INCOMPLETE if incomplete else VERDICT_NOT_GATED,
+        "per_arm": per_arm,
+    }
+
+
+def _render_selected(rule_id: str, scenario_id: str, summary: dict[str, Any]) -> str:
+    """One line per arm: graded cells, judge failures, and the mean cell score."""
+    lines = [f"\n{rule_id} {scenario_id}: {summary['verdict']}"]
+    for arm, cell in summary["per_arm"].items():
+        avg = "n/a" if cell["avg_score"] is None else f"{cell['avg_score']:.2f}"
+        lines.append(
+            f"  {arm:<17} graded {cell['graded_count']}/{cell['scenario_count']}"
+            f"  judge failures {cell['judge_failures']}  mean cell score {avg}"
+        )
+    return "\n".join(lines)
+
+
+def _process_selected_scenario(
+    api_key: str,
+    scenarios_data: dict[str, Any],
+    target_paths: tuple[Path, Path | None],
+    args: argparse.Namespace,
+) -> tuple[str, dict[str, Any] | None, int] | int:
+    """Run one scenario `--repeats` times on `--arms`. Exit code 2 on a bad selection.
+
+    The file still passes every shape check first, the both-pools check
+    included. That check costs no call, since an unselected scenario is never
+    sent, and it is what makes the same file valid for a gated run.
+    """
+    primary_path, reference_path = target_paths
+    scenario_id = args.scenario_id
+    matches = [sc for sc in scenarios_data["scenarios"] if sc["id"] == scenario_id]
+    if len(matches) != 1:
+        print(
+            f"ERROR: --scenario-id {scenario_id!r} matches {len(matches)} scenarios; "
+            "it must match exactly one",
+            file=sys.stderr,
+        )
+        return 2
+    scenario = matches[0]
+    arms = tuple(args.arms) if args.arms else MECHANISMS
+    default_id = primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
+    rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
+    rule = (
+        parse_rule(primary_path)
+        if reference_path is None
+        else parse_skill_reference(primary_path, reference_path)
+    )
+    if SKILL_ROUTED in arms:
+        harness_fields = _harness_target(primary_path, rule, reference_path)
+        if isinstance(harness_fields, int):
+            return harness_fields
+        rule = {**rule, **harness_fields}
+    route_calls = 1 if reference_path is not None and "description" in arms else 0
+    n_calls = args.repeats * (len(arms) * (1 + args.judge_repeats) + route_calls)
+    if args.dry_run:
+        print(
+            f"[DRY-RUN] {rule_id} {scenario_id}: {args.repeats} repeats x "
+            f"{len(arms)} arms ({', '.join(arms)}) x {1 + args.judge_repeats} "
+            f"(call + judges) + {route_calls} route calls per repeat = {n_calls} calls"
+        )
+        return rule_id, None, n_calls
+
+    repeats: list[dict[str, Any]] = []
+    for index in range(args.repeats):
+        print(f"  {scenario_id} repeat {index + 1}/{args.repeats}", file=sys.stderr)
+        cell = eval_one_scenario(
+            api_key,
+            rule,
+            rule_id,
+            scenario,
+            args.model,
+            dry_run=False,
+            # Offset per repeat, so a transport that honors seed draws a new
+            # sample each time instead of copying the first. The judge seeds
+            # derive from this one, so the stride clears them.
+            seed=None if args.seed is None else args.seed + index * (args.judge_repeats + 1),
+            judge_repeats=args.judge_repeats,
+            judge_reducer=args.judge_reducer,
+            arms=arms,
+            keep_response=True,
+        )
+        repeats.append({"repeat": index + 1, **cell})
+    summary = _selected_summary(repeats, arms)
+    print(_render_selected(rule_id, scenario_id, summary))
+    result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
+    if reference_path is not None:
+        result_paths["reference_path"] = str(reference_path.relative_to(REPO_ROOT))
+    return (
+        rule_id,
+        {
+            **result_paths,
+            "selection": {"scenario_id": scenario_id, "repeats": args.repeats, "arms": list(arms)},
+            "summary": summary,
+            "repeats": repeats,
+        },
+        n_calls,
+    )
+
+
 def _evaluate_load_bearing(
     spec: dict[str, Any], scenario_results: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -2844,6 +3179,10 @@ def main() -> int:
     args = _parse_args()
     if args.judge_repeats < 1:
         print("ERROR: --judge-repeats must be positive", file=sys.stderr)
+        return 2
+    selection_error = _selection_error(args)
+    if selection_error is not None:
+        print(f"ERROR: {selection_error}", file=sys.stderr)
         return 2
 
     if args.dry_run:
@@ -2929,7 +3268,13 @@ def _process_scenario_file(
         return loaded
     scenarios_data, target_paths = loaded
 
-    rule_id, result, n_calls = _process_one_rule(api_key, scenarios_data, target_paths, args)
+    if getattr(args, "scenario_id", None) is not None:
+        selected = _process_selected_scenario(api_key, scenarios_data, target_paths, args)
+        if isinstance(selected, int):
+            return selected
+        rule_id, result, n_calls = selected
+    else:
+        rule_id, result, n_calls = _process_one_rule(api_key, scenarios_data, target_paths, args)
     state.total_calls += n_calls
 
     if result is not None:
@@ -2951,16 +3296,18 @@ def _classify_verdict(verdict: str) -> int:
     attach a rule failure to a file problem and a run could not tell an
     under-firing rule from a misconfigured input. FAIL_JUDGE_ERRORS is external
     so CI can distinguish transient infrastructure trouble from a genuine
-    activation failure.
+    activation failure. A selected-scenario run certifies nothing: NOT_GATED
+    is 0, and NOT_GATED_INCOMPLETE (a cell errored or the judge failed) is
+    external for the same reason FAIL_JUDGE_ERRORS is.
 
     A run reduces these with max(), which makes the precedence a property of
     the ordering rather than a branch kept in sync with it: external outranks
     config, config outranks logic, and adding a target can only worsen the
     exit, never improve it.
     """
-    if verdict == "PASS":
+    if verdict in ("PASS", VERDICT_NOT_GATED):
         return 0
-    if verdict == "FAIL_JUDGE_ERRORS":
+    if verdict in ("FAIL_JUDGE_ERRORS", VERDICT_NOT_GATED_INCOMPLETE):
         return 3
     if verdict in ("NO_POSITIVE_CASES", "NO_NEGATIVE_CASES"):
         return 2

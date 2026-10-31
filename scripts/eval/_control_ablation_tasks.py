@@ -179,7 +179,8 @@ def _load_controls(value: object, path: str) -> dict[str, TaskControl]:
     return {name: _load_task_control(raw[name], f"{path}.{name}") for name in _TASK_CONTROL_NAMES}
 
 
-def _load_task(value: object, index: int) -> Task:
+def load_task(value: object, index: int, *, cases: frozenset[str] = CASES) -> Task:
+    """Validate one task dict; `cases` names the case values this document allows."""
     path = f"tasks[{index}]"
     raw = _require_dict(value, path)
     unknown = raw.keys() - _TASK_KEYS
@@ -189,9 +190,9 @@ def _load_task(value: object, index: int) -> Task:
     if missing:
         raise ControlAblationConfigError(f"{path}: missing key(s) {sorted(missing)}")
     case = _require_str(raw.get("case"), f"{path}.case")
-    if case not in CASES:
+    if case not in cases:
         raise ControlAblationConfigError(
-            f"{path}.case is unknown: {case!r}; expected one of {sorted(CASES)}"
+            f"{path}.case is unknown: {case!r}; expected one of {sorted(cases)}"
         )
     external_marker_raw = raw.get("external_marker")
     external_marker = (
@@ -252,7 +253,7 @@ def load_tasks(payload: Mapping[str, Any]) -> list[Task]:
     seen_ids: set[str] = set()
     seen_cases: set[str] = set()
     for index, value in enumerate(raw_tasks):
-        task = _load_task(value, index)
+        task = load_task(value, index)
         if task.id in seen_ids:
             raise ControlAblationConfigError(f"duplicate task id: {task.id!r}")
         seen_ids.add(task.id)

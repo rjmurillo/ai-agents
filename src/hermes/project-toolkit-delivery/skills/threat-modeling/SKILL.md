@@ -406,7 +406,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 ---
 
@@ -483,4 +483,4 @@ Exit code 0 indicates a valid, complete threat model.
 | `codeql-scan` | Validates code against identified threats |
 | `adr-review` | Security agent reviews architecture decisions |
 
-<!-- vendor-portability: declared. This skill writes STRIDE threat models to .project-toolkit/security/threat-models/. The path is a write target created on demand; a vendored install writes the consumer's own threat models there rather than failing. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes STRIDE threat models to .project-toolkit/security/threat-models/. The path is a write target created on demand; a vendored install writes the consumer's own threat models there rather than failing. -->

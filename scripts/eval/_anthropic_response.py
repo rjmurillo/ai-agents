@@ -13,6 +13,7 @@ need the HTTP/retry machinery in `_anthropic_api.py`.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -199,7 +200,23 @@ def record_output_tokens(provider: object, metadata: dict[str, object] | None) -
         metadata["output_tokens"] = tokens
 
 
+def record_cache_usage(provider: object, metadata: dict[str, object] | None) -> None:
+    """Copy a provider's `usage` dataclass into `metadata["usage"]` as a plain dict.
+
+    `usage` is an optional provider attribute (`OpenAIUsage` today). Anything
+    that is not a dataclass instance is dropped, and a reused dict keeps no
+    stale record. Fields the provider did not report stay None in the dict.
+    """
+    if metadata is None:
+        return
+    metadata.pop("usage", None)
+    usage = getattr(provider, "usage", None)
+    if usage is not None and dataclasses.is_dataclass(usage) and not isinstance(usage, type):
+        metadata["usage"] = dataclasses.asdict(usage)
+
+
 def record_provider_metadata(provider: object, metadata: dict[str, object] | None) -> None:
-    """Copy a non-default provider's output cap, finish reason, and token count."""
+    """Copy a non-default provider's output cap, finish reason, token count, and usage."""
     record_provider_cap(provider, metadata)
     record_output_tokens(provider, metadata)
+    record_cache_usage(provider, metadata)

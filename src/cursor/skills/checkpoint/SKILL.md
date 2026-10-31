@@ -16,12 +16,12 @@ metadata:
      through is scripts/redact_secrets.py, which lives upstream in the
      rjmurillo/ai-agents repo and ships in no plugin root. The checkpoint and
      session directories it reads and writes are the CONSUMER's own agent
-     artifacts, resolved rather than hard-coded (ADR-083, issue #5632). -->
+     artifacts, resolved rather than hard-coded (ADR-083). -->
 
 <!-- vendor-portability-exec: the redaction step invokes
      scripts/redact_secrets.py, which lives upstream in the rjmurillo/ai-agents
      repo. A prose declaration does not exempt an executable invocation, which
-     migrates independently (issue #2838), so it is declared here too. -->
+     migrates independently, so it is declared here too. -->
 
 Migrated from the checkpoint command under ADR-064, which makes skills the
 single user-invocable surface. The command file is gone, so its path is named

@@ -73,7 +73,7 @@ prescribing a fix the file had already applied. Recorded in the
      memory in the rjmurillo/ai-agents repository as evidence for the claim,
      not as a runtime read; the skill never opens that path. A vendored
      install without .serena/ loses the citation's link target, not any
-     skill behavior. Issue #2050. -->
+     skill behavior. -->
 
 ## Process
 

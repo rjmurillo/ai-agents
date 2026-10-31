@@ -91,3 +91,46 @@ rule changed.
 
 ADR-080's supersession note was shortened to keep the file at 500 lines,
 under the taste file-size ceiling. The note keeps the successor and scope.
+
+## Amendment 2026-10-29: issue #6638
+
+Scope: the generator drops the `model_tier: haiku` agent pin. The owner chose
+this on 2026-10-29. Reduced panel (architect, critic): the change edits a
+generator, not a gate or a rule other gates read.
+
+### Round 1
+
+| Seat | Verdict | Findings |
+| --- | --- | --- |
+| architect | Block | P0 MUST-5 in `templates/rules/templates.md` still named the haiku tier. P1 false premise and rule 2 scope. P2 ADR-080 pointers, refusal overclaim |
+| critic | Disagree-and-Commit | P1 refusal overclaim, false premise, ADR-080 drift. P2 stale test names, no expired-pin test, no visual-studio case |
+
+Both seats said an inline dated amendment is the right vehicle. ADR-119
+decision 11 already made the call, and the 2026-10-17 amendment is the
+precedent.
+
+### Resolution
+
+- MUST-5 now says only a fresh KEEP_PIN emits `model:`. Mirrors and the
+  lossless fixture were regenerated.
+- The premise now says no Copilot template sets `model_tier: haiku`. Other
+  tiers exist, such as `critic.copilot.md.tmpl` with `opus`.
+- The refusal is stated as a user report. The Linux 1.0.105 probe did not
+  reproduce it.
+- The amendment records a known gap. The generator still formats a manifest
+  KEEP_PIN for Copilot platforms, and `check_model_pins.py:465` accepts a
+  backed pin. The manifest holds zero pins.
+- ADR-080 lines were edited in place to point at this amendment. The file
+  stays at 501 lines.
+- Tests: the `falls_back` names were renamed, an expired KEEP_PIN case was
+  added, and the visual-studio formatting case was added.
+
+Consensus: both seats' findings are resolved as listed. The fixes narrow
+claims and add tests. No rule changed, so no second vote round ran.
+
+### PR review fixes
+
+Two PR #6978 threads were fixed. Cursor Bugbot flagged the frontmatter
+`date`, which ADR-073 defines as last updated, so it is now 2026-10-29.
+The owner flagged a stale ADR-080 quote in `build/model_pin_manifest.py`.
+Neither fix changes a rule, so no vote round ran.
