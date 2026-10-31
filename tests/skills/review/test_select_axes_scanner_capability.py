@@ -185,11 +185,47 @@ class TestCaseSensitivityFollowsEachScanner:
         assert "code-qualities-assessment" in select(["src/App.PY"])["local_selected"]
 
 
-class TestOverrideModesKeepEveryLocalAxis:
-    """Deep and fail-closed are explicit run-everything modes."""
+class TestOverrideModesAndLocalAxes:
+    """Deep narrows local axes to scanner reads; fail-closed keeps all four.
 
-    def test_deep_keeps_every_local_axis(self):
-        assert set(select(["src/main.rs"], deep=True)["local_selected"]) == set(mod.LOCAL_AXES)
+    Issue #7004: deep ran every local scanner, and one that read no changed
+    file reported UNKNOWN that nothing could clear.
+    """
+
+    # One launcher, its Pester tests, and a README: the reported change shape.
+    POWERSHELL_CHANGE = ["bin/launcher.ps1", "tests/launcher.Tests.ps1", "README.md"]
+
+    def test_deep_skips_scanners_that_read_no_changed_file(self):
+        result = select(self.POWERSHELL_CHANGE, deep=True)
+        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
+        for axis in ("code-qualities-assessment", "golden-principles"):
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+
+    def test_deep_still_runs_every_canonical_axis_when_narrowing(self):
+        result = select(self.POWERSHELL_CHANGE, deep=True)
+        assert set(result["canonical_selected"]) == set(CANDIDATES)
+        assert result["fail_closed"] is False
+
+    def test_deep_keeps_a_scanner_that_reads_one_changed_file(self):
+        """Negative control: narrowing must not drop a scanner with work to do."""
+        result = select([*self.POWERSHELL_CHANGE, "src/app.py"], deep=True)
+        assert "code-qualities-assessment" in result["local_selected"]
+
+    def test_deep_with_no_readable_file_selects_no_local_axis(self):
+        result = select(["src/main.rs"], deep=True)
+        assert result["local_selected"] == []
+        assert set(result["skipped"]) == set(mod.LOCAL_AXES)
+
+    def test_deep_pin_overrides_the_scanner_narrowing(self):
+        result = select(self.POWERSHELL_CHANGE, deep=True, pinned=["golden-principles"])
+        assert "golden-principles" in result["local_selected"]
+        assert "golden-principles" not in result["skipped"]
+
+    def test_deep_and_fail_closed_keeps_every_local_axis(self):
+        """An unclassified path leaves no path list to trust, even in deep."""
+        result = select(["some/unclassifiable/blob.bin"], deep=True)
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        assert result["skipped"] == {}
 
     def test_fail_closed_keeps_every_local_axis(self):
         result = select(["some/unclassifiable/blob.bin"])

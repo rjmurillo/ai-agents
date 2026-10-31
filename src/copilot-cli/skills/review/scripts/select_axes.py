@@ -551,6 +551,22 @@ def scannable_local_axes(paths: Sequence[str]) -> set[str]:
     }
 
 
+def readable_local_axes(paths: Sequence[str]) -> set[str]:
+    """Local axes whose scanner reads at least one of *paths*.
+
+    Deep review uses this whole-list question on purpose. It routes no axis by
+    category, so every changed path is in scope for every axis, and the only
+    question left is whether the scanner can read any of them. A path the
+    scanner cannot read stays covered by the canonical axes, which deep always
+    runs in full.
+    """
+    return {
+        axis
+        for axis in LOCAL_AXES
+        if any(_LOCAL_SCANNER_READS[axis](_posix(path)) for path in paths if _norm(path))
+    }
+
+
 # Ordered risk table. Each row is (category, predicate, canonical axes, local
 # axes). Every row whose predicate matches contributes its axes, so a single
 # path can select several axes and several paths accumulate.
@@ -748,6 +764,18 @@ def select_axes(
         blanket = _blanket_reason(deep, unclassified, unknown_effects, usable_paths)
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
+        if not fail_closed:
+            # Deep has a trustworthy path list, so a local scanner that reads
+            # none of it is skipped with a reason rather than run over zero
+            # files. That run reports UNKNOWN, which no language-specific
+            # review can clear, so a valid PowerShell-only change could never
+            # reach PASS (issue #7004). Every canonical axis still runs, which
+            # keeps deep the superset of CI: CI runs no local axis.
+            # Fail-closed keeps all four, because it has no path list to trust.
+            local_selected = readable_local_axes(usable_paths)
+            skip_overrides.update(
+                dict.fromkeys(set(LOCAL_AXES) - local_selected, _UNREADABLE_REASON)
+            )
         for axis in canonical_selected | local_selected:
             reasons[axis] = blanket
         for axis in unresolved_axes:
@@ -763,9 +791,8 @@ def select_axes(
         # never inventories. Selecting those anyway yields a scan over zero
         # files, which reports UNKNOWN, and an UNKNOWN axis blocks a PASS just
         # as a skipped one does without saying why. Skipping names the reason.
-        # Deep and fail-closed runs skip this narrowing on purpose: both are
-        # explicit "run everything" modes, and fail-closed has no trustworthy
-        # path list to narrow by.
+        # Deep narrows by scanner reads alone (readable_local_axes), since it
+        # routes no axis by category. Fail-closed does not narrow at all.
         routed_local = set(local_sources) & set(LOCAL_AXES)
         local_selected = routed_local & scannable_local_axes(usable_paths)
         unreadable_local = routed_local - local_selected
@@ -845,7 +872,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--deep",
         action="store_true",
-        help="Deep review: select every candidate axis regardless of risk.",
+        help=(
+            "Deep review: select every canonical axis regardless of risk, and "
+            "each local axis whose scanner reads a changed file."
+        ),
     )
     parser.add_argument(
         "--references-dir",

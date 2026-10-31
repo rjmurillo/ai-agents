@@ -39,7 +39,7 @@ reds when they drift.
 | `--changed-path PATH` | One path from the verified three-dot diff collected in Process step 1. Repeatable. Pass the real diff, never a guess: an unverified path list selects the wrong axes. |
 | `--effect NAME` | One diff effect read from the diff body, where no path glob can see it. Repeatable. Declare every effect that applies. |
 | `--pin AXIS` | One caller-pinned always-on axis, canonical or local. Repeatable. |
-| `--deep` | Explicit deep review: select every candidate axis regardless of risk. |
+| `--deep` | Explicit deep review: select every canonical axis regardless of risk, and each local axis whose scanner reads a changed file. |
 | `--references-dir DIR` | Override the canonical axis directory. Defaults to `references/` next to the script, which resolves in both the source project and a vendored plugin install. |
 
 ### Diff-effect vocabulary
@@ -120,9 +120,19 @@ subagent still reviews it. A `.txt`, `.rst`, or `.mdx` change is not classified
 at all, so the run fails closed onto the full set rather than handing the file
 to a scanner that would not open it.
 
-`--deep` and a fail-closed run skip this narrowing. Both are explicit
-run-everything modes, and a fail-closed run has no trustworthy path list to
-narrow by. A `--pin` also overrides it: a caller who names the axis gets it.
+`--deep` narrows by scanner reads alone. It routes no axis by category, so a
+local axis runs when its scanner reads any changed file, and is skipped with
+the same reason otherwise. A PowerShell-only change therefore skips
+`code-qualities-assessment` and `golden-principles` instead of reporting an
+UNKNOWN that no review can clear. Every canonical axis still runs. A
+fail-closed run skips the narrowing, deep or not, because it has no
+trustworthy path list. A `--pin` also overrides it: a caller who names the
+axis gets it.
+
+A local axis skipped this way is not PASS and gets no marker row. In its
+Summary cell, name the language-native checks that covered those files, such
+as PSScriptAnalyzer and Pester for PowerShell or shellcheck for shell. That
+note is evidence for the reader, not a verdict.
 
 `golden-principles` is scoped to toolkit artifacts because that is the surface
 its GP rules govern; a clean result elsewhere means no rule applied, not that
