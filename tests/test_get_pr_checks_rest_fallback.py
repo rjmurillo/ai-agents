@@ -335,7 +335,7 @@ class TestRestOutputStates:
         output = self._rest_output([_run("build", status, conclusion)], ["build"])
         assert output["AllState"] == expected
         assert output["DataSource"] == "rest"
-        assert "OverallState" not in output
+        assert output["OverallState"] == expected
 
     def test_required_state_is_known_when_ruleset_lists_checks(self):
         output = self._rest_output([_run("build", "COMPLETED", "SUCCESS")], ["build"])

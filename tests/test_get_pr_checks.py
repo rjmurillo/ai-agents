@@ -327,6 +327,18 @@ class TestNormalizeCheck:
 
 
 class TestBuildOutput:
+    @pytest.mark.parametrize("state", ["SUCCESS", "FAILURE", "UNKNOWN"])
+    def test_deprecated_overall_state_alias_mirrors_all_state(self, state):
+        output = build_output(
+            {"Number": 1, "HasChecks": False, "AllState": state, "Checks": []}, "o", "r"
+        )
+        assert output["OverallState"] == state
+        assert output["OverallState"] == output["AllState"]
+
+    def test_overall_state_alias_defaults_to_unknown(self):
+        output = build_output({"Number": 1, "HasChecks": False, "Checks": []}, "o", "r")
+        assert output["OverallState"] == "UNKNOWN"
+
     def test_all_passing(self):
         check_data = {
             "Number": 42,
@@ -1350,6 +1362,26 @@ class TestFetchChecks:
         ):
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "NotFound"
+
+    def test_fetch_checks_reports_earliest_suite_created_at_as_push_time(self):
+        resp = _rollup_response([_check_run_node("test", "COMPLETED", "SUCCESS")])
+        commit = resp["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["checkSuites"] = {
+            "nodes": [
+                {"createdAt": "2026-10-12T10:05:00Z"},
+                {"createdAt": "2026-10-12T10:01:00Z"},
+                {"createdAt": None},
+            ]
+        }
+        with patch("get_pr_checks.gh_graphql", return_value=resp):
+            result = fetch_checks("o", "r", 42)
+        assert result["HeadPushedAt"] == "2026-10-12T10:01:00Z"
+
+    def test_fetch_checks_push_time_none_without_suites(self):
+        resp = _rollup_response([_check_run_node("test", "COMPLETED", "SUCCESS")])
+        with patch("get_pr_checks.gh_graphql", return_value=resp):
+            result = fetch_checks("o", "r", 42)
+        assert result["HeadPushedAt"] is None
 
     def test_fetch_checks_includes_merge_state(self):
         nodes = [_check_run_node("test", "COMPLETED", "SUCCESS")]
@@ -3007,7 +3039,7 @@ class TestRequiredState:
         assert output["AllState"] == "FAILURE"
         assert output["RequiredState"] == "SUCCESS"
         assert output["FailedRequiredChecks"] == []
-        assert "OverallState" not in output
+        assert output["OverallState"] == output["AllState"]
 
     def test_unstable_status_with_green_required_checks_stays_usable(self):
         checks = [
@@ -3248,14 +3280,78 @@ class TestMissingChecksQueued:
         assert missing_checks_queued("2026-10-12T09:59:59Z", 0, self.NOW) is False
 
 
+class TestForgedFutureCommitDate:
+    NOW = datetime(2026, 10, 12, 10, 0, 0, tzinfo=timezone.utc)
+
+    def test_far_future_commit_date_closes_the_window(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued("2099-01-01T00:00:00Z", 2700, self.NOW) is False
+
+    def test_small_clock_skew_still_counts_as_fresh(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued("2026-10-12T10:01:00Z", 2700, self.NOW) is True
+
+    def test_skew_boundary_is_inclusive(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued("2026-10-12T10:05:00Z", 2700, self.NOW) is True
+        assert missing_checks_queued("2026-10-12T10:05:01Z", 2700, self.NOW) is False
+
+    def test_old_push_caps_a_fresh_looking_commit_date(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert (
+            missing_checks_queued(
+                "2026-10-12T09:59:00Z", 2700, self.NOW, pushed_at="2026-10-12T08:00:00Z"
+            )
+            is False
+        )
+
+    def test_fresh_push_and_commit_stay_queued(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert (
+            missing_checks_queued(
+                "2026-10-12T09:50:00Z", 2700, self.NOW, pushed_at="2026-10-12T09:55:00Z"
+            )
+            is True
+        )
+
+    def test_unparseable_push_time_fails_closed(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert (
+            missing_checks_queued("2026-10-12T09:50:00Z", 2700, self.NOW, pushed_at="garbage")
+            is False
+        )
+
+    def test_forged_future_date_ends_in_absent_required_state(self):
+        data = {
+            "Number": 1,
+            "BaseBranch": "main",
+            "HasChecks": True,
+            "AllState": "SUCCESS",
+            "HeadCommittedAt": "2099-01-01T00:00:00Z",
+            "Checks": [
+                _check("Run Python Tests", passing=True, state="COMPLETED", conclusion="SUCCESS")
+            ],
+        }
+        out = build_output(data, "o", "r", False, _RULESET)
+        assert out["MissingRequiredChecks"] == ["Validate PR"]
+        assert out["MissingRequiredQueued"] is False
+
+
 class TestQueuedMissingBuildOutput:
-    def _data(self, committed_at):
+    def _data(self, committed_at, pushed_at=None):
         return {
             "Number": 1,
             "BaseBranch": "main",
             "HasChecks": True,
             "AllState": "SUCCESS",
             "HeadCommittedAt": committed_at,
+            "HeadPushedAt": pushed_at,
             "Checks": [
                 _check(
                     "Run Python Tests",
@@ -3271,6 +3367,25 @@ class TestQueuedMissingBuildOutput:
         assert out["MissingRequiredChecks"] == ["Validate PR"]
         assert out["MissingRequiredQueued"] is True
         assert out["AllPassing"] is False
+
+    def test_old_push_overrides_fresh_forged_commit_date(self):
+        data = self._data(_committed_at(60), _committed_at(_STALE))
+        out = build_output(data, "o", "r", False, _RULESET)
+        assert out["MissingRequiredChecks"] == ["Validate PR"]
+        assert out["MissingRequiredQueued"] is False
+        assert out["HeadPushedAt"] == data["HeadPushedAt"]
+
+    def test_fresh_push_and_fresh_commit_stay_queued(self):
+        data = self._data(_committed_at(60), _committed_at(60))
+        out = build_output(data, "o", "r", False, _RULESET)
+        assert out["MissingRequiredQueued"] is True
+
+    def test_no_push_time_falls_back_to_commit_date_bound(self):
+        # REST fallback and suite-less commits carry no push time. The window
+        # then rests on committedDate and its future-skew bound alone.
+        out = build_output(self._data(_committed_at(60), None), "o", "r", False, _RULESET)
+        assert out["MissingRequiredQueued"] is True
+        assert out["HeadPushedAt"] is None
 
     def test_stale_head_marks_missing_absent(self):
         out = build_output(self._data(_committed_at(_STALE)), "o", "r", False, _RULESET)
@@ -3721,7 +3836,7 @@ class TestPreflightFailureEnvelope:
         assert list(envelope["Data"]) == expected
         assert envelope["Data"]["Number"] == 9
 
-    def test_repo_resolution_failure_emits_general_error(self, capsys):
+    def test_repo_resolution_failure_emits_invalid_params_error(self, capsys):
         with (
             patch("get_pr_checks.assert_gh_authenticated"),
             patch(
@@ -3734,10 +3849,36 @@ class TestPreflightFailureEnvelope:
         captured = capsys.readouterr()
         envelope = json.loads(captured.out)
         assert exc.value.code == 2
-        assert envelope["Error"]["Type"] == "General"
+        assert envelope["Error"]["Type"] == "InvalidParams"
         assert envelope["Error"]["Code"] == 2
         assert envelope["Data"]["Owner"] == "x y"
         assert "Invalid GitHub owner name" in captured.err
+
+    def test_blocked_transport_emits_api_error_not_invalid_params(self, capsys):
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+                side_effect=_fail_with("GitHub is refused in this session", 2),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--pull-request", "9", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out)
+        assert exc.value.code == 2
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert envelope["Error"]["Code"] == 2
+
+    def test_non_systemexit_failure_still_flushes_captured_stderr(self, capsys):
+        def _boom(*_args, **_kwargs):
+            print("partial diagnostic", file=sys.stderr)
+            raise RuntimeError("boom")
+
+        with (
+            patch("get_pr_checks.assert_gh_authenticated", side_effect=_boom),
+            pytest.raises(RuntimeError),
+        ):
+            main(["--pull-request", "9", "--output-format", "json"])
+        assert capsys.readouterr().err == "partial diagnostic\n"
 
     def test_external_failure_maps_to_api_error(self, capsys):
         with (

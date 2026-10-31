@@ -91,6 +91,20 @@ class TestReportArtifacts:
         assert "artifacts           : 5" in out
         assert client.posts == []
 
+    def test_a_truncated_count_is_labelled_in_the_report(
+        self, tmp_path: Path, workflows: Path, capsys, monkeypatch
+    ):
+        monkeypatch.setattr("scripts.github_core.workflow_runs._MAX_PAGES", 1)
+        runs_file = write_runs(tmp_path / "runs.json", [make_run(1)])
+        client = FakeClient({page_url(artifacts_endpoint(1), 1): artifact_page(100)})
+
+        main(
+            argv(runs_file, workflows, "--recovery-event", "reopened", "--report-artifacts"),
+            client=client,
+        )
+
+        assert "100 or more (TRUNCATED" in capsys.readouterr().out
+
     def test_the_artifact_line_sits_inside_the_blast_radius_block(
         self, tmp_path: Path, workflows: Path, capsys
     ):
