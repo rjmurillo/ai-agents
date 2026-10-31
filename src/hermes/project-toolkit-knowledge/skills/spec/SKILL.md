@@ -43,7 +43,7 @@ The six questions, asked in order:
 
 | Label | Question |
 |-------|----------|
-| **Q1 Demand Reality** | Who has explicitly requested this? Name three or more individuals, teams, or systems by name. (Question is about requesters; production signals go to Q5.) |
+| **Q1 Demand Reality** | Who has explicitly requested this? Name three or more individuals, teams, or systems by name, or name at least one specific present-tense requester and pair it with a specific Q3 and an evidenced Q5. (Question is about requesters; production signals go to Q5.) |
 | **Q2 Status Quo** | What is the exact workaround users do today, step by step? |
 | **Q3 Desperate Specificity** | Name the single most blocked person or system right now. What exactly are they blocked on? |
 | **Q4 Narrowest Wedge** | What is the smallest possible deliverable that unblocks Q3, measured in hours of implementation? |
