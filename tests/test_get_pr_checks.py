@@ -1363,6 +1363,26 @@ class TestFetchChecks:
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "NotFound"
 
+    def test_fetch_checks_reports_earliest_suite_created_at_as_push_time(self):
+        resp = _rollup_response([_check_run_node("test", "COMPLETED", "SUCCESS")])
+        commit = resp["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["checkSuites"] = {
+            "nodes": [
+                {"createdAt": "2026-10-12T10:05:00Z"},
+                {"createdAt": "2026-10-12T10:01:00Z"},
+                {"createdAt": None},
+            ]
+        }
+        with patch("get_pr_checks.gh_graphql", return_value=resp):
+            result = fetch_checks("o", "r", 42)
+        assert result["HeadPushedAt"] == "2026-10-12T10:01:00Z"
+
+    def test_fetch_checks_push_time_none_without_suites(self):
+        resp = _rollup_response([_check_run_node("test", "COMPLETED", "SUCCESS")])
+        with patch("get_pr_checks.gh_graphql", return_value=resp):
+            result = fetch_checks("o", "r", 42)
+        assert result["HeadPushedAt"] is None
+
     def test_fetch_checks_includes_merge_state(self):
         nodes = [_check_run_node("test", "COMPLETED", "SUCCESS")]
         with patch(
@@ -3324,13 +3344,14 @@ class TestForgedFutureCommitDate:
 
 
 class TestQueuedMissingBuildOutput:
-    def _data(self, committed_at):
+    def _data(self, committed_at, pushed_at=None):
         return {
             "Number": 1,
             "BaseBranch": "main",
             "HasChecks": True,
             "AllState": "SUCCESS",
             "HeadCommittedAt": committed_at,
+            "HeadPushedAt": pushed_at,
             "Checks": [
                 _check(
                     "Run Python Tests",
@@ -3346,6 +3367,25 @@ class TestQueuedMissingBuildOutput:
         assert out["MissingRequiredChecks"] == ["Validate PR"]
         assert out["MissingRequiredQueued"] is True
         assert out["AllPassing"] is False
+
+    def test_old_push_overrides_fresh_forged_commit_date(self):
+        data = self._data(_committed_at(60), _committed_at(_STALE))
+        out = build_output(data, "o", "r", False, _RULESET)
+        assert out["MissingRequiredChecks"] == ["Validate PR"]
+        assert out["MissingRequiredQueued"] is False
+        assert out["HeadPushedAt"] == data["HeadPushedAt"]
+
+    def test_fresh_push_and_fresh_commit_stay_queued(self):
+        data = self._data(_committed_at(60), _committed_at(60))
+        out = build_output(data, "o", "r", False, _RULESET)
+        assert out["MissingRequiredQueued"] is True
+
+    def test_no_push_time_falls_back_to_commit_date_bound(self):
+        # REST fallback and suite-less commits carry no push time. The window
+        # then rests on committedDate and its future-skew bound alone.
+        out = build_output(self._data(_committed_at(60), None), "o", "r", False, _RULESET)
+        assert out["MissingRequiredQueued"] is True
+        assert out["HeadPushedAt"] is None
 
     def test_stale_head_marks_missing_absent(self):
         out = build_output(self._data(_committed_at(_STALE)), "o", "r", False, _RULESET)

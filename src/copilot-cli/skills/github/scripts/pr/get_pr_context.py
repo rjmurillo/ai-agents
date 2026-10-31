@@ -165,8 +165,7 @@ def _run_gh_strict(args: list[str], *, timeout: int, what: str) -> subprocess.Co
             check=False,
         )
     except UnicodeDecodeError as exc:
-        print(f"Failed to decode {what} output as UTF-8: {exc}", file=sys.stderr)
-        raise SystemExit(3) from exc
+        error_and_exit(f"Failed to decode {what} output as UTF-8: {exc}", 3)
 
 
 def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
