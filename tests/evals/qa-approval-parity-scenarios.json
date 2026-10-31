@@ -1,0 +1,76 @@
+{
+  "scenarios": [
+    {
+      "id": "AP-1",
+      "desc": "Title check FAIL blocks even when the validator exit code is 0",
+      "input": "Act as the QA agent in pre-PR validation. All other gates and coverage already passed (line 85%, branch 75%, new-code 88%). Decide the verdict for the PR Description gate. validate_pr_description.py exited 0. Per-check results: Conventional Commit Title FAIL, Issue Keywords Present PASS, Template Compliance PASS.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "BLOCKED",
+      "verdict_options": [
+        "APPROVED",
+        "BLOCKED"
+      ],
+      "expected_reason_contains": "title",
+      "rationale": "Changed branch: a FAIL title check is a gate FAIL; ignore the exit code and read each check."
+    },
+    {
+      "id": "AP-2",
+      "desc": "Missing keyword is WARN, not a gate failure",
+      "input": "Act as the QA agent in pre-PR validation. All other gates and coverage already passed (line 85%, branch 75%, new-code 88%). Decide the verdict for the PR Description gate. validate_pr_description.py exited 0. Per-check results: Conventional Commit Title PASS, Issue Keywords Present WARN, Template Compliance PASS.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "APPROVED",
+      "verdict_options": [
+        "APPROVED",
+        "BLOCKED"
+      ],
+      "expected_reason_contains": "warn",
+      "rationale": "Changed branch: keyword and template checks are PASS or WARN; only the title check FAILs the gate."
+    },
+    {
+      "id": "AP-3",
+      "desc": "Template WARN does not block",
+      "input": "Act as the QA agent in pre-PR validation. All other gates and coverage already passed (line 85%, branch 75%, new-code 88%). Decide the verdict for the PR Description gate. validate_pr_description.py exited 0. Per-check results: Conventional Commit Title PASS, Issue Keywords Present PASS, Template Compliance WARN with 3 of 4 sections.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "APPROVED",
+      "verdict_options": [
+        "APPROVED",
+        "BLOCKED"
+      ],
+      "expected_reason_contains": "warn",
+      "rationale": "Changed branch: Template Compliance WARN is not a FAIL."
+    },
+    {
+      "id": "AP-4",
+      "desc": "Missing gate evidence blocks",
+      "input": "Act as the QA agent in pre-PR validation. All other gates and coverage already passed (line 85%, branch 75%, new-code 88%). Decide the verdict for the PR Description gate. The PR Description validation was not run and no per-check results exist. Every other gate is green.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "BLOCKED",
+      "verdict_options": [
+        "APPROVED",
+        "BLOCKED"
+      ],
+      "expected_reason_contains": "evidence",
+      "rationale": "Changed branch: missing gate evidence is BLOCKED with the missing artifact named."
+    },
+    {
+      "id": "AP-5",
+      "desc": "Regression: all gates green with all PR description checks PASS approves",
+      "input": "Act as the QA agent in pre-PR validation. All other gates and coverage already passed (line 85%, branch 75%, new-code 88%). Decide the verdict for the PR Description gate. validate_pr_description.py exited 0. Per-check results: Conventional Commit Title PASS, Issue Keywords Present PASS, Template Compliance PASS.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "APPROVED",
+      "verdict_options": [
+        "APPROVED",
+        "BLOCKED"
+      ],
+      "expected_reason_contains": "pass",
+      "rationale": "Regression: all gates PASS and thresholds met still yields APPROVED."
+    },
+    {
+      "id": "AP-6",
+      "desc": "Regression: coverage below the block threshold still blocks",
+      "input": "Act as the QA agent in pre-PR validation. All other gates and coverage already passed (line 85%, branch 75%, new-code 88%). Decide the verdict for the PR Description gate. validate_pr_description.py exited 0 with all three checks PASS. Line coverage is 65 percent, below the 70 percent block threshold.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "BLOCKED",
+      "verdict_options": [
+        "APPROVED",
+        "BLOCKED"
+      ],
+      "expected_reason_contains": "coverage",
+      "rationale": "Regression: coverage thresholds still block independent of the PR description gate."
+    }
+  ]
+}
