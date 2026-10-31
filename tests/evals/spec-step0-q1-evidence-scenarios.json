@@ -1,0 +1,88 @@
+{
+  "scenarios": [
+    {
+      "id": "Q1E-1",
+      "desc": "Evidence path: one present-tense named requester plus specific Q3 plus evidenced Q5 passes Q1",
+      "input": "Invoke /spec in auto mode. The user answered the six Step 0 questions below. Apply the Step 0 gate logic exactly as written and decide the outcome.\nQ1 Demand Reality: Alice Nguyen on the Payments team asked for this in issue 4188 and uses the manual rerun today.\nQ2 Status Quo: The maintainer copies the failing job name from the Actions tab into a terminal and runs gh run rerun by hand, 4 steps per failure.\nQ3 Desperate Specificity: Alice Nguyen on the Payments team is blocked on rerunning the flaky integration job in PR 4211, 40 minutes lost per PR.\nQ4 Narrowest Wedge: 2 hours to add one script that reruns failed jobs for a PR number.\nQ5 Observed Evidence: Issue 4188 comment from Alice Nguyen: \"I rerun the same job 3 times per PR by hand\"; see scripts/ci/rerun.log for 27 manual reruns in October.\nQ6 Future Fit: The script becomes the single rerun entry point for the github skill.",
+      "expected_verdict": "PASS_STEP_0",
+      "verdict_options": [
+        "PASS_STEP_0",
+        "HALT_STEP_0"
+      ],
+      "expected_reason_contains": "evidence",
+      "rationale": "Branch A: the new evidence path lets one requester satisfy Q1 when Q3 is specific and Q5 is evidenced."
+    },
+    {
+      "id": "Q1E-2",
+      "desc": "Evidence path closed: one requester, specific Q3, speculative Q5 halts",
+      "input": "Invoke /spec in auto mode. The user answered the six Step 0 questions below. Apply the Step 0 gate logic exactly as written and decide the outcome.\nQ1 Demand Reality: Alice Nguyen on the Payments team asked for this in issue 4188 and uses the manual rerun today.\nQ2 Status Quo: The maintainer copies the failing job name from the Actions tab into a terminal and runs gh run rerun by hand, 4 steps per failure.\nQ3 Desperate Specificity: Alice Nguyen on the Payments team is blocked on rerunning the flaky integration job in PR 4211, 40 minutes lost per PR.\nQ4 Narrowest Wedge: 2 hours to add one script that reruns failed jobs for a PR number.\nQ5 Observed Evidence: The Payments team finds the reruns annoying and slow.\nQ6 Future Fit: The script becomes the single rerun entry point for the github skill.",
+      "expected_verdict": "HALT_STEP_0",
+      "verdict_options": [
+        "PASS_STEP_0",
+        "HALT_STEP_0"
+      ],
+      "expected_reason_contains": "Q5",
+      "rationale": "Branch B: evidence path needs an evidenced Q5, otherwise Q5 fails the speculative test (H2) and Q1 stays aspirational."
+    },
+    {
+      "id": "Q1E-3",
+      "desc": "Evidence path closed: one requester, generic Q3, evidenced Q5 halts",
+      "input": "Invoke /spec in auto mode. The user answered the six Step 0 questions below. Apply the Step 0 gate logic exactly as written and decide the outcome.\nQ1 Demand Reality: Alice Nguyen on the Payments team asked for this in issue 4188 and uses the manual rerun today.\nQ2 Status Quo: The maintainer copies the failing job name from the Actions tab into a terminal and runs gh run rerun by hand, 4 steps per failure.\nQ3 Desperate Specificity: Developers are blocked on rerunning flaky jobs.\nQ4 Narrowest Wedge: 2 hours to add one script that reruns failed jobs for a PR number.\nQ5 Observed Evidence: Issue 4188 comment from Alice Nguyen: \"I rerun the same job 3 times per PR by hand\"; see scripts/ci/rerun.log for 27 manual reruns in October.\nQ6 Future Fit: The script becomes the single rerun entry point for the github skill.",
+      "expected_verdict": "HALT_STEP_0",
+      "verdict_options": [
+        "PASS_STEP_0",
+        "HALT_STEP_0"
+      ],
+      "expected_reason_contains": "Q3",
+      "rationale": "Branch C: evidence path needs a specific Q3; a generic category fails the specificity test (H4) and Q1 stays aspirational."
+    },
+    {
+      "id": "Q1E-4",
+      "desc": "Evidence path closed: generic requester category halts even with strong Q3 and Q5",
+      "input": "Invoke /spec in auto mode. The user answered the six Step 0 questions below. Apply the Step 0 gate logic exactly as written and decide the outcome.\nQ1 Demand Reality: Engineers in general requested this and use the manual rerun today.\nQ2 Status Quo: The maintainer copies the failing job name from the Actions tab into a terminal and runs gh run rerun by hand, 4 steps per failure.\nQ3 Desperate Specificity: Alice Nguyen on the Payments team is blocked on rerunning the flaky integration job in PR 4211, 40 minutes lost per PR.\nQ4 Narrowest Wedge: 2 hours to add one script that reruns failed jobs for a PR number.\nQ5 Observed Evidence: Issue 4188 comment from Alice Nguyen: \"I rerun the same job 3 times per PR by hand\"; see scripts/ci/rerun.log for 27 manual reruns in October.\nQ6 Future Fit: The script becomes the single rerun entry point for the github skill.",
+      "expected_verdict": "HALT_STEP_0",
+      "verdict_options": [
+        "PASS_STEP_0",
+        "HALT_STEP_0"
+      ],
+      "expected_reason_contains": "generic",
+      "rationale": "Branch D: a generic category is aspirational under condition 3; the evidence path only relaxes the count condition."
+    },
+    {
+      "id": "Q1E-5",
+      "desc": "Evidence path closed: future-tense demand halts even with strong Q3 and Q5",
+      "input": "Invoke /spec in auto mode. The user answered the six Step 0 questions below. Apply the Step 0 gate logic exactly as written and decide the outcome.\nQ1 Demand Reality: Alice Nguyen on the Payments team would want this once the rerun script exists.\nQ2 Status Quo: The maintainer copies the failing job name from the Actions tab into a terminal and runs gh run rerun by hand, 4 steps per failure.\nQ3 Desperate Specificity: Alice Nguyen on the Payments team is blocked on rerunning the flaky integration job in PR 4211, 40 minutes lost per PR.\nQ4 Narrowest Wedge: 2 hours to add one script that reruns failed jobs for a PR number.\nQ5 Observed Evidence: Issue 4188 comment from Alice Nguyen: \"I rerun the same job 3 times per PR by hand\"; see scripts/ci/rerun.log for 27 manual reruns in October.\nQ6 Future Fit: The script becomes the single rerun entry point for the github skill.",
+      "expected_verdict": "HALT_STEP_0",
+      "verdict_options": [
+        "PASS_STEP_0",
+        "HALT_STEP_0"
+      ],
+      "expected_reason_contains": "future",
+      "rationale": "Branch E: future or conditional mood is aspirational under condition 2; the evidence path only relaxes the count condition."
+    },
+    {
+      "id": "Q1E-6",
+      "desc": "Regression: three named requesters still pass without the evidence path",
+      "input": "Invoke /spec in auto mode. The user answered the six Step 0 questions below. Apply the Step 0 gate logic exactly as written and decide the outcome.\nQ1 Demand Reality: Alice Nguyen (Payments), the SRE on-call rotation, and Bo Park (Platform) each requested this in issue 4188 and use the manual rerun today.\nQ2 Status Quo: The maintainer copies the failing job name from the Actions tab into a terminal and runs gh run rerun by hand, 4 steps per failure.\nQ3 Desperate Specificity: Alice Nguyen on the Payments team is blocked on rerunning the flaky integration job in PR 4211, 40 minutes lost per PR.\nQ4 Narrowest Wedge: 2 hours to add one script that reruns failed jobs for a PR number.\nQ5 Observed Evidence: Issue 4188 comment from Alice Nguyen: \"I rerun the same job 3 times per PR by hand\"; see scripts/ci/rerun.log for 27 manual reruns in October.\nQ6 Future Fit: The script becomes the single rerun entry point for the github skill.",
+      "expected_verdict": "PASS_STEP_0",
+      "verdict_options": [
+        "PASS_STEP_0",
+        "HALT_STEP_0"
+      ],
+      "expected_reason_contains": "three",
+      "rationale": "Regression: the original three-requester route to Q1 PASS must still hold."
+    },
+    {
+      "id": "Q1E-7",
+      "desc": "Regression: two requesters with a hedge phrase in Q5 still halt",
+      "input": "Invoke /spec in auto mode. The user answered the six Step 0 questions below. Apply the Step 0 gate logic exactly as written and decide the outcome.\nQ1 Demand Reality: Alice Nguyen (Payments) and Bo Park (Platform) requested this in issue 4188 and use the manual rerun today.\nQ2 Status Quo: The maintainer copies the failing job name from the Actions tab into a terminal and runs gh run rerun by hand, 4 steps per failure.\nQ3 Desperate Specificity: Alice Nguyen on the Payments team is blocked on rerunning the flaky integration job in PR 4211, 40 minutes lost per PR.\nQ4 Narrowest Wedge: 2 hours to add one script that reruns failed jobs for a PR number.\nQ5 Observed Evidence: We believe the reruns cost the Payments team time.\nQ6 Future Fit: The script becomes the single rerun entry point for the github skill.",
+      "expected_verdict": "HALT_STEP_0",
+      "verdict_options": [
+        "PASS_STEP_0",
+        "HALT_STEP_0"
+      ],
+      "expected_reason_contains": "hedge",
+      "rationale": "Regression: hedge phrase `we believe` in an answer fires H1 regardless of the Q1 evidence path."
+    }
+  ]
+}
