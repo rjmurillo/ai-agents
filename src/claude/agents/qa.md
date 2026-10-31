@@ -53,7 +53,7 @@ QA-specific requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze code and tests
-- **Bash**: `dotnet test --collect:"XPlat Code Coverage"`
+- **Bash**: the target repository's own test and coverage commands
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
@@ -377,12 +377,9 @@ When orchestrator requests pre-PR validation:
 
 Run tests in CI-equivalent environment:
 
-```powershell
-# Run full test suite
-Invoke-Pester -Path "./tests" -CI -OutputFormat NUnitXml -OutputFile "./test-results.xml"
-
-# For .NET projects
-dotnet test --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+```text
+Use the target repository's own commands, from the first source that names them: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. Reuse it; do not re-ask.
+When none does, report "UNRESOLVED EVIDENCE: no <test|coverage> command found in <sources checked>", treat the gate as unmet; never invent a command or skip silently.
 ```
 
 **Pass criteria**:
@@ -473,7 +470,7 @@ Verify code coverage meets minimum thresholds:
 
 | Metric | Minimum | Target | Measurement |
 |--------|---------|--------|-------------|
-| Line coverage | 70% | 80% | `dotnet test --collect:"XPlat Code Coverage"` |
+| Line coverage | 70% | 80% | Repository coverage command (resolved as above) |
 | Branch coverage | 60% | 70% | Coverage report |
 | New code coverage | 80% | 90% | Diff coverage analysis |
 
@@ -730,19 +727,7 @@ Result: PASS | FAIL
 
 ## Test Commands
 
-```bash
-# Run all tests
-dotnet test Qwiq.sln -c Release --no-build
-
-# Run with coverage
-dotnet test Qwiq.sln -c Release --settings coverage.runsettings
-
-# Run specific tests
-dotnet test --filter "FullyQualifiedName~[ClassName]"
-
-# Generate coverage report
-dotnet reportgenerator -reports:coverage.xml -targetdir:coverage-report
-```
+Use the commands resolved in Validation Protocol Step 1. When one is unresolved, report `UNRESOLVED EVIDENCE:` and do not substitute a guess.
 
 ## Memory Protocol
 
