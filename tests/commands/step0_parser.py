@@ -152,9 +152,9 @@ def q1_aspirational(
     named_entity_count = len(entity_matches)
     has_named_entity = named_entity_count > 0
     # Q1 aspirational condition 1 per spec.md and REQ-016-04: "fewer
-    # than three specific requesters". A single named requester is not
-    # enough (Copilot PR #1931 comments 3214013611, 3214013621; devin
-    # 3214020363).
+    # than three specific requesters". A single named requester passes
+    # only through the evidence path: specific Q3 plus evidenced Q5
+    # (issue #6990, policy owner decision 2026-10-30).
     evidence_path = has_named_entity and q3_specific_ok and q5_evidenced
     has_too_few_requesters = named_entity_count < 3 and not evidence_path
     has_future_or_conditional = any(
