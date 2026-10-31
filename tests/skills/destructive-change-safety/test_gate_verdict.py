@@ -300,6 +300,7 @@ def _head_commit() -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
         cwd=Path(__file__).resolve().parent,
     )
