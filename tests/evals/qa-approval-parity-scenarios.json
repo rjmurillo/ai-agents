@@ -63,7 +63,7 @@
     {
       "id": "AP-6",
       "desc": "Regression: coverage below the block threshold still blocks",
-      "input": "Act as the QA agent in pre-PR validation. All other gates and coverage already passed (line 85%, branch 75%, new-code 88%). Decide the verdict for the PR Description gate. validate_pr_description.py exited 0 with all three checks PASS. Line coverage is 65 percent, below the 70 percent block threshold.\nKeep the reason under 15 words and do not quote the inputs.",
+      "input": "Act as the QA agent in pre-PR validation. Decide the overall QA verdict. All other gates passed. validate_pr_description.py exited 0 with all three checks PASS. Branch coverage is 75 percent and new-code coverage is 88 percent. Line coverage is 65 percent, below the 70 percent block threshold.\nKeep the reason under 15 words and do not quote the inputs.",
       "expected_verdict": "BLOCKED",
       "verdict_options": [
         "APPROVED",
