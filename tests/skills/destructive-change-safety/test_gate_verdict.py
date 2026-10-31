@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,7 @@ def good_evidence() -> dict[str, Any]:
         "sinks": [{"location": "store.py:10", "trace": ["main", "purge"]}],
         "preflight": {"command": "preview-sql ...", "exit_code": 0, "measured": 3},
         "expected": 3,
-        "rollback": {"kind": "snapshot", "ref": "snap-2026-10-11"},
+        "rollback": {"kind": "snapshot", "ref": "snap-2026-10-11", "snapshot_path": __file__},
         "checks": [{"command": "pytest -q", "exit_code": 0}],
     }
 
@@ -258,6 +259,79 @@ def test_referenced_rollback_kinds_need_a_ref() -> None:
     evidence = good_evidence()
     evidence["rollback"] = {"kind": "backup"}
     assert "names no ref" in reasons(evidence)
+
+
+def test_backup_without_paths_blocks_instead_of_passing_unverified() -> None:
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "backup", "ref": "bak-1"}
+    assert "needs both backup_path and source_path" in reasons(evidence)
+
+
+@pytest.mark.parametrize("missing", ["backup_path", "source_path"])
+def test_backup_with_only_one_path_blocks(tmp_path: Path, missing: str) -> None:
+    evidence = backup_evidence(tmp_path, "canonical")
+    del evidence["rollback"][missing]
+    assert "needs both backup_path and source_path" in reasons(evidence)
+
+
+def test_snapshot_without_a_path_blocks() -> None:
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "snapshot", "ref": "snap-1"}
+    assert "needs a snapshot_path" in reasons(evidence)
+
+
+def test_snapshot_path_that_does_not_exist_blocks(tmp_path: Path) -> None:
+    evidence = good_evidence()
+    evidence["rollback"]["snapshot_path"] = str(tmp_path / "gone")
+    assert "snapshot_path does not exist or is empty" in reasons(evidence)
+
+
+def test_snapshot_empty_directory_blocks_and_populated_directory_passes(tmp_path: Path) -> None:
+    evidence = good_evidence()
+    evidence["rollback"]["snapshot_path"] = str(tmp_path)
+    assert "does not exist or is empty" in reasons(evidence)
+    (tmp_path / "dump.sql").write_text("x", encoding="utf-8")
+    assert verdict(evidence)["verdict"] == "PASS"
+
+
+def _head_commit() -> str:
+    out = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=__file__.rsplit("/", 1)[0],
+    )
+    return out.stdout.strip()
+
+
+def test_version_with_a_real_commit_passes() -> None:
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "version", "ref": _head_commit()}
+    assert verdict(evidence)["verdict"] == "PASS"
+
+
+@pytest.mark.parametrize("ref", ["v1", "main", "abc123", "--all", "G" * 40])
+def test_version_ref_that_is_not_a_commit_id_blocks(ref: str) -> None:
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "version", "ref": ref}
+    assert "40-hex commit id" in reasons(evidence)
+
+
+def test_version_commit_unknown_to_git_blocks() -> None:
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "version", "ref": "0" * 40}
+    assert "not a commit in this repository" in reasons(evidence)
+
+
+def test_version_blocks_when_git_cannot_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args: Any, **kwargs: Any) -> Any:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(gate_verdict.subprocess, "run", boom)
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "version", "ref": "a" * 40}
+    assert "git did not run" in reasons(evidence)
 
 
 def test_irreversible_without_approval_blocks_and_never_invents_a_rollback() -> None:
