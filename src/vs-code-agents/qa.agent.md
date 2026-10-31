@@ -489,7 +489,7 @@ Verify code coverage meets minimum thresholds:
 
 #### Step 5: PR Description Validation
 
-Verify PR description meets GitHub standards and template compliance:
+Verify the PR description:
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/validate_pr_description.py" \
@@ -499,9 +499,9 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/sc
 
 **Pass criteria:**
 
-- Title follows conventional commit format
-- At least one GitHub keyword present (Closes/Fixes/Resolves)
-- PR template sections completed (Summary, Spec References, Type of Change, Changes)
+- Title follows conventional commit format (FAIL = gate FAIL; ignore exit code, read each check)
+- A GitHub keyword is present (Closes/Fixes/Resolves)
+- Template sections complete (Summary, Spec References, Type of Change, Changes)
 
 **Evidence generation:**
 
