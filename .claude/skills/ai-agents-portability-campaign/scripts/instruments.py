@@ -100,6 +100,7 @@ def cmd_run(repo: Path, instrument_id: str, extra: list[str]) -> int:
         print(f"error: unknown instrument '{instrument_id}' (known: {known})", file=sys.stderr)
         return 2
     try:
+        sys.stdout.flush()
         return subprocess.run([*row["argv"], *extra], cwd=repo, check=False).returncode
     except OSError as exc:
         print(f"error: cannot start {row['argv'][0]}: {exc}", file=sys.stderr)

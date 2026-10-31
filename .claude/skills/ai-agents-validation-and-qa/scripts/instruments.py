@@ -123,6 +123,7 @@ def cmd_run(repo: Path, ident: str, extra: list[str]) -> int:
         print(json.dumps({"error": f"unknown instrument id: {ident}"}), file=sys.stderr)
         return 2
     try:
+        sys.stdout.flush()
         return subprocess.run(row["argv"] + extra, cwd=repo, check=False).returncode
     except OSError as exc:
         print(json.dumps({"error": f"failed to start: {exc}"}), file=sys.stderr)

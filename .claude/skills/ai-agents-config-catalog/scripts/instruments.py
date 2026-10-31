@@ -144,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     extra = [a for a in args.extra if a != "--"]
     try:
+        sys.stdout.flush()
         return subprocess.run(row["argv"] + extra, cwd=repo, check=False).returncode
     except OSError as exc:
         print(
