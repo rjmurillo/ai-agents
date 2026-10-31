@@ -676,6 +676,20 @@ class TestEvidencePath:
         answers = self._answers(q1, self.Q3_OK, self.Q5_OK)
         assert evaluate_step0(answers, hedge_phrases) == "H3"
 
+    @pytest.mark.parametrize(
+        "q1",
+        [
+            "Bleu team requested this; their deploys will fail without it",
+            "Felix on the Bleu rotation asked for this because the build is going to break",
+            "Bleu team escalated this and will be blocked until it ships",
+        ],
+    )
+    def test_present_demand_with_future_consequence_passes_with_evidence(
+        self, q1: str, hedge_phrases: list[str]
+    ) -> None:
+        answers = self._answers(q1, self.Q3_OK, self.Q5_OK)
+        assert evaluate_step0(answers, hedge_phrases) is None
+
     def test_conditional_single_requester_fails(self, hedge_phrases: list[str]) -> None:
         answers = self._answers(
             "if users start filing tickets, Bleu team will escalate", self.Q3_OK, self.Q5_OK

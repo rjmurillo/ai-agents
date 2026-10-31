@@ -176,7 +176,11 @@ def q1_aspirational(
         ]
     ) or bool(
         re.search(
-            r"\b(?:will|won't|going to|plans? to|intends? to|expects? to|about to)\b"
+            # Future mood only about the demand itself: a future marker followed
+            # by a demand verb. "the deploy will fail" is a present-demand
+            # consequence, not future demand, so a bare "will" does not fire.
+            r"\b(?:will|won't|going to|plans? to|intends? to|expects? to|about to)"
+            r"\s+(?:\w+\s+)?(?:request|ask|need|want|use|adopt|escalate|require|file)\w*\b"
             r"|\bwould (?:request|ask|need|like|escalate)\b",
             lower,
         )
