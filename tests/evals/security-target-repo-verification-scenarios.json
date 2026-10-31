@@ -64,6 +64,19 @@
       ],
       "expected_reason_contains": "dotnet",
       "rationale": "Regression: the .NET dependency check remains valid when the target is .NET."
+    },
+    {
+      "id": "TS-6",
+      "desc": "Target without a hook manager records NOT APPLICABLE for the hook step",
+      "input": "Act as the security agent writing a verification request for a repository that is NOT this one. The target is Java with Maven, has a documented security test 'mvn verify -Psecurity', and has no git hook manager (checked: no lefthook, husky, or pre-commit config). Decide how the hook validation step is recorded.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "NOT_APPLICABLE",
+      "verdict_options": [
+        "NOT_APPLICABLE",
+        "UNMET_ITEM",
+        "THIS_REPO_COMMAND"
+      ],
+      "expected_reason_contains": "hook",
+      "rationale": "Changed branch: hook and secrets steps apply only when the target has that capability; absence is NOT APPLICABLE, not an unmet item."
     }
   ]
 }
