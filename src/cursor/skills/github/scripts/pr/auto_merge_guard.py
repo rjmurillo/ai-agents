@@ -131,10 +131,11 @@ def _fetch_unresolved_thread_ids(
 
 def _disable_auto_merge(pull_request_id: str) -> bool:
     data = gh_graphql(_DISABLE_MUTATION, {"pullRequestId": pull_request_id})
-    auto_merge = (
-        data.get("disablePullRequestAutoMerge", {}).get("pullRequest", {}).get("autoMergeRequest")
-    )
-    return auto_merge is None
+    payload = data.get("disablePullRequestAutoMerge")
+    pull_request = payload.get("pullRequest") if isinstance(payload, dict) else None
+    if not isinstance(pull_request, dict):
+        raise RuntimeError("disablePullRequestAutoMerge returned no pullRequest payload")
+    return pull_request.get("autoMergeRequest") is None
 
 
 def identity_mismatches(
@@ -144,8 +145,9 @@ def identity_mismatches(
     """Name each live PR identity field that differs from the caller's expectation.
 
     ``expected`` carries the head SHA, base ref, and base SHA captured by the
-    readiness cycle. A caller that supplies none gets no check, which keeps the
-    script usable outside pr-autofix. When any is supplied the PR must also
+    readiness cycle. This helper reports no mismatch for an empty expectation;
+    the guard entry point refuses an empty binding before it gets here. When
+    any is supplied the PR must also
     still be OPEN: a merged PR keeps its head SHA, so a SHA match alone cannot
     prove the session still owns a live branch.
     """
@@ -160,6 +162,13 @@ def identity_mismatches(
     if pull_request.get("state") != "OPEN":
         mismatches.insert(0, "state")
     return mismatches
+
+
+def _has_identity_binding(expected: dict[str, str] | None) -> bool:
+    """True when the caller bound at least one of head SHA, base ref, base SHA."""
+    if not expected:
+        return False
+    return any(expected.get(key) for key in ("head_sha", "base_ref", "base_sha"))
 
 
 def _pull_request_identity(pull_request: dict[str, Any]) -> tuple[str, str, int, str]:
@@ -182,10 +191,17 @@ def guard_auto_merge_before_final_thread_resolution(
 ) -> dict[str, Any]:
     """Disable armed auto-merge if resolving ``thread_id`` would unblock merge.
 
-    When ``expected_identity`` is given, the live PR must still match it before
-    anything is counted or disabled. A mismatch raises ``RuntimeError`` with no
-    mutation, so a stale session cannot disarm auto-merge on a PR that moved.
+    ``expected_identity`` must bind at least one of ``head_sha``, ``base_ref``,
+    or ``base_sha``; an empty binding raises ``RuntimeError`` before any call.
+    The live PR must still match it before anything is counted or disabled. A
+    mismatch raises ``RuntimeError`` with no mutation, so a stale session cannot
+    disarm auto-merge on a PR that moved.
     """
+    if not _has_identity_binding(expected_identity):
+        raise RuntimeError(
+            "expected identity needs at least one of head_sha, base_ref, base_sha; "
+            "auto-merge left untouched"
+        )
     context = _thread_context(thread_id)
     if context is None:
         return {"action": "NOOP", "reason": "thread_not_found"}
@@ -219,10 +235,10 @@ def guard_auto_merge_before_final_thread_resolution(
         "auto_merge_was_armed": pull_request.get("autoMergeRequest") is not None,
     }
 
+    if thread_id not in unresolved_ids:
+        raise RuntimeError("final unresolved thread changed before resolution")
     if len(unresolved_ids) != 1:
         return {"action": "NOOP", "reason": "not_final_thread", **result}
-    if unresolved_ids[0] != thread_id:
-        raise RuntimeError("final unresolved thread changed before resolution")
 
     auto_merge = pull_request.get("autoMergeRequest")
     if not isinstance(auto_merge, dict):
