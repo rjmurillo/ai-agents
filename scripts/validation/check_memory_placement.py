@@ -26,8 +26,10 @@ against its old path.
 ``<!-- placement: evidence; reason: ... -->`` with a non-empty reason
 downgrades to evidence (reported ``suppressed``); an empty reason is
 reported ``invalid-suppression`` and does not downgrade. Route: (d) to an
-agent, (c) without (a) >= 5 to a skill, else to a rule. README.md,
-``*-index.md``, and non-``.md`` files are skipped.
+agent, (c) without (a) >= 5 to a skill, else to a rule. Skipped by
+location only: dot-directories under the memory root, the root ``README.md``,
+generated ``<domain>-index.md`` files directly under the root, and files that
+are not text documents. A README or index name elsewhere is classified.
 
 EXIT CODES (ADR-035): 0 clean or warnings only; 1 a new or risen normative file under
 ``--ci``; 2 usage error, not a git repository, bad ``--base``, or a path

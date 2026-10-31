@@ -178,15 +178,50 @@ def test_readme_and_index_files_are_skipped(repo: Path, monkeypatch, capsys):
     assert "0 file(s) examined" in out
 
 
-def test_non_markdown_files_are_ignored(repo: Path, monkeypatch, capsys):
+def test_non_text_files_in_the_memory_tree_are_ignored(repo: Path, monkeypatch, capsys):
+    _write(repo, ".serena/memories/notes.json", NORMATIVE_HEADING)
+    _write(repo, ".serena/memories/.obsidian/app.md", NORMATIVE_HEADING)
+    monkeypatch.chdir(repo)
+
+    exit_code = checker.main(["--ci", "--path", ".serena/memories"])
+
+    assert exit_code == 0
+    assert "0 file(s) examined" in capsys.readouterr().out
+
+
+def test_text_memory_with_another_extension_is_classified(repo: Path, monkeypatch, capsys):
+    """detection-gaps-06: the extension no longer hides a normative memory."""
     _write(repo, ".serena/memories/notes.txt", NORMATIVE_HEADING)
     monkeypatch.chdir(repo)
 
     exit_code = checker.main(["--ci", ".serena/memories/notes.txt"])
 
-    assert exit_code == 0
+    assert exit_code == 1
+    assert ".serena/memories/notes.txt: normative:" in capsys.readouterr().out
+
+
+def test_readme_and_index_names_in_a_subdirectory_are_classified(repo: Path, monkeypatch, capsys):
+    """detection-gaps-06: only the root README and root domain indexes are skipped."""
+    _write(repo, ".serena/memories/git/README.md", NORMATIVE_HEADING)
+    _write(repo, ".serena/memories/git/rules-index.md", NORMATIVE_HEADING)
+    monkeypatch.chdir(repo)
+
+    exit_code = checker.main(["--ci", "--path", ".serena/memories"])
+
+    assert exit_code == 1
     out = capsys.readouterr().out
-    assert "0 file(s) examined" in out
+    assert ".serena/memories/git/README.md: normative:" in out
+    assert ".serena/memories/git/rules-index.md: normative:" in out
+    assert "2 file(s) examined" in out
+
+
+def test_root_file_that_only_ends_in_index_is_classified(repo: Path, monkeypatch, capsys):
+    _write(repo, ".serena/memories/Bad Name-index.md", NORMATIVE_HEADING)
+    monkeypatch.chdir(repo)
+
+    exit_code = checker.main(["--ci", ".serena/memories/Bad Name-index.md"])
+
+    assert exit_code == 1
 
 
 def test_symlinked_new_memory_is_judged_by_its_own_path(repo: Path, monkeypatch, capsys):
