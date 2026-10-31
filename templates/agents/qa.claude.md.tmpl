@@ -21,7 +21,7 @@ QA-specific requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze code and tests
-- **Bash**: `dotnet test --collect:"XPlat Code Coverage"`
+- **Bash**: the target repository's own test and coverage commands
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
@@ -56,19 +56,7 @@ uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
 
 ## Test Commands
 
-```bash
-# Run all tests
-dotnet test Qwiq.sln -c Release --no-build
-
-# Run with coverage
-dotnet test Qwiq.sln -c Release --settings coverage.runsettings
-
-# Run specific tests
-dotnet test --filter "FullyQualifiedName~[ClassName]"
-
-# Generate coverage report
-dotnet reportgenerator -reports:coverage.xml -targetdir:coverage-report
-```
+Use the commands resolved in the Validation Protocol. When one is unresolved, report `UNRESOLVED EVIDENCE:` and do not substitute a guess.
 
 ## Memory Protocol
 
