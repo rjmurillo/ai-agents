@@ -110,9 +110,13 @@ uv run python "$SCRIPTS_DIR/run_completion_gate.py" \
 It checks the config and every file the `scripts` map names against the trusted
 ref and executes nothing from the config. A non-zero exit means execute nothing
 from the config, surface the diff, and stop. Exit 3 means verification is
-impossible, and `--approve-untrusted-config` does not apply.
+impossible, and `--approve-untrusted-config` does not apply. On exit 0, read
+`unverifiable_command_tokens`. A non-empty list stops the run: those tokens
+reach shell evaluation uncompared.
 
-Only after exit 0, run `transport_preflight.command_key` from config.
+Only after exit 0 with an empty `unverifiable_command_tokens` list, run
+`transport_preflight.command_key`, read from the
+`$PR_REVIEW_CONFIG` file just verified (same path, resolved once).
 Then branch on the transport verdict. `gh` can be installed, hold a token, and
 still be refused for the whole session, in which case every script below fails
 with HTTP 403 for a reason that has nothing to do with the PR. Never turn a
