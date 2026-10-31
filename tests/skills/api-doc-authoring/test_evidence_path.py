@@ -153,6 +153,58 @@ def test_relative_evidence_path_inside_the_cwd_is_written(
     assert json.loads((tmp_path / "evidence.json").read_text(encoding="utf-8"))["verdict"] == "PASS"
 
 
+def test_absolute_evidence_path_outside_the_cwd_is_refused(
+    order_api: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    evidence = tmp_path / "evidence.json"
+
+    with pytest.raises(ax.InputError, match="outside the working directory"):
+        ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, evidence))
+
+    assert not evidence.exists()
+
+
+def test_absolute_evidence_path_through_a_symlinked_dir_cannot_leave_the_cwd(
+    order_api: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    _link(work / "out", outside)
+    monkeypatch.chdir(work)
+    evidence = work / "out" / "evidence.json"
+
+    with pytest.raises(ax.InputError, match="outside the working directory"):
+        ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, evidence))
+
+    assert list(outside.iterdir()) == []
+
+
+def test_absolute_evidence_path_inside_the_cwd_is_written(order_api: str, tmp_path: Path) -> None:
+    evidence = tmp_path / "evidence.json"
+
+    _, code = ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, evidence))
+
+    assert code == ax.EXIT_OK
+    assert json.loads(evidence.read_text(encoding="utf-8"))["verdict"] == "PASS"
+
+
+def test_failed_examples_with_an_unwritable_evidence_path_are_unverifiable(
+    changed_order_api: str, tmp_path: Path
+) -> None:
+    """A FAIL verdict that cannot be recorded exits 2, not 1, and leaves no partial file."""
+    evidence = tmp_path / "missing-dir" / "evidence.json"
+
+    with pytest.raises(ax.InputError, match="cannot write evidence"):
+        ax.cmd_run(run_args([WORKED_EXAMPLE], changed_order_api, evidence))
+
+    assert not evidence.parent.exists()
+
+
 def test_evidence_write_leaves_no_temp_file(order_api: str, tmp_path: Path) -> None:
     evidence = tmp_path / "out" / "evidence.json"
     evidence.parent.mkdir()
@@ -254,4 +306,5 @@ def test_run_evidence_help_names_the_refusals() -> None:
     sub = next(a for a in ax.build_parser()._actions if a.dest == "command")
     help_text = " ".join(sub.choices["run"].format_help().split())
     assert "refuses a symlink" in help_text
+    assert "outside the working directory" in help_text
     assert "not a prior report" in help_text

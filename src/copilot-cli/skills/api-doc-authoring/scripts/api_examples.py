@@ -73,6 +73,8 @@ TIMEOUT_SECONDS = 10
 MAX_BODY_BYTES = 2 * 1024 * 1024
 REQUEST_DEADLINE_SECONDS = 30
 RUN_DEADLINE_SECONDS = 300
+# An existing --evidence file is read to prove it is a prior report; a larger file is not one.
+_MAX_EVIDENCE_BYTES = 10_000_000
 _CHUNK_BYTES = 64 * 1024
 REDACTED_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization", "x-api-key"})
 
@@ -340,9 +342,6 @@ def _evidence(
     }
 
 
-_MAX_EVIDENCE_BYTES = 10_000_000
-
-
 def _is_prior_evidence(path: Path, size: int) -> bool:
     """Return whether ``path`` holds an evidence report this tool wrote earlier.
 
@@ -363,27 +362,25 @@ def _check_evidence_path(raw: str) -> Path:
 
     Refuses a symlink at the target, a target that is not a regular file, and
     an existing file that is not a prior evidence report, so the flag cannot
-    clobber a source file or write through a planted link (CWE-59). A relative
-    path must stay inside the working directory once its parent is resolved,
-    which stops a symlinked directory from carrying the write out of the
-    checkout. An absolute path is the caller's explicit choice and is only
-    held to the target checks; a symlinked parent of an absolute path is not
-    refused, so pass a path whose directories you control.
+    clobber a source file or write through a planted link (CWE-59). The
+    target's parent, relative or absolute, must resolve inside the working
+    directory, which stops a symlinked directory or a `..` segment from
+    carrying the write out of the checkout. Run the tool from the directory
+    the evidence belongs in.
     """
     target = Path(raw)
-    if not target.is_absolute():
-        cwd = Path.cwd().resolve()
-        if not (cwd / target).parent.resolve().is_relative_to(cwd):
-            raise InputError(f"evidence path `{raw}` resolves outside the working directory")
     try:
-        info = target.lstat()
+        info: os.stat_result | None = target.lstat()
     except FileNotFoundError:
-        return target
+        info = None
     except OSError as exc:
         raise InputError(f"cannot inspect evidence path `{raw}`: {exc.strerror or exc}") from exc
-    if not stat.S_ISREG(info.st_mode):
+    if info is not None and not stat.S_ISREG(info.st_mode):
         raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
-    if not _is_prior_evidence(target, info.st_size):
+    cwd = Path.cwd().resolve()
+    if not (cwd / target).parent.resolve().is_relative_to(cwd):
+        raise InputError(f"evidence path `{raw}` resolves outside the working directory")
+    if info is not None and not _is_prior_evidence(target, info.st_size):
         raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
     return target
 
@@ -564,8 +561,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--evidence",
         help=(
-            "write the evidence JSON here (refuses a symlink, a non-regular file, "
-            "or an existing file that is not a prior report)"
+            "write the evidence JSON here (refuses a symlink, a non-regular file, a path "
+            "outside the working directory, or an existing file that is not a prior report)"
         ),
     )
     return parser
