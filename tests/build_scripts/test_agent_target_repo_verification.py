@@ -137,7 +137,7 @@ def test_security_requests_repo_command_and_stays_request_only(path: Path) -> No
     assert not missing, f"{_rel(path)} missing {missing}"
     text = _flat(path)
     assert "You cannot run them." in text, f"{_rel(path)} lost the request-only contract"
-    assert "Ask the caller to run it" in text
+    assert "Ask the caller to run each" in text
     assert "Never invent a command, skip an item silently, or report it as passed" in text
     assert "a found hook or secrets command never satisfies the security test" in text
     assert "<security test|hook|secrets>" in text
