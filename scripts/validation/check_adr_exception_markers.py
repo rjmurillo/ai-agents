@@ -9,7 +9,8 @@ PR #1604 renumbered it from ADR-032 and left the body unswept, and the retired s
 gate read the pattern, so a marker could name an ADR that does not exist, or one
 that a later record retired, and still pass.
 
-This gate scans `.github/workflows/*.yml` and `*.yaml` for the marker and checks
+This gate scans `.github/workflows/*.yml` and `*.yaml`, plus every
+`.github/actions/**/action.yml` and `action.yaml`, for the marker and checks
 each cited number against `.project-toolkit/architecture/ADR-NNN-*.md`:
 
     missing   no ADR file carries that number
@@ -61,6 +62,7 @@ EXIT_CONFIG = 2
 
 ADR_DIR = Path(".project-toolkit") / "architecture"
 WORKFLOW_DIR = Path(".github") / "workflows"
+ACTIONS_DIR = Path(".github") / "actions"
 
 # `# ADR-055 Exception:`, case-insensitive, any spacing around the words.
 MARKER_RE = re.compile(r"#\s*ADR-(?P<number>\d+)\s+Exception\s*:", re.IGNORECASE)
@@ -130,6 +132,12 @@ def _workflow_files(workflow_dir: Path) -> list[Path]:
     return sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")])
 
 
+def _action_files(repo_root: Path) -> list[Path]:
+    """Composite and local actions: `.github/actions/**/action.y*ml` (issue #6506)."""
+    actions_dir = repo_root / ACTIONS_DIR
+    return sorted([*actions_dir.glob("**/action.yml"), *actions_dir.glob("**/action.yaml")])
+
+
 def find_near_miss(line: str) -> str | None:
     """Return the comment text when ``line`` holds a marker-like comment `MARKER_RE` misses."""
     for match in CANDIDATE_RE.finditer(line):
@@ -145,7 +153,7 @@ def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], lis
     """Return every marker, every near miss, and the count of workflow files examined."""
     markers: list[Marker] = []
     near_misses: list[NearMiss] = []
-    files = _workflow_files(workflow_dir)
+    files = [*_workflow_files(workflow_dir), *_action_files(repo_root)]
     for wf in files:
         rel = wf.relative_to(repo_root).as_posix()
         try:
