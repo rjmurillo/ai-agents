@@ -76,6 +76,16 @@ class TestValidateSpecIsDeterministic:
         assert step["env"]["HAS_SPECS"] == "${{ steps.spec-ref.outputs.has_specs }}"
         assert "${{" not in step["run"]
 
+    def test_verdict_step_reads_the_body_the_extract_step_saved(
+        self, validate_job: dict[str, Any]
+    ) -> None:
+        """One body for both steps: a second fetch on dispatch could differ."""
+        step = _verdict_step(validate_job)
+        extract = next(s for s in validate_job["steps"] if s.get("id") == "spec-ref")
+
+        assert step["env"]["PR_BODY_FILE"] == "${{ steps.spec-ref.outputs.pr_body_file }}"
+        assert "spec_extract_refs" in extract["run"]
+
     def test_verdict_step_is_gated_only_on_scope(self, validate_job: dict[str, Any]) -> None:
         step = _verdict_step(validate_job)
 
