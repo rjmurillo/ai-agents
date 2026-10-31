@@ -3,7 +3,7 @@
     {
       "id": "DC-1",
       "desc": "Structural edit to one skill with a deterministic verifier is Bounded",
-      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: rename a section in the existing research skill. Scope is one skill, reversible, no shared defaults. quick_validate.py is the verifier and prior art was read.\nKeep the reason under 15 words and do not quote the inputs.",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: rename a section in the existing research skill. Scope is one skill, reversible, no shared defaults. quick_validate.py is the verifier and prior art was read. The accountable skill owner accepts the change.\nKeep the reason under 15 words and do not quote the inputs.",
       "expected_verdict": "BOUNDED",
       "verdict_options": [
         "BOUNDED",
@@ -16,7 +16,7 @@
     {
       "id": "DC-2",
       "desc": "One high input selects at least Standard",
-      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: add trigger phrases to the memory skill. Scope is one skill and reversible, but the trigger phrases are unknown and need discovery. A validator exists.\nKeep the reason under 15 words and do not quote the inputs.",
+      "input": "Invoke SkillForge. Apply the Depth Contract and choose the tier. Goal: add trigger phrases to the memory skill. Scope is one skill and reversible, but the trigger phrases are unknown and need discovery. A validator exists. Prior art was read. The accountable skill owner accepts the change.\nKeep the reason under 15 words and do not quote the inputs.",
       "expected_verdict": "STANDARD",
       "verdict_options": [
         "BOUNDED",

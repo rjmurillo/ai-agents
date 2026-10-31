@@ -23,7 +23,8 @@
           "quick_validate",
           "validate-skill",
           "check_docs_safety",
-          "^(?!.*\\b(?:panel|lens|lenses|discovery|long-horizon|regression|thinking models?)\\b)"
+          "^(?!.*\\b(?:panel|lens|lenses|discovery|long-horizon|regression|thinking models?)\\b)",
+          "^(?!.*\\b(?:skip|skipping|skipped|omit|omitting|omitted)\\b)(?!.*\\b(?:do\\s+not|don't|must\\s+not|should\\s+not|shall\\s+not)\\s+(?:run|execute|invoke|perform)\\b)"
         ],
         "known_good_variants": [
           "DECISION: bounded\nEVIDENCE: Phase 0 triage, then quick_validate.py, validate-skill.py, check_docs_safety.py confirm the frontmatter is valid",
@@ -42,7 +43,8 @@
           "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: Phase 0 triage, quick_validate.py, validate-skill.py, check_docs_safety.py plus long-horizon evolution scoring",
           "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: Phase 0 triage, quick_validate.py, validate-skill.py, check_docs_safety.py and regression questioning",
           "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: it is a small change",
-          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py only, skipping triage and the other validators"
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: quick_validate.py only, skipping triage and the other validators",
+          "Bounded edit.\nDECISION: BOUNDED\nEVIDENCE: skip triage; do not run quick_validate.py, validate-skill.py, or check_docs_safety.py"
         ],
         "keyword_stuffed": [
           "Outcome-first, risk-proportional depth: uncertainty, consequence, missing evidence, freshness, scope, human decision, independent review.",
@@ -112,12 +114,13 @@
           "\\b(?:owner|maintainer|human|accountable)\\b",
           "\\bpanel\\b",
           "^(?!.*\\b(?:skip review|self-approve|no review|without review)\\b)",
-          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\b)"
+          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\s+(?:decide|review|involve|require)\\b)"
         ],
         "known_good_variants": [
           "DECISION: human_decides\nEVIDENCE: accountable maintainer signs off after the Phase 4 panel reviews the tool grant",
           "Authority change.\nDECISION: HUMAN_DECIDES\nEVIDENCE: owner approval plus the synthesis panel's security evaluator",
-          "1. DECISION: HUMAN_DECIDES\n2. EVIDENCE: human owner decides; Phase 4 panel review of the allowed-tools diff"
+          "1. DECISION: HUMAN_DECIDES\n2. EVIDENCE: human owner decides; Phase 4 panel review of the allowed-tools diff",
+          "Authority change.\nDECISION: HUMAN_DECIDES\nEVIDENCE: owner decides; panel reviews; do not auto-approve"
         ],
         "known_good": [
           "DECISION: HUMAN_DECIDES\nEVIDENCE: the skill owner decides, and the Phase 4 panel reviews it before it ships"
@@ -157,7 +160,7 @@
         "evidence_all": [
           "triage_skill_request\\.py|discover_skills\\.py",
           "^(?!.*\\b(?:estimate|guess|manually|by hand|approximate)\\b)",
-          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\b)"
+          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\s+(?:use|run|invoke|execute)\\b)"
         ],
         "known_good_variants": [
           "DECISION: existing_tool\nEVIDENCE: discover_skills.py to index the catalog, then triage_skill_request.py to score",
@@ -202,12 +205,13 @@
         "evidence_all": [
           "\\b(?:changed|new skills?|commits?|since|stale|moved)\\b",
           "^(?!.*\\b(?:still holds|unchanged|reuse)\\b)",
-          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\b)"
+          "^(?!.*\\b(?:do not|don't|doesn't|must not|should not|shall not|cannot|never)\\s+(?:revalidate|re-?read|re-?run|recheck)\\b)"
         ],
         "known_good_variants": [
           "DECISION: revalidate\nEVIDENCE: the index is stale, skills/ changed after a1b2c3d",
           "Context expired.\nDECISION: REVALIDATE\nEVIDENCE: two new skills landed since the recorded commit",
-          "1. DECISION: REVALIDATE\n2. EVIDENCE: skills/ moved 14 commits past a1b2c3d, so re-run discovery"
+          "1. DECISION: REVALIDATE\n2. EVIDENCE: skills/ moved 14 commits past a1b2c3d, so re-run discovery",
+          "Stale.\nDECISION: REVALIDATE\nEVIDENCE: skills/ changed since a1b2c3d; do not trust the index"
         ],
         "known_good": [
           "DECISION: REVALIDATE\nEVIDENCE: 14 commits touched skills/ since a1b2c3d, including two new overlapping skills"

@@ -133,6 +133,7 @@ verifier, no prior art checked).
 Consequential changes override the tier. A change to a safety control, a
 permission or authority boundary, a shipped default, or anything irreversible
 keeps the human decision and an independent review, whatever the step count.
+Get explicit human acceptance before Phase 3 writes any such change.
 
 Choose each step's executor on purpose. Existing scripts do computable work
 (`triage_skill_request.py`, `discover_skills.py`, the validators). Models
