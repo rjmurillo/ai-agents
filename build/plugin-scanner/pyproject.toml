@@ -14,7 +14,7 @@ version = "0.0.0"
 description = "Pinned HOL plugin scanner for the ai-agents catalog score gate"
 requires-python = ">=3.14"
 dependencies = [
-    "plugin-scanner==3.51.0",
+    "plugin-scanner==3.57.0",
 ]
 
 [tool.uv]
@@ -31,3 +31,7 @@ override-dependencies = [
 
 [tool.uv.exclude-newer-package]
 certifi = false
+# The scanner version follows the action commit the catalog pins, not the
+# cooldown. The action already checks this wheel's SHA-256 and PyPI provenance,
+# and uv.lock pins the same hash, so the cooldown adds no check here.
+plugin-scanner = false

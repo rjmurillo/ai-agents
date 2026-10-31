@@ -405,10 +405,10 @@ def test_scanner_project_lock_pins_the_action_wheel() -> None:
     cannot drift from the CI and catalog score unnoticed.
     """
     lock = (REPO_ROOT / gate.SCANNER_PROJECT / "uv.lock").read_text(encoding="utf-8")
-    assert 'name = "plugin-scanner"\nversion = "3.51.0"' in lock
-    assert "3468d19afcb95dc384e033665c71d19808b8aed7f32b4b2e2a07820f365ab1a5" in lock
+    assert 'name = "plugin-scanner"\nversion = "3.57.0"' in lock
+    assert "408b302ca427fc8b7bc0b54164f85e9d57d45714d24bafe1a2e6bef7353558fa" in lock
     workflow = (REPO_ROOT / ".github" / "workflows" / "plugin-scanner.yml").read_text(
         encoding="utf-8"
     )
-    assert "ai-plugin-scanner-action@7711de3234c244b562519720ef749f4b432b69be" in workflow
+    assert "ai-plugin-scanner-action@c96833de5070fab4e564010b5ab6e3c3d7e07a3e" in workflow
     assert "min_score: 80" in workflow
