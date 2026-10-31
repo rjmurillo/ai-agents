@@ -13,7 +13,10 @@ tests. ``check_pr_round_cap.py`` owns the CLI and the output envelope; the git
 calls go through an injectable runner so tests never need a repository.
 
 Status values: ``clean`` (no commit ahead), ``ahead`` (commits listed),
-``unverified`` (git could not answer, so the caller must check by hand).
+``unverified`` (git could not answer, so the caller must check by hand). An
+``unverified`` report can still list commits: when the live head is not an
+ancestor of ``HEAD`` it carries ``force_push_suspected`` and the commits only
+``HEAD`` holds, and when a diff could not be read it names those commits.
 """
 
 from __future__ import annotations
@@ -81,11 +84,11 @@ _TEST_PATH = re.compile(
 )
 _TEST_DEF = r"(?:async\s+)?def\s+test_|(?:it|test)\(|\[(?:Fact|Theory|Test|TestMethod)\b"
 _REMOVED_TEST_DEF = re.compile(rf"^-\s*(?:{_TEST_DEF})")
-_ADDED_TEST_DEF = re.compile(rf"^\+\s*(?:{_TEST_DEF})")
 
 RISK_WIRING = "touches CI or pre-push wiring"
 RISK_TEST_FILE_DELETED = "deletes a test file"
 RISK_TEST_DEFS_REMOVED = "removes test definitions"
+RISK_DIFF_UNREADABLE = "test diff unreadable (git show failed)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,19 +196,24 @@ def parse_log(text: str) -> list[Commit]:
 
 
 def _count_test_defs(patch: str) -> int:
-    """Removed minus added test definitions in a zero-context patch."""
-    lines = patch.splitlines()
-    removed = sum(1 for line in lines if _REMOVED_TEST_DEF.match(line))
-    added = sum(1 for line in lines if _ADDED_TEST_DEF.match(line))
-    return removed - added
+    """Removed test definitions in a zero-context patch.
+
+    Added definitions are not netted out: a commit that deletes a guard test and
+    adds an unrelated one still removed the guard (issue #6506).
+    """
+    return sum(1 for line in patch.splitlines() if _REMOVED_TEST_DEF.match(line))
 
 
-def _removed_test_defs(commit: Commit, runner: GitRunner) -> int:
+def _removed_test_defs(commit: Commit, runner: GitRunner) -> int | None:
+    """Count removed test definitions, or ``None`` when ``git show`` failed.
+
+    ``None`` means the diff was not read. It is not "no removed tests".
+    """
     modified = [path for status, path in commit.files if status == "M" and _TEST_PATH.search(path)]
     if not modified:
         return 0
     code, patch = runner(["show", "-U0", "--format=", "--no-renames", commit.sha, "--", *modified])
-    return _count_test_defs(patch) if code == 0 else 0
+    return _count_test_defs(patch) if code == 0 else None
 
 
 def classify(commit: Commit, runner: GitRunner) -> Commit:
@@ -215,7 +223,10 @@ def classify(commit: Commit, runner: GitRunner) -> Commit:
         risks.append(RISK_WIRING)
     if any(status == "D" and _TEST_PATH.search(path) for status, path in commit.files):
         risks.append(RISK_TEST_FILE_DELETED)
-    if _removed_test_defs(commit, runner) > 0:
+    removed = _removed_test_defs(commit, runner)
+    if removed is None:
+        risks.append(RISK_DIFF_UNREADABLE)
+    elif removed > 0:
         risks.append(RISK_TEST_DEFS_REMOVED)
     return Commit(commit.sha, commit.subject, commit.files, tuple(risks))
 
@@ -224,13 +235,13 @@ def _report(status: str, live_head: str, **extra: object) -> dict[str, object]:
     return {"status": status, "live_head": live_head, "commits": [], "warning": "", **extra}
 
 
-def _unverified(live_head: str, reason: str) -> dict[str, object]:
+def _unverified(live_head: str, reason: str, **extra: object) -> dict[str, object]:
     warning = (
         f"Could not compare local HEAD with live PR head {live_head[:9] or 'unknown'}: {reason}. "
         "Run `git log <live head>..HEAD` by hand and treat any commit there as "
         "unverified input before reuse."
     )
-    return _report("unverified", live_head, reason=reason, warning=warning)
+    return _report("unverified", live_head, reason=reason, warning=warning, **extra)
 
 
 def render_warning(live_head: str, commits: list[Commit], truncated: bool) -> str:
@@ -252,6 +263,54 @@ def render_warning(live_head: str, commits: list[Commit], truncated: bool) -> st
     return "\n".join(lines)
 
 
+def _log_commits(rev_range: str, runner: GitRunner) -> tuple[int, list[Commit]]:
+    """Return ``(exit code, parsed commits)`` for ``git log`` over ``rev_range``."""
+    args = ["log", "--reverse", "--no-renames", "--name-status"]
+    args += [f"--max-count={MAX_COMMITS + 1}", f"--format={_RECORD_SEP}%H%x09%s", rev_range]
+    code, out = runner(args)
+    return (code, parse_log(out)) if code == 0 else (code, [])
+
+
+def _diverged_report(live_head: str, runner: GitRunner) -> dict[str, object]:
+    """Unverified report for a live head that ``HEAD`` does not contain.
+
+    This is the force-pushed-head shape: the remote history was rewritten, or the
+    local branch diverged. List the commits only ``HEAD`` holds so the reader can
+    see what a push would carry.
+    """
+    reason = "live head is not an ancestor of HEAD (diverged or another branch)"
+    code, out = runner(["merge-base", live_head, "HEAD"])
+    base = out.strip()
+    if code == 0 and _SHA.fullmatch(base):
+        rev_range = f"{base}..HEAD"
+    elif code == 1:
+        rev_range, reason = "HEAD", f"{reason}; no common ancestor"
+    else:
+        return _unverified(
+            live_head, f"{reason}; merge-base exited {code}", force_push_suspected=True
+        )
+    code, parsed = _log_commits(rev_range, runner)
+    if code != 0:
+        return _unverified(live_head, f"{reason}; git log exited {code}", force_push_suspected=True)
+    truncated = len(parsed) > MAX_COMMITS
+    commits = [classify(commit, runner) for commit in parsed[-MAX_COMMITS:]]
+    warning = (
+        f"Live PR head {live_head[:9]} is not an ancestor of local HEAD: the branch was "
+        "force-pushed or has diverged. "
+        + render_warning(live_head, commits, truncated)
+        + " Confirm by hand with `git log <live head>..HEAD`."
+    )
+    return _report(
+        "unverified",
+        live_head,
+        reason=reason,
+        force_push_suspected=True,
+        commits=[commit.to_dict() for commit in commits],
+        truncated=truncated,
+        warning=warning,
+    )
+
+
 def scan_unpushed_commits(live_head: str, runner: GitRunner = default_runner) -> dict[str, object]:
     """Report local commits that the live PR head does not contain.
 
@@ -263,39 +322,39 @@ def scan_unpushed_commits(live_head: str, runner: GitRunner = default_runner) ->
         return _unverified(live_head, "live head is not a commit SHA")
     code, _ = runner(["merge-base", "--is-ancestor", live_head, "HEAD"])
     if code == 1:
-        return _unverified(
-            live_head, "live head is not an ancestor of HEAD (diverged or another branch)"
-        )
+        return _diverged_report(live_head, runner)
     if code == _INVALID_WORKTREE:
         return _unverified(live_head, "the --worktree path is not a git checkout; scan skipped")
     if code == _LAUNCH_FAILURE:
         return _unverified(live_head, "git could not be launched")
     if code != 0:
         return _unverified(live_head, f"git merge-base exited {code}; fetch the PR head first")
-    code, out = runner(
-        [
-            "log",
-            "--reverse",
-            "--no-renames",
-            "--name-status",
-            f"--max-count={MAX_COMMITS + 1}",
-            f"--format={_RECORD_SEP}%H%x09%s",
-            f"{live_head}..HEAD",
-        ]
-    )
+    code, parsed = _log_commits(f"{live_head}..HEAD", runner)
     if code != 0:
         return _unverified(live_head, f"git log exited {code}")
-    parsed = parse_log(out)
     if not parsed:
         return _report("clean", live_head)
     truncated = len(parsed) > MAX_COMMITS
     commits = [classify(commit, runner) for commit in parsed[-MAX_COMMITS:]]
+    warning = render_warning(live_head, commits, truncated)
+    unreadable = [c.sha for c in commits if RISK_DIFF_UNREADABLE in c.risks]
+    if unreadable:
+        shown = ", ".join(sha[:9] for sha in unreadable)
+        reason = f"git show failed for {len(unreadable)} commit(s): {shown}"
+        return _report(
+            "unverified",
+            live_head,
+            reason=reason,
+            commits=[commit.to_dict() for commit in commits],
+            truncated=truncated,
+            warning=f"{reason}; removed tests cannot be ruled out. {warning}",
+        )
     return _report(
         "ahead",
         live_head,
         commits=[commit.to_dict() for commit in commits],
         truncated=truncated,
-        warning=render_warning(live_head, commits, truncated),
+        warning=warning,
     )
 
 
