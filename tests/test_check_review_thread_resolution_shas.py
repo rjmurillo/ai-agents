@@ -97,10 +97,6 @@ def test_reads_shas_inside_fenced_code() -> None:
     assert extract_shas(body) == ["abc1234", "deadbee"]
 
 
-def test_code_free_comment_yields_no_code_shas() -> None:
-    assert extract_shas("Fixed in abc1234.\n```\nno hex here\n```") == ["abc1234"]
-
-
 def test_ignores_coderabbit_comment_marker() -> None:
     body = "Confirmed in 49f5d79 and 2d9e16f.\n\n<!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 -->"
     assert extract_shas(body) == ["49f5d79", "2d9e16f"]
@@ -194,8 +190,7 @@ def test_escaped_backtick_does_not_open_code_span() -> None:
 
 
 def test_indented_code_is_read_like_fences() -> None:
-    body = "Fixed in abc1234\n\n    git show deadbee\n"
-    assert extract_shas(body) == ["abc1234", "deadbee"]
+    assert extract_shas("Fixed in abc1234\n\n    git show deadbee") == ["abc1234", "deadbee"]
 
 
 def test_tilde_fence_is_code() -> None:
@@ -409,8 +404,7 @@ def test_pr_review_config_contains_resolution_sha_gate() -> None:
 
 
 def test_crlf_fence_closes() -> None:
-    body = "```\r\ndeadbee\r\n```\r\nFixed in abc1234"
-    assert extract_shas(body) == ["deadbee", "abc1234"]
+    assert extract_shas("```\r\ndeadbee\r\n```\r\nFixed in abc1234") == ["deadbee", "abc1234"]
 
 
 def test_crlf_blank_line_ends_code_span() -> None:
@@ -437,8 +431,7 @@ def test_inline_comment_with_double_dash_is_visible() -> None:
 
 
 def test_blockquote_indented_code_is_read() -> None:
-    body = ">     git show deadbee\n\nFixed in abc1234"
-    assert extract_shas(body) == ["deadbee", "abc1234"]
+    assert extract_shas(">     git show deadbee\n\nFixed in abc1234") == ["deadbee", "abc1234"]
 
 
 def test_marker_in_table_cell_is_ignored() -> None:

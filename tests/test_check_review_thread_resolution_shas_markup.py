@@ -178,3 +178,11 @@ def test_comment_text_inside_raw_text_element_is_literal() -> None:
     with comment_patch, cdata_patch:
         assert _mod.extract_shas(body) == ["abc1234"]
     assert _mod.extract_shas(body) == ["abc1234"]
+
+
+def test_code_block_without_hex_adds_no_shas() -> None:
+    assert _mod.extract_shas("Fixed in abc1234.\n```\nno hex here\n```") == ["abc1234"]
+
+
+def test_sha_only_in_code_block_is_found() -> None:
+    assert _mod.extract_shas("```\ngit show deadbee\n```") == ["deadbee"]
