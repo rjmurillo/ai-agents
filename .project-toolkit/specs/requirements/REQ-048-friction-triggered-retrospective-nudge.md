@@ -163,7 +163,7 @@ Idempotency: the same transcript and tier always produce the same marker key, so
 | Someone re-adds a block decision | Trapped turns (#3140) | Test failure | AC-04 |
 | Subagent Stop fires the parent nudge | #3140 recurrence | Marker for a sidechain | Register on `Stop` only; sidechains excluded |
 | Stop `systemMessage` stops rendering in a CLI update | Silent advisory | Real-CLI smoke fails | AC-17 |
-| State root sits inside the `cwd` repository (for example a dotfile-managed `$HOME` repo) | Both nudges silent for that user | AC-24 refusal, stderr status line | Set `XDG_STATE_HOME` or `LOCALAPPDATA` outside the repository |
+| State root sits inside any repository (for example a dotfile-managed `$HOME` repo, even when `cwd` is a nested project repo) | Both nudges silent for that user | AC-24 refusal, stderr status line | Set `XDG_STATE_HOME` or `LOCALAPPDATA` outside the repository. If `/` holds a `.git` entry, every root is refused and only the stderr line signals it |
 
 ## Security
 
@@ -175,6 +175,7 @@ Trust boundary: the transcript holds untrusted tool output and repo content. The
 | Marker path traversal from `session_id` (CWE-22) | Existing `SESSION_ID_PATTERN` allowlist |
 | Marker symlink swap (CWE-59) | Existing exclusive create under an owner-only directory |
 | Resource exhaustion from a huge transcript (CWE-400) | Existing byte, line, and time caps |
+| TASK-001 transcript snapshots hold secrets at rest (CWE-312) | Owner-only 0o700 directory outside any repository; deleted when the AC-19 gate closes or the owner drops the branch |
 | Secret disclosure in output (CWE-532) | No free text emitted; nothing to redact |
 
 No network, no model call, no writes inside any repository.
@@ -200,19 +201,19 @@ No network, no model call, no writes inside any repository.
 9. **AC-09** While a FrictionMarker exists for tier n, the hook shall emit no friction nudge until the score reaches tier n+1 (double the tier n threshold).
 10. **AC-10** When a new correction arrives between two Stops and the FrictionTier is unchanged, the hook shall emit no second friction nudge.
 11. **AC-11** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is a positive integer, the hook shall use it as the tier 1 threshold.
-12. **AC-12** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is `0` or `off` (case-insensitive, surrounding whitespace ignored), the hook shall exit 0 with no output from either the friction or the correction branch, and shall neither read nor write its state.
+12. **AC-12** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is an off value, meaning the literal `0` or `off` (`off` case-insensitive, surrounding whitespace ignored; `00`, `+0`, and `-0` are not off values), the hook shall exit 0 with no output from either the friction or the correction branch, and shall neither read nor write its state.
 13. **AC-13** If `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is negative or not an integer, then the hook shall use the calibrated default and exit 0.
 14. **AC-14** If the scan stops on the time or byte budget, then the hook shall emit no friction nudge and shall write one status line naming the budget to stderr.
 15. **AC-15** When the hook runs inside a temporary git repository, the hook shall leave `git status --porcelain` empty, leave the `.git/` tree byte-identical to a snapshot taken after a priming `git status` and before the run, and write its marker to a path outside the repository.
 16. **AC-16** When the plugin from `src/claude/` is installed and the hook runs from a directory that is not the plugin root, the launcher shall find and run the script. A bare relative path in the same harness shall fail (negative control).
 17. **AC-17** When a friction-qualifying Stop runs in the real Claude Code CLI, the `systemMessage` shall reach the user intact through the plugin registration, and the next turn's model context shall not contain the advisory text.
 18. **AC-18** When the hook ships in a `surface: "plugin"` dispatch group, the restored ADR-084 rule 5 presence test shall find one `Customer value:` line in its module docstring that names `AI_AGENTS_RETRO_NUDGE_THRESHOLD` and its off values.
-19. **AC-19** When TASK-001 has chosen weights and the default threshold on the tuning split (a seeded random 70 percent of sessions in the measured 30-day window), the held-out split (the other 30 percent, labeled by Richard Murillo) shall show at least 70 percent precision before the default ships. The TASK-001 report shall record the window dates, the seed, and the split session list, and shall note that both splits share one window (leakage risk accepted under the owner's decision). The gate is valid only when the held-out split holds at least 20 labeled friction nudges. Below that count, TASK-001 widens the window, and the default does not ship until the count is met.
+19. **AC-19** When TASK-001 has chosen weights and the default threshold on the tuning split (a seeded random 70 percent of sessions in the measured 30-day window), the held-out split (the other 30 percent, labeled by Richard Murillo) shall show at least 70 percent precision before the default ships. The TASK-001 report shall record the window dates, the seed, and the split session list, and shall note that both splits share one window (leakage risk accepted under the owner's decision). The gate is valid only when the held-out split holds at least 20 labeled friction nudges. Weights and the default freeze on the tuning split before any held-out session is labeled. Every session snapshotted after that freeze joins the held-out split only. Below that count, TASK-001 snapshots new transcripts daily into owner storage, since Claude Code keeps about 30 days locally (oldest local transcript 2026-10-02, measured 2026-10-31), and the default does not ship. If the count is still under 20 at 90 days after TASK-001 starts, the owner decides whether to keep collecting or drop the friction branch. At the Q5 rate the count may take longer than 90 days (INFERRED), so that decision point is a likely path.
 20. **AC-20** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is an off value as AC-12 parses it, the hook shall not open the transcript.
 21. **AC-21** When the plugin is generated, `src/copilot-cli/hooks/hooks.json` shall carry no entry for the hook, through `copilotExclude: true` on its dispatch group.
 22. **AC-22** When a test fixture plants a readable file outside the four rule 2a condition e inputs and runs a Stop with both branches active, the hook shall not open it (observed with a `sys.addaudithook` hook on `open`), and shall read no environment variable outside the condition e list (observed through a recording mapping installed as `os.environ` for the run, so `Path.home()` lookups are seen too).
 23. **AC-23** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is unset or a positive integer and a correction-qualifying Stop runs, the hook shall still emit the correction nudge (positive control for AC-12).
-24. **AC-24** If the resolved state root lies inside the repository that contains the payload `cwd` (found with `stat` calls only), then the hook shall write no state, emit no `systemMessage`, and exit 0.
+24. **AC-24** Where the hook is not off (AC-12 is checked first), if any directory from the resolved state root up to the filesystem root holds a `.git` entry (found with `stat` calls only, before any `mkdir`), then the hook shall create no directory or file, emit no `systemMessage`, write one stderr status line, and exit 0. Fixtures cover a `.git` directory, a `.git` file (linked worktree), a symlinked state root that resolves into a repository, a state root that does not exist yet, and an unset `HOME` on POSIX.
 
 ## Out of scope
 
@@ -271,7 +272,7 @@ Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudg
 | TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; pick weights and default; report SLI 4 | AC-19 | none | 2 days / 2 h |
 | TASK-002 | Scanner counts with fixture tests | AC-01 to AC-04 | TASK-001 | 1 day / 1 h |
 | TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20, AC-23 | TASK-002 | 1 day / 1 h |
-| TASK-004 | Exit, no-block, clean-tree, and input-limit tests | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
+| TASK-004 | Exit, no-block, clean-tree, and input-limit tests; reorder `_safe_marker_dir` so the state-root walk runs before any `mkdir` | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
 | TASK-005 | ADR-084 amendment with debate log | Q-1, Q-2 | none | 2 days / 2 h plus review |
 | TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance (authorizing issue, reintroduction criteria, cleanup obligation, boolean-validation test), `tool-use-hook-bar.md` wording, ledger text | AC-16 to AC-18, AC-21 | TASK-004, TASK-005 | 1.5 days / 1.5 h |
 

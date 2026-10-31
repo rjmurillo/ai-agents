@@ -121,12 +121,15 @@ hooks. Concretely, the bar is six rules:
       opt-out variable from condition g. To locate the state root it may read
       only `XDG_STATE_HOME`, `LOCALAPPDATA`, and the variables `Path.home()`
       consults (`HOME`; on Windows `USERPROFILE`, `HOMEDRIVE`, and
-      `HOMEPATH`), and no other environment variable. A state root inside
-      the repository that contains the payload's `cwd` is refused. The hook
-      finds that repository with `stat` calls on `.git` entries from `cwd`
-      upward, and opens no file to do so. On refusal it writes nothing and
-      emits nothing, as the existing hook already does for an unsafe marker
-      directory.
+      `HOMEPATH`). Hook code reads no other environment variable. On POSIX,
+      when `HOME` is unset, the hook refuses rather than fall back to the
+      password database. A state root inside a directory tree that holds a
+      `.git` entry is refused. The hook checks this with `stat` calls on
+      `.git` entries from the resolved state root up to the filesystem root,
+      and opens no file to do so. Bare-repository setups that leave no `.git`
+      entry, such as yadm, are not detected. The check runs before any `mkdir`. On
+      refusal the hook writes no state, emits no `systemMessage`, and writes
+      one stderr status line.
    f. Its output goes to a user-visible channel only, never into model
       context. Its text addresses the user, not the agent, and gives the
       agent no instruction.
@@ -436,9 +439,11 @@ exists was rejected by the owner, who chose the vendored route on 2026-10-31
 (REQ-048 D3). That decision, not consumer demand, is the reason on record.
 
 Rollback: remove the hook's dispatch group and cut a release. If that
-empties the vendored surface, the same PR removes the two restored rule 5
-tests, since the companion test fails on an empty surface. Consumers keep the
-hook until they upgrade the plugin. Its off switch covers that gap.
+empties the vendored surface, the same PR changes the companion test to
+skip on an empty surface and keeps the presence test as the ratchet.
+Consumers keep the hook until they upgrade the plugin, and its off switch
+covers that gap. Their marker directory (`ai-agents-reflect-nudge` under the
+per-user state root) stays until they delete it.
 
 Rule 6 is not engaged. Its four events (rule 6 text) exclude `Stop`. ADR-097
 "Neutral" names four events as unaffected by its retirement: `SessionStart`,
