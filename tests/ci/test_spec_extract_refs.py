@@ -324,6 +324,42 @@ class TestRun:
                 assert run() == 0
         assert "has_specs=true" in out_file.read_text()
 
+    def test_publishes_the_body_file_for_the_verdict_step(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "fix(ci): a change",
+            "PR_BODY_INPUT": "Fixes #10",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "77",
+        }
+        with patch.dict(os.environ, env):
+            with patch(
+                "scripts.ci.spec_extract_refs.subprocess.run",
+                return_value=MagicMock(returncode=0, stdout=""),
+            ):
+                assert run() == 0
+        published = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        body_file = Path(published["pr_body_file"])
+        assert body_file == tmp_path / "pr-body-77.txt"
+        assert body_file.read_text(encoding="utf-8") == "Fixes #10\n"
+        assert not (tmp_path / "pr-title-77.txt").exists()
+
+    def test_body_file_is_removed_when_scope_extraction_fails(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "feat: Phase 2 of #100",
+            "PR_BODY_INPUT": "Fixes #10",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "78",
+        }
+        failure = MagicMock(returncode=1, stdout="", stderr="parser failed")
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=failure):
+                assert run() == EXIT_EXTERNAL
+        assert not (tmp_path / "pr-body-78.txt").exists()
+
     def test_fallback_to_gh_when_no_inputs(self, tmp_path: Path) -> None:
         out_file = tmp_path / "out.txt"
         env = {

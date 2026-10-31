@@ -23,6 +23,9 @@ ENV:
   HAS_SPECS            - "true" or "false", from the Extract Spec References step
   PR_BODY              - pull request body (author-controlled; read from env,
                          never interpolated into a shell, CWE-78)
+  PR_BODY_FILE         - path to the body the Extract Spec References step read,
+                         so both steps grade one body (a second fetch could
+                         return an edited one). Used when PR_BODY is empty.
   EVENT_NAME           - github.event_name
   PR_NUMBER            - pull request number (workflow_dispatch body fetch)
   GITHUB_REPOSITORY    - owner/repo (workflow_dispatch body fetch)
@@ -34,8 +37,8 @@ EXIT CODES (ADR-035):
   0 - PASS
   1 - FAIL: the pull request links a spec and its acceptance criteria are
       missing or unchecked
-  2 - config error: HAS_SPECS is not "true" or "false", or a
-      workflow_dispatch body fetch failed
+  2 - config error: HAS_SPECS is not "true" or "false", PR_BODY_FILE is
+      unreadable, or a workflow_dispatch body fetch failed
 """
 
 from __future__ import annotations
@@ -233,6 +236,20 @@ def _read_body_field(url: str) -> str | None:
     return body or ""
 
 
+def _read_body_file(path: str) -> str | None:
+    """Read the body the Extract Spec References step saved. None means failure.
+
+    That step appends one newline when it writes the file, so exactly one is
+    removed here and a body that itself ends in newlines comes back unchanged.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, ValueError) as exc:
+        _fetch_error(f"reading the saved pull request body failed: {exc}")
+        return None
+    return text[:-1] if text.endswith("\n") else text
+
+
 def _fetch_body(pr_number: str, repository: str) -> str | None:
     """Read the pull request body over the GitHub REST API. None means failure."""
     url = _pull_request_url(pr_number, repository)
@@ -299,7 +316,16 @@ def run() -> int:
             'HAS_SPECS must be "true" or "false"; the Extract Spec References step did not emit it.'
         )
     body = os.environ.get("PR_BODY", "")
-    if not body and os.environ.get("EVENT_NAME", "") == _DISPATCH_EVENT:
+    body_file = os.environ.get("PR_BODY_FILE", "")
+    if not body and body_file:
+        saved = _read_body_file(body_file)
+        if saved is None:
+            return _config_error(
+                "Could not read the pull request body the Extract Spec References "
+                "step saved; see the log for the error."
+            )
+        body = saved
+    elif not body and os.environ.get("EVENT_NAME", "") == _DISPATCH_EVENT:
         fetched = _fetch_body(
             os.environ.get("PR_NUMBER", ""), os.environ.get("GITHUB_REPOSITORY", "")
         )
