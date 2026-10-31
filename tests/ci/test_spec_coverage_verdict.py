@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
-import urllib.error
-import urllib.request
-from email.message import Message
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -181,12 +176,12 @@ class TestRun:
         assert run() == EXIT_OK
         assert "Validate Spec Coverage: PASS" in summary.read_text(encoding="utf-8")
 
-    def test_pull_request_event_never_fetches(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_pull_request_event_with_empty_body_fails(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("HAS_SPECS", "true")
         monkeypatch.setenv("EVENT_NAME", "pull_request")
-        with patch(_URLOPEN) as mock_open:
-            assert run() == EXIT_FAIL
-        mock_open.assert_not_called()
+        assert run() == EXIT_FAIL
 
 
 class TestAnnotationsAndSummary:
@@ -256,184 +251,40 @@ class TestAnnotationsAndSummary:
         assert "Validate Spec Coverage: ERROR" in text
         assert "HAS_SPECS" in text
 
-    def test_fetch_failure_writes_a_one_line_summary(
+
+class TestDispatchBody:
+    def test_dispatch_without_body_file_is_a_config_error(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setenv("HAS_SPECS", "true")
+        monkeypatch.setenv("EVENT_NAME", "workflow_dispatch")
+        assert run() == EXIT_CONFIG
+        assert "PR_BODY_FILE missing" in capsys.readouterr().err
+
+    def test_dispatch_error_writes_a_one_line_summary(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         summary = tmp_path / "summary.md"
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
         monkeypatch.setenv("HAS_SPECS", "true")
         monkeypatch.setenv("EVENT_NAME", "workflow_dispatch")
-        with patch(_URLOPEN, side_effect=OSError("x")):
-            assert run() == EXIT_CONFIG
-        assert "Could not read the pull request body" in summary.read_text(encoding="utf-8")
+        assert run() == EXIT_CONFIG
+        assert "PR_BODY_FILE missing" in summary.read_text(encoding="utf-8")
 
-
-class _FakeResponse:
-    """Minimal context-manager response for urlopen."""
-
-    def __init__(self, payload: bytes) -> None:
-        self._payload = payload
-
-    def __enter__(self) -> _FakeResponse:
-        return self
-
-    def __exit__(self, *_exc: object) -> None:
-        return None
-
-    def read(self, *_args: object) -> bytes:
-        return self._payload
-
-
-def _json_response(body: object) -> _FakeResponse:
-    return _FakeResponse(json.dumps({"body": body}).encode("utf-8"))
-
-
-_URLOPEN = "scripts.ci.spec_coverage_verdict._OPENER.open"
-
-
-class TestDispatchFetch:
-    def _env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_dispatch_reads_the_saved_body_file(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        body_file = tmp_path / "body.md"
+        body_file.write_text(ALL_CHECKED + "\n", encoding="utf-8")
         monkeypatch.setenv("HAS_SPECS", "true")
         monkeypatch.setenv("EVENT_NAME", "workflow_dispatch")
-        monkeypatch.setenv("PR_NUMBER", "42")
-        monkeypatch.setenv("GITHUB_REPOSITORY", "o/r.x-y_z")
-        monkeypatch.setenv("GH_TOKEN", "tok")
+        monkeypatch.setenv("PR_BODY_FILE", str(body_file))
+        assert run() == EXIT_OK
 
-    def test_fetches_body_with_bearer_token_when_empty(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        self._env(monkeypatch)
-        with patch(_URLOPEN, return_value=_json_response(ALL_CHECKED)) as mock_open:
-            assert run() == EXIT_OK
-        request = mock_open.call_args.args[0]
-        assert request.full_url == "https://api.github.com/repos/o/r.x-y_z/pulls/42"
-        assert request.get_header("Authorization") == "Bearer tok"
-        assert request.get_header("Accept") == "application/vnd.github+json"
-        assert request.get_method() == "GET"
-        assert mock_open.call_args.kwargs["timeout"] == 60
-
-    def test_falls_back_to_github_token_and_custom_api_url(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        self._env(monkeypatch)
-        monkeypatch.delenv("GH_TOKEN")
-        monkeypatch.setenv("GITHUB_TOKEN", "alt")
-        monkeypatch.setenv("GITHUB_API_URL", "https://ghe.example/api/v3/")
-        with patch(_URLOPEN, return_value=_json_response(ALL_CHECKED)) as mock_open:
-            assert run() == EXIT_OK
-        request = mock_open.call_args.args[0]
-        assert request.full_url == "https://ghe.example/api/v3/repos/o/r.x-y_z/pulls/42"
-        assert request.get_header("Authorization") == "Bearer alt"
-
-    def test_no_token_omits_the_authorization_header(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._env(monkeypatch)
-        monkeypatch.delenv("GH_TOKEN")
-        with patch(_URLOPEN, return_value=_json_response(ALL_CHECKED)) as mock_open:
-            assert run() == EXIT_OK
-        assert mock_open.call_args.args[0].get_header("Authorization") is None
-
-    def test_null_body_is_treated_as_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._env(monkeypatch)
-        with patch(_URLOPEN, return_value=_json_response(None)):
-            assert run() == EXIT_FAIL
-
-    def test_skips_fetch_when_body_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._env(monkeypatch)
-        monkeypatch.setenv("PR_BODY", ALL_CHECKED)
-        with patch(_URLOPEN) as mock_open:
-            assert run() == EXIT_OK
-        mock_open.assert_not_called()
-
-    @pytest.mark.parametrize(
-        "failure",
-        [
-            urllib.error.HTTPError("u", 404, "nf", Message(), None),
-            urllib.error.URLError("down"),
-            TimeoutError("slow"),
-            OSError("reset"),
-        ],
-    )
-    def test_transport_failures_are_config_errors(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-        failure: Exception,
-    ) -> None:
-        self._env(monkeypatch)
-        with patch(_URLOPEN, side_effect=failure):
-            assert run() == EXIT_CONFIG
-        assert "::error::" in capsys.readouterr().err
-
-    @pytest.mark.parametrize(
-        "payload",
-        [b"not json", b"\xff\xfe", b"[1]", b'{"body": 5}', b'{"other": 1}'],
-    )
-    def test_bad_payloads_are_config_errors(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-        payload: bytes,
-    ) -> None:
-        self._env(monkeypatch)
-        with patch(_URLOPEN, return_value=_FakeResponse(payload)):
-            assert run() == EXIT_CONFIG
-        assert "::error::" in capsys.readouterr().err
-
-    @pytest.mark.parametrize("missing", ["PR_NUMBER", "GITHUB_REPOSITORY"])
-    def test_missing_fetch_inputs_is_config_error(
-        self, monkeypatch: pytest.MonkeyPatch, missing: str
-    ) -> None:
-        self._env(monkeypatch)
-        monkeypatch.delenv(missing)
-        with patch(_URLOPEN) as mock_open:
-            assert run() == EXIT_CONFIG
-        mock_open.assert_not_called()
-
-    @pytest.mark.parametrize(
-        ("name", "value"),
-        [
-            ("PR_NUMBER", "0"),
-            ("PR_NUMBER", "012"),
-            ("PR_NUMBER", "4 2"),
-            ("PR_NUMBER", "42/../x"),
-            ("PR_NUMBER", "-1"),
-            ("GITHUB_REPOSITORY", "justone"),
-            ("GITHUB_REPOSITORY", "a/b/c"),
-            ("GITHUB_REPOSITORY", "a/b c"),
-            ("GITHUB_REPOSITORY", "a/b?x=1"),
-            ("GITHUB_REPOSITORY", "../b"),
-            ("GITHUB_REPOSITORY", "a/.."),
-            ("GITHUB_API_URL", "http://api.github.com"),
-            ("GITHUB_API_URL", "file:///etc/passwd"),
-            ("GITHUB_API_URL", "ftp://x"),
-        ],
-    )
-    def test_invalid_inputs_never_reach_the_network(
-        self, monkeypatch: pytest.MonkeyPatch, name: str, value: str
-    ) -> None:
-        self._env(monkeypatch)
-        monkeypatch.setenv(name, value)
-        with patch(_URLOPEN) as mock_open:
-            assert run() == EXIT_CONFIG
-        mock_open.assert_not_called()
-
-    def test_redirects_are_refused_so_the_token_stays_put(self) -> None:
-        handler = verdict_module._RefuseRedirect()
-        request = urllib.request.Request("https://api.github.com/repos/o/r/pulls/1")
-        assert handler.redirect_request(request, None, 302, "Found", Message(), "https://x") is None
-        assert any(
-            isinstance(h, verdict_module._RefuseRedirect)
-            for h in vars(verdict_module._OPENER)["handlers"]
-        )
-
-    def test_a_refused_redirect_is_a_config_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._env(monkeypatch)
-        error = urllib.error.HTTPError("https://x", 302, "Found", Message(), None)
-        with patch(_URLOPEN, side_effect=error):
-            assert run() == EXIT_CONFIG
-
-    def test_script_does_not_import_subprocess(self) -> None:
-        assert "subprocess" not in SCRIPT.read_text(encoding="utf-8")
+    def test_script_never_touches_the_network(self) -> None:
+        text = SCRIPT.read_text(encoding="utf-8")
+        assert "urllib" not in text
+        assert "subprocess" not in text
 
 
 class TestCli:
