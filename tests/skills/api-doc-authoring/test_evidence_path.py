@@ -230,3 +230,28 @@ def test_oversized_existing_file_is_not_read_as_prior_evidence(
 
     with pytest.raises(ax.InputError, match="not a prior evidence report"):
         ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, big))
+
+
+def test_failed_open_does_not_unlink_a_path_it_never_created(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "evidence.json"
+    bystander = tmp_path / "bystander.tmp"
+    bystander.write_text("not mine\n", encoding="utf-8")
+    monkeypatch.setattr(ax.os, "urandom", lambda _n: b"\x00" * 8)
+    clash = tmp_path / f".{target.name}.{'00' * 8}.tmp"
+    clash.write_text("pre-existing\n", encoding="utf-8")
+
+    with pytest.raises(ax.InputError, match="cannot write evidence"):
+        ax._write_evidence(target, _evidence_report())
+
+    assert clash.read_text(encoding="utf-8") == "pre-existing\n"
+    assert bystander.exists()
+    assert not target.exists()
+
+
+def test_run_evidence_help_names_the_refusals() -> None:
+    sub = next(a for a in ax.build_parser()._actions if a.dest == "command")
+    help_text = " ".join(sub.choices["run"].format_help().split())
+    assert "refuses a symlink" in help_text
+    assert "not a prior report" in help_text

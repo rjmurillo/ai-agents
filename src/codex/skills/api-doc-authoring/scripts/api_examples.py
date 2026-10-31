@@ -393,16 +393,19 @@ def _write_evidence(target: Path, report: dict[str, Any]) -> None:
     text = json.dumps(report, indent=2) + "\n"
     temporary = target.with_name(f".{target.name}.{os.urandom(8).hex()}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    created = False
     try:
         fd = os.open(temporary, flags, 0o644)
+        created = True
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
         os.replace(temporary, target)
     except OSError as exc:
-        try:
-            temporary.unlink()
-        except OSError:
-            pass
+        if created:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
         raise InputError(f"cannot write evidence to `{target}`: {exc.strerror or exc}") from exc
 
 
@@ -558,7 +561,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--base-url", required=True, help="http://127.0.0.1:PORT of a local or mock API"
     )
     run.add_argument("--allow-remote", action="store_true", help="permit a non-loopback host")
-    run.add_argument("--evidence", help="write the evidence JSON here")
+    run.add_argument(
+        "--evidence",
+        help=(
+            "write the evidence JSON here (refuses a symlink, a non-regular file, "
+            "or an existing file that is not a prior report)"
+        ),
+    )
     return parser
 
 
