@@ -125,6 +125,13 @@ def test_qa_names_sources_and_unresolved_result(path: Path) -> None:
     assert not missing, f"{_rel(path)} missing {missing}"
 
 
+@pytest.mark.parametrize("path", QA_SURFACES[:1] + QA_SURFACES[3:], ids=_rel)
+def test_qa_resolves_test_and_coverage_independently(path: Path) -> None:
+    text = _flat(path)
+    assert "Resolve each independently; for each not found" in text, _rel(path)
+    assert "leave its gate unmet" in text, _rel(path)
+
+
 def test_claude_qa_test_commands_defers_to_resolved_commands() -> None:
     text = _flat(AGENTS / "qa.claude.md.tmpl")
     assert "Use the commands resolved in the Validation Protocol" in text
@@ -164,7 +171,12 @@ def test_every_rendered_agent_copy_is_pinned(agent: str, listed: list[Path]) -> 
     src = REPO_ROOT / "src"
     on_disk = {
         p.resolve()
-        for pattern in (f"*/agents/{agent}.md", f"*/agents/{agent}.agent.md")
+        for pattern in (
+            f"*/agents/{agent}.md",
+            f"*/agents/{agent}.agent.md",
+            f"*/{agent}.agent.md",
+            f"*/{agent}.md",
+        )
         for p in src.glob(pattern)
     }
     unpinned = sorted(_rel(p) for p in on_disk - {p.resolve() for p in listed})

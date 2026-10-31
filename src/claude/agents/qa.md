@@ -371,7 +371,7 @@ Save to: `.project-toolkit/planning/impact-analysis-qa-[feature].md`
 
 ### Validation Protocol
 
-When orchestrator requests pre-PR validation, take test and coverage commands from the target repository's documented command, manifest or task runner, CI configuration, existing local validation skill, or `autoplan` recon; never invent one. If none, report `UNRESOLVED EVIDENCE: no <test|coverage> command found in <sources checked>`; the gate is unmet:
+When orchestrator requests pre-PR validation, take test and coverage commands from the target repository's documented command, manifest or task runner, CI configuration, existing local validation skill, or `autoplan` recon; never invent one. Resolve each independently; for each not found, report `UNRESOLVED EVIDENCE: no <test|coverage> command found in <sources checked>` and leave its gate unmet:
 
 #### Step 1: CI Environment Test Validation
 

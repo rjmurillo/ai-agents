@@ -78,7 +78,7 @@
     {"agent": "qa", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Key Responsibilities", "digest": "b1825e023cfaeab488cb7cba768a5f4cf4958395d49844d5c55c69e55a43a001"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "3295195f77490aa2c59c9441ab12d803c99b54f751eb3f146dff6a823b92a43e"},
-    {"agent": "qa", "pair": "claude-shared", "unit": "section:Pre-PR Quality Gate (MANDATORY)", "digest": "c5e80bb347efdfa54b3cd280446601593d40bfcb5d096cce87df9fa33958fb34"},
+    {"agent": "qa", "pair": "claude-shared", "unit": "section:Pre-PR Quality Gate (MANDATORY)", "digest": "46378b83223a8b6449f3480994760d9a7d6c556c438767ad084872d432a4d2c1"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Style Guide Compliance", "digest": "72bb8986be3dc4042afa8d13776b90092e5f4729d0972b8efb4a62adc637c898"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Test Quality Criteria", "digest": "6ce4d78a6a1bc29ab9fff9a4df1bfb4424e807d351676341385ab1fcd391476a"},
     {"agent": "quality-auditor", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
