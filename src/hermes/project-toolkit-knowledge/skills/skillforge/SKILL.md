@@ -72,11 +72,12 @@ flow and script examples.
 
 ```text
 Any user input
+  -> Accepted outcome: what must be true, its check, and who accepts it
   -> Phase 0: Skill triage
      -> USE_EXISTING, IMPROVE_EXISTING, CREATE_NEW, COMPOSE, or CLARIFY
-  -> Depth Contract: define the accepted outcome, then pick the tier
+  -> Depth Contract: pick the tier from the triage route and the outcome
   -> Phase 1: Analysis the tier calls for (skipped for a bounded edit)
-  -> Phase 2: Specification with rationale and evolution score
+  -> Phase 2: Specification with rationale and evolution score (Standard and Full tiers)
   -> Phase 3: Generation of SKILL.md, references/, assets/, and scripts/
   -> Phase 4: Independent review; full panel until unanimous approval when the tier requires it
   -> Production-ready agentic skill
@@ -85,7 +86,7 @@ Any user input
 Key principles:
 
 - Phase 0 prevents duplicate skills before any creation work starts.
-- Evolution and timelessness scoring stays at the center. Score >=7 is required.
+- Evolution and timelessness scoring stays at the center at the Standard and Full tiers. Score >=7 is required there; a Bounded edit skips it.
 - Every decision includes WHY.
 - Scripts are added when deterministic automation improves verification.
 - Depth follows the accepted outcome and its risk, not a fixed step count. See Depth Contract.
@@ -127,7 +128,7 @@ verifier, no prior art checked).
 |------|--------------|------|
 | Bounded | Structural edit to an existing skill, known scope, a deterministic verifier | Phase 0 triage, `--improve` or `--quick`, Phase 3 edit, validators. No Phase 1 discovery, no long-horizon scoring. |
 | Standard | Scoped change with a few open questions | Bounded path plus only the Phase 1 lenses and regression questions that address a named open risk |
-| Full | New or ambiguous capability, or `CREATE_NEW` with unresolved risk | Phases 0 to 4, lenses chosen by unresolved risk, panel review |
+| Full | New or ambiguous capability, or `CREATE_NEW` with unresolved risk | Phases 0 to 4, all 11 lenses, panel review |
 
 Consequential changes override the tier. A change to a safety control, a
 permission or authority boundary, a shipped default, or anything irreversible
@@ -188,10 +189,11 @@ See [references/external-skill-source-adaptation.md](references/external-skill-s
 ## Phase 1: Deep Analysis
 
 Run at Standard and Full tiers, scoped by the Depth Contract. Expand explicit
-requirements, implicit requirements, unknown unknowns, and domain context. Apply
-the thinking models that address an unresolved risk (all 11 when risks span
-them), run regression questioning until a round adds no new unresolved risk,
-and identify automation opportunities.
+requirements, implicit requirements, unknown unknowns, and domain context. At the
+Full tier, apply all 11 thinking models and run regression questioning until
+three rounds add no new insight. At the Standard tier, apply only the models that
+address a named open risk and stop when a round adds no new unresolved risk.
+Identify automation opportunities at both tiers.
 
 See [references/phase1-analysis-deep-dive.md](references/phase1-analysis-deep-dive.md),
 [references/multi-lens-framework.md](references/multi-lens-framework.md), and

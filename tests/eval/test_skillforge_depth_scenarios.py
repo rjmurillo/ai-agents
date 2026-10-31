@@ -193,6 +193,9 @@ class TestBeforeAfter:
         if case["verdict"] == "improvement":
             assert outcome_held and not case["trust_regressed"]
             assert case["after"]["prescribed_steps"] < case["before"]["prescribed_steps"]
+        if case["verdict"] == "no_change":
+            assert outcome_held and not case["trust_regressed"]
+            assert case["after"]["prescribed_steps"] == case["before"]["prescribed_steps"]
 
     def test_the_bounded_case_reduces_steps_and_the_stale_case_adds_one(self) -> None:
         by_id = {c["scenario"]: c for c in self.CASES}
