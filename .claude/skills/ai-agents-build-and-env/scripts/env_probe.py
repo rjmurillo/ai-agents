@@ -78,8 +78,9 @@ def _git_ls_files(repo: Path, rel: str) -> list[str]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=300,
         )
-    except OSError as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         raise ExternalError(f"git unavailable: {exc}") from exc
     if proc.returncode != 0:
         raise ExternalError(f"git ls-files failed: {proc.stderr.strip()}")
@@ -117,8 +118,9 @@ def _run(cmd: list[str], repo: Path) -> subprocess.CompletedProcess[str]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=300,
         )
-    except OSError as exc:
+    except (OSError, subprocess.TimeoutExpired) as exc:
         raise ExternalError(f"cannot start {cmd[0]}: {exc}") from exc
 
 

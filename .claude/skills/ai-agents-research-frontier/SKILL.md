@@ -276,9 +276,9 @@ Sources and re-verification:
 - Counts (skill dirs, rules, retros, memories, scenario fixtures): `corpus-counts`. Volatile; run it, never quote a stored number.
 - Incident claims (plugin-root env vars, payload casing, guard replay, M4 threshold, rejected fixes): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
-Unverified in this document (flagged inline): per-rule traffic data, automated
-EVENT consumer pipeline, and the self-improving loop's tracking issues
-original text (cited via on-disk docstrings and ADR references only).
+Unverified in this document (flagged inline): per-rule traffic data, the
+automated EVENT consumer pipeline, and the self-improving loop's tracking issues.
+Claims about them are cited via on-disk docstrings and ADR references only.
 
 Run the drift check after any edit. `reverify.json` holds the pinned checks.
 

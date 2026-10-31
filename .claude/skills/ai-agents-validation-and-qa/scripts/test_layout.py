@@ -82,7 +82,10 @@ def _collect_pytest(repo: Path, name: str) -> tuple[int, list[str], str]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=300,
         )
+    except subprocess.TimeoutExpired as exc:
+        return 3, [], f"pytest collection timed out: {exc}"
     except OSError as exc:
         return 3, [], f"failed to start uv: {exc}"
     if proc.returncode not in (0, 5):

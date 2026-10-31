@@ -18,8 +18,7 @@ metadata:
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
 fought and what it cost. The canon lives in `.project-toolkit/retrospective/` and
-`.serena/memories/`; the provenance table below carries the commands that count
-both. Full local history is present, but some retro-cited short SHAs (e.g.
+`.serena/memories/`; `corpus_index.py` (Scripts section) counts both. Full local history is present, but some retro-cited short SHAs (e.g.
 `ddb76e0`) do not resolve locally, so archaeology still routes through the
 retros and memories as primary sources, not `git log`.
 

@@ -26,7 +26,7 @@ Recreate a working dev environment for this repository from a fresh clone, verif
 it actually works, and avoid the traps that have cost prior contributors real
 time. Audience: a zero-context mid-level engineer or Sonnet-class model. Every
 command below was last verified 2026-10-31. Volatile pins are not quoted here:
-`env_probe.py` reads them from the files that define them (see Instruments).
+`env_probe.py` reads them from the files that define them (see the Scripts section).
 
 ## Triggers
 

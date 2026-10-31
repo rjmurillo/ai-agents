@@ -100,7 +100,7 @@ Beyond pos+neg+edge, this repo demands five specific disciplines:
 
 **1. Isolation from the real repo.** The root `conftest.py` (repo root, fixture `_guard_real_repo_head`, helper `_check_head_change`) fails any test that moves the REAL repo HEAD: every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (fixture `_isolate_git_config_for_test_git` in tests/conftest.py), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (fixture `_default_project_repo` in tests/conftest.py). Consumer-repo simulation tests override that env var to `"0"`.
 
-**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:29, index row 11; the plugin-root incident wedged every plugin customer for 33 days). the `**Ship a runtime-contract test.**` item in `.claude/rules/generated-artifacts.md` (lines 68-74) requires:
+**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:29, index row 11; the plugin-root incident wedged every plugin customer for 33 days). The `**Ship a runtime-contract test.**` item in `.claude/rules/generated-artifacts.md` (lines 68-74) requires:
 
 {{> runtime-contract-test}}
 

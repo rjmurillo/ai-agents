@@ -40,7 +40,13 @@ INSTRUMENTS: list[dict[str, Any]] = [
     {
         "id": "dash-scan",
         "answers": "Do changed files carry an em or en dash?",
-        "argv": ["uv", "run", "python", "scripts/validation/checks_dash.py"],
+        "argv": [
+            "uv",
+            "run",
+            "python",
+            "scripts/validation/git_hook_policy.py",
+            "branch-dashes",
+        ],
         "source": "SKILL.md Local blocks",
     },
     {

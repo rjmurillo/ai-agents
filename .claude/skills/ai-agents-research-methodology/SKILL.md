@@ -146,8 +146,8 @@ must pass. Run `buy-vs-build-framework` at Quick tier (1-2 hours: Core vs
 Context, simple TCO, go/no-go).
 
 Then establish the eval baseline using the Predict Numbers discipline above.
-An idea with no measurable baseline gets pruned; that
-is the documented cost of skipping this phase.
+An idea with no measurable baseline is a prune candidate; skipping this
+phase is what makes it one.
 
 ### Phase 4: ADR and Debate
 
@@ -184,8 +184,8 @@ tiers (Budding, Growing, Mature, Proficient, Inert, Harmful) to tell you
 whether a gate earned its keep. That emitter, every guard built on it, and the
 classifier skill itself were deleted under ADR-084: there is no
 producer and no consumer today. The underlying principle still applies to
-whatever gate you add next: an Inert gate is a candidate for the same prune
-rule as an unbaselined idea. If you build a new detector, ship its own
+whatever gate you add next: an Inert gate is a prune candidate for the same
+reason as an unbaselined idea. If you build a new detector, ship its own
 telemetry and monitoring alongside it; measurement tooling for the surviving
 instruments lives in `ai-agents-diagnostics-toolkit`.
 

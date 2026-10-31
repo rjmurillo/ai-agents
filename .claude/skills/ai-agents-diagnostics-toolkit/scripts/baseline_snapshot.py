@@ -137,7 +137,7 @@ def snapshot(repo: Path) -> tuple[dict[str, Any], int]:
         proc = _run(argv, repo)
         try:
             entry = PARSERS[name](proc.stdout)
-        except (ValueError, KeyError, json.JSONDecodeError) as exc:
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
             entry = {"error": f"unreadable output: {exc}"}
             unreadable.append(name)
         entry["exit"] = proc.returncode
