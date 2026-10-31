@@ -197,6 +197,7 @@ _DATA_KEYS = (
     "Repo",
     "BaseBranch",
     "AllState",
+    "OverallState",
     "RequiredState",
     "MergeState",
     "MergeStateStatus",
@@ -217,7 +218,7 @@ _DATA_KEYS = (
     "HeadCommittedAt",
 )
 # Exit code to Error.Type for failures raised as SystemExit before any query.
-_PREFLIGHT_ERROR_TYPES = {3: "ApiError", 4: "AuthError"}
+_PREFLIGHT_ERROR_TYPES = {2: "InvalidParams", 3: "ApiError", 4: "AuthError"}
 _MISSING_RECOVERY_HINT = (
     "Recovery: close and reopen the PR to re-fire pull_request workflows "
     "(see fix-ci.md, 'Required check never reported')."
@@ -863,6 +864,9 @@ def build_output(
         # check makes this FAILURE while the PR stays mergeable. Use
         # RequiredState to decide whether a required gate blocks.
         "AllState": check_data.get("AllState", "UNKNOWN"),
+        # Deprecated alias of AllState for out-of-repo consumers that still
+        # read the old key. Remove after one release.
+        "OverallState": check_data.get("AllState", "UNKNOWN"),
         "RequiredState": required_state,
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
@@ -1094,7 +1098,6 @@ def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]
             assert_gh_authenticated()
             resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit as exc:
-        sys.stderr.write(captured.getvalue())
         code = exc.code if isinstance(exc.code, int) and not isinstance(exc.code, bool) else 1
         if fmt == "json":
             _emit_failure(
@@ -1105,7 +1108,10 @@ def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]
                 failure_data(args.pull_request, args.owner or None, args.repo or None),
             )
         raise
-    sys.stderr.write(captured.getvalue())
+    finally:
+        # Any exception, not only SystemExit, must not swallow what the
+        # helpers wrote to stderr.
+        sys.stderr.write(captured.getvalue())
     return resolved.owner, resolved.repo
 
 
