@@ -226,7 +226,10 @@ def cmd_path(repo: Path, raw: str) -> tuple[dict[str, Any], int]:
     path = _norm(raw)
     matches = [m for row in rows for m in _row_matches(row, path)]
     out: dict[str, Any] = {"path": path, "examined": len(rows)}
-    if _hand_maintained(path):
+    # A file-level binplace row (a sidecar rendered by lib_mirror) names a generated
+    # target exactly; that beats the directory-shaped hand-maintained patterns.
+    exact_row = any(m["specificity"] == len(path) for m in matches)
+    if _hand_maintained(path) and not exact_row:
         out["role"] = "hand-maintained"
         out["matches"] = [
             {**m, "regenerate": None} for m in (_most_specific(matches) if matches else [])

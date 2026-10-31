@@ -50,6 +50,11 @@ rows:
     plugin_tree: null
     install_tree: .claude/settings.json
     compile: hook_templates
+  - class: skills-sidecar
+    source: scripts/validation/validate_review_marker.py
+    plugin_tree: src/claude/skills/a/scripts/validate_review_marker.py
+    install_tree: null
+    compile: lib_mirror
 """
 
 
@@ -200,7 +205,7 @@ def test_path_unparseable_build_all_exits_2(tmp_path, capsys):
     (repo / "build/scripts/build_all.py").write_text("def (:", encoding="utf-8")
     assert mod.main(["--repo", str(repo), "path", "docs/unknown.md"]) == 2
     out = json.loads(capsys.readouterr().out)
-    assert "does not parse" in out["error"] and out["examined"] == 3
+    assert "does not parse" in out["error"] and out["examined"] == 4
 
 
 def test_path_repo_local_skill_non_skill_md_is_hand_maintained(tmp_path, capsys):
@@ -246,3 +251,13 @@ def test_path_shipped_skill_md_stays_generated(tmp_path, capsys):
     repo = _repo(tmp_path)
     assert mod.main(["--repo", str(repo), "path", "src/claude/skills/a/SKILL.md"]) == 0
     assert json.loads(capsys.readouterr().out)["role"] == "generated"
+
+
+def test_path_sidecar_rendered_into_a_shipped_skill_is_generated(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    sidecar = "src/claude/skills/a/scripts/validate_review_marker.py"
+    assert mod.main(["--repo", str(repo), "path", sidecar]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["role"] == "generated"
+    assert out["matches"][0]["canonical_source"] == "scripts/validation/validate_review_marker.py"
+    assert out["matches"][0]["regenerate"] == mod.REGEN
