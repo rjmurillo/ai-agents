@@ -39,6 +39,10 @@ never `--job` (`ci-scripts.md` MUST-16).
   workflow-validation, and actionlint checks at pre-commit and
   `workflow-local-run` at pre-push. The fixture commits exist only in the
   measuring clone. The edits above recreate them, but their SHAs will differ.
+- **Line citations.** Citations into `lefthook.yml` point at the file as it
+  stands on this branch, because the citation-freshness gate checks them against
+  HEAD. The jobs they name are unchanged since d7ae505, except that
+  `agents-write-targets` later dropped `ps1` and `psm1` from its glob.
 - **Pre-push input.** A first push of a new branch, the usual agent case: hook
   args `origin https://github.com/rjmurillo/ai-agents.git`, and stdin
   `refs/heads/claude/measure-6734-<class> <fixture sha> refs/heads/claude/measure-6734-<class> 0000000000000000000000000000000000000000`.
@@ -52,7 +56,8 @@ never `--job` (`ci-scripts.md` MUST-16).
   first-after-checkout and excluded, and its complete repetitions fill the
   warm sample to 20 after the main capture's. 133 runs in all. Percentiles are
   nearest rank, computed with the sampler's own `_nearest_rank_percentile`.
-- **Instrument fix.** `lefthook.yml` sets `output: false`, so lefthook printed
+- **Instrument fix.** `lefthook.yml` at d7ae505 sets `output: false` (main later
+  changed it to `output: [failure]`, which also omits the summary), so lefthook printed
   no summary and the sampler parsed zero jobs, keeping only the hook wall
   clock. The sampler now sets `LEFTHOOK_OUTPUT=summary,failure` on the hook it
   runs. That changes what lefthook prints, not which jobs run.
@@ -146,7 +151,7 @@ The other two pre-push cells had no start above 2.
 
 **`count-ratchets` runs at its own deadline.**
 `scripts/validation/checks_ratchet.py:177` sets `_AGGREGATE_TIMEOUT_SECONDS = 85`,
-an aggregate deadline under the job's 90s lefthook cap (`lefthook.yml:542-543`). Across the 60 complete warm pre-push
+an aggregate deadline under the job's 90s lefthook cap (`lefthook.yml:545-546`). Across the 60 complete warm pre-push
 repetitions, the job measured p50 72.5s, p95 80.5s, and max 82.8s. Those
 figures are censored: the job was killed at its deadline in 4 of 66 warm
 attempts, and a killed run has no finishing time, so its true tail runs to
@@ -157,7 +162,7 @@ The readings taken when those four runs stopped, about 90s in, were 4.52 to
 8.02 on 4 CPUs, while every complete run of that cell read 1.11 or less at its
 end, about six minutes in. So the load at the deadline is the push's own fast stage:
 `count-ratchets` shares a `parallel: true` group with six other jobs
-(`lefthook.yml:540`). INFERRED, since no reading was taken inside the run.
+(`lefthook.yml:543`). INFERRED, since no reading was taken inside the run.
 This is the gate #6734 item 5 describes: a check that fails a clean change for
 reasons unrelated to the change.
 
@@ -204,7 +209,7 @@ unknown. The headroom wait is not the cause: in the
 diagnostic run only semgrep waited for host headroom, 15.0s at load 4.8.
 
 **Pre-commit is one job.** `agents-write-targets` runs on any staged file
-matching its broad glob and then scans the whole index (`lefthook.yml:226`).
+matching its broad glob and then scans the whole index (`lefthook.yml:229`).
 It costs 27.8s of the 30s to 34s pre-commit wall clock in every class, and
 `pre_pr.py` runs the same scan again at push time. It entered `lefthook.yml` on
 2026-09-22 (#5887), after the v0.7.0 capture. That plausibly accounts for most

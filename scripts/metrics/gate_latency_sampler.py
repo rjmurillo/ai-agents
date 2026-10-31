@@ -61,7 +61,8 @@ from scripts.metrics.lefthook_summary import parse_summary
 # recorded as a failed repetition, never raised past the caller (AC-06).
 _HOOK_TIMEOUT_SECONDS = 3600.0
 
-# ``lefthook.yml`` sets ``output: false``, which suppresses the summary block
+# ``lefthook.yml`` leaves ``summary`` out of its ``output`` setting (``false``,
+# later a list without it), which suppresses the summary block
 # ``parse_summary`` reads, so every repetition parsed zero jobs and the report
 # kept only the hook wall clock (issue #6734). The override applies to the
 # measured subprocess alone: ``output`` changes what lefthook prints, never

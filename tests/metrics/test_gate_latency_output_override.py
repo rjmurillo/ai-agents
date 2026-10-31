@@ -1,7 +1,7 @@
 """The sampler forces lefthook's summary output on (issue #6734).
 
-``lefthook.yml`` sets ``output: false``. Under that setting lefthook prints no
-summary block, ``parse_summary`` finds no jobs, and a report silently degrades
+``lefthook.yml`` leaves ``summary`` out of its ``output`` setting. Lefthook then
+prints no summary block, ``parse_summary`` finds no jobs, and a report silently degrades
 to the hook wall clock alone. The sampler overrides ``LEFTHOOK_OUTPUT`` for the
 measured subprocess, so these tests pin the override, its precedence over an
 inherited value, and that the rest of the environment still reaches the hook.
@@ -75,8 +75,10 @@ def test_edge_the_rest_of_the_environment_still_reaches_the_hook(
     assert env["GATE_LATENCY_PROBE_MARKER"] == "kept"
 
 
-def test_premise_lefthook_config_still_suppresses_output() -> None:
+def test_premise_lefthook_config_still_hides_the_summary() -> None:
     """If this fails, the override may be dead weight; re-read the docstring."""
     config = yaml.safe_load((_PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
-    assert config.get("output") is False
+    output = config.get("output")
+    hidden = output is False or (isinstance(output, list) and "summary" not in output)
+    assert hidden, f"lefthook.yml output={output!r} now prints the summary"
