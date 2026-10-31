@@ -171,6 +171,32 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 - With `--wait`, the wait ends only when compare shows the PR is not behind. A timeout exits 3.
 - Exit 1 with `reason: head_moved` means the head differs from `--expected-head-sha`.
 
+## Blocked PR diagnosis
+
+`mergeable_state` and `mergeStateStatus: blocked` are cached and frequently stale. `why_pr_blocked.py` decomposes them into required checks, review threads, and merge conflicts. It does not query `reviewDecision` or the required-approving-review count, so a repository that requires approvals can still be blocked on that when the script reports no cause.
+
+- GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them with `resolve_pr_review_thread.py`.
+- If the script reports no cause and the PR is still blocked, compare `get_pr_context.py`'s `review_decision` field with the target branch's required-approving-review count.
+
+## rerun_failed_jobs.py details
+
+Reruns failed Actions jobs through `POST .../actions/runs/{id}/rerun-failed-jobs` and `POST .../actions/jobs/{id}/rerun`. Use `--pull-request N` (open PR; failed runs for the head SHA) or `--run-id ID` (add `--job-id` for one job, which must belong to that run).
+
+PR mode keeps the newest run per workflow and event, so a superseded run is not rerun. It drops runs whose `pull_requests` list is non-empty and lacks this PR (two branches can share a commit) and lists their ids in `skipped_other_pr_run_ids`; a run with no PR link, such as a fork PR run, is kept. It never reruns a `cancelled` run by run, in either mode: it lists them in `skipped_cancelled`, because GitHub's docs do not say whether `rerun-failed-jobs` covers cancelled jobs. An explicit `--job-id` reruns that job whatever the run conclusion, and `skipped_cancelled` is then empty. `timed_out` and `startup_failure` count as failed. Branch on `Data.reason`, not `Error.Type`.
+
+| Exit | `Data.reason` | Meaning |
+|------|---------------|---------|
+| 0 | `rerun_requested`, `no_failed_runs` | Reruns requested, or nothing failed. Runs still in progress are listed in `skipped_in_progress` |
+| 1 | `run_in_progress`, `pr_not_open`, `job_run_mismatch` | Only in-progress runs, a PR that is not open, or a job from another run |
+| 2 | `invalid_params`, `not_found` | Bad arguments (ADR-035 usage error; argparse type errors print usage with no envelope), or PR, run, or job not found on a read |
+| 3 | `pagination_incomplete`, `api_error`, `timeout`, `rate_limited` | The run list had a gap, or a call failed. After a POST timeout the outcome is unknown |
+| 4 | `auth` | Credential or permission fault, including a permission 403 on a POST |
+| 100 | `cannot_be_retried` | GitHub refused. Do not retry. The fallbacks are in `Data.fallbacks` and on stderr |
+
+Pass `--output-format json` to read the envelope; the default `auto` prints a summary line only. Every envelope from the rerun step (exit 0, 3, 4, 100) lists `reruns`, `refused`, `failed`, `not_attempted_run_ids`, `skipped_in_progress`, `skipped_cancelled`, and (PR mode) `skipped_other_pr_run_ids`, so a failure never hides what was already requested. When an auth or rate-limit fault stops the batch, the run that hit it is in `failed` with `stopped_batch: true`. Early exits (1, 2, and 3 before any POST) carry `reason` only. The preflight auth check allows a session where GraphQL is blocked but REST works.
+
+On exit 100, merge the PR base branch into the branch cleanly if it has moved (the pre-push marker gate allows a clean merge of its base ref: `origin/main` by default, `--base-ref` otherwise), or ask a human. Never push an empty commit: it invalidates the SHA-bound review marker.
+
 ## new_pr_review_comment.py
 
 Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to reply to an existing thread.
