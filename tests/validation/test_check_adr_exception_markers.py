@@ -316,6 +316,59 @@ def test_judge_still_passes_a_live_status() -> None:
     assert gate.judge(gate.Marker("wf.yml", 3, 55), {55: "accepted"}) is None
 
 
+def _duplicate_adr(repo: Path, number: int, status: str, suffix: str) -> None:
+    adr_dir = repo / ".project-toolkit" / "architecture"
+    (adr_dir / f"ADR-{number:03d}-{suffix}.md").write_text(
+        f"---\nid: ADR-{number:03d}\nstatus: {status}\n---\n\n# ADR-{number:03d}\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    ("first", "second"), [("accepted", "superseded"), ("superseded", "accepted")]
+)
+def test_marker_naming_a_duplicated_adr_number_fails(
+    tmp_path: Path, first: str, second: str
+) -> None:
+    """detection-gaps-07: the first-sorted file no longer sets the status."""
+    _adr(tmp_path, 55, first)
+    _duplicate_adr(tmp_path, 55, second, "zdup")
+    _workflow(tmp_path, "# ADR-055 Exception: windows")
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert "ADR-055 is held by 2 files (ADR-055-runner.md, ADR-055-zdup.md)" in result.stdout
+
+
+def test_two_accepted_duplicates_still_fail(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _duplicate_adr(tmp_path, 55, "accepted", "zdup")
+    _workflow(tmp_path, "# ADR-055 Exception: windows")
+    assert _run(tmp_path).returncode == 1
+
+
+def test_duplicate_that_no_marker_cites_does_not_fail_this_gate(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _adr(tmp_path, 56, "accepted")
+    _duplicate_adr(tmp_path, 56, "accepted", "zdup")
+    _workflow(tmp_path, "# ADR-055 Exception: windows")
+    assert _run(tmp_path).returncode == 0
+
+
+def test_find_duplicate_adrs_lists_both_files_and_ignores_unique_numbers(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _adr(tmp_path, 56, "accepted")
+    _duplicate_adr(tmp_path, 55, "accepted", "zdup")
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
+    assert gate.find_duplicate_adrs(adr_dir) == {55: ["ADR-055-runner.md", "ADR-055-zdup.md"]}
+    assert gate.collect_adr_statuses(adr_dir) == {55: "", 56: "accepted"}
+
+
+def test_judge_names_the_duplicate_files() -> None:
+    message = gate.judge(gate.Marker("wf.yml", 3, 55), {55: ""}, {55: ["a.md", "b.md"]})
+    assert message is not None
+    assert "held by 2 files (a.md, b.md)" in message
+
+
 def test_status_case_and_padding_are_normalised(tmp_path: Path) -> None:
     adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)

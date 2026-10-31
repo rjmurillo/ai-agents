@@ -23,6 +23,10 @@ fails the gate: `# ADR 055 Exception:`, `# ADR-055 Exception` (no colon),
 can read is an audit trail nobody checks. Only a comment that starts with
 `# ADR` is examined, so prose such as `(ADR-055 exception)` is left alone.
 
+A number held by two ADR files fails every marker that cites it, naming both files:
+the first file in sort order would otherwise set the status and hide the second.
+`check_adr_uniqueness` still owns blocking the duplicate itself.
+
 A marker can be written as a whole-line comment or trailing a YAML key. An ADR
 with no readable status fails the marker (issue #6506): passing on existence
 alone would let a retired record with broken frontmatter stand as live. The
@@ -36,8 +40,8 @@ fails is a new violation.
 
 Exit codes (per ADR-035):
     0 - every marker names a live ADR (or the tree holds no marker)
-    1 - one or more markers name a missing, retired, or unreadable-status ADR,
-        or are misspelled
+    1 - one or more markers name a missing, retired, duplicated, or
+        unreadable-status ADR, or are misspelled
     2 - config error (a directory is missing, or a workflow cannot be read)
 """
 
@@ -116,14 +120,40 @@ def _status_of(path: Path) -> str:
     return str(value).strip().lower()
 
 
-def collect_adr_statuses(adr_dir: Path) -> dict[int, str]:
-    """Return {adr_number: status}; status is "" when it cannot be read."""
-    statuses: dict[int, str] = {}
+def _adr_files(adr_dir: Path) -> dict[int, list[Path]]:
+    """Return {adr_number: [files]} in sorted order; a number held twice lists both."""
+    files: dict[int, list[Path]] = {}
     for md in sorted(adr_dir.glob("ADR-*.md")):
         match = ADR_FILENAME_RE.match(md.name)
         if match:
-            statuses.setdefault(int(match.group(1)), _status_of(md))
-    return statuses
+            files.setdefault(int(match.group(1)), []).append(md)
+    return files
+
+
+def collect_adr_statuses(adr_dir: Path) -> dict[int, str]:
+    """Return {adr_number: status}; status is "" when it cannot be read.
+
+    A number held by two files reads as "" because neither status speaks for it;
+    ``find_duplicate_adrs`` names the files.
+    """
+    return {
+        number: _status_of(paths[0]) if len(paths) == 1 else ""
+        for number, paths in _adr_files(adr_dir).items()
+    }
+
+
+def find_duplicate_adrs(adr_dir: Path) -> dict[int, list[str]]:
+    """Return {adr_number: [file names]} for every number held by more than one file.
+
+    ``check_adr_uniqueness`` blocks the duplicate. This gate reports it where a
+    marker cites the number, because the first file in sort order would
+    otherwise set the status and hide the second.
+    """
+    return {
+        number: [path.name for path in paths]
+        for number, paths in _adr_files(adr_dir).items()
+        if len(paths) > 1
+    }
 
 
 def _workflow_files(workflow_dir: Path) -> list[Path]:
@@ -161,11 +191,22 @@ def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], lis
     return markers, near_misses, len(files)
 
 
-def judge(marker: Marker, statuses: dict[int, str]) -> str | None:
+def judge(
+    marker: Marker,
+    statuses: dict[int, str],
+    duplicates: dict[int, list[str]] | None = None,
+) -> str | None:
     """Return the violation text for ``marker``, or None when it names a live ADR."""
     cite = f"ADR-{marker.number:03d}"
     if marker.number not in statuses:
         return f"{marker.path}:{marker.line}: {cite} does not exist under {ADR_DIR.as_posix()}/"
+    if duplicates and marker.number in duplicates:
+        names = ", ".join(duplicates[marker.number])
+        return (
+            f"{marker.path}:{marker.line}: {cite} is held by {len(duplicates[marker.number])} "
+            f"files ({names}), so the marker cannot be shown to name one live ADR; "
+            f"renumber the duplicate (check_adr_uniqueness blocks it)"
+        )
     status = statuses[marker.number]
     if not status:
         return (
@@ -194,7 +235,8 @@ def run(repo_root: Path) -> int:
         print(f"[CONFIG] {exc}", file=sys.stderr)
         return EXIT_CONFIG
     statuses = collect_adr_statuses(adr_dir)
-    problems = [text for m in markers if (text := judge(m, statuses)) is not None]
+    duplicates = find_duplicate_adrs(adr_dir)
+    problems = [text for m in markers if (text := judge(m, statuses, duplicates)) is not None]
     problems += [
         f"{n.path}:{n.line}: near-miss marker {n.text!r}; write it as `# ADR-NNN Exception:`"
         for n in near_misses
