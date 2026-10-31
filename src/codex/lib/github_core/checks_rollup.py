@@ -248,6 +248,9 @@ def find_missing_required(
 # window after the head commit, absence is "queued"; past it, "absent".
 MISSING_GRACE_SECONDS = 2700
 
+# Largest head-commit date ahead of the local clock that still counts as skew.
+MAX_FUTURE_SKEW_SECONDS = 300
+
 
 def head_commit_age_seconds(
     committed_at: str | None,
@@ -271,18 +274,52 @@ def head_commit_age_seconds(
     return max(0.0, (current - parsed).total_seconds())
 
 
+def _clock_age_seconds(
+    timestamp: str | None,
+    now: datetime | None = None,
+) -> float | None:
+    """Return signed seconds since ``timestamp``, or None when unparseable.
+
+    Unlike :func:`head_commit_age_seconds` a future date stays negative, so a
+    caller can tell clock skew from a forged date.
+    """
+    if not timestamp or not isinstance(timestamp, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    current = now if now is not None else datetime.now(timezone.utc)
+    return (current - parsed).total_seconds()
+
+
 def missing_checks_queued(
     committed_at: str | None,
     grace_seconds: int = MISSING_GRACE_SECONDS,
     now: datetime | None = None,
+    pushed_at: str | None = None,
 ) -> bool:
     """Return True when absent required checks may still be queued.
 
     True only when the head commit age is known and under ``grace_seconds``.
     Unknown age or a non-positive grace returns False, which keeps the
     pre-existing behavior of reporting the checks as never reported.
+
+    ``committedDate`` is author-controlled, so it cannot open the window alone.
+    A date more than ``MAX_FUTURE_SKEW_SECONDS`` ahead of the clock is forged
+    or badly skewed: the clamp to zero in :func:`head_commit_age_seconds` would
+    keep the window open on every poll, so it closes the window instead.
+    ``pushed_at`` is an author-independent push time (for example the head ref
+    update time). When supplied it caps the window the same way: the window is
+    open only while both the commit and the push are inside ``grace_seconds``.
     """
     if grace_seconds <= 0:
         return False
-    age = head_commit_age_seconds(committed_at, now)
-    return age is not None and age < grace_seconds
+    stamps = [committed_at] if pushed_at is None else [committed_at, pushed_at]
+    for stamp in stamps:
+        signed = _clock_age_seconds(stamp, now)
+        if signed is None or signed < -MAX_FUTURE_SKEW_SECONDS or signed >= grace_seconds:
+            return False
+    return True
