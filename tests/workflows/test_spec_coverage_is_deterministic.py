@@ -64,7 +64,7 @@ class TestValidateSpecIsDeterministic:
     ) -> None:
         step = _verdict_step(validate_job)
 
-        assert step["run"].strip() == "python3 scripts/ci/spec_coverage_verdict.py"
+        assert step["run"].strip() == "python3 trusted-base/scripts/ci/spec_coverage_verdict.py"
         assert "continue-on-error" not in step
 
     def test_verdict_step_passes_the_body_through_env_only(
@@ -80,6 +80,61 @@ class TestValidateSpecIsDeterministic:
         step = _verdict_step(validate_job)
 
         assert step["if"] == "steps.should-run.outputs.skip != 'true'"
+
+
+class TestGradingScriptsComeFromTheTrustedBase:
+    """review-gates-14: a PR must not be able to edit the scripts that grade its spec."""
+
+    _SCRIPTS = ("spec_coverage_scope", "spec_extract_refs", "spec_coverage_verdict")
+
+    def test_base_checkout_is_a_separate_path_pinned_to_the_base_sha(
+        self, validate_job: dict[str, Any]
+    ) -> None:
+        step = next(
+            s for s in validate_job["steps"] if s.get("with", {}).get("path") == "trusted-base"
+        )
+
+        assert step["with"]["ref"].startswith("${{ github.event.pull_request.base.sha")
+        assert step["with"]["persist-credentials"] is False
+        assert "@" in step["uses"] and len(step["uses"].split("@")[1]) == 40
+
+    def test_base_checkout_runs_before_the_first_grading_script(
+        self, validate_job: dict[str, Any]
+    ) -> None:
+        steps = validate_job["steps"]
+        base = next(
+            i for i, s in enumerate(steps) if s.get("with", {}).get("path") == "trusted-base"
+        )
+        first = next(i for i, s in enumerate(steps) if "scripts/ci/spec_" in str(s.get("run")))
+
+        assert base < first
+
+    def test_sparse_checkout_carries_every_dir_the_scripts_import_or_spawn(
+        self, validate_job: dict[str, Any]
+    ) -> None:
+        step = next(
+            s for s in validate_job["steps"] if s.get("with", {}).get("path") == "trusted-base"
+        )
+
+        assert set(step["with"]["sparse-checkout"].split()) == {
+            "scripts/ci",
+            "scripts/external_signals",
+            ".github/scripts",
+        }
+
+    @pytest.mark.parametrize("name", _SCRIPTS)
+    def test_each_grading_script_runs_from_the_trusted_path(
+        self, validate_job: dict[str, Any], name: str
+    ) -> None:
+        runs = [str(s.get("run")) for s in validate_job["steps"] if name in str(s.get("run"))]
+
+        assert runs == [f"python3 trusted-base/scripts/ci/{name}.py"]
+
+    def test_no_step_runs_a_spec_script_from_the_pr_tree(self) -> None:
+        text = _VALIDATION.read_text(encoding="utf-8")
+
+        for name in self._SCRIPTS:
+            assert f"python3 scripts/ci/{name}.py" not in text
 
 
 class TestReviewSpecIsAdvisory:

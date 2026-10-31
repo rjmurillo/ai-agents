@@ -59,7 +59,7 @@ def test_live_corpus_has_zero_failing_files(corpus_report):
     failing = [
         f["path"]
         for f in report["findings"]
-        if f["reported_label"] == "normative" and (f["is_new"] or f["rose"])
+        if f["reported_label"] == "normative" and (f["is_new"] or f["rose"] or f.get("grew", False))
     ]
     assert failing == []
     assert report["failing"] == 0

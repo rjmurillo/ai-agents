@@ -21,15 +21,16 @@ Two signals are required because single words are weak (figures: DESIGN-026).
 
 A file absent from the base tree fails when classified ``normative``. A file
 present there fails only when its classification rises to ``normative`` from
-``suspect`` or ``evidence`` (issue #5828); otherwise it warns. A rename is read
-against its old path.
+``suspect`` or ``evidence`` (issue #5828), or when an already normative file
+gains normative terms (signal (a)) over its base text; otherwise it warns. A
+rename is read against its old path.
 ``<!-- placement: evidence; reason: ... -->`` with a non-empty reason
 downgrades to evidence (reported ``suppressed``); an empty reason is
 reported ``invalid-suppression`` and does not downgrade. Route: (d) to an
 agent, (c) without (a) >= 5 to a skill, else to a rule. README.md,
 ``*-index.md``, and non-``.md`` files are skipped.
 
-EXIT CODES (ADR-035): 0 clean or warnings only; 1 a new or risen normative file under
+EXIT CODES (ADR-035): 0 clean or warnings only; 1 a new, risen, or term-growing normative file under
 ``--ci``; 2 usage error, not a git repository, bad ``--base``, or a path
 outside the repository.
 """
@@ -142,6 +143,7 @@ class Classification:
     route: str
     suppressed: bool
     invalid_suppression: bool
+    term_count: int = 0
 
 
 def _count_normative_terms(text: str) -> int:
@@ -289,6 +291,7 @@ def classify(text: str) -> Classification:
         route=route,
         suppressed=suppressed,
         invalid_suppression=invalid_suppression,
+        term_count=a_count,
     )
 
 
@@ -299,7 +302,10 @@ class Finding:
     ``base_label`` is the classification of the file's content at the base (the
     old path for a rename). It is read only for a normative file present at the
     base, because only that file can fail by rising; otherwise it is None.
-    ``rose`` is True when such a file was not normative at the base.
+    ``rose`` is True when such a file was not normative at the base. ``grew`` is
+    True when a file that was already normative gained normative terms (MUST,
+    MUST NOT, SHALL, must not, never, always, required) over the base text, so
+    a grandfathered normative memory cannot keep adding rules.
     """
 
     path: str
@@ -312,6 +318,8 @@ class Finding:
     invalid_suppression: bool
     base_label: str | None = None
     rose: bool = False
+    grew: bool = False
+    base_terms: int | None = None
 
 
 def _reported_label(classification: Classification) -> str | None:
@@ -327,17 +335,20 @@ def evaluate_file(relpath: str, text: str, read_base: Callable[[], str] | None) 
     """Classify one file's text against its base content; None if it is clean.
 
     ``read_base`` returns the content at the base, or is None for a file absent
-    there. A file present at the base fails only when it rose to normative, so
-    a grandfathered normative memory that is moved or edited without gaining
-    signals passes. The base is read lazily: only a normative file needs it.
+    there. A file present at the base fails when it rose to normative or, if it
+    was already normative, when it gained normative terms. A grandfathered
+    normative memory that is moved or edited without adding terms passes. The base is read lazily:
+    only a normative file needs it.
     """
     classification = classify(text)
     reported = _reported_label(classification)
     if reported is None:
         return None
     base_label = None
+    base_terms = None
     if read_base is not None and classification.label == "normative":
-        base_label = classify(read_base()).label
+        base = classify(read_base())
+        base_label, base_terms = base.label, base.term_count
     return Finding(
         path=relpath,
         reported_label=reported,
@@ -349,12 +360,18 @@ def evaluate_file(relpath: str, text: str, read_base: Callable[[], str] | None) 
         invalid_suppression=classification.invalid_suppression,
         base_label=base_label,
         rose=base_label is not None and base_label != "normative",
+        grew=base_label == "normative"
+        and base_terms is not None
+        and classification.term_count > base_terms,
+        base_terms=base_terms,
     )
 
 
 def _is_failing(finding: Finding) -> bool:
-    """True for a normative file that is new or whose classification rose."""
-    return finding.reported_label == "normative" and (finding.is_new or finding.rose)
+    """True for a normative file that is new, rose, or gained normative terms."""
+    return finding.reported_label == "normative" and (
+        finding.is_new or finding.rose or finding.grew
+    )
 
 
 def format_finding_line(finding: Finding) -> str:
@@ -366,6 +383,8 @@ def format_finding_line(finding: Finding) -> str:
     )
     if finding.rose:
         line += f" [rose from {finding.base_label}]"
+    if finding.grew:
+        line += f" [normative terms grew from {finding.base_terms}]"
     return line
 
 
@@ -383,7 +402,7 @@ def format_summary(examined: int, findings: list[Finding]) -> str:
         f"{counts.get('normative', 0)} normative, "
         f"{counts.get('suspect', 0)} suspect, "
         f"{counts.get('suppressed', 0)} suppressed, "
-        f"{failing} failing (normative and new or risen)."
+        f"{failing} failing (normative and new, risen, or grown)."
     )
 
 

@@ -46,7 +46,7 @@ def evidence_for(measured: int, expected: int, location: str) -> dict[str, Any]:
         "sinks": [{"location": location, "trace": ["main", "purge"]}],
         "preflight": {"command": "preview-sql", "exit_code": 0, "measured": measured},
         "expected": expected,
-        "rollback": {"kind": "snapshot", "ref": "snap-1"},
+        "rollback": {"kind": "snapshot", "ref": "snap-1", "snapshot_path": __file__},
         "checks": [{"command": "pytest -q", "exit_code": 0}],
     }
 
