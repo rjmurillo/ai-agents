@@ -94,6 +94,55 @@ def test_module_level_sink_has_unknown_callers(
             "push origin --force main",
         ),
         (
+            "def f(git):\n    git(['push', '-f', 'origin', 'main'])\n",
+            "push -f origin main",
+        ),
+        (
+            "def f(git):\n    git(['push', 'origin', '--force-with-lease'])\n",
+            "push origin --force-with-lease",
+        ),
+        (
+            "def f(git):\n    git(['push', 'origin', '+main'])\n",
+            "push origin +main",
+        ),
+        (
+            "import os\ndef f():\n    os.system('git push -f origin main')\n",
+            "git push -f origin main",
+        ),
+        (
+            "import os\ndef f():\n    os.system('git push origin +main:main')\n",
+            "git push origin +main:main",
+        ),
+        (
+            "import requests\ndef f(u):\n    requests.delete(u)\n",
+            "requests.delete()",
+        ),
+        (
+            "import httpx\ndef f(u):\n    httpx.delete(u)\n",
+            "httpx.delete()",
+        ),
+        (
+            "import requests\ndef f(u):\n    requests.request('delete', u)\n",
+            "requests.request(DELETE)",
+        ),
+        (
+            "import urllib.request\ndef f(u):\n"
+            "    urllib.request.urlopen(urllib.request.Request(u, method='DELETE'))\n",
+            "urllib.request.Request(DELETE)",
+        ),
+        (
+            "def f(run_git, args):\n    run_git(args)\n",
+            "git argv from variable",
+        ),
+        (
+            "def f(run_git, rest):\n    run_git(['push', *rest])\n",
+            "git argv with starred elements",
+        ),
+        (
+            "import subprocess\ndef f(sub):\n    subprocess.run(['git', sub, 'x'])\n",
+            "git argv with non-literal subcommand",
+        ),
+        (
             "def f(cur):\n    cur.execute('DELETE FROM users WHERE id = 1')\n",
             "DELETE FROM users WHERE id = 1",
         ),
@@ -124,6 +173,11 @@ def test_detects_each_sink_family(tmp_path: Path, source: str, label: str) -> No
         "def f(run_git):\n    run_git(['worktree', 'list'])\n    run_git(['status'])\n",
         "def f(run_git):\n    run_git(['clean'])\n    run_git([])\n",
         "def f(run_git):\n    run_git('worktree remove x')\n",
+        "def f(git):\n    git(['push', 'origin', 'main'])\n    git(['push', '-u', 'o', 'x'])\n",
+        "import os\ndef f():\n    os.system('git push origin main')\n",
+        "import requests\ndef f(u):\n    requests.get(u)\n    requests.request('GET', u)\n",
+        "def f(run_git, path):\n    run_git(['add', path])\n",
+        "def f(args, runner):\n    runner(args)\n",
     ],
 )
 def test_benign_code_is_not_a_sink(tmp_path: Path, source: str) -> None:

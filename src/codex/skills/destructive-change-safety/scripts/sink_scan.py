@@ -87,9 +87,12 @@ SQL_PATTERN = re.compile(
     r"|UPDATE\s+\w+\s+SET)\b",
     re.IGNORECASE,
 )
+# A force-push argument: ``--force``, ``--force-with-lease``, a short-flag
+# cluster that holds ``f`` (``-f``, ``-fu``), or a ``+ref`` refspec.
+FORCE_PUSH_ARG = r"(?:--force(?:-with-lease)?\b|-[a-zA-Z]*f[a-zA-Z]*(?=\s|$)|\+\S)"
 SHELL_PATTERN = re.compile(
     r"(?:^|[\s;&|(])(rm|rmdir|shred|truncate)\s"
-    r"|git\s+(?:clean|reset\s+--hard|branch\s+-D|push\s+(?:\S+\s+)*--force)"
+    r"|git\s+(?:clean|reset\s+--hard|branch\s+-D|push\s+(?:\S+\s+)*" + FORCE_PUSH_ARG + r")"
     r"|kubectl\s+delete|terraform\s+destroy|docker\s+(?:rm|rmi|system\s+prune)"
     r"|gh\s+\w+\s+delete",
 )
@@ -100,8 +103,12 @@ SHELL_PATTERN = re.compile(
 # and the ``git`` word, so the list head is matched on its own.
 GIT_ARGV_PATTERN = re.compile(
     r"^(?:git\s+)?(?:worktree\s+(?:remove|prune)|clean\s+-|reset\s+--hard|branch\s+-D"
-    r"|update-ref\s+-d|stash\s+(?:drop|clear)|gc\s+--prune|push\b.*--force)"
+    r"|update-ref\s+-d|stash\s+(?:drop|clear)|gc\s+--prune|push\b(?:.*\s)?" + FORCE_PUSH_ARG + r")"
 )
+
+# HTTP clients whose ``delete`` function removes a remote resource.
+HTTP_DELETE_CALLS = {"requests.delete", "httpx.delete", "aiohttp.delete"}
+HTTP_REQUEST_CALLS = {"requests.request", "httpx.request", "urllib.request.Request", "Request"}
 
 
 class EmptyScopeError(Exception):
@@ -197,6 +204,64 @@ def git_argv_sink(node: ast.Call) -> str:
     return text if GIT_ARGV_PATTERN.search(text) else ""
 
 
+def is_delete_literal(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and node.value.upper() == "DELETE"
+    )
+
+
+def http_delete_sink(node: ast.Call) -> str:
+    """Return a label when a call issues an HTTP DELETE (requests, httpx, urllib)."""
+    dotted = dotted_name(node.func)
+    if dotted in HTTP_DELETE_CALLS:
+        return f"{dotted}()"
+    method_args = [node.args[0]] if node.args else []
+    method_args += [k.value for k in node.keywords if k.arg == "method"]
+    if dotted in HTTP_REQUEST_CALLS or callee_name(node) == "request":
+        if any(is_delete_literal(a) for a in method_args):
+            return f"{dotted or callee_name(node)}(DELETE)"
+    return ""
+
+
+def is_git_wrapper(node: ast.Call) -> bool:
+    """True for a call to a function named for git, or ``subprocess`` run on ``git``."""
+    name = callee_name(node).lower()
+    if "git" in name:
+        return True
+    first = node.args[0] if node.args else None
+    return (
+        dotted_name(node.func).split(".")[-1] in SUBPROCESS_CALLS
+        and isinstance(first, ast.List | ast.Tuple)
+        and bool(first.elts)
+        and isinstance(first.elts[0], ast.Constant)
+        and first.elts[0].value == "git"
+    )
+
+
+def variable_git_argv_sink(node: ast.Call) -> str:
+    """Return a label when a git wrapper receives an argv the scan cannot read.
+
+    A variable list (``run_git(args)``), a starred element (``["push", *rest]``),
+    or a non-literal subcommand hides what git will run, so the scan fails
+    closed and reports it for review.
+    """
+    if not node.args or not is_git_wrapper(node):
+        return ""
+    first = node.args[0]
+    if isinstance(first, ast.Name):
+        return "git argv from variable"
+    if isinstance(first, ast.List | ast.Tuple):
+        elts = first.elts
+        if any(isinstance(e, ast.Starred) for e in elts):
+            return "git argv with starred elements"
+        head = 1 if elts and isinstance(elts[0], ast.Constant) and elts[0].value == "git" else 0
+        if len(elts) > head and not isinstance(elts[head], ast.Constant):
+            return "git argv with non-literal subcommand"
+    return ""
+
+
 def call_sink(node: ast.Call) -> tuple[str, str] | None:
     """Classify a call as a ``(kind, label)`` sink, or None."""
     dotted = dotted_name(node.func)
@@ -208,6 +273,12 @@ def call_sink(node: ast.Call) -> tuple[str, str] | None:
     argv = git_argv_sink(node)
     if argv:
         return "command", argv
+    http = http_delete_sink(node)
+    if http:
+        return "delete", http
+    variable = variable_git_argv_sink(node)
+    if variable:
+        return "command", variable
     if open_write_mode(node):
         return "overwrite", "open(..., 'w')"
     name = callee_name(node)
