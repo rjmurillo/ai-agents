@@ -187,7 +187,9 @@ def _guard() -> str:
 class TestCleanupKeepGuard:
     """No path-convention fallback: a same-named worktree with another origin is kept."""
 
-    def _run_guard(self, repos: dict[str, object], **overrides: str) -> subprocess.CompletedProcess:
+    def _run_guard(
+        self, repos: dict[str, object], **overrides: str
+    ) -> subprocess.CompletedProcess[str]:
         env = {
             "PR_HEAD_REF": BRANCH,
             "PR_REPO": REPO,
