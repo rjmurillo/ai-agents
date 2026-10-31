@@ -232,7 +232,14 @@ def format_report(manifest: RecoveryManifest) -> str:
         f"  required contexts   : {radius.required_context_count}",
     ]
     if radius.artifact_count is not None:
-        lines.append(f"  artifacts           : {radius.artifact_count} (live, held by these runs)")
+        suffix = (
+            " or more (TRUNCATED at the page cap, real count is higher)"
+            if radius.artifact_count_truncated
+            else ""
+        )
+        lines.append(
+            f"  artifacts           : {radius.artifact_count}{suffix} (live, held by these runs)"
+        )
     blocked = manifest.blocked
     if blocked:
         lines.append(f"  blocked runs        : {len(blocked)}")
