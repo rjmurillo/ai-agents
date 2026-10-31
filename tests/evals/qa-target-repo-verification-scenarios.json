@@ -64,6 +64,19 @@
       ],
       "expected_reason_contains": "target",
       "rationale": "Regression: .NET targets still resolve their own documented command."
+    },
+    {
+      "id": "TR-6",
+      "desc": "Documented test command but no coverage command anywhere leaves coverage unresolved",
+      "input": "Act as the QA agent in pre-PR validation mode for a repository that is NOT this one. Decide the status of the coverage command. Target repo is Python. The README documents 'pytest' as the test command. No coverage command appears in the README, pyproject, CI configuration, or any local validation skill.\nKeep the reason under 15 words and do not quote the inputs.",
+      "expected_verdict": "UNRESOLVED_EVIDENCE",
+      "verdict_options": [
+        "TARGET_COMMAND",
+        "DOTNET_DEFAULT",
+        "UNRESOLVED_EVIDENCE"
+      ],
+      "expected_reason_contains": "coverage",
+      "rationale": "Changed branch: test and coverage commands resolve independently; a missing coverage command is UNRESOLVED EVIDENCE and its gate stays unmet."
     }
   ]
 }
