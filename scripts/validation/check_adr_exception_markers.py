@@ -150,7 +150,7 @@ def find_near_miss(line: str) -> str | None:
 
 
 def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], list[NearMiss], int]:
-    """Return every marker, every near miss, and the count of workflow files examined."""
+    """Return every marker, every near miss, and the count of workflow and action files examined."""
     markers: list[Marker] = []
     near_misses: list[NearMiss] = []
     files = [*_workflow_files(workflow_dir), *_action_files(repo_root)]
@@ -207,7 +207,7 @@ def run(repo_root: Path) -> int:
         f"{n.path}:{n.line}: near-miss marker {n.text!r}; write it as `# ADR-NNN Exception:`"
         for n in near_misses
     ]
-    summary = f"{len(markers)} marker(s) in {examined} workflow file(s)"
+    summary = f"{len(markers)} marker(s) in {examined} file(s)"
     if problems:
         header = (
             "[FAIL] Runner-exception markers cite a missing, retired, or unreadable-status ADR,"

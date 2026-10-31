@@ -198,7 +198,7 @@ _INVOCATION_HEAD = re.compile(_INTERP_PHRASE + r"\$\{(?:" + "|".join(_PLUGIN_ROO
 _BARE_INVOCATION = re.compile(
     _INTERP_PHRASE
     + r"(?:\.{1,2}/+)*\.claude/+(?:\./+)*"
-    + r"(?P<tail>skills[A-Za-z0-9_./-]*\.py)(?![\w./-])"
+    + r"(?P<tail>skills/+[A-Za-z0-9_./-]*\.py)(?![\w./-])"
 )
 _REDUNDANT_SEPARATORS = re.compile(r"/(?:\.?/)+")
 

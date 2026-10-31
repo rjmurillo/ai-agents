@@ -92,7 +92,7 @@ def test_no_markers_passes_and_reports_zero_markers(tmp_path: Path) -> None:
     result = _run(tmp_path)
     assert result.returncode == 0
     assert "0 marker" in result.stdout
-    assert "in 1 workflow file" in result.stdout
+    assert "in 1 file" in result.stdout
 
 
 # --- neg --------------------------------------------------------------------
@@ -431,7 +431,7 @@ def test_live_marker_in_action_passes_and_is_counted(tmp_path: Path) -> None:
     _action(tmp_path, "# ADR-055 Exception: windows-only tool")
     result = _run(tmp_path)
     assert result.returncode == 0
-    assert "2 marker(s) in 2 workflow file(s)" in result.stdout
+    assert "2 marker(s) in 2 file(s)" in result.stdout
 
 
 def test_tree_without_actions_directory_still_passes(tmp_path: Path) -> None:

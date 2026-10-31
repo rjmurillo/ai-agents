@@ -173,3 +173,61 @@ class TestCleanupSelection:
     def test_ssh_spelling_matches(self, repos) -> None:
         _git(Path(str(repos["wt"])), "remote", "set-url", "origin", "git@github.com:owner/repo.git")
         assert _cleanup(repos) == str(repos["wt"])
+
+
+def _guard() -> str:
+    """The shipped keep guard: text after the select block up to the removal step."""
+    text = TEMPLATE.read_text(encoding="utf-8")
+    tail = text.rsplit("# pr-worktree-select:end\n", 1)[1]
+    guard = tail.split("\nCOMMON=", 1)[0]
+    assert "keep" in guard
+    return guard
+
+
+class TestCleanupKeepGuard:
+    """No path-convention fallback: a same-named worktree with another origin is kept."""
+
+    def _run_guard(self, repos: dict[str, object], **overrides: str) -> subprocess.CompletedProcess:
+        env = {
+            "PR_HEAD_REF": BRANCH,
+            "PR_REPO": REPO,
+            "MERGED_HEAD_SHA": str(repos["head"]),
+            "HOME": str(Path(str(repos["tmp"])) / "home"),
+            **overrides,
+        }
+        assignments = "\n".join(f"{k}={v!r}" for k, v in env.items())
+        script = f'set -u\n{assignments}\nWT=""\n{_blocks()[1]}\n{_guard()}\necho "removable:$WT"\n'
+        return subprocess.run(
+            [BASH or "bash", "-c", script],
+            cwd=Path(str(repos["main"])),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_matching_clean_worktree_passes_the_guard(self, repos) -> None:
+        result = self._run_guard(repos)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == f"removable:{repos['wt']}"
+
+    def test_other_origin_at_the_conventional_path_is_kept(self, repos) -> None:
+        home = Path(str(repos["tmp"])) / "home"
+        conventional = home / "worktrees" / "<repo>" / BRANCH
+        conventional.parent.mkdir(parents=True)
+        wt = Path(str(repos["wt"]))
+        wt.rename(conventional)
+        main = Path(str(repos["main"]))
+        _git(main, "worktree", "repair", str(conventional))
+        _git(conventional, "remote", "set-url", "origin", "https://github.com/evil/repo.git")
+
+        result = self._run_guard(repos)
+
+        assert result.returncode == 1
+        assert "keep" in result.stdout
+        assert "removable" not in result.stdout
+        assert conventional.exists()
+
+    def test_no_matching_worktree_is_kept_and_reported(self, repos) -> None:
+        result = self._run_guard(repos, PR_HEAD_REF="no/such-branch")
+        assert result.returncode == 1
+        assert "keep <no matching worktree>" in result.stdout
