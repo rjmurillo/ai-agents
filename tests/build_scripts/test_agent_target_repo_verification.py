@@ -169,6 +169,9 @@ def test_security_tool_grant_gained_no_shell() -> None:
 def test_every_rendered_agent_copy_is_pinned(agent: str, listed: list[Path]) -> None:
     """Converse of the surface lists: a new platform copy cannot dodge the checks."""
     src = REPO_ROOT / "src"
+    # glob is case-insensitive on Windows, so compare names exactly: SECURITY.md
+    # at a plugin root is a policy file, not a security agent copy.
+    names = {f"{agent}.md", f"{agent}.agent.md"}
     on_disk = {
         p.resolve()
         for pattern in (
@@ -178,6 +181,7 @@ def test_every_rendered_agent_copy_is_pinned(agent: str, listed: list[Path]) -> 
             f"*/{agent}.md",
         )
         for p in src.glob(pattern)
+        if p.name in names
     }
     unpinned = sorted(_rel(p) for p in on_disk - {p.resolve() for p in listed})
     assert not unpinned, f"{agent} copies missing from the surface list: {unpinned}"
