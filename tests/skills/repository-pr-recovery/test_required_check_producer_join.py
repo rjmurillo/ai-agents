@@ -136,6 +136,15 @@ def _patch(monkeypatch, client):
     monkeypatch.setattr(join, "make_client", lambda repo: client)
 
 
+def _no_client(monkeypatch):
+    """Fail if main builds a client: argument checks must run first."""
+
+    def _refuse(repo):
+        raise AssertionError("make_client called before argument validation")
+
+    monkeypatch.setattr(join, "make_client", _refuse)
+
+
 def test_main_exit_0_on_full_match(monkeypatch, capsys):
     _patch(monkeypatch, FakeClient(data([rule(("build", 1))], [run("build", 1)])))
     assert join.main(["--sha", SHA, "--base", "main"]) == 0
@@ -180,9 +189,18 @@ def test_help_exits_0():
 
 
 class EndlessClient:
-    """Returns a distinct non-empty page forever, so only the page cap can stop it."""
+    """Returns a distinct non-empty page until a hard stop well past the cap.
+
+    The stop makes a removed cap fail loudly instead of hanging the test.
+    """
+
+    def __init__(self):
+        self.calls = 0
 
     def rest_get(self, endpoint):
+        self.calls += 1
+        if self.calls > join.MAX_PAGES * 2:
+            raise AssertionError("page cap did not stop the read")
         return [{"page": endpoint}]
 
 
@@ -192,18 +210,25 @@ def test_pagination_cap_fails_loud():
     assert "incomplete" in str(exc.value) and f"repos/{SLUG}/rulesets" in str(exc.value)
 
 
-@pytest.mark.parametrize("slug", ["a/b/c", "a b/c", "owner/", "/name", "a/b?x=1"])
-def test_main_exit_2_on_bad_slug(slug):
+@pytest.mark.parametrize(
+    "slug", ["a/b/c", "a b/c", "owner/", "/name", "a/b?x=1", "../x", "a/..", "./a", "o/n\n"]
+)
+def test_main_exit_2_on_bad_slug(slug, monkeypatch):
+    _no_client(monkeypatch)
     assert join.main(["--sha", SHA, "--base", "main", "--slug", slug]) == 2
 
 
-@pytest.mark.parametrize("argv", [["--sha", "XYZ"], ["--sha", "abc12"], ["--sha", "-abc1234"]])
-def test_main_exit_2_on_bad_sha(argv):
+@pytest.mark.parametrize(
+    "argv", [["--sha", "XYZ"], ["--sha", "abc12"], ["--sha", "-abc1234"], ["--sha", "abc1234\n"]]
+)
+def test_main_exit_2_on_bad_sha(argv, monkeypatch):
+    _no_client(monkeypatch)
     assert join.main([*argv, "--base", "main"]) == 2
 
 
 @pytest.mark.parametrize("base", ["-x", "a?b", "a#b", "a/../b"])
-def test_main_exit_2_on_bad_cli_base(base):
+def test_main_exit_2_on_bad_cli_base(base, monkeypatch):
+    _no_client(monkeypatch)
     assert join.main(["--sha", SHA, "--base", base]) == 2
 
 

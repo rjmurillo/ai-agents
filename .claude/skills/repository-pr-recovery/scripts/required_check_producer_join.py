@@ -180,11 +180,15 @@ def classify(required: dict[str, Any], runs: list[dict[str, Any]]) -> dict[str, 
 
 
 def bad_slug(slug: str) -> str | None:
-    return None if SLUG_RE.match(slug) else f"slug must match owner/name: {slug!r}"
+    if SLUG_RE.fullmatch(slug) and all(part not in (".", "..") for part in slug.split("/")):
+        return None
+    return f"slug must match owner/name with no dot segments: {slug!r}"
 
 
 def bad_sha(sha: str) -> str | None:
-    return None if SHA_RE.match(sha) else f"sha must be 7 to 40 lowercase hex characters: {sha!r}"
+    return (
+        None if SHA_RE.fullmatch(sha) else f"sha must be 7 to 40 lowercase hex characters: {sha!r}"
+    )
 
 
 def bad_base(base: str) -> str | None:

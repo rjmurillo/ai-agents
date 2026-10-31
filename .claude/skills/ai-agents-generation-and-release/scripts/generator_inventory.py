@@ -237,6 +237,8 @@ def cmd_path(repo: Path, raw: str) -> tuple[dict[str, Any], int]:
                 "repo-local skill: template renders straight to install_tree, no plugin hop"
             )
         elif out["repo_local_skill"]:
+            out["role"] = "repo-local-hand-maintained"
+            out["matches"] = [{**m, "regenerate": None} for m in best]
             out["note"] = "repo-local skill file: hand-maintained, not rendered"
         return out, 0
     try:

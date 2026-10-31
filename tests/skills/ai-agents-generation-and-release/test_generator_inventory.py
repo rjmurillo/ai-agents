@@ -203,7 +203,8 @@ def test_path_repo_local_skill_non_skill_md_is_hand_maintained(tmp_path, capsys)
     assert mod.main(["--repo", str(repo), "path", ".claude/skills/b/scripts/x.py"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["repo_local_skill"] is True
-    assert out["role"] != "repo-local-rendered"
+    assert out["role"] == "repo-local-hand-maintained"
+    assert all(m["regenerate"] is None for m in out["matches"])
     assert out["note"] == "repo-local skill file: hand-maintained, not rendered"
 
 

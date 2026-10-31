@@ -174,7 +174,7 @@ Run any row with `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}
 | `claims` | Which cited paths and test node ids no longer exist |
 | `drift-self-check` | Whether this skill drifted from `reverify.json` |
 
-Exit codes for `instruments.py` and `contract_probe.py`: 0 ok, 1 findings (a missing instrument file, an absent ADR, no guard definition), 2 bad arguments or configuration, 3 the target failed to start or a file was unreadable. `run` passes the child exit code through. Each answer covers existence and counts only. Whether a mechanism still does its job stays a judgment call from the prose above.
+Exit codes for `instruments.py` and `contract_probe.py`: 0 ok, 1 when something is found (a missing instrument file, an absent ADR, no guard definition), 2 bad arguments or configuration, 3 the target failed to start or a file was unreadable. `run` passes the child exit code through. Each answer covers existence and counts only. Whether a mechanism still does its job stays a judgment call from the prose above.
 
 ## Provenance and Maintenance
 
