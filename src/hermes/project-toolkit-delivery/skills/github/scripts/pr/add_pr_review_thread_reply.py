@@ -453,6 +453,12 @@ def _validate_args(args: argparse.Namespace) -> str:
         error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
     if args.pull_request is not None and args.pull_request <= 0:
         error_and_exit("Pull request number must be positive.", 2)
+    if args.resolve and _expected_identity(args) is None:
+        error_and_exit(
+            "--resolve requires at least one of --expected-head-sha, "
+            "--expected-base-ref, --expected-base-sha.",
+            2,
+        )
     body = _resolve_body(args)
     body_error = resolved_body_error(body, from_file=bool(args.body_file))
     if body_error:

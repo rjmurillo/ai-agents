@@ -176,7 +176,7 @@
 |build_all --check drift uncommitted changes git diff legacy.boolean_contract Generated Artifact Staleness check_generated_staleness: [ci/ci-build-all-check-reports-uncommitted-changes-as-drift](ci/ci-build-all-check-reports-uncommitted-changes-as-drift.md) (373)
 
 [Documentation and Planning]
-|documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
+|documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (356)
 |planning task file path scope breakdown: [skills-planning-index](skills-planning-index.md) (246)
 |roadmap epic priority strategic vision business value: [planning/roadmap-priorities](planning/roadmap-priorities.md) (271)
 
