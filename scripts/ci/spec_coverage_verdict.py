@@ -163,7 +163,7 @@ def _parse_has_specs(raw: str) -> bool | None:
     return None
 
 
-def _fetch_error(message: str) -> None:
+def _read_error(message: str) -> None:
     print(f"::error::{_escape_annotation(message)}", file=sys.stderr)
 
 
@@ -176,7 +176,7 @@ def _read_body_file(path: str) -> str | None:
     try:
         text = Path(path).read_text(encoding="utf-8")
     except (OSError, ValueError) as exc:
-        _fetch_error(f"reading the saved pull request body failed: {exc}")
+        _read_error(f"reading the saved pull request body failed: {exc}")
         return None
     return text[:-1] if text.endswith("\n") else text
 

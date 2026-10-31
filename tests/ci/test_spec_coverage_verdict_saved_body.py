@@ -40,8 +40,6 @@ class TestSavedBodyFile:
     def _env(self, monkeypatch: pytest.MonkeyPatch, saved: Path) -> None:
         monkeypatch.setenv("HAS_SPECS", "true")
         monkeypatch.setenv("EVENT_NAME", "workflow_dispatch")
-        monkeypatch.setenv("PR_NUMBER", "42")
-        monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
         monkeypatch.setenv("PR_BODY_FILE", str(saved))
 
     def test_dispatch_grades_the_saved_body_without_a_second_fetch(
