@@ -7,10 +7,8 @@ which could return a body edited in between.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -20,7 +18,6 @@ from scripts.ci.spec_coverage_verdict import EXIT_CONFIG, EXIT_FAIL, EXIT_OK, ma
 
 ALL_CHECKED = "## Acceptance criteria\n\n- [x] one\n- [X] two\n"
 ONE_UNCHECKED = "## Acceptance criteria\n\n- [x] one\n- [ ] two\n- [ ] three\n"
-_URLOPEN = "scripts.ci.spec_coverage_verdict._OPENER.open"
 
 
 @pytest.fixture(autouse=True)
@@ -35,26 +32,6 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "GITHUB_STEP_SUMMARY",
     ):
         monkeypatch.delenv(name, raising=False)
-
-
-class _FakeResponse:
-    """Minimal context-manager response for urlopen."""
-
-    def __init__(self, payload: bytes) -> None:
-        self._payload = payload
-
-    def __enter__(self) -> _FakeResponse:
-        return self
-
-    def __exit__(self, *_exc: object) -> None:
-        return None
-
-    def read(self, *_args: object) -> bytes:
-        return self._payload
-
-
-def _json_response(body: object) -> _FakeResponse:
-    return _FakeResponse(json.dumps({"body": body}).encode("utf-8"))
 
 
 class TestSavedBodyFile:
@@ -73,9 +50,8 @@ class TestSavedBodyFile:
         saved = tmp_path / "body.txt"
         saved.write_text(ALL_CHECKED + "\n", encoding="utf-8")
         self._env(monkeypatch, saved)
-        with patch(_URLOPEN) as mock_open:
-            assert run() == EXIT_OK
-        mock_open.assert_not_called()
+        assert run() == EXIT_OK
+        assert not hasattr(verdict_module, "_OPENER")
 
     def test_saved_body_wins_over_a_different_live_body(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -84,8 +60,7 @@ class TestSavedBodyFile:
         saved = tmp_path / "body.txt"
         saved.write_text(ONE_UNCHECKED + "\n", encoding="utf-8")
         self._env(monkeypatch, saved)
-        with patch(_URLOPEN, return_value=_json_response(ALL_CHECKED)):
-            assert run() == EXIT_FAIL
+        assert run() == EXIT_FAIL
 
     def test_exactly_one_trailing_newline_is_removed(self, tmp_path: Path) -> None:
         saved = tmp_path / "body.txt"
@@ -103,9 +78,7 @@ class TestSavedBodyFile:
         saved = tmp_path / "body.txt"
         saved.write_text("\n", encoding="utf-8")
         self._env(monkeypatch, saved)
-        with patch(_URLOPEN) as mock_open:
-            assert run() == EXIT_FAIL
-        mock_open.assert_not_called()
+        assert run() == EXIT_FAIL
 
     def test_env_body_still_wins_over_the_saved_file(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -123,9 +96,7 @@ class TestSavedBodyFile:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         self._env(monkeypatch, tmp_path / "missing.txt")
-        with patch(_URLOPEN) as mock_open:
-            assert run() == EXIT_CONFIG
-        mock_open.assert_not_called()
+        assert run() == EXIT_CONFIG
         assert "saved pull request body failed" in capsys.readouterr().err
 
     def test_undecodable_saved_body_is_a_config_error(
