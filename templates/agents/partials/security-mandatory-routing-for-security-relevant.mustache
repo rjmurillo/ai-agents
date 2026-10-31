@@ -46,7 +46,7 @@ executing any of it would contradict the tool contract above. Ask the caller or
 the implementer to run the block and return its output, then verify the results
 against your PIV checklist. Treat a missing or failed run as an unmet PIV item
 and say so in the verdict rather than assuming it passed. The block is recorded
-here so the request names exact commands rather than a vague ask. **Take the security test command from the target repository**: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. Reuse it; do not re-ask. Ask the caller to run it. If none names one, record `UNRESOLVED EVIDENCE: no security test command found in <sources checked>` as an unmet PIV item. Never invent a command, skip the item silently, or report it as passed.
+here so the request names exact commands rather than a vague ask. **Take every command in this block from the target repository**: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. The block shows this repository's commands; replace the hook validation step with the target's own, or drop it when the target has no hook manager. Reuse what you find; do not re-ask. Ask the caller to run it. If none names one, record `UNRESOLVED EVIDENCE: no security test command found in <sources checked>` as an unmet PIV item. Never invent a command, skip the item silently, or report it as passed.
 
 ```powershell
 # Set CI environment

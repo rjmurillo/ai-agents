@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS = REPO_ROOT / "templates" / "agents"
@@ -141,11 +142,30 @@ def test_security_requests_repo_command_and_stays_request_only(path: Path) -> No
 
 
 def test_security_tool_grant_gained_no_shell() -> None:
-    """The fix is prose only: the Claude security tool list stays shell-free."""
-    head = (REPO_ROOT / "src" / "claude" / "agents" / "security.md").read_text(encoding="utf-8")
-    frontmatter = head.split("---", 2)[1]
-    tools = [ln for ln in frontmatter.splitlines() if ln.startswith("tools:")]
-    assert tools and "Bash" not in tools[0]
+    """The fix is prose only: the parsed Claude security tool list stays shell-free."""
+    text = (REPO_ROOT / "src" / "claude" / "agents" / "security.md").read_text(encoding="utf-8")
+    frontmatter = yaml.safe_load(text.split("---", 2)[1])
+    tools = frontmatter["tools"]
+    if isinstance(tools, str):
+        tools = [t.strip() for t in tools.split(",")]
+    assert tools, "security agent lost its tools list"
+    assert "Bash" not in tools, f"security agent gained a shell: {tools}"
+
+
+@pytest.mark.parametrize(
+    ("agent", "listed"),
+    [("qa", QA_SURFACES), ("security", SECURITY_SURFACES)],
+)
+def test_every_rendered_agent_copy_is_pinned(agent: str, listed: list[Path]) -> None:
+    """Converse of the surface lists: a new platform copy cannot dodge the checks."""
+    src = REPO_ROOT / "src"
+    on_disk = {
+        p.resolve()
+        for pattern in (f"*/agents/{agent}.md", f"*/agents/{agent}.agent.md")
+        for p in src.glob(pattern)
+    }
+    unpinned = sorted(_rel(p) for p in on_disk - {p.resolve() for p in listed})
+    assert not unpinned, f"{agent} copies missing from the surface list: {unpinned}"
 
 
 def test_python_consumer_offers_documented_command(python_consumer: Path) -> None:
