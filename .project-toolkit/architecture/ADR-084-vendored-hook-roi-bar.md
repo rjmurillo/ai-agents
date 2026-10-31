@@ -119,10 +119,14 @@ hooks. Concretely, the bar is six rules:
    e. It reads only four inputs: the event's stdin payload, the file at that
       payload's `transcript_path`, its own state from condition b, and its own
       opt-out variable from condition g. To locate the state root it may read
-      only `XDG_STATE_HOME`, `LOCALAPPDATA`, and `HOME` or `USERPROFILE`
-      (through `Path.home()`), and no other environment variable. A state
-      root that resolves inside the working tree or git directory is refused,
-      and the hook then writes nothing.
+      only `XDG_STATE_HOME`, `LOCALAPPDATA`, and the variables `Path.home()`
+      consults (`HOME`; on Windows `USERPROFILE`, `HOMEDRIVE`, and
+      `HOMEPATH`), and no other environment variable. A state root inside
+      the repository that contains the payload's `cwd` is refused. The hook
+      finds that repository with `stat` calls on `.git` entries from `cwd`
+      upward, and opens no file to do so. On refusal it writes nothing and
+      emits nothing, as the existing hook already does for an unsafe marker
+      directory.
    f. Its output goes to a user-visible channel only, never into model
       context. Its text addresses the user, not the agent, and gives the
       agent no instruction.

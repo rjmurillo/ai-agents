@@ -100,7 +100,7 @@ Round 2 changes are P2 text repairs. Two were not re-reviewed in round 2: AC-22 
 
 | Agent | Position | Notes |
 |-------|----------|-------|
-| architect | Accept | No MUST weakened. AC-12, AC-20, and condition g agree. Two P1 text fixes. |
+| architect | Accept | No MUST weakened. AC-12, AC-20, and condition g agree. One P1 (A3-1) and four P2s. |
 | critic | Disagree-and-Commit | Rule 5 duration verified at 22h14m. C3-1 and C3-2 must close before TASK-006. |
 
 ### Key Issues Addressed
@@ -119,6 +119,8 @@ Round 2 changes are P2 text repairs. Two were not re-reviewed in round 2: AC-22 
 | C3-7 | P2 | critic | The A2-3 row notes UTC. This section logs the full round 3 scope. Status again requires review closure. |
 
 Round 3 fixes apply the fixes the reviewers proposed. The condition e refusal clause is new requirement text, taken from the C3-1 fix. No other condition or MUST changed after the votes.
+
+**Post-round-3 repairs (from `/review` round 2, 2026-10-31).** The review found three gaps in that unvoted condition e text, and they are now repaired. First, the refusal needed an input outside condition e's list, so it now checks only the repository that holds the payload `cwd`, found with `stat` calls. Second, AC-24 now says nothing is emitted on refusal. Third, the variable list now names `HOMEDRIVE` and `HOMEPATH`, which `Path.home()` reads on Windows. AC-19 gained a minimum of 20 labeled nudges. The condition e repairs narrow the clause. The AC-19 minimum is a new gate condition in REQ-048, not in the ADR. The owner may re-poll the panel before accepting.
 
 ### Next Steps
 

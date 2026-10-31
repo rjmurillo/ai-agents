@@ -163,6 +163,7 @@ Idempotency: the same transcript and tier always produce the same marker key, so
 | Someone re-adds a block decision | Trapped turns (#3140) | Test failure | AC-04 |
 | Subagent Stop fires the parent nudge | #3140 recurrence | Marker for a sidechain | Register on `Stop` only; sidechains excluded |
 | Stop `systemMessage` stops rendering in a CLI update | Silent advisory | Real-CLI smoke fails | AC-17 |
+| State root sits inside the `cwd` repository (for example a dotfile-managed `$HOME` repo) | Both nudges silent for that user | AC-24 refusal, stderr status line | Set `XDG_STATE_HOME` or `LOCALAPPDATA` outside the repository |
 
 ## Security
 
@@ -206,12 +207,12 @@ No network, no model call, no writes inside any repository.
 16. **AC-16** When the plugin from `src/claude/` is installed and the hook runs from a directory that is not the plugin root, the launcher shall find and run the script. A bare relative path in the same harness shall fail (negative control).
 17. **AC-17** When a friction-qualifying Stop runs in the real Claude Code CLI, the `systemMessage` shall reach the user intact through the plugin registration, and the next turn's model context shall not contain the advisory text.
 18. **AC-18** When the hook ships in a `surface: "plugin"` dispatch group, the restored ADR-084 rule 5 presence test shall find one `Customer value:` line in its module docstring that names `AI_AGENTS_RETRO_NUDGE_THRESHOLD` and its off values.
-19. **AC-19** When TASK-001 has chosen weights and the default threshold on the tuning split (a seeded random 70 percent of sessions in the measured 30-day window), the held-out split (the other 30 percent, labeled by Richard Murillo) shall show at least 70 percent precision before the default ships. The TASK-001 report shall record the window dates, the seed, and the split session list, and shall note that both splits share one window (leakage risk accepted under the owner's decision).
-20. **AC-20** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is `0` or `off`, the hook shall not open the transcript.
+19. **AC-19** When TASK-001 has chosen weights and the default threshold on the tuning split (a seeded random 70 percent of sessions in the measured 30-day window), the held-out split (the other 30 percent, labeled by Richard Murillo) shall show at least 70 percent precision before the default ships. The TASK-001 report shall record the window dates, the seed, and the split session list, and shall note that both splits share one window (leakage risk accepted under the owner's decision). The gate is valid only when the held-out split holds at least 20 labeled friction nudges. Below that count, TASK-001 widens the window, and the default does not ship until the count is met.
+20. **AC-20** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is an off value as AC-12 parses it, the hook shall not open the transcript.
 21. **AC-21** When the plugin is generated, `src/copilot-cli/hooks/hooks.json` shall carry no entry for the hook, through `copilotExclude: true` on its dispatch group.
-22. **AC-22** When a test fixture plants a readable file outside the four rule 2a condition e inputs and runs a Stop with both branches active, the hook shall not open it (observed with a `sys.addaudithook` hook on `open`), and shall read no environment variable outside the condition e list (observed through a recording mapping passed to `run()` and a patched `Path.home()`).
+22. **AC-22** When a test fixture plants a readable file outside the four rule 2a condition e inputs and runs a Stop with both branches active, the hook shall not open it (observed with a `sys.addaudithook` hook on `open`), and shall read no environment variable outside the condition e list (observed through a recording mapping installed as `os.environ` for the run, so `Path.home()` lookups are seen too).
 23. **AC-23** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is unset or a positive integer and a correction-qualifying Stop runs, the hook shall still emit the correction nudge (positive control for AC-12).
-24. **AC-24** If the resolved state root lies inside the git working tree or git directory, then the hook shall write no state and shall exit 0.
+24. **AC-24** If the resolved state root lies inside the repository that contains the payload `cwd` (found with `stat` calls only), then the hook shall write no state, emit no `systemMessage`, and exit 0.
 
 ## Out of scope
 
@@ -261,7 +262,7 @@ No network, no model call, no writes inside any repository.
 
 ## ADR cross-reference
 
-Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to the Stop-only registration (reviewed at TASK-006); e to AC-22; f to AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18 and AC-21 only. AC-01 to AC-15, AC-19, AC-20, and AC-22 to AC-24 can land dogfood-first under the existing authorization.
+Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15; c to AC-07; d to the Stop-only registration (reviewed at TASK-006); e to AC-22 and AC-24; f to AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18 and AC-21 only. AC-01 to AC-15, AC-19, AC-20, and AC-22 to AC-24 can land dogfood-first under the existing authorization.
 
 ## Tasks (sequenced)
 
