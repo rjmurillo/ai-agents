@@ -187,3 +187,32 @@ def test_cli_help_and_bad_args():
 
 def test_bad_repo_exits_2(tmp_path):
     assert mod.main(["--repo", str(tmp_path / "nope"), "skills"]) == 2
+
+
+def test_path_unparseable_build_all_exits_2(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    (repo / "build/scripts/build_all.py").write_text("def (:", encoding="utf-8")
+    assert mod.main(["--repo", str(repo), "path", "docs/unknown.md"]) == 2
+    out = json.loads(capsys.readouterr().out)
+    assert "does not parse" in out["error"] and out["examined"] == 3
+
+
+def test_path_repo_local_skill_non_skill_md_is_hand_maintained(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    assert mod.main(["--repo", str(repo), "path", ".claude/skills/b/scripts/x.py"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["repo_local_skill"] is True
+    assert out["role"] != "repo-local-rendered"
+    assert out["note"] == "repo-local skill file: hand-maintained, not rendered"
+
+
+def test_path_matches_do_not_carry_specificity(tmp_path, capsys):
+    repo = _repo(tmp_path)
+    assert mod.main(["--repo", str(repo), "path", ".claude/skills/a/SKILL.md"]) == 0
+    assert all("specificity" not in m for m in json.loads(capsys.readouterr().out)["matches"])
+
+
+def test_most_specific_does_not_mutate_input():
+    matches = [{"role": "x", "specificity": 3}, {"role": "y", "specificity": 1}]
+    assert mod._most_specific(matches) == [{"role": "x"}]
+    assert matches[0]["specificity"] == 3

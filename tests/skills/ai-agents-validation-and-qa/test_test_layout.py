@@ -101,6 +101,7 @@ class _Proc:
 
 
 def test_skill_tests_pytest_mode_parses_collect_output(tmp_path, capsys, monkeypatch):
+    (tmp_path / "tests/skills/foo").mkdir(parents=True)
     out = "tests/skills/foo/test_a.py::t1\ntests/skills/foo/test_a.py::t2\n"
     out += "tests/skills/foo/test_b.py::t3\n\n3 tests collected\n"
     monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: _Proc(0, out))
@@ -110,16 +111,20 @@ def test_skill_tests_pytest_mode_parses_collect_output(tmp_path, capsys, monkeyp
 
 
 def test_skill_tests_pytest_no_tests_exits_1(tmp_path, capsys, monkeypatch):
+    (tmp_path / "tests/skills/foo").mkdir(parents=True)
     monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: _Proc(5, "no tests\n"))
     assert mod.main(["--repo", str(tmp_path), "skill-tests", "foo"]) == 1
 
 
 def test_skill_tests_pytest_collection_error_exits_3(tmp_path, monkeypatch):
+    (tmp_path / "tests/skills/foo").mkdir(parents=True)
     monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: _Proc(2, ""))
     assert mod.main(["--repo", str(tmp_path), "skill-tests", "foo"]) == 3
 
 
 def test_skill_tests_uv_missing_exits_3(tmp_path, monkeypatch):
+    (tmp_path / "tests/skills/foo").mkdir(parents=True)
+
     def boom(*a, **k):
         raise FileNotFoundError("uv")
 
@@ -133,6 +138,7 @@ def test_cli_help_exits_0():
 
 
 def test_skill_tests_pytest_mode_clears_addopts(tmp_path, monkeypatch):
+    (tmp_path / "tests/skills/foo").mkdir(parents=True)
     seen = {}
 
     def fake(cmd, **kw):
@@ -142,3 +148,16 @@ def test_skill_tests_pytest_mode_clears_addopts(tmp_path, monkeypatch):
     monkeypatch.setattr(mod.subprocess, "run", fake)
     assert mod.main(["--repo", str(tmp_path), "skill-tests", "foo"]) == 0
     assert seen["cmd"][:3] == ["uv", "run", "pytest"] and "addopts=" in seen["cmd"]
+
+
+def test_skill_tests_pytest_mode_missing_dir_exits_1_without_running_pytest(
+    tmp_path, capsys, monkeypatch
+):
+    def boom(*a, **k):
+        raise AssertionError("pytest must not run when the directory is missing")
+
+    monkeypatch.setattr(mod.subprocess, "run", boom)
+    rc = mod.main(["--repo", str(tmp_path), "skill-tests", "foo"])
+    res = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert res["dir_exists"] is False and res["test_files"] == [] and res["mode"] == "pytest"

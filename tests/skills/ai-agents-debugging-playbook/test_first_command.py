@@ -118,3 +118,10 @@ def test_missing_directory_exits_2(tmp_path):
 def test_help_exits_0():
     r = subprocess.run([sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True)
     assert r.returncode == 0 and "stash" in r.stdout
+
+
+def test_lag_option_like_base_exits_2_and_writes_no_file(repo, tmp_path, capsys):
+    out = tmp_path / "x"
+    assert mod.main(["--repo", str(repo), "lag", f"--base=--output={out}"]) == 2
+    assert "must not start with '-'" in capsys.readouterr().err
+    assert not out.exists()

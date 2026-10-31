@@ -208,6 +208,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if a.base and a.base.startswith("-"):
+        print(json.dumps({"error": f"--base must not start with '-': {a.base}"}), file=sys.stderr)
+        return 2
     try:
         allow = load_allowlist(repo)
     except (OSError, ImportError, AttributeError, re.error) as exc:
@@ -217,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         if a.staged:
             raw = git_paths(repo, ["diff", "--cached", "--name-only"])
         elif a.base:
-            raw = git_paths(repo, ["diff", "--name-only", f"{a.base}...HEAD"])
+            raw = git_paths(repo, ["diff", "--name-only", "--end-of-options", f"{a.base}...HEAD"])
         else:
             raw = a.paths
     except RuntimeError as exc:

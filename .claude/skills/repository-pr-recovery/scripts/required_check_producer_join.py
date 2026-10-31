@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,9 @@ PRODUCED = "produced-by-the-required-app"
 OTHER_APP = "produced-by-another-app"
 MISSING = "missing"
 PAGE_SIZE = 100
+MAX_PAGES = 50
+SLUG_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
+SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 
 class ExternalFailureError(RuntimeError):
@@ -93,6 +97,10 @@ def paged(
     previous = None
     page = 1
     while True:
+        if page > MAX_PAGES:
+            raise ExternalFailureError(
+                f"{base}: pagination exceeded {MAX_PAGES} pages; the read is incomplete"
+            )
         endpoint = _endpoint(base, page)
         body = _get(client, endpoint)
         if items_key is None:
@@ -171,6 +179,20 @@ def classify(required: dict, runs: list[dict]) -> dict:
     return {**required, "state": state, "runs": facts}
 
 
+def bad_slug(slug: str) -> str | None:
+    return None if SLUG_RE.match(slug) else f"slug must match owner/name: {slug!r}"
+
+
+def bad_sha(sha: str) -> str | None:
+    return None if SHA_RE.match(sha) else f"sha must be 7 to 40 lowercase hex characters: {sha!r}"
+
+
+def bad_base(base: str) -> str | None:
+    if base.startswith("-") or any(t in base for t in ("?", "#", "..")):
+        return f"base must not start with '-' or contain '?', '#', or '..': {base!r}"
+    return None
+
+
 def join(client: Any, slug: str, pr: int | None, sha: str | None, base: str | None) -> dict:
     pr_info: dict[str, Any] = {}
     if pr is not None:
@@ -183,6 +205,9 @@ def join(client: Any, slug: str, pr: int | None, sha: str | None, base: str | No
         if not sha or not base:
             raise ExternalFailureError(f"pull request {pr} response lacks head.sha or base.ref")
     assert sha and base
+    api_problem = bad_sha(sha) or bad_base(base)
+    if api_problem:
+        raise ExternalFailureError(f"invalid value for {slug}: {api_problem}")
     rulesets, rs_pages, _ = paged(client, f"repos/{slug}/rulesets?includes_parents=true")
     rules, rule_pages, _ = paged(client, f"repos/{slug}/rules/branches/{base}")
     runs, run_pages, run_total = paged(
@@ -240,8 +265,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.sha and not args.base:
         print(json.dumps({"error": "--sha requires --base", "examined": 0}), file=sys.stderr)
         return 2
-    if args.slug.count("/") != 1:
-        print(json.dumps({"error": "--slug must be owner/name", "examined": 0}), file=sys.stderr)
+    problem = (
+        bad_slug(args.slug)
+        or (args.sha and bad_sha(args.sha))
+        or (args.base and bad_base(args.base))
+    )
+    if problem:
+        print(json.dumps({"error": problem, "examined": 0}), file=sys.stderr)
         return 2
     try:
         client = make_client(Path(args.repo))

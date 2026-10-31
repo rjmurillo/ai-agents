@@ -129,3 +129,11 @@ def test_staged_empty_exits_0_with_zero_examined(tmp_path):
 def test_base_bad_ref_exits_3(tmp_path):
     repo = _git_repo(tmp_path)
     assert run("--repo", str(repo), "--base", "no-such-ref").returncode == 3
+
+
+def test_base_option_like_value_exits_2_and_writes_no_file(tmp_path, capsys):
+    repo = _git_repo(tmp_path)
+    out = tmp_path / "x"
+    assert mod.main(["--repo", str(repo), f"--base=--output={out}"]) == 2
+    assert "must not start with '-'" in capsys.readouterr().err
+    assert not out.exists()

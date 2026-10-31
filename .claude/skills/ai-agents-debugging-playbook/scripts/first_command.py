@@ -71,7 +71,9 @@ def classify_stashes(repo: Path) -> dict:
 
 
 def base_lag(repo: Path, base: str = "origin/main") -> dict:
-    out = _git(repo, "rev-list", "--left-right", "--count", f"{base}...HEAD").split()
+    out = _git(
+        repo, "rev-list", "--left-right", "--count", "--end-of-options", f"{base}...HEAD"
+    ).split()
     if len(out) != 2:
         raise GitError(f"unexpected rev-list output: {out!r}")
     left, right = int(out[0]), int(out[1])
@@ -89,6 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     repo = Path(a.repo).resolve()
     if not repo.is_dir():
         print(json.dumps({"error": f"not a directory: {repo}"}), file=sys.stderr)
+        return 2
+    if a.cmd == "lag" and a.base.startswith("-"):
+        print(json.dumps({"error": f"--base must not start with '-': {a.base}"}), file=sys.stderr)
         return 2
     try:
         if a.cmd == "stash":

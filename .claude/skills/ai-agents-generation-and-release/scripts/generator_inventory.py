@@ -194,9 +194,7 @@ def _row_matches(row: dict, path: str) -> list[dict]:
 def _most_specific(matches: list[dict]) -> list[dict]:
     top = max(m["specificity"] for m in matches)
     best = [m for m in matches if m["specificity"] == top]
-    for m in best:
-        del m["specificity"]
-    return best
+    return [{k: v for k, v in m.items() if k != "specificity"} for m in best]
 
 
 def _owned_prefix(repo: Path, path: str) -> str | None:
@@ -226,13 +224,18 @@ def cmd_path(repo: Path, raw: str) -> tuple[dict, int]:
         out["role"] = best[0]["role"]
         out["matches"] = best
         out["repo_local_skill"] = _repo_local_skill(repo, path)
-        if out["repo_local_skill"]:
+        if out["repo_local_skill"] and path.endswith("/SKILL.md"):
             out["role"] = "repo-local-rendered"
             out["note"] = (
                 "repo-local skill: template renders straight to install_tree, no plugin hop"
             )
+        elif out["repo_local_skill"]:
+            out["note"] = "repo-local skill file: hand-maintained, not rendered"
         return out, 0
-    prefix = _owned_prefix(repo, path)
+    try:
+        prefix = _owned_prefix(repo, path)
+    except SyntaxError as exc:
+        return {"error": f"{BUILD_ALL} does not parse: {exc}", "examined": len(rows)}, 2
     if prefix is not None:
         out.update(role="generated", owned_prefix=prefix, regenerate=REGEN, matches=[])
         return out, 0

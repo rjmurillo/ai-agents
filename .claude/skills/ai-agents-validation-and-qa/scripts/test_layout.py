@@ -99,6 +99,8 @@ def cmd_skill_tests(repo: Path, name: str, no_pytest: bool) -> tuple[int, dict]:
             else []
         )
         mode = "filesystem"
+    elif not base.is_dir():
+        files, mode = [], "pytest"
     else:
         rc, files, err = _collect_pytest(repo, name)
         if rc:

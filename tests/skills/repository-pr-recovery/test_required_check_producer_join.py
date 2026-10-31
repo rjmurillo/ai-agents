@@ -17,7 +17,7 @@ spec.loader.exec_module(join)
 SLUG = "rjmurillo/ai-agents"
 RULES = f"repos/{SLUG}/rules/branches/main"
 RULESETS = f"repos/{SLUG}/rulesets?includes_parents=true"
-SHA = "abc123"
+SHA = "abc1234"
 RUNS = f"repos/{SLUG}/commits/{SHA}/check-runs?filter=all"
 
 
@@ -171,8 +171,55 @@ def test_main_exit_2_on_bad_arguments(argv):
 
 
 def test_main_exit_2_when_lib_missing(tmp_path):
-    assert join.main(["--repo", str(tmp_path), "--sha", "x", "--base", "main"]) == 2
+    assert join.main(["--repo", str(tmp_path), "--sha", SHA, "--base", "main"]) == 2
 
 
 def test_help_exits_0():
     assert join.main(["--help"]) == 0
+
+
+class EndlessClient:
+    """Returns a distinct non-empty page forever, so only the page cap can stop it."""
+
+    def rest_get(self, endpoint):
+        return [{"page": endpoint}]
+
+
+def test_pagination_cap_fails_loud():
+    with pytest.raises(join.ExternalFailureError, match="pagination exceeded 50 pages") as exc:
+        join.paged(EndlessClient(), f"repos/{SLUG}/rulesets")
+    assert "incomplete" in str(exc.value) and f"repos/{SLUG}/rulesets" in str(exc.value)
+
+
+@pytest.mark.parametrize("slug", ["a/b/c", "a b/c", "owner/", "/name", "a/b?x=1"])
+def test_main_exit_2_on_bad_slug(slug):
+    assert join.main(["--sha", SHA, "--base", "main", "--slug", slug]) == 2
+
+
+@pytest.mark.parametrize("argv", [["--sha", "XYZ"], ["--sha", "abc12"], ["--sha", "-abc1234"]])
+def test_main_exit_2_on_bad_sha(argv):
+    assert join.main([*argv, "--base", "main"]) == 2
+
+
+@pytest.mark.parametrize("base", ["-x", "a?b", "a#b", "a/../b"])
+def test_main_exit_2_on_bad_cli_base(base):
+    assert join.main(["--sha", SHA, "--base", base]) == 2
+
+
+@pytest.mark.parametrize("base", ["a?b=1", "x/../y", "-main"])
+def test_bad_api_base_fails_external(base):
+    d = {f"repos/{SLUG}/pulls/7": {"head": {"sha": SHA}, "base": {"ref": base}}}
+    with pytest.raises(join.ExternalFailureError, match="base must not"):
+        join.join(FakeClient(d), SLUG, 7, None, None)
+
+
+def test_bad_api_sha_fails_external():
+    d = {f"repos/{SLUG}/pulls/7": {"head": {"sha": "ZZ"}, "base": {"ref": "main"}}}
+    with pytest.raises(join.ExternalFailureError, match="sha must be"):
+        join.join(FakeClient(d), SLUG, 7, None, None)
+
+
+def test_main_exit_3_on_bad_api_base(monkeypatch):
+    d = {f"repos/{SLUG}/pulls/7": {"head": {"sha": SHA}, "base": {"ref": "a?b"}}}
+    _patch(monkeypatch, FakeClient(d))
+    assert join.main(["--pr", "7"]) == 3
