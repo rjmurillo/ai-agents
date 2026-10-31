@@ -145,8 +145,8 @@ The other two pre-push cells had no start above 2.
 ## What the numbers say
 
 **`count-ratchets` runs at its own deadline.**
-`scripts/validation/checks_ratchet.py:177` sets an 85s aggregate deadline under
-the 90s lefthook cap (`lefthook.yml:543`). Across the 60 complete warm pre-push
+`scripts/validation/checks_ratchet.py:177` sets `_AGGREGATE_TIMEOUT_SECONDS = 85`,
+an aggregate deadline under the job's 90s lefthook cap (`lefthook.yml:542-543`). Across the 60 complete warm pre-push
 repetitions, the job measured p50 72.5s, p95 80.5s, and max 82.8s. Those
 figures are censored: the job was killed at its deadline in 4 of 66 warm
 attempts, and a killed run has no finishing time, so its true tail runs to
