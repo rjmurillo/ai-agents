@@ -147,15 +147,30 @@ def _review_threads_page(
     return cast(JsonObject, review_threads)
 
 
+def _run_gh_strict(args: list[str], *, timeout: int, what: str) -> subprocess.CompletedProcess[str]:
+    """Run ``gh`` and decode its output as strict UTF-8.
+
+    Undecodable bytes used to be replaced with U+FFFD, which hid a corrupted
+    body, diff, or file name from the caller. Fail with exit 3 instead.
+    """
+    try:
+        return subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
+            check=False,
+        )
+    except UnicodeDecodeError as exc:
+        error_and_exit(f"Failed to decode {what} output as UTF-8: {exc}", 3)
+
+
 def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
-    pr_result = subprocess.run(
+    pr_result = _run_gh_strict(
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", json_fields],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         timeout=30,
-        check=False,
+        what=f"gh pr view #{pr}",
     )
 
     if pr_result.returncode != 0:
@@ -445,29 +460,17 @@ def main(argv: list[str] | None = None) -> int:
         diff_args = ["gh", "pr", "diff", str(pr), "--repo", repo_flag]
         if args.diff_stat:
             diff_args.append("--stat")
-        diff_result = subprocess.run(
-            diff_args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-            check=False,
-        )
+        diff_result = _run_gh_strict(diff_args, timeout=60, what=f"gh pr diff #{pr}")
         if diff_result.returncode == 0:
             data["diff"] = diff_result.stdout
         else:
             record_context_fetch_failure(data, "diff", diff_result, "gh pr diff")
 
     if args.include_changed_files:
-        files_result = subprocess.run(
+        files_result = _run_gh_strict(
             ["gh", "pr", "diff", str(pr), "--repo", repo_flag, "--name-only"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=60,
-            check=False,
+            what=f"gh pr diff --name-only #{pr}",
         )
         if files_result.returncode == 0:
             data["files"] = [f for f in files_result.stdout.splitlines() if f.strip()]

@@ -1095,9 +1095,11 @@ def _emit_bytes(real_run, raw: bytes, **kwargs):
 
 
 class TestUtf8Decoding:
-    """gh output decodes as UTF-8 with replacement, never the locale codec (issue #5432)."""
+    """gh output decodes as strict UTF-8, never the locale codec (issue #5432).
 
-    def test_all_three_gh_calls_pin_utf8_replace(self):
+    Undecodable bytes fail with exit 3 instead of becoming U+FFFD (issue #6506)."""
+
+    def test_all_three_gh_calls_pin_strict_utf8(self):
         seen: list[dict] = []
 
         def _side_effect(*args, **kwargs):
@@ -1113,9 +1115,9 @@ class TestUtf8Decoding:
         assert len(seen) == 3
         for kwargs in seen:
             assert kwargs["encoding"] == "utf-8"
-            assert kwargs["errors"] == "replace"
+            assert "errors" not in kwargs
 
-    def test_pr_json_with_undecodable_byte_is_replaced(self, capsys):
+    def test_pr_json_with_undecodable_byte_fails_closed(self, capsys):
         """A stray 0x9d byte in gh JSON must not crash or null stdout."""
         real_run = subprocess.run
         payload = json.loads(_pr_json())
@@ -1127,12 +1129,12 @@ class TestUtf8Decoding:
 
         auth_patch, repo_patch = _patch_auth_and_repo()
         with auth_patch, repo_patch, patch("subprocess.run", side_effect=_run):
-            rc = main(["--pull-request", "50"])
-        assert rc == 0
-        data = json.loads(capsys.readouterr().out)["Data"]
-        assert data["title"] == "bad \ufffd end"
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+        assert exc.value.code == 3
+        assert "gh pr view #50" in capsys.readouterr().err
 
-    def test_diff_with_undecodable_byte_is_replaced(self, capsys):
+    def test_diff_with_undecodable_byte_fails_closed(self, capsys):
         real_run = subprocess.run
         calls = 0
 
@@ -1145,12 +1147,12 @@ class TestUtf8Decoding:
 
         auth_patch, repo_patch = _patch_auth_and_repo()
         with auth_patch, repo_patch, patch("subprocess.run", side_effect=_run):
-            rc = main(["--pull-request", "50", "--include-diff"])
-        assert rc == 0
-        data = json.loads(capsys.readouterr().out)["Data"]
-        assert data["diff"] == "diff \ufffd end"
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--include-diff"])
+        assert exc.value.code == 3
+        assert "gh pr diff #50" in capsys.readouterr().err
 
-    def test_changed_files_with_undecodable_byte_is_replaced(self, capsys):
+    def test_changed_files_with_undecodable_byte_fails_closed(self, capsys):
         real_run = subprocess.run
         calls = 0
 
@@ -1163,10 +1165,27 @@ class TestUtf8Decoding:
 
         auth_patch, repo_patch = _patch_auth_and_repo()
         with auth_patch, repo_patch, patch("subprocess.run", side_effect=_run):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--include-changed-files"])
+        assert exc.value.code == 3
+        assert "--name-only" in capsys.readouterr().err
+
+    def test_valid_utf8_still_decodes(self, capsys):
+        real_run = subprocess.run
+        calls = 0
+
+        def _run(args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _completed(stdout=_pr_json(), rc=0)
+            return _emit_bytes(real_run, "caf\u00e9.py\n".encode(), **kwargs)
+
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch("subprocess.run", side_effect=_run):
             rc = main(["--pull-request", "50", "--include-changed-files"])
         assert rc == 0
-        data = json.loads(capsys.readouterr().out)["Data"]
-        assert data["files"] == ["a\ufffd.py", "b.py"]
+        assert json.loads(capsys.readouterr().out)["Data"]["files"] == ["caf\u00e9.py"]
 
 
 # ---------------------------------------------------------------------------
