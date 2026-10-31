@@ -408,3 +408,27 @@ class TestMcpGrantsAreEnumerated:
         assert expected <= tools, f"prompt is missing {sorted(expected - tools)}"
         forbidden = sorted(f"github/{op}" for op in _MCP_FORBIDDEN if f"github/{op}" in tools)
         assert not forbidden, f"prompt grants a repository mutation: {forbidden}"
+
+
+class TestStepZeroStopsOnUnverifiableTokens:
+    """Audit 6506 merge-pr-automation-16 and -17: Step 0 wording is the gate."""
+
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
+    def test_non_empty_unverifiable_tokens_stop_the_run(self, path):
+        body = path.read_text(encoding="utf-8")
+        assert "A non-empty list stops the run" in body
+        assert "empty `unverifiable_command_tokens` list" in body
+
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
+    def test_command_key_is_read_from_the_verified_config(self, path):
+        body = path.read_text(encoding="utf-8")
+        step_1 = body.index("### Step 1")
+        window = body[body.rindex("Only after exit 0", 0, step_1) : step_1]
+        assert "`$PR_REVIEW_CONFIG` file just verified" in window
+        assert "resolved once" in window
+        assert "from config" not in window
+
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
+    def test_old_continue_on_exit_zero_wording_is_gone(self, path):
+        body = path.read_text(encoding="utf-8")
+        assert "Only after exit 0, run `transport_preflight.command_key` from config" not in body
