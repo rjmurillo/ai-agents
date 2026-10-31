@@ -190,10 +190,16 @@ def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.
     return 1 if verdict.failing else 0
 
 
-def _run_identity_ok(args: argparse.Namespace) -> bool:
-    """False, with a message, when --event and --ref are partial or empty."""
+def _run_identity_ok(args: argparse.Namespace, policy: consecutive_breach.Policy) -> bool:
+    """False, with a message, when the event and ref are partial or empty.
+
+    Strict reads the flags. Every other policy reads the resolved policy, which
+    falls back to GITHUB_EVENT_NAME and GITHUB_REF when a flag is empty.
+    """
+    strict = policy.name == consecutive_breach.POLICY_STRICT
+    event, ref = (args.event, args.ref) if strict else (policy.event, policy.ref)
     try:
-        is_enforced(args.event, args.ref)
+        is_enforced(event, ref)
     except ValueError as exc:
         print(f"bad run identity: {exc}", file=sys.stderr)
         return False
@@ -210,7 +216,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"bad breach policy: {exc}", file=sys.stderr)
         return 2
-    if policy.name == consecutive_breach.POLICY_STRICT and not _run_identity_ok(args):
+    if not _run_identity_ok(args, policy):
         return 2
     try:
         snapshot = build_snapshot(args.inputs, args.sha or policy.sha, datetime.now(UTC))

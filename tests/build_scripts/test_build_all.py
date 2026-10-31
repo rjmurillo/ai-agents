@@ -22,6 +22,8 @@ import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
 import lib_mirror  # noqa: E402
 
+_REAL_SURFACE_PARITY_EXIT = build_all._surface_parity_exit
+
 # Helpers --------------------------------------------------------------------
 
 
@@ -3450,6 +3452,33 @@ def test_cli_exits_3_when_git_state_read_times_out(
 
     assert rc == 3, f"expected CLI exit 3 when git times out, got {rc}"
     assert "cannot read git state" in capsys.readouterr().err
+
+
+def test_cli_check_exits_2_when_the_surface_parity_manifest_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--check reaches the real parity gate, so a deleted manifest cannot turn it off."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    monkeypatch.setattr(build_all, "_surface_parity_exit", _REAL_SURFACE_PARITY_EXIT)
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    rc = build_all.main(["--repo-root", str(repo), "--check"])
+
+    assert rc == 2, f"expected CLI exit 2 for a missing parity manifest, got {rc}"
+    assert "surface parity manifest missing" in capsys.readouterr().err
 
 
 def test_cli_exits_3_when_git_state_is_unreadable(

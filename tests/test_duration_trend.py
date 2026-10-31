@@ -244,6 +244,35 @@ def test_main_exits_two_for_a_partial_or_empty_run_identity(
     assert "bad run identity" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    "named",
+    [
+        ["--event", "push", "--ref", ""],
+        ["--event", "push", "--ref", " "],
+        ["--event", "", "--ref", "refs/heads/main"],
+        ["--event", " ", "--ref", "refs/heads/main"],
+        ["--event", "", "--ref", ""],
+    ],
+)
+def test_main_exits_two_for_a_blank_run_identity_under_consecutive_main(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    named: list[str],
+) -> None:
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "")
+    monkeypatch.setenv("GITHUB_REF", "")
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [20.0, 20.0]}, 40.0)
+    history = str(write_history(tmp_path, [10.0, 12.0]))
+
+    rc = trend.main(
+        [str(report), "--history", history, "--breach-policy", "consecutive-main", *named]
+    )
+
+    assert rc == 2
+    assert "bad run identity" in capsys.readouterr().err
+
+
 def test_main_still_runs_when_neither_event_nor_ref_is_given(tmp_path: Path) -> None:
     report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0]}, 1.0)
 
