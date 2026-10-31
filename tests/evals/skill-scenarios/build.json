@@ -83,6 +83,44 @@
       ],
       "expected_gate": "build-slice",
       "rationale": "A test file cannot invalidate a durable claim, so the trigger decides skip and exit gate 3 records DOC ACCURACY: SKIPPED with the reason. A generic responder either runs a full documentation audit or says nothing; quoting the trigger's skip reason is attributable to the skill."
+    },
+    {
+      "id": "S8",
+      "desc": "An in-scope gate regression is repaired and revalidated",
+      "input": "Work order allows only src/uploader/ and tests/uploader/. Exit gate 1 flags a regression in src/uploader/retry.py that my diff introduced. What do you do? Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "in scope",
+        "repair",
+        "rerun"
+      ],
+      "expected_gate": "build-slice",
+      "rationale": "The finding is caused by the diff and sits inside the allowed paths, so the Gate failure disposition table says repair in this cycle and rerun the gate. A generic responder defers it to review, which the skill rejects."
+    },
+    {
+      "id": "S9",
+      "desc": "Unrelated drift fails a required gate outside the allowed paths",
+      "input": "Work order allows only src/uploader/. Exit gate 4 (orphan-ref-validator) returns CRITICAL_FAIL on docs/old-guide.md, which this diff never touched. A teammate says to fix that file in this PR so the gate is green. What do you do? Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "FAILED",
+        "no edit",
+        "owner",
+        "record"
+      ],
+      "expected_gate": "build-slice",
+      "rationale": "Out-of-scope drift on a required gate is a Blocker: no edit outside the allowed paths, the gate stays FAILED, the finding is recorded in the handoff, and the branch stops with the owner named. Fixing the file or marking the gate passed are the failure modes."
+    },
+    {
+      "id": "S10",
+      "desc": "Recorded blocker evidence changed on a repeated run",
+      "input": "Last run I recorded gate 4 failing on docs/old-guide.md at head abc123 as out of scope. The branch now has new commits and gate 4 also fails on src/uploader/README.md, inside the allowed paths. What do you do? Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "freshness",
+        "head",
+        "in scope",
+        "repair"
+      ],
+      "expected_gate": "build-slice",
+      "rationale": "Recorded evidence is reused only after a freshness check on head SHA and failing paths. The new failure is inside the allowed paths, so it is reclassified in scope and repaired, while the old finding is rechecked rather than trusted."
     }
   ]
 }
