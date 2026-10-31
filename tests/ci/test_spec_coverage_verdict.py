@@ -33,6 +33,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
         "HAS_SPECS",
         "PR_BODY",
+        "PR_BODY_FILE",
         "EVENT_NAME",
         "PR_NUMBER",
         "GITHUB_REPOSITORY",
