@@ -25,6 +25,16 @@ import lib_mirror  # noqa: E402
 # Helpers --------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _stub_surface_parity_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fixture repos here carry no surface-parity manifest, which now exits 2.
+
+    The parity gate has its own tests in test_check_surface_parity_inventory.py
+    and test_surface_parity_repo.py; these tests exercise the other --check gates.
+    """
+    monkeypatch.setattr(build_all, "_surface_parity_exit", lambda *_a, **_k: 0)
+
+
 def _write_skill(skills_dir: Path, name: str) -> None:
     skill = skills_dir / name
     skill.mkdir(parents=True, exist_ok=True)
