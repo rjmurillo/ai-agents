@@ -158,45 +158,71 @@ def _norm(raw: str) -> str:
     return p.strip("/")
 
 
+_ROLE_KEYS = (
+    ("canonical", "source"),
+    ("generated", "plugin_tree"),
+    ("installed", "install_tree"),
+)
+
+
+def _row_matches(row: dict, path: str) -> list[dict]:
+    """Return one match per binplace tree of `row` that contains `path`."""
+    matches = []
+    for role, key in _ROLE_KEYS:
+        base = row.get(key)
+        if not _under(path, base):
+            continue
+        if role == "generated" and base == row.get("source"):
+            continue
+        if role == "installed":
+            role = "link" if row.get("link") else "binplaced-copy"
+        matches.append(
+            {
+                "role": role,
+                "class": row.get("class"),
+                "specificity": len(base),
+                "canonical_source": row.get("source"),
+                "plugin_tree": row.get("plugin_tree"),
+                "install_tree": row.get("install_tree"),
+                "compile": row.get("compile"),
+                "regenerate": REGEN,
+            }
+        )
+    return matches
+
+
+def _most_specific(matches: list[dict]) -> list[dict]:
+    top = max(m["specificity"] for m in matches)
+    best = [m for m in matches if m["specificity"] == top]
+    for m in best:
+        del m["specificity"]
+    return best
+
+
+def _owned_prefix(repo: Path, path: str) -> str | None:
+    """Return the `OWNED_PREFIXES` entry of build_all.py that covers `path`."""
+    gtext = _read(repo, BUILD_ALL)
+    if gtext is None:
+        return None
+    owned = _assigned(ast.parse(gtext), "OWNED_PREFIXES")
+    if not isinstance(owned, ast.Tuple):
+        return None
+    for e in owned.elts:
+        if isinstance(e, ast.Constant) and (path == e.value or path.startswith(e.value)):
+            return e.value
+    return None
+
+
 def cmd_path(repo: Path, raw: str) -> tuple[dict, int]:
     text = _read(repo, BINPLACE)
     if text is None:
         return {"error": f"missing {BINPLACE}", "examined": 0}, 2
     rows = parse_binplace(text)
     path = _norm(raw)
-    matches = []
-    for row in rows:
-        for role, key in (
-            ("canonical", "source"),
-            ("generated", "plugin_tree"),
-            ("installed", "install_tree"),
-        ):
-            base = row.get(key)
-            if not _under(path, base):
-                continue
-            if role == "generated" and base == row.get("source"):
-                continue
-            if role == "installed":
-                role = "link" if row.get("link") else "binplaced-copy"
-            matches.append(
-                {
-                    "role": role,
-                    "class": row.get("class"),
-                    "specificity": len(base),
-                    "canonical_source": row.get("source"),
-                    "plugin_tree": row.get("plugin_tree"),
-                    "install_tree": row.get("install_tree"),
-                    "compile": row.get("compile"),
-                    "regenerate": REGEN,
-                }
-            )
+    matches = [m for row in rows for m in _row_matches(row, path)]
     out: dict = {"path": path, "examined": len(rows)}
     if matches:
-        matches.sort(key=lambda m: -m["specificity"])
-        top = matches[0]["specificity"]
-        best = [m for m in matches if m["specificity"] == top]
-        for m in best:
-            del m["specificity"]
+        best = _most_specific(matches)
         out["role"] = best[0]["role"]
         out["matches"] = best
         out["repo_local_skill"] = _repo_local_skill(repo, path)
@@ -206,14 +232,10 @@ def cmd_path(repo: Path, raw: str) -> tuple[dict, int]:
                 "repo-local skill: template renders straight to install_tree, no plugin hop"
             )
         return out, 0
-    gtext = _read(repo, BUILD_ALL)
-    if gtext is not None:
-        owned = _assigned(ast.parse(gtext), "OWNED_PREFIXES")
-        if isinstance(owned, ast.Tuple):
-            for e in owned.elts:
-                if isinstance(e, ast.Constant) and (path == e.value or path.startswith(e.value)):
-                    out.update(role="generated", owned_prefix=e.value, regenerate=REGEN, matches=[])
-                    return out, 0
+    prefix = _owned_prefix(repo, path)
+    if prefix is not None:
+        out.update(role="generated", owned_prefix=prefix, regenerate=REGEN, matches=[])
+        return out, 0
     out.update(role=None, matches=[], note="no binplace row or owned prefix covers this path")
     return out, 1
 

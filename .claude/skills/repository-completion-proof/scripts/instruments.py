@@ -20,79 +20,62 @@ from pathlib import Path
 SKILL = "repository-completion-proof"
 _PR = ".claude/skills/github/scripts/pr"
 
+
+def _row(id_: str, answers: str, argv: str, source: str = "Phase 2") -> dict:
+    """Build one instrument row from a space-separated command line."""
+    return {"id": id_, "answers": answers, "argv": argv.split(), "source": source}
+
+
 INSTRUMENTS: list[dict] = [
-    {
-        "id": "verify-config",
-        "answers": "Are the review config and its command files trusted against the remote anchor (verified: true)?",
-        "argv": [
-            "uv",
-            "run",
-            "python",
-            f"{_PR}/run_completion_gate.py",
-            "--verify-config-only",
-            "--json",
-        ],
-        "source": "Phase 1",
-    },
-    {
-        "id": "merged-state",
-        "answers": "Is the PR merged? Read the JSON merged field, not the exit code.",
-        "argv": ["uv", "run", "python", f"{_PR}/test_pr_merged.py"],
-        "source": "Phase 2",
-    },
-    {
-        "id": "settled-zero",
-        "answers": "Do three consecutive complete readings show zero unresolved threads?",
-        "argv": ["uv", "run", "python", f"{_PR}/wait_for_unresolved_zero.py"],
-        "source": "Phase 2",
-    },
-    {
-        "id": "completion-gate",
-        "answers": "Do all configured completion criteria pass (all_passed and per-criterion results)? Dispatches verifiers.",
-        "argv": ["uv", "run", "python", f"{_PR}/run_completion_gate.py", "--json"],
-        "source": "Phase 2",
-    },
-    {
-        "id": "resolution-shas",
-        "answers": "Are the commit SHAs cited in resolved review threads reachable?",
-        "argv": ["uv", "run", "python", f"{_PR}/check_review_thread_resolution_shas.py"],
-        "source": "Phase 2",
-    },
-    {
-        "id": "suppressed-findings",
-        "answers": "Are suppressed review findings dispositioned?",
-        "argv": ["uv", "run", "python", f"{_PR}/check_suppressed_review_findings.py"],
-        "source": "Phase 2",
-    },
-    {
-        "id": "merge-ready",
-        "answers": "Is the PR merge-ready on the live state GitHub reports?",
-        "argv": ["uv", "run", "python", f"{_PR}/test_pr_merge_ready.py"],
-        "source": "Phase 3",
-    },
-    {
-        "id": "live-state",
-        "answers": "What is the PR's current live state (head, checks, threads)?",
-        "argv": ["uv", "run", "python", f"{_PR}/check_pr_live_state.py"],
-        "source": "Phase 3",
-    },
-    {
-        "id": "drift-self-check",
-        "answers": "Does this skill's reverify.json still hold at HEAD?",
-        "argv": [
-            "python3",
-            ".claude/skills/skill-bootstrap/scripts/bootstrap_drift.py",
-            "check",
-            "--repo",
-            ".",
-            "--skills-root",
-            ".claude/skills",
-            "--name",
-            SKILL,
-            "--require",
-        ],
-        "source": "Provenance and Maintenance",
-    },
+    _row(
+        "verify-config",
+        "Are the review config and its command files trusted against the remote anchor (verified: true)?",
+        f"uv run python {_PR}/run_completion_gate.py --verify-config-only --json",
+        "Phase 1",
+    ),
+    _row(
+        "merged-state",
+        "Is the PR merged? Read the JSON merged field, not the exit code.",
+        f"uv run python {_PR}/test_pr_merged.py",
+    ),
+    _row(
+        "settled-zero",
+        "Do three consecutive complete readings show zero unresolved threads?",
+        f"uv run python {_PR}/wait_for_unresolved_zero.py",
+    ),
+    _row(
+        "completion-gate",
+        "Do all configured completion criteria pass (all_passed and per-criterion results)? Dispatches verifiers.",
+        f"uv run python {_PR}/run_completion_gate.py --json",
+    ),
+    _row(
+        "resolution-shas",
+        "Are the commit SHAs cited in resolved review threads reachable?",
+        f"uv run python {_PR}/check_review_thread_resolution_shas.py",
+    ),
+    _row(
+        "suppressed-findings",
+        "Are suppressed review findings dispositioned?",
+        f"uv run python {_PR}/check_suppressed_review_findings.py",
+    ),
+    _row(
+        "merge-ready",
+        "Is the PR merge-ready on the live state GitHub reports?",
+        f"uv run python {_PR}/test_pr_merge_ready.py",
+        "Phase 3",
+    ),
+    _row(
+        "live-state",
+        "What is the PR's current live state (head, checks, threads)?",
+        f"uv run python {_PR}/check_pr_live_state.py",
+        "Phase 3",
+    ),
+    _row(
+        "drift-self-check",
+        "Does this skill's reverify.json still hold at HEAD?",
+        f"python3 .claude/skills/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root .claude/skills --name {SKILL} --require",
+        "Provenance and Maintenance",
+    ),
 ]
 
 

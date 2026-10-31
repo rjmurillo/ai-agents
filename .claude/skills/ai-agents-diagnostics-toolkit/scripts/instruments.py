@@ -18,100 +18,79 @@ SKILL = "ai-agents-diagnostics-toolkit"
 SK = ".claude/skills"
 
 
-def _uv(*tail: str) -> list[str]:
-    return ["uv", "run", "python", *tail]
+def _row(id_: str, answers: str, argv: str, source: str = "SKILL.md Instrument Index") -> dict:
+    """Build one instrument row from a space-separated command line."""
+    return {"id": id_, "answers": answers, "argv": argv.split(), "source": source}
 
 
 INSTRUMENTS: list[dict] = [
-    {
-        "id": "description-budget",
-        "answers": "How much standing context do skill descriptions cost?",
-        "argv": _uv("./scripts/skill_description_budget.py", "--top", "10"),
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "skill-size",
-        "answers": "Which SKILL.md files pass the line and byte limits? (exit 0 unless --ci)",
-        "argv": _uv("./scripts/validation/skill_size.py"),
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "orphan-refs",
-        "answers": "Do specs, evals, and manifests reference entities that no longer exist?",
-        "argv": ["python3", f"{SK}/orphan-ref-validator/scripts/scan.py"],
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "golden-principles",
-        "answers": "Where does the repo violate the mechanical golden principles? (exit 10 on violations)",
-        "argv": ["python3", f"{SK}/golden-principles/scripts/scan_principles.py"],
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "agent-drift",
-        "answers": "Do generated agent files match their templates?",
-        "argv": _uv("build/generate_agents.py", "--validate"),
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "build-check",
-        "answers": "Do generated mirror and lib trees match canonical sources? Writes build/audit/GENERATION-AUDIT.md.",
-        "argv": _uv("build/scripts/build_all.py", "--check"),
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "install-parity",
-        "answers": "Does the install surface stay in parity across hosts (ADR-035)?",
-        "argv": _uv("scripts/validation/run_install_parity_ci.py"),
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "eval-prompt-change",
-        "answers": "Did a prompt change alter behavior? Pass --prompt and --scenarios; --dry-run spends nothing.",
-        "argv": _uv("./scripts/eval/eval-prompt-change.py", "--dry-run"),
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "eval-agent-vs-baseline",
-        "answers": "Does an agent beat the baseline? Pass --agent and --fixtures; --dry-run is already set.",
-        "argv": _uv("./scripts/eval/eval-agent-vs-baseline.py", "--dry-run"),
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "coverage",
-        "answers": "Is changed code exercised by tests? With no target it runs the whole suite; pass a test path and --cov=<dotted module> after --.",
-        "argv": ["uv", "run", "pytest", "--cov-branch"],
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "commit-count",
-        "answers": "How many commits is HEAD ahead of origin/main? Advisory only.",
-        "argv": ["git", "rev-list", "--count", "HEAD", "^origin/main"],
-        "source": "SKILL.md Instrument Index",
-    },
-    {
-        "id": "baseline-snapshot",
-        "answers": "What are the current headline numbers of the four read-only instruments?",
-        "argv": ["python3", f"{SK}/{SKILL}/scripts/baseline_snapshot.py", "--repo", "."],
-        "source": "SKILL.md Baselines",
-    },
-    {
-        "id": "drift-self-check",
-        "answers": "Has this skill drifted from its reverify.json checks?",
-        "argv": [
-            "python3",
-            f"{SK}/skill-bootstrap/scripts/bootstrap_drift.py",
-            "check",
-            "--repo",
-            ".",
-            "--skills-root",
-            SK,
-            "--name",
-            SKILL,
-            "--require",
-        ],
-        "source": "SKILL.md Provenance and Maintenance",
-    },
+    _row(
+        "description-budget",
+        "How much standing context do skill descriptions cost?",
+        "uv run python ./scripts/skill_description_budget.py --top 10",
+    ),
+    _row(
+        "skill-size",
+        "Which SKILL.md files pass the line and byte limits? (exit 0 unless --ci)",
+        "uv run python ./scripts/validation/skill_size.py",
+    ),
+    _row(
+        "orphan-refs",
+        "Do specs, evals, and manifests reference entities that no longer exist?",
+        f"python3 {SK}/orphan-ref-validator/scripts/scan.py",
+    ),
+    _row(
+        "golden-principles",
+        "Where does the repo violate the mechanical golden principles? (exit 10 on violations)",
+        f"python3 {SK}/golden-principles/scripts/scan_principles.py",
+    ),
+    _row(
+        "agent-drift",
+        "Do generated agent files match their templates?",
+        "uv run python build/generate_agents.py --validate",
+    ),
+    _row(
+        "build-check",
+        "Do generated mirror and lib trees match canonical sources? Writes build/audit/GENERATION-AUDIT.md.",
+        "uv run python build/scripts/build_all.py --check",
+    ),
+    _row(
+        "install-parity",
+        "Does the install surface stay in parity across hosts (ADR-035)?",
+        "uv run python scripts/validation/run_install_parity_ci.py",
+    ),
+    _row(
+        "eval-prompt-change",
+        "Did a prompt change alter behavior? Pass --prompt and --scenarios; --dry-run spends nothing.",
+        "uv run python ./scripts/eval/eval-prompt-change.py --dry-run",
+    ),
+    _row(
+        "eval-agent-vs-baseline",
+        "Does an agent beat the baseline? Pass --agent and --fixtures; --dry-run is already set.",
+        "uv run python ./scripts/eval/eval-agent-vs-baseline.py --dry-run",
+    ),
+    _row(
+        "coverage",
+        "Is changed code exercised by tests? With no target it runs the whole suite; pass a test path and --cov=<dotted module> after --.",
+        "uv run pytest --cov-branch",
+    ),
+    _row(
+        "commit-count",
+        "How many commits is HEAD ahead of origin/main? Advisory only.",
+        "git rev-list --count HEAD ^origin/main",
+    ),
+    _row(
+        "baseline-snapshot",
+        "What are the current headline numbers of the four read-only instruments?",
+        f"python3 {SK}/{SKILL}/scripts/baseline_snapshot.py --repo .",
+        "SKILL.md Baselines",
+    ),
+    _row(
+        "drift-self-check",
+        "Has this skill drifted from its reverify.json checks?",
+        f"python3 {SK}/skill-bootstrap/scripts/bootstrap_drift.py check --repo . --skills-root {SK} --name {SKILL} --require",
+        "SKILL.md Provenance and Maintenance",
+    ),
 ]
 
 
