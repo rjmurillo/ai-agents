@@ -295,11 +295,21 @@ def _extract_azure_refs(combined: str) -> str:
     return " ".join(f"AB#{number}" for number in sorted(numbers, key=int))
 
 
+_SCOPE_HELPER = (
+    Path(__file__).resolve().parents[2] / ".github" / "scripts" / "extract_incremental_scope.py"
+)
+
+
 def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
-    """Call extract_incremental_scope.py and return its output."""
+    """Call extract_incremental_scope.py and return its output.
+
+    The helper resolves from this script's own checkout, not the working
+    directory, so a workflow that runs this script from the trusted base also
+    runs the base copy of the helper (issue #6506, review-gates-14).
+    """
     try:
         result = subprocess.run(
-            [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
+            [sys.executable, str(_SCOPE_HELPER), pr_title],
             capture_output=True,
             text=True,
             encoding="utf-8",
