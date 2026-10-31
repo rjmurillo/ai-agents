@@ -253,6 +253,19 @@ class TestOverrideModesAndLocalAxes:
         for axis in mod.LOCAL_AXES:
             assert result["selection_reasons"][axis] == mod._FAIL_CLOSED_REASON
 
+    def test_deep_with_an_unresolved_axis_says_why_narrowing_did_not_run(self):
+        """A demanded axis with no prompt fails closed, so deep must not narrow."""
+        candidates = [axis for axis in CANDIDATES if axis != "analyst"]
+        result = mod.select_axes(
+            changed_paths=self.POWERSHELL_CHANGE,
+            canonical_candidates=candidates,
+            deep=True,
+        )
+        assert result["unresolved_axes"] == ["analyst"]
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        for axis in mod.LOCAL_AXES:
+            assert result["selection_reasons"][axis] == mod._UNRESOLVED_REASON
+
     def test_deep_narrowing_keeps_the_deep_reason(self):
         """Negative control: a classified deep run still says deep review."""
         result = select(self.POWERSHELL_CHANGE, deep=True)

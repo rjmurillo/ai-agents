@@ -134,10 +134,10 @@ caller who cannot list the changed paths with confidence passes none. An
 empty list fails closed, and all four local axes run over the real diff. A
 partial list would skip a scanner that the missing files needed.
 
-A path the risk table cannot classify also fails closed. A PowerShell module
-that changes its `.psd1` manifest or a `.ps1xml` file keeps all four local
-axes. In that case `code-qualities-assessment` and `golden-principles` still
-report UNKNOWN.
+A path the risk table cannot classify also fails closed. A `.psd1` manifest
+or `.ps1xml` file is unclassified unless a path row (such as `tests/` or
+`skills/`) covers it. Such a change keeps all four local axes, and
+`code-qualities-assessment` and `golden-principles` still report UNKNOWN.
 
 A local axis skipped this way is not PASS and gets no marker row. In its
 Summary cell, name the language-native checks that covered those files, such

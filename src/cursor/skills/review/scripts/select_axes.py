@@ -619,10 +619,10 @@ _PINNED_REASON = "selected - caller-pinned always-on"
 
 
 def _blanket_reason(
-    deep: bool,
     unclassified: Sequence[str],
     unknown_effects: Sequence[str],
     usable_paths: Sequence[str],
+    unresolved: Sequence[str],
 ) -> str:
     """Return the reason recorded on every axis a deep or fail-closed run selects.
 
@@ -631,9 +631,9 @@ def _blanket_reason(
     """
     if unclassified or unknown_effects or not usable_paths:
         return _FAIL_CLOSED_REASON
-    if deep:
-        return _DEEP_REASON
-    return _UNRESOLVED_REASON
+    if unresolved:
+        return _UNRESOLVED_REASON
+    return _DEEP_REASON
 
 
 def discover_canonical_axes(references_dir: Path) -> list[str]:
@@ -765,7 +765,7 @@ def select_axes(
     skip_overrides: dict[str, str] = {}
 
     if deep or fail_closed:
-        blanket = _blanket_reason(deep, unclassified, unknown_effects, usable_paths)
+        blanket = _blanket_reason(unclassified, unknown_effects, usable_paths, unresolved_axes)
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
         if not fail_closed:
