@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, the truncation flag pushed this module past 500 lines.
 """Fail-closed recovery planning for a bulk Actions cancellation.
 
 Issue #4835. On 2026-08-09 a panic rollback cancelled 818 of 820 queued or
@@ -74,7 +75,7 @@ class WorkflowRun:
 
     ``artifact_count`` is the run's live (unexpired) artifact count, or None
     when not measured (issue #5365: one REST call per run, so opt-in). None is
-    never zero.
+    never zero. ``artifact_count_truncated``: the page cap hit, count is a floor.
     """
 
     run_id: int
@@ -88,6 +89,7 @@ class WorkflowRun:
     workflow_path: str = ""
     head_repo: str = ""
     artifact_count: int | None = None
+    artifact_count_truncated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +137,7 @@ class BlastRadius:
     ``artifact_count`` totals the live artifacts a cancellation would orphan.
     None unless every run was measured (issue #5365): a partial sum understates
     the radius, and a zero would read as "nothing to lose".
+    ``artifact_count_truncated``: any run hit the page cap, count is a floor.
     """
 
     run_count: int
@@ -145,6 +148,7 @@ class BlastRadius:
     in_progress_runs: int
     required_context_count: int
     artifact_count: int | None = None
+    artifact_count_truncated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +201,7 @@ def summarize_blast_radius(runs: Sequence[WorkflowRun], required: frozenset[str]
         in_progress_runs=sum(1 for run in runs if run.status == "in_progress"),
         required_context_count=len(required_contexts),
         artifact_count=_total_artifacts(runs),
+        artifact_count_truncated=any(run.artifact_count_truncated for run in runs),
     )
 
 
@@ -465,6 +470,8 @@ def manifest_to_dict(manifest: RecoveryManifest) -> dict[str, Any]:
     }
     if radius.artifact_count is not None:
         blast_radius["artifacts"] = radius.artifact_count
+        if radius.artifact_count_truncated:
+            blast_radius["artifacts_truncated"] = True
     return {
         "version": MANIFEST_VERSION,
         "generated_at": manifest.generated_at,

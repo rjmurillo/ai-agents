@@ -199,9 +199,12 @@ reports this as `MissingRequiredChecks` and a `MISSING` summary line. Without `-
 fetch and no code change fixes it, so skip Phases 3 to 6.
 
 Queued is not stranded. An aggregate check such as "Run Python Tests" is created
-only after its split jobs finish, 10 to 35 minutes after a push. Both scripts read
-the head commit committer date (GraphQL `committedDate`) and treat a missing check as queued for 45 minutes
-(`--missing-grace-seconds`, default 2700). Inside that window `get_pr_checks.py`
+only after its split jobs finish, 10 to 35 minutes after a push. Both scripts start
+from the head commit committer date (GraphQL `committedDate`) and treat a missing check as queued for 45 minutes
+(`--missing-grace-seconds`, default 2700). A `committedDate` more than 5 minutes in the future closes the window,
+because the author controls that date. `get_pr_checks.py` also reads the earliest check suite `createdAt`
+(reported as `HeadPushedAt`) and keeps the window open only while both dates are inside it;
+`why_pr_blocked.py` uses the commit date alone. Inside that window `get_pr_checks.py`
 reports `MissingRequiredQueued: true` and `--wait` keeps polling (exit 7 at timeout);
 `why_pr_blocked.py` lists the names under `QueuedRequired`. Past the window, or when
 the date is unknown, `why_pr_blocked.py` lists them under `AbsentRequired` and
