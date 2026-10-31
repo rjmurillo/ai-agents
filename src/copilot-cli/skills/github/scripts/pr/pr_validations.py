@@ -128,6 +128,11 @@ def head_on_origin(head: str) -> bool | None:
     return None
 
 
+# Warnings raised before ``run_validations`` builds its log. The next run drains
+# them so the summary says "completed with warnings" instead of "passed".
+_PREFLIGHT_WARNINGS: list[str] = []
+
+
 def require_head_on_origin(head: str) -> bool:
     """Refuse to continue when gh would resolve a head that origin lacks."""
     if not is_valid_branch_name(head):
@@ -135,11 +140,12 @@ def require_head_on_origin(head: str) -> bool:
         return False
     on_origin = head_on_origin(head)
     if on_origin is None:
+        message = f"could not read origin to confirm {head!r} is pushed"
         print(
-            f"Warning: could not read origin to confirm {head!r} is pushed; "
-            "continuing, gh will report a missing head.",
+            f"Warning: {message}; continuing, gh will report a missing head.",
             file=sys.stderr,
         )
+        _PREFLIGHT_WARNINGS.append(message)
         return True
     if not on_origin:
         print(
@@ -329,6 +335,8 @@ def run_validations(
 ) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
     warnings = _WarningLog()
+    while _PREFLIGHT_WARNINGS:
+        warnings.record(_PREFLIGHT_WARNINGS.pop(0))
     try:
         os.makedirs(os.path.join(repo_root, ".project-toolkit"), exist_ok=True)
     except PermissionError as exc:

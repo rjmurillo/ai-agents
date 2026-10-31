@@ -196,6 +196,25 @@ class TestRequireHeadOnOrigin:
             assert _pr_val.require_head_on_origin("feat/x") is True
 
         assert "could not read origin" in capsys.readouterr().err
+        _pr_val._PREFLIGHT_WARNINGS.clear()
+
+    def test_unreadable_origin_is_recorded_for_the_summary(self, capsys) -> None:
+        _pr_val._PREFLIGHT_WARNINGS.clear()
+        with patch.object(_pr_val, "head_on_origin", return_value=None):
+            assert _pr_val.require_head_on_origin("feat/x") is True
+        capsys.readouterr()
+
+        assert len(_pr_val._PREFLIGHT_WARNINGS) == 1
+        assert "could not read origin" in _pr_val._PREFLIGHT_WARNINGS[0]
+        _pr_val._PREFLIGHT_WARNINGS.clear()
+
+    def test_pushed_and_missing_branches_record_no_warning(self) -> None:
+        _pr_val._PREFLIGHT_WARNINGS.clear()
+        for found in (True, False):
+            with patch.object(_pr_val, "head_on_origin", return_value=found):
+                _pr_val.require_head_on_origin("feat/x")
+
+        assert _pr_val._PREFLIGHT_WARNINGS == []
 
     def test_pushed_branch_is_silent(self, capsys) -> None:
         with patch.object(_pr_val, "head_on_origin", return_value=True):
