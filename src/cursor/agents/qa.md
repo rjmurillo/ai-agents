@@ -365,16 +365,11 @@ Save to: `.project-toolkit/planning/impact-analysis-qa-[feature].md`
 
 ### Validation Protocol
 
-When orchestrator requests pre-PR validation:
+When orchestrator requests pre-PR validation, take test and coverage commands from the target repository's documented command, manifest or task runner, CI configuration, existing local validation skill, or `autoplan` recon; never invent one. If none, report `UNRESOLVED EVIDENCE: no <test|coverage> command found in <sources checked>`; the gate is unmet:
 
 #### Step 1: CI Environment Test Validation
 
 Run tests in CI-equivalent environment:
-
-```text
-Use the target repository's own commands, from the first source that names them: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. Reuse it; do not re-ask.
-When none does, report "UNRESOLVED EVIDENCE: no <test|coverage> command found in <sources checked>", treat the gate as unmet; never invent a command or skip silently.
-```
 
 **Pass criteria**:
 
@@ -464,7 +459,7 @@ Verify code coverage meets minimum thresholds:
 
 | Metric | Minimum | Target | Measurement |
 |--------|---------|--------|-------------|
-| Line coverage | 70% | 80% | Repository coverage command (resolved as above) |
+| Line coverage | 70% | 80% | Coverage command |
 | Branch coverage | 60% | 70% | Coverage report |
 | New code coverage | 80% | 90% | Diff coverage analysis |
 
@@ -721,7 +716,7 @@ Result: PASS | FAIL
 
 ## Test Commands
 
-Use the commands resolved in Validation Protocol Step 1. When one is unresolved, report `UNRESOLVED EVIDENCE:` and do not substitute a guess.
+Use the commands resolved in the Validation Protocol. When one is unresolved, report `UNRESOLVED EVIDENCE:` and do not substitute a guess.
 
 ## Memory Protocol
 

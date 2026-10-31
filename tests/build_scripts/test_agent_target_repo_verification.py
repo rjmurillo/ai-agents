@@ -54,7 +54,7 @@ SOURCE_MARKERS = (
     "`autoplan`",
 )
 UNRESOLVED_MARKER = "UNRESOLVED EVIDENCE:"
-NEVER_MARKER = "never invent a command"
+NEVER_MARKER = "never invent"
 
 
 def _rel(p: Path) -> str:
@@ -126,7 +126,7 @@ def test_qa_names_sources_and_unresolved_result(path: Path) -> None:
 
 def test_claude_qa_test_commands_defers_to_resolved_commands() -> None:
     text = _flat(AGENTS / "qa.claude.md.tmpl")
-    assert "Use the commands resolved in Validation Protocol Step 1" in text
+    assert "Use the commands resolved in the Validation Protocol" in text
     assert "UNRESOLVED EVIDENCE:" in text
 
 
