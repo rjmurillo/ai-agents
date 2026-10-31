@@ -1054,14 +1054,14 @@ GitHub refuses auto-merge for `UNSTABLE` PRs and may also reject an already-`CLE
 
 Run this after every merge this skill lands, once `test_pr_merged.py` reports
 `merged: true`. The snippet reads its inputs from `test_pr_merged.py`
-(`head_ref`, `head_sha`, `merge_commit_sha`), fails when any is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
+(`head_ref`, `head_sha`, `merge_commit_sha`, `owner`, `repo`), fails when any is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
 A leftover worktree costs disk and slows repo-wide scans: one machine counted
 113 of them at 10.6G. A merged PR has been found with its worktree and
 local branch still in place.
 
 ```bash
 # Replace <pr> with the merged PR number. SCRIPTS_DIR is set by resolve_pr_scripts_dir above.
-# jq prints nothing unless all three values exist, so the guard below fails loud.
+# jq prints nothing unless all five values exist, so the guard below fails loud.
 read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA PR_REPO < <(python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request <pr> --output-format json \
     | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha and .owner and .repo) | [.head_ref, .head_sha, .merge_commit_sha, (.owner + "/" + .repo)] | @tsv')
 : "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}" "${PR_REPO:?}"

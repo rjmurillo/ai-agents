@@ -83,6 +83,20 @@ class TestDetectionGaps:
         assert report["status"] == "unverified"
         assert not any(c[0] == "log" for c in git.calls)
 
+    def test_diverged_without_a_named_worktree_lists_nothing_and_raises_no_alarm(self):
+        log = _record("b" * 40, "someone else's work", ("M", "src/a.py"))
+        git = FakeGit(ancestor=1, log=(0, log))
+        report = oc.scan_unpushed_commits(LIVE, git, pr_checkout=False)
+        assert report["status"] == "unverified"
+        assert "force_push_suspected" not in report
+        assert not report.get("commits")
+        assert not any(c[0] == "log" for c in git.calls)
+
+    def test_scan_if_escalated_forwards_pr_checkout(self):
+        git = FakeGit(ancestor=1, log=(0, _record("b" * 40, "x", ("M", "a.py"))))
+        report = oc.scan_if_escalated(True, LIVE, git, pr_checkout=False)
+        assert "force_push_suspected" not in report
+
     def test_ancestor_scan_has_no_force_push_flag(self):
         report = oc.scan_unpushed_commits(LIVE, FakeGit(log=(0, "")))
         assert "force_push_suspected" not in report

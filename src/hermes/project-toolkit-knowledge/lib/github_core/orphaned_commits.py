@@ -286,9 +286,8 @@ def _diverged_report(live_head: str, runner: GitRunner) -> dict[str, object]:
     elif code == 1:
         rev_range, reason = "HEAD", f"{reason}; no common ancestor"
     else:
-        return _unverified(
-            live_head, f"{reason}; merge-base exited {code}", force_push_suspected=True
-        )
+        detail = "output was not a commit SHA" if code == 0 else f"exited {code}"
+        return _unverified(live_head, f"{reason}; merge-base {detail}", force_push_suspected=True)
     code, parsed = _log_commits(rev_range, runner)
     if code != 0:
         return _unverified(live_head, f"{reason}; git log exited {code}", force_push_suspected=True)
@@ -311,8 +310,14 @@ def _diverged_report(live_head: str, runner: GitRunner) -> dict[str, object]:
     )
 
 
-def scan_unpushed_commits(live_head: str, runner: GitRunner = default_runner) -> dict[str, object]:
+def scan_unpushed_commits(
+    live_head: str, runner: GitRunner = default_runner, *, pr_checkout: bool = True
+) -> dict[str, object]:
     """Report local commits that the live PR head does not contain.
+
+    ``pr_checkout`` is False when ``runner`` points at the current directory and no
+    worktree was named. ``HEAD`` may then be another branch, so a diverged live head
+    proves nothing about a force-push and its commits are not listed.
 
     Read-only. Never raises: a git failure yields an ``unverified`` report.
     The SHA comes from the GitHub API, so its shape is checked before it
@@ -322,6 +327,10 @@ def scan_unpushed_commits(live_head: str, runner: GitRunner = default_runner) ->
         return _unverified(live_head, "live head is not a commit SHA")
     code, _ = runner(["merge-base", "--is-ancestor", live_head, "HEAD"])
     if code == 1:
+        if not pr_checkout:
+            return _unverified(
+                live_head, "live head is not an ancestor of HEAD and no PR worktree was named"
+            )
         return _diverged_report(live_head, runner)
     if code == _INVALID_WORKTREE:
         return _unverified(live_head, "the --worktree path is not a git checkout; scan skipped")
@@ -362,6 +371,8 @@ def scan_if_escalated(
     escalated: bool,
     live_head: str | None,
     runner: GitRunner = default_runner,
+    *,
+    pr_checkout: bool = True,
 ) -> dict[str, object]:
     """Scan only when the round-cap record is escalated; otherwise ``not_checked``.
 
@@ -371,4 +382,4 @@ def scan_if_escalated(
         return _report("not_checked", live_head or "")
     if not live_head:
         return _unverified("", "live PR head SHA unavailable")
-    return scan_unpushed_commits(live_head, runner)
+    return scan_unpushed_commits(live_head, runner, pr_checkout=pr_checkout)
