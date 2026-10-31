@@ -14,7 +14,7 @@ metadata:
 
 # ai-agents Generation and Release
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .project-toolkit/architecture, .project-toolkit/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, templates/platforms, and AGENTS.md because its audience is repo contributors, not plugin consumers. Issue #2050. -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .project-toolkit/architecture, .project-toolkit/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, templates/platforms, and AGENTS.md because its audience is repo contributors, not plugin consumers. -->
 Runbook for the build, generation, mirroring, versioning, and release machinery. Every command below was run or read from source on 2026-07-02/03 and re-verified on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
 
 Jargon, defined once:
@@ -105,7 +105,7 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 Useful flags, verified against source:
 
 - `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:13-16).
-- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) a path under `OWNED_PREFIXES` that cannot be read or redirects (symlink or junction) or holds a nested git repository, or a generator write under `.claude/` (REQ-003-010), 3 audit blocklist violation or (under `--check`) unreadable git state (the `EXIT CODES` block in this script's module docstring). Only the staleness producer of exit 2 is cleared by regenerating and committing; the REQ-003-010 producer is a generator policy violation, so regenerating reproduces it. Git is external, so every git-read failure (launch, timeout, nonzero exit) is 3 per the `AGENTS.md` contract, which keeps "you are missing git" out of the same code as "your tree is stale" (issue #4632).
+- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) a path under `OWNED_PREFIXES` that cannot be read or redirects (symlink or junction) or holds a nested git repository, or a generator write under `.claude/` (REQ-003-010), 3 audit blocklist violation or (under `--check`) unreadable git state (the `EXIT CODES` block in this script's module docstring). Only the staleness producer of exit 2 is cleared by regenerating and committing; the REQ-003-010 producer is a generator policy violation, so regenerating reproduces it. Git is external, so every git-read failure (launch, timeout, nonzero exit) is 3 per the `AGENTS.md` contract, which keeps "you are missing git" out of the same code as "your tree is stale".
 - `build/scripts/lib_mirror.py`: the lib copy, run by `build_all.py` (B5). `build_all.py --check` is the dry run (exit 2 when out of sync); do not "fix" `.claude/lib/` imports by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
@@ -164,7 +164,7 @@ The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): none of
 those manifests may carry a `version` field, and neither may an entry in either
 `marketplace.json`. Claude Code then resolves freshness from the git commit SHA,
 which moves on every merge. ADR-092 records the reversal of ADR-079's
-hand-bumped rule after issue #4080 measured 14 of 22 conflicting PRs conflicting
+hand-bumped rule after a measurement showed 14 of 22 conflicting PRs conflicting
 on that one line.
 
 Practical consequences:
@@ -232,12 +232,12 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | sync pairs scripts to lib trees | lib_mirror.py PACKAGES/PLUGIN_ROOTS | `grep -n PACKAGES build/scripts/lib_mirror.py` |
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Version-field prohibition and the ADR-092 reversal | build/scripts/validate_plugin_version_bump.py docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
-| Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py | `python3 build/scripts/check_plugin_manifest_parity.py` |
+| Parity gate | build/scripts/check_plugin_manifest_parity.py | `python3 build/scripts/check_plugin_manifest_parity.py` |
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml (multiple gates); agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml && grep -n "python3 " .github/workflows/agent-drift-detection.yml` |
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml; the drift script's own argparse default (command below) | `grep -n "cron" .github/workflows/drift-detection.yml && grep -n "default=80" build/scripts/detect_agent_drift.py` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Ruff exemption for generated Python | `pyproject.toml [tool.ruff.lint.per-file-ignores]` | `grep -n "src/copilot-cli" pyproject.toml` |
-| npm package, bun build, dispatch-only publish route (re-verified 2026-10-14 for issue #6590) | packages/ai-agents-cli/package.json; RELEASING.md; the header comment of .github/workflows/publish.yml | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "dormant" RELEASING.md .github/workflows/publish.yml` |
+| npm package, bun build, dispatch-only publish route (re-verified 2026-10-14) | packages/ai-agents-cli/package.json; RELEASING.md; the header comment of .github/workflows/publish.yml | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "dormant" RELEASING.md .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.project-toolkit/retrospective').glob('*drift*')])"` |

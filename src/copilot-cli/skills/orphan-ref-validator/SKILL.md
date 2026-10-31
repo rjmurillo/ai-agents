@@ -157,11 +157,11 @@ Place file-scope directives below the YAML frontmatter (if any) and well within 
 
 Script references on example-placeholder lines are ignored automatically. This covers lines that start with `Example:`, `e.g.`, or `For example`, plus prose examples that document an intentionally absent helper.
 
-A fenced block whose last prose line before the fence says "citations, not local paths" is a citation block. The scanner skips its references and reports them under `directive_suppressed` with reason `citation block`. Rule templates use this for historical evidence lists (issue #5872).
+A fenced block whose last prose line before the fence says "citations, not local paths" is a citation block. The scanner skips its references and reports them under `directive_suppressed` with reason `citation block`. Rule templates use this for historical evidence lists.
 
 Backticked skill routing-role values (`front-door`, `explicit-only`, `conditional-adjunct`, `lifecycle`, `nested-helper`, `deprecated`) are category words, not skill names. A line like "a `front-door` skill" produces no `skill_name` finding. An explicit route such as "the `lifecycle` skill" still does when no such skill exists. A script cited by a skill-relative path, followed by "in the" and a backticked skill name, also resolves against that named skill's directory.
 
-Specs stay in scope. A spec that records files a later PR deleted carries a line-scope directive on each such line, so the rest of the spec keeps its orphan checks (issue #5872).
+Specs stay in scope. A spec that records files a later PR deleted carries a line-scope directive on each such line, so the rest of the spec keeps its orphan checks.
 
 Use file-scope on M1-deletion specs and proposed-entity catalogs whose every reference is intentional history. Use line-scope for one-off references that document an absence (for example, "the script `scripts/validation/manifest_counts.py` was not created").
 
@@ -216,9 +216,9 @@ Invoke directly with `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.cla
 | `rule_path` | `.claude/rules/<name>.md` in backticks or Markdown link targets | file existence on disk |
 | `instruction_path` | `.github/instructions/<name>.instructions.md` or `src/copilot-cli/instructions/<name>.instructions.md` in backticks or Markdown link targets | file existence on disk |
 
-Ordinary hyphenated prose is not reported, because a bare backticked token is only a candidate when the sentence calls it a skill or when the retired-skill allowlist names it. The curated denylist that used to do this job was deleted in issue #3726: it predated that rule and, measured across the full corpus, 98 of its 101 entries suppressed nothing. Skills owned by another repository's catalog are listed in `filters.py:FOREIGN_SKILL_CATALOGS` alongside the catalog that owns each one. Such a reference is exempt only when the same line names the owning catalog, as in ``gstack `front-gate-before-pipeline` skill``. An unqualified mention of the same token is still reported, so the allowlist cannot swallow a local skill that has genuinely gone missing, and a mention qualified by some other catalog is reported too (issue #3728).
+Ordinary hyphenated prose is not reported, because a bare backticked token is only a candidate when the sentence calls it a skill or when the retired-skill allowlist names it. The curated denylist that used to do this job was deleted: it predated that rule and, measured across the full corpus, 98 of its 101 entries suppressed nothing. Skills owned by another repository's catalog are listed in `filters.py:FOREIGN_SKILL_CATALOGS` alongside the catalog that owns each one. Such a reference is exempt only when the same line names the owning catalog, as in ``gstack `front-gate-before-pipeline` skill``. An unqualified mention of the same token is still reported, so the allowlist cannot swallow a local skill that has genuinely gone missing, and a mention qualified by some other catalog is reported too.
 
-Single-word (no-hyphen) skill names are detected separately: a backticked single word is treated as a skill reference only when it resolves to a live `.claude/skills/<name>/` directory (valid, no finding) or is a curated known single-word skill name in `filters.py:KNOWN_SINGLE_WORD_SKILLS` (flagged when absent). Arbitrary backticked English words are never flagged. Add a retired or renamed single-word skill to `KNOWN_SINGLE_WORD_SKILLS` so lingering references surface instead of going silent (issue #2679).
+Single-word (no-hyphen) skill names are detected separately: a backticked single word is treated as a skill reference only when it resolves to a live `.claude/skills/<name>/` directory (valid, no finding) or is a curated known single-word skill name in `filters.py:KNOWN_SINGLE_WORD_SKILLS` (flagged when absent). Arbitrary backticked English words are never flagged. Add a retired or renamed single-word skill to `KNOWN_SINGLE_WORD_SKILLS` so lingering references surface instead of going silent.
 
 ### Verdict logic
 
@@ -267,7 +267,7 @@ If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is
    ```
 
 2. Confirm the finding is real before repairing it. This scanner has produced
-   large numbers of false positives: PR #3735 measured 1790 repo-wide findings
+   large numbers of false positives: one PR measured 1790 repo-wide findings
    of which 68 were true, and on `.serena/memories` 183 findings of which zero
    were true. A finding claims a name was once an entity; it is not proof.
    Open the cited line and decide whether the reference was meant to resolve.
@@ -388,4 +388,4 @@ Repos that want a tighter feedback loop can add a pre-push hook that runs the sk
 - `.claude/rules/canonical-source-mirror.md` (citation policy)
 - Companion validators: `build/scripts/validate_plugin_manifests.py`
 
-<!-- vendor-portability: declared. This skill already degrades gracefully: it states that when a target path such as .agents/ is absent it logs INFO and continues. The .project-toolkit/specs/ and .project-toolkit/architecture/ defaults are scan targets, not preconditions; a vendored install scans only the paths that exist. Issue #2050. -->
+<!-- vendor-portability: declared. This skill already degrades gracefully: it states that when a target path such as .agents/ is absent it logs INFO and continues. The .project-toolkit/specs/ and .project-toolkit/architecture/ defaults are scan targets, not preconditions; a vendored install scans only the paths that exist. -->

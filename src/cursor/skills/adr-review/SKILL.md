@@ -234,7 +234,7 @@ After skill invocation:
       adr-review debate-log evidence at `.project-toolkit/critique/ADR-NNN-debate-log.md` (or a later `.project-toolkit/critique/ADR-NNN-debate-log-2.md`)
       (ADR-073 Phase-3 acceptance gate). A hand-edit to `accepted` with no
       debate-log artifact is a forgeable approval signal and MUST be rejected.
-<!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .project-toolkit/critique/; a consumer repo without it reports missing evidence, not a silent pass. Issue #2050. -->
+<!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .project-toolkit/critique/; a consumer repo without it reports missing evidence, not a silent pass. -->
 - [ ] All P0 issues addressed or documented
 - [ ] Dissent captured for Disagree-and-Commit positions
 - [ ] Recommendations provided to orchestrator

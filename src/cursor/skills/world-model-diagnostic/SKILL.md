@@ -228,7 +228,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 ### 1. Intake Summary
 
@@ -309,9 +309,9 @@ If the user prefers files on disk for working notes, use a repo-relative path un
 
 Companion skills (when present in this repo):
 
-- `work-operating-model` (issue #1806). Use after the diagnostic to map the internal operating model.
-- `panning-for-gold` (issue #1802). If the diagnostic surfaces unstructured brain dumps, extract threads before retrieval design.
-- `codebase-documenter` (issue #1803). For an engineering-org variant, follow the diagnostic with a documentation pass.
+- `work-operating-model`. Use after the diagnostic to map the internal operating model.
+- `panning-for-gold`. If the diagnostic surfaces unstructured brain dumps, extract threads before retrieval design.
+- `codebase-documenter`. For an engineering-org variant, follow the diagnostic with a documentation pass.
 
 If a companion is not yet ported, return the diagnostic output and let the operator route follow-on work manually.
 
@@ -323,4 +323,4 @@ If a companion is not yet ported, return the diagnostic output and let the opera
 - [ ] Boundary audit covers at least the top three highest-exposure flows.
 - [ ] No numeric readiness score appears anywhere in the output.
 
-<!-- vendor-portability: declared. This skill offers an optional on-disk note path under .project-toolkit/analysis/diagnostics/{company-slug}/ when the user prefers files. The path is an opt-in write target created on demand; the diagnostic runs in-conversation without it. Issue #2050. -->
+<!-- vendor-portability: declared. This skill offers an optional on-disk note path under .project-toolkit/analysis/diagnostics/{company-slug}/ when the user prefers files. The path is an opt-in write target created on demand; the diagnostic runs in-conversation without it. -->

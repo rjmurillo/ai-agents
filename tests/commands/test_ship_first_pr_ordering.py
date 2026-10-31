@@ -205,7 +205,7 @@ class TestPipelineHealthBranchesOnPrExistence:
         without_pr = [b for b in github_bullets(pipeline_item) if "`pr=none`" in b]
         assert len(without_pr) == 1
         assert "get_pr_checks.py" in without_pr[0]
-        assert "#4841" in without_pr[0]
+        assert "first PR" in without_pr[0]
 
     def test_ado_branch_still_evaluates_build_policies(self, pipeline_item: str) -> None:
         """Sibling non-regression: ADO still evaluates PR build policies, not the validator."""
@@ -277,7 +277,6 @@ class TestGithubNeverRoutesToAdoValidator:
         ]
         assert len(rows) == 1
         assert rows[0].startswith("| Invoking pipeline-validator from ship |")
-        assert "#6577" in rows[0]
         assert "ADO" in rows[0]
 
 

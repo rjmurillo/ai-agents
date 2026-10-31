@@ -64,7 +64,7 @@ in config comments
 | Upstream tool has a bug | Flag the bug to the owner with a repro, add workaround in config | Pin tool version, suppress specific rule |
 | Tool default changed after upgrade | Review and align local config to new default | Update config after major version bump |
 
-## Adjunct Mode: Build Phase 2b (issue #5387)
+## Adjunct Mode: Build Phase 2b
 
 `/build` Phase 2b invokes this skill after `analysis-provenance` classifies
 every path `validation_trigger.py` flagged as a validation target. This mode

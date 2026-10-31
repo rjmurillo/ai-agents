@@ -302,7 +302,7 @@ class TestMcpGrantsAreEnumerated:
 
         A `verify_trust` command string in the config would be the first
         PR-rewritable command the workflow runs, which is the CWE-829 shape
-        issue #5520 names. The verifier is written literally in the skill, and
+        the trust-boundary issue names. The verifier is written literally in the skill, and
         the config keeps only the table of exit meanings.
         """
         config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
@@ -357,7 +357,7 @@ class TestMcpGrantsAreEnumerated:
         """The boundary paragraph must match what Step 0 now does."""
         body = REVIEW.read_text(encoding="utf-8")
         assert "this boundary covers `completion_criteria` only" not in body
-        assert "Tracked as #5520" not in body
+        assert "Tracked as" not in body
         assert "--verify-config-only" in body[body.index("Scope: the dispatcher") :]
 
     @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW, PROMPT])
@@ -369,7 +369,7 @@ class TestMcpGrantsAreEnumerated:
         """
         text = path.read_text(encoding="utf-8")
         assert "--verify-config-only" in text, f"{path} never runs the trust check"
-        assert "5520" in text, f"{path} does not cite why the order matters"
+        assert "CWE-829" in text, f"{path} does not cite why the order matters"
         assert "verify_trust" not in text, f"{path} still reads the verifier from config"
         step_1 = text.index("### Step 1")
         assert text.index("--verify-config-only") < text.rindex("command_key", 0, step_1), (

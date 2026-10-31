@@ -91,7 +91,7 @@ Read these files in order:
 
 **Success definition**: When `.agents/AGENT-INSTRUCTIONS.md` exists, you can state four things in one sentence each. They are: (a) project constraints, (b) Claude-specific requirements, (c) any binding ADRs, and (d) architectural constraints. If you cannot, this step is NOT complete and you MUST return to it before writing code. When the ai-agents session scaffold is absent, this section is satisfied by the skip note above plus any root docs you read.
 
-**Rationale**: Past retrospectives document agents skipping CLAUDE.md and AGENTS.md before acting. This produced drift and inverted sources of truth. Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The scaffold carve-out (issues #1908 and #4580) keys on ownership, not on the directory name. `.agents/AGENT-INSTRUCTIONS.md` declares the ai-agents session scaffold. A consumer-owned `.agents/` directory without that file is not the scaffold and must not trigger the scaffold gates. Consumer-owned `.agents/` paths are workspace state, not a torn scaffold. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a consumer install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
+**Rationale**: Past retrospectives document agents skipping CLAUDE.md and AGENTS.md before acting. This produced drift and inverted sources of truth. Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The scaffold carve-out keys on ownership, not on the directory name. `.agents/AGENT-INSTRUCTIONS.md` declares the ai-agents session scaffold. A consumer-owned `.agents/` directory without that file is not the scaffold and must not trigger the scaffold gates. Consumer-owned `.agents/` paths are workspace state, not a torn scaffold. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a consumer install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
 
 ## Plan Validation Protocol
 
@@ -820,7 +820,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github` skill for PR/issue operations.
 

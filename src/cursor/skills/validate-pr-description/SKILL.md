@@ -131,5 +131,5 @@ act on.
   DevOps and Bitbucket the same keywords are traceability markers with no
   auto-close, so a missing keyword is a weaker finding there.
 
-<!-- vendor-portability-exec: Phase 2b runs scripts/validation/pr_description.py, an upstream-only script a plugin install lacks. The allowed-tools grant names the same command. The phase says what to report then. Issue #6405. -->
-<!-- vendor-portability: Phase 2b and its allowed-tools grant name scripts/validation/pr_description.py only for checkouts that carry it, and reports the check as not run otherwise. Issue #6405. -->
+<!-- vendor-portability-exec: Phase 2b runs scripts/validation/pr_description.py, an upstream-only script a plugin install lacks. The allowed-tools grant names the same command. The phase says what to report then. -->
+<!-- vendor-portability: Phase 2b and its allowed-tools grant name scripts/validation/pr_description.py only for checkouts that carry it, and reports the check as not run otherwise. -->

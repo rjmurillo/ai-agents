@@ -15,7 +15,7 @@ metadata:
 
 Grade each product domain and architectural layer. Track gaps over time.
 
-<!-- vendor-portability: declared. The docs layer of the grader scans the consumer's docs/ and .agents/ for documentation coverage, and the skills layer reads .claude/skills/*/SKILL.md. These are scan targets, not preconditions: a vendored install without .agents/ grades the docs layer on whatever documentation the consumer repo has rather than failing. Issue #2050. -->
+<!-- vendor-portability: declared. The docs layer of the grader scans the consumer's docs/ and .agents/ for documentation coverage, and the skills layer reads .claude/skills/*/SKILL.md. These are scan targets, not preconditions: a vendored install without .agents/ grades the docs layer on whatever documentation the consumer repo has rather than failing. -->
 
 ## Triggers
 

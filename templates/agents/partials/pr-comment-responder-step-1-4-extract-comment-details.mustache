@@ -42,7 +42,7 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 The `Comment Map Status Vocabulary` section near the top of this agent holds the one
 authoritative table. Do not restate the values here. A second copy is how `[DUPLICATE]`
 and `[DEFERRED]` ended up missing from one table while the gates disagreed about what
-counted as done (issue #4054).
+counted as done.
 
 Phase 8.1 subtracts the terminal count from the total and blocks with `exit 1` when any
 comment remains. Phase 8.2 requires all GitHub conversation threads resolved before merge.

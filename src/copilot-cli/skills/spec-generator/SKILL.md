@@ -21,7 +21,7 @@ metadata:
 
 Transform feature descriptions into 3-tier specifications: Requirements (WHAT/WHY) then Design (HOW) then Tasks (IMPLEMENTATION). Produce when context is sufficient. Push back when it is not.
 
-This skill supersedes the former `spec-generator` agent. The change exists because the agent emitted invalid frontmatter enum values on every spec PR (PR #1995 drew 9 schema-violation threads; PR #1989 the same) because it wrote frontmatter from memory instead of reading the schema. This skill bundles the schema and a deterministic validator so the drift cannot ship.
+This skill supersedes the former `spec-generator` agent. The change exists because the agent emitted invalid frontmatter enum values on every spec PR because it wrote frontmatter from memory instead of reading the schema. This skill bundles the schema and a deterministic validator so the drift cannot ship.
 
 ## Prose Self-Check
 
@@ -237,4 +237,4 @@ Return:
 4. Estimated effort (complexity counts, total hours)
 5. Recommended next step: critic for review, architect for design validation, implementer to start TASK-001
 
-<!-- vendor-portability: declared. This skill writes the REQ/DESIGN/TASK spec tier under .project-toolkit/specs/ and reads the optional ontology fragment at .project-toolkit/specs/ontology/. The frontmatter schema is bundled at references/spec-schemas.md, with .agents/governance/spec-schemas.md named as the canonical source; the specs paths are write targets created on demand. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes the REQ/DESIGN/TASK spec tier under .project-toolkit/specs/ and reads the optional ontology fragment at .project-toolkit/specs/ontology/. The frontmatter schema is bundled at references/spec-schemas.md, with .agents/governance/spec-schemas.md named as the canonical source; the specs paths are write targets created on demand. -->

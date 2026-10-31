@@ -18,12 +18,12 @@ metadata:
      .project-toolkit/specs/tasks. The sync-log artifacts named under Step 3 are a planned
      follow-up and no such directory exists yet.
      None of those ship in a plugin root, so this skill's audience is repo
-     contributors, not plugin consumers (ADR-083, issue #5632). -->
+     contributors, not plugin consumers (ADR-083). -->
 
 <!-- vendor-portability-exec: the three python3 invocations below run
      scripts/sync/detect_spec_drift.py, which is the skill. A prose declaration
      does not exempt an executable invocation, which migrates independently
-     (issue #2838), so the dependency is declared here too. -->
+    , so the dependency is declared here too. -->
 
 Migrated from the sync command under ADR-064, which makes skills the single
 user-invocable surface. The command file is gone, so its path is named here in

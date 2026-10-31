@@ -119,7 +119,7 @@ scripts under `scripts/pr/` with bare `python3`, not `uv run`.
 `anthropic==0.116.0` (a core dependency in `pyproject.toml`) from PyPI and times
 out with no network. The read-only PR scripts never import the anthropic SDK.
 They import only `github_core`, which parses YAML with a vendored fallback when
-PyYAML is absent (issue #1844), so no third-party import is required.
+PyYAML is absent, so no third-party import is required.
 
 ```bash
 # No PyPI round trip. Runs read-only PR status offline.
@@ -131,7 +131,7 @@ python3 "$SCRIPTS_DIR/get_pr_checks.py" --pr <N>
 ```
 
 Any `python3` works: `github_core` falls back to a vendored YAML parser when
-PyYAML is absent (issue #1844), confirmed by running these scripts with both
+PyYAML is absent, confirmed by running these scripts with both
 PyYAML and the anthropic SDK blocked. The interpreter from
 `scripts/bootstrap-vm.sh` and a project `.venv/bin/python3` both ship PyYAML for
 the faster path. Do not use `uv run` for read-only triage offline; it forces the
@@ -315,9 +315,9 @@ GitHub automatically links and closes issues when PRs use specific keywords in P
 
 | Keyword | Variations | Example |
 |---------|-----------|---------|
-| Closes | close, closed | `Closes #123` |
-| Fixes | fix, fixed | `Fixes #456` |
-| Resolves | resolve, resolved | `Resolves #789` |
+| Closes | close, closed | `Closes #<number>` |
+| Fixes | fix, fixed | `Fixes #<number>` |
+| Resolves | resolve, resolved | `Resolves #<number>` |
 
 ### Usage Patterns
 
@@ -327,8 +327,8 @@ GitHub automatically links and closes issues when PRs use specific keywords in P
 ## Summary
 This PR adds feature X.
 
-Closes #123
-Fixes #456
+Closes #<number>
+Fixes #<number>
 ```
 
 **In Commit Messages:**
@@ -338,7 +338,7 @@ feat: Add feature X
 
 Implements the new feature as specified.
 
-Closes #123
+Closes #<number>
 ```
 
 **Best Practices:**
@@ -352,7 +352,7 @@ Closes #123
 
 ## Linking Issues to Each Other
 
-A `#123` in an issue body is text only. It sets no parent, no dependency, and
+A `#<number>` in an issue body is text only. It sets no parent, no dependency, and
 no relation. Whenever an issue body names another issue as a parent, child,
 blocker, or context, add the native link with `set_issue_relationship.py`.
 

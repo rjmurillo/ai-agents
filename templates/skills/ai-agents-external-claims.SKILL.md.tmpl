@@ -13,7 +13,7 @@ metadata:
 
 # ai-agents External Claims
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers -->
 This repo runs verification-based governance: a claim is true when a primary source, gate, or command output says it is, not when a vendor blog, a summary, or an agent asserts it. This skill is the front-gate for one specific claim class: external, vendor, and third-party assertions that arrive from outside the repo and are about to land inside a repo artifact (an ADR, a retro, a memory, a PR description, a session log) or an external deliverable. A wrong number un-cited from a published artifact costs more than the one or two fetches that would have caught it in the same pass.
 
 Audience: a zero-context contributor (human or model) holding an external claim and deciding whether it may enter a durable artifact.
@@ -65,14 +65,14 @@ Name the exact assertion in one sentence and the ONE authoritative source that c
 | Attribution ("X said Y") | The named party's own published statement | A third party reporting it |
 | Repo-internal cross-claim | The file, ADR, or test in this tree, quoted verbatim | A retro's paraphrase of it |
 
-Repo caution, verified in `ai-agents-research-methodology` (in the ai-agents repository): vendor docs alone are not a primary source for runtime behavior. This repo was burned twice by wrong-by-omission docs (the #2205 and #2290 retros in `.project-toolkit/retrospective/`). When the claim is about how an external tool behaves, the primary source is an empirical probe at a pinned version, not the doc. In the ai-agents repository, route that through `ai-agents-empirical-probe-toolkit`.
+Repo caution, verified in `ai-agents-research-methodology` (in the ai-agents repository): vendor docs alone are not a primary source for runtime behavior. This repo was burned twice by wrong-by-omission docs (see the retros in `.project-toolkit/retrospective/`). When the claim is about how an external tool behaves, the primary source is an empirical probe at a pinned version, not the doc. In the ai-agents repository, route that through `ai-agents-empirical-probe-toolkit`.
 
 ### Phase 2: Fetch and compare against the primary source
 
 - [ ] Retrieve the primary source directly (host API, registry, paper, the party's own words). Prefer the API or raw source over a rendered page.
 - [ ] Compare the artifact-bound claim against the source value: exact number, exact attribution, exact scope. A claim that rounds 987 up to "over 1000" is inflated, not confirmed.
 - [ ] Follow any stat-of-a-stat chain to its origin. Confirm the origin actually says what the chain claims; drift compounds at every hop.
-- [ ] For a repo-internal cross-claim, open the cited file and quote the load-bearing line verbatim. Paraphrase is the failure mode `.claude/rules/canonical-source-mirror.md` exists to stop (FM-9; PR #1887 paid 7 fix commits for paraphrased contracts).
+- [ ] For a repo-internal cross-claim, open the cited file and quote the load-bearing line verbatim. Paraphrase is the failure mode `.claude/rules/canonical-source-mirror.md` exists to stop (FM-9; one PR paid 7 fix commits for paraphrased contracts).
 
 Record what you fetched, when, and the version or commit, so the next reader can re-run the same comparison.
 
@@ -200,7 +200,7 @@ ledger and the draft, so a failure log says which gate failed.
 The claim ledger guards one research write. This section covers what outlives
 the write: an outside contract that future correctness depends on. Persist
 provenance for those contracts. Keep ordinary research ephemeral. Reference the
-source; do not copy it. Issue #5415.
+source; do not copy it.
 
 ### Persist or not
 
@@ -251,7 +251,7 @@ block, and `--source copilot-cli` finds it.
 | `verified` | Required. ISO date of the last check. Not in the future |
 | `purpose` | Required. One label of at most 200 characters. Never source text |
 | `reverify` | A repo path to a test, probe, or script, optionally `path::selector`. Required for `empirical`, because a runtime observation has no URL to re-read |
-| `capability` | Optional. A capability a canonical artifact owns under `metadata.capability` (ADR-110). Reuses #5396 ownership |
+| `capability` | Optional. A capability a canonical artifact owns under `metadata.capability` (ADR-110). Reuses the existing capability ownership |
 
 `empirical` marks evidence that came from running the tool because the vendor
 documentation was silent or wrong. It never cites the docs as the authority.
@@ -286,9 +286,9 @@ with no record never fails it.
   verified source, add the record from the ledger's `source` entry.
 - `ai-agents-empirical-probe-toolkit` owns the probe. The record points at the
   probe or the durable test with `reverify`.
-- The record never holds source text, so it adds no authored copy for #5399.
+- The record never holds source text, so it adds no authored copy of the source.
 - The record states which source and version were used. Whether that evidence
-  is independent is #5406's question, not this one's.
+  is independent is a separate question, not this one's.
 
 ## Scripts
 
@@ -306,8 +306,8 @@ gate above shows the plugin-root invocation.
 |--------------|--------------|--------------|
 | Round-number trust ("over 1000") | Rhetorical rounding inflates above the real precise count | Fetch the exact figure from the host or registry |
 | Summary as source | A summary drops scope and rounds numbers | Follow the chain to the origin and quote it |
-| Vendor doc as runtime truth | Wrong-by-omission docs burned this repo twice (#2205, #2290) | Empirical probe at a pinned version |
-| Paraphrased repo cross-claim | Paraphrase drifts from the contract (FM-9, PR #1887) | Quote the cited file line verbatim with its path |
+| Vendor doc as runtime truth | Wrong-by-omission docs burned this repo twice | Empirical probe at a pinned version |
+| Paraphrased repo cross-claim | Paraphrase drifts from the contract (FM-9) | Quote the cited file line verbatim with its path |
 | Naming a gate you did not walk | Ships a TODO disguised as a verified finding | Walk it now, or file conservative without naming it |
 | Trusting a stake-holder's self-favorable stat | The author benefits from the framing | Confirm against a neutral primary source first |
 
@@ -324,7 +324,7 @@ Before a claim from an external source enters a durable artifact:
 
 ## Provenance
 
-Issue #3068 requested a stewardship and knowledge-transfer skill library for this repo. Fourteen domain knowledge-packs plus `agent-harness-reference` shipped in PR #2831 as the `ai-agents-*` skill set. This skill adds the one named domain that set did not cover: verifying external and third-party claims against authoritative primary sources before ingest. It began as a documentation knowledge-pack modeled on `ai-agents-validation-and-qa`. Issue #5388 added the research adjunct mode and its one validator script.
+A request called for a stewardship and knowledge-transfer skill library for this repo. Fourteen domain knowledge-packs plus `agent-harness-reference` shipped as the `ai-agents-*` skill set. This skill adds the one named domain that set did not cover: verifying external and third-party claims against authoritative primary sources before ingest. It began as a documentation knowledge-pack modeled on `ai-agents-validation-and-qa`. A later change added the research adjunct mode and its one validator script.
 
 Grounding sources, verified against the working tree:
 
@@ -334,7 +334,6 @@ Grounding sources, verified against the working tree:
 | Reporting-without-acting reward-bias root cause | `.claude/skills/avoiding-manufactured-work/SKILL.md` | `grep -n -e "Reporting" -e "reward" .claude/skills/avoiding-manufactured-work/SKILL.md` |
 | Flag-with-a-hypothesis provenance discipline | `.claude/rules/voice.md`, "Ownership: See Something, Say Something" | `grep -n "See Something" .claude/rules/voice.md` |
 | Verbatim-quote requirement for mirrored claims (FM-9) | `.agents/governance/FAILURE-MODES.md` (enforced by `.claude/rules/canonical-source-mirror.md`) | `grep -n -e "character-for-character" -e "verbatim" .agents/governance/FAILURE-MODES.md` |
-| Vendor docs are not runtime truth (#2205, #2290) | `.claude/skills/ai-agents-research-methodology/SKILL.md` | `grep -n -e "vendor docs" -e "2205" -e "2290" .claude/skills/ai-agents-research-methodology/SKILL.md` |
-| Sibling set and issue | Issue #3068; PR #2831 | Repo issue and PR history |
+| Vendor docs are not runtime truth | `.claude/skills/ai-agents-research-methodology/SKILL.md` | `grep -n -e "vendor docs" .claude/skills/ai-agents-research-methodology/SKILL.md` |
 
 Note on grounding: the "walk the gate, or file conservative" wording adapts a discipline the maintainer applies at the account level; the repo's own on-tree anchors for it are `avoiding-manufactured-work` and the voice.md Ownership rule cited above, not a named section in `.claude/rules/voice.md`.

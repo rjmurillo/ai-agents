@@ -21,8 +21,7 @@ metadata:
 
 Questions spend user attention. Spend it only on decisions the user owns, and
 make each question decision-complete. This skill owns how to ask. It does not
-own whether a mutation is authorized (#5407) or whether a task is finished
-(#5404).
+own whether a mutation is authorized or whether a task is finished.
 
 `voice.md` routes here and does not carry the protocol. Load the reference and
 script only when the routing gate says ask.
@@ -43,7 +42,7 @@ of these holds:
 - the distinction is an implementation detail within authorized scope, and
   reversible;
 - reading available evidence or tools resolves the uncertainty;
-- the task is terminal under #5404 and the question would only solicit optional
+- the task is terminal under the task-completion contract and the question would only solicit optional
   follow-up. The STOP TOKEN wins.
 
 ```text

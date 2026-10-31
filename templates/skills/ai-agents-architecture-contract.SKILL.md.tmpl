@@ -14,8 +14,8 @@ metadata:
 
 # AI Agents Architecture Contract
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/governance, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, build/scripts/lib_mirror.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
-This skill is the map of design decisions that hold this repository up: what is canonical, what is generated, which invariants are enforced by gates, and where the structure is honestly weak. Read it before any change that touches more than one tree, any hook, any plugin surface, or any generated file. The repo's governance runs on observable evidence, not trust: active requirements name evidence that exists independent of any committed session log, so almost every claim below is backed by a gate you can run. (PR #5135, 2026-08-18, retired the earlier "verification-based enforcement" wording in favor of this evidence-sink framing; SESSION-PROTOCOL.md, the doc that carried that wording, was later deleted along with the session skill cluster.)
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/governance, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, build/scripts/lib_mirror.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. -->
+This skill is the map of design decisions that hold this repository up: what is canonical, what is generated, which invariants are enforced by gates, and where the structure is honestly weak. Read it before any change that touches more than one tree, any hook, any plugin surface, or any generated file. The repo's governance runs on observable evidence, not trust: active requirements name evidence that exists independent of any committed session log, so almost every claim below is backed by a gate you can run. (a 2026-08-18 change retired the earlier "verification-based enforcement" wording in favor of this evidence-sink framing; SESSION-PROTOCOL.md, the doc that carried that wording, was later deleted along with the session skill cluster.)
 
 ## Triggers
 
@@ -32,7 +32,7 @@ This skill is the map of design decisions that hold this repository up: what is 
 The generation seam is ASYMMETRIC. There is no single "templates in, everything out" pipeline. Two seams coexist (ADR-072, status Proposed, corrected this premise explicitly: "the seam is asymmetric"):
 
 1. Agents: ADR-109 B1 made `templates/agents/` canonical for every agent tree. `<stem>.claude.md.tmpl` renders `src/claude/agents/<stem>.md`, `<stem>.copilot.md.tmpl` renders `src/copilot-cli/agents/<stem>.md`, which `.github/agents/` links to, and `<stem>.shared.md` renders `src/vs-code-agents/` and feeds `docs/agent-catalog.md`. `.claude/agents/` links to `src/claude/agents/` (ADR-119) (see the table row below).
-2. Rules, skills, hooks: ADR-109 B2 to B4 made `templates/rules/`, `templates/skills/`, and `templates/hooks/` canonical for the Claude tree. `rule_templates.py`, `skill_templates.py`, and `hook_templates.py` render into `src/claude/`, and binplace copies hooks and settings into `.claude/` and links the rest (ADR-119). A shipped skill's other files are hand-maintained under `src/claude/skills/<name>/`. Generators emit other harnesses' mirrors. There is no commands class: ADR-064 (issue #5632) converted every command into a skill and deleted the commands-to-skills bridge, so skills are the single user-invocable surface and `check_commands_retired.py` blocks a command coming back.
+2. Rules, skills, hooks: ADR-109 B2 to B4 made `templates/rules/`, `templates/skills/`, and `templates/hooks/` canonical for the Claude tree. `rule_templates.py`, `skill_templates.py`, and `hook_templates.py` render into `src/claude/`, and binplace copies hooks and settings into `.claude/` and links the rest (ADR-119). A shipped skill's other files are hand-maintained under `src/claude/skills/<name>/`. Generators emit other harnesses' mirrors. There is no commands class: ADR-064 converted every command into a skill and deleted the commands-to-skills bridge, so skills are the single user-invocable surface and `check_commands_retired.py` blocks a command coming back.
 
 Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` and the `build/scripts/build_all.py` GENERATORS list; 7 generators: agents, agent-catalog, adr-index, skills, rules, lib, hooks):
 
@@ -56,20 +56,20 @@ Direction rule: generators read canonical, write mirrors. Outside the binplace s
 
 | Decision | ADR | Status (as of 2026-07-30 except where a row states its own later date) | Why it exists |
 |---|---|---|---|
-| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical | ADR-007 | Accepted (revised 2026-01-01); supplementary store retired by issue #5574 | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
+| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical | ADR-007 | Accepted (revised 2026-01-01); supplementary store retired | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | Distributed handoffs; HANDOFF.md deleted (was read-only) | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
 | Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Superseded by ADR-052 (2026-08-25), itself superseded by ADR-109 (2026-09-11); its manual dual-edit procedure ended when ADR-109 B1 made `src/claude/agents/` a generated tree | Claude prompts need harness-specific depth; 3 full sources would drift |
 | Claude-first template strategy | ADR-052 | Superseded by ADR-109 (2026-09-11); `implemented: false`, its Migration Plan is not carried forward | Never built. ADR-109 inverted its direction: `templates/` stays canonical and `src/claude/agents/` is generated, so no direct Claude-to-platform generator exists and `docs/agent-catalog.md` still comes from `templates/agents/*.shared.md` |
 | Template-first plugin distribution | ADR-109 | Accepted (2026-09-11), `implemented: false` overall; B1 to B5 (agents, rules, skills, hooks, lib) are live | Agents, rules, skills, hooks, and lib render from `templates/` and `scripts/` into `src/claude/`, then binplace into `.claude/`; the drift gate catches a hand edit to a generated tree |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
 | Skill-first over subagent dispatch | `SKILL-CREATION-CRITERIA.md` "Skill-first rule" | Governance rule, enforced by `check_agent_skill_discriminator.py`; ADR-030 is `rejected` | A skill runs in the current context; a Task spawn loads a fresh one. Agents only for isolation |
-| Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena search; the second backend was retired by issue #5574), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
+| Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena search; the second backend was retired), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
 | Hook failure policy: prevention-first, fail-closed-and-loud | ADR-066 | Accepted (2026-07-19) | Launcher fail-open hid a broken hook from every customer for 33 days |
 | Plugin hook runtime-contract verification | ADR-071 | Accepted (six-agent adr-review) | Vendor docs were wrong by omission twice; contracts are tested, not assumed |
-| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted (2026-07-19); rationale narrowed after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 closed after confirming the generation machinery remains live |
+| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted (2026-07-19); rationale narrowed after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; the follow-up closed after confirming the generation machinery remains live |
 | JTBD plugin slicing, per-harness emission | ADR-072 | Proposed, five approval conditions unmet, "No code moves on this ADR alone" | Plugins are sliced by directory today, not by job-to-be-done |
 | Context corpus is the product | ADR-069 | Proposed | Thesis only; do not cite as settled |
-| LSP-first navigation (static steering) | ADR-062 | Amended 2026-07; runtime enforcement retired (#3216) | Symbol queries beat grep on token cost |
+| LSP-first navigation (static steering) | ADR-062 | Amended 2026-07; runtime enforcement retired | Symbol queries beat grep on token cost |
 
 Two meta-patterns bind these together:
 
@@ -94,15 +94,15 @@ Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 |---|---|---|
 | Local Claude hooks | Follow each event contract. SessionStart cannot block; Stop may return a block decision | `.claude/settings.json`; `agent-harness-reference` |
 | Generated/released hook artifacts | Prevention-first and loud: validate anchoring before release, then surface escaped launcher failures | ADR-066 D1, ADR-071 |
-| Copilot dispatcher | Retired (ADR-097): all three PreToolUse shims (`invoke_require_subagent_model`, `invoke_serena_memory_scope_guard` issue #5061, `invoke_serena_worktree_scope_guard` issue #4917) are deleted, and with them the generated `gate` dispatcher itself. `src/copilot-cli/hooks/hooks.json` carries `"hooks": {}`; no `_dispatch.py` ships. The generator still owns the policy for a future re-add | Deleted manifests; `build/scripts/generate_dispatcher.py` |
+| Copilot dispatcher | Retired (ADR-097): all three PreToolUse shims (`invoke_require_subagent_model`, `invoke_serena_memory_scope_guard`, `invoke_serena_worktree_scope_guard`) are deleted, and with them the generated `gate` dispatcher itself. `src/copilot-cli/hooks/hooks.json` carries `"hooks": {}`; no `_dispatch.py` ships. The generator still owns the policy for a future re-add | Deleted manifests; `build/scripts/generate_dispatcher.py` |
 
-Why the split fails loud on shipped artifacts (the #2205 33-day silent-no-op incident), why older ADRs (ADR-008, ADR-033, ADR-035) still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
+Why the split fails loud on shipped artifacts (the 33-day silent-no-op incident), why older ADRs (ADR-008, ADR-033, ADR-035) still read fail-open, and why one dispatcher per event persists (ADR-068, Copilot CLI version history) are in `references/hook-runtime.md`. SessionStart hooks cannot block regardless. Harness exit and timeout details are owned by `agent-harness-reference`.
 
 ### Phase 4: Understand the memory architecture
 
-- Single store (ADR-007, amended by issue #5574): `.serena/memories/` markdown files are the source of truth and the only memory backend. The supplementary graph store and the sync engine that mirrored Serena into it are deleted; nothing replaced them, so there is no second store to reconcile and no sync direction to know.
+- Single store (ADR-007, amended when the supplementary store was retired): `.serena/memories/` markdown files are the source of truth and the only memory backend. The supplementary graph store and the sync engine that mirrored Serena into it are deleted; nothing replaced them, so there is no second store to reconcile and no sync direction to know.
 - Tiers (ADR-063, Accepted; amended by ADR-089, Proposed): Tier 1 semantic search, Tier 2 episodic session replay. The Tier 3 causal graph shipped by ADR-063 was deleted because it was a derived cache with no reader. Front doors are the `memory` and `memory-search` skills.
-- Observation loop (issue #1345): the `reflect` skill detects corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The advisory correction-applier and topical-memory-injection PreToolUse hooks were deleted (issue #3184) after being deregistered from both Claude source manifests. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only`.
+- Observation loop: the `reflect` skill detects corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The advisory correction-applier and topical-memory-injection PreToolUse hooks were deleted after being deregistered from both Claude source manifests. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only`.
 
 Architectural consequence: memories are load-bearing runtime inputs, not documentation. Deleting or renaming a `.serena/memories/` file changes hook behavior in live sessions.
 
@@ -122,7 +122,7 @@ With the field absent, Claude Code resolves freshness from the git commit SHA,
 which moves on every merge; with it present, freshness pins to the string until
 someone hand-bumps it. Enforced by the push hook plus
 `.github/workflows/validate-plugin-version-bump.yml` (ADR-092, which supersedes
-ADR-079; issue #4080). Marketplaces: `.claude-plugin/marketplace.json` (lists
+ADR-079). Marketplaces: `.claude-plugin/marketplace.json` (lists
 one Claude-side plugin, `project-toolkit`, since ADR-109 B6 retired the
 `claude-agents` entry) and `.github/plugin/marketplace.json`;
 parity checked by `build/scripts/check_plugin_manifest_parity.py`. The npm
@@ -137,8 +137,8 @@ belong to `ai-agents-generation-and-release`.
 | Generators never write `.claude/` (except the ADR-108 template-owned skill files) | `assert_no_claude_writes` at `build_all.py:905`, applied at lines 2285 to 2294, exit 2 | Canonical tree gets silently overwritten by its own mirror; source of truth inverts |
 | Generated trees match sources | `build_all.py --check`, `generate_agents.py --validate`, drift CI | Harness mirrors ship stale behavior; the two fix paths diverge |
 | `.claude/lib/` matches `scripts/` packages | `build_all.py --check` | Plugin-distributed hooks import different code than the tested originals |
-| No `version` field in any manifest or marketplace entry | push hook plus `validate-plugin-version-bump.yml` | Freshness pins to a hand-bumped string instead of the commit SHA, and the line conflicts across every concurrent plugin PR (ADR-092, issue #4080) |
-| Generated hooks anchor to repo root, never cwd | `scripts/validation/validate_hook_anchoring.py`, runtime-contract tests | #2205 class: hooks silently no-op in every customer install |
+| No `version` field in any manifest or marketplace entry | push hook plus `validate-plugin-version-bump.yml` | Freshness pins to a hand-bumped string instead of the commit SHA, and the line conflicts across every concurrent plugin PR (ADR-092) |
+| Generated hooks anchor to repo root, never cwd | `scripts/validation/validate_hook_anchoring.py`, runtime-contract tests | Incident class: hooks silently no-op in every customer install |
 | No em/en dashes, block-style YAML arrays, no generated-file headers | `universal.md` MUST NOT 4/5, dash guards, bot reviewers | One review thread per violation, every PR |
 | Hand-synced siblings change together | `validate_install_parity.py` (co-change, one direction: a solo `src/claude/` edit is exempt) | Self-hosted copies diverge from shipped ones |
 | Retrieval precedes reasoning | ADR-007, session-protocol gates | Agents re-fight settled battles (see `ai-agents-failure-archaeology`) |
@@ -153,7 +153,7 @@ State these plainly when working near them; do not design as if they were sound.
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
 - **Proposed-ADR ambiguity**: the status field is not a reliable is-this-binding signal; check enforcement, not status.
-- **EVENT telemetry pipeline fully retired (resolved)**: the emitter (`push_guard_base.py`), every guard built on it, and the classifier skill that consumed its output were all deleted under ADR-084 (issue #5154); no live source, no live consumer.
+- **EVENT telemetry pipeline fully retired (resolved)**: the emitter (`push_guard_base.py`), every guard built on it, and the classifier skill that consumed its output were all deleted under ADR-084; no live source, no live consumer.
 - **Retro-cited SHAs are clone-ref dependent and off `main`**: verify ancestry, then route archaeology through retros and memories rather than relying on `git log`.
 
 ## Anti-Patterns
@@ -162,7 +162,7 @@ State these plainly when working near them; do not design as if they were sound.
 - Deleting a hook, skill, or script because "nothing references it". Dispatch is name-based; check string references and `orphan-ref-validator` first.
 - Copying a failure policy across hook families. Push-guard fail-open reasoning does not transfer to released hook artifacts (ADR-066), and vice versa.
 - Citing a Proposed ADR (069, 072) as settled architecture, or dismissing a live enforcement mechanism because an older ADR status is stale.
-- Treating `.serena/memories/` as inert docs. The advisory correction-applier and topical-memory-injection hooks were deleted (issue #3184; see the Phase 4 observation-loop entry above); they were never active runtime inputs. Explicit retrieval through the `memory` or `memory-search` skill is what makes memories load-bearing, not an automatic hook.
+- Treating `.serena/memories/` as inert docs. The advisory correction-applier and topical-memory-injection hooks were deleted (see the Phase 4 observation-loop entry above); they were never active runtime inputs. Explicit retrieval through the `memory` or `memory-search` skill is what makes memories load-bearing, not an automatic hook.
 - Adding a rule without a gate. Verification-based governance means prose without enforcement is dead on arrival (route new rules through `ai-agents-change-control`).
 - Adding a `version` back to a plugin.json or marketplace entry. ADR-092 deleted it; the gate fails on its presence.
 

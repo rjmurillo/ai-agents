@@ -186,4 +186,4 @@ Every PRD section reaches the spec-generator unchanged so it does not re-ask que
 - Related skills: `decision-critic`, `pre-mortem`, `cynefin-classifier`
 - Related references: `software-engineering-library` clean-architecture and domain-driven-design references, plus `.claude/rules/security.md`
 
-<!-- vendor-portability: declared. This skill writes interview transcripts and the REQ/DESIGN/TASK spec tier under .project-toolkit/specs/ and cites .agents/governance/SECURITY-REVIEW-PROTOCOL.md. The specs paths are write targets created on demand; the governance file is a citation with a .claude/rules/security.md fallback named inline. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes interview transcripts and the REQ/DESIGN/TASK spec tier under .project-toolkit/specs/ and cites .agents/governance/SECURITY-REVIEW-PROTOCOL.md. The specs paths are write targets created on demand; the governance file is a citation with a .claude/rules/security.md fallback named inline. -->

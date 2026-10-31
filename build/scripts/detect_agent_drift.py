@@ -178,7 +178,8 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # constraint line from both merge-resolver bodies when it retired HANDOFF.md.
 # Both sides lost the same shared words, so the Jaccard overlap fell from 20.7%
 # (measured at 3d304d4e2, the parent of #5470) to 20.3% in both comparisons.
-# The change was intended, so the floors are lowered to the measured 20.3%.
+# The change was intended, so the floors are lowered to the measured 20.3%, then
+# re-measured at 20.5% after template wording edits removed repository issue refs.
 #
 # merge-resolver install copy (Issue #2715): the same enrichment
 # lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
@@ -192,8 +193,8 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # below the floor prints DRIFT DETECTED and fails this comparison with
 # --fail-on-install-drift.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
-    ("merge-resolver", "src-claude vs src-vscode"): 20.3,
-    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.3,
+    ("merge-resolver", "src-claude vs src-vscode"): 20.5,
+    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.5,
 }
 
 # Pre-existing missing sections at the time section inventory was added

@@ -39,8 +39,8 @@ right one so a caller loads only the surface it needs.
 See the [context-gather skill](../context-gather/SKILL.md) for the
 multi-source pre-work gather and its
 [references/context-retrieval.md](../context-gather/references/context-retrieval.md)
-for the source-priority strategy (Issue #2103 folded the former
-context-retrieval agent into that reference; #5574 moved it here from the
+for the source-priority strategy (the former
+context-retrieval agent folded into that reference, which moved here from the
 retired knowledge-graph skill).
 
 ---
@@ -160,7 +160,7 @@ In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
 files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
-See `universal.md` MUST NOT 11 and issue #5061.
+See `universal.md` MUST NOT 11.
 
 ### Never
 
@@ -193,7 +193,7 @@ cheapen listing; it breaks discovery and cross-links. On add, update the domain
 
 These conventions govern writing a new Serena memory and registering it in its
 domain index. They are the load-bearing rules absorbed from the former `memory`
-agent (Issue #2102). For in-file obsolete-marking, use the `curating-memories`
+agent. For in-file obsolete-marking, use the `curating-memories`
 skill. For cross-file deduplication, use the `memory-consolidate` skill. For
 cross-linking, use the `memory-maintenance` skill.
 
@@ -329,7 +329,7 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 | `test_memory_health.py` | System health dashboard | 0=success |
 | `extract_session_episode.py` | Episode extraction; `--validate` checks the store at rest, `--fix` repairs backwards commit order | 0=success, 1=error, 2=violation or bad flag |
 | `repair_episode_causal_links.py` | Restore causal edges in flattened episodes | 0=success, 1=an episode is invalid, 2=episodes dir missing |
-| `migrate_causal_version.py` | One-shot migration: stamps `causal_order_version=2` on legacy episodes (#3598); `--dry-run` previews counts without writing | 0=all stamped, 1=some skipped, 2=bad path |
+| `migrate_causal_version.py` | One-shot migration: stamps `causal_order_version=2` on legacy episodes; `--dry-run` previews counts without writing | 0=all stamped, 1=some skipped, 2=bad path |
 | `measure_memory_performance.py` | Serena search benchmark, by phase | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
 | `convert_index_table_links.py` | Index table link conversion | 0=success, 1=error |
@@ -356,4 +356,4 @@ Invoke via the portable root form:
 | `memory-documentary` | Narrative cross-system memory reports |
 | `curating-memories` | In-file obsolete-marking (supersession markers) |
 
-<!-- vendor-portability: declared. This skill links reference docs that ship in its own references/ tree and routes callers to sibling sub-skills. The episode store is the consumer's own data dir, created on demand when absent in a vendored install. Issue #2050, ADR-063. -->
+<!-- vendor-portability: declared. This skill links reference docs that ship in its own references/ tree and routes callers to sibling sub-skills. The episode store is the consumer's own data dir, created on demand when absent in a vendored install. ADR-063. -->

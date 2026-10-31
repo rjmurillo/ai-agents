@@ -23,12 +23,12 @@ metadata:
 
 <!-- vendor-portability: cites `templates/agents/security.shared.md` as the canonical
 source of this content, which the canonical-source-mirror rule requires.
-The path is upstream-only provenance, not a runtime dependency. Issue #3459. -->
+The path is upstream-only provenance, not a runtime dependency. -->
 
 This skill carries the same security-review knowledge the `security` agent
 carries in its subagent system prompt, delivered instead as content read into
 the parent's context and reasoned over inline. It is the `skill` form-factor
-counterpart in the Issue #1875 eval (follow-on to ADR-058): same domain
+counterpart in the agent-vs-skill eval (follow-on to ADR-058): same domain
 content, one model call instead of a parent-to-subagent dispatch.
 
 Canonical source: `templates/agents/security.shared.md`. The agent template is
@@ -56,7 +56,7 @@ Quoted canonical contract:
 
 Intentional divergence: the canonical security agent ends with
 APPROVED / CONDITIONAL / BLOCKED for PR review. This skill ends with
-IDENTIFY / OK / ESCALATE because the Issue #1875 form-factor fixtures score
+IDENTIFY / OK / ESCALATE because the form-factor fixtures score
 the same verdict vocabulary used by `eval-agent-vs-baseline.py`.
 
 ## Core Identity
@@ -231,4 +231,4 @@ that length cap.
 - `templates/agents/security.shared.md` (canonical source for this content)
 - `.claude/skills/security-scan/` (CWE-78 regex scanner)
 - `.claude/skills/threat-modeling/` (OWASP STRIDE workflow)
-- ADR-058 (prompt behavioral evaluation; form-factor follow-on Issue #1875)
+- ADR-058 (prompt behavioral evaluation)

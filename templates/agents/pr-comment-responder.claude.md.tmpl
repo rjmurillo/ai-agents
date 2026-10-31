@@ -103,7 +103,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
 - **PR Cleanup**: Use `--detect-stale --only-stale` to identify and resolve stale comment threads
 - **Bot Comment Hygiene**: Detect when bots reviewed outdated commits
 
-**Example**: PR #908 had 4 Gemini security comments on `.claude/hooks/Stop/invoke_skill_learning.py` (Python), which was deleted in commit `2777c91` and replaced with Python. All 4 comments were stale (reason: `FileDeleted`).
+**Example**: A PR had 4 Gemini security comments on `.claude/hooks/Stop/invoke_skill_learning.py` (Python), which was deleted in commit `2777c91` and replaced with Python. All 4 comments were stale (reason: `FileDeleted`).
 
 {{> pr-comment-responder-detect-and-exclude-stale-comments}}
 

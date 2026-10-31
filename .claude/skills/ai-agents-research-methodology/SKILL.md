@@ -20,7 +20,7 @@ metadata:
 
 # AI Agents Research Methodology
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers -->
 This repo runs on verification-based governance: labels like "MANDATORY" or
 "NON-NEGOTIABLE" are insufficient, every requirement needs a verification
 mechanism. The same standard applies to ideas. An idea is not accepted because it sounds
@@ -47,7 +47,7 @@ including the negative ones, and the explanation survives adversarial
 refutation. Partial explanations that cover only the confirming observations
 are hypotheses, not results.
 
-The cautionary tale is PR #1989. Mitigation M1 was built on a root-cause claim
+The cautionary tale is the recursive-failure PR. Mitigation M1 was built on a root-cause claim
 inherited from a retro RCA that nobody re-verified: the RCA said pagination was
 missing, but `get_unresolved_review_threads.py` already paginated correctly
 (.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20). Five
@@ -110,7 +110,7 @@ citation, behavior). Interpretation guidance lives in
 ## Process
 
 The lifecycle. Every stage produces an artifact; every transition has a gate.
-Skipping a stage is how #1989 happened.
+Skipping a stage is how the recursive-failure incident happened.
 
 ### Phase 1: Hunch, Then Search, Then Contradiction Log
 
@@ -134,7 +134,7 @@ Turn the hunch into a falsifiable claim and probe it. Rules of the probe
   the comfortable default environment.
 - Include a negative control: a case that proves the probe CAN fail.
 - Never trust vendor docs alone; this repo was burned twice by
-  wrong-by-omission docs (#2205, #2290 retros in `.project-toolkit/retrospective/`).
+  wrong-by-omission docs (the plugin-root and hook payload retros in `.project-toolkit/retrospective/`).
 - Record the probe result in a decision memory with version and date.
 
 ### Phase 3: Capability Gate and Eval Baseline
@@ -167,14 +167,14 @@ when citing.
 
 A result becomes enforcement (a hook, a validator, a CI gate) or capability (a
 skill via `SkillForge`). Any threshold-based detector must ship with a
-calibration table. The rule, from the #1989 retro ("Process Change 3",
+calibration table. The rule, from the recursive-failure retro ("Process Change 3",
 .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:149-157): show
 the threshold, a sample of real PRs measured against it, and the expected
 firing rate. "A detector that cannot fire on the last 5 PRs in the repo is not
 calibrated." The origin: M4 shipped with threshold 6 in a repo whose busiest
 PR had 4 file edits; it could never fire (retro lines 72-73).
 
-Also run the new guard on its own branch before merging. #1989 M5 was a
+Also run the new guard on its own branch before merging. M5 in that retro was a
 pre-push guard that was never executed on the branch that shipped it.
 
 ### Phase 6: Monitor
@@ -183,7 +183,7 @@ Enforcement decays. The push guards used to emit `EVENT=` telemetry lines
 (stderr, via `push_guard_base.py`) that a maturity-tier skill aggregated into
 tiers (Budding, Growing, Mature, Proficient, Inert, Harmful) to tell you
 whether a gate earned its keep. That emitter, every guard built on it, and the
-classifier skill itself were deleted under ADR-084 (issue #5154): there is no
+classifier skill itself were deleted under ADR-084: there is no
 producer and no consumer today. The underlying principle still applies to
 whatever gate you add next: an Inert gate is a candidate for the same prune
 rule as an unbaselined idea. If you build a new detector, ship its own
@@ -195,9 +195,9 @@ instruments lives in `ai-agents-diagnostics-toolkit`.
 Both outcomes are results. Adoption means the artifact set is complete: probe
 memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 
-Retirement gets recorded, never silenced. The exemplar is issue #2230: a
+Retirement gets recorded, never silenced. The exemplar is a rejected proposal: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
-silent-failure anti-pattern; the rejection is recorded with rationale in the #2205 retro decision table
+silent-failure anti-pattern; the rejection is recorded with rationale in the plugin-root retro decision table
 (.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
 the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection
@@ -241,7 +241,7 @@ for templates and house style). Non-negotiables for research prose:
   `status: proposed` (as of 2026-07-03); citing it as settled is a defect.
 - Date-stamp volatile facts inline: "(as of 2026-07-03)".
 - Quote canonical sources verbatim when claiming a mirror "matches" (FM-9,
-  `.agents/governance/FAILURE-MODES.md`; PR #1887 paid 7 fix commits for
+  `.agents/governance/FAILURE-MODES.md`; One round-cap PR paid 7 fix commits for
   paraphrases).
 - Include the prediction AND the measured number, even when they disagree.
 - Run `prose-self-check` before emitting.
@@ -250,14 +250,14 @@ for templates and house style). Non-negotiables for research prose:
 
 | Anti-pattern | Real instance | Correct move |
 |---|---|---|
-| Building on an unverified RCA | #1989 M1: "missing pagination" premise was false; the script already paginated | Re-verify the mechanism against source before building on it |
-| Shipping an uncalibrated threshold | #1989 M4: threshold 6, repo max 4, could never fire | Calibration table against last 5 merged PRs, in the PR description |
-| Guard never run on its own branch | #1989 M5 pre-push guard | Execute the guard on the shipping branch before merge |
+| Building on an unverified RCA | Recursive-failure M1: "missing pagination" premise was false; the script already paginated | Re-verify the mechanism against source before building on it |
+| Shipping an uncalibrated threshold | Recursive-failure M4: threshold 6, repo max 4, could never fire | Calibration table against last 5 merged PRs, in the PR description |
+| Guard never run on its own branch | Recursive-failure M5 pre-push guard | Execute the guard on the shipping branch before merge |
 | Prediction written after the run | Any post-hoc "as expected" | Prediction in session log BEFORE the eval command |
 | Adopting on model consensus | Rejected repeatedly per builder-ethos | Present, state missing context, ask the user |
-| Silent retirement | The failure #2230's explicit rejection record prevents | Record rejections with rationale where the next proposer will search |
+| Silent retirement | The failure an explicit rejection record prevents | Record rejections with rationale where the next proposer will search |
 | Routing around the debate | Encoding policy in a rule to dodge `adr-review` | ADR + debate + human approval for governance changes |
-| Trusting vendor docs over probes | #2205 first fix assumed an env var by analogy; shipped 3 new defects | Empirical probe with negative control (`ai-agents-empirical-probe-toolkit`) |
+| Trusting vendor docs over probes | The first plugin-root fix assumed an env var by analogy; shipped 3 new defects | Empirical probe with negative control (`ai-agents-empirical-probe-toolkit`) |
 
 ## Verification
 
@@ -276,8 +276,8 @@ volatile facts:
 
 | Fact | Source | Re-verify |
 |---|---|---|
-| #1989 false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| #2230 rejection record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n 2230 .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
+| Recursive-failure false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
+| Rejected-proposal record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n rejected .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | `AGENTS.md:40` (`adr-review`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
 | buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:38` (`13wk`) | `grep -n "13" AGENTS.md` |
 | buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory |
@@ -290,5 +290,5 @@ Uncertainty flag: the `EVENT=` telemetry consumer pipeline was never fully
 mapped before it was retired (noted in `ai-agents-research-frontier`). The
 emitter, `push_guard_base.py`, was verified present 2026-07-03 (mirrored under
 `src/copilot-cli/hooks/PreToolUse/`) and was deleted from both trees under
-ADR-084 (issue #5154), along with the tier-classifier skill that consumed its
+ADR-084, along with the tier-classifier skill that consumed its
 output; nothing in this repo produces or reads that telemetry today.

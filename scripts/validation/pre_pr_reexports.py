@@ -33,6 +33,7 @@ from check_required_context_conditions import validate_required_context_conditio
 from check_serena_memory_worktree_scope import validate_serena_memory_worktree_scope
 from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
+from check_template_repo_refs import validate_template_repo_refs
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import (
@@ -117,6 +118,7 @@ __all__ = [
     "validate_skill_skip_clauses",
     "validate_host_marketplaces",
     "validate_skill_tree_layout",
+    "validate_template_repo_refs",
     "validate_tmp_worktrees",
     "validate_traceability",
     "validate_worktree_recipes",

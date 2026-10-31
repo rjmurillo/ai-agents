@@ -126,7 +126,7 @@ The utility collects the following metrics:
 
 ## Backlog Provenance
 
-`backlog_provenance.py` is a read-only diagnostic for epic #5698. It reads every
+`backlog_provenance.py` is a read-only diagnostic for the backlog provenance epic. It reads every
 issue created in an explicit UTC interval and reports the split by recorded
 `source:human` and `source:agent` label, plus two labeled heuristics. It does not
 score productivity, and it never files, labels, or closes an issue.
@@ -144,7 +144,7 @@ Baseline, reproducible with `--days 29 --until 2026-09-29T00:00:00Z` (UTC, all i
 A later fix makes an old defect vanish from the current tree. A report of only
 the current state then loses the evidence of the review race, and a report of
 only the old defect calls a fixed problem live. `defect_lineage.py` keeps the
-chain (issue #5638). One JSON record per reviewed chain lives in a records
+chain. One JSON record per reviewed chain lives in a records
 directory that each command takes as an argument. The schema and its rules are
 in the docstring of `defect_lineage_record.py`.
 
@@ -275,4 +275,4 @@ Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not 
 - `.project-toolkit/metrics/baseline-report.md`. Baseline report.
 - `.github/workflows/agent-metrics.yml`. CI workflow.
 
-<!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .project-toolkit/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. It also cites docs/agent-metrics.md, .project-toolkit/metrics/dashboard-template.md, .project-toolkit/metrics/baseline-report.md, and .github/workflows/agent-metrics.yml as background reading. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .project-toolkit/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. It also cites docs/agent-metrics.md, .project-toolkit/metrics/dashboard-template.md, .project-toolkit/metrics/baseline-report.md, and .github/workflows/agent-metrics.yml as background reading. -->

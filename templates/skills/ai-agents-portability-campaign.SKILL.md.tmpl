@@ -15,7 +15,7 @@ metadata:
 # ai-agents Portability Campaign
 
 <!-- vendor-portability: repository-maintenance skill; source-tree paths name
-canonical owners, not consumer-runtime dependencies. Issue #2050. -->
+canonical owners, not consumer-runtime dependencies. -->
 
 This skill changes hooks. `agent-harness-reference` owns hook facts.
 `ai-agents-empirical-probe-toolkit` owns probe design.
@@ -99,7 +99,7 @@ exit-2 stdout becomes recovery
 context. Copilot drops config-file UserPromptSubmit output, so its stdout is
 redirected to stderr in dispatcher and direct rollback modes. Memory recall uses
 the direct `userPromptTransformed` registration in
-`.github/hooks/memory-recall.json` instead (issue #4727). Stderr is not a
+`.github/hooks/memory-recall.json` instead. Stderr is not a
 documented model-context path. Every unclassified event stays direct until its
 host contract is reviewed.
 
