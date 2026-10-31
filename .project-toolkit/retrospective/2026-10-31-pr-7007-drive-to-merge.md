@@ -5,6 +5,8 @@
 - **Agents**: orchestrating session only (autoplan, github-url-intercept, pr-review skills); no subagents
 - **Task Type**: Bug
 - **Outcome**: Success
+- **PR**: [#7007](https://github.com/rjmurillo/ai-agents/pull/7007)
+- **Failed run**: [PR Validation run 41180761696, job `Validate PR`](https://github.com/rjmurillo/ai-agents/actions/runs/41180761696/job/124477534520)
 
 ## Phase 0: Data Gathering
 
@@ -29,17 +31,17 @@
 
 | Time (UTC, 2026-10-31) | Event | Evidence |
 |------|-------|----------|
-| 07:30 | `Validate PR` fails on `e0e9ee28ca` | check run 41180761696 |
+| 07:30 | `Validate PR` fails on [`e0e9ee28ca`](https://github.com/rjmurillo/ai-agents/commit/e0e9ee28ca) | [workflow run 41180761696](https://github.com/rjmurillo/ai-agents/actions/runs/41180761696/job/124477534520) |
 | 15:17 | PR context read; route set to `pr-review` | `get_pr_context.py` output |
 | 15:18 | Config trust exit 0; transport `gh`; 3 threads, 0 clusters | `run_completion_gate.py --verify-config-only`, `cluster_threads.py` |
-| ~15:19 | Merge commit `dc86b21d76` with 109 re-recorded pins | git log |
+| ~15:19 | Merge commit [`dc86b21d76`](https://github.com/rjmurillo/ai-agents/commit/dc86b21d76) with 109 re-recorded pins | git log |
 | ~15:20 | pytest collects 0 items; rerun with xargs passes 2640, skips 1 | pytest output |
-| ~15:20 | Fix commit `738d5dbbae` | git log |
+| ~15:20 | Fix commit [`738d5dbbae`](https://github.com/rjmurillo/ai-agents/commit/738d5dbbae) | git log |
 | 15:20 | PR body edited after local validator check | `edit_pr_body.py` result |
-| ~15:22 | Push lands `e0e9ee28ca..738d5dbbae` | push log |
+| ~15:22 | Push lands [`e0e9ee28ca..738d5dbbae`](https://github.com/rjmurillo/ai-agents/compare/e0e9ee28ca...738d5dbbae) | push log |
 | 15:23 | 3 threads replied to and resolved | `add_pr_review_thread_reply.py` |
 | ~15:30 | Settle check exit 0; gate exit 1 on branch protection only | gate JSON |
-| 15:34 | Squash merge `78e8145660` | `merge_pr.py` result |
+| 15:34 | Squash merge [`78e8145660`](https://github.com/rjmurillo/ai-agents/commit/78e8145660) | `merge_pr.py` result |
 | after | Claimed the remote branch still existed; `ls-remote` was empty | `git ls-remote` |
 
 ### Outcome Classification
@@ -151,9 +153,9 @@ Root cause: a mechanical deletion with no check for what it left behind.
 | Post-scrub orphan-punctuation grep | Yes, two patterns | Yes, grep hit count | Yes, one command | Yes, 2 of 3 threads | Yes, after any bulk delete | Pass |
 
 ### Action Sequence
-1. Persist the scrub learning (no dependency).
-2. Tag recurrences on the three existing memories (no dependency).
-3. Owner decides on a lint (depends on 1).
+1. Persist the scrub learning (no dependency). Owner: this session. Done in [#7019](https://github.com/rjmurillo/ai-agents/pull/7019).
+2. Tag recurrences on the existing memories (no dependency). Owner: this session. Done in [#7019](https://github.com/rjmurillo/ai-agents/pull/7019).
+3. Decide on a lint (depends on 1). Owner: repository owner (rjmurillo). No issue filed: agent-found items are flagged, not filed.
 
 ## Phase 4: Extracted Learnings
 
@@ -256,6 +258,8 @@ Root cause: a mechanical deletion with no check for what it left behind.
 | Known zsh and branch facts are not recalled at action time | Tool Gap |
 
 #### Findings for the owner
+
+Owner for every row: repository owner (rjmurillo). Agents flag these items; filing an issue is the owner's call.
 
 | Item | Evidence (path:line) | Proposed action | Class |
 |------|----------------------|-----------------|-------|
