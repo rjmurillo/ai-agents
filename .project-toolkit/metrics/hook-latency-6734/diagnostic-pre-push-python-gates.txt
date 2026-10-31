@@ -1,0 +1,124 @@
+# pre_pr.py gate timings from one diagnostic pre-push run (python class, d7ae505 + fixture 90af99ede, 2026-10-20)
+# Command: LEFTHOOK_OUTPUT=summary,success,failure,execution_out lefthook run pre-push origin https://github.com/rjmurillo/ai-agents.git --no-tty --colors off --no-stage-fixed --file scripts/ci/lefthook_budget_model.py
+# stdin: refs/heads/claude/measure-6734-python 90af99ede2f77057edaa885d0d64d19a62cda634 refs/heads/claude/measure-6734-python 0000000000000000000000000000000000000000
+# Lines below are every 'completed in' line pre_pr.py printed, in run order, unedited.
+[PASS] Python Syntax (compile gate) completed in 12.78s
+[PASS] Nested Test Detection completed in 9.35s
+[PASS] Duplicate Test Helper Detection completed in 5.78s
+[PASS] Subprocess Encoding Convention completed in 15.12s
+[PASS] Test Working Tree Writes completed in 8.26s
+[PASS] Push Lock Path Agreement completed in 1.64s
+[PASS] Index Line Endings completed in 3.58s
+[PASS] Worktree Recipe Destinations completed in 1.49s
+[PASS] Legacy .agents Write Targets completed in 24.78s
+[PASS] Temp-filesystem Worktrees (advisory) completed in 0.00s (examined 11)
+[PASS] In-root Worktrees (advisory) completed in 0.01s (examined 29)
+[PASS] Serena Memory Worktree Scope (advisory) completed in 0.03s (examined 2)
+[PASS] Session End Validation completed in 0.39s (examined 0)
+[PASS] Mypy Changed Files (ratchet) completed in 0.49s (examined 1)
+[PASS] Markdown Linting completed in 0.42s
+[BLOCKED] Workflow YAML Validation completed in 0.00s
+[PASS] Required-Context Conditions (advisory) completed in 0.41s
+[PASS] Copilot CLI Version Pin completed in 0.00s
+[PASS] CI Dependency Pins completed in 0.04s
+[PASS] ADR Lifecycle Frontmatter (ratchet) completed in 6.38s
+[PASS] ADR Link Resolution completed in 1.30s
+[PASS] ADR Exception Markers completed in 0.10s
+[PASS] Skill ADR Bindings (ratchet) completed in 0.80s
+[PASS] Rule ADR Citations (ratchet) completed in 0.53s
+[PASS] Design Review Frontmatter completed in 0.01s
+[PASS] Build Command Exit Gates completed in 0.08s
+[PASS] Stale Script References completed in 2.11s
+[PASS] Citation Freshness (added lines) completed in 0.20s
+[PASS] Measurement Anchoring (added lines) completed in 0.37s
+[PASS] Documented Interpreter Portability completed in 15.37s
+[PASS] Orphaned Build Deferrals completed in 0.00s
+[PASS] Generated Artifact Staleness completed in 11.91s (examined 1)
+[PASS] Skill Template Drift completed in 0.63s
+[PASS] Agent Template Drift completed in 0.36s
+[PASS] Rule Template Drift completed in 0.14s
+[PASS] Rule Lossless Fixtures completed in 0.85s
+[PASS] Hook Template Drift completed in 0.10s
+[PASS] Spec ID Uniqueness completed in 0.07s
+[PASS] Traceability completed in 0.07s
+[PASS] Bypass Allowlist completed in 2.98s (examined 27)
+[PASS] Promotion Exceptions completed in 0.00s (examined 0)
+[PASS] Agent Registry completed in 0.17s
+[PASS] Plugin Frontmatter Self-Containment completed in 0.70s
+[PASS] Python3 Entrypoints completed in 0.19s
+[PASS] GitHub Actions SHA Pinning completed in 0.08s
+[PASS] ADR Number Uniqueness completed in 0.09s
+[PASS] Agent-Skill Discriminator completed in 0.65s
+[PASS] Hook Contracts completed in 0.08s
+[PASS] Passive Context Budget completed in 0.06s
+[PASS] Skillbook Validation completed in 0.07s
+[PASS] Review Axis Drift completed in 0.12s
+[PASS] Skill Description Budget completed in 0.32s
+[PASS] Closure Manifest (advisory) completed in 6.77s
+[PASS] Placeholder Identity completed in 1.24s
+[PASS] Tracked Conflict Markers completed in 3.11s
+[PASS] Security Suppressions Diff completed in 1.07s
+[PASS] Memory Placement completed in 1.05s
+[PASS] Vendor Portability completed in 4.01s
+[PASS] Skill Script Portability completed in 3.30s
+[PASS] Skill Markdown Portability completed in 15.23s
+[PASS] Skill Markdown Exec Portability completed in 0.93s
+[PASS] Skill Resolver Anchoring completed in 0.11s
+[PASS] Plugin-Root Interpreter completed in 19.32s
+[PASS] Projection Invariants (ADR-107) completed in 0.06s
+[PASS] Skill Contract Tests completed in 7.36s
+[PASS] Skill Shell Detection completed in 1.33s
+[PASS] Skill SKIP Clause Routing completed in 0.25s
+[PASS] Skill Memory References completed in 1.61s
+[PASS] Commands Retired (ADR-064) completed in 0.08s
+[PASS] Retired Ownership Claims (ADR-109) completed in 0.41s
+[PASS] Skill Output Envelope completed in 0.08s
+[PASS] Colocated Skill Tests completed in 0.10s
+[PASS] Rule Activation Coverage completed in 0.15s
+[PASS] Route Scenario Coverage completed in 1.17s
+[PASS] Copilot Routing Exclusions completed in 0.17s
+[PASS] Sync Registry Provenance completed in 0.07s
+[PASS] Agent Catalog Drift completed in 0.20s
+[PASS] Shipped Skill Routes completed in 3.98s
+[ADVISORY] Canonical Citation Check completed in 8.07s
+[PASS] Orchestrator Citation Check completed in 0.06s
+[SKIP] Spec Contradiction Check completed in 0.59s
+[PASS] Model Pin Governance (warn) completed in 0.47s
+[BLOCKED] Active Plan Closeout Advisory completed in 12.02s
+[BLOCKED] YAML Style Validation completed in 0.00s
+[PASS] Agent Drift Detection completed in 0.14s
+[PASS] Agent Content Parity (.claude/agents vs src/claude) completed in 0.06s
+[PASS] Agent Source Parity completed in 0.54s
+[PASS] Equivalence Predicates completed in 0.02s (examined 11)
+[PASS] Agent Tree Frontmatter (.claude/agents) completed in 0.03s
+[PASS] Agent Delegation (src/claude/agents) completed in 0.04s
+[PASS] Skill Tree Layout (.claude/skills) completed in 0.00s
+[PASS] Skill Shell Placeholders (.claude/skills) completed in 0.03s
+[PASS] Host Marketplaces completed in 0.00s
+[PASS] Plugin Version Bump completed in 1.03s
+[PASS] Hook Anchoring (Claude + Copilot) completed in 0.17s
+[PASS] Copilot Agent Frontmatter completed in 0.10s
+[PASS] Argument-Hint Frontmatter completed in 0.38s
+[PASS] Git Hook Health (core.hooksPath) completed in 0.09s
+[PASS] Lefthook Installed completed in 0.07s
+[PASS] Workflow Local Run completed in 0.25s
+[SKIP] Review Marker (SHA-bound /review) completed in 0.00s
+[PASS] Instruction Budget (always-on) completed in 0.30s
+[PASS] Instruction Bytes (per-fixture) completed in 3.22s
+[PASS] Always-on Corpus Claims completed in 0.89s
+[PASS] Rule Scope Declarations (paths:) completed in 0.02s
+[PASS] Capability Graph (metadata.capability) completed in 0.68s
+[PASS] External Contract Records (external-contract) completed in 3.30s
+[PASS] NL Structural Debt Ratchet completed in 2.18s
+[PASS] Skill Routing Roles (metadata.routing) completed in 5.23s
+[PASS] Path-Local Effective Context Ratchet completed in 1.76s
+Duration: 246.40s
+Total Validations: 115
+PASS: 104
+FAIL: 0
+ADVISORY: 1
+SKIP: 7
+BLOCKED: 3
+UNKNOWN: 0
+semgrep: waiting up to 420s for host headroom: load average 4.8 is at or above 4.0.
+semgrep: host headroom after 15.0022s; starting.
