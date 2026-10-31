@@ -504,7 +504,7 @@ class TestSkillCountClaimsMatchTheCode:
         assert set(claims) == {len(CANDIDATES)}, claims
 
     def test_every_deep_review_row_claim_matches_the_reported_rows(self) -> None:
-        claims = self._counts(r"(\d+) rows") + self._counts(r"full (\d+)-axis set")
+        claims = self._counts(r"(\d+) rows")
         claims += self._counts(r"(\d+) total in deep-review mode")
         assert set(claims) == {self.ROWS}, claims
 
