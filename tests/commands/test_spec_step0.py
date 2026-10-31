@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from tests.commands.step0_parser import (
+    H3_DEFERRAL,
     baseline_answers,
     evaluate_step0,
     extract_step0_block,
@@ -615,6 +616,61 @@ class TestQ1Aspirational:
         assert not q1_aspirational(
             "Bleu team and Delos team and Calc team escalated #1700, #1820, #1850"
         )
+
+
+class TestEvidencePath:
+    """Issue #6990: evidence substitutes for breadth (decision 2026-10-30)."""
+
+    ONE = "Felix on the Bleu rotation reported KeyVault deploy failures"
+    Q3_OK = "Felix on the Bleu rotation, blocked on KeyVault deploys, three times last week."
+    Q5_OK = "Issue #1700 line 12 reports `KeyVault timeout (504)` on three deploys."
+
+    def _answers(self, q1: str, q3: str, q5: str) -> dict[str, str]:
+        answers = baseline_answers()
+        answers.update({"Q1": q1, "Q3": q3, "Q5": q5})
+        return answers
+
+    def test_one_requester_specific_q3_evidenced_q5_passes(self, hedge_phrases: list[str]) -> None:
+        answers = self._answers(self.ONE, self.Q3_OK, self.Q5_OK)
+        assert evaluate_step0(answers, hedge_phrases) is None
+
+    def test_one_requester_speculative_q5_halts_h2(self, hedge_phrases: list[str]) -> None:
+        answers = self._answers(self.ONE, self.Q3_OK, "Customers need this to scale.")
+        assert evaluate_step0(answers, hedge_phrases) == "H2"
+        assert q1_aspirational(self.ONE, q3_specific_ok=True, q5_evidenced=False)
+
+    def test_one_requester_generic_q3_halts_h3(self, hedge_phrases: list[str]) -> None:
+        answers = self._answers(self.ONE, "Engineers are blocked on deploys.", self.Q5_OK)
+        assert evaluate_step0(answers, hedge_phrases) == "H3"
+
+    def test_three_generic_requesters_fail_even_with_evidence(self) -> None:
+        generic = "Engineers, developers, and stakeholders asked for this"
+        assert q1_aspirational(generic, q3_specific_ok=True, q5_evidenced=True)
+
+    def test_no_entity_fails_even_with_evidence(self) -> None:
+        assert q1_aspirational("there is demand", q3_specific_ok=True, q5_evidenced=True)
+
+    def test_future_tense_fails_even_with_evidence(self) -> None:
+        answer = "Bleu team would want this and Felix on the Bleu rotation reported it"
+        assert q1_aspirational(answer, q3_specific_ok=True, q5_evidenced=True)
+
+    def test_conditional_single_requester_fails(self, hedge_phrases: list[str]) -> None:
+        answers = self._answers(
+            "if users start filing tickets, Bleu team will escalate", self.Q3_OK, self.Q5_OK
+        )
+        assert evaluate_step0(answers, hedge_phrases) == "H3"
+
+    def test_three_specific_requesters_still_pass_without_evidence_args(self) -> None:
+        assert not q1_aspirational(
+            "Bleu team and Delos team and Calc team escalated #1700, #1820, #1850"
+        )
+
+    def test_halt_text_names_both_admission_paths(self, spec_step0_gates_text: str) -> None:
+        for text in (H3_DEFERRAL, spec_step0_gates_text):
+            assert "three or more specific requesters" in text
+            assert "Q3" in text and "Q5" in text
+            assert "one specific present-tense requester" in text or "at least one specific" in text
+        assert "either (a) naming three or more" in spec_step0_gates_text
 
 
 class TestQ3Specific:

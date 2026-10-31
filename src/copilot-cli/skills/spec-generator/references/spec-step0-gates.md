@@ -43,7 +43,7 @@ Single words `should`, `might`, `could` are NOT hedges in this list. They confli
 
 **Operational test for Q1 "aspirational"** (any one condition makes Q1 aspirational, triggering H3):
 
-1. The answer names fewer than three specific requesters (people, teams, systems, or data sources). Q1 explicitly asks for three or more. A single named requester is not enough; either name three or document the deferral and re-invoke when the demand surfaces from more sources.
+1. The answer names fewer than three specific requesters (people, teams, systems, or data sources) AND the evidence path does not apply. Evidence substitutes for breadth (policy owner decision, 2026-10-30, issue #6990): Q1 is not aspirational on this condition when the answer names at least one specific, non-generic, present-tense requester, Q3 passes the specific test below, and Q5 passes the speculative test below. Otherwise fewer than three requesters is aspirational; the author either names three or supplies the single requester plus specific Q3 plus evidenced Q5.
 2. The answer uses future tense or conditional mood about demand existence (`would want`, `if customers start`, `when we have`, `would be useful`).
 3. The answer is a generic category (`users in general`, `engineers`, `the team`, `stakeholders`, `developers`).
 
@@ -67,7 +67,7 @@ Generic categories fail this test.
 |---|---|
 | H1 | Any answer contains a hedge phrase from the canonical list. |
 | H2 | Q5 fails the speculative test. |
-| H3 | Q1 fails the aspirational test. |
+| H3 | Q1 fails the aspirational test. The test reads the Q3 and Q5 results, so evaluate Q5 and Q3 before Q1. Halt order is unchanged: H5, H1, H2, H3, H4. |
 | H4 | Q3 fails the specificity test. |
 | H5 | Fewer than six questions answered (partial completion). |
 
@@ -81,7 +81,7 @@ trigger: H3
 question: Q1 Demand Reality
 answer: "users would want this"
 test_failed: aspirational test condition 2 (future-tense `would want`)
-deferral: Re-invoke /spec after naming three or more specific requesters by name.
+deferral: Re-invoke /spec after either (a) naming three or more specific requesters by name, or (b) naming at least one specific present-tense requester together with a specific Q3 blocked entity and a non-speculative Q5 observation.
 ```
 ````
 

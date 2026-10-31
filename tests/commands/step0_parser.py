@@ -102,11 +102,24 @@ def hedge_match(answer: str, phrases: list[str]) -> str | None:
     return None
 
 
-def q1_aspirational(answer: str) -> bool:
+H3_DEFERRAL = (
+    "Re-invoke /spec after either (a) naming three or more specific requesters by name, "
+    "or (b) naming at least one specific present-tense requester together with a specific "
+    "Q3 blocked entity and a non-speculative Q5 observation."
+)
+
+
+def q1_aspirational(
+    answer: str, *, q3_specific_ok: bool = False, q5_evidenced: bool = False
+) -> bool:
     """REQ-016-04 operational test: any one of three conditions makes Q1 aspirational.
 
     Three conditions; any one fires:
-    1. Fewer than three specific named entities (person, team name, system, ticket, file).
+    1. Fewer than three specific named entities (person, team name, system, ticket, file),
+       unless the evidence path applies: at least one named entity AND Q3 passes the
+       specificity test (`q3_specific_ok`) AND Q5 passes the speculative test
+       (`q5_evidenced`). "Evidence substitutes for breadth" (policy owner decision,
+       2026-10-30, issue #6990). Conditions 2 and 3 are never relaxed.
     2. Future tense or conditional mood about demand existence.
     3. Generic category appearing WITHOUT a specific named entity (so
        "the team would benefit" fires; "Bleu team, Delos team, and
@@ -142,7 +155,8 @@ def q1_aspirational(answer: str) -> bool:
     # than three specific requesters". A single named requester is not
     # enough (Copilot PR #1931 comments 3214013611, 3214013621; devin
     # 3214020363).
-    has_too_few_requesters = named_entity_count < 3
+    evidence_path = has_named_entity and q3_specific_ok and q5_evidenced
+    has_too_few_requesters = named_entity_count < 3 and not evidence_path
     has_future_or_conditional = any(
         marker in lower
         for marker in [
@@ -268,7 +282,8 @@ def evaluate_step0(answers: dict[str, str], phrases: list[str]) -> str | None:
 
     Trigger order: H5 (partial) > H1 (hedge) > H2 (Q5 speculative) >
     H3 (Q1 aspirational) > H4 (Q3 generic). The order is deterministic;
-    the first trigger to fire is returned.
+    the first trigger to fire is returned. H3 consumes the Q3 and Q5 results
+    (evidence path), so a single requester with generic Q3 halts as H3.
     """
     if not all(answers.get(q) for q in ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"]):
         return "H5"
@@ -277,7 +292,13 @@ def evaluate_step0(answers: dict[str, str], phrases: list[str]) -> str | None:
             return "H1"
     if q5_speculative(answers["Q5"]):
         return "H2"
-    if q1_aspirational(answers["Q1"]):
+    # Q1 reads the Q3 and Q5 results (evidence path), so both are computed
+    # first. H2 already returned above, so Q5 is non-speculative here.
+    if q1_aspirational(
+        answers["Q1"],
+        q3_specific_ok=q3_specific(answers["Q3"]),
+        q5_evidenced=not q5_speculative(answers["Q5"]),
+    ):
         return "H3"
     if not q3_specific(answers["Q3"]):
         return "H4"
