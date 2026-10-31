@@ -486,6 +486,34 @@ Verify code coverage meets minimum thresholds:
 | New code coverage | [X]% | 80% | [PASS]/[FAIL] |
 ```
 
+#### Step 5: PR Description Validation
+
+Verify the PR description:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/validate_pr_description.py" \
+  --title "[PR title]" \
+  --body-file "[path-to-pr-body.md]"
+```
+
+**Pass criteria:**
+
+- Title follows conventional commit format (FAIL = gate FAIL; ignore exit code, read each check)
+- A GitHub keyword is present (Closes/Fixes/Resolves)
+- Template sections complete (Summary, Spec References, Type of Change, Changes)
+
+**Evidence generation:**
+
+```markdown
+## PR Description Validation
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Conventional Commit Title | [PASS]/[FAIL] | [Title format] |
+| Issue Keywords Present | [PASS]/[WARN] | [Keywords found] |
+| Template Compliance | [PASS]/[WARN] | [Sections: X/4 complete] |
+```
+
 ### Pre-PR Validation Report
 
 Generate validation report at `.project-toolkit/qa/pre-pr-validation-[feature].md`:
@@ -505,10 +533,11 @@ Generate validation report at `.project-toolkit/qa/pre-pr-validation-[feature].m
 | Fail-Safe Patterns | [PASS]/[FAIL] | Yes |
 | Test-Implementation Alignment | [PASS]/[FAIL] | Yes |
 | Coverage Threshold | [PASS]/[FAIL] | Yes |
+| PR Description | [PASS]/[FAIL] | Yes |
 
 ## Evidence
 
-[Include Step 1-4 evidence sections above]
+[Include Step 1-5 evidence above]
 
 ## Issues Found
 
@@ -540,10 +569,10 @@ Numeric thresholds are explicit. Do not interpolate.
 
 | Condition | Verdict | Trigger |
 |-----------|---------|---------|
-| All 4 gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
+| All gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
 | Coverage in 70-79% (line) or 60-69% (branch) AND no other gate fails | CONDITIONAL | Document gap, flag it to the owner, proceed with warning |
 | Any gate FAIL, OR line coverage <70%, OR branch coverage <60%, OR new-code coverage <70% | BLOCKED | Specify failing gate and missing threshold by number |
-| Cannot run coverage tool, missing CI environment, missing test infrastructure | BLOCKED | Return `[BLOCKED] Cannot evaluate: <specific missing artifact>` |
+| Cannot run coverage tool, missing CI environment, test infrastructure, or gate evidence | BLOCKED | Return `[BLOCKED] Cannot evaluate: <specific missing artifact>` |
 
 A CONDITIONAL verdict must name the remaining gap and flag it to the owner. Do not file an issue to clear it. A BLOCKED verdict must name the failing gate and the numeric value that triggered it. Verdicts without these are returned for rework.
 
