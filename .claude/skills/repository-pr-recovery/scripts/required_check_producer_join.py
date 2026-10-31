@@ -268,13 +268,13 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.sha and not args.base:
+    if args.sha is not None and not args.base:
         print(json.dumps({"error": "--sha requires --base", "examined": 0}), file=sys.stderr)
         return 2
     problem = (
         bad_slug(args.slug)
-        or (args.sha and bad_sha(args.sha))
-        or (args.base and bad_base(args.base))
+        or (args.sha is not None and bad_sha(args.sha))
+        or (args.base is not None and bad_base(args.base))
     )
     if problem:
         print(json.dumps({"error": problem, "examined": 0}), file=sys.stderr)

@@ -219,7 +219,14 @@ def test_main_exit_2_on_bad_slug(slug, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "argv", [["--sha", "XYZ"], ["--sha", "abc12"], ["--sha", "-abc1234"], ["--sha", "abc1234\n"]]
+    "argv",
+    [
+        ["--sha", "XYZ"],
+        ["--sha", "abc12"],
+        ["--sha", "-abc1234"],
+        ["--sha", "abc1234\n"],
+        ["--sha", ""],
+    ],
 )
 def test_main_exit_2_on_bad_sha(argv, monkeypatch):
     _no_client(monkeypatch)
