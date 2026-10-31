@@ -277,7 +277,7 @@ volatile facts:
 | Fact | Source | Re-verify |
 |---|---|---|
 | Recursive-failure false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| Rejected-proposal record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n rejected .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
+| Rejected-proposal record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n "Closed addressed-by-prevention" .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | `AGENTS.md:40` (`adr-review`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
 | buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:38` (`13wk`) | `grep -n "13" AGENTS.md` |
 | buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory |

@@ -931,8 +931,8 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
 # Check merge readiness. Add --is-bot when the PR author is a bot; without it
 # classify_tier cannot return T5, because its is_bot parameter defaults to
-# False and T5 requires `is_bot and (has_ci_failures or has_threads)`
-#. Source the answer from get_pr_context.py's focused
+# False and T5 requires `is_bot and (has_ci_failures or has_threads)`.
+# Source the answer from get_pr_context.py's focused
 # `--field author_is_bot` mode and pass --is-bot when that field is absent or
 # non-boolean.
 # Derived rather than written as a `[--is-bot]` placeholder: every other line in
