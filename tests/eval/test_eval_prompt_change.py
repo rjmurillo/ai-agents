@@ -668,7 +668,9 @@ class TestJudgeScenario:
     def _patch_call_api(self, monkeypatch, response: str, *, termination: str = "completed"):
         captured = {}
 
-        def fake(api_key, messages, system, model, max_tokens, metadata=None):
+        def fake(api_key, messages, system, model, max_tokens, metadata=None, provider=None):
+            captured["max_tokens"] = max_tokens
+            captured["provider"] = provider
             captured["api_key"] = api_key
             captured["messages"] = messages
             captured["system"] = system
@@ -725,6 +727,27 @@ class TestJudgeScenario:
         out = eval_mod.judge_scenario("k", "sys", self.SCENARIO, "claude")
         assert out["verdict"] == "UNKNOWN"
 
+    def test_default_max_tokens_unchanged(self, monkeypatch):
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        captured = self._patch_call_api(monkeypatch, '{"verdict": "ROUTE", "reason": "x"}')
+        eval_mod.judge_scenario("k", "sys", self.SCENARIO, "claude")
+        assert captured["max_tokens"] == 1024
+
+    def test_max_tokens_passes_to_anthropic_path(self, monkeypatch):
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        captured = self._patch_call_api(monkeypatch, '{"verdict": "ROUTE", "reason": "x"}')
+        eval_mod.judge_scenario("k", "sys", self.SCENARIO, "claude", max_tokens=4096)
+        assert captured["max_tokens"] == 4096
+        assert captured["provider"] is None
+
+    def test_max_tokens_passes_to_provider_path(self, monkeypatch):
+        monkeypatch.setenv("EVAL_PROVIDER", "openai")
+        monkeypatch.setattr(eval_mod, "is_default_anthropic", lambda _p: False)
+        captured = self._patch_call_api(monkeypatch, '{"verdict": "ROUTE", "reason": "x"}')
+        eval_mod.judge_scenario("k", "sys", self.SCENARIO, "claude", max_tokens=4096)
+        assert captured["max_tokens"] == 4096
+        assert captured["provider"] == "openai"
+
     def test_user_message_includes_options(self, monkeypatch):
         captured = self._patch_call_api(monkeypatch, '{"verdict": "ROUTE", "reason": "x"}')
         eval_mod.judge_scenario("k", "sys", self.SCENARIO, "claude")
@@ -751,6 +774,53 @@ class TestJudgeScenario:
 # ---------------------------------------------------------------------------
 
 
+class TestMaxTokensThreading:
+    SCENARIO = {"id": "S1", "desc": "d", "input": "i", "expected_verdict": "ROUTE"}
+
+    def test_run_scenario_multi_forwards_max_tokens(self, monkeypatch):
+        seen = []
+
+        def fake(api_key, prompt, scenario, model, max_tokens=1024):
+            seen.append(max_tokens)
+            return {"verdict": "ROUTE", "reason": "r", "raw": ""}
+
+        monkeypatch.setattr(eval_mod, "judge_scenario", fake)
+        monkeypatch.setattr(eval_mod.time, "sleep", lambda _s: None)
+        eval_mod.run_scenario_multi("k", "p", self.SCENARIO, "m", 3, max_tokens=4096)
+        assert seen == [4096, 4096, 4096]
+
+    def test_run_scenario_multi_default(self, monkeypatch):
+        seen = []
+
+        def fake(api_key, prompt, scenario, model, max_tokens=1024):
+            seen.append(max_tokens)
+            return {"verdict": "ROUTE", "reason": "r", "raw": ""}
+
+        monkeypatch.setattr(eval_mod, "judge_scenario", fake)
+        monkeypatch.setattr(eval_mod.time, "sleep", lambda _s: None)
+        eval_mod.run_scenario_multi("k", "p", self.SCENARIO, "m", 3)
+        assert seen == [1024, 1024, 1024]
+
+    def test_run_comparison_forwards_max_tokens(self, monkeypatch):
+        seen = []
+
+        def fake(api_key, prompt, scenario, model, runs, max_tokens=1024):
+            seen.append(max_tokens)
+            return {
+                "scenario_id": scenario["id"],
+                "passes": runs,
+                "runs": runs,
+                "pass_rate": 1.0,
+                "passed": True,
+                "flaky": False,
+                "per_run": [],
+            }
+
+        monkeypatch.setattr(eval_mod, "run_scenario_multi", fake)
+        eval_mod.run_comparison("k", "a", "b", [self.SCENARIO], "m", 3, max_tokens=4096)
+        assert seen == [4096, 4096]
+
+
 class TestRunScenarioMulti:
     SCENARIO = {
         "id": "S1",
@@ -763,7 +833,7 @@ class TestRunScenarioMulti:
     def _stub_judge(self, monkeypatch, verdicts):
         idx = {"i": 0}
 
-        def fake(api_key, prompt, scenario, model):
+        def fake(api_key, prompt, scenario, model, **_kw):
             v = verdicts[idx["i"] % len(verdicts)]
             idx["i"] += 1
             return {"verdict": v, "reason": f"verdict={v}", "raw": ""}
@@ -833,7 +903,7 @@ class TestRunComparison:
     ]
 
     def test_identical_before_after_yields_zero_delta(self, monkeypatch):
-        def fake(api_key, prompt, scenario, model, runs):
+        def fake(api_key, prompt, scenario, model, runs, **_kw):
             return {
                 "scenario_id": scenario["id"],
                 "passes": runs,
@@ -855,7 +925,7 @@ class TestRunComparison:
     def test_after_improves_over_before(self, monkeypatch):
         # Before: S1 fails, S2 passes; After: both pass.
         # Distinguish phase by prompt text ("old" vs "new").
-        def fake(api_key, prompt, scenario, model, n):
+        def fake(api_key, prompt, scenario, model, n, **_kw):
             is_before_phase = prompt == "old"
             if is_before_phase and scenario["id"] == "S1":
                 return {
@@ -1170,6 +1240,27 @@ class TestParseArgs:
         ns = self._run(["--prompt", "p.md", "--scenarios", "s.json"], monkeypatch)
         assert ns.prompt == "p.md"
         assert ns.base_ref == "main"
+
+    def test_max_tokens_default_is_1024(self, monkeypatch):
+        ns = self._run(["--prompt", "p.md", "--scenarios", "s.json"], monkeypatch)
+        assert ns.max_tokens == 1024
+
+    def test_max_tokens_accepts_value_and_bound(self, monkeypatch):
+        base = ["--prompt", "p.md", "--scenarios", "s.json", "--max-tokens"]
+        assert self._run([*base, "4096"], monkeypatch).max_tokens == 4096
+        top = str(eval_mod.MAX_TOKENS_UPPER_BOUND)
+        assert self._run([*base, top], monkeypatch).max_tokens == int(top)
+
+    @pytest.mark.parametrize("value", ["0", "-5", "abc", "1.5", str(16384 + 1)])
+    def test_max_tokens_rejects_invalid(self, value, monkeypatch):
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["prog", "--prompt", "p.md", "--scenarios", "s.json", "--max-tokens", value],
+        )
+        with pytest.raises(SystemExit) as exc:
+            eval_mod._parse_args()
+        assert exc.value.code == 2
 
     def test_missing_prompt_source_errors(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["prog", "--scenarios", "s.json"])

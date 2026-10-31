@@ -186,9 +186,7 @@ def test_run_and_report_serializes_scored_scenario_count(
         ev, "run_scenario_multi", _fake_multi({"D12": 2, "D6": 3}, {"D12": 0, "D6": 3})
     )
     out_file = tmp_path / "report.json"
-    args = argparse.Namespace(
-        model="m", runs=3, security_critical=False, base_resamples=3, output=str(out_file)
-    )
+    args = _report_args(out_file)
     with pytest.raises(SystemExit) as exc:
         ev._run_and_report("k", "base", "head", [D12, D6], args, "test")
     assert exc.value.code == 0
@@ -270,8 +268,13 @@ def test_base_failing_and_after_passing_is_an_improvement() -> None:
     assert gate["base_unstable_scenarios"] == []
 
 
+def _report_args(out: Any) -> argparse.Namespace:
+    kw = dict(model="m", runs=3, security_critical=False, base_resamples=3, max_tokens=1024)
+    return argparse.Namespace(**kw, output=str(out))
+
+
 def _fake_multi(base: dict[str, int], head: dict[str, int]) -> Any:
-    def fake(_key: str, prompt: str, scenario: dict[str, Any], _model: str, runs: int) -> Any:
+    def fake(_key: str, prompt: str, scenario: Any, _model: str, runs: int, **_kw: Any) -> Any:
         table = base if prompt == "base" else head
         return _result(scenario["id"], table[scenario["id"]], runs)
 
@@ -404,7 +407,7 @@ def test_security_tier_requires_five_scored_base_runs_and_lists_separately() -> 
 
 
 def test_run_comparison_excludes_a_base_scored_once(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake(_k: str, prompt: str, scenario: dict[str, Any], _m: str, runs: int) -> dict[str, Any]:
+    def fake(_k: str, prompt: str, scenario: Any, _m: str, runs: int, **_kw: Any) -> Any:
         if prompt == "base" and scenario["id"] == "D6":
             return _result("D6", 1, 1)
         return _result(scenario["id"], runs, runs)
@@ -467,7 +470,7 @@ def test_failing_base_scored_below_the_minimum_is_excluded() -> None:
 def test_run_comparison_security_floor_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
     scenarios = [{**D12, "id": f"S{i}"} for i in range(4)]
 
-    def fake(_k: str, prompt: str, scenario: dict[str, Any], _m: str, runs: int) -> dict[str, Any]:
+    def fake(_k: str, prompt: str, scenario: Any, _m: str, runs: int, **_kw: Any) -> Any:
         if prompt == "base" and scenario["id"] != "S0":
             return _result(scenario["id"], 3, 3)
         return _result(scenario["id"], 5, 5)
@@ -483,9 +486,7 @@ def test_inconclusive_fail_exits_nonzero(monkeypatch: pytest.MonkeyPatch, tmp_pa
         ev, "run_scenario_multi", _fake_multi({"D12": 2, "D6": 2}, {"D12": 3, "D6": 3})
     )
     out_file = tmp_path / "report.json"
-    args = argparse.Namespace(
-        model="m", runs=3, security_critical=False, base_resamples=3, output=str(out_file)
-    )
+    args = _report_args(out_file)
     with pytest.raises(SystemExit) as exc:
         ev._run_and_report("k", "base", "head", [D12, D6], args, "test")
     assert exc.value.code == 1
