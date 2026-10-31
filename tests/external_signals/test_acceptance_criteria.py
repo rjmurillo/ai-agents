@@ -385,3 +385,31 @@ def test_near_miss_headings_lists_rejected_headings_only() -> None:
 def test_near_miss_headings_ignores_hidden_and_non_heading_lines() -> None:
     body = "see acceptance below\n<!--\n## Acceptance (old)\n-->\n```\n## Acceptance (x)\n```\n"
     assert ac.near_miss_headings(body) == []
+
+
+@pytest.mark.parametrize("bullet", ["+", "1.", "12)", "-", "*"])
+def test_all_github_task_list_bullets_are_checkboxes(bullet: str) -> None:
+    crits = ac.parse_criteria(f"## Acceptance\n\n{bullet} [ ] Do the thing\n")
+
+    assert [c.text for c in crits] == ["Do the thing"]
+
+
+def test_non_task_list_bullet_is_not_a_checkbox() -> None:
+    assert ac.parse_criteria("## Acceptance\n\nx [ ] Not a list item\n") == []
+
+
+@pytest.mark.parametrize("indent", [" ", "  ", "   "])
+def test_heading_indented_up_to_three_spaces_is_recognized(indent: str) -> None:
+    body = f"{indent}## Acceptance\n\n- [ ] Do the thing\n"
+
+    assert len(ac.parse_criteria(body)) == 1
+
+
+def test_heading_indented_four_spaces_is_a_code_block_not_a_heading() -> None:
+    assert ac.parse_criteria("    ## Acceptance\n\n- [ ] Do the thing\n") == []
+
+
+def test_indented_heading_ends_the_section() -> None:
+    body = "## Acceptance\n\n- [ ] One\n  ## Notes\n- [ ] Not acceptance\n"
+
+    assert len(ac.parse_criteria(body)) == 1
