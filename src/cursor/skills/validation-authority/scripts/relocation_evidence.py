@@ -9,6 +9,7 @@ pytest really collects (issue #6506, review-gates-03).
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from collections import Counter
@@ -51,12 +52,17 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
         "-p",
         "no:cacheprovider",
     ]
+    # PYTEST_ADDOPTS reaches pytest too: an inherited -v would cancel -q.
+    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
     try:
         result = subprocess.run(
             [*argv, "--", *paths],
             cwd=repo_root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
             timeout=_COLLECT_TIMEOUT_SECONDS,
             check=False,
         )

@@ -299,8 +299,9 @@ def _head_commit() -> str:
         ["git", "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
-        cwd=__file__.rsplit("/", 1)[0],
+        cwd=Path(__file__).resolve().parent,
     )
     return out.stdout.strip()
 
@@ -308,6 +309,12 @@ def _head_commit() -> str:
 def test_version_with_a_real_commit_passes() -> None:
     evidence = good_evidence()
     evidence["rollback"] = {"kind": "version", "ref": _head_commit()}
+    assert verdict(evidence)["verdict"] == "PASS"
+
+
+def test_version_with_an_uppercase_commit_id_passes() -> None:
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "version", "ref": _head_commit().upper()}
     assert verdict(evidence)["verdict"] == "PASS"
 
 

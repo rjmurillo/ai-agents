@@ -47,7 +47,7 @@ Rule = Callable[[Evidence, "list[str]"], list[str]]
 SCAN_DECISIONS = {"skip", "activate", "unknown"}
 ROLLBACK_KINDS = {"backup", "snapshot", "version", "irreversible"}
 REFERENCED_KINDS = {"backup", "snapshot", "version"}
-_COMMIT_ID = re.compile(r"[0-9a-f]{40}")
+_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40}")
 _GIT_TIMEOUT_SECONDS = 30
 
 

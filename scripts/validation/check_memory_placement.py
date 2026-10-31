@@ -402,7 +402,7 @@ def format_summary(examined: int, findings: list[Finding]) -> str:
         f"{counts.get('normative', 0)} normative, "
         f"{counts.get('suspect', 0)} suspect, "
         f"{counts.get('suppressed', 0)} suppressed, "
-        f"{failing} failing (normative and new or risen)."
+        f"{failing} failing (normative and new, risen, or grown)."
     )
 
 

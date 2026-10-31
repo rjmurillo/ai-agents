@@ -309,7 +309,7 @@ def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
     """
     try:
         result = subprocess.run(
-            [sys.executable, str(_SCOPE_HELPER), pr_title],
+            [sys.executable, str(_SCOPE_HELPER), "--", pr_title],
             capture_output=True,
             text=True,
             encoding="utf-8",

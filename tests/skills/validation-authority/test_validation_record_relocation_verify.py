@@ -241,6 +241,18 @@ def test_collect_tests_yields_ids_from_the_real_repo_root_despite_addopts() -> N
     assert all("::" in item for item in ids)
 
 
+def test_collect_tests_ignores_an_inherited_pytest_addopts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PYTEST_ADDOPTS=-v must not cancel -q and drop the node ids."""
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-v")
+    ids = reloc.collect_tests(
+        ["tests/validation/test_check_memory_placement_growth.py"], PROJECT_ROOT
+    )
+    assert ids
+    assert all("::" in item for item in ids)
+
+
 def test_cli_passes_a_pure_move_from_the_real_repo_root(tmp_path: Path) -> None:
     """review-gates-03: end to end with --repo-root set to the real repository."""
     module = "tests/validation/test_check_memory_placement_growth.py"
