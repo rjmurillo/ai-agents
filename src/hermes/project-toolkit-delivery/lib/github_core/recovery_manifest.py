@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, the blast-radius truncation flag pushed this cohesive manifest module past 500 lines.
 """Fail-closed recovery planning for a bulk Actions cancellation.
 
 Issue #4835. On 2026-08-09 a panic rollback cancelled 818 of 820 queued or
@@ -74,8 +75,7 @@ class WorkflowRun:
 
     ``artifact_count`` is the run's live (unexpired) artifact count, or None
     when not measured (issue #5365: one REST call per run, so opt-in). None is
-    never zero. ``artifact_count_truncated`` is True when the page cap stopped
-    the count, so ``artifact_count`` is a lower bound.
+    never zero. ``artifact_count_truncated``: the page cap hit, count is a floor.
     """
 
     run_id: int
@@ -137,8 +137,7 @@ class BlastRadius:
     ``artifact_count`` totals the live artifacts a cancellation would orphan.
     None unless every run was measured (issue #5365): a partial sum understates
     the radius, and a zero would read as "nothing to lose".
-    ``artifact_count_truncated`` is True when any run's count hit the page cap,
-    so ``artifact_count`` is a lower bound.
+    ``artifact_count_truncated``: any run hit the page cap, count is a floor.
     """
 
     run_count: int
