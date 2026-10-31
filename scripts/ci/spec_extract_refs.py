@@ -252,7 +252,12 @@ def _gh_pr_field(pr_number: str, repository: str, field: str) -> tuple[int, str]
             file=sys.stderr,
         )
         return EXIT_EXTERNAL, ""
-    return EXIT_OK, result.stdout.strip()
+    out = result.stdout
+    if field == "body":
+        # gh appends one newline. Leading spaces can decide whether a heading
+        # counts, so only that newline is removed from a body.
+        return EXIT_OK, out.removesuffix("\n")
+    return EXIT_OK, out.strip()
 
 
 def _extract_spec_refs(combined: str) -> str:

@@ -293,6 +293,31 @@ class TestRun:
                 run()
         assert "has_specs=true" in out_file.read_text()
 
+    def test_cli_fallback_keeps_leading_indentation_in_saved_body(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_NUMBER": "7",
+            "GITHUB_REPOSITORY": "o/r",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "9",
+        }
+        indented = "    ## Acceptance criteria\n- [x] delivered"
+
+        def fake_run(cmd, **_kwargs):
+            if "--json" not in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            field = cmd[cmd.index("--json") + 1]
+            text = indented if field == "body" else "  title  "
+            return MagicMock(returncode=0, stdout=text + "\n", stderr="")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_extract_refs.subprocess.run", side_effect=fake_run):
+                rc = run()
+        assert rc == 0
+        saved = (tmp_path / "pr-body-9.txt").read_text(encoding="utf-8")
+        assert saved == indented + "\n"
+
     @pytest.mark.parametrize(
         "body",
         ["Refs #4789", "CLOSES: #123", "closed #123", "Part of #123"],
