@@ -140,7 +140,7 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 
 4. **Tests passing** - All tests green? No skipped tests without justification?
 
-> `golden-principles`, `taste-lints`, and `code-quality` are `/review` axes (Child 1 #1934), not separate `/ship` steps, and count only when the marker declares them. No CI workflow runs the review axes (PR #5132 deleted it), so the local marker is that gate.
+> `golden-principles`, `taste-lints`, and `code-quality` are `/review` axes, not separate `/ship` steps, and count only when the marker declares them. No CI workflow runs the review axes (the review workflow was deleted), so the local marker is that gate.
 
 ## Process
 

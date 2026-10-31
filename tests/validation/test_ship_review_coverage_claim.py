@@ -1,4 +1,4 @@
-"""The /ship template must claim only the coverage a review marker declares (issue #6987)."""
+"""The /ship template must claim only the coverage a review marker declares."""
 
 from __future__ import annotations
 
