@@ -31,7 +31,12 @@ class GitError(Exception):
 def _git(repo: Path, *args: str) -> str:
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo), *args], capture_output=True, text=True, check=False
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
         )
     except OSError as exc:
         raise GitError(f"git failed to start: {exc}") from exc

@@ -75,8 +75,8 @@ Interpreter: `build/generate_agents.py` and `build_all.py` import PyYAML through
 | You edited | Run | Then |
 |------------|-----|------|
 | `templates/agents/*.shared.md` | `uv run python build/generate_agents.py`, then `uv run python build/scripts/build_all.py` | commit the template and every regenerated file, including `src/claude/agents/`. |
-| `templates/skills/<name>.SKILL.md.tmpl` or `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit the template and both rendered copies. No manifest edit (Phase 4). |
-| `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same. Regenerate BEFORE pushing: no pre-push job runs `--check`, so the first red is CI. |
+| `templates/skills/<name>.SKILL.md.tmpl` or `templates/rules/` | `uv run python build/scripts/build_all.py` | commit the template and both rendered copies. No manifest edit (Phase 4). |
+| `templates/hooks/` (including `settings.tmpl` and `hooks.json`) | `uv run python build/scripts/build_all.py` | same. Regenerate BEFORE pushing: no pre-push job runs `--check`, so the first red is CI. |
 | `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `uv run python build/scripts/build_all.py` | one command writes both lib trees and binplaces `.claude/lib/`. |
 | `src/claude/AGENTS.md`, `src/claude/claude-instructions.template.md` | nothing to regenerate | commit directly. |
 

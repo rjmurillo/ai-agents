@@ -106,5 +106,15 @@ def test_shas_git_missing_exits_3(tmp_path, monkeypatch):
     assert mod.main(["--repo", str(repo), "--shas", "abc"]) == 3
 
 
+def test_option_like_sha_exits_2_without_running_git(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, ["a.md"], ["a.md"])
+
+    def boom(*a, **k):
+        raise AssertionError("git must not run for an option-like sha")
+
+    monkeypatch.setattr(mod.subprocess, "run", boom)
+    assert mod.main(["--repo", str(repo), "--shas=--batch"]) == 2
+
+
 def test_help_works():
     assert run("--help").returncode == 0

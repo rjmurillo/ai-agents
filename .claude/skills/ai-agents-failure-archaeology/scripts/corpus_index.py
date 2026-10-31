@@ -54,9 +54,11 @@ def resolve_shas(repo: Path, shas: list[str]) -> dict[str, bool]:
     for sha in shas:
         try:
             r = subprocess.run(
-                ["git", "-C", str(repo), "cat-file", "-t", sha],
+                ["git", "-C", str(repo), "cat-file", "-t", "--end-of-options", sha],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
         except OSError as exc:
@@ -101,6 +103,13 @@ def main(argv: list[str] | None = None) -> int:
         "examined": total + len(modes) + memories,
     }
     if args.shas:
+        bad = [s for s in args.shas if s.startswith("-")]
+        if bad:
+            print(
+                json.dumps({"error": f"sha must not start with '-': {bad!r}", "examined": 0}),
+                file=sys.stderr,
+            )
+            return 2
         try:
             result["shas"] = resolve_shas(repo, args.shas)
         except RuntimeError as exc:

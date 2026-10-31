@@ -181,7 +181,15 @@ def analyze(paths: list[str], allow: list[re.Pattern[str]]) -> dict[str, Any]:
 
 def git_paths(repo: Path, args: list[str]) -> list[str]:
     try:
-        proc = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=False)
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
     except OSError as exc:
         raise RuntimeError(f"git failed to start: {exc}") from exc
     if proc.returncode != 0:

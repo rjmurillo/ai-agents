@@ -79,6 +79,8 @@ def _collect_pytest(repo: Path, name: str) -> tuple[int, list[str], str]:
             cwd=repo,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
     except OSError as exc:

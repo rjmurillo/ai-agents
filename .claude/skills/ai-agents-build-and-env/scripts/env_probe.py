@@ -75,6 +75,8 @@ def _git_ls_files(repo: Path, rel: str) -> list[str]:
             ["git", "-C", str(repo), "ls-files", "--", rel],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
     except OSError as exc:
@@ -107,7 +109,15 @@ def read_envfile(repo: Path) -> dict[str, Any]:
 
 def _run(cmd: list[str], repo: Path) -> subprocess.CompletedProcess[str]:
     try:
-        return subprocess.run(cmd, cwd=repo, capture_output=True, text=True, check=False)
+        return subprocess.run(
+            cmd,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
     except OSError as exc:
         raise ExternalError(f"cannot start {cmd[0]}: {exc}") from exc
 

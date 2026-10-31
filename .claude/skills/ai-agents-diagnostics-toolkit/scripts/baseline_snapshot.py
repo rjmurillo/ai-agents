@@ -51,7 +51,14 @@ class StartError(Exception):
 def _run(argv: list[str], repo: Path) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            argv, cwd=repo, capture_output=True, text=True, check=False, timeout=600
+            argv,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=600,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise StartError(f"{argv[0]}: {exc}") from exc
