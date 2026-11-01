@@ -251,7 +251,7 @@ No network, no model call, no writes inside any repository.
 - SLI 3, volume: friction nudges per 100 sessions on the owner's corpus. Over 15 means the threshold is too low.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
 - SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions. If the baseline is at or above 20 percent, the owner sets a higher kill floor before release.
-- SLI 6, consumer A precision, reported per signal (failure-repeat and edit-churn): share of `check-failures` nudges a human labels "the agent was looping". Each signal's floor and kill rule apply to its own labeled nudges. TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule: if SLI 6 precision is under 50 percent on at least 20 labeled `check-failures` nudges, TASK-008 raises the defaults. If precision is still under 50 percent on a fresh sample of at least 20, the owner removes the nudge. Below 20 labeled nudges, no SLO is set and the rule waits. The sample grows in 30-day steps, and the owner decides at 90 days. Consumer A's windows count from the date `check-failures` ships with these defaults, which is the merge of the TASK-007 PR (#7035), not from consumer B's Release. The defaults ship at that merge, before SLI 6 is measured. This is owner decision D12 (2026-11-01). Consumer A runs only when an agent calls it, and it prints counts only, so an early ship costs little.
+- SLI 6, consumer A precision, reported per signal (failure-repeat and edit-churn): share of `check-failures` nudges a human labels "the agent was looping". Each signal's floor and kill rule apply to its own labeled nudges. TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule, applied to each signal separately: if a signal's precision is under 50 percent on at least 20 labeled nudges of that signal, TASK-008 raises that signal's default. If its precision is still under 50 percent on a fresh sample of at least 20, the owner removes that signal. Below 20 labeled nudges of a signal, no SLO is set for it and its rule waits. The sample grows in 30-day steps, and the owner decides at 90 days. Consumer A's windows count from the date `check-failures` ships with these defaults, which is the merge of the TASK-007 PR (#7035), not from consumer B's Release. The defaults ship at that merge, before SLI 6 is measured. This is owner decision D12 (2026-11-01). Consumer A runs only when an agent calls it, and it prints counts only, so an early ship costs little.
 - SLI 7, consumer A effect: the number of later calls that repeat a nudged fingerprint in the same session, compared with un-nudged loops of the same fingerprint. TASK-008 measures and reports it. It feeds the owner's 90-day decision and is not an automatic kill rule (owner decision D11, 2026-11-01). TokenEconomizer's own docs say a nudge's effect on a looping model is unproven, so this is the claim to test.
 - Recorded, not gating: billed cost per session, counted as TokenEconomizer counts it (cache pricing included). TASK-001 records it for nudged and un-nudged sessions so a later decision can use it.
 - Release: the date AC-19 clears and the default ships. Each window below counts from that date.
@@ -339,7 +339,7 @@ No network, no model call, no writes inside any repository.
     - **Test heads.** pytest, py.test, unittest, tox, nox, jest, vitest, and mocha.
     - **Build heads.** make, mvn, and gradle; `npm`, `yarn`, or `pnpm` followed by `test`, `build`, `lint`, or `typecheck` (optionally after `run`); `cargo test`, `cargo build`, `cargo check`, and `cargo clippy`; `go test`, `go build`, and `go vet`; `dotnet test` and `dotnet build`.
     - **Lint and typecheck heads.** tsc, eslint, ruff, mypy, pyright, shellcheck, and markdownlint or any `markdownlint`-prefixed command, such as `markdownlint-cli2`.
-    - **Matching.** Heads and wrappers match case-insensitively. A head must be followed by whitespace or the end of the command.
+    - **Matching.** Heads and wrappers match case-insensitively. A head must be followed by whitespace or the end of the command. The one exception is the `markdownlint` prefix, which may also be followed by `-`, as in `markdownlint-cli2`.
     - **Script and hook heads.** `python` or `python3` running a script whose file name starts with `test_`, `check_`, or `validate_`, or is `pre_pr.py`. Also `lefthook run` and `pre-commit run`.
     - **Everything else.** Any other event is not a check: a read tool, a non-shell tool, or a shell command with no check head.
     - **Both consumers.** The transcript adapter applies the derived rule, because transcripts carry no `check` field. CheckFailures uses the caller's field and falls back to the derived rule.
@@ -379,26 +379,26 @@ No network, no model call, no writes inside any repository.
 
 Measured 2026-11-01 over the same corpus location as Q5, `~/.claude/projects/*ai-agents*/*.jsonl`:
 
-- 8,491 transcripts, 3,578 MiB. 5,476 of them hold no tool calls.
-- 29,060 non-sidechain tool events.
+- 8,508 transcripts, 3,597 MiB. 5,476 of them hold no tool calls.
+- 29,156 non-sidechain tool events.
 
-The replay's check rule is AC-40 exactly: its head list, its wrappers, and the shell tools bash, shell, and powershell. The success counts below use a wide window: from a successful edit up to the next fingerprinted non-edit failure, with no success ending it. That window can hold several checks, so the 244 checks below are more than the 139 cycles rule D ends. Of the non-edit successes inside those windows, 244 are checks and 8,578 (97 percent) are not:
+The replay's check rule is AC-40 exactly: its head list, its wrappers, and the shell tools bash, shell, and powershell. The success counts below use a wide window: from a successful edit up to the next fingerprinted non-edit failure, with no success ending it. That window can hold several checks, so the 246 checks below are more than the 140 cycles rule D ends. Of the non-edit successes inside those windows, 246 are checks and 8,613 (97 percent) are not:
 
 | Success kind | Count |
 |---|---|
-| Other bash commands | 6,756 |
-| Read and search tools | 1,017 |
+| Other bash commands | 6,775 |
+| Read and search tools | 1,033 |
 | Other tools, including non-check `shell` and `powershell` calls | 805 |
-| Checks | 244 |
+| Checks | 246 |
 
 The four cycle-end rules give these results:
 
 | Rule | edit_churn fires | Cycles closed by a failure (of which a check failed) | Cycles ended by a success |
 |---|---|---|---|
 | A: any non-edit event closes or ends (AC-32 as of `8dd4f43d5`) | 1 | 15 (2) | 650 |
-| B: only a check success ends; any failure closes | 2, in 2 sessions | 124 (2) | 119 |
+| B: only a check success ends; any failure closes | 2, in 2 sessions | 124 (2) | 120 |
 | C: only a success on a failed key ends (`failure_loops.py` at `7f3f4d255`) | 5, in 3 sessions | 154 (4) | 0 |
-| D: only a check event ends or closes (adopted) | 0 | 2 (2) | 139 |
+| D: only a check event ends or closes (adopted) | 0 | 2 (2) | 140 |
 
 What the numbers show:
 
