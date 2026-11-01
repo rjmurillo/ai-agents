@@ -28,7 +28,8 @@ Usage (CI, offline / no token):
     python scripts/validation/check_ruleset_params_drift.py --offline
 
 EXIT CODES (ADR-035):
-    0 - all state matches or --offline skipped the live check
+    0 - all observable state matches (bypass_actors is skipped when the
+        token cannot see it) or --offline skipped the live check
     1 - drift detected
     2 - configuration error (missing baseline, bad JSON, missing/malformed
         'parameters' or 'ruleset' section)
