@@ -22,9 +22,9 @@ post-merge detection.
 
 The context count was checked against the source rather than taken from the
 direction. `scripts/ci/ruleset_required_contexts.py` pins nine contexts at
-`origin/main` commit `7d6af226f`. ADR-101's Context section still describes the
-eight of its 2026-08-14 measurement, so the amendment names nine and keeps the
-older figure as history.
+`origin/main` commit `7d6af226f`. ADR-101 still cites eight in its Context section,
+impact table and Phase 1, so the amendment names nine and keeps the older
+figure as history.
 
 ## What changed
 
@@ -38,6 +38,13 @@ older figure as history.
    items was removed. It is whitespace only and renders the same. The amendment
    would otherwise push the record to 501 lines and regress the 500 line taste
    ceiling, and an ignore header cannot go above the frontmatter.
+
+4. `ADR-101-enforcement-planes.md`: the last sentence of the amendment was
+   reworded after a bot-assisted review on the pull request found it misplaced
+   the eight contexts. The eight is cited from the required-contexts script in
+   the Context section, the impact table and Phase 1, so the sentence now says
+   the nine supersedes those figures and that they stay as the historical
+   measurement.
 
 ## Position
 
