@@ -2215,6 +2215,20 @@ class TestVerifyConfigOnlyHarnessScope:
         assert captured.out == "", "an unknown harness still printed a verdict"
         assert "has no scripts map" in captured.err
 
+    def test_harness_without_verify_config_only_exits_2(self, git_repo, tmp_path, capsys):
+        """--harness scopes only the verify-only stop list; elsewhere it is refused."""
+        marker = tmp_path / "ran.txt"
+        config = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config, _verifier_path(tmp_path))
+
+        rc = _dispatcher.main(
+            ["--config", str(config), "--pull-request", "1", "--harness", "copilot"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), "a refused --harness must not dispatch"
+        assert "--harness requires --verify-config-only" in capsys.readouterr().err
+
     def test_clean_checkout_attributes_every_token_to_its_map(self):
         """The shipped config: a token only ever blocks the map that names it.
 
@@ -2254,6 +2268,22 @@ class TestVerifyConfigOnlyHarnessScope:
         assert _dispatcher._blocking_tokens(found, "claude_code") == []
         assert _dispatcher._blocking_tokens(found, "") == ["scripts.copilot.check_transport"]
 
+    def test_unnamed_harness_lists_a_shared_token_once(self):
+        found = [("claude_code", "x.py"), ("copilot", "x.py"), ("copilot", "y.py")]
+
+        assert _dispatcher._blocking_tokens(found, "") == ["x.py", "y.py"]
+
+    def test_repeated_unsplittable_entry_is_recorded_once(self, monkeypatch):
+        entry = (
+            "copilot",
+            {"name": "scripts.copilot.check_transport", "command": "python3 'open.py"},
+        )
+        monkeypatch.setattr(_dispatcher, "_scripts_map_entries", lambda config: [entry, entry])
+
+        found = _dispatcher._unverifiable_by_harness({}, 1)
+
+        assert found == [("copilot", "scripts.copilot.check_transport")]
+
 
 _LAUNCHED_REL = "skills/demo/scripts/run.py"
 
@@ -2263,8 +2293,9 @@ class TestCopilotLauncherVerification:
 
     A launcher is trusted only when re-rendering it for the script its
     payload names reproduces it byte for byte, and that script is a
-    tracked work-tree file matching the trusted ref. Everything else
-    keeps its payload in the unverifiable list.
+    tracked work-tree file matching the trusted ref, or (D6) a file under
+    an installed plugin root outside the work tree, as a plain token is
+    (#5112). Everything else keeps its payload in the unverifiable list.
     """
 
     @staticmethod
@@ -2474,6 +2505,149 @@ class TestCopilotLauncherVerification:
 
     def test_launcher_without_arguments_is_recognized(self):
         assert _dispatcher._launcher_script(self._launcher(tail="")) == _LAUNCHED_REL
+
+    @staticmethod
+    def _installed_plugin(tmp_path_factory, monkeypatch) -> Path:
+        """An installed plugin root outside the work tree, holding the script."""
+        root = tmp_path_factory.mktemp("installed-plugin")
+        script = root / _LAUNCHED_REL
+        script.parent.mkdir(parents=True)
+        script.write_text("print('installed')\n", encoding="utf-8")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(root))
+        return script
+
+    def test_installed_plugin_launcher_passes(
+        self, git_repo, tmp_path_factory, monkeypatch, capsys
+    ):
+        """D6 (#6506): a script under an installed plugin root counts as verified.
+
+        A PR cannot rewrite a file outside the work tree, so the launched
+        script is treated as the plain token naming it is (#5112): recorded
+        as external, not compared. The launcher string itself is compared
+        as part of the config.
+        """
+        script = self._installed_plugin(tmp_path_factory, monkeypatch)
+        config = self._config(git_repo, {"check_transport": self._launcher()})
+        _commit_as_trusted(git_repo, config)
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert payload["blocking_unverifiable_command_tokens"] == []
+        assert payload["unverifiable_command_tokens"] == []
+        assert payload["checked_files"] == []
+        assert str(script.resolve()) in payload["skipped_external_files"]
+
+    def test_installed_plugin_launcher_with_tampered_payload_blocks(
+        self, git_repo, tmp_path_factory, monkeypatch, capsys
+    ):
+        """D6 trusts the installed script, never a payload that is not canonical."""
+        self._installed_plugin(tmp_path_factory, monkeypatch)
+        command = self._launcher().replace("@args; exit", "@args; Remove-Item x; exit", 1)
+        config = self._config(git_repo, {"check_transport": command})
+        _commit_as_trusted(git_repo, config)
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert len(payload["blocking_unverifiable_command_tokens"]) == 1
+        assert "Remove-Item" in payload["blocking_unverifiable_command_tokens"][0]
+
+    def test_installed_plugin_without_the_script_blocks(
+        self, git_repo, tmp_path_factory, monkeypatch, capsys
+    ):
+        """An installed root that lacks the launched script is not a match."""
+        root = tmp_path_factory.mktemp("installed-plugin-empty")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(root))
+        config = self._config(git_repo, {"check_transport": self._launcher()})
+        _commit_as_trusted(git_repo, config)
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert payload["skipped_external_files"] == []
+        assert payload["blocking_unverifiable_command_tokens"]
+
+    @staticmethod
+    def _fail_launcher_rev_parse(monkeypatch, failure) -> None:
+        """Fail only the rev-parse ``_launcher_verifier`` runs.
+
+        The command trust check runs the same git call first and must
+        succeed, so the stub arms itself once that check has returned.
+        """
+        real_run_git = _dispatcher._run_git
+        real_enforce = _dispatcher._enforce_command_trust
+        armed = []
+
+        def enforce(*args, **kwargs):
+            result = real_enforce(*args, **kwargs)
+            armed.append(True)
+            return result
+
+        def run_git(args, cwd):
+            if armed and args == ["rev-parse", "--show-toplevel"]:
+                return failure(args)
+            return real_run_git(args, cwd)
+
+        monkeypatch.setattr(_dispatcher, "_enforce_command_trust", enforce)
+        monkeypatch.setattr(_dispatcher, "_run_git", run_git)
+
+    @staticmethod
+    def _raise_os_error(args):
+        raise OSError("git not found")
+
+    @staticmethod
+    def _raise_timeout(args):
+        raise subprocess.TimeoutExpired(["git", *args], 1)
+
+    @staticmethod
+    def _exit_128(args):
+        return subprocess.CompletedProcess(["git", *args], 128, b"", b"fatal")
+
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            pytest.param(_raise_os_error, id="os-error"),
+            pytest.param(_raise_timeout, id="timeout"),
+            pytest.param(_exit_128, id="non-zero-exit"),
+        ],
+    )
+    def test_unlocatable_work_tree_keeps_the_payload_blocking(
+        self, git_repo, monkeypatch, capsys, failure
+    ):
+        """Without a work tree root, no launcher is judged: every payload blocks."""
+        script = self._script(git_repo)
+        config = self._config(git_repo, {"check_transport": self._launcher()})
+        _commit_as_trusted(git_repo, config, script)
+        self._fail_launcher_rev_parse(monkeypatch, failure.__func__)
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert script.relative_to(git_repo).as_posix() in payload["checked_files"]
+        assert len(payload["blocking_unverifiable_command_tokens"]) == 1
+
+    def test_launcher_verifier_returns_none_when_git_fails(self, monkeypatch):
+        trust = _dispatcher.CommandTrustCheck("trusted", [], [], [], [], "")
+        monkeypatch.setattr(_dispatcher, "_run_git", lambda args, cwd: self._exit_128(args))
+
+        assert _dispatcher._launcher_verifier(trust) is None
+
+    def test_prefix_that_splits_differently_keeps_the_payload(self, monkeypatch):
+        """The payload is dropped only after the exact prefix words."""
+        config = {"scripts": {"copilot": {"check_transport": self._launcher()}}}
+        monkeypatch.setattr(_dispatcher, "_LAUNCHER_PREFIX_ARGV", ("pwsh", "-NoProfile"))
+
+        found = _dispatcher._unverifiable_by_harness(config, 1, lambda token: True)
+
+        assert len(found) == 1
+
+    def test_verified_launcher_drops_only_the_payload(self):
+        config = {"scripts": {"copilot": {"check_transport": self._launcher()}}}
+
+        found = _dispatcher._unverifiable_by_harness(config, 1, lambda token: True)
+
+        assert found == []
 
 
 class TestConfigTrustBoundary:

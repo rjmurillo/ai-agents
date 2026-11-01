@@ -77,3 +77,18 @@ class TestHarnessValuePerCopy:
         assert "--harness {harness}" in body
         assert "`claude_code` in Claude Code, `copilot` in Copilot" in body
         assert "Codex, Cursor, and Hermes have no map, so drop the line" in body
+
+    @pytest.mark.parametrize("path", [REVIEW, TEMPLATE, COPILOT_REVIEW, *MAPLESS_COPIES])
+    def test_command_is_not_marked_run_exactly_as_written(self, path):
+        """The note edits the --harness line, so the block cannot be verbatim."""
+        body = path.read_text(encoding="utf-8")
+        step_0 = body[body.index("### Step 0") : body.index("### Step 1")]
+        assert "exactly as written" not in step_0
+        assert "Only `{pr}` and `--harness` vary, per the note below." in step_0
+
+    @pytest.mark.parametrize("path", [REVIEW, TEMPLATE, COPILOT_REVIEW, *MAPLESS_COPIES])
+    def test_unknown_harness_exit_2_has_its_own_instruction(self, path):
+        """An unknown --harness exits 2 with no diff; report the known maps."""
+        body = path.read_text(encoding="utf-8")
+        assert "(surface the diff to the human)" in body
+        assert "or `--harness` has no map (report the known maps)" in body

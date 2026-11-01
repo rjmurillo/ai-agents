@@ -1626,6 +1626,8 @@ def _unverifiable_argv(argv: list[str]) -> list[str]:
 # skill. tests/build_scripts/test_copilot_launcher.py pins the port equal to
 # that module for every scripts.copilot entry, so the two cannot drift.
 _LAUNCHER_PREFIX = "pwsh -NoProfile -CommandWithArgs "
+# The argv words the prefix splits into. The payload is the next element.
+_LAUNCHER_PREFIX_ARGV: tuple[str, ...] = tuple(shlex.split(_LAUNCHER_PREFIX))
 _LAUNCHER_ROOT_ENV_VARS: tuple[str, str] = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 _LAUNCHER_FALLBACK_ROOT = ".claude"
 # The plain plugin-root form that names the same root the payload resolves:
@@ -3423,8 +3425,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--harness",
         default="",
         help=(
-            "With --verify-config-only: the scripts-map key of the harness "
-            "that is running (claude_code or copilot). Unverifiable tokens "
+            "Requires --verify-config-only (exit 2 otherwise): the "
+            "scripts-map key of the harness that is running (claude_code or "
+            "copilot). Unverifiable tokens "
             "from that map are listed in blocking_unverifiable_command_tokens; "
             "tokens from other maps are reported but do not block. Omitted, "
             "every unverifiable token blocks. A name with no scripts map "
@@ -4038,10 +4041,17 @@ def _unverifiable_by_harness(
                 found.append(pair)
             continue
         launched = _launcher_script_token(criterion["command"])
-        if launched is not None and verified is not None and verified(launched):
-            # argv[3] is the payload: the prefix splits into three words.
-            # The tail was checked free of `$`, so nothing else is dropped.
-            argv = [*argv[:3], *argv[4:]]
+        words = len(_LAUNCHER_PREFIX_ARGV)
+        if (
+            launched is not None
+            and verified is not None
+            and tuple(argv[:words]) == _LAUNCHER_PREFIX_ARGV
+            and verified(launched)
+        ):
+            # The payload is the element right after the prefix words. The
+            # tail was checked free of `$`, so nothing else is dropped. A
+            # prefix that splits differently keeps the payload (fail closed).
+            argv = [*argv[:words], *argv[words + 1 :]]
         # _format_command already expanded the plugin-root form, so a
         # token it resolved is not reported as unresolvable.
         for token in _unverifiable_argv(argv):
@@ -4077,14 +4087,14 @@ def _report_verify_only(
     trust_anchor_ref: str,
     as_json: bool,
     unverifiable: list[str],
-    harness: str = "",
-    blocking: list[str] | None = None,
+    harness: str,
+    blocking: list[str],
 ) -> None:
     """Print the verify-only verdict. Called only on the trusted path.
 
     ``blocking`` is the subset of ``unverifiable`` that stops the active
-    harness. It defaults to every unverifiable token, which is the fail
-    closed reading when no harness is named.
+    harness (:func:`_blocking_tokens`). With no harness named it is every
+    unverifiable token, which is the fail closed reading.
 
     ``unverifiable`` is stated, never omitted. The config comparison
     already covers every command STRING, so a token whose target cannot
@@ -4093,8 +4103,6 @@ def _report_verify_only(
     between a verdict a reader can size and one that implies coverage it
     does not have.
     """
-    if blocking is None:
-        blocking = list(unverifiable)
     if as_json:
         print(
             json.dumps(
@@ -4164,6 +4172,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.pull_request <= 0:
         print("Pull request number must be positive.", file=sys.stderr)
+        return 2
+
+    if args.harness.strip() and not args.verify_config_only:
+        # --harness scopes only the verify-only stop list. Accepting it
+        # elsewhere would let a caller believe it narrowed a full run.
+        print("--harness requires --verify-config-only.", file=sys.stderr)
         return 2
 
     # Before any path is classified: the config path itself may cross a
