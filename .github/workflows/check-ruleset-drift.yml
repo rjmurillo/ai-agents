@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # GITHUB_TOKEN cannot read `bypass_actors` (admin only). The script logs
+      # that as "NOT OBSERVABLE" and does not fail on it; everything else is
+      # still compared. Run the script with an admin token to check bypass_actors.
       - name: Run drift check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
