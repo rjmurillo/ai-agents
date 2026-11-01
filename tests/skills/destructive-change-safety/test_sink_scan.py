@@ -139,6 +139,14 @@ def test_module_level_sink_has_unknown_callers(
             "git argv with starred elements",
         ),
         (
+            "def f(run_git, args):\n    run_git(*args)\n",
+            "git argv from starred argument",
+        ),
+        (
+            "def f(git, args):\n    git(*args)\n",
+            "git argv from starred argument",
+        ),
+        (
             "import subprocess\ndef f(sub):\n    subprocess.run(['git', sub, 'x'])\n",
             "git argv with non-literal subcommand",
         ),
@@ -178,6 +186,7 @@ def test_detects_each_sink_family(tmp_path: Path, source: str, label: str) -> No
         "import requests\ndef f(u):\n    requests.get(u)\n    requests.request('GET', u)\n",
         "def f(run_git, path):\n    run_git(['add', path])\n",
         "def f(args, runner):\n    runner(args)\n",
+        "def f(args, runner):\n    runner(*args)\n",
         "def f(s, pats):\n    s.isdigit(s)\n    load_gitignore(pats)\n",
         "def f(x):\n    delete(x)\n",
         "def f(run_git):\n    run_git(['push', 'origin', 'main'])\n",

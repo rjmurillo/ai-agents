@@ -249,16 +249,18 @@ def is_git_wrapper(node: ast.Call) -> bool:
 def variable_git_argv_sink(node: ast.Call) -> str:
     """Return a label when a git wrapper receives an argv the scan cannot read.
 
-    A variable list (``run_git(args)``), a starred element (``["push", *rest]``),
-    a non-literal subcommand, or a ``push`` with a non-literal argument (a
-    variable refspec can be ``+main``) hides what git will run, so the scan
-    fails closed and reports it for review.
+    A variable list (``run_git(args)``), a starred argument (``run_git(*args)``),
+    a starred element (``["push", *rest]``), a non-literal subcommand, or a
+    ``push`` with a non-literal argument (a variable refspec can be ``+main``)
+    hides what git will run, so the scan fails closed and reports it for review.
     """
     if not node.args or not is_git_wrapper(node):
         return ""
     first = node.args[0]
     if isinstance(first, ast.Name):
         return "git argv from variable"
+    if isinstance(first, ast.Starred):
+        return "git argv from starred argument"
     if isinstance(first, ast.List | ast.Tuple):
         elts = first.elts
         if any(isinstance(e, ast.Starred) for e in elts):
