@@ -13,30 +13,13 @@ from typing import Any
 
 import pytest
 
-TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
-    sys.path.insert(0, TESTS_SKILLS_DIR)
+HERE = str(Path(__file__).resolve().parent)
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
 
-from claude_skills_import import import_skill_script
+from stuck_failure_events import entry, fail, kinds, mod, ok
 
-mod = import_skill_script(".claude/skills/stuck-detection/failure_loops.py")
-entry = import_skill_script(".claude/skills/stuck-detection/stuck_detection.py")
 main = mod.main
-
-
-def fail(tool: str, error: str) -> dict[str, Any]:
-    return {"tool": tool, "ok": False, "error": error}
-
-
-def ok(tool: str, target: str | None = None) -> dict[str, Any]:
-    event: dict[str, Any] = {"tool": tool, "ok": True}
-    if target is not None:
-        event["target"] = target
-    return event
-
-
-def kinds(result: dict[str, Any]) -> list[str]:
-    return [s["signal"] for s in result["signals"]]
 
 
 class FakeStdin(io.StringIO):
