@@ -55,16 +55,15 @@ ALWAYS_ON_CANONICAL = ("analyst",)
 LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
 
 # Every suffix either local scanner reads, plus the ones only the canonical
-# code-quality subagent covers (.rs, .rb). A suffix missing here never matches
+# code-quality subagent covers (.rs, .rb, .psd1, .ps1xml). A suffix missing here never matches
 # executable-code, so the row cannot contribute code-quality or either scanner,
 # and a file that another row already classified is silently reviewed by less
 # than it should be: scripts/setup.bash matched toolkit-governance alone and
 # skipped taste-lints, which reads .bash, and an .mjs or .cjs hook matched
 # agent-artifacts alone and skipped code-qualities-assessment, which reads both.
-# .psd1 and .ps1xml are PowerShell module parts that carry code: a manifest is
-# a PowerShell hashtable, and types.ps1xml embeds ScriptBlock members. No local
-# scanner reads them, but leaving them out made a module change fail closed
-# and run assess and golden-principles over zero files (issue #7004).
+# .psd1 and .ps1xml carry PowerShell code (a manifest is a hashtable, and
+# types.ps1xml embeds ScriptBlock members). Leaving them out made a module
+# change fail closed and scan zero files (issue #7004).
 _CODE_SUFFIXES = frozenset(
     {
         ".py",
@@ -244,7 +243,9 @@ def _is_security_path(path: str) -> bool:
 
 def _is_dependency_path(path: str) -> bool:
     name = path.rsplit("/", 1)[-1]
-    if name in _DEPENDENCY_MANIFESTS or name.endswith(".csproj"):
+    # A .psd1 module manifest declares RequiredModules and RequiredAssemblies,
+    # the PowerShell counterpart of a .csproj.
+    if name in _DEPENDENCY_MANIFESTS or name.endswith((".csproj", ".psd1")):
         return True
     return name.startswith("requirements") and name.endswith(".txt")
 
@@ -391,7 +392,7 @@ def _is_code_path(path: str) -> bool:
 # dict `_LANGUAGE_BY_SUFFIX`, read through `_LANGUAGE_BY_SUFFIX.get(
 # file_path.suffix.lower())`. The `.lower()` is why this mirror folds case.
 # Divergence: none. Absent on purpose because the canonical map has no entry
-# for them: .ps1, .psm1, .sh, .rs, .rb. Parity is asserted against the dict
+# for them: .ps1, .psm1, .psd1, .ps1xml, .sh, .bash, .rs, .rb. Parity is asserted against the dict
 # itself in tests/skills/review/test_select_axes_scanner_capability.py.
 _ASSESS_SUFFIXES = frozenset(
     {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cs", ".java", ".go"}

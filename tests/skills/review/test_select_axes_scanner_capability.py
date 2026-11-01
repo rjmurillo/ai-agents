@@ -323,6 +323,20 @@ class TestExecutableCodeCoversEveryScannerSuffix:
         # No local scanner reads them, so none is selected.
         assert result["local_selected"] == []
 
+    @pytest.mark.parametrize("path", ["mod/M.psd1", "mod/M.PSD1"])
+    def test_powershell_manifest_also_routes_the_dependency_axes(self, path):
+        """A manifest declares RequiredModules, so it gets security and devops
+        like a .csproj, not code-quality alone."""
+        result = select([path])
+        assert "dependencies" in result["matched_categories"]
+        assert {"security", "devops"} <= set(result["canonical_selected"])
+
+    def test_ps1xml_does_not_route_the_dependency_axes(self):
+        """Negative control: a format file declares no dependencies."""
+        result = select(["mod/M.Format.ps1xml"])
+        assert "dependencies" not in result["matched_categories"]
+        assert "devops" not in result["canonical_selected"]
+
     def test_bash_under_a_toolkit_path_still_reaches_taste_lints(self):
         """Reported case: toolkit-governance classified it and nothing else ran.
 
