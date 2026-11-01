@@ -334,7 +334,7 @@ No network, no model call, no writes inside any repository.
     - **Caller-marked.** Its `check` field is `true`. A `check: false` makes it not a check. A non-bool `check` is a wrong event shape (AC-35). On an edit event, `check` is ignored.
     - **Derived when unmarked.** With no `check` field, the event is a check when both of these hold:
       - its tool is a shell tool: bash, shell, or powershell;
-      - its command, after leading wrappers are stripped, starts with a check head. The command is the `command` field when `input` is a JSON object, as transcript inputs are and as AC-39 parses them. Otherwise it is the trimmed `input` string.
+      - its command, after leading wrappers are stripped, starts with a check head. The command is the string `command` field of the JSON object that `input` holds or, as a string, parses to under AC-39. This covers the canonical string the transcript adapter emits (AC-38). Otherwise it is the trimmed `input` string. A missing or non-string `command`, or a non-object parse, makes the event not a check. Command extraction never changes the canonical input that ProgressKey compares. Example: `input` `"{\"command\":\"pytest tests/a.py\"}"` yields the command `pytest tests/a.py`.
     - **Wrappers.** `cd <dir> &&`, `VAR=value` assignments, `uv run`, `npx`, `python -m`, `python3 -m`, and `timeout <n>`.
     - **Test heads.** pytest, py.test, unittest, tox, nox, jest, vitest, and mocha.
     - **Build heads.** make, mvn, and gradle; `npm`, `yarn`, or `pnpm` followed by `test`, `build`, `lint`, or `typecheck` (optionally after `run`); `cargo test`, `cargo build`, `cargo check`, and `cargo clippy`; `go test`, `go build`, and `go vet`; `dotnet test` and `dotnet build`.
