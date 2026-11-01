@@ -199,6 +199,13 @@ No ADR text changed between the round 5 confirm votes and the review repairs bel
 
 **CI repair (2026-11-01).** `tests/hooks/test_adr_hook_claims.py` failed on PR #7029: the Amendment Record named the deleted `invoke_auto_retrospective.py` with no same-sentence retirement word. It now reads "the since-deleted `invoke_auto_retrospective.py`". Both reviewers confirmed (Accept).
 
+**PR #7029 review repair (2026-11-01).** Devin review found, and the code confirms, that the required plugin launcher breaks rule 2a. On Stop it turns `systemMessage` into plain stdout (`claude_hook_dispatch.py:102-103`, `:243-244`). It returns its block exit code on several failure paths (`invoke_dispatch_claude.py:186-236`). It opens files beyond the hook's inputs. Fixes:
+
+- ADR-084: conditions a, e, and f now bind the whole plugin path. Condition e does not count the plugin's or Python's own files. The launcher may read two consumer-repo plugin manifests for one name field.
+- REQ-048: new AC-26 (systemMessage pass-through), AC-27 (exit 0 on every launcher path), and AC-28 (launcher reads under an `open` audit probe). All three belong to TASK-006.
+
+Votes: the critic blocked twice. C5-5 said the launcher opens more than its manifest. C5-6 said Python's own files appear under the probe. Both blocks are fixed. Final confirm: architect Accept, critic Accept. Deferred P2 (both): a venv inside the consumer's repo puts `sys.prefix` in that repo. AC-28 then allows those library files. Conditions c and f keep their content out of output.
+
 ## Rationale moved from ADR-084 (2026-11-01)
 
 Moved verbatim to keep ADR-084 under the 500-line size cap (`check_adr_lifecycle.py` size-cap). No wording changed.

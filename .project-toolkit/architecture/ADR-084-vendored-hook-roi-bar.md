@@ -135,8 +135,12 @@ hooks. Concretely, the bar is six rules:
       before it opens the transcript. The `Customer value:` line names the
       variable and its off values. The docstring states the firing bound.
 
-   REQ-048 holds the testable form of each condition. Its condition-to-AC
-   map is the checklist TASK-006 review applies.
+   Conditions a, e, and f bind the whole plugin path, launcher included.
+   Condition e does not count the plugin's or Python's own files. The
+   launcher may read two consumer-repo plugin manifests for one name field
+   and echoes nothing from them (REQ-048 AC-28). REQ-048 holds each
+   condition's testable form; its condition-to-AC map is the TASK-006
+   review checklist.
 
    Retro enforcement stays internal. That means blocking a turn until a retro
    exists, writing skeleton files, demanding a fill, or instructing the agent
@@ -281,7 +285,7 @@ hooks. Concretely, the bar is six rules:
 
 - The vendored surface trends toward customer value, not internal ceremony. A
   plugin reader can tell what each shipped hook does for them.
-- Rule 5 is mechanically enforced at the point a hook is added, by a test in
+- (Historical, 2026-08-18.) Rule 5 is mechanically enforced when a hook is added, by a test in
   the parity suite rather than the standalone CI check first proposed. That test
   is the ratchet against re-accretion. It went 29 days unbuilt while the ADR
   described it as planned, which is the reason the rule now names the file that
