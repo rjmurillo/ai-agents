@@ -264,3 +264,13 @@ class TestCli:
     ) -> None:
         assert main(["check-failures", "--events", str(tmp_path / "missing.json")]) == 2
         assert "stuck-detection:" in capsys.readouterr().err
+
+    def test_deeply_nested_json_exits_two(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        path = tmp_path / "events.json"
+        path.write_text("[" * 100_000, encoding="utf-8")
+        assert main(["check-failures", "--events", str(path)]) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "nested too deeply" in captured.err

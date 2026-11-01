@@ -554,6 +554,8 @@ def _read_events(path: Path | None) -> list[dict[str, Any]]:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:
         raise EventError(f"input is not valid JSON: {exc.msg} at line {exc.lineno}") from exc
+    except RecursionError as exc:
+        raise EventError("input JSON is nested too deeply to decode") from exc
     return parse_events(raw)
 
 
