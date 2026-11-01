@@ -130,7 +130,7 @@ def test_parent_swapped_after_the_write_time_check_is_still_refused(
     real_parts = ax._parent_parts
 
     def check_then_swap(raw: str, target: Path) -> tuple[str, ...]:
-        parts = real_parts(raw, target)
+        parts: tuple[str, ...] = real_parts(raw, target)
         if (work / "sub").is_dir() and not (work / "sub").is_symlink():
             (work / "sub").rename(work / "sub-old")
             _link(work / "sub", elsewhere)
