@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Consumer A of REQ-048: check caller-supplied tool events for a failure loop.
+"""Check caller-supplied tool events for a failure loop (consumer A of REQ-048).
+
+REQ-048: https://github.com/rjmurillo/ai-agents/blob/main/.project-toolkit/specs/requirements/REQ-048-friction-triggered-retrospective-nudge.md
 
 Stateless. The caller passes the recent tool events; nothing is stored, no
 model is called, and no hook runs this. Every signal definition lives in the
 shared FailureClassifier (`lib/failure_classifier`, canonical source
-`scripts/failure_classifier/` in the rjmurillo/ai-agents repository), which
-the Stop retrospective nudge (consumer B) also uses, so the two never
-disagree. This module only validates input, applies `--window`, `--repeat`,
+`scripts/failure_classifier/` in the rjmurillo/ai-agents repository). A
+planned Stop retrospective nudge (consumer B, not shipped yet) will use the
+same classifier; a parity test keeps the two adapters in step. This module only validates input, applies `--window`, `--repeat`,
 and `--churn`, and builds the nudge. It reports two signals:
 
 - ``failure-repeat`` (AC-33): one failure fingerprint seen again and again.
@@ -47,8 +49,12 @@ from failure_classifier import (  # noqa: E402
     FailureSignals,
     canonicalize_input_text,
     classify,
+    fingerprint_tool,
 )
 
+# Provisional: these defaults ship before calibration (REQ-048 decision D12).
+# If under half of the nudges they produce are real loops, on at least 20
+# labeled nudges, they are raised, and dropped if raising does not help.
 DEFAULT_REPEAT = 3
 DEFAULT_CHURN = 3
 DEFAULT_WINDOW = 20
@@ -140,7 +146,7 @@ def _safe_tool(fingerprint: str) -> str:
     Tool names can come from third-party MCP servers, so only names on the
     allowlist reach the nudge; anything else could spell an instruction.
     """
-    tool = fingerprint.split("|", 1)[0]
+    tool = fingerprint_tool(fingerprint)
     return tool if tool in NUDGE_TOOL_NAMES else "tool"
 
 
@@ -177,6 +183,8 @@ def build_failure_nudge(signals: list[dict[str, Any]]) -> str:
         "1. Stop retrying the same command or edit\n"
         "2. Re-read the full error and state its cause in one sentence\n"
         "3. Try a different approach, or ask the user if the cause is unclear\n"
+        "4. If a permission or user denial caused the failure, do not work around it: "
+        "ask the user\n"
         "</stuck-detection>"
     )
 

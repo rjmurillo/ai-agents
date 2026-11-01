@@ -19,6 +19,7 @@ from scripts.failure_classifier import (
     classify,
     events_from_records,
     failure_fingerprint,
+    fingerprint_tool,
 )
 
 TEST = "pytest tests/a.py"
@@ -293,3 +294,45 @@ class TestAC39InputCanonicalization:
 
     def test_scalar_json_round_trips(self) -> None:
         assert canonicalize_input_text('"ls"') == '"ls"'
+
+
+class TestAC38MalformedRecords:
+    @pytest.mark.parametrize(
+        "record",
+        [
+            {"type": "user", "message": {"content": "plain user text"}},
+            {"type": "assistant", "message": "not an object"},
+            {"type": "assistant"},
+            {"type": "user", "message": {"content": [5, "x", None]}},
+        ],
+    )
+    def test_shapes_without_blocks_emit_nothing(self, record: dict[str, Any]) -> None:
+        records = [use("t1", "Bash", {}), record]
+        assert events_from_records(records) == []
+
+    @pytest.mark.parametrize("content", [None, 5, {"text": "x"}])
+    def test_non_text_result_content_is_an_empty_error(self, content: object) -> None:
+        events = events_from_records([use("t1", "Bash", {}), result("t1", content, True)])
+        assert [(e.ok, e.error) for e in events] == [(False, "")]
+        assert classify(events).unfingerprinted == 1
+
+    def test_missing_or_null_input_has_no_progress_key(self) -> None:
+        bare = {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "id": "t1", "name": "Bash"}]},
+        }
+        records = [
+            bare,
+            result("t1", "boom", True),
+            use("t2", "Bash", None),
+            result("t2", "boom", True),
+        ]
+        events = events_from_records(records)
+        assert [e.progress_key for e in events] == [None, None]
+        assert classify(events).failed_retry == 0
+
+
+def test_fingerprint_tool_reads_the_tool_part() -> None:
+    fingerprint = failure_fingerprint("Bash", "boom|bang")
+    assert fingerprint is not None
+    assert fingerprint_tool(fingerprint) == "bash"

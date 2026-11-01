@@ -6,8 +6,9 @@ recent N entries exceed a similarity threshold, emits a nudge payload so
 the orchestrator can break the loop.
 
 The ``check-failures`` subcommand is a separate, stateless detector for
-repeated tool failures. It lives in the sibling ``failure_loops.py`` and is
-dispatched before this module's own argument parsing.
+repeated tool failures. It lives in the sibling ``failure_loops.py``. Its
+arguments are not parsed here: ``main`` parses only the global flags and the
+subcommand name, then hands the rest to ``failure_loops``.
 
 EXIT CODES (ADR-035):
     0 - Success (regardless of stuck/not-stuck)

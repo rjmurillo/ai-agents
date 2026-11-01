@@ -73,9 +73,11 @@ Use a richer evaluation instead when:
 Stateless. The caller passes the recent tool events; nothing is stored.
 `stuck_detection.py check-failures` runs `failure_loops.py`, which reads its
 counts from the shared `failure_classifier` package in the plugin `lib/`
-folder. REQ-048 defines that classifier once for two consumers: this command,
-and the Stop retrospective nudge that reads the session transcript. Both get
-the same counts from the same events.
+folder. The design
+(<https://github.com/rjmurillo/ai-agents/blob/main/.project-toolkit/specs/requirements/REQ-048-friction-triggered-retrospective-nudge.md>)
+defines that classifier once so a planned second consumer, a Stop
+retrospective nudge that reads the session transcript, can share it. That
+nudge is not shipped yet; a parity test keeps the two event adapters in step.
 The signals are adapted from TokenEconomizer's failure-loop guard
 (<https://github.com/microsoft/TokenEconomizer>, Apache-2.0; no code
 copied). Unlike that guard, this one runs in no hook, calls no judge model,
@@ -137,7 +139,14 @@ ignored. Pass redacted `error` text: the first line is echoed in `signals`.
 ]
 ```
 
-The `nudge` carries only signal names, counts, and tool names from a fixed
+The defaults (`--repeat 3`, `--churn 3`, `--window 20`) are provisional:
+they ship before calibration. If under half of the nudges they produce are
+real loops, measured on at least 20 labeled nudges, they are raised, and the
+nudge is dropped if raising does not help.
+
+The `nudge` tells the agent to stop retrying, restate the cause, change
+approach, and never work around a permission or user denial. It carries only
+signal names, counts, and tool names from a fixed
 allowlist (the edit tools plus `bash`, `shell`, `powershell`, `read`, `view`,
 `grep`, `glob`, `webfetch`, `task`; any other name prints as `tool`), never
 error text, inputs, or file paths. It lists at most 5 signals,

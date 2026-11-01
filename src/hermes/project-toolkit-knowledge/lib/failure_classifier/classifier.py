@@ -1,11 +1,13 @@
 """The shared FailureClassifier: one definition of every tool-failure signal.
 
-REQ-048 (amendment 2026-11-01) names this module the single owner of
-`tool_error`, `permission_denial`, `failed_retry`, and `edit_churn`. Consumer A
-(`stuck_detection.py check-failures`) feeds it caller-supplied events; consumer
-B (the Stop retrospective nudge) feeds it transcript events through
-`scripts.failure_classifier.transcript`. Both read the same output, so neither
-holds a second definition.
+REQ-048 (https://github.com/rjmurillo/ai-agents/blob/main/.project-toolkit/specs/requirements/REQ-048-friction-triggered-retrospective-nudge.md)
+names this module the single owner of `tool_error`, `permission_denial`,
+`failed_retry`, and `edit_churn`; the AC numbers in comments here point into
+it. Consumer A (`stuck_detection.py check-failures`) feeds it caller-supplied
+events. Consumer B, a planned Stop retrospective nudge that is not shipped
+yet, will feed it transcript events through the sibling ``transcript``
+module. A parity test runs one fixture through both adapters so the two
+cannot drift.
 
 The signal definitions are adapted from the failure-loop guard in
 microsoft/TokenEconomizer (arXiv 2610.22732, Apache-2.0). No code was copied.
@@ -17,6 +19,7 @@ nothing here emits event text: callers decide what to print.
 
 from __future__ import annotations
 
+import json
 import posixpath
 import re
 from collections.abc import Iterable
@@ -31,8 +34,10 @@ EDIT_TOOLS: frozenset[str] = frozenset(
 )
 
 # REQ-048 Definitions: an errored result whose text holds one of these,
-# case-insensitive, is a permission_denial rather than a tool_error. TASK-001
-# checks the set against the corpus.
+# case-insensitive, is a permission_denial rather than a tool_error. The set is
+# not yet checked against a labeled corpus, and the bare words can match
+# ordinary errors (a rejected git push, a rejected patch hunk), so treat the
+# permission_denial count as provisional.
 DENIAL_MARKERS: tuple[str, ...] = (
     "permission denied",
     "user doesn't want to proceed",
@@ -60,6 +65,30 @@ def normalize_target(target: str) -> str:
     return posixpath.normpath(target.replace("\\", "/"))[:TARGET_MAX_CHARS]
 
 
+def canonical_input(value: object) -> str:
+    """AC-38: the canonical JSON form of a tool input: sorted keys, no spaces."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def canonicalize_input_text(text: str) -> str:
+    """AC-39: canonicalize ``text`` when it is a JSON document, else return it trimmed.
+
+    Consumer A takes ``input`` as caller text. A caller that passes the tool
+    input as JSON then gets the same ProgressKey the transcript adapter builds,
+    whatever its key order or spacing.
+    """
+    trimmed = text.strip()
+    try:
+        return canonical_input(json.loads(trimmed))
+    except (ValueError, RecursionError):
+        return trimmed
+
+
+def fingerprint_tool(fingerprint: str) -> str:
+    """The tool part of a fingerprint built by ``failure_fingerprint``."""
+    return fingerprint.split("|", 1)[0]
+
+
 def failure_fingerprint(tool: str, error: str) -> str | None:
     """AC-29: ``<tool>|<normalized first error line>``, or None with no error text."""
     first = next((line for line in error.splitlines() if line.strip()), "")
@@ -81,6 +110,9 @@ def is_denial(error: str) -> bool:
 @dataclass(frozen=True)
 class FailureEvent:
     """One normalized tool call (REQ-048 Ontology).
+
+    Build events with ``FailureEvent.build``: it is the only constructor that
+    normalizes. A direct call keeps fields as given, so its keys may not match.
 
     ``error`` is held only to classify the event. It is never part of any
     output: the fingerprint carries its normalized first line, and the
@@ -142,7 +174,12 @@ Tally = dict[ProgressKey, dict[str, int]]
 
 @dataclass
 class FailureSignals:
-    """Everything the classifier knows about one event sequence (REQ-048 Ontology)."""
+    """Everything the classifier knows about one event sequence (REQ-048 Ontology).
+
+    Read the tallies through ``repeat_totals``, ``churn_totals``, and
+    ``churned_targets``. ``tally`` and ``churn`` are the raw state behind them,
+    and their shape may change.
+    """
 
     tool_error: int = 0
     permission_denial: int = 0

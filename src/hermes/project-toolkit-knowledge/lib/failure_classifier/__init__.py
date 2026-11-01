@@ -1,4 +1,4 @@
-"""Failure classifier: the shared tool-failure signals for REQ-048's two consumers."""
+"""Failure classifier: one shared definition of the tool-failure signals."""
 
 from __future__ import annotations
 
@@ -9,17 +9,16 @@ from .classifier import (
     TARGET_MAX_CHARS,
     FailureEvent,
     FailureSignals,
+    canonical_input,
+    canonicalize_input_text,
     classify,
     failure_fingerprint,
+    fingerprint_tool,
     is_denial,
     normalize_target,
     normalize_tool,
 )
-from .transcript import (
-    canonical_input,
-    canonicalize_input_text,
-    events_from_records,
-)
+from .transcript import events_from_records
 
 __all__ = [
     "DENIAL_MARKERS",
@@ -33,6 +32,7 @@ __all__ = [
     "classify",
     "events_from_records",
     "failure_fingerprint",
+    "fingerprint_tool",
     "is_denial",
     "normalize_target",
     "normalize_tool",

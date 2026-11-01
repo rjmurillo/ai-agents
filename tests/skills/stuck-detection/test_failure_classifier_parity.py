@@ -24,7 +24,7 @@ from stuck_failure_events import fc, mod
 # permission denial, and an unfingerprinted failure.
 TEST = {"command": "pytest tests/a.py"}
 EDIT_A = {"file_path": "./src/a.py", "old_string": "x", "new_string": "y"}
-FIXTURE: list[tuple[str, dict[str, Any], bool, str]] = [
+FIXTURE: list[tuple[str, dict[str, Any] | None, bool, str]] = [
     ("Bash", TEST, True, "FAILED test_a - exit code 1"),
     ("Edit", EDIT_A, False, "ok"),
     ("Bash", TEST, True, "FAILED test_a - exit code 1"),
@@ -39,6 +39,9 @@ FIXTURE: list[tuple[str, dict[str, Any], bool, str]] = [
     ("Bash", {"command": "true"}, True, ""),
     ("Write", {"file_path": "src\\c.py", "content": "z"}, False, "ok"),
     ("Bash", {"command": "npm test"}, True, "Error at 0xDEADBEEF1"),
+    # No input: keyless in both adapters, so never a retry.
+    ("Bash", None, True, "no input given"),
+    ("Bash", None, True, "no input given"),
 ]
 
 
@@ -46,7 +49,9 @@ def transcript_records() -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for index, (tool, tool_input, is_error, text) in enumerate(FIXTURE):
         use_id = f"toolu_{index}"
-        use = {"type": "tool_use", "id": use_id, "name": tool, "input": tool_input}
+        use: dict[str, Any] = {"type": "tool_use", "id": use_id, "name": tool}
+        if tool_input is not None:
+            use["input"] = tool_input
         block: dict[str, Any] = {"type": "tool_result", "tool_use_id": use_id, "content": text}
         if is_error:
             block["is_error"] = True
@@ -59,17 +64,14 @@ def check_failures_input() -> list[dict[str, Any]]:
     """The same calls as a caller would hand `check-failures`."""
     events: list[dict[str, Any]] = []
     for tool, tool_input, is_error, text in FIXTURE:
-        event: dict[str, Any] = {
-            "tool": tool,
-            "ok": not is_error,
-            "error": text,
+        event: dict[str, Any] = {"tool": tool, "ok": not is_error, "error": text}
+        if tool_input is not None:
             # AC-39: the caller's own JSON, unsorted and spaced, canonicalizes
-            # to the key consumer B builds.
-            "input": json.dumps(tool_input),
-        }
-        path = tool_input.get("file_path")
-        if fc.normalize_tool(tool) in fc.EDIT_TOOLS and path:
-            event["target"] = path
+            # to the key the transcript adapter builds.
+            event["input"] = json.dumps(tool_input)
+            path = tool_input.get("file_path")
+            if fc.normalize_tool(tool) in fc.EDIT_TOOLS and path:
+                event["target"] = path
         events.append(event)
     return events
 

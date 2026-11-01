@@ -12,11 +12,9 @@ if HERE not in sys.path:
 
 from stuck_failure_events import TEST_CMD, fail, fc, kinds, mod, ok, run
 
-check_failures = mod.check_failures
 parse_events = mod.parse_events
 failure_fingerprint = fc.failure_fingerprint
 build_failure_nudge = mod.build_failure_nudge
-EventError = mod.EventError
 
 
 class TestNudgeIsolation:
@@ -48,8 +46,8 @@ class TestNudgeIsolation:
         assert "- other: 2 times" in nudge
 
 
-class TestRoundTwoRegressions:
-    """Each test pins a /review round-2 finding."""
+class TestFailedEditsAndProgressKeys:
+    """Failed edits count as failures; progress resets need a matching key."""
 
     def test_repeated_failed_edits_with_target_trip_failure_repeat(self) -> None:
         bad_edit = {"tool": "Edit", "ok": False, "error": "old_string not found", "target": "a"}
@@ -98,8 +96,8 @@ class TestRoundTwoRegressions:
         assert run(events, churn_threshold=2, repeat_threshold=10)["signals"] == []
 
 
-class TestRoundThreeRegressions:
-    """Each test pins a /review round-3 finding."""
+class TestEditRetryRecovery:
+    """A recovered edit retry clears only its own failures."""
 
     def test_recovered_edit_retry_clears_its_failures(self) -> None:
         bad = {"tool": "Write", "ok": False, "input": "X", "target": "a/b.py", "error": "no dir"}
@@ -120,8 +118,8 @@ class TestRoundThreeRegressions:
         assert kinds(run(events)) == ["failure-repeat"]
 
 
-class TestRoundFourRegressions:
-    """Each test pins a /review round-4 finding."""
+class TestPendingCyclesAcrossFiles:
+    """An edit to one file leaves other files' pending cycles in place."""
 
     def test_edit_retry_keeps_other_files_pending(self) -> None:
         bad = {"tool": "Write", "ok": False, "input": "X", "target": "b.py", "error": "no dir"}

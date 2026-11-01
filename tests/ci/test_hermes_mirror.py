@@ -18,6 +18,13 @@ _IGNORE = "x = 1  # type" + ": ignore\n"
 _BAD_CALL = "import subprocess\nsubprocess.run(['x'], capture_output=True, encoding='utf-8')\n"
 
 
+def test_lib_mirror_packages_match_the_lib_mirror_registry() -> None:
+    """Every package lib_mirror renders is one the ratchets skip as a mirror."""
+    from build.scripts import lib_mirror
+
+    assert set(hermes_mirror.LIB_MIRROR_PACKAGES) == set(lib_mirror.PACKAGES)
+
+
 def _git(root: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(root), *args], check=True)
 

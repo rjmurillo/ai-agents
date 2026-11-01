@@ -15,40 +15,28 @@ Record shapes, observed in Claude Code transcripts (2026-11-01):
 - an ``isSidechain`` flag on every record.
 
 Each non-sidechain ``tool_use`` and its ``tool_result`` become exactly one
-FailureEvent, in result order. A use with no result yet emits nothing.
+FailureEvent, in result order. A use with no result yet emits nothing. A use
+with no ``input`` (or a null one) gets no ProgressKey, as in consumer A.
+
+No shipped caller uses this module yet: the planned Stop retrospective nudge
+(consumer B) will. Tests pin it to consumer A through the AC-36 parity test.
 """
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from scripts.failure_classifier.classifier import EDIT_TOOLS, FailureEvent, normalize_tool
+from scripts.failure_classifier.classifier import (
+    EDIT_TOOLS,
+    FailureEvent,
+    canonical_input,
+    normalize_tool,
+)
 
 # REQ-048 Definitions: `target` is the `file_path`, `notebook_path`, or `path`
 # input field, first present, when the tool is an edit tool.
 _TARGET_FIELDS: tuple[str, ...] = ("file_path", "notebook_path", "path")
-
-
-def canonical_input(value: object) -> str:
-    """AC-38: the canonical JSON form of a tool input: sorted keys, no spaces."""
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
-def canonicalize_input_text(text: str) -> str:
-    """AC-39: canonicalize ``text`` when it is a JSON document, else return it trimmed.
-
-    Consumer A takes ``input`` as caller text. A caller that passes the tool
-    input as JSON then gets the same ProgressKey consumer B builds from the
-    transcript, whatever its key order or spacing.
-    """
-    trimmed = text.strip()
-    try:
-        value = json.loads(trimmed)
-    except (ValueError, RecursionError):
-        return trimmed
-    return canonical_input(value)
 
 
 def _result_text(content: object) -> str:
@@ -114,7 +102,7 @@ def events_from_records(records: Iterable[object]) -> list[FailureEvent]:
                         tool=name,
                         ok=block.get("is_error") is not True,
                         error=_result_text(block.get("content")),
-                        input=canonical_input(tool_input),
+                        input=None if tool_input is None else canonical_input(tool_input),
                         target=_target(name, tool_input),
                     )
                 )
