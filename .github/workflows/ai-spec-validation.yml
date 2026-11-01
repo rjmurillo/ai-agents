@@ -90,7 +90,7 @@ jobs:
       # so git diff and the spec files are still the PR's. The 'main' fallback
       # covers act runs, whose event has no base SHA or default branch.
       - name: Checkout trusted base scripts
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1-3-g0c366fd (untagged, one commit before v6.0.2)
         with:
           ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch || 'main' }}
           path: trusted-base
