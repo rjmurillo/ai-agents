@@ -544,6 +544,52 @@ class TestMain:
         assert payload["superseded_by_base"]["fully_superseded"] is False
 
     @pytest.mark.parametrize(
+        ("head_repository", "expected"),
+        (
+            ({"nameWithOwner": "fork-owner/r"}, "fork-owner/r"),
+            (None, None),
+            ("missing", None),
+        ),
+    )
+    def test_head_repo_is_reported_for_worktree_matching(self, capsys, head_repository, expected):
+        """Issue #6506: pr-autofix matches a worktree's origin to the head repository."""
+        pr = {
+            "number": 2409,
+            "state": "OPEN",
+            "merged": False,
+            "isDraft": False,
+            "closed": False,
+            "headRefName": "fix/foo",
+            "headRefOid": "abc123def456",
+            "baseRefName": "main",
+            "baseRefOid": "base123def456",
+        }
+        if head_repository != "missing":
+            pr["headRepository"] = head_repository
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "check_pr_live_state.gh_graphql",
+                return_value={"repository": {"pullRequest": pr}},
+            ),
+            patch(
+                "check_pr_live_state.subprocess.run",
+                return_value=_completed(stdout="+ abc1234567890\n", rc=0),
+            ),
+        ):
+            rc = main(["--pull-request", "2409", "--skip-fetch"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["head_repo"] == expected
+
+    def test_live_state_query_requests_the_head_repository(self):
+        assert "headRepository" in _mod._LIVE_STATE_QUERY
+        assert "nameWithOwner" in _mod._LIVE_STATE_QUERY
+
+    @pytest.mark.parametrize(
         ("expected_arg", "expected_value"),
         (
             ("--expected-head-sha", "old-head"),

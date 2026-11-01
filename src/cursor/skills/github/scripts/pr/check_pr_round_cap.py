@@ -539,6 +539,7 @@ def main(argv: list[str] | None = None) -> int:
         (prior_state or {}).get("escalated") is True or result["action"] == "ESCALATE",
         head_sha,
         *scan_args,
+        pr_checkout=bool(args.worktree),
     )
     if orphaned["warning"]:
         logger.warning(
