@@ -112,10 +112,11 @@ hooks. Concretely, the bar is six rules:
 
    a. It only advises. It never emits a `decision` field, and it exits 0 on
       every path.
-   b. It writes nothing inside any repository it can detect. Its own state lives in
-      per-user storage outside every repository, and it refuses a state root
-      inside a directory tree that holds a `.git` entry. Bare-repository
-      setups that leave no `.git` entry are an accepted gap (REQ-048 AC-24).
+   b. It writes nothing inside any repository it can detect. Its own state
+      lives in per-user storage outside every repository it can detect, and
+      it refuses a state root when it or any ancestor directory holds a
+      `.git` entry. Bare-repository setups that leave no `.git` entry are an
+      accepted gap (REQ-048 AC-24).
    c. Its output is fixed text plus counts. It never echoes transcript,
       tool, or repository content.
    d. It runs on `Stop` only. The per-call events in rule 6 are out of reach,

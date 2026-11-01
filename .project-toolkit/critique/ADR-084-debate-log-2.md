@@ -193,9 +193,9 @@ Round 4 fixes apply the reviewers' proposed fixes. The unset-`HOME` refusal is n
 | C5-1 | P2 | critic | REQ-048 kill check needs at least 20 nudged sessions; 30-day extensions; owner decides at 90 days. |
 | C5-2 | P2 | critic | REQ-048 records the one-time kill check as an accepted gap. |
 
-No ADR text changed after the confirm votes.
+No ADR text changed between the round 5 confirm votes and the review repairs below.
 
-**Post-round-5 review repairs (fresh `/review`, 2026-11-01).** Three ADR clauses changed: condition b names the bare-repo gap; condition e allows the refusal's `stat` walk; the sunset also lapses on an AC-19 drop. Both reviewers confirmed them (Accept, no P0 or P1). Both raised the same P2: condition b's first sentence overclaimed against the bare-repo gap. The architect's verbatim wording, "any repository it can detect", was applied. No other ADR text changed. REQ-048 fixed the ADR-085 item 7 and 8 mapping, the Q5 term, the kill floor's link to the baseline, and the label rubric.
+**Post-round-5 review repairs (fresh `/review`, 2026-11-01).** Three ADR clauses changed: condition b names the bare-repo gap; condition e allows the refusal's `stat` walk; the sunset also lapses on an AC-19 drop. Both reviewers confirmed them (Accept, no P0 or P1). Both raised the same P2: condition b's first sentence overclaimed against the bare-repo gap. The architect's verbatim wording, "any repository it can detect", was applied. A second `/review` pass then found condition b broader than AC-24's ancestor walk. Condition b now reads: it refuses a state root when it or any ancestor directory holds a `.git` entry, and both sentences say "it can detect". Both reviewers confirmed that final text (Accept, no P0 or P1). No other ADR text changed. REQ-048 fixed the ADR-085 item 7 and 8 mapping, the Q5 term, the kill floor's link to the baseline, and the label rubric.
 
 ### Next Steps
 

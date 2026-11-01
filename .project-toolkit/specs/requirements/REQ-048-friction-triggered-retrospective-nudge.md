@@ -189,7 +189,7 @@ No network, no model call, no writes inside any repository.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
 - SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions. If the baseline is at or above 20 percent, the owner sets a higher kill floor before release.
 - Release: the date AC-19 clears and the default ships. Each window below counts from that date.
-- Kill criteria: 30 days after release, remove the friction branch if under 20 percent of nudged sessions run `/retrospective` later in the same session, or if precision on a fresh 30-day labeled sample is under 50 percent. Judged on the owner's own transcripts only, since the hook sends no telemetry. The check needs at least 20 nudged sessions in the window; below that, the window extends in 30-day steps and the owner decides at 90 days. The check runs once; later decay is an accepted gap, open to an owner-requested re-check. Removal lapses ADR-084 rule 2a.
+- Kill criteria: 30 days after release, remove the friction branch if fewer nudged sessions than the kill floor (20 percent, or the higher floor set under SLI 5 and recorded in the TASK-001 report) run `/retrospective` later in the same session, or if precision on a fresh 30-day labeled sample is under 50 percent. Judged on the owner's own transcripts only, since the hook sends no telemetry. The check needs at least 20 nudged sessions in the window; below that, the window extends in 30-day steps and the owner decides at 90 days. The check runs once; later decay is an accepted gap, open to an owner-requested re-check. Removal, or an owner drop at a 90-day decision point, lapses ADR-084 rule 2a.
 
 ## Acceptance criteria
 
@@ -273,7 +273,7 @@ Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudg
 
 | ID | Task | ACs | Depends on | Estimate (human / AI) |
 |---|---|---|---|---|
-| TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; pick weights and default; report SLI 4; measure the SLI 5 baseline and build the same-session follow check for the kill criterion | AC-19 | none | 2.5 days / 3 h |
+| TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; pick weights and default; report SLI 4; measure the SLI 5 baseline and build the same-session follow check for the kill criterion; write the SLI 2 label rubric before any labeling | AC-19 | none | 2.5 days / 3 h |
 | TASK-002 | Scanner counts with fixture tests | AC-01 to AC-04 | TASK-001 | 1 day / 1 h |
 | TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20, AC-23 | TASK-002 | 1 day / 1 h |
 | TASK-004 | Exit, no-block, clean-tree, and input-limit tests; reorder `_safe_marker_dir` so the state-root walk runs before any `mkdir` | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
