@@ -75,6 +75,8 @@ Checks, each named so the baseline tracks them separately:
     section-structure            Context, Decision, and Consequences are each present under a
                                   sanctioned heading: the canonical set or the MADR set
                                   (issue #5196)
+    size-cap                     a record may not run past 500 lines; a record already past the
+                                  cap may not grow into a further 50-line step
     review-by-format             an optional `review-by` is a calendar date written YYYY-MM-DD
                                   (issue #5193)
     review-by-past-due           a `proposed` or `accepted` record whose `review-by` date has
@@ -195,6 +197,7 @@ CHECKS: tuple[str, ...] = (
     "status-edge-consistency",
     "cited-paths-exist",
     "section-structure",
+    "size-cap",
     "review-by-format",
     "review-by-past-due",
     "review-by-prose-date",
@@ -246,6 +249,18 @@ SECTION_EQUIVALENTS: tuple[tuple[str, frozenset[str], tuple[int, ...]], ...] = (
 # never a record's own section.
 _SECTION_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 
+# Size cap (`size-cap`). 500 is the repository's file-size ceiling (the taste ratchet
+# counts every tracked file past it), and it sits at the 87th percentile of the 120
+# records on 2026-11-01: median 267 lines, p75 391, p90 525, 104 of 120 at or under 500.
+# The 16 records past it are grandfathered in `adr_lifecycle_baseline.json`. A record
+# past the cap yields one violation per started step of `SIZE_STEP_LINES` lines over it,
+# so the baseline holds a record's size as well as its name. Growing into the next step
+# is a new violation identity count and fails; shrinking passes. A bare one-per-record
+# violation would let a grandfathered ADR grow without limit, which is the drift this
+# check exists to stop.
+SIZE_CAP_LINES = 500
+SIZE_STEP_LINES = 50
+
 _BASELINE_PATH = Path(__file__).with_name("adr_lifecycle_baseline.json")
 
 _BASELINE_SCHEMA_VERSION = "2"
@@ -282,6 +297,7 @@ class Record:
     path: str
     frontmatter: dict[str, Any] | None
     body: str
+    lines: int = 0
 
 
 def _split_frontmatter(text: str) -> tuple[str | None, str]:
@@ -464,10 +480,11 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
         empty = Record(number, rel, None, "")
         return empty, Violation("frontmatter-parses", rel, f"is not valid UTF-8: {exc}")
     raw, body = _split_frontmatter(text)
+    lines = len(text.splitlines())
     duplicate = _duplicate_key(raw)
     if duplicate is not None:
         return (
-            Record(number, rel, None, body),
+            Record(number, rel, None, body, lines),
             Violation(
                 "frontmatter-parses",
                 rel,
@@ -478,10 +495,10 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
     frontmatter = _parse_yaml_frontmatter(text)
     if frontmatter is None:
         return (
-            Record(number, rel, None, body),
+            Record(number, rel, None, body, lines),
             Violation("frontmatter-parses", rel, _frontmatter_reason(raw, text)),
         )
-    return Record(number, rel, frontmatter, body), None
+    return Record(number, rel, frontmatter, body, lines), None
 
 
 def collect_records(adr_dir: Path, repo_root: Path) -> tuple[list[Record], list[Violation]]:
@@ -833,6 +850,34 @@ def _check_implemented_implies_decided(record: Record) -> list[Violation]:
     return [Violation("implemented-implies-decided", record.path, detail)]
 
 
+def _check_size(record: Record) -> list[Violation]:
+    """`size-cap` for one record.
+
+    A record at or under `SIZE_CAP_LINES` passes. A record over it yields one
+    violation per started `SIZE_STEP_LINES` lines past the cap, so 501 lines is
+    one violation, 551 is two, and the baseline pins how far past the cap a
+    grandfathered record already runs. The count is read from the file as
+    written, frontmatter included, so it matches what a reader scrolls and what
+    the whole-tree file-size ratchet counts. Applies to every record that can be
+    read and decoded as UTF-8, parseable frontmatter or not; an unreadable or
+    undecodable record has no line count and reports only `frontmatter-parses`.
+    """
+    over = record.lines - SIZE_CAP_LINES
+    if over <= 0:
+        return []
+    steps = -(-over // SIZE_STEP_LINES)
+    return [
+        Violation(
+            "size-cap",
+            record.path,
+            f"{record.lines} lines against the {SIZE_CAP_LINES}-line cap "
+            f"(step {step} of {steps}, {SIZE_STEP_LINES} lines each); "
+            "split it, or move detail to an analysis or critique file and link it",
+        )
+        for step in range(1, steps + 1)
+    ]
+
+
 def _check_structure(record: Record) -> list[Violation]:
     """`section-structure` for one record (issue #5196).
 
@@ -1167,6 +1212,7 @@ def scan(adr_dir: Path, repo_root: Path, today: date | None = None) -> list[Viol
     known = {record.number for record in records}
     tracked = tracked_paths(repo_root)
     for record in records:
+        violations.extend(_check_size(record))
         if record.frontmatter is None:
             continue
         violations.extend(_check_identity(record))

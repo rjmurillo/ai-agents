@@ -54,6 +54,24 @@
       ".project-toolkit/architecture/ADR-030-skills-pattern-superiority.md": 1,
       ".project-toolkit/architecture/ADR-095-scoped-re-review-axes.md": 1
     },
+    "size-cap": {
+      ".project-toolkit/architecture/ADR-012-skill-catalog-mcp.md": 1,
+      ".project-toolkit/architecture/ADR-013-agent-orchestration-mcp.md": 3,
+      ".project-toolkit/architecture/ADR-020-feature-request-review-step.md": 1,
+      ".project-toolkit/architecture/ADR-022-architecture-governance-split-criteria.md": 3,
+      ".project-toolkit/architecture/ADR-033-routing-level-enforcement-gates.md": 1,
+      ".project-toolkit/architecture/ADR-035-exit-code-standardization.md": 1,
+      ".project-toolkit/architecture/ADR-037-memory-router-architecture.md": 3,
+      ".project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md": 10,
+      ".project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md": 7,
+      ".project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md": 3,
+      ".project-toolkit/architecture/ADR-080-model-pin-justification-policy.md": 1,
+      ".project-toolkit/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md": 9,
+      ".project-toolkit/architecture/ADR-087-held-out-validated-improvement.md": 10,
+      ".project-toolkit/architecture/ADR-098-agent-role-metadata-replaces-tier-hierarchy.md": 1,
+      ".project-toolkit/architecture/ADR-104-gate-tier-placement-and-budgets.md": 10,
+      ".project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md": 6
+    },
     "review-by-format": {},
     "review-by-past-due": {
       ".project-toolkit/architecture/ADR-077-flip-stale-contract-tests.md": 1
