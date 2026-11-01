@@ -354,7 +354,47 @@ def _is_prior_evidence(path: Path, size: int) -> bool:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
-    return isinstance(data, dict) and "verdict" in data and "doc_sha256" in data
+    return isinstance(data, dict) and "verdict" in data and isinstance(data.get("doc_sha256"), dict)
+
+
+def _parent_parts(raw: str, target: Path) -> tuple[str, ...]:
+    """Return the target's resolved parent as parts under the working directory.
+
+    Raises ``InputError`` when the parent resolves outside the working directory.
+    """
+    cwd = Path.cwd().resolve()
+    parent = (cwd / target).parent.resolve()
+    if not parent.is_relative_to(cwd):
+        raise InputError(f"evidence path `{raw}` resolves outside the working directory")
+    return parent.relative_to(cwd).parts
+
+
+# The evidence parent is opened by a no-follow walk and written through its handle where
+# the platform supports it. os.replace shares rename's dir_fd support (renameat).
+_DIR_FLAGS = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+_ANCHORED_WRITES = (
+    hasattr(os, "O_DIRECTORY")
+    and hasattr(os, "O_NOFOLLOW")
+    and {os.open, os.rename, os.unlink} <= os.supports_dir_fd
+)
+
+
+def _open_parent(parts: tuple[str, ...]) -> int:
+    """Open the working directory, then each part with no-follow, and return the last handle.
+
+    A part swapped for a symlink fails the open, so the handle is always a directory
+    inside the working directory.
+    """
+    fd = os.open(".", _DIR_FLAGS)
+    try:
+        for part in parts:
+            child = os.open(part, _DIR_FLAGS, dir_fd=fd)
+            os.close(fd)
+            fd = child
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
 
 
 def _check_evidence_path(raw: str) -> Path:
@@ -377,33 +417,49 @@ def _check_evidence_path(raw: str) -> Path:
         raise InputError(f"cannot inspect evidence path `{raw}`: {exc.strerror or exc}") from exc
     if info is not None and not stat.S_ISREG(info.st_mode):
         raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
-    cwd = Path.cwd().resolve()
-    if not (cwd / target).parent.resolve().is_relative_to(cwd):
-        raise InputError(f"evidence path `{raw}` resolves outside the working directory")
+    _parent_parts(raw, target)
     if info is not None and not _is_prior_evidence(target, info.st_size):
         raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
     return target
 
 
 def _write_evidence(target: Path, report: dict[str, Any]) -> None:
-    """Write the report through an exclusive, no-follow sibling temp file."""
+    """Check the target again, then write through an exclusive, no-follow sibling temp file.
+
+    A run can last ``RUN_DEADLINE_SECONDS`` after the first check, so every refusal
+    is checked again here. Where ``_ANCHORED_WRITES`` holds, the parent is opened by a
+    no-follow walk and the temp file, rename, and cleanup all use that handle, so a
+    directory swapped for a symlink after the check cannot carry the write elsewhere.
+    """
+    raw = str(target)
+    _check_evidence_path(raw)
+    parts = _parent_parts(raw, target)
     text = json.dumps(report, indent=2) + "\n"
-    temporary = target.with_name(f".{target.name}.{os.urandom(8).hex()}.tmp")
+    temporary = f".{target.name}.{os.urandom(8).hex()}.tmp"
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    parent_fd: int | None = None
+    src: str = str(target.with_name(temporary))
+    dst: str = raw
     created = False
     try:
-        fd = os.open(temporary, flags, 0o644)
+        if _ANCHORED_WRITES:
+            parent_fd = _open_parent(parts)
+            src, dst = temporary, target.name
+        fd = os.open(src, flags, 0o644, dir_fd=parent_fd)
         created = True
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
-        os.replace(temporary, target)
+        os.replace(src, dst, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
     except OSError as exc:
         if created:
             try:
-                temporary.unlink()
+                os.unlink(src, dir_fd=parent_fd)
             except OSError:
                 pass
         raise InputError(f"cannot write evidence to `{target}`: {exc.strerror or exc}") from exc
+    finally:
+        if parent_fd is not None:
+            os.close(parent_fd)
 
 
 def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, Any], int]:

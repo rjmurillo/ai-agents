@@ -11,14 +11,8 @@ from pathlib import Path
 import api_examples as ax
 import pytest
 from api_fixtures import WORKED_EXAMPLE
+from api_fixtures import link_or_skip as _link
 from test_run import run_args
-
-
-def _link(link: Path, target: Path) -> None:
-    try:
-        link.symlink_to(target)
-    except (OSError, NotImplementedError):
-        pytest.skip("symlink creation unavailable on this platform")
 
 
 def _evidence_report() -> dict[str, object]:
@@ -222,3 +216,27 @@ def test_run_evidence_help_names_the_refusals() -> None:
     assert "refuses a symlink" in help_text
     assert "outside the working directory" in help_text
     assert "not a prior report" in help_text
+
+
+def test_lstat_failure_other_than_missing_is_unverifiable_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def denied(self: Path) -> os.stat_result:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(ax.Path, "lstat", denied)
+
+    with pytest.raises(ax.InputError, match="cannot inspect evidence path `evidence.json`"):
+        ax._check_evidence_path("evidence.json")
+
+
+def test_json_whose_doc_sha256_is_not_a_mapping_is_not_prior_evidence(
+    order_api: str, tmp_path: Path
+) -> None:
+    lookalike = tmp_path / "lookalike.json"
+    lookalike.write_text('{"verdict": "x", "doc_sha256": "y"}\n', encoding="utf-8")
+
+    with pytest.raises(ax.InputError, match="not a prior evidence report"):
+        ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, lookalike))
+
+    assert lookalike.read_text(encoding="utf-8") == '{"verdict": "x", "doc_sha256": "y"}\n'
