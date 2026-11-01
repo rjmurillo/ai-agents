@@ -3325,6 +3325,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--harness",
+        default="",
+        help=(
+            "With --verify-config-only: the scripts-map key of the harness "
+            "that is running (claude_code or copilot). Unverifiable tokens "
+            "from that map are listed in blocking_unverifiable_command_tokens; "
+            "tokens from other maps are reported but do not block. Omitted, "
+            "every unverifiable token blocks. A name with no scripts map "
+            "exits 2"
+        ),
+    )
+    parser.add_argument(
         "--approve-untrusted-config",
         action="store_true",
         help=(
@@ -3833,25 +3845,88 @@ def _scripts_map_criteria(config: dict[str, Any]) -> list[Any]:
     schema validator owns, and failing closed here would refuse to
     verify a config whose only fault is an unrelated typo.
     """
+    return [criterion for _, criterion in _scripts_map_entries(config)]
+
+
+def _scripts_map_entries(config: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Pair each synthetic scripts-map criterion with its harness key.
+
+    :func:`_scripts_map_criteria` drops the pairing for the trust check,
+    which verifies the union. The unverifiable-token report keeps it, so
+    a token can be attributed to the harness map that names it.
+    """
     scripts = config.get("scripts")
     if not isinstance(scripts, dict):
         return []
-    criteria: list[Any] = []
+    entries: list[tuple[str, dict[str, Any]]] = []
     for harness, commands in sorted(scripts.items()):
         if not isinstance(commands, dict):
             continue
         for key, command in sorted(commands.items()):
             if not isinstance(command, str) or not command.strip():
                 continue
-            criteria.append(
-                {
-                    "name": f"scripts.{harness}.{key}",
-                    "verification": "command",
-                    "command": command,
-                    "pass_when": "true",
-                },
+            entries.append(
+                (
+                    str(harness),
+                    {
+                        "name": f"scripts.{harness}.{key}",
+                        "verification": "command",
+                        "command": command,
+                        "pass_when": "true",
+                    },
+                ),
             )
-    return criteria
+    return entries
+
+
+def _unverifiable_by_harness(
+    config: dict[str, Any],
+    pr_number: int,
+) -> list[tuple[str, str]]:
+    """Return ``(harness, token)`` for every token no file comparison covers.
+
+    A token named by two harness maps appears once per map, so the
+    active harness sees it as blocking even when another map names it
+    first. A command line that cannot be split is a config-shape fault
+    the schema validator owns; it executes nothing here, so its
+    criterion name is recorded as unverifiable rather than halting.
+    """
+    found: list[tuple[str, str]] = []
+    for harness, criterion in _scripts_map_entries(config):
+        try:
+            argv = _format_command(criterion["command"], pr_number)
+        except ValueError:
+            pair = (harness, criterion["name"])
+            if pair not in found:
+                found.append(pair)
+            continue
+        # _format_command already expanded the plugin-root form, so a
+        # token it resolved is not reported as unresolvable.
+        for token in _unverifiable_argv(argv):
+            pair = (harness, token)
+            if pair not in found:
+                found.append(pair)
+    return found
+
+
+def _blocking_tokens(
+    found: list[tuple[str, str]],
+    harness: str,
+) -> list[str]:
+    """Select the unverifiable tokens that stop the active harness.
+
+    Only the running harness dispatches its own map, so only its tokens
+    reach shell evaluation in this run. With no harness named, the
+    caller could be running any map, so every token blocks (fail
+    closed). An unknown harness name is rejected before this is called.
+    """
+    blocking: list[str] = []
+    for owner, token in found:
+        if harness and owner != harness:
+            continue
+        if token not in blocking:
+            blocking.append(token)
+    return blocking
 
 
 def _report_verify_only(
@@ -3860,8 +3935,14 @@ def _report_verify_only(
     trust_anchor_ref: str,
     as_json: bool,
     unverifiable: list[str],
+    harness: str = "",
+    blocking: list[str] | None = None,
 ) -> None:
     """Print the verify-only verdict. Called only on the trusted path.
+
+    ``blocking`` is the subset of ``unverifiable`` that stops the active
+    harness. It defaults to every unverifiable token, which is the fail
+    closed reading when no harness is named.
 
     ``unverifiable`` is stated, never omitted. The config comparison
     already covers every command STRING, so a token whose target cannot
@@ -3870,6 +3951,8 @@ def _report_verify_only(
     between a verdict a reader can size and one that implies coverage it
     does not have.
     """
+    if blocking is None:
+        blocking = list(unverifiable)
     if as_json:
         print(
             json.dumps(
@@ -3879,7 +3962,9 @@ def _report_verify_only(
                     "command_trust": command_trust.status,
                     "trusted_ref": trust_anchor_ref,
                     "checked_files": command_trust.checked_files,
+                    "active_harness": harness or None,
                     "unverifiable_command_tokens": unverifiable,
+                    "blocking_unverifiable_command_tokens": blocking,
                     "skipped_external_files": (command_trust.skipped_external_files),
                     "skipped_untracked_files": (command_trust.skipped_untracked_files),
                 },
@@ -3903,6 +3988,11 @@ def _report_verify_only(
             f"was possible for them. Their command strings are covered by "
             f"the config comparison above; the files they name are "
             f"not:\n{listing}",
+            file=sys.stderr,
+        )
+        scope = f"harness {harness!r}" if harness else "any harness (none named)"
+        print(
+            f"NOTE: {len(blocking)} of them block {_escape_terminal_controls(scope)}.",
             file=sys.stderr,
         )
 
@@ -3992,27 +4082,30 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if halt_code is not None:
             return halt_code
+        harness = args.harness.strip()
+        harnesses = {owner for owner, _ in _scripts_map_entries(config)}
+        if harness and harness not in harnesses:
+            # Fail closed: a harness with no command map cannot dispatch
+            # Step 1, and guessing a map would vouch for the wrong set.
+            print(
+                f"Harness {_escape_terminal_controls(harness)!r} has no "
+                f"scripts map in the config; known: {sorted(harnesses)}.",
+                file=sys.stderr,
+            )
+            return 2
+        found = _unverifiable_by_harness(config, args.pull_request)
         unverifiable: list[str] = []
-        for criterion in _scripts_map_criteria(config):
-            try:
-                argv = _format_command(criterion["command"], args.pull_request)
-            except ValueError:
-                # A command line this cannot even split is a config-shape
-                # fault the schema validator owns. It executes nothing
-                # here, so record it as unverifiable rather than halting.
-                unverifiable.append(criterion["name"])
-                continue
-            # _format_command already expanded the plugin-root form, so a
-            # token it resolved is not reported as unresolvable.
-            for token in _unverifiable_argv(argv):
-                if token not in unverifiable:
-                    unverifiable.append(token)
+        for _, token in found:
+            if token not in unverifiable:
+                unverifiable.append(token)
         _report_verify_only(
             trust.status,
             command_trust,
             args.trust_anchor_ref,
             args.json,
             unverifiable,
+            harness,
+            _blocking_tokens(found, harness),
         )
         return 0
 

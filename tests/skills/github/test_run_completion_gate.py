@@ -2074,6 +2074,164 @@ class TestVerifyConfigOnly:
         assert rc == 2, "the second harness map was not verified"
 
 
+_PWSH_TOKEN_COMMAND = "pwsh -NoProfile -Command '& $exe (Join-Path $root \"x.py\")'"
+
+
+class TestVerifyConfigOnlyHarnessScope:
+    """Step 0 stops only on the running harness's unverifiable tokens (D3, #6506).
+
+    The copilot map's PowerShell launchers are unverifiable by design, so
+    a stop on the union blocked every Claude run on a clean checkout.
+    Tokens from other maps stay in the report but do not block. An
+    unnamed harness blocks on every token and an unknown name exits 2.
+    """
+
+    @staticmethod
+    def _two_harness_config(tmp_path: Path, claude: str, copilot: str) -> Path:
+        config = tmp_path / "pr-review-config.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "scripts": {
+                        "claude_code": {"check_transport": claude},
+                        "copilot": {"check_transport": copilot},
+                    },
+                    "completion_criteria": [
+                        {
+                            "name": "Unused",
+                            "verification": "command",
+                            "command": "true",
+                            "pass_when": "stdout-json.ok == true",
+                        },
+                    ],
+                },
+            ),
+            encoding="utf-8",
+        )
+        return config
+
+    @staticmethod
+    def _verify(config: Path, *extra: str) -> int:
+        return _dispatcher.main(
+            [
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
+                "--verify-config-only",
+                "--json",
+                *extra,
+            ],
+        )
+
+    def test_active_harness_token_blocks(self, git_repo, tmp_path, capsys, monkeypatch):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._two_harness_config(tmp_path, _PWSH_TOKEN_COMMAND, "true")
+        _commit_as_trusted(git_repo, config)
+
+        rc = self._verify(config, "--harness", "claude_code")
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["active_harness"] == "claude_code"
+        assert payload["blocking_unverifiable_command_tokens"]
+        assert (
+            payload["blocking_unverifiable_command_tokens"]
+            == payload["unverifiable_command_tokens"]
+        )
+
+    def test_other_harness_token_is_reported_but_does_not_block(
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
+        monkeypatch,
+    ):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._two_harness_config(tmp_path, "true", _PWSH_TOKEN_COMMAND)
+        _commit_as_trusted(git_repo, config)
+
+        rc = self._verify(config, "--harness", "claude_code")
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["unverifiable_command_tokens"], (
+            "the copilot token was dropped from the report"
+        )
+        assert payload["blocking_unverifiable_command_tokens"] == []
+        assert "0 of them block harness 'claude_code'" in captured.err
+
+    def test_same_token_in_both_maps_blocks_the_active_harness(
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
+        monkeypatch,
+    ):
+        """Dedup across maps must not hide a token from the second map."""
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._two_harness_config(tmp_path, _PWSH_TOKEN_COMMAND, _PWSH_TOKEN_COMMAND)
+        _commit_as_trusted(git_repo, config)
+
+        rc = self._verify(config, "--harness", "copilot")
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["blocking_unverifiable_command_tokens"]
+
+    def test_unnamed_harness_fails_closed_on_every_token(
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
+        monkeypatch,
+    ):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._two_harness_config(tmp_path, "true", _PWSH_TOKEN_COMMAND)
+        _commit_as_trusted(git_repo, config)
+
+        rc = self._verify(config)
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["active_harness"] is None
+        assert payload["blocking_unverifiable_command_tokens"]
+
+    def test_unknown_harness_exits_2(self, git_repo, tmp_path, capsys, monkeypatch):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._two_harness_config(tmp_path, "true", "true")
+        _commit_as_trusted(git_repo, config)
+
+        rc = self._verify(config, "--harness", "codex")
+
+        assert rc == 2
+        captured = capsys.readouterr()
+        assert captured.out == "", "an unknown harness still printed a verdict"
+        assert "has no scripts map" in captured.err
+
+    def test_clean_checkout_copilot_launchers_do_not_block_claude(self):
+        """The shipped config: copilot launcher tokens must not stop Claude.
+
+        Devin thread PRRT_kwDOQoWRls6yTHyP counted 12 copilot launcher
+        tokens on a clean checkout. The exact count drifts with the map,
+        so this pins the attribution, not the number.
+        """
+        config = yaml.safe_load(_PR_REVIEW_CONFIG_PATH.read_text(encoding="utf-8"))
+        found = _dispatcher._unverifiable_by_harness(config, 1)
+
+        copilot_tokens = [token for owner, token in found if owner == "copilot"]
+        assert copilot_tokens, "precondition: the copilot map has launcher tokens"
+        assert _dispatcher._blocking_tokens(found, "claude_code") == []
+        assert _dispatcher._blocking_tokens(found, "copilot") == list(dict.fromkeys(copilot_tokens))
+        assert _dispatcher._blocking_tokens(found, "") == list(dict.fromkeys(t for _, t in found))
+
+
 class TestConfigTrustBoundary:
     """The dispatcher must not execute a config that diverges from the
     trusted ref (CWE-829). No subprocess stubbing: real git, real
