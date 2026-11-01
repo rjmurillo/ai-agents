@@ -8,7 +8,7 @@ from pathlib import Path
 import api_examples as ax
 import pytest
 from api_fixtures import WORKED_EXAMPLE
-from api_fixtures import link_or_skip as _link
+from test_evidence_path import _link
 from test_run import run_args
 
 REFUSAL = "outside the working directory"

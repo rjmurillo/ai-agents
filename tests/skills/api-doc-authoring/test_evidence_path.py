@@ -11,8 +11,14 @@ from pathlib import Path
 import api_examples as ax
 import pytest
 from api_fixtures import WORKED_EXAMPLE
-from api_fixtures import link_or_skip as _link
 from test_run import run_args
+
+
+def _link(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this platform")
 
 
 def _evidence_report() -> dict[str, object]:
@@ -240,3 +246,45 @@ def test_json_whose_doc_sha256_is_not_a_mapping_is_not_prior_evidence(
         ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, lookalike))
 
     assert lookalike.read_text(encoding="utf-8") == '{"verdict": "x", "doc_sha256": "y"}\n'
+
+
+@pytest.mark.skipif(not ax._ANCHORED_WRITES, reason="needs O_NOFOLLOW and dir_fd support")
+def test_dotdot_through_a_missing_dir_cannot_overwrite_an_existing_file(
+    order_api: str, tmp_path: Path
+) -> None:
+    """``missing/../README.md`` reads as absent, but names README.md once resolved."""
+    readme = tmp_path / "README.md"
+    readme.write_text("# docs\n", encoding="utf-8")
+
+    with pytest.raises(ax.InputError, match="not a prior evidence report"):
+        ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, Path("missing") / ".." / "README.md"))
+
+    assert readme.read_text(encoding="utf-8") == "# docs\n"
+    assert not (tmp_path / "missing").exists()
+
+
+@pytest.mark.skipif(not ax._ANCHORED_WRITES, reason="needs O_NOFOLLOW and dir_fd support")
+def test_dotdot_through_a_missing_dir_cannot_replace_a_directory(
+    order_api: str, tmp_path: Path
+) -> None:
+    (tmp_path / "keep").mkdir()
+
+    with pytest.raises(ax.InputError, match="symlink or not a regular file"):
+        ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, Path("missing") / ".." / "keep"))
+
+    assert (tmp_path / "keep").is_dir()
+
+
+@pytest.mark.skipif(not ax._ANCHORED_WRITES, reason="needs O_NOFOLLOW and dir_fd support")
+def test_dotdot_through_a_missing_dir_still_replaces_prior_evidence(
+    order_api: str, tmp_path: Path
+) -> None:
+    evidence = tmp_path / "evidence.json"
+    evidence.write_text(json.dumps(_evidence_report()), encoding="utf-8")
+
+    _, code = ax.cmd_run(
+        run_args([WORKED_EXAMPLE], order_api, Path("missing") / ".." / "evidence.json")
+    )
+
+    assert code == ax.EXIT_OK
+    assert json.loads(evidence.read_text(encoding="utf-8"))["executed"] == 4

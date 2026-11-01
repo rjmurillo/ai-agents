@@ -10,22 +10,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "api-doc-authoring"
 
 WORKED_EXAMPLE = SKILL_DIR / "references" / "worked-example.md"
 QTY_FIELD_V1 = "qty"
 QTY_FIELD_V2 = "quantity"
-
-
-def link_or_skip(link: Path, target: Path) -> None:
-    """Create ``link`` pointing at ``target``, or skip where symlinks are unavailable."""
-    try:
-        link.symlink_to(target)
-    except (OSError, NotImplementedError):
-        pytest.skip("symlink creation unavailable on this platform")
 
 
 def make_handler(qty_field: str) -> type[BaseHTTPRequestHandler]:

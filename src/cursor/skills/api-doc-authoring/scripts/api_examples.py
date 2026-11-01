@@ -354,7 +354,37 @@ def _is_prior_evidence(path: Path, size: int) -> bool:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
+    return _is_report(data)
+
+
+def _is_report(data: object) -> bool:
+    """Return whether parsed JSON has the shape of an evidence report."""
     return isinstance(data, dict) and "verdict" in data and isinstance(data.get("doc_sha256"), dict)
+
+
+def _check_entry_at(raw: str, parent_fd: int, name: str) -> None:
+    """Apply the target refusals to ``name`` inside ``parent_fd``, the entry the write replaces.
+
+    The path check reads ``raw`` while the anchored write uses the resolved parent. A path
+    such as ``missing/../README.md`` reads as absent through ``raw`` yet names an existing
+    file through the handle, so the refusals run again on the entry itself.
+    """
+    try:
+        info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(info.st_mode):
+        raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
+    data: object = None
+    if info.st_size <= _MAX_EVIDENCE_BYTES:
+        try:
+            fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+            with os.fdopen(fd, encoding="utf-8") as handle:
+                data = json.loads(handle.read())
+        except (OSError, ValueError):
+            data = None
+    if not _is_report(data):
+        raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
 
 
 def _parent_parts(raw: str, target: Path) -> tuple[str, ...]:
@@ -375,7 +405,8 @@ _DIR_FLAGS = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLL
 _ANCHORED_WRITES = (
     hasattr(os, "O_DIRECTORY")
     and hasattr(os, "O_NOFOLLOW")
-    and {os.open, os.rename, os.unlink} <= os.supports_dir_fd
+    and {os.open, os.rename, os.stat, os.unlink} <= os.supports_dir_fd
+    and os.stat in os.supports_follow_symlinks
 )
 
 
@@ -398,7 +429,7 @@ def _open_parent(parts: tuple[str, ...]) -> int:
 
 
 def _check_evidence_path(raw: str) -> Path:
-    """Validate ``--evidence`` before any example runs and return the target.
+    """Validate ``--evidence`` and return the target; runs before the examples and at write.
 
     Refuses a symlink at the target, a target that is not a regular file, and
     an existing file that is not a prior evidence report, so the flag cannot
@@ -428,8 +459,9 @@ def _write_evidence(target: Path, report: dict[str, Any]) -> None:
 
     A run can last ``RUN_DEADLINE_SECONDS`` after the first check, so every refusal
     is checked again here. Where ``_ANCHORED_WRITES`` holds, the parent is opened by a
-    no-follow walk and the temp file, rename, and cleanup all use that handle, so a
-    directory swapped for a symlink after the check cannot carry the write elsewhere.
+    no-follow walk, the refusals run on the entry it holds, and the temp file, rename,
+    and cleanup all use that handle, so a directory swapped for a symlink after the
+    check cannot carry the write elsewhere.
     """
     raw = str(target)
     _check_evidence_path(raw)
@@ -444,6 +476,7 @@ def _write_evidence(target: Path, report: dict[str, Any]) -> None:
     try:
         if _ANCHORED_WRITES:
             parent_fd = _open_parent(parts)
+            _check_entry_at(raw, parent_fd, target.name)
             src, dst = temporary, target.name
         fd = os.open(src, flags, 0o644, dir_fd=parent_fd)
         created = True
