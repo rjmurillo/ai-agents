@@ -46,7 +46,7 @@ Plugin consumers are not evidenced as blocked. Vendoring is the owner's decision
 
 ### Q4
 
-Extend the existing scanner in `invoke_reflect_nudge.py` with three tool-side friction counts. Emit a retrospective advisory when a threshold is crossed. Ship it on the Claude Code plugin surface after an ADR-084 amendment. Estimate: about 9.5 AI-assisted hours (about 9 human days) for the original wedge, 12.5 hours (12 days) with the 2026-11-01 amendment, plus the ADR review cycle and the AC-19 collection period. The task table holds the breakdown.
+Extend the existing scanner in `invoke_reflect_nudge.py` with three tool-side friction counts. Emit a retrospective advisory when a threshold is crossed. Ship it on the Claude Code plugin surface after an ADR-084 amendment. Estimate: about 9.5 AI-assisted hours (about 9 human days) for the original wedge, 13.5 hours (13 days) with the 2026-11-01 amendments, plus the ADR review cycle and the AC-19 collection period. The task table holds the breakdown.
 
 ### Q5
 
@@ -147,7 +147,8 @@ Sessions with heavy tool-side friction end with no prompt to run a retrospective
 
 - **FailureEvent**: one normalized tool call.
   - Required fields: `tool` (string) and `ok` (bool).
-  - Optional fields: `error`, `input`, and `target`.
+  - Optional fields: `error`, `input`, `target`, and `check` (bool).
+  - `check` marks a verification step: a test, build, lint, or typecheck run. AC-40 sets how it is derived when absent.
   - The transcript adapter and the caller-supplied JSON both produce FailureEvents.
 - **Fingerprint**: `<tool>|<normalized first error line>` (AC-29). A failure with no error text has none.
 - **ProgressKey**: `(tool, canonical input)`, or none when `input` is absent.
@@ -218,7 +219,8 @@ Idempotency: the same transcript and tier always produce the same marker key, so
 | Stop `systemMessage` stops rendering in a CLI update | Silent advisory | Real-CLI smoke fails | AC-17 |
 | State root sits inside any repository (for example a dotfile-managed `$HOME` repo, even when `cwd` is a nested project repo) | Both nudges silent for that user | AC-24 refusal, stderr status line | Set `XDG_STATE_HOME` or `LOCALAPPDATA` outside the repository. If `/` holds a `.git` entry, every root is refused and only the stderr line signals it |
 | An edit's own check passes, then an unrelated check fails | Spurious churn on the edited file | Churn on a file whose test passed | AC-32: any successful non-edit event ends the cycle. Found by Devin's review on PR #7035: the code at `7f3f4d255` clears pending cycles only when the success matches a failed key (`failure_loops.py:186-191`) |
-| An unrelated success such as `ls` ends a churn cycle early | Missed churn | Churn count lower than the edits suggest | Accepted: a missed nudge costs less than a false one. Open question Q-3 |
+| A passing verification that AC-40 does not recognize leaves a cycle open | Spurious churn on that file | Churn reported where the file's own check passed | The caller sets `check: true` (consumer A). TASK-001 measures the vocabulary's miss rate, and the AC-40 fixtures pin each listed head |
+| An incidental success (`ls`, `git status`, a read) ends a cycle early | Missed churn | Churn count lower than the edits suggest | Removed by AC-32 and AC-40: only a check ends a cycle on success (Q-3 resolution) |
 | Consumers A and B drift apart | Two definitions again | AC-36 fails | One module; AC-36 feeds one fixture through both adapters |
 | A tool name or error text reaches the agent nudge | Prompt injection (CWE-74) | AC-34 fails | Counts plus an allowlist of tool names only |
 | Bare-repository dotfile setup (for example yadm) leaves no `.git` entry | State written inside a repository's work tree | None: the `stat` walk cannot see it | Accepted gap; named in AC-24 |
@@ -297,7 +299,10 @@ No network, no model call, no writes inside any repository.
 32. **AC-32** The classifier shall track `edit_churn` with ChurnCycles:
     - **Opening.** A successful edit with a target opens a pending cycle for that target. Targets are normalized: backslashes become forward slashes, then `posixpath.normpath`, capped at 512 characters.
     - **Closing on failure.** The first fingerprinted failure of a non-edit tool closes every pending cycle and records that fingerprint as the cycle's outcome.
-    - **Closing on success.** Any successful non-edit FailureEvent ends every pending cycle with no outcome. This holds whether or not its key failed earlier, and whether or not it has a ProgressKey. AC-30's tally reset still needs a matching key. Fixtures: Devin's case (edit `a.py`, pass `pytest tests/a.py`, fail `pytest tests/b.py`, three times) reports no churn on `a.py`. A keyless success also ends the cycle.
+    - **Closing on success.** A successful check (AC-40) ends every pending cycle with no outcome, whether or not its key failed earlier and whether or not it has a ProgressKey. Any other successful non-edit event, such as `ls`, `git status`, or a file read, leaves pending cycles open. AC-30's tally reset still needs a matching key. Fixtures:
+      - Devin's case reports no churn on `a.py`: edit `a.py`, pass `pytest tests/a.py`, fail `pytest tests/b.py`, three times.
+      - A keyless successful check ends the cycle.
+      - Edit `a.py`, run `ls` and `git status` successfully, then fail `pytest tests/a.py` the same way three times. That reports churn on `a.py`.
     - **Firing.** `edit_churn` fires when one target has a set number of cycles that share a fingerprint: `--churn` (default 3) within the last `--window` events for consumer A, and 3 over the whole scan for consumer B.
     - **Exceptions.** A failed edit closes no cycle. A successful edit without a target opens none. A successful edit leaves other targets' pending cycles in place.
     - **Edit tools.** edit, write, multiedit, str_replace, create, apply_patch, and notebookedit.
@@ -317,8 +322,24 @@ No network, no model call, no writes inside any repository.
     On valid input it shall exit 0 with JSON. That JSON marks `fingerprint` and `target` as untrusted.
 36. **AC-36** When one fixture of 20 or fewer events runs through the transcript adapter (consumer B) and through CheckFailures input (consumer A), the classifier shall return the same FailureTally and the same per-target ChurnCycle counts for both.
 37. **AC-37** When an errored FailureEvent has no error text, the classifier shall count it as a `tool_error` and in an `unfingerprinted` count, and shall leave it out of every fingerprinted signal.
-38. **AC-38** When a transcript holds a non-sidechain `tool_use` and its `tool_result`, the transcript adapter shall emit exactly one FailureEvent for the pair, with the fields listed under Definitions. Its canonical input is the tool input serialized as JSON with sorted keys and no insignificant whitespace.
-39. **AC-39** When CheckFailures reads an event whose `input` is a valid JSON document, it shall canonicalize it the way AC-38 does. Any other `input` it shall use as given, after trimming, so the AC-36 parity fixture compares equal keys.
+38. **AC-38** When a transcript holds a non-sidechain `tool_use` and its `tool_result`, the transcript adapter shall emit exactly one FailureEvent for the pair, with the fields listed under Definitions. Its canonical input is the tool input serialized as JSON with:
+    - sorted keys;
+    - `,` and `:` as separators, with no other whitespace;
+    - non-ASCII characters escaped as `\uXXXX`.
+    When a JSON object repeats a key, the last value wins.
+39. **AC-39** When CheckFailures reads an event whose `input` is a string that parses as JSON, it shall canonicalize the parsed value the way AC-38 does: sorted keys, compact separators, `\uXXXX` escapes, and the last value winning on a repeated key. It shall use any other `input` string as given, after trimming. A non-string `input` is a wrong event shape (AC-35, exit 2). The AC-36 parity fixture therefore compares equal keys for equal inputs. Fixtures cover keys out of order, extra whitespace, non-ASCII text, a repeated key, and a non-JSON command string.
+40. **AC-40** A non-edit FailureEvent is a check under these rules:
+    - **Caller-marked.** Its `check` field is `true`. A `check: false` makes it not a check. A non-bool `check` is a wrong event shape (AC-35).
+    - **Derived when unmarked.** With no `check` field, the event is a check when both of these hold:
+      - its tool is a shell tool: bash, shell, or powershell;
+      - its command, after leading wrappers are stripped, starts with a check head.
+    - **Wrappers.** `cd <dir> &&`, `VAR=value` assignments, `uv run`, `npx`, `python -m`, `python3 -m`, and `timeout <n>`.
+    - **Test heads.** pytest, py.test, unittest, tox, nox, jest, vitest, and mocha.
+    - **Build heads.** make, mvn, and gradle; `npm`, `yarn`, or `pnpm` followed by `test`, `build`, `lint`, or `typecheck` (optionally after `run`); `cargo test`, `cargo build`, `cargo check`, and `cargo clippy`; `go test`, `go build`, and `go vet`; `dotnet test` and `dotnet build`.
+    - **Lint and typecheck heads.** tsc, eslint, ruff, mypy, pyright, shellcheck, and markdownlint.
+    - **Everything else.** Any other event is not a check: a read tool, a non-shell tool, or a shell command with no check head.
+    - **Both consumers.** The transcript adapter applies the derived rule, because transcripts carry no `check` field. CheckFailures uses the caller's field and falls back to the derived rule.
+    - **Fixtures.** One per listed head, one per wrapper, and the non-checks `ls`, `git status`, `cat`, and `echo pytest`.
 
 ## Out of scope
 
@@ -348,7 +369,51 @@ No network, no model call, no writes inside any repository.
 |---|---|
 | Q-1 (resolved 2026-10-31): both. Rule 2 narrows to "retro enforcement" and rule 2a adds the named exception. The ADR-084 Amendment Record gives the reasons. | ADR-084 review panel |
 | Q-2 (resolved 2026-10-31): yes. The ADR-084 rule 5 correction records zero vendored hooks at `9254b9945`. | ADR-084 review panel |
-| Q-3: Should only "check" commands end a ChurnCycle? Under AC-32 today, any successful non-edit event ends it, so an `ls` or `git status` can hide churn (fewer nudges, never a false one). A narrower rule needs a notion of check commands, or a caller-marked field. | Richard Murillo |
+| Q-3 (resolved 2026-11-01): only a successful check ends a ChurnCycle (AC-32, AC-40). Evidence is under "Q-3 evidence" below. | Richard Murillo |
+
+### Q-3 evidence
+
+Measured 2026-11-01 over the same corpus location as Q5, `~/.claude/projects/*ai-agents*/*.jsonl`:
+
+- 8,490 transcripts, 3,577 MiB. 5,476 of them hold no tool calls.
+- 29,028 non-sidechain tool events.
+
+The replay uses a check vocabulary close to AC-40. These are the successes that fell inside open cycles:
+
+| Success kind | Count |
+|---|---|
+| Check commands | 2,158 |
+| Other shell commands | 4,820 |
+| Read tools | 1,009 |
+| Other tools | 804 |
+
+So 75 percent of the successes that end a cycle under the old rule are not checks.
+
+The three cycle-end rules give these results:
+
+| Cycle-end rule | edit_churn fires | Cycles closed by a fingerprinted failure | Cycles ended by a success |
+|---|---|---|---|
+| Any non-edit success (AC-32 as of `8dd4f43d5`) | 1 | 15 | 649 |
+| Only a check success (adopted) | 1 | 46 | 414 |
+| Only a success whose own key failed (`failure_loops.py` at `7f3f4d255`) | 5, in 3 sessions | 154 | 0 |
+
+What the numbers show:
+
+- The adopted rule fires as often as the old one.
+- It lets three times as many cycles reach a real outcome, so churn evidence can build up.
+- The last rule keeps Devin's false positive.
+- Churn is rare in this corpus under every rule. The default threshold of 3 is unmeasured for false positives, and TASK-001 measures it.
+
+Prior art, read by a research subagent on 2026-11-01 (raw files on each project's default branch):
+
+- **TokenEconomizer**
+  - `tokeneconomizer/loopguard/state.py:17-19` counts test runs by a command regex.
+  - `tokeneconomizer/microskills/observe.py` holds runner, task, and build vocabularies. It strips wrappers first, at lines 112 to 124.
+  - It excludes read tools from failure detection.
+- **Aider** (`aider/coders/base_coder.py:318-321`, `:1599-1625`) uses caller-declared `--test-cmd` and `--lint-cmd`, judged by exit code.
+- **OpenHands and SWE-agent.** OpenHands' `stuck_detector.py` detects exact repetition only. SWE-agent has no loop detector and lints inside its edit tool. Neither has a check concept.
+
+No source ends an edit cycle on any non-edit success. AC-40 combines a caller-marked field, as Aider has, with a vocabulary fallback, as TokenEconomizer has.
 
 ## CVA summary
 
@@ -375,14 +440,14 @@ No network, no model call, no writes inside any repository.
 
 ## ADR cross-reference
 
-Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, AC-29 to AC-32, and AC-36 to AC-38 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35 and AC-39) ships in the plugin when #7035 merges, because `src/claude/skills/` is plugin source. It sits outside rule 2a, because it registers no hook. ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:203`).
+Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, AC-29 to AC-32, AC-36 to AC-38, and AC-40 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35 and AC-39) ships in the plugin when #7035 merges, because `src/claude/skills/` is plugin source. It sits outside rule 2a, because it registers no hook. ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:203`).
 
 ## Tasks (sequenced)
 
 | ID | Task | ACs | Depends on | Estimate (human / AI) |
 |---|---|---|---|---|
-| TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; measure both `failed_retry` definitions (the AC-03 rule and Q5's broader repeat count); measure SLI 6 for the consumer A defaults (3, 3, 20) and set its SLO; record billed cost; pick weights and default; report SLI 4; measure the SLI 5 baseline and build the same-session follow check for the kill criterion; write the SLI 2 label rubric before any labeling | AC-19 | none | 3 days / 3.5 h |
-| TASK-002 | Shared FailureClassifier and transcript adapter, with fixture tests. Its location follows the generated-lib rules in `.claude/AGENTS.md`. AC-01 to AC-04 fix the counters, so calibration is not needed first. Includes the AC-32 fixtures for Devin's cycle-end case | AC-01 to AC-04, AC-29 to AC-32, AC-37, AC-38 | none | 1.5 days / 1.5 h |
+| TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; measure both `failed_retry` definitions (the AC-03 rule and Q5's broader repeat count); measure SLI 6 for the consumer A defaults (3, 3, 20) and set its SLO; record billed cost; pick weights and default; report SLI 4; measure the SLI 5 baseline and build the same-session follow check for the kill criterion; write the SLI 2 label rubric before any labeling; measure the AC-40 vocabulary's miss rate on passing verification runs | AC-19 | none | 3.5 days / 4 h |
+| TASK-002 | Shared FailureClassifier and transcript adapter, with fixture tests. Its location follows the generated-lib rules in `.claude/AGENTS.md`. AC-01 to AC-04 fix the counters, so calibration is not needed first. Includes the AC-32 fixtures for Devin's cycle-end case and the AC-40 check vocabulary with its fixtures | AC-01 to AC-04, AC-29 to AC-32, AC-37, AC-38, AC-40 | none | 2 days / 2 h |
 | TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20, AC-23 | TASK-002 | 1 day / 1 h |
 | TASK-004 | Exit, no-block, clean-tree, and input-limit tests; reorder `_safe_marker_dir` so the state-root walk runs before any `mkdir` | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
 | TASK-005 | ADR-084 amendment with debate log | Q-1, Q-2 | none | 2 days / 2 h plus review |
@@ -390,4 +455,4 @@ Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudg
 | TASK-008 | Post-ship consumer A review: label `check-failures` nudges from the #7035 merge on, measure SLI 6 and SLI 7, retune the defaults, and bring the 90-day decision to the owner | SLI 6, SLI 7 (no AC) | TASK-007 | 1 day / 1 h |
 | TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance with each of its nine items mapped to this use (item 3: a new authorizing issue; item 4: ADR-084 rule 2a; item 5: Copilot users get no nudge; item 7: the reintroduction trigger is Copilot documenting an advisory field and `transcript_path`, replacing the #5013 gates; item 8: the exclusion is conditional, so the cleanup obligation applies only if it becomes permanent; items 1, 2, 6, and 9 as written), the `dispatch_groups.json` `description` wording for a non-security exclusion, `tool-use-hook-bar.md` wording, ledger text; launcher changes for a Stop advisory group (systemMessage pass-through, fail-open manifest load) | AC-16 to AC-18, AC-21, AC-25 to AC-28 | TASK-004, TASK-005 | 2 days / 2 h |
 
-TASK-002 and TASK-007 may ship in one PR (#7035), so AC-36 is tested where the classifier lands. Total: 12 human days, 12.5 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.
+TASK-002 and TASK-007 may ship in one PR (#7035), so AC-36 is tested where the classifier lands. Total: 13 human days, 13.5 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.
