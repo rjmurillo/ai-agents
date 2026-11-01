@@ -14,6 +14,13 @@ Compares ruleset_params_baseline.json against the live ruleset fetched via
 
 Exits non-zero when any of the above drifts.
 
+`bypass_actors` is only returned to callers with admin access to the
+repository. The Actions GITHUB_TOKEN cannot see it: the key is absent from
+the response. That is a distinct state, "not observable with this token",
+and it is not drift. It is logged as such and the comparison is skipped;
+whenever the key is present (including an empty list) it is compared as
+before, so a token that can see it still catches an added or removed actor.
+
 Usage (local):
     python scripts/validation/check_ruleset_params_drift.py
 
@@ -21,7 +28,8 @@ Usage (CI, offline / no token):
     python scripts/validation/check_ruleset_params_drift.py --offline
 
 EXIT CODES (ADR-035):
-    0 - all state matches or --offline skipped the live check
+    0 - all observable state matches (bypass_actors is skipped when the
+        token cannot see it) or --offline skipped the live check
     1 - drift detected
     2 - configuration error (missing baseline, bad JSON, missing/malformed
         'parameters' or 'ruleset' section)
@@ -56,6 +64,14 @@ REPO = "rjmurillo/ai-agents"
 # no second baseline of the required contexts may exist, so this module
 # excludes the key from both value comparison and unknown-key detection.
 DELEGATED_PARAM_KEYS: frozenset[str] = frozenset({"required_status_checks"})
+
+BYPASS_ACTORS_NOT_OBSERVABLE_MESSAGE = (
+    "NOT OBSERVABLE: bypass_actors was absent from the API response. "
+    "GitHub only returns it to callers with admin access, so this token "
+    "(for example the Actions GITHUB_TOKEN) cannot see it. This is not drift. "
+    "bypass_actors was not compared; run this script with an admin token to "
+    "check it."
+)
 
 
 def load_baseline() -> dict[str, Any]:
@@ -133,11 +149,21 @@ def extract_live_params(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_live_ruleset_state(data: dict[str, Any]) -> dict[str, Any]:
-    """Extract the ruleset's top-level `enforcement` and `bypass_actors`."""
+    """Extract the ruleset's top-level `enforcement` and `bypass_actors`.
+
+    `bypass_actors` is None when the API response omits it (or returns null),
+    which is what a token without admin access gets. An empty list is a real
+    observation (no bypass actors) and stays an empty list.
+    """
     return {
         "enforcement": data.get("enforcement"),
-        "bypass_actors": data.get("bypass_actors", []),
+        "bypass_actors": data.get("bypass_actors"),
     }
+
+
+def bypass_actors_observable(live_ruleset: dict[str, Any]) -> bool:
+    """Return True when the live payload carried a `bypass_actors` value."""
+    return live_ruleset.get("bypass_actors") is not None
 
 
 def check_drift(baseline: dict[str, Any], live: dict[str, Any]) -> list[str]:
@@ -196,10 +222,14 @@ def check_ruleset_drift(baseline: dict[str, Any], live_ruleset: dict[str, Any]) 
     """Compare baseline top-level ruleset state against live state.
 
     `live_ruleset` is the shape extract_live_ruleset_state returns:
-    {"enforcement": ..., "bypass_actors": [...]}. `bypass_actors` is compared
-    order-insensitively (GitHub may return the list in a different order
-    without any actor having changed), but an added, removed, or modified
-    actor is still reported.
+    {"enforcement": ..., "bypass_actors": [...] or None}. `bypass_actors` is
+    compared order-insensitively (GitHub may return the list in a different
+    order without any actor having changed), but an added, removed, or
+    modified actor is still reported.
+
+    A None `bypass_actors` means the token could not see the field. That is
+    not drift: the comparison is skipped and main() reports the state with
+    bypass_actors_observable().
     """
     drifts: list[str] = []
     baseline_ruleset = baseline.get("ruleset", {})
@@ -211,8 +241,11 @@ def check_ruleset_drift(baseline: dict[str, Any], live_ruleset: dict[str, Any]) 
             f"  enforcement: expected={expected_enforcement!r}, actual={actual_enforcement!r}"
         )
 
+    if not bypass_actors_observable(live_ruleset):
+        return drifts
+
     expected_actors = _normalize_bypass_actors(baseline_ruleset.get("bypass_actors", []))
-    actual_actors = _normalize_bypass_actors(live_ruleset.get("bypass_actors", []))
+    actual_actors = _normalize_bypass_actors(live_ruleset["bypass_actors"])
     if actual_actors != expected_actors:
         drifts.append(f"  bypass_actors: expected={expected_actors!r}, actual={actual_actors!r}")
 
@@ -240,13 +273,22 @@ def main(argv: list[str] | None = None) -> int:
     drifts = check_drift(baseline, live_params)
     drifts += check_ruleset_drift(baseline, live_ruleset_state)
 
+    observable = bypass_actors_observable(live_ruleset_state)
+    if not observable:
+        print(BYPASS_ACTORS_NOT_OBSERVABLE_MESSAGE)
+
     if drifts:
         print("DRIFT DETECTED between baseline and live ruleset:")
         print("\n".join(drifts))
         print(f"\nUpdate {BASELINE_PATH.name} after confirming the change is intentional.")
         return EXIT_DRIFT
 
-    print("OK: all recorded ruleset parameters match live values.")
+    if observable:
+        print("OK: all recorded ruleset parameters match live values.")
+    else:
+        print(
+            "OK: all observable ruleset parameters match live values (bypass_actors not compared)."
+        )
     return EXIT_OK
 
 
