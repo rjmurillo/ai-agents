@@ -28,11 +28,10 @@ filenames alone, so nothing reads what an ADR says about its own lifecycle state
 Every defect in the issue #5191 audit reached `main` unopposed: 59 of 98 records
 carry no frontmatter, 6 are `proposed` while `implemented: true`, ADR-091 claims
 to supersede ADR-079 while ADR-079 names ADR-092 as its successor, and 7 records
-carry frontmatter with no `## Status` section. This gate closes the first and
-third of those (`frontmatter-parses`, `supersession-target-exists`); the other
-two are intentionally not violations here, not gaps this gate missed:
-`implemented: true` with `proposed` is deliberate per ADR-098 (the removed
-eighth check below), and `prose-frontmatter-agree` skips a record with no
+carry frontmatter with no `## Status` section. This gate closes the first,
+second, and third of those (`frontmatter-parses`, `implemented-implies-decided`,
+restored 2026-11-01, and `supersession-target-exists`). The fourth is
+intentionally not a violation: `prose-frontmatter-agree` skips a record with no
 `## Status` section instead of flagging it, since ADR-073 makes the frontmatter
 enum authoritative (Copilot, PR #5209 round-7 review).
 
@@ -67,6 +66,7 @@ Checks, each named so the baseline tracks them separately:
                                   (both directions), plus no supersession cycles
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
+    implemented-implies-decided  `implemented: true` requires a status other than `proposed`
     prose-frontmatter-agree      a `## Status` section, when present, opens with the frontmatter
                                   enum and says more than that word (ADR-073, amended 2026-09-29)
     status-edge-consistency      status: superseded iff a superseded-by edge resolves
@@ -75,6 +75,8 @@ Checks, each named so the baseline tracks them separately:
     section-structure            Context, Decision, and Consequences are each present under a
                                   sanctioned heading: the canonical set or the MADR set
                                   (issue #5196)
+    size-cap                     a record may not run past 500 lines; a record already past the
+                                  cap may not grow into a further 50-line step
     review-by-format             an optional `review-by` is a calendar date written YYYY-MM-DD
                                   (issue #5193)
     review-by-past-due           a `proposed` or `accepted` record whose `review-by` date has
@@ -109,12 +111,16 @@ and only the format check reads it. The checks cover calendar deadlines only. A
 condition-triggered revisit ("if the eval sets change") is not a date and carries no
 `review-by`; inventing one would make the gate fire on a deadline the prose never made.
 
-A check called `implemented-implies-decided` (`implemented: true` with
-`status: proposed`) was removed, not replaced by `status-edge-consistency`
-above: ADR-073's own schema defines `implemented` as flipping at first
-merged change independent of decision state, and ADR-098 documents that
-exact pairing as deliberate. See `_check_lifecycle_rules` for the full
-removal rationale.
+`implemented-implies-decided` (`implemented: true` with `status: proposed`) was
+removed in PR #5209 on the argument that ADR-073 defines `implemented` as flipping at
+first merged change, independent of decision state, and ADR-098 called the pairing
+deliberate. The repository owner reversed that on 2026-11-01: sixteen records sat in
+that state, so `proposed` no longer said whether the decision was in force. The check
+is back. `implemented` still flips at first merged change; what the gate now refuses is
+a record that is shipped and still reads `proposed`. Records that cannot move to
+`accepted` without a prose or citation edit (for example a `## Status` section that
+still opens with `Proposed`) stay in the baseline until that edit is made. See
+`_check_implemented_implies_decided`.
 
 Checks 2 to 10 need parseable frontmatter, so a record failing `frontmatter-parses`
 contributes one violation, not ten. The same containment runs downstream:
@@ -186,10 +192,12 @@ CHECKS: tuple[str, ...] = (
     "supersession-reciprocal",
     "supersession-target-exists",
     "proposed-cannot-supersede",
+    "implemented-implies-decided",
     "prose-frontmatter-agree",
     "status-edge-consistency",
     "cited-paths-exist",
     "section-structure",
+    "size-cap",
     "review-by-format",
     "review-by-past-due",
     "review-by-prose-date",
@@ -241,6 +249,18 @@ SECTION_EQUIVALENTS: tuple[tuple[str, frozenset[str], tuple[int, ...]], ...] = (
 # never a record's own section.
 _SECTION_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 
+# Size cap (`size-cap`). 500 is the repository's file-size ceiling (the taste ratchet
+# counts every tracked file past it), and it sits at the 87th percentile of the 120
+# records on 2026-11-01: median 267 lines, p75 391, p90 525, 104 of 120 at or under 500.
+# The 16 records past it are grandfathered in `adr_lifecycle_baseline.json`. A record
+# past the cap yields one violation per started step of `SIZE_STEP_LINES` lines over it,
+# so the baseline holds a record's size as well as its name. Growing into the next step
+# is a new violation identity count and fails; shrinking passes. A bare one-per-record
+# violation would let a grandfathered ADR grow without limit, which is the drift this
+# check exists to stop.
+SIZE_CAP_LINES = 500
+SIZE_STEP_LINES = 50
+
 _BASELINE_PATH = Path(__file__).with_name("adr_lifecycle_baseline.json")
 
 _BASELINE_SCHEMA_VERSION = "2"
@@ -277,6 +297,7 @@ class Record:
     path: str
     frontmatter: dict[str, Any] | None
     body: str
+    lines: int = 0
 
 
 def _split_frontmatter(text: str) -> tuple[str | None, str]:
@@ -459,10 +480,11 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
         empty = Record(number, rel, None, "")
         return empty, Violation("frontmatter-parses", rel, f"is not valid UTF-8: {exc}")
     raw, body = _split_frontmatter(text)
+    lines = len(text.splitlines())
     duplicate = _duplicate_key(raw)
     if duplicate is not None:
         return (
-            Record(number, rel, None, body),
+            Record(number, rel, None, body, lines),
             Violation(
                 "frontmatter-parses",
                 rel,
@@ -473,10 +495,10 @@ def _read_record(path: Path, number: int, rel: str) -> tuple[Record, Violation |
     frontmatter = _parse_yaml_frontmatter(text)
     if frontmatter is None:
         return (
-            Record(number, rel, None, body),
+            Record(number, rel, None, body, lines),
             Violation("frontmatter-parses", rel, _frontmatter_reason(raw, text)),
         )
-    return Record(number, rel, frontmatter, body), None
+    return Record(number, rel, frontmatter, body, lines), None
 
 
 def collect_records(adr_dir: Path, repo_root: Path) -> tuple[list[Record], list[Violation]]:
@@ -789,21 +811,7 @@ def _check_prose(record: Record) -> list[Violation]:
 
 
 def _check_lifecycle_rules(record: Record) -> list[Violation]:
-    """`proposed-cannot-supersede`.
-
-    This function used to also own `implemented-implies-decided`, blocking
-    `implemented: true` with `status: proposed`. Removed (Copilot, PR #5209):
-    ADR-073's own schema comment defines `implemented` as flipping "at first
-    merged change", independent of decision state, and ADR-098 documents
-    `status: proposed` with `implemented: true` as a deliberate pairing for
-    exactly this reason (a governance ADR's own acceptance is a maintainer
-    act, not something its own debate log can self-assert). The corpus
-    already carries six such records by design (ADR-075, ADR-077, ADR-078,
-    ADR-089, ADR-093, ADR-098; see ADR-055's Provenance section), all
-    baselined at the removed check's full count. A blocking gate against a
-    pattern the canonical schema and a live record both call deliberate is a
-    gate encoding an invariant the corpus rejects, not the corpus drifting.
-    """
+    """`proposed-cannot-supersede`."""
     if _status_of(record) != "proposed":
         return []
     entries = _supersedes_entries(record)
@@ -814,6 +822,60 @@ def _check_lifecycle_rules(record: Record) -> list[Violation]:
         "cannot retire an accepted decision."
     )
     return [Violation("proposed-cannot-supersede", record.path, detail)]
+
+
+def _check_implemented_implies_decided(record: Record) -> list[Violation]:
+    """`implemented-implies-decided`: shipped work cannot still read `proposed`.
+
+    Only a boolean `true` counts. ADR-073 defines `implemented` as a boolean that
+    flips at first merged change, so a quoted "true" is not the field's value. No
+    check in this gate validates the type of `implemented`, so review owns that
+    defect. A record that is `proposed` and `implemented: false` is the normal
+    pre-merge state and passes.
+
+    History: this check existed, was removed in PR #5209 as contradicting ADR-073
+    and ADR-098, and was restored on 2026-11-01 by the repository owner. The fix
+    for a hit is to move the record to `accepted` (or `rejected`, `deprecated`,
+    `superseded`), or to set `implemented: false` when nothing has merged.
+    """
+    if _frontmatter_of(record).get("implemented") is not True:
+        return []
+    if _status_of(record) != "proposed":
+        return []
+    detail = (
+        "status is proposed but implemented is true, so the decision is already in "
+        "force. Move status to accepted (the debate log or owner approval is the "
+        "evidence), or set implemented: false if nothing has merged."
+    )
+    return [Violation("implemented-implies-decided", record.path, detail)]
+
+
+def _check_size(record: Record) -> list[Violation]:
+    """`size-cap` for one record.
+
+    A record at or under `SIZE_CAP_LINES` passes. A record over it yields one
+    violation per started `SIZE_STEP_LINES` lines past the cap, so 501 lines is
+    one violation, 551 is two, and the baseline pins how far past the cap a
+    grandfathered record already runs. The count is read from the file as
+    written, frontmatter included, so it matches what a reader scrolls and what
+    the whole-tree file-size ratchet counts. Applies to every record that can be
+    read and decoded as UTF-8, parseable frontmatter or not; an unreadable or
+    undecodable record has no line count and reports only `frontmatter-parses`.
+    """
+    over = record.lines - SIZE_CAP_LINES
+    if over <= 0:
+        return []
+    steps = -(-over // SIZE_STEP_LINES)
+    return [
+        Violation(
+            "size-cap",
+            record.path,
+            f"{record.lines} lines against the {SIZE_CAP_LINES}-line cap "
+            f"(step {step} of {steps}, {SIZE_STEP_LINES} lines each); "
+            "split it, or move detail to an analysis or critique file and link it",
+        )
+        for step in range(1, steps + 1)
+    ]
 
 
 def _check_structure(record: Record) -> list[Violation]:
@@ -1150,12 +1212,14 @@ def scan(adr_dir: Path, repo_root: Path, today: date | None = None) -> list[Viol
     known = {record.number for record in records}
     tracked = tracked_paths(repo_root)
     for record in records:
+        violations.extend(_check_size(record))
         if record.frontmatter is None:
             continue
         violations.extend(_check_identity(record))
         violations.extend(_check_cited_paths(record, repo_root, tracked))
         violations.extend(_check_prose(record))
         violations.extend(_check_lifecycle_rules(record))
+        violations.extend(_check_implemented_implies_decided(record))
         violations.extend(_check_structure(record))
         violations.extend(_check_review_by(record, today))
     by_number = {r.number: r for r in records if r.frontmatter is not None}

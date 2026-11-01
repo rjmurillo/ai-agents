@@ -57,7 +57,9 @@ _REPLY_DATA: dict = {
     },
 }
 _NOOP_GUARD: dict = {"action": "NOOP", "reason": "auto_merge_not_armed"}
-_ARGS = ["--thread-id", "PRRT_abc", "--pull-request", "42", "--body", "Fixed.", "--resolve"]
+_REPLY_ARGS = ["--thread-id", "PRRT_abc", "--pull-request", "42", "--body", "Fixed."]
+# --resolve needs an identity binding (exit 2 otherwise); aaa111 matches _UNRESOLVED.
+_ARGS = [*_REPLY_ARGS, "--resolve", "--expected-head-sha", "aaa111"]
 
 
 def _run(states, resolve_result=None, guard=None, args=None):
@@ -149,8 +151,7 @@ class TestReplyPostedReportedOnPartialFailure:
 
     def test_identity_change_after_reply_reports_reply_posted(self, capsys):
         moved = {**_UNRESOLVED, "pullRequest": {**_UNRESOLVED["pullRequest"], "headRefOid": "ccc"}}
-        args = [*_ARGS, "--expected-head-sha", "aaa111"]
-        rc, calls = _run([_UNRESOLVED, moved], args=args)
+        rc, calls = _run([_UNRESOLVED, moved], args=_ARGS)
 
         assert rc == 1
         assert calls == ["reply"]
@@ -162,8 +163,7 @@ class TestReplyPostedReportedOnPartialFailure:
 class TestNoMutationReportsReplyNotPosted:
     def test_identity_change_before_reply_reports_not_posted(self, capsys):
         moved = {**_UNRESOLVED, "pullRequest": {**_UNRESOLVED["pullRequest"], "headRefOid": "ccc"}}
-        args = [*_ARGS, "--expected-head-sha", "aaa111"]
-        rc, calls = _run([moved], args=args)
+        rc, calls = _run([moved], args=_ARGS)
 
         assert rc == 1
         assert calls == []
@@ -197,7 +197,7 @@ class TestSuccessReportsBothFields:
         assert data["thread_resolved"] is True
 
     def test_reply_without_resolve(self, capsys):
-        rc, calls = _run([_UNRESOLVED], args=_ARGS[:-1])
+        rc, calls = _run([_UNRESOLVED], args=_REPLY_ARGS)
 
         assert rc == 0
         assert calls == ["reply"]

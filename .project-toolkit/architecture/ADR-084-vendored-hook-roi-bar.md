@@ -29,9 +29,20 @@ security carve-out under "What this ADR does NOT do" is unchanged and still
 binds: this amendment tightens an ROI preference, and neither it nor the
 original bar authorizes retiring a genuine security control.
 
+Amendment proposed 2026-10-31 (requested by repo-owner @rjmurillo for
+REQ-048). It adds rule 2a, which separates retro enforcement from an advisory
+nudge, narrows rule 2's word "retros" to "retro enforcement", and corrects
+rule 5's enforcement record. Rule 2a, the rule 2 wording change, and the
+duties the rule 5 correction adds are not binding until their adr-review
+closes and the owner accepts them. The correction's facts hold now; the frontmatter
+`status: accepted` covers the original ADR and its 2026-08-18 amendment only.
+The debate record is
+`.project-toolkit/critique/ADR-084-debate-log-2.md`. Rules 1, 3, 4, and 6 and
+the security carve-out are unchanged.
+
 ## Date
 
-2026-07-20; amended 2026-08-18
+2026-07-20; amended 2026-08-18; amendment proposed 2026-10-31
 
 ## Context
 
@@ -85,10 +96,76 @@ hooks. Concretely, the bar is six rules:
 1. **Consumer-repo value is required.** A vendored hook MUST state the value it
    delivers in a consumer's own repo. "Enforces our protocol" is disqualifying:
    a consumer does not run this project's protocol.
-2. **Internal enforcement is not vendored.** Session logs, ADR debate, retros,
-   install parity, plugin version bumps, generator drift, and PR-description
-   shape are internal concerns. They live in Lefthook and CI only, never in
-   a vendored surface.
+2. **Internal enforcement is not vendored.** Session logs, ADR debate, retro
+   enforcement, install parity, plugin version bumps, generator drift, and
+   PR-description shape are internal concerns. (Proposed 2026-10-31, not
+   yet binding: "retro enforcement" replaces the accepted word "retros".)
+   They live in Lefthook and CI only, never in a vendored surface.
+
+   **2a. One advisory nudge is not enforcement (proposed 2026-10-31, not
+   yet binding).** Rule 2 bars enforcing this repository's protocol. It does
+   not bar telling a consumer, about their own session, that the shipped
+   `retrospective` skill may help. Rule 2a covers one hook only: the REQ-048
+   friction nudge, an extension of `invoke_reflect_nudge.py`. Any other
+   advisory hook needs its own amendment. The hook may ship vendored only when
+   all seven conditions hold:
+
+   a. It only advises. It never emits a `decision` field, and it exits 0 on
+      every path.
+   b. It writes nothing inside any repository it can detect. Its own state
+      lives in per-user storage outside every repository it can detect, and
+      it refuses a state root when it or any ancestor directory holds a
+      `.git` entry. Bare-repository setups that leave no `.git` entry are an
+      accepted gap (REQ-048 AC-24).
+   c. Its output is fixed text plus counts. It never echoes transcript,
+      tool, or repository content.
+   d. It runs on `Stop` only. The per-call events in rule 6 are out of reach,
+      and so is every event whose output enters model context, such as
+      `UserPromptSubmit` and `SessionStart`.
+   e. It opens only its stdin payload, the file at that payload's
+      `transcript_path`, and its own state, and it reads a closed list of
+      environment variables. The condition b refusal may also `stat`
+      ancestor directories. REQ-048 AC-22 names the variable list and the
+      launcher's own reads.
+   f. Its output goes to a user-visible channel only, never into model
+      context. Its text addresses the user, not the agent, and gives the
+      agent no instruction.
+   g. It has a documented off switch and a bounded firing rate. One
+      environment variable turns the whole hook off, and the hook reads it
+      before it opens the transcript. The `Customer value:` line names the
+      variable and its off values. The docstring states the firing bound.
+
+   Conditions a, e, and f bind the whole plugin path, launcher included.
+   Condition e does not count the plugin's or Python's own files. The
+   launcher may read two consumer-repo plugin manifests for one name field
+   and echoes nothing from them (REQ-048 AC-28). REQ-048 holds each
+   condition's testable form; its condition-to-AC map is the TASK-006
+   review checklist.
+
+   Retro enforcement stays internal. That means blocking a turn until a retro
+   exists, writing skeleton files, demanding a fill, or instructing the agent
+   to run one. PR #3372 (issue #3349, `b862e14e9`, 2026-07-26) deleted exactly
+   that hook. Rule 2a does not reopen it. A hook that fails any of a to g is
+   enforcement under rule 2.
+
+   Sunset: rule 2a lapses when REQ-048's kill criterion removes the friction
+   branch, when the owner drops the friction branch under REQ-048 AC-19, or
+   when the hook leaves the vendored surface. The removing PR
+   records the lapse in this ADR. The removing PR also removes the plugin
+   dispatch group per Rollback, unless a new amendment covers what remains.
+
+   The hook MUST stay out of the Copilot tree. Its dispatch group sets
+   `copilotExclude: true` and meets ADR-085 Decision 7's generic field
+   governance. REQ-048 TASK-006 maps each of its nine items to this use. The
+   field is used here for an output-contract gap, not a security judgment,
+   and this amendment owns that reason. A generator test MUST show that
+   `src/copilot-cli/hooks/hooks.json` carries no entry for it. The reason is in
+   the Amendment Record: Copilot documents neither an advisory field nor
+   `transcript_path`.
+
+   The hook also records a fresh runtime contract in ADR-071. ADR-071's
+   recorded contracts describe deleted code, and `tool-use-hook-bar.md` "What
+   a first re-add owes" names that duty.
 3. **Prefer zero-spawn host-native surfaces.** When the host provides a
    declarative surface that achieves the same effect without spawning a process,
    use it. `permissions.allow` and `permissions.deny` in settings and static
@@ -132,6 +209,25 @@ hooks. Concretely, the bar is six rules:
 
    A companion test fails when the plugin surface is empty, because a zero-file
    corpus would let the presence check pass while examining nothing.
+
+   **Correction (2026-10-31): nothing enforces rule 5 today.** The two tests
+   named above, `test_every_vendored_hook_states_its_customer_value` and
+   `test_the_customer_value_check_examines_a_nonempty_surface`, were deleted in
+   `f79e70c01` (2026-08-19, #5172, ADR-097) when the vendored surface emptied.
+   The presence test was added in `2c85d2547` (2026-08-18 18:38 -0700) and
+   deleted in `f79e70c01` (2026-08-19 16:52 -0700), so it enforced rule 5 for
+   about 22 hours. In -0700 local time, the "Enforced since 2026-08-19" date
+   above is one day late. In UTC (`2c85d2547` is 2026-08-19T01:38Z) it is
+   correct.
+   Do not count the test as a working control.
+   Measured at `9254b9945` (2026-10-31): `src/claude/hooks.json` registers
+   zero hooks, and no dispatch group carries `surface: "plugin"`. The
+   paragraphs above record what held before that date. Proposed with rule
+   2a, not yet binding: each PR that makes the vendored surface non-empty
+   MUST restore both tests. That PR MUST
+   NOT merge until they pass. Until a guard test detects a new vendored
+   registration, this MUST binds only through review. The Amendment Record
+   names the open item.
 
    What the test does NOT do is judge whether the stated value is real. That
    stays with human review at ADR and PR time, as it always did.
@@ -189,11 +285,13 @@ hooks. Concretely, the bar is six rules:
 
 - The vendored surface trends toward customer value, not internal ceremony. A
   plugin reader can tell what each shipped hook does for them.
-- Rule 5 is mechanically enforced at the point a hook is added, by a test in
+- (Historical, 2026-08-18.) Rule 5 is mechanically enforced when a hook is added, by a test in
   the parity suite rather than the standalone CI check first proposed. That test
   is the ratchet against re-accretion. It went 29 days unbuilt while the ADR
   described it as planned, which is the reason the rule now names the file that
-  enforces it instead of an intention.
+  enforces it instead of an intention. Correction (2026-10-31): that test was
+  deleted in `f79e70c01`, so nothing enforces rule 5 today. See the rule 5
+  correction.
 - Rules 3 and 4 push cost off the consumer's hot path: zero-spawn host-native
   surfaces where possible, and no dead hooks spawning per call to no-op.
 - Internal enforcement does not weaken. It moves to Lefthook and CI. CI gates
@@ -214,8 +312,9 @@ hooks. Concretely, the bar is six rules:
   install command closes the local-commit gap, so the enforcement point moves
   but does not disappear.
 - Rules 1, 2, 3, 4, and 6 are policy, not code. They bind future additions only
-  if reviewers apply them. Rule 5 is the single mechanically checkable clause and
-  is now enforced; the rest are not, and this ADR should not be read as claiming
+  if reviewers apply them. Rule 5 is the single mechanically checkable clause. It
+  was enforced for about 22 hours in 2026-08 and is not enforced today (see the
+  rule 5 correction); the rest are not, and this ADR should not be read as claiming
   otherwise.
 
 ### What this ADR does NOT do
@@ -305,6 +404,78 @@ What the amendment does not change: rules 1, 2, 4, and 5; the security
 carve-out; and rule 3's original reading for every event other than the two
 tool-use events.
 
+**2026-10-31, rule 2a and the rule 5 correction (proposed).** REQ-048 asks for
+a Stop hook that suggests `/retrospective` when a session shows heavy tool-side
+friction. Rule 2 as written listed "retros" as internal, so any such hook was
+barred, even one that only advises. The word was meant for this repository's
+retro protocol, not for a consumer's own sessions. The hook that motivated the
+word was the since-deleted `invoke_auto_retrospective.py`. It wrote skeleton files at Stop and
+returned `decision: "block"`, which dirtied the tree and kept turns alive
+(#3140). PR #3372 (issue #3349) deleted it in `b862e14e9`. Rule 2a draws the
+line at that behavior. Writing, blocking, demanding, or instructing the agent
+is enforcement. A fixed-text, counts-only, non-blocking line to the user about
+their own session is not.
+
+Why condition d names `Stop` alone (round 1, critic P0-1). An earlier draft
+allowed any per-turn event. `UserPromptSubmit` and `SessionStart` output
+enters model context, so a fixed line there could steer the agent and still
+pass every other condition. Conditions d and f close that path together.
+
+Evidence that the gap exists, measured 2026-10-31 (REQ-048 Q5): 8,305
+Claude Code transcripts from 30 days held 550 errored tool results. 11
+sessions had 10 or more errors plus repeated identical calls. The existing correction
+nudge stayed silent on all 11. Scope: every transcript is from this
+repository's own projects (`~/.claude/projects/*ai-agents*`), one operator,
+and many errors come from this repository's validators. The same person labels
+the REQ-048 held-out sample. The figures show the gap exists here. They show no
+consumer demand, and this amendment does not claim any. REQ-048 AC-19 owns
+the ship gate and REQ-048's Observability section owns the kill criterion.
+Both are judged on the owner's own transcripts only, because the hook sends
+no telemetry and consumer sessions cannot be seen. The default is calibrated
+on one operator's corpus, and consumers' friction sources are unmeasured.
+
+Alternatives considered (REQ-048 Q-1). Narrowing rule 2 alone was rejected:
+the narrowed word draws no line, so a later hook could call any behavior
+advisory. An exception alone was rejected: rule 2 would still list "retros"
+and contradict it. Keeping the hook dogfood-only until consumer evidence
+exists was rejected by the owner, who chose the vendored route on 2026-10-31
+(REQ-048 D3). That decision, not consumer demand, is the reason on record.
+
+Rollback: remove the hook's dispatch group and cut a release. If that
+empties the vendored surface, the same PR deletes both rule 5 tests, as
+`f79e70c01` did, and the restoration duty passes to the next vendored hook.
+Rule 2a lapses under its sunset clause. Consumers keep the hook until they
+upgrade the plugin, and its off switch covers that gap. Their marker directory (`ai-agents-reflect-nudge` under the
+per-user state root) stays until they delete it.
+
+Rule 6 is not engaged, since `Stop` is outside its four events. The Stop
+output channel is undocumented on both harnesses, which is why REQ-048 AC-17
+and the Copilot exclusion exist. The full reasoning for both is in
+`.project-toolkit/critique/ADR-084-debate-log-2.md` ("Rationale moved from
+ADR-084").
+
+The rule 5 correction is a fact repair, not a policy change. The two enforcing
+tests went with the vendored surface in `f79e70c01`. The rule still binds, so
+the next vendored hook restores them. `tool-use-hook-bar.md` "What a first
+re-add owes" lists that restoration for tool-use hooks. The correction extends
+it to every vendored hook.
+
+Open items this amendment does not close:
+
+- No guard test detects a new `surface: "plugin"` group or a non-empty
+  `src/claude/hooks.json` today, so the rule 5 MUST binds through review only.
+  Owner: REQ-048 TASK-006, which this amendment blocks. It restores both rule 5
+  tests and the Copilot exclusion test in the same PR as the first vendored
+  hook.
+- `tool-use-hook-bar.md` "What a first re-add owes" still scopes the rule 5
+  restoration to tool-use hooks. Its wording changes in that same PR, since it
+  is a generated rule with golden fixtures.
+
+What this amendment does not change: rules 1, 3, 4, 5's presence
+requirement, and 6;
+the security carve-out; ADR-097's retirement of the tool-use surface; and the
+deletion in PR #3372.
+
 ## References
 
 - Issue #3215 (this ADR request), issue #3197 (vendored-hook ROI review).
@@ -319,3 +490,11 @@ tool-use events.
   self-neutering surface rule 4 addresses).
 - The adr-review consensus for this ADR is recorded in
   `.project-toolkit/critique/ADR-084-debate-log.md`.
+- REQ-048 (`.project-toolkit/specs/requirements/REQ-048-friction-triggered-retrospective-nudge.md`),
+  the friction nudge that rule 2a governs.
+- `.project-toolkit/critique/ADR-084-debate-log-2.md` (rule 2a and rule 5
+  correction debate).
+- PR #3372, issue #3349, and `b862e14e9` (the auto-retrospective hook rule
+  2a keeps deleted); issue #3140 (its failure).
+- ADR-097 and `f79e70c01` (#5172), which emptied the vendored surface and
+  deleted rule 5's tests.

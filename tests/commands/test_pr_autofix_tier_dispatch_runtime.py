@@ -529,6 +529,9 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
 ORPHAN_WARNING = "1 local commit(s) ahead of live PR head abc123def. 9f8e7d6c5 drop duplicate gate"
 
 
+PR_HEAD_REPO = "owner/repo"
+
+
 def _repo_with_pr_worktree(tmp_path: Path, branch: str) -> Path:
     """A shared checkout at tmp_path plus a worktree on `branch`, as the loop sees it."""
 
@@ -544,7 +547,34 @@ def _repo_with_pr_worktree(tmp_path: Path, branch: str) -> Path:
     git("commit", "-q", "--allow-empty", "-m", "base")
     worktree = tmp_path / "pr-worktree"
     git("worktree", "add", "-q", "-b", branch, str(worktree))
+    git("remote", "add", "origin", f"https://github.com/{PR_HEAD_REPO}.git")
     return worktree.resolve()
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_round_cap_scan_skips_a_worktree_with_another_origin(tmp_path: Path, doc: str) -> None:
+    worktree = _repo_with_pr_worktree(tmp_path, "fix/5447-demo")
+    subprocess.run(
+        ["git", "remote", "set-url", "origin", "https://github.com/evil/repo.git"],
+        cwd=worktree,
+        check=True,
+    )
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    ).stdout.strip()
+    live = json.dumps(
+        {"Data": {"head_ref": "fix/5447-demo", "head_repo": PR_HEAD_REPO, "head_sha": head_sha}}
+    )
+
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
+
+    assert "--worktree" not in run.round_cap_argv
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -555,7 +585,18 @@ def test_round_cap_scan_is_pointed_at_the_pr_worktree(tmp_path: Path, doc: str) 
     reports `unverified`, so the warning never names the orphaned commits.
     """
     worktree = _repo_with_pr_worktree(tmp_path, "fix/5447-demo")
-    live = json.dumps({"Data": {"head_ref": "fix/5447-demo"}})
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    ).stdout.strip()
+    live = json.dumps(
+        {"Data": {"head_ref": "fix/5447-demo", "head_repo": PR_HEAD_REPO, "head_sha": head_sha}}
+    )
 
     run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
 

@@ -1,0 +1,134 @@
+{
+  "checks": [
+    {
+      "id": "R1",
+      "kind": "path_exists",
+      "path": "src/claude/skills/memory/SKILL.md"
+    },
+    {
+      "id": "R2",
+      "kind": "contains",
+      "path": "src/claude/skills/memory/SKILL.md",
+      "text": "Serena Write Conventions"
+    },
+    {
+      "id": "R3",
+      "kind": "absent",
+      "path": ".agents/HANDOFF.md"
+    },
+    {
+      "id": "R4",
+      "kind": "absent",
+      "path": "build/Generate-Agents.ps1"
+    },
+    {
+      "id": "R5",
+      "kind": "path_exists",
+      "path": "build/generate_agents.py"
+    },
+    {
+      "id": "R6",
+      "kind": "path_exists",
+      "path": "src/claude/skills/retro/SKILL.md"
+    },
+    {
+      "id": "R7",
+      "kind": "contains",
+      "path": "src/claude/skills/retro/SKILL.md",
+      "text": "RETRO-STATE"
+    },
+    {
+      "id": "R8",
+      "kind": "contains",
+      "path": ".claude/rules/session-logs.md",
+      "text": "Do not create a new session log"
+    },
+    {
+      "id": "R9",
+      "kind": "contains",
+      "path": "scripts/validate_session_json.py",
+      "text": "BRANCH_PATTERN = re.compile(r\"^(feat|fix|docs|chore|refactor|test|ci)/\")"
+    },
+    {
+      "id": "R10",
+      "kind": "path_exists",
+      "path": ".agents/schemas/session-log.schema.json"
+    },
+    {
+      "id": "R11",
+      "kind": "path_exists",
+      "path": "scripts/validation/check_adr_uniqueness.py"
+    },
+    {
+      "id": "R12",
+      "kind": "contains",
+      "path": "scripts/validation/check_adr_uniqueness.py",
+      "text": "--print-next"
+    },
+    {
+      "id": "R13",
+      "kind": "path_exists",
+      "path": ".project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md"
+    },
+    {
+      "id": "R14",
+      "kind": "contains",
+      "path": ".project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md",
+      "text": "the only memory backend"
+    },
+    {
+      "id": "R15",
+      "kind": "contains",
+      "path": ".claude/rules/claude-agents.md",
+      "text": "same PR"
+    },
+    {
+      "id": "R16",
+      "kind": "path_exists",
+      "path": ".project-toolkit/sessions/handoffs/README.md"
+    },
+    {
+      "id": "R17",
+      "kind": "contains",
+      "path": ".project-toolkit/sessions/handoffs/README.md",
+      "text": "Tier"
+    },
+    {
+      "id": "R18",
+      "kind": "path_exists",
+      "path": ".project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md"
+    },
+    {
+      "id": "R19",
+      "kind": "contains",
+      "path": ".agents/governance/FAILURE-MODES.md",
+      "text": "character-for-character"
+    },
+    {
+      "id": "R21",
+      "kind": "path_exists",
+      "path": ".project-toolkit/retrospective/INDEX.md"
+    },
+    {
+      "id": "R22",
+      "kind": "path_exists",
+      "path": ".project-toolkit/sessions"
+    },
+    {
+      "id": "S-instruments.py",
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-docs-of-record/scripts/instruments.py"
+    },
+    {
+      "id": "S-test_instruments.py",
+      "kind": "path_exists",
+      "path": "tests/skills/ai-agents-docs-of-record/test_instruments.py"
+    },
+    {
+      "id": "S-adr-next",
+      "kind": "contains",
+      "path": ".claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py",
+      "text": "retro_index_missing"
+    }
+  ]
+}

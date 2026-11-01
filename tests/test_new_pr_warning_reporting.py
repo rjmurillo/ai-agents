@@ -243,3 +243,21 @@ def test_validated_json_session_log_keeps_the_pass_summary(tmp_path, capsys) -> 
     assert "legacy .md session log(s) staged" not in captured.err
     assert WARNING_SUMMARY not in captured.out
     assert PASS_SUMMARY in captured.out
+
+
+def test_preflight_warnings_reach_the_summary(tmp_path, capsys) -> None:
+    """new_pr collects warnings before run_validations; the summary must count them."""
+    with patch("subprocess.run", side_effect=_dispatcher(validator_rc=0)):
+        run_validations(
+            str(tmp_path),
+            "main",
+            "feat/branch",
+            title="feat: x",
+            body="body",
+            preflight_warnings=["could not read origin to confirm 'feat/branch' is pushed"],
+        )
+
+    out = capsys.readouterr().out
+    assert WARNING_SUMMARY in out
+    assert PASS_SUMMARY not in out
+    assert "could not read origin" in out

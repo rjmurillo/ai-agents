@@ -107,7 +107,7 @@ class TestAutoMergeGuard:
             raise AssertionError(query[:80])
 
         with patch("auto_merge_guard.gh_graphql", side_effect=fake_graphql):
-            result = _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final")
+            result = _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final", _EXPECTED)
 
         assert calls == ["context", "count", "disable"]
         assert result["action"] == "DISABLED"
@@ -133,7 +133,7 @@ class TestAutoMergeGuard:
             raise AssertionError(query[:80])
 
         with patch("auto_merge_guard.gh_graphql", side_effect=fake_graphql):
-            result = _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final")
+            result = _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final", _EXPECTED)
 
         assert calls == ["context", "count"]
         assert result["action"] == "NOOP"
@@ -156,7 +156,7 @@ class TestAutoMergeGuard:
             raise AssertionError(query[:80])
 
         with patch("auto_merge_guard.gh_graphql", side_effect=fake_graphql):
-            result = _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final")
+            result = _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final", _EXPECTED)
 
         assert calls == ["context", "count"]
         assert result["action"] == "NOOP"
@@ -175,7 +175,7 @@ class TestAutoMergeGuard:
 
         with patch("auto_merge_guard.gh_graphql", side_effect=fake_graphql):
             with pytest.raises(RuntimeError, match="could not prove"):
-                _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final")
+                _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final", _EXPECTED)
 
     def test_rejects_if_final_thread_identity_changes(self):
         def fake_graphql(query: str, variables: dict):
@@ -189,7 +189,7 @@ class TestAutoMergeGuard:
 
         with patch("auto_merge_guard.gh_graphql", side_effect=fake_graphql):
             with pytest.raises(RuntimeError, match="changed before resolution"):
-                _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final")
+                _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final", _EXPECTED)
 
 
 _ARMED = {"enabledAt": "2026-08-04T01:40:00Z", "mergeMethod": "SQUASH"}
@@ -221,6 +221,44 @@ def _run_guard(
     return calls, result, None
 
 
+class TestFailClosed:
+    def _run(self, threads: dict, disabled: dict | None = None):
+        def fake_graphql(query: str, variables: dict):
+            if "node(id: $threadId)" in query:
+                return _thread_context(_ARMED)
+            if "reviewThreads(first: 100" in query:
+                return threads
+            if "disablePullRequestAutoMerge" in query:
+                return disabled
+            raise AssertionError(query[:80])
+
+        with patch("auto_merge_guard.gh_graphql", side_effect=fake_graphql):
+            return _mod.guard_auto_merge_before_final_thread_resolution("PRRT_final", _EXPECTED)
+
+    def test_zero_unresolved_threads_raises_instead_of_noop(self):
+        with pytest.raises(RuntimeError, match="changed before resolution"):
+            self._run(_threads())
+
+    def test_thread_absent_from_several_unresolved_raises(self):
+        with pytest.raises(RuntimeError, match="changed before resolution"):
+            self._run(_threads("PRRT_a", "PRRT_b"))
+
+    @pytest.mark.parametrize(
+        "payload",
+        [{}, {"disablePullRequestAutoMerge": None}, {"disablePullRequestAutoMerge": {}}],
+    )
+    def test_empty_disable_payload_raises(self, payload):
+        with pytest.raises(RuntimeError, match="no pullRequest payload"):
+            self._run(_threads("PRRT_final"), payload)
+
+    def test_disable_payload_that_still_shows_auto_merge_raises(self):
+        still_armed = {
+            "disablePullRequestAutoMerge": {"pullRequest": {"autoMergeRequest": {"enabledAt": "x"}}}
+        }
+        with pytest.raises(RuntimeError, match="did not clear"):
+            self._run(_threads("PRRT_final"), still_armed)
+
+
 class TestExpectedIdentity:
     def test_matching_identity_still_disables_armed_auto_merge(self):
         calls, result, error = _run_guard(_thread_context(_ARMED), _EXPECTED)
@@ -248,15 +286,30 @@ class TestExpectedIdentity:
         assert calls == ["context"]
         assert "disable" not in calls
 
-    def test_stale_session_cannot_disarm_when_head_moved_and_thread_is_final(self):
-        """Negative control: without the expectation the same moved head disarms."""
-        moved = _thread_context(_ARMED, headRefOid="ccc333")
+    @pytest.mark.parametrize(
+        "empty",
+        [
+            None,
+            {},
+            {"head_sha": "", "base_ref": "", "base_sha": ""},
+            {"head_sha": None, "base_ref": None, "base_sha": None},
+            {"unrelated": "x"},
+        ],
+    )
+    def test_empty_identity_binding_is_refused_before_any_call(self, empty):
+        calls, result, error = _run_guard(_thread_context(_ARMED), empty)
 
-        calls, result, error = _run_guard(moved, None)
+        assert result is None
+        assert isinstance(error, RuntimeError)
+        assert "at least one of head_sha, base_ref, base_sha" in str(error)
+        assert calls == []
+
+    @pytest.mark.parametrize("key", ["head_sha", "base_ref", "base_sha"])
+    def test_any_single_binding_is_enough(self, key):
+        calls, result, error = _run_guard(_thread_context(_ARMED), {key: _EXPECTED[key]})
 
         assert error is None
         assert calls == ["context", "count", "disable"]
-        assert result is not None and result["action"] == "DISABLED"
 
     def test_partial_expectation_only_compares_supplied_fields(self):
         context = _thread_context(_ARMED, baseRefOid="ddd444")

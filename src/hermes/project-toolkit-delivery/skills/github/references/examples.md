@@ -120,7 +120,9 @@ python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request 50 --all
 python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed."
 
 # Reply to thread and resolve in one operation
-python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed." --resolve
+HEAD_SHA=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --output-format json | jq -r '.Data.head_sha')
+python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed." --resolve \
+  --expected-head-sha "$HEAD_SHA"
 
 # Check if PR is ready to merge (threads resolved, CI passing)
 python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50

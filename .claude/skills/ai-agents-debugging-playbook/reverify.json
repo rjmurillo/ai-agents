@@ -1,0 +1,250 @@
+{
+ "checks": [
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/programming-advisor/references/search-before-building.md",
+   "id": "R1"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/skills/programming-advisor/references/search-before-building.md",
+   "id": "R2"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude-plugin/plugin.json",
+   "id": "R3"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude/.claude-plugin/plugin.json",
+   "id": "R4"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/.claude-plugin/plugin.json",
+   "id": "R5"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/copilot-cli/.claude-plugin/plugin.json",
+   "id": "R6"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude-plugin/marketplace.json",
+   "id": "R7"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/plugin/marketplace.json",
+   "id": "R8"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/check_plugin_manifest_parity.py",
+   "id": "R9"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "id": "R10"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "text": "plugin-version-bump: OK",
+   "id": "R11"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "text": "MUST NOT carry",
+   "id": "R12"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/run_plugin_version_bump_ci.py",
+   "id": "R13"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/validate-plugin-version-bump.yml",
+   "id": "R14"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/validate_python_syntax.py",
+   "id": "R15"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/validate_python_syntax.py",
+   "text": "_SUPPORT_FLOOR = (3, 10)",
+   "id": "R16"
+  },
+  {
+   "kind": "contains",
+   "path": "conftest.py",
+   "text": "def _check_head_change",
+   "id": "R17"
+  },
+  {
+   "kind": "contains",
+   "path": "conftest.py",
+   "text": "#2316",
+   "id": "R18"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "alone reports 63%",
+   "id": "R19"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/pytest.yml",
+   "text": "REQ-009",
+   "id": "R20"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/validate_install_parity.py",
+   "text": "if kind == \"RULE\"",
+   "id": "R21"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/validate_install_parity.py",
+   "text": "if kind == \"SHARED_AGENT\"",
+   "id": "R22"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/detect_agent_drift.py",
+   "text": "SECTIONS_TO_COMPARE = (",
+   "id": "R23"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/detect_agent_drift.py",
+   "text": "Default: 80",
+   "id": "R24"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/ci/drift_run_detection.py",
+   "text": "drift_detected",
+   "id": "R25"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/validate-generated-agents.yml",
+   "text": "build_all.py --check",
+   "id": "R26"
+  },
+  {
+   "kind": "contains",
+   "path": ".github/workflows/validate-generated-agents.yml",
+   "text": "run_install_parity_ci.py",
+   "id": "R27"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/governance/drift-allowlist.json",
+   "id": "R28"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/drift_allowlist.py",
+   "id": "R29"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/validate-spec-id-uniqueness.yml",
+   "id": "R30"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "id": "R31"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "## 13. State Conflation in a Boolean Guard",
+   "id": "R32"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "## 12. Post-Completion Continuation",
+   "id": "R33"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "name: markdown-autofix",
+   "id": "R34"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "name: markdown-check",
+   "id": "R35"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/checks_dash.py",
+   "id": "R36"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/pre_pr.py",
+   "text": "ADR-035",
+   "id": "R37"
+  },
+  {
+   "kind": "contains",
+   "path": "pyproject.toml",
+   "text": "testpaths = [\"tests\"]",
+   "id": "R38"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/schemas/session-log.schema.json",
+   "id": "R39"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validate_session_json.py",
+   "id": "R40"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-debugging-playbook/scripts/instruments.py",
+   "id": "R41"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-debugging-playbook/scripts/first_command.py",
+   "id": "R42"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-debugging-playbook/references/vacuous-gates.md",
+   "id": "R43"
+  },
+  {
+   "kind": "contains",
+   "path": ".serena/memories/copilot-hooks-observations.md",
+   "text": "Use PascalCase registrations",
+   "id": "R44"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/check_spec_id_uniqueness.py",
+   "id": "R45"
+  }
+ ]
+}

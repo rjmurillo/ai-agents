@@ -19,7 +19,7 @@ A regression fails the run only on a push to main. ``--event`` and ``--ref``
 name the run; any other event or ref, such as a pull request, reports the
 regression as a warning and exits 0, because runner timing noise must not block
 a merge (issue #6244). With neither flag the run is enforced, as on main.
-Passing only one of them makes the run advisory.
+Passing only one, or an empty, padded, or malformed value, is a config error (exit 2).
 
 ``--breach-policy consecutive-main`` applies the owner decision of issue #6796.
 One sample on a shared runner swings 2x to 4x, and the swing lands on a
@@ -40,6 +40,7 @@ output or breach record that cannot be written).
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Sequence
@@ -103,9 +104,23 @@ ENFORCED_REF = "refs/heads/main"
 
 
 def is_enforced(event: str | None, ref: str | None) -> bool:
-    """True when a regression fails the run: a push to main, or no run named."""
+    """True when a regression fails the run: a push to main, or no run named.
+
+    Raises ValueError for a partial pair, an empty or padded value, an event
+    that is not a GitHub event name (lowercase words joined by underscores),
+    or a ref outside refs/. GitHub sends no such run, so reading one as
+    advisory would let a missing or mangled CI variable mute the gate.
+    """
     if event is None and ref is None:
         return True
+    if event is None or ref is None:
+        raise ValueError("--event and --ref must be given together")
+    if not event.strip() or not ref.strip() or (event, ref) != (event.strip(), ref.strip()):
+        raise ValueError("--event and --ref must be non-empty with no surrounding whitespace")
+    if re.fullmatch(r"[a-z][a-z0-9_]*", event) is None or not ref.startswith("refs/"):
+        raise ValueError(
+            f"--event {event!r} must be a GitHub event name and --ref {ref!r} must start with refs/"
+        )
     return event == ENFORCED_EVENT and ref == ENFORCED_REF
 
 
@@ -181,6 +196,22 @@ def _apply_policy(regressions: Sequence[Regression], policy: consecutive_breach.
     return 1 if verdict.failing else 0
 
 
+def _run_identity_ok(args: argparse.Namespace, policy: consecutive_breach.Policy) -> bool:
+    """False, with a message, for a partial, empty, or malformed event and ref."""
+    strict = policy.name == consecutive_breach.POLICY_STRICT
+    event, ref = (args.event, args.ref) if strict else (policy.event, policy.ref)
+    try:
+        if not strict:
+            for flag, value in (("--event", args.event), ("--ref", args.ref)):
+                if value is not None and (not value.strip() or value != value.strip()):
+                    raise ValueError(f"{flag} must be non-empty with no surrounding whitespace")
+        is_enforced(event, ref)
+    except ValueError as exc:
+        print(f"bad run identity: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
     if args.max_history < 1 or args.top < 1:
@@ -190,6 +221,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         policy = consecutive_breach.policy_from_args(args)
     except ValueError as exc:
         print(f"bad breach policy: {exc}", file=sys.stderr)
+        return 2
+    if not _run_identity_ok(args, policy):
         return 2
     try:
         snapshot = build_snapshot(args.inputs, args.sha or policy.sha, datetime.now(UTC))

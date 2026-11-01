@@ -18,11 +18,9 @@ metadata:
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
 fought and what it cost. The canon lives in `.project-toolkit/retrospective/` and
-`.serena/memories/`; the provenance table below carries the commands that count
-both. Full local history is
-present (`git rev-list --count HEAD` = ~1471 as of 2026-07-03), but retro-cited
-short SHAs (e.g. `ddb76e0`, `01e76615a`) may not resolve locally, so archaeology
-still routes through the retros and memories as primary sources, not `git log`.
+`.serena/memories/`; `corpus_index.py` (Scripts section) counts both. Full local history is present, but some retro-cited short SHAs (e.g.
+`ddb76e0`) do not resolve locally, so archaeology still routes through the
+retros and memories as primary sources, not `git log`.
 
 Depth per incident lives in `references/incidents.md` (read it when a table row
 below is not enough). This file is the index and the verdict list.
@@ -72,36 +70,33 @@ path in `ai-agents-change-control`, not a fresh opinion.
 | Copilot CLI plugin-root env contract | SETTLED EMPIRICALLY (CLI 1.0.57, probe + env dump): `COPILOT_PLUGIN_ROOT`, `CLAUDE_PLUGIN_ROOT`, and bare `PLUGIN_ROOT` are all set, though the public docs list none of them. Anchor form: `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}` | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` |
 | Session-file merge conflicts | Always `git checkout --theirs` (keep main's file), rename yours to the next number. Main's session files are immutable audit records | `2026-02-08-session-1187-skip-prepush-abuse.md:334`; merge-resolver agent |
 | Threshold-based detectors | MUST ship with a calibration table replaying the last ~5 real merged PRs. A detector that cannot fire on real history is not calibrated | `2026-05-10-pr-1989-recursive-failure.md:149-157` |
-| Drift-gate failures | The output shows a difference, not a direction. Identify the canonical side before editing anything | `2025-12-15-drift-detection-disaster.md:283-286` |
-| Silent defaults | No neutral default for a missing signal: raise or block, never assume PASS | `.agents/governance/FAILURE-MODES.md:389` (FM-10: `no neutral default for a missing signal`) |
+| Drift-gate failures | The output shows a difference, not a direction. Identify the canonical side before editing anything | `2025-12-15-drift-detection-disaster.md:280-283` |
+| Silent defaults | No neutral default for a missing signal: raise or block, never assume PASS | `.agents/governance/FAILURE-MODES.md:390` (FM-10: `no neutral default for a missing signal`) |
 | Frictionless escape hatches | Get teeth (logging, guards, approval) or get abused within hours. SKIP_PREPUSH is the proof | `2026-02-08-session-1187-skip-prepush-abuse.md:706`; catalog in `ai-agents-config-catalog` |
 | Guards shipped without self-application | A guard PR must show the guard's output run against its own branch | `2026-05-10-pr-1989-recursive-failure.md:129-137` |
 | CLI subcommands proposed from analogy | BANNED. Run `--help` first; two hallucinated install commands cost user trust in the payload-casing session | `2026-06-02-issue-2290-copilot-hook-payload-format.md:74-82` |
 
 ### Phase 3: Map to the Failure-Mode Catalog
 
-`.agents/governance/FAILURE-MODES.md` is the canonical taxonomy (11 patterns as
-of 2026-07-02). Classify any new incident against it BEFORE proposing a new
-class; FM-CONTRACT was once invented in a retro and had to be corrected to
-FM-11 (`2026-06-02-issue-2290-copilot-hook-payload-format.md:311-321`).
+`.agents/governance/FAILURE-MODES.md` is the canonical taxonomy; its `## Index`
+table lists every pattern, severity, and anchor incident. Run
+`corpus_index.py` (Scripts section) for the current count and names. Classify
+any new incident against the Index BEFORE proposing a new class;
+FM-CONTRACT was once invented in a retro and had to be corrected to FM-11
+(`2026-06-02-issue-2290-copilot-hook-payload-format.md:311-321`).
 
-| FM | Name | Anchor incident |
-|----|------|-----------------|
-| FM-1 | Context reading failure (95.8% session-start non-compliance in the anchor sample) | `2025-12-20-session-protocol-mass-failure.md` |
-| FM-2 | Continuation reset after compaction | `2026-01-09-session-protocol-violation-analysis.md` |
-| FM-3 | Ambiguous instruction inversion | `2025-12-17-protocol-compliance-failure.md` |
-| FM-4 | False completion markers | `2026-01-13-pr894-test-coverage-failure.md` |
-| FM-5 | Premature merge and deploy | `2025-12-22-pr-226-premature-merge-failure.md` |
-| FM-6 | Multi-agent rubber-stamping | `2025-12-24-parallel-pr-review-session.md` |
-| FM-7 | Self-contained agent delegation failure | `2025-12-19-self-contained-agents.md` |
-| FM-8 | Security drift | `2026-01-04-pr760-security-suppression-failure.md` |
-| FM-9 | Confident-incorrectness recurrence (claims of "matches/mirrors" without quoting the canonical source) | `2026-05-05-pr-1887-iteration-paradox.md`, `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
-| FM-10 | Silent defaults and guard-clause suppression | silent-defaults PR rounds 9-11; FM-10 section of `FAILURE-MODES.md` |
-| FM-11 | Customer-facing artifact shipped without runtime verification | customer wedge (first), payload casing (second), a hand-authored artifact (third) |
+Anchors this skill routes to most often:
+
+- FM-9 confident incorrectness: `2026-05-05-pr-1887-iteration-paradox.md`,
+  `2026-05-08-pr-1897-confident-incorrectness-recurrence.md`.
+- FM-10 silent defaults: silent-defaults PR rounds 9-11.
+- FM-11 unverified customer artifact: customer wedge (first), payload casing (second), a hand-authored artifact (third).
+- FM-12 post-completion continuation: index row 12 of `FAILURE-MODES.md`.
+- FM-13 state conflation in a boolean guard: index row 13 of `FAILURE-MODES.md`.
 
 FM-10 is a mechanism that produces FM-4 symptoms; fix at the FM-10 layer
 (harden the parser), not by lecturing the agent about honesty
-(`FAILURE-MODES.md:391`).
+(`FAILURE-MODES.md:394`).
 
 ### Phase 4: Do Your Own Archaeology
 
@@ -110,7 +105,7 @@ When the tables above do not answer the question:
 1. **Search retros by keyword**, not the index:
    `grep -rli "<term>" .project-toolkit/retrospective/`. Do NOT trust
    `.project-toolkit/retrospective/INDEX.md`: it indexes a small fraction of the retro
-   files. The provenance table's coverage command prints both numbers.
+   files. `corpus_index.py` prints both numbers (Scripts section).
 2. **Search memories**: `grep -rli "<term>" .serena/memories/` or the
    `memory-search` skill. Decision memories (`decision-*.md`) record settled
    contracts; `root-cause-*.md` record why gates exist;
@@ -122,9 +117,10 @@ When the tables above do not answer the question:
    the real ADR-063 is memory-skill decomposition. Use
    `grep -rl "<topic>" .project-toolkit/architecture/`.
 4. **Do not lean on `git log` for incident history.** Full local history is
-   present (~1471 commits as of 2026-07-03), but SHAs cited in retros (e.g.
-   `01e76615a`, `ddb76e0`) do not resolve locally; look them up on GitHub and
-   treat retros and memories as the primary record.
+   present, but squash-merged PR-branch SHAs cited in retros (e.g. `ddb76e0`)
+   may not resolve locally. Check with the `sha-resolve` instrument; look
+   unresolved ones up on GitHub and treat retros and memories as the primary
+   record.
 5. **Auto-retros are shallow.** Files named `*-auto-retro.md` are unfilled
    Stop-hook skeletons; a later hand-written incident retro may supersede them
    (the customer-wedge retro explicitly supersedes three of them, `:452-458`).
@@ -145,7 +141,7 @@ When the tables above do not answer the question:
 | Citing an ADR by number from an old document | Numbers collided and moved (ADR-063 vs ADR-071) | Grep architecture dir by topic, verify the title |
 | Shipping a detector with an intuition-chosen threshold | The recursive-failure M4 threshold could never fire on real PRs | Calibrate against the last ~5 merged PRs, show the table |
 | Adding a quick env-var bypass to reduce friction | Session 1187: abused 3x within hours; ended in a trust failure | Route new flags through `ai-agents-config-catalog` (define semantics, guard, telemetry) |
-| Mining `git log` for incident history | Retro-cited SHAs do not resolve locally even with full history present | Retros + memories + GitHub |
+| Mining `git log` for incident history | Some retro-cited SHAs do not resolve locally even with full history present | Retros + memories + GitHub |
 
 ## Verification
 
@@ -162,19 +158,37 @@ Before you rely on or extend this chronicle:
       against FAILURE-MODES.md, or a decision memory) so the next reader finds
       a fossil instead of re-fighting the battle.
 
+## Scripts
+
+Corpus counts come from one script, not hand-typed numbers:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/corpus_index.py" --repo .
+```
+
+It prints retro file count, how many `INDEX.md` names, the missing paths, the
+failure-mode count and names from the `## Index` table, and the memory file
+count (`.serena/memories/*.md`, top level only). Add `--shas ddb76e0 01e76615a`
+to test whether short SHAs resolve. Exit 1 means `INDEX.md` omits retros, which
+is the normal state. It does not read retro content or check line anchors. The
+`instruments.py` dispatcher lists this and the path, citation, and drift
+checks: `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-failure-archaeology/scripts/instruments.py" --repo . list`.
+
 ## Provenance and Maintenance
 
-Compiled 2026-07-02 from primary sources; every claim was verified against the
-working tree on that date. Volatile facts and their re-verification commands:
+Compiled 2026-07-02, refreshed 2026-10-31 at `42e409325`. Checks live in
+`reverify.json`. Drift command:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name ai-agents-failure-archaeology --require
+```
+
+Facts the scripts do not cover:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| Retro file count and INDEX.md coverage | `.project-toolkit/retrospective/` and `.project-toolkit/retrospective/INDEX.md` | `python3 -c "import pathlib;d=pathlib.Path('.project-toolkit/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
-| Memory file count | `.serena/memories/` | `python3 -c "import pathlib;print(len(list(pathlib.Path('.serena/memories').rglob('*.md'))))"` |
-| Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
-| 12 failure modes | `.agents/governance/FAILURE-MODES.md:17-30` (`Post-completion continuation`) | `python3 -c "print(sum(1 for l in open('.agents/governance/FAILURE-MODES.md') if l[:2]=='\x7c ' and l[2].isdigit()))"` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
-| Anchoring gate + runtime-contract test + e2e exist | repo tree | `ls scripts/validation/validate_hook_anchoring.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/e2e/test_cli_hook_e2e.py` |
+| Anchoring gate, runtime-contract test, e2e exist | repo tree | `reverify.json` path checks, plus `tests/e2e/test_cli_hook_e2e.py` |
 | ADR-071 is the runtime-contract ADR; ADR-063 is memory decomposition | `.project-toolkit/architecture/` | `head -1 .project-toolkit/architecture/ADR-071*.md .project-toolkit/architecture/ADR-063*.md` |
 | Plugin-root env contract (CLI 1.0.57) | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` | open the memory; re-probe per `ai-agents-empirical-probe-toolkit` if the CLI version moved |
 | Exit-143 timeout status "unresolved" | `2026-06-02-issue-2290-copilot-hook-payload-format.md:59` | check open issues before assuming; `ai-agents-portability-campaign` Phase 3 owns verification |

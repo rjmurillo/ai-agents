@@ -1,0 +1,236 @@
+{
+ "checks": [
+  {
+   "kind": "path_exists",
+   "path": ".python-version",
+   "id": "R1"
+  },
+  {
+   "kind": "path_exists",
+   "path": "uv.lock",
+   "id": "R2"
+  },
+  {
+   "kind": "path_exists",
+   "path": "lefthook.yml",
+   "id": "R3"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/bootstrap-vm.sh",
+   "id": "R4"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/maintenance/repair_worktree_venv.py",
+   "id": "R5"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/generate_agents.py",
+   "id": "R6"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/build_all.py",
+   "id": "R7"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".mcp.json",
+   "id": "R8"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".env.example",
+   "id": "R9"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/test_paths.py",
+   "id": "R10"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/.claude-plugin/plugin.json",
+   "id": "R11"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/copilot-cli/.claude-plugin/plugin.json",
+   "id": "R12"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/validate_python_syntax.py",
+   "id": "R13"
+  },
+  {
+   "kind": "contains",
+   "path": ".python-version",
+   "text": "3.14.8",
+   "id": "R14"
+  },
+  {
+   "kind": "contains",
+   "path": "pyproject.toml",
+   "text": "requires-python = \">=3.14\"",
+   "id": "R15"
+  },
+  {
+   "kind": "contains",
+   "path": "pyproject.toml",
+   "text": "PyYAML==6.0.3",
+   "id": "R16"
+  },
+  {
+   "kind": "contains",
+   "path": "pyproject.toml",
+   "text": "lefthook==2.2.2",
+   "id": "R17"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/bootstrap-vm.sh",
+   "text": "NODE_MAJOR=22",
+   "id": "R18"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/bootstrap-vm.sh",
+   "text": "uv sync --frozen --extra dev",
+   "id": "R19"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/bootstrap-vm.sh",
+   "text": "uv run --frozen lefthook install --reset-hooks-path",
+   "id": "R20"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/bootstrap-vm.sh",
+   "text": "uv self update",
+   "id": "R21"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "gh2.60",
+   "id": "R22"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "PS7.5",
+   "id": "R23"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "No manifest version (ADR-092)",
+   "id": "R24"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "No-verify",
+   "id": "R25"
+  },
+  {
+   "kind": "contains",
+   "path": ".gitattributes",
+   "text": "* text=auto eol=lf",
+   "id": "R26"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/validate_python_syntax.py",
+   "text": "_SUPPORT_FLOOR = (3, 10)",
+   "id": "R27"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "no_auto_install: true",
+   "id": "R28"
+  },
+  {
+   "kind": "contains",
+   "path": ".env.example",
+   "text": "CONTEXT7_API_KEY",
+   "id": "R29"
+  },
+  {
+   "kind": "contains",
+   "path": ".env.example",
+   "text": "COMPRESS_TOKENIZER",
+   "id": "R30"
+  },
+  {
+   "kind": "contains",
+   "path": "CONTRIBUTING.md",
+   "text": "lefthook check-install",
+   "id": "R31"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/maintenance/repair_worktree_venv.py",
+   "text": "uv sync --frozen --extra dev --reinstall",
+   "id": "R32"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/rules/universal.md",
+   "text": "No secrets",
+   "id": "R33"
+  },
+  {
+   "kind": "contains",
+   "path": ".mcp.json",
+   "text": "deepwiki",
+   "id": "R34"
+  },
+  {
+   "kind": "contains",
+   "path": ".mcp.json",
+   "text": "serena",
+   "id": "R35"
+  },
+  {
+   "kind": "absent",
+   "path": "build/Generate-Agents.ps1",
+   "id": "R36"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude/.claude-plugin/plugin.json",
+   "id": "R37"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude-plugin/plugin.json",
+   "id": "R38"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-build-and-env/scripts/env_probe.py",
+   "id": "R39"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-build-and-env/scripts/instruments.py",
+   "id": "R40"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-build-and-env/test_env_probe.py",
+   "id": "R41"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-build-and-env/test_instruments.py",
+   "id": "R42"
+  }
+ ]
+}

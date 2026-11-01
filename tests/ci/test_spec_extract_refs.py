@@ -293,6 +293,31 @@ class TestRun:
                 run()
         assert "has_specs=true" in out_file.read_text()
 
+    def test_cli_fallback_keeps_leading_indentation_in_saved_body(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_NUMBER": "7",
+            "GITHUB_REPOSITORY": "o/r",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "9",
+        }
+        indented = "    ## Acceptance criteria\n- [x] delivered"
+
+        def fake_run(cmd, **_kwargs):
+            if "--json" not in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            field = cmd[cmd.index("--json") + 1]
+            text = indented if field == "body" else "  title  "
+            return MagicMock(returncode=0, stdout=text + "\n", stderr="")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_extract_refs.subprocess.run", side_effect=fake_run):
+                rc = run()
+        assert rc == 0
+        saved = (tmp_path / "pr-body-9.txt").read_text(encoding="utf-8")
+        assert saved == indented + "\n"
+
     @pytest.mark.parametrize(
         "body",
         ["Refs #4789", "CLOSES: #123", "closed #123", "Part of #123"],
@@ -323,6 +348,42 @@ class TestRun:
             ):
                 assert run() == 0
         assert "has_specs=true" in out_file.read_text()
+
+    def test_publishes_the_body_file_for_the_verdict_step(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "fix(ci): a change",
+            "PR_BODY_INPUT": "Fixes #10",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "77",
+        }
+        with patch.dict(os.environ, env):
+            with patch(
+                "scripts.ci.spec_extract_refs.subprocess.run",
+                return_value=MagicMock(returncode=0, stdout=""),
+            ):
+                assert run() == 0
+        published = dict(line.split("=", 1) for line in out_file.read_text().splitlines())
+        body_file = Path(published["pr_body_file"])
+        assert body_file == tmp_path / "pr-body-77.txt"
+        assert body_file.read_text(encoding="utf-8") == "Fixes #10\n"
+        assert not (tmp_path / "pr-title-77.txt").exists()
+
+    def test_body_file_is_removed_when_scope_extraction_fails(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "feat: Phase 2 of #100",
+            "PR_BODY_INPUT": "Fixes #10",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "78",
+        }
+        failure = MagicMock(returncode=1, stdout="", stderr="parser failed")
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=failure):
+                assert run() == EXIT_EXTERNAL
+        assert not (tmp_path / "pr-body-78.txt").exists()
 
     def test_fallback_to_gh_when_no_inputs(self, tmp_path: Path) -> None:
         out_file = tmp_path / "out.txt"

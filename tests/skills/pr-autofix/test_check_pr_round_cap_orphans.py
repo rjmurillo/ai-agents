@@ -54,7 +54,7 @@ class TestOrphanedCommitsWiring(MainHarness):
         patches = self._patch_common(list_comments_result=[{"body": _state(round=4)}])
         rc, spy = self._run(patches, scan=AHEAD)
         assert rc == 1
-        spy.assert_called_once_with(True, "sha-1")
+        spy.assert_called_once_with(True, "sha-1", pr_checkout=False)
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["action"] == "ESCALATE"
         assert data["orphaned_commits"] == AHEAD
@@ -74,7 +74,7 @@ class TestOrphanedCommitsWiring(MainHarness):
         patches = self._patch_common(list_comments_result=[{"body": prior}], head_sha="sha-1")
         rc, spy = self._run(patches, scan=AHEAD)
         assert rc == 0
-        spy.assert_called_once_with(True, "sha-1")
+        spy.assert_called_once_with(True, "sha-1", pr_checkout=False)
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["action"] == "ACT"
         assert data["orphaned_commits"]["status"] == "ahead"
@@ -89,20 +89,20 @@ class TestOrphanedCommitsWiring(MainHarness):
             )
         assert rc == 1
         make.assert_called_once_with("/wt/pr-7")
-        spy.assert_called_once_with(True, "sha-1", "RUNNER")
+        spy.assert_called_once_with(True, "sha-1", "RUNNER", pr_checkout=True)
 
     def test_no_worktree_flag_scans_the_current_directory(self):
         patches = self._patch_common(list_comments_result=[{"body": _state(round=4)}])
         with patch("check_pr_round_cap.worktree_runner") as make:
             _, spy = self._run(patches, scan=AHEAD)
         make.assert_not_called()
-        spy.assert_called_once_with(True, "sha-1")
+        spy.assert_called_once_with(True, "sha-1", pr_checkout=False)
 
     def test_unescalated_prior_state_does_not_scan(self):
         patches = self._patch_common(list_comments_result=[{"body": _state()}])
         rc, spy = self._run(patches, scan=AHEAD)
         assert rc == 0
-        spy.assert_called_once_with(False, "sha-1")
+        spy.assert_called_once_with(False, "sha-1", pr_checkout=False)
 
     def test_missing_live_head_on_escalation_is_unverified(self, capsys):
         patches = self._patch_common(

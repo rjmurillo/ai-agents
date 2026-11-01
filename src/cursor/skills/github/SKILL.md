@@ -188,7 +188,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `detect_copilot_followup_pr.py` | Detect Copilot follow-up PRs | `--pr-number`, `--owner`, `--repo` |
 | `new_pr_review_comment.py` | New diff-line comment | `--pull-request`, `--path`, `--line`, `--side` (default RIGHT), `--body` or `--body-file` |
 | `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |
-| `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` |
+| `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` (needs one of `--expected-head-sha`, `--expected-base-ref`, `--expected-base-sha`) |
 | `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id --expected-pull-request` or `--pull-request --all` |
 | `unresolve_pr_review_thread.py` | Mark threads unresolved | `--thread-id` or `--pull-request --all` |
 | `get_thread_by_id.py` | Get single thread by ID | `--thread-id` |

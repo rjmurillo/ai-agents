@@ -160,7 +160,10 @@ class TestLowRiskRunsFewerAxes:
         low_count = len(low["canonical_selected"]) + len(low["local_selected"])
         deep_count = len(deep["canonical_selected"]) + len(deep["local_selected"])
         assert low_count < deep_count
-        assert deep_count == len(CANDIDATES) + len(mod.LOCAL_AXES)
+        # Deep runs every canonical axis, plus each local axis whose scanner
+        # reads the Markdown file: doc-accuracy and taste-lints (issue #7004).
+        assert set(deep["canonical_selected"]) == set(CANDIDATES)
+        assert set(deep["local_selected"]) == {"doc-accuracy", "taste-lints"}
 
     def test_skipped_axes_carry_a_reason_and_are_not_reported_as_pass(self) -> None:
         result = select(["docs/guide.md"])

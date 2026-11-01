@@ -128,8 +128,8 @@ Deliverables in this PR:
 > Required for: Authentication, authorization, CI/CD, git hooks, secrets, infrastructure
 
 - [ ] No security-critical changes in this PR
-- [ ] Security agent reviewed infrastructure changes
-- [ ] Security agent reviewed authentication/authorization changes
+- [ ] Security agent reviewed infrastructure changes. Artifact: <!-- run URL or file path; a box checked without a link does not count -->
+- [ ] Security agent reviewed authentication/authorization changes. Artifact: <!-- run URL or file path; a box checked without a link does not count -->
 - [ ] Security patterns applied (see `.project-toolkit/security/`)
 
 **Files requiring security review:**

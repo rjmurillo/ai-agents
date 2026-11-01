@@ -96,7 +96,7 @@
       "kind": "continue-on-error",
       "path": ".github/workflows/ai-spec-review.yml",
       "job": "review-spec",
-      "step": "🔗 Requirements Traceability Check (Analyst Agent)",
+      "step": "\ud83d\udd17 Requirements Traceability Check (Analyst Agent)",
       "reason": "Advisory: the job only comments and never fails on a verdict or model failure (issue 6182). The typed report step records the outcome.",
       "owner": "rjmurillo",
       "expires": "2026-12-31"
@@ -105,7 +105,7 @@
       "kind": "continue-on-error",
       "path": ".github/workflows/ai-spec-review.yml",
       "job": "review-spec",
-      "step": "✅ Completeness Check (Critic Agent)",
+      "step": "\u2705 Completeness Check (Critic Agent)",
       "reason": "Advisory: the job only comments and never fails on a verdict or model failure (issue 6182). The typed report step records the outcome.",
       "owner": "rjmurillo",
       "expires": "2026-12-31"
@@ -224,6 +224,27 @@
       "job": "activation-gate",
       "step": "Run live activation eval",
       "reason": "Re-asserted: Fail when live activation gate failed reads the step outcome and exits 1, alongside the rollback alert.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_ENV",
+      "reason": "Catalogued by the repo-local ai-agents-config-catalog skill: flag_locator.py and reverify.json name this toggle to locate where it is defined. The skill never sets it.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_PREPUSH",
+      "reason": "Catalogued by the repo-local ai-agents-config-catalog skill: flag_locator.py and reverify.json name this toggle to locate where it is defined. The skill never sets it.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_TESTS",
+      "reason": "Catalogued by the repo-local ai-agents-config-catalog skill: flag_locator.py and reverify.json name this toggle to locate where it is defined. The skill never sets it.",
       "owner": "rjmurillo",
       "expires": "2026-12-31"
     }

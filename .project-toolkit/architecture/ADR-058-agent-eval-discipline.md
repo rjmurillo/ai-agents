@@ -1,6 +1,6 @@
 ---
 id: ADR-058
-status: proposed
+status: accepted
 date: 2026-05-03
 decision-makers: [architect, user]
 supersedes: []

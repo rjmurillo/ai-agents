@@ -92,7 +92,7 @@ def test_no_markers_passes_and_reports_zero_markers(tmp_path: Path) -> None:
     result = _run(tmp_path)
     assert result.returncode == 0
     assert "0 marker" in result.stdout
-    assert "in 1 workflow file" in result.stdout
+    assert "in 1 file" in result.stdout
 
 
 # --- neg --------------------------------------------------------------------
@@ -385,3 +385,63 @@ def test_adapter_returns_false_on_violation_and_on_config_error(tmp_path: Path) 
 def test_real_corpus_passes() -> None:
     """Rule 13: the gate passes against the full corpus on this branch."""
     assert gate.main(["--repo-root", str(REPO_ROOT)]) == 0
+
+
+def _action(repo: Path, comment: str, subdir: str = "setup", name: str = "action.yml") -> Path:
+    action_dir = repo / ".github" / "actions" / subdir
+    action_dir.mkdir(parents=True, exist_ok=True)
+    path = action_dir / name
+    path.write_text(
+        f"name: setup\nruns:\n  using: composite\n  steps:\n    {comment}\n    - run: echo hi\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_marker_in_composite_action_naming_missing_adr_fails(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: windows-only tool")
+    _action(tmp_path, "# ADR-999 Exception: x")
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert ".github/actions/setup/action.yml:5" in result.stdout
+    assert "ADR-999" in result.stdout
+
+
+def test_marker_in_nested_action_yaml_extension_fails_when_retired(tmp_path: Path) -> None:
+    _adr(tmp_path, 24, "superseded")
+    _workflow(tmp_path, "# plain comment")
+    _action(tmp_path, "# ADR-024 Exception: x", subdir="a/b", name="action.yaml")
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert ".github/actions/a/b/action.yaml:5" in result.stdout
+    assert "superseded" in result.stdout
+
+
+def test_near_miss_in_action_fails(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# plain comment")
+    _action(tmp_path, "# ADR-055 Exeption: typo")
+    assert _run(tmp_path).returncode == 1
+
+
+def test_live_marker_in_action_passes_and_is_counted(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: windows-only tool")
+    _action(tmp_path, "# ADR-055 Exception: windows-only tool")
+    result = _run(tmp_path)
+    assert result.returncode == 0
+    assert "2 marker(s) in 2 file(s)" in result.stdout
+
+
+def test_tree_without_actions_directory_still_passes(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: windows-only tool")
+    assert _run(tmp_path).returncode == 0
+
+
+def test_non_action_yaml_under_actions_is_not_scanned(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: ok")
+    _action(tmp_path, "# ADR-999 Exception: x", name="other.yml")
+    assert _run(tmp_path).returncode == 0

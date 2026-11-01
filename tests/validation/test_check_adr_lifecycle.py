@@ -27,11 +27,12 @@ Pins the ratcheted ADR lifecycle gate. Coverage per check name:
   unparseable entry, non-list ``supersedes``)
 - proposed-cannot-supersede: pos, neg
 
-`implemented-implies-decided` (`implemented: true` with `status: proposed`) was
-removed after Copilot review on PR #5209: ADR-073's own schema comment defines
-`implemented` as flipping at first merged change regardless of decision state,
-and ADR-098 documents that exact pairing as deliberate. Its three tests are
-removed with it rather than left asserting a contract the gate no longer has.
+- implemented-implies-decided: pos (`proposed` with `implemented: false`, and every
+  other status with `implemented: true`, pass), neg (`proposed` with `implemented: true`),
+  edge (mixed-case `Proposed` is still proposed; a quoted "true" or an absent field is
+  not a boolean true; a hit is a (check, path) identity the baseline can hold). The check
+  was removed after Copilot review on PR #5209 and restored by the repository owner on
+  2026-11-01.
 
 - prose-frontmatter-agree: pos (decorated prose still matches), neg (drift),
   edge (inline ``**Status**:`` counts as the section; an amendment-first line
@@ -45,6 +46,11 @@ removed with it rather than left asserting a contract the gate no longer has.
   Status or Date section is needed), neg (neither set, each concept missing alone,
   wrong heading level), edge (fenced and HTML-comment headings do not count, case and
   closing hashes are tolerated, an unparseable body is a counted finding)
+
+- size-cap: pos (a record at exactly 500 lines passes), neg (501 lines is one violation,
+  550 still one, 551 is two), edge (a record with no frontmatter is still measured, a
+  grandfathered record passes at its baselined size, growing into the next 50-line step
+  fails the gate, shrinking passes, the detail names the cap and the remedy)
 
 - review-by-format / review-by-past-due / review-by-prose-date (issue #5193): pos (an
   absent, null, future, or on-time date passes), neg (a past date, a malformed value,
@@ -90,6 +96,8 @@ from check_adr_lifecycle import (
     EXIT_OK,
     EXIT_REGRESSION,
     SECTION_EQUIVALENTS,
+    SIZE_CAP_LINES,
+    SIZE_STEP_LINES,
     _find_cycles,
     identities,
     main,
@@ -821,7 +829,7 @@ def test_the_mapping_and_the_template_agree():
             assert name in template.lower(), f"{name!r} is accepted by the gate but undocumented"
 
 
-# --- proposed-cannot-supersede / implemented-implies-decided ----------------
+# --- proposed-cannot-supersede ----------------------------------------------
 
 
 def test_accepted_record_may_supersede(tmp_path):
@@ -846,6 +854,217 @@ def test_proposed_record_may_not_supersede(tmp_path):
     )
 
     assert _counts(tmp_path)["proposed-cannot-supersede"] == 1
+
+
+# --- implemented-implies-decided --------------------------------------------
+
+
+def _write_implemented(tmp_path: Path, status: str, implemented: str) -> Path:
+    adr_dir = _adr_dir(tmp_path)
+    return _write(
+        adr_dir,
+        1,
+        _valid(1, status=status, implemented=implemented),
+        f"\n## Status\n\n{status.capitalize()}. Reviewed.\n",
+    )
+
+
+def test_proposed_and_implemented_is_flagged(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 1
+    assert "move status to accepted" in _hits(tmp_path, "implemented-implies-decided")[0].lower()
+
+
+def test_proposed_and_not_implemented_passes(tmp_path):
+    _write_implemented(tmp_path, "proposed", "false")
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+@pytest.mark.parametrize("status", ["accepted", "rejected", "deprecated"])
+def test_decided_and_implemented_passes(tmp_path, status):
+    _write_implemented(tmp_path, status, "true")
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_superseded_and_implemented_passes(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="superseded", **{"superseded-by": "ADR-002"}),
+        "\n## Status\n\nSuperseded by ADR-002.\n",
+    )
+    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"), _STATUS_SECTION)
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_mixed_case_proposed_is_still_proposed(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="Proposed", implemented="true"),
+        "\n## Status\n\nProposed. Reviewed.\n",
+    )
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 1
+
+
+@pytest.mark.parametrize("implemented", ['"true"', "yes-please", "null", "1"])
+def test_non_boolean_implemented_is_not_a_hit(tmp_path, implemented):
+    _write_implemented(tmp_path, "proposed", implemented)
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_absent_implemented_is_not_a_hit(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        "id: ADR-001\nstatus: proposed\ndate: 2026-08-21\nsupersedes: []\nsuperseded-by: null",
+        "\n## Status\n\nProposed. Reviewed.\n",
+    )
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_a_new_proposed_implemented_record_fails_the_gate(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "implemented-implies-decided" in result.stdout
+
+
+def test_a_grandfathered_proposed_implemented_record_passes_the_gate(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+    baseline = _baseline(tmp_path, **{"implemented-implies-decided": {_rel(1): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+# --- size-cap ----------------------------------------------------------------
+
+
+def _write_sized(tmp_path: Path, total_lines: int, frontmatter: str | None = None) -> Path:
+    """ADR-001 whose file is exactly ``total_lines`` lines long."""
+    adr_dir = _adr_dir(tmp_path)
+    head = frontmatter if frontmatter is not None else _valid(1)
+    path = _write(adr_dir, 1, head, _STATUS_SECTION)
+    current = len(path.read_text(encoding="utf-8").splitlines())
+    assert current <= total_lines, "fixture is longer than the requested size"
+    filler = "\n".join(f"Detail line {n}." for n in range(total_lines - current))
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(filler + "\n" if filler else "")
+    assert len(path.read_text(encoding="utf-8").splitlines()) == total_lines
+    return path
+
+
+def test_a_record_at_the_cap_passes(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES)
+
+    assert _counts(tmp_path)["size-cap"] == 0
+
+
+def test_a_short_record_passes(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+
+    assert _counts(tmp_path)["size-cap"] == 0
+
+
+def test_one_line_over_the_cap_is_one_violation(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + 1)
+
+    assert _counts(tmp_path)["size-cap"] == 1
+
+
+def test_a_full_step_over_the_cap_is_still_one_violation(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + SIZE_STEP_LINES)
+
+    assert _counts(tmp_path)["size-cap"] == 1
+
+
+def test_one_line_into_the_next_step_adds_a_violation(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + SIZE_STEP_LINES + 1)
+
+    assert _counts(tmp_path)["size-cap"] == 2
+
+
+def test_the_size_detail_names_the_cap_the_step_and_the_remedy(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + 1)
+
+    detail = _hits(tmp_path, "size-cap")[0]
+
+    assert f"{SIZE_CAP_LINES + 1} lines against the {SIZE_CAP_LINES}-line cap" in detail
+    assert "step 1 of 1" in detail
+    assert "split it" in detail
+
+
+def test_a_record_with_no_frontmatter_is_still_measured(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    body = "\n".join(f"Detail line {n}." for n in range(SIZE_CAP_LINES + 5))
+    _write(adr_dir, 1, None, body)
+
+    counts = _counts(tmp_path)
+
+    assert counts["size-cap"] == 1
+    assert counts["frontmatter-parses"] == 1
+
+
+def test_an_undecodable_record_reports_only_frontmatter_parses(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_bytes(b"\xff\xfe" + b"line\n" * (SIZE_CAP_LINES + 5))
+
+    counts = _counts(tmp_path)
+
+    assert counts["frontmatter-parses"] == 1
+    assert counts["size-cap"] == 0
+
+
+def test_a_new_oversized_record_fails_the_gate(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + 1)
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "size-cap" in result.stdout
+
+
+def test_a_grandfathered_oversized_record_passes_at_its_baselined_size(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + 1)
+    baseline = _baseline(tmp_path, **{"size-cap": {_rel(1): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+
+
+def test_a_grandfathered_record_that_grows_into_the_next_step_fails_the_gate(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + SIZE_STEP_LINES + 1)
+    baseline = _baseline(tmp_path, **{"size-cap": {_rel(1): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "size-cap" in result.stdout
+
+
+def test_a_grandfathered_record_that_shrinks_still_passes(tmp_path):
+    _write_sized(tmp_path, SIZE_CAP_LINES + 1)
+    baseline = _baseline(tmp_path, **{"size-cap": {_rel(1): 3}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
 
 
 # --- prose-frontmatter-agree ------------------------------------------------

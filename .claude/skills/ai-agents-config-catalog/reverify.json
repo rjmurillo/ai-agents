@@ -1,0 +1,267 @@
+{
+ "checks": [
+  {
+   "kind": "path_exists",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/patterns.py",
+   "id": "R1"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/patterns.py",
+   "text": "IGNORE_DIRECTIVE_RE = re.compile",
+   "id": "R2"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/patterns.py",
+   "text": "FILE_IGNORE_DIRECTIVE_RE = re.compile",
+   "id": "R3"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/scan.py",
+   "text": "text.splitlines()[:50]",
+   "id": "R4"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/skills/orphan-ref-validator/scripts/filters.py",
+   "id": "R5"
+  },
+  {
+   "kind": "contains",
+   "path": "src/claude/skills/taste-lints/scripts/taste_lints.py",
+   "text": "\"size-exception: true\" in \"\".join(lines[:20])",
+   "id": "R6"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/skill_size.py",
+   "text": "size-exception declared",
+   "id": "R7"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/conftest.py",
+   "text": "GIT_CONFIG_COUNT",
+   "id": "R8"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/check_push_lock_before_commit.py",
+   "text": "SKIP_ENV = \"SKIP_PUSH_LOCK_COMMIT_GUARD\"",
+   "id": "R9"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "name: push-lock-commit-guard",
+   "id": "R10"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "name: pre-pr-validation",
+   "id": "R11"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/git_hook_policy.py",
+   "text": "PYTEST_FULL_SUITE_LOCALLY_ENV = \"AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY\"",
+   "id": "R12"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/git_hook_policy.py",
+   "text": "PYTEST_WORKERS_ENV = \"AI_AGENTS_PYTEST_WORKERS\"",
+   "id": "R13"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/git_hook_policy.py",
+   "text": "def _pytest_parallel_flags",
+   "id": "R14"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".env.example",
+   "id": "R15"
+  },
+  {
+   "kind": "contains",
+   "path": ".env.example",
+   "text": "ANTHROPIC_API_KEY",
+   "id": "R16"
+  },
+  {
+   "kind": "contains",
+   "path": ".env.example",
+   "text": "PERPLEXITY_API_KEY",
+   "id": "R17"
+  },
+  {
+   "kind": "contains",
+   "path": ".env.example",
+   "text": "TAVILY_API_KEY",
+   "id": "R18"
+  },
+  {
+   "kind": "contains",
+   "path": ".env.example",
+   "text": "CONTEXT7_API_KEY",
+   "id": "R19"
+  },
+  {
+   "kind": "contains",
+   "path": ".env.example",
+   "text": "YDC_API_KEY",
+   "id": "R20"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validate_session_json.py",
+   "text": "\"SKIPPED: docs-only\"",
+   "id": "R21"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validate_session_json.py",
+   "text": "\"SKIPPED: investigation-only\"",
+   "id": "R22"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validate_session_json.py",
+   "text": "def validate_qa_skip_scope",
+   "id": "R23"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/modules/investigation_allowlist.py",
+   "id": "R24"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/test_investigation_eligibility.py",
+   "id": "R25"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/test_docs_only_eligibility.py",
+   "id": "R26"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/scripts/validate_investigation_claims.py",
+   "id": "R27"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/governance/drift-allowlist.json",
+   "id": "R28"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/drift_allowlist.py",
+   "id": "R29"
+  },
+  {
+   "kind": "path_exists",
+   "path": "templates/README.md",
+   "id": "R30"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude-plugin/plugin.json",
+   "id": "R31"
+  },
+  {
+   "kind": "absent",
+   "path": ".claude/.claude-plugin/plugin.json",
+   "id": "R32"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/.claude-plugin/plugin.json",
+   "id": "R33"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/copilot-cli/.claude-plugin/plugin.json",
+   "id": "R34"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude-plugin/marketplace.json",
+   "id": "R35"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/plugin/marketplace.json",
+   "id": "R36"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "id": "R37"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/validate-plugin-version-bump.yml",
+   "id": "R38"
+  },
+  {
+   "kind": "absent",
+   "path": ".github/hooks/require-subagent-model.json",
+   "id": "R39"
+  },
+  {
+   "kind": "contains",
+   "path": ".python-version",
+   "text": "3.14.8",
+   "id": "R40"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-config-catalog/scripts/flag_locator.py",
+   "id": "R41"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-config-catalog/scripts/instruments.py",
+   "id": "R42"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-portability-campaign/scripts/hook_inventory.py",
+   "id": "R43"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-config-catalog/test_flag_locator.py",
+   "id": "R44"
+  },
+  {
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-config-catalog/test_instruments.py",
+   "id": "R45"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/generate_agents.py",
+   "id": "R46"
+  },
+  {
+   "kind": "contains",
+   "path": "tests/conftest.py",
+   "text": "_NUMBERED_GIT_CONFIG",
+   "id": "R47"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/validation/skill_size.py",
+   "text": "RATIONALE_MIN_CHARS",
+   "id": "R48"
+  }
+ ]
+}

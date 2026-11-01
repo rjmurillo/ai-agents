@@ -1,6 +1,6 @@
 ---
 id: ADR-059
-status: proposed
+status: accepted
 date: 2026-05-08
 decision-makers: [rjmurillo]
 supersedes: []
