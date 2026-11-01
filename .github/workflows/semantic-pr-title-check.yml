@@ -43,7 +43,7 @@ jobs:
       - id: semantic
         uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
         if: github.event_name != 'merge_group' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
-        # Scoped: the "Classify outcome" log prints "Result: FAIL" for a real failure, which exits 1.
+        # Stays scoped because the "Classify outcome" log prints "Result: FAIL" for a real failure, which exits 1.
         continue-on-error: true
         with:
           types: |

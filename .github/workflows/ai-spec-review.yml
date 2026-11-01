@@ -101,7 +101,7 @@ jobs:
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: trace
-        # Advisory: the "[STATE] spec-traceability-check" log line and report comment show a failure.
+        # Stays advisory because the "[STATE] spec-traceability-check" log line and report comment show a failure.
         continue-on-error: true
         uses: ./.github/actions/ai-review
         with:
@@ -127,7 +127,7 @@ jobs:
       - name: ✅ Completeness Check (Critic Agent)
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: completeness
-        # Advisory: the "[STATE] spec-completeness-check" log line and report comment show a failure.
+        # Stays advisory because the "[STATE] spec-completeness-check" log line and report comment show a failure.
         continue-on-error: true
         uses: ./.github/actions/ai-review
         with:
@@ -178,7 +178,7 @@ jobs:
       - name: Post PR Comment
         id: post-comment
         if: steps.should-run.outputs.skip != 'true'
-        # Advisory: the "[STATE] spec-report-comment" log line and step summary show a failed post.
+        # Stays advisory because the "[STATE] spec-report-comment" log line and step summary show a failed post.
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
