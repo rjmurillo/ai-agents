@@ -112,17 +112,20 @@ hooks. Concretely, the bar is six rules:
 
    a. It only advises. It never emits a `decision` field, and it exits 0 on
       every path.
-   b. It writes nothing inside any repository. Its own state lives in
+   b. It writes nothing inside any repository it can detect. Its own state lives in
       per-user storage outside every repository, and it refuses a state root
-      that is not.
+      inside a directory tree that holds a `.git` entry. Bare-repository
+      setups that leave no `.git` entry are an accepted gap (REQ-048 AC-24).
    c. Its output is fixed text plus counts. It never echoes transcript,
       tool, or repository content.
    d. It runs on `Stop` only. The per-call events in rule 6 are out of reach,
       and so is every event whose output enters model context, such as
       `UserPromptSubmit` and `SessionStart`.
-   e. It reads only its stdin payload, the file at that payload's
-      `transcript_path`, its own state, and a closed list of environment
-      variables. REQ-048 AC-22 names that list and the launcher's own reads.
+   e. It opens only its stdin payload, the file at that payload's
+      `transcript_path`, and its own state, and it reads a closed list of
+      environment variables. The condition b refusal may also `stat`
+      ancestor directories. REQ-048 AC-22 names the variable list and the
+      launcher's own reads.
    f. Its output goes to a user-visible channel only, never into model
       context. Its text addresses the user, not the agent, and gives the
       agent no instruction.
@@ -141,7 +144,8 @@ hooks. Concretely, the bar is six rules:
    enforcement under rule 2.
 
    Sunset: rule 2a lapses when REQ-048's kill criterion removes the friction
-   branch, or when the hook leaves the vendored surface. The removing PR
+   branch, when the owner drops the friction branch under REQ-048 AC-19, or
+   when the hook leaves the vendored surface. The removing PR
    records the lapse in this ADR. The removing PR also removes the plugin
    dispatch group per Rollback, unless a new amendment covers what remains.
 

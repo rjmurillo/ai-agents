@@ -49,7 +49,7 @@ Extend the existing scanner in `invoke_reflect_nudge.py` with three tool-side fr
 
 ### Q5
 
-Measured 2026-10-31 over 30 days of `~/.claude/projects/*ai-agents*/*.jsonl`. The run read 8,305 transcripts and excluded sidechains. It found 550 errored tool results, 79 identical back-to-back tool calls, and 29 denials. 11 sessions had 10 or more errors plus retries. Every one had zero `HIGH_PATTERNS` matches and fewer than `MED_THRESHOLD` (2) `MED_PATTERNS` matches. So `has_signal` was false and the nudge stayed silent on all 11. All 11 transcripts are under the 64 MiB cap; the largest is 31.3 MiB. The heuristic is ad hoc. TASK-001 replaces it with a calibrated one.
+Measured 2026-10-31 over 30 days of `~/.claude/projects/*ai-agents*/*.jsonl`. The run read 8,305 transcripts and excluded sidechains. It found 550 errored tool results, 79 identical back-to-back tool calls, and 29 denials. 11 sessions had 10 or more errors plus repeated identical calls. That count ignores whether the prior call errored, so it is broader than AC-03's `failed_retry`. Every one had zero `HIGH_PATTERNS` matches and fewer than `MED_THRESHOLD` (2) `MED_PATTERNS` matches. So `has_signal` was false and the nudge stayed silent on all 11. All 11 transcripts are under the 64 MiB cap; the largest is 31.3 MiB. The heuristic is ad hoc. TASK-001 replaces it with a calibrated one.
 
 ### Q6
 
@@ -184,10 +184,10 @@ No network, no model call, no writes inside any repository.
 ## Observability
 
 - SLI 1, latency: hook wall time p99 under 2.5 s on a 64 MiB fixture in the test suite.
-- SLI 2, precision: share of friction nudges a human labels "a retro was worth it" on a held-out corpus. SLO: at least 70 percent.
+- SLI 2, precision: share of friction nudges a human labels "a retro was worth it" on a held-out corpus. SLO: at least 70 percent. TASK-001 writes the label rubric before any labeling. The owner both labels and produces the conversion count while knowing the thresholds; that reflexivity risk is accepted and stated here.
 - SLI 3, volume: friction nudges per 100 sessions on the owner's corpus. Over 15 means the threshold is too low.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
-- SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions.
+- SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions. If the baseline is at or above 20 percent, the owner sets a higher kill floor before release.
 - Release: the date AC-19 clears and the default ships. Each window below counts from that date.
 - Kill criteria: 30 days after release, remove the friction branch if under 20 percent of nudged sessions run `/retrospective` later in the same session, or if precision on a fresh 30-day labeled sample is under 50 percent. Judged on the owner's own transcripts only, since the hook sends no telemetry. The check needs at least 20 nudged sessions in the window; below that, the window extends in 30-day steps and the owner decides at 90 days. The check runs once; later decay is an accepted gap, open to an owner-requested re-check. Removal lapses ADR-084 rule 2a.
 
@@ -278,6 +278,6 @@ Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudg
 | TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20, AC-23 | TASK-002 | 1 day / 1 h |
 | TASK-004 | Exit, no-block, clean-tree, and input-limit tests; reorder `_safe_marker_dir` so the state-root walk runs before any `mkdir` | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
 | TASK-005 | ADR-084 amendment with debate log | Q-1, Q-2 | none | 2 days / 2 h plus review |
-| TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance with each of its nine items mapped to this use (item 3: a new authorizing issue; item 4: ADR-084 rule 2a; item 5: Copilot users get no nudge; item 8: a conditional exclusion whose reintroduction trigger is Copilot documenting an advisory field and `transcript_path`; items 1, 2, 6, 7, and 9 as written), the `dispatch_groups.json` `description` wording for a non-security exclusion, `tool-use-hook-bar.md` wording, ledger text | AC-16 to AC-18, AC-21, AC-25 | TASK-004, TASK-005 | 1.5 days / 1.5 h |
+| TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance with each of its nine items mapped to this use (item 3: a new authorizing issue; item 4: ADR-084 rule 2a; item 5: Copilot users get no nudge; item 7: the reintroduction trigger is Copilot documenting an advisory field and `transcript_path`, replacing the #5013 gates; item 8: the exclusion is conditional, so the cleanup obligation applies only if it becomes permanent; items 1, 2, 6, and 9 as written), the `dispatch_groups.json` `description` wording for a non-security exclusion, `tool-use-hook-bar.md` wording, ledger text | AC-16 to AC-18, AC-21, AC-25 | TASK-004, TASK-005 | 1.5 days / 1.5 h |
 
 Total: 8.5 human days, 9 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.

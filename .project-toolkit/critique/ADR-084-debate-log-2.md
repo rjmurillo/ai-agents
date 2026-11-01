@@ -4,7 +4,7 @@
 
 - **Rounds**: 5 of 10
 - **Prior debate logs**: `.project-toolkit/critique/ADR-084-debate-log.md` (original consensus) and `.project-toolkit/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`
-- **Outcome**: Consensus (round 5: 2/2 Accept on the final text, after confirming two P1-driven edits)
+- **Outcome**: Consensus (round 5: 2/2 Accept on the final text, after confirming one P1 edit and one P2 edit). Under ADR-101 (2026-11-01, #7027) the panel counts as one vote; owner acceptance is the binding gate.
 - **Final Status**: proposed (consensus reached; owner acceptance pending)
 - **Subject**: proposed 2026-10-31 amendment to ADR-084 adding rule 2a and correcting rule 5's enforcement record, for REQ-048.
 - **Trigger**: repo-owner @rjmurillo decided on 2026-10-31 to vendor the REQ-048 friction nudge. The decision was relayed from the owner's master session and authorizes TASK-005.
@@ -170,7 +170,7 @@ Round 4 fixes apply the reviewers' proposed fixes. The unset-`HOME` refusal is n
 
 ## Round 5 Summary
 
-**Scope**: the narrowed text at `9807dca3b`, voted as final. Only a P0 or P1 could change the ADR after this vote.
+**Scope**: the narrowed text at `9807dca3b`, voted as final. After this vote, only a P0 or P1, or a verbatim fix both reviewers confirm, could change the ADR.
 
 ### Agent Positions
 
@@ -195,7 +195,9 @@ Round 4 fixes apply the reviewers' proposed fixes. The unset-`HOME` refusal is n
 
 No ADR text changed after the confirm votes.
 
+**Post-round-5 review repairs (fresh `/review`, 2026-11-01).** Three ADR clauses changed: condition b names the bare-repo gap; condition e allows the refusal's `stat` walk; the sunset also lapses on an AC-19 drop. Both reviewers confirmed them (Accept, no P0 or P1). Both raised the same P2: condition b's first sentence overclaimed against the bare-repo gap. The architect's verbatim wording, "any repository it can detect", was applied. No other ADR text changed. REQ-048 fixed the ADR-085 item 7 and 8 mapping, the Q5 term, the kill floor's link to the baseline, and the label rubric.
+
 ### Next Steps
 
 - The owner (@rjmurillo) accepts or rejects rule 2a. Rule 2a binds only after acceptance.
-- After acceptance, REQ-048 TASK-001 to TASK-004 may start dogfood-first. TASK-006 carries the deferred C-P1-4 guard and the rule 5 test restoration.
+- REQ-048 TASK-001 to TASK-004 may start dogfood-first now, under the existing authorization. TASK-006 waits for acceptance and carries the deferred C-P1-4 guard and the rule 5 test restoration.
