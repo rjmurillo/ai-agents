@@ -2,13 +2,13 @@
 
 ## Summary
 
-- **Rounds**: 4 of 10
+- **Rounds**: 5 of 10
 - **Prior debate logs**: `.project-toolkit/critique/ADR-084-debate-log.md` (original consensus) and `.project-toolkit/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`
-- **Outcome**: Consensus (round 4: architect and critic both Disagree-and-Commit)
+- **Outcome**: pending round 5 vote on the narrowed text
 - **Final Status**: proposed (consensus reached; owner acceptance pending)
 - **Subject**: proposed 2026-10-31 amendment to ADR-084 adding rule 2a and correcting rule 5's enforcement record, for REQ-048.
 - **Trigger**: repo-owner @rjmurillo decided on 2026-10-31 to vendor the REQ-048 friction nudge. The decision was relayed from the owner's master session and authorizes TASK-005.
-- **Panel**: reduced (architect, critic), per AGENTS.md. The amendment edits policy prose in rule 2. It does not touch executable enforcement, and no gate reads rule 2. A search of `scripts/`, `build/`, `tests/`, rules, and templates found no reader of the rule 2 text (architect finding 8).
+- **Panel**: reduced (architect, critic), per AGENTS.md. The amendment edits policy prose in rules 2 and 5 and adds rule 2a. It touches no executable enforcement. `git grep ADR-084` over `scripts/`, `build/`, and `tests/` (2026-11-01, branch tip) finds one test that reads ADR-084 text: `tests/build_scripts/test_hook_contract_knowledge.py:1301-1312`. It reads only the security carve-out quote, which is unchanged, and it passes. The rule 5 tests and the Copilot generator test do not exist yet (deleted in `f79e70c01`, or owed by TASK-006).
 
 ## Round 1 Summary
 
@@ -108,7 +108,7 @@ Round 2 changes are P2 text repairs. Two were not re-reviewed in round 2: AC-22 
 | ID | Priority | Source | Resolution |
 |----|----------|--------|------------|
 | A3-1, C3-1 | P1 | both | Condition e now lists a closed set of state-root variables. A state root inside the repository is refused. New AC-24 tests the refusal. |
-| C3-2 | P1 | critic | Rollback now removes the restored rule 5 tests when the vendored surface empties. |
+| C3-2 | P1 | critic | Rollback now removes the restored rule 5 tests when the vendored surface empties (superseded by A4-5, then reverted in the narrowing). |
 | A3-2, C3-6 | P2 | both | The REQ-048 evidence row now names the seeded split. AC-19 records window dates, seed, split list, and the accepted leakage risk. |
 | A3-3 | P2 | architect | AC-12: an off hook neither reads nor writes its state. |
 | A3-4 | P2 | architect | Not changed. The authorizing issue is a TASK-006 duty under the Copilot clause, and rule 2a binds only after owner acceptance. |
@@ -153,6 +153,20 @@ Round 3 fixes apply the fixes the reviewers proposed. The condition e refusal cl
 | C4-7 | P2 | critic | This section exists, the header is current, and the "narrow" wording is corrected. |
 
 Round 4 fixes apply the reviewers' proposed fixes. The unset-`HOME` refusal is new text from C4-4.
+
+## Narrowing (2026-11-01, before round 5)
+
+**Trigger**: the fresh `/review` on 2026-10-31 returned WARN on four axes. Mechanics inside the ADR kept drawing findings. The owner chose to narrow the ADR and move mechanics to REQ-048 (D6). The owner also chose a conversion-rate kill rule (D7).
+
+**Changes, all made before the round 5 vote:**
+
+- Rule 2a covers the REQ-048 hook only and lapses under a sunset clause.
+- Condition e names inputs; REQ-048 AC-22 holds the closed variable list, including the launcher's `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PROJECT_DIR`.
+- The refusal walk, the unset-`HOME` refusal, and the bare-repo gap move to REQ-048 AC-24.
+- Rollback deletes both rule 5 tests on an empty surface, as `f79e70c01` did. This reverts the A4-5 skip.
+- The rule 5 correction's new duties are marked proposed with rule 2a.
+- "Failed retries" becomes "repeated identical calls", matching Q5.
+- REQ-048: AC-19 adds a Wilson lower bound of at least 50 percent. A new SLI 5 measures conversion. "Release" is defined. The kill rule is a 20 percent same-session conversion floor or precision under 50 percent. New AC-25 tests Stop-only registration. TASK-006 maps all nine ADR-085 Decision 7 items.
 
 ### Next Steps
 
