@@ -33,15 +33,15 @@ MODEL_MARKERS = (
 )
 
 
-def _load(path: Path) -> dict[str, Any]:
+def _load(path: Path) -> dict[Any, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(data, dict), f"{path.name} did not parse to a mapping"
     return data
 
 
-def _events(workflow: dict[str, Any]) -> set[str]:
+def _events(workflow: dict[Any, Any]) -> set[str]:
     # PyYAML reads the bare key `on` as boolean True.
-    triggers = workflow.get(True, workflow.get("on"))
+    triggers = workflow.get(True) or workflow.get("on")
     if isinstance(triggers, str):
         return {triggers}
     if isinstance(triggers, list):
@@ -64,13 +64,13 @@ def _reads_model_credential(name: str) -> bool:
     return any(marker in text for marker in MODEL_MARKERS)
 
 
-def _matrix_values(matrix: dict[str, Any], axis: str) -> list[Any]:
+def _matrix_values(matrix: dict[Any, Any], axis: str) -> list[Any]:
     values = list(matrix.get(axis) or [])
     values += [entry[axis] for entry in matrix.get("include") or [] if axis in entry]
     return values
 
 
-def _job_names(workflow: dict[str, Any]) -> set[str]:
+def _job_names(workflow: dict[Any, Any]) -> set[str]:
     names: set[str] = set()
     for key, job in (workflow.get("jobs") or {}).items():
         name = str(job.get("name", key))
