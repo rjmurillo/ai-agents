@@ -412,10 +412,10 @@ The replay script lives outside the repository. TASK-001's calibration script su
 Prior art, read by a research subagent on 2026-11-01 (raw files on each project's default branch):
 
 - **TokenEconomizer**
-  - `tokeneconomizer/loopguard/state.py:17-19` counts test runs by a command regex.
+  - `tokeneconomizer/loopguard/state.py:17-19` counts test runs by a command regex. <!-- citation-freshness: ignore -- path is in an external repository, not this one -->
   - `tokeneconomizer/microskills/observe.py` holds runner, task, and build vocabularies. It strips wrappers first, at lines 112 to 124.
   - It excludes read tools from failure detection.
-- **Aider** (`aider/coders/base_coder.py:318-321`, `:1599-1625`) uses caller-declared `--test-cmd` and `--lint-cmd`, judged by exit code.
+- **Aider** (`aider/coders/base_coder.py:318-321`, `:1599-1625`) uses caller-declared `--test-cmd` and `--lint-cmd`, judged by exit code. <!-- citation-freshness: ignore -- path is in an external repository, not this one -->
 - **OpenHands and SWE-agent.** OpenHands' `stuck_detector.py` detects exact repetition only. SWE-agent has no loop detector and lints inside its edit tool. Neither has a check concept.
 
 No source ends an edit cycle on any non-edit event. AC-40 combines a caller-marked field, as Aider has, with a vocabulary fallback, as TokenEconomizer has.
