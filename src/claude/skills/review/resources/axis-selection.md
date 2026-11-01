@@ -82,7 +82,7 @@ contributes its axes.
 |----------|---------|----------------|------------|
 | `tests-or-fixtures` | a whole `tests/` or `fixtures/` path segment, a `test_*` or `test.*` filename, or a `.test.`, `.tests.`, `.spec.`, `_test.`, `_tests.`, or `_spec.` name segment whatever suffix follows | `qa` | |
 | `auth-secrets-execution` | a whole path word of `auth`, `authn`, `authz`, `oauth`, `secret(s)`, `credential(s)`, `password(s)`, `token(s)`, `permission(s)`, a word starting `sanitiz` or `crypto`, or a `.env*` file | `security` | |
-| `dependencies` | a dependency manifest or lockfile (`pyproject.toml`, `uv.lock`, `package.json`, `*.csproj`, `go.mod`, `requirements*.txt`, and peers) | `security`, `devops` | |
+| `dependencies` | a dependency manifest or lockfile (`pyproject.toml`, `uv.lock`, `package.json`, `*.csproj`, `*.psd1`, `go.mod`, `requirements*.txt`, and peers) | `security`, `devops` | |
 | `ci-deploy-artifacts` | `.github/workflows/`, `.github/actions/`, a `lefthook`, `Dockerfile`, `docker-compose`, `deploy.*`, or `release.yml` file, a `*.tf`/`*.tfvars` file, or a `deploy/` or `release/` directory | `devops`, `security` | |
 | `types-or-public-api` | a `*.d.ts` or `*.proto` file, a whole `schemas/` or `interfaces/` path segment, or a whole basename of `types`, `api`, `models`, `schema`, `protocols`, or `interfaces` carrying any supported source suffix (`types.go` and `models.ts` count; `prototypes.py` does not) | `architect` | |
 | `agent-artifacts` | a file named `SKILL.md`, or a whole path segment of `skills/`, `agents/`, `hooks/`, `prompts/`, or `commands/` | `agent-safety` | |
@@ -136,8 +136,10 @@ partial list would skip a scanner that the missing files needed.
 
 PowerShell module parts (`.ps1`, `.psm1`, `.psd1` manifests, `.ps1xml`
 format and type files) all classify as executable code, so a module change
-does not fail closed. The canonical `code-quality` axis reviews them, and no
-local scanner is asked to read them.
+does not fail closed. The canonical `code-quality` axis reviews them. A
+`.psd1` manifest also routes as a dependency manifest, like a `.csproj`,
+because it declares `RequiredModules` and `RequiredAssemblies`. No local
+scanner reads `.psd1` or `.ps1xml`.
 
 A local axis skipped this way is not PASS and gets no marker row. In its
 Summary cell, name the language-native checks that covered those files, such
