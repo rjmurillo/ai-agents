@@ -28,11 +28,10 @@ filenames alone, so nothing reads what an ADR says about its own lifecycle state
 Every defect in the issue #5191 audit reached `main` unopposed: 59 of 98 records
 carry no frontmatter, 6 are `proposed` while `implemented: true`, ADR-091 claims
 to supersede ADR-079 while ADR-079 names ADR-092 as its successor, and 7 records
-carry frontmatter with no `## Status` section. This gate closes the first and
-third of those (`frontmatter-parses`, `supersession-target-exists`); the other
-two are intentionally not violations here, not gaps this gate missed:
-`implemented: true` with `proposed` is deliberate per ADR-098 (the removed
-eighth check below), and `prose-frontmatter-agree` skips a record with no
+carry frontmatter with no `## Status` section. This gate closes the first,
+second, and third of those (`frontmatter-parses`, `implemented-implies-decided`,
+restored 2026-11-01, and `supersession-target-exists`). The fourth is
+intentionally not a violation: `prose-frontmatter-agree` skips a record with no
 `## Status` section instead of flagging it, since ADR-073 makes the frontmatter
 enum authoritative (Copilot, PR #5209 round-7 review).
 
@@ -812,9 +811,10 @@ def _check_implemented_implies_decided(record: Record) -> list[Violation]:
     """`implemented-implies-decided`: shipped work cannot still read `proposed`.
 
     Only a boolean `true` counts. ADR-073 defines `implemented` as a boolean that
-    flips at first merged change, so a quoted "true" is not the field's value and
-    `status-enum` or review owns that defect, not this check. A record that is
-    `proposed` and `implemented: false` is the normal pre-merge state and passes.
+    flips at first merged change, so a quoted "true" is not the field's value. No
+    check in this gate validates the type of `implemented`, so review owns that
+    defect. A record that is `proposed` and `implemented: false` is the normal
+    pre-merge state and passes.
 
     History: this check existed, was removed in PR #5209 as contradicting ADR-073
     and ADR-098, and was restored on 2026-11-01 by the repository owner. The fix
