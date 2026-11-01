@@ -4,7 +4,7 @@
 
 - **Rounds**: 5 of 10
 - **Prior debate logs**: `.project-toolkit/critique/ADR-084-debate-log.md` (original consensus) and `.project-toolkit/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`
-- **Outcome**: pending round 5 vote on the narrowed text
+- **Outcome**: Consensus (round 5: 2/2 Accept on the final text, after confirming two P1-driven edits)
 - **Final Status**: proposed (consensus reached; owner acceptance pending)
 - **Subject**: proposed 2026-10-31 amendment to ADR-084 adding rule 2a and correcting rule 5's enforcement record, for REQ-048.
 - **Trigger**: repo-owner @rjmurillo decided on 2026-10-31 to vendor the REQ-048 friction nudge. The decision was relayed from the owner's master session and authorizes TASK-005.
@@ -167,6 +167,33 @@ Round 4 fixes apply the reviewers' proposed fixes. The unset-`HOME` refusal is n
 - The rule 5 correction's new duties are marked proposed with rule 2a.
 - "Failed retries" becomes "repeated identical calls", matching Q5.
 - REQ-048: AC-19 adds a Wilson lower bound of at least 50 percent. A new SLI 5 measures conversion. "Release" is defined. The kill rule is a 20 percent same-session conversion floor or precision under 50 percent. New AC-25 tests Stop-only registration. TASK-006 maps all nine ADR-085 Decision 7 items.
+
+## Round 5 Summary
+
+**Scope**: the narrowed text at `9807dca3b`, voted as final. Only a P0 or P1 could change the ADR after this vote.
+
+### Agent Positions
+
+| Agent | Vote | Confirm vote on the two edits |
+|-------|------|-------------------------------|
+| architect | Disagree-and-Commit (A5-1 must close) | Accept |
+| critic | Accept | Accept |
+
+**Dissent recorded**: the architect held that a kill left the dispatch group shipped under a lapsed rule (A5-1). The confirm votes closed it.
+
+### Key Issues Addressed
+
+| ID | Priority | Source | Resolution |
+|----|----------|--------|------------|
+| A5-1 | P1 | architect | ADR sunset clause: the removing PR also removes the plugin dispatch group, unless a new amendment covers what remains. Verbatim fix; both confirmed. |
+| A5-5 | P2 | architect | ADR rule 5: each PR that makes the vendored surface non-empty restores both tests. Verbatim fix; both confirmed. |
+| A5-2, C5-3 | P2 | both | REQ-048 map: b to AC-15 and AC-24. |
+| A5-3, C5-4 | P2 | both | REQ-048 AC-07: fixed template that addresses the user and instructs no agent, for both branches. |
+| A5-4 | P2 | architect | REQ-048 TASK-006: ADR-085 item 8 maps to a conditional exclusion with a reintroduction trigger. |
+| C5-1 | P2 | critic | REQ-048 kill check needs at least 20 nudged sessions; 30-day extensions; owner decides at 90 days. |
+| C5-2 | P2 | critic | REQ-048 records the one-time kill check as an accepted gap. |
+
+No ADR text changed after the confirm votes.
 
 ### Next Steps
 

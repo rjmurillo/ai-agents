@@ -189,7 +189,7 @@ No network, no model call, no writes inside any repository.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
 - SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions.
 - Release: the date AC-19 clears and the default ships. Each window below counts from that date.
-- Kill criteria: 30 days after release, remove the friction branch if under 20 percent of nudged sessions run `/retrospective` later in the same session, or if precision on a fresh 30-day labeled sample is under 50 percent. Judged on the owner's own transcripts only, since the hook sends no telemetry. Removal lapses ADR-084 rule 2a.
+- Kill criteria: 30 days after release, remove the friction branch if under 20 percent of nudged sessions run `/retrospective` later in the same session, or if precision on a fresh 30-day labeled sample is under 50 percent. Judged on the owner's own transcripts only, since the hook sends no telemetry. The check needs at least 20 nudged sessions in the window; below that, the window extends in 30-day steps and the owner decides at 90 days. The check runs once; later decay is an accepted gap, open to an owner-requested re-check. Removal lapses ADR-084 rule 2a.
 
 ## Acceptance criteria
 
@@ -199,7 +199,7 @@ No network, no model call, no writes inside any repository.
 4. **AC-04** When a repeated identical `tool_use` follows a call whose result succeeded, the scanner shall count no `failed_retry`.
 5. **AC-05** When any Stop event is processed, the hook shall exit 0.
 6. **AC-06** When any Stop event is processed, the hook shall emit no `decision` field.
-7. **AC-07** When the FrictionScore reaches the tier 1 threshold and no FrictionMarker exists for tier 1, the hook shall emit one `systemMessage` that names `/retrospective` and the three counts and contains no transcript text.
+7. **AC-07** When the FrictionScore reaches the tier 1 threshold and no FrictionMarker exists for tier 1, the hook shall emit one `systemMessage` from a fixed template that names `/retrospective` and the three counts, addresses the user, gives the agent no instruction, and contains no transcript text. The existing correction-branch message shall meet the same template rules (condition c and f, both branches).
 8. **AC-08** If a correction nudge and a friction nudge both qualify on one Stop, then the hook shall emit one JSON document whose `systemMessage` carries both.
 9. **AC-09** While a FrictionMarker exists for tier n, the hook shall emit no friction nudge until the score reaches tier n+1 (double the tier n threshold).
 10. **AC-10** When a new correction arrives between two Stops and the FrictionTier is unchanged, the hook shall emit no second friction nudge.
@@ -267,7 +267,7 @@ No network, no model call, no writes inside any repository.
 
 ## ADR cross-reference
 
-Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15; c to AC-07; d to AC-25; e to AC-22 and AC-24; f to AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 only. AC-01 to AC-15, AC-19, AC-20, and AC-22 to AC-24 can land dogfood-first under the existing authorization.
+Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 only. AC-01 to AC-15, AC-19, AC-20, and AC-22 to AC-24 can land dogfood-first under the existing authorization.
 
 ## Tasks (sequenced)
 
@@ -278,6 +278,6 @@ Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudg
 | TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20, AC-23 | TASK-002 | 1 day / 1 h |
 | TASK-004 | Exit, no-block, clean-tree, and input-limit tests; reorder `_safe_marker_dir` so the state-root walk runs before any `mkdir` | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
 | TASK-005 | ADR-084 amendment with debate log | Q-1, Q-2 | none | 2 days / 2 h plus review |
-| TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance with each of its nine items mapped to this use (item 3: a new authorizing issue; item 4: ADR-084 rule 2a; item 5: Copilot users get no nudge; items 1, 2, 6 to 9 as written), the `dispatch_groups.json` `description` wording for a non-security exclusion, `tool-use-hook-bar.md` wording, ledger text | AC-16 to AC-18, AC-21, AC-25 | TASK-004, TASK-005 | 1.5 days / 1.5 h |
+| TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance with each of its nine items mapped to this use (item 3: a new authorizing issue; item 4: ADR-084 rule 2a; item 5: Copilot users get no nudge; item 8: a conditional exclusion whose reintroduction trigger is Copilot documenting an advisory field and `transcript_path`; items 1, 2, 6, 7, and 9 as written), the `dispatch_groups.json` `description` wording for a non-security exclusion, `tool-use-hook-bar.md` wording, ledger text | AC-16 to AC-18, AC-21, AC-25 | TASK-004, TASK-005 | 1.5 days / 1.5 h |
 
 Total: 8.5 human days, 9 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.

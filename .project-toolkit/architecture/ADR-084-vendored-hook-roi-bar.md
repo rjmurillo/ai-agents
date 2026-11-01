@@ -142,7 +142,8 @@ hooks. Concretely, the bar is six rules:
 
    Sunset: rule 2a lapses when REQ-048's kill criterion removes the friction
    branch, or when the hook leaves the vendored surface. The removing PR
-   records the lapse in this ADR.
+   records the lapse in this ADR. The removing PR also removes the plugin
+   dispatch group per Rollback, unless a new amendment covers what remains.
 
    The hook MUST stay out of the Copilot tree. Its dispatch group sets
    `copilotExclude: true` and meets ADR-085 Decision 7's generic field
@@ -213,8 +214,8 @@ hooks. Concretely, the bar is six rules:
    Measured at `9254b9945` (2026-10-31): `src/claude/hooks.json` registers
    zero hooks, and no dispatch group carries `surface: "plugin"`. The
    paragraphs above record what held before that date. Proposed with rule
-   2a, not yet binding: the PR that adds the first vendored hook after this
-   date MUST restore both tests. That PR MUST
+   2a, not yet binding: each PR that makes the vendored surface non-empty
+   MUST restore both tests. That PR MUST
    NOT merge until they pass. Until a guard test detects a new vendored
    registration, this MUST binds only through review. The Amendment Record
    names the open item.
