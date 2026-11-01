@@ -39,11 +39,14 @@ DEFAULT_WINDOW = 20
 MAX_EVENTS = 10_000
 MAX_INPUT_BYTES = 8 * 1024 * 1024
 FINGERPRINT_MAX_CHARS = 200
-TOOL_MAX_CHARS = 40
 TARGET_MAX_CHARS = 512
 MAX_NUDGE_SIGNALS = 5
 EDIT_TOOLS: frozenset[str] = frozenset(
     {"edit", "write", "multiedit", "str_replace", "create", "apply_patch", "notebookedit"}
+)
+# Tool names the nudge may print verbatim; any other name prints as "tool".
+NUDGE_TOOL_NAMES: frozenset[str] = EDIT_TOOLS | frozenset(
+    {"bash", "shell", "powershell", "read", "view", "grep", "glob", "webfetch", "task"}
 )
 # A hash or address: 0x plus 7 or more hex characters, or a bare run of 7 or
 # more holding at least one digit and one letter, so plain numbers fall to the
@@ -51,7 +54,6 @@ EDIT_TOOLS: frozenset[str] = frozenset(
 _HEX_RUN = re.compile(r"\b0x[0-9a-f]{7,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,}\b")
 _DIGIT_RUN = re.compile(r"\d+")
 _WHITESPACE_RUN = re.compile(r"\s+")
-_UNSAFE_TOOL_CHARS = re.compile(r"[^a-z0-9_.-]")
 
 
 class EventError(ValueError):
@@ -145,60 +147,69 @@ def _progress_key(event: dict[str, Any]) -> tuple[str, str] | None:
     return (event["tool"], event["input"])
 
 
-Tally = dict[tuple[tuple[str, str] | None, str], int]
+ProgressKey = tuple[str, str] | None
+# progress key -> fingerprint -> count. Keying by progress key first makes a
+# reset one dict removal, so its cost never grows with the window.
+Counts = dict[ProgressKey, dict[str, int]]
 
 
-def _scan(events: list[dict[str, Any]]) -> tuple[Tally, dict[str, Tally]]:
-    """Walk events once; return failure tallies and per-file churn tallies.
+def _bump(counts: Counts, key: ProgressKey, fingerprint: str) -> None:
+    per_key = counts.setdefault(key, {})
+    per_key[fingerprint] = per_key.get(fingerprint, 0) + 1
 
-    Every count is keyed by ``(progress key, fingerprint)``, where the
-    progress key is the event's ``(tool, input)`` pair, or None without
-    ``input``. Progress is a success whose pair matches an earlier failure in
-    the window: the check that failed now passes. It removes only the counts
-    recorded under that pair, so fixing one command never hides a loop in
-    another that shares its first error line, and it closes the pending edit
-    cycle. Without ``input`` nothing can match, so nothing resets.
 
-    Every fingerprinted failure is tallied, failed edits included. The first
+def _scan(events: list[dict[str, Any]]) -> tuple[Counts, dict[str, Counts]]:
+    """Walk events once; return failure counts and per-file churn counts.
+
+    Every count is filed under the event's progress key, its ``(tool,
+    input)`` pair, or None without ``input``. Progress is a success whose pair
+    matches an earlier failure in the window: the check that failed now
+    passes, or a retried edit now applies. It removes only the counts filed
+    under that pair, so fixing one command never hides a loop in another that
+    shares its first error line. Without ``input`` nothing can match, so
+    nothing resets.
+
+    Every fingerprinted failure is counted, failed edits included. The first
     fingerprinted failure of a non-edit tool after successful edits is the
     outcome of each file edited since the previous outcome; several edits of
     one file before one failure count once (one cycle). A failed edit-tool
-    event, with or without ``target``, closes no cycle.
+    event, with or without ``target``, closes no cycle. A non-edit check that
+    makes progress also closes the pending cycle (those edits worked); an
+    edit retry that makes progress leaves other files' pending edits alone.
     """
-    tally: Tally = {}
-    churn: dict[str, Tally] = {}
+    tally: Counts = {}
+    churn: dict[str, Counts] = {}
     pending: set[str] = set()
     for event in events:
         key = _progress_key(event)
         if event["ok"]:
-            # Progress first, for every tool: a retried Write that now succeeds
-            # clears its own failures, then starts a new edit cycle.
-            if key is not None and any(k == key for k, _ in tally):
-                tally = {kf: n for kf, n in tally.items() if kf[0] != key}
-                for target, per_file in churn.items():
-                    churn[target] = {kf: n for kf, n in per_file.items() if kf[0] != key}
-                pending.clear()
+            if key is not None and key in tally:
+                del tally[key]
+                for per_file in churn.values():
+                    per_file.pop(key, None)
+                if not event["edit_tool"]:
+                    pending.clear()
             if event["is_edit"]:
                 pending.add(event["target"])
             continue
         fingerprint = event["fingerprint"]
         if fingerprint is None:
             continue
-        tally[(key, fingerprint)] = tally.get((key, fingerprint), 0) + 1
+        _bump(tally, key, fingerprint)
         if event["edit_tool"]:
             continue
         for target in pending:
-            per_file = churn.setdefault(target, {})
-            per_file[(key, fingerprint)] = per_file.get((key, fingerprint), 0) + 1
+            _bump(churn.setdefault(target, {}), key, fingerprint)
         pending.clear()
     return tally, churn
 
 
-def _by_fingerprint(tally: Tally) -> dict[str, int]:
-    """Sum a tally over progress keys: one count per fingerprint."""
+def _by_fingerprint(counts: Counts) -> dict[str, int]:
+    """Sum counts over progress keys: one total per fingerprint."""
     totals: dict[str, int] = {}
-    for (_, fingerprint), n in tally.items():
-        totals[fingerprint] = totals.get(fingerprint, 0) + n
+    for per_key in counts.values():
+        for fingerprint, n in per_key.items():
+            totals[fingerprint] = totals.get(fingerprint, 0) + n
     return totals
 
 
@@ -227,15 +238,22 @@ def detect_signals(
 
 
 def _safe_tool(fingerprint: str) -> str:
-    return _UNSAFE_TOOL_CHARS.sub("", fingerprint.split("|", 1)[0])[:TOOL_MAX_CHARS] or "tool"
+    """The fingerprint's tool name if it is a known tool, else the word "tool".
+
+    Tool names can come from third-party MCP servers, so only names on the
+    allowlist reach the nudge; anything else could spell an instruction.
+    """
+    tool = fingerprint.split("|", 1)[0]
+    return tool if tool in NUDGE_TOOL_NAMES else "tool"
 
 
 def build_failure_nudge(signals: list[dict[str, Any]]) -> str:
     """Build the nudge from signal names, counts and sanitized tool names only.
 
-    The nudge is control text a caller may inject into a prompt, so it never
-    carries event text: error lines and file paths can come from an attacker
-    (a crafted test message, a file name). They stay in the JSON ``signals``.
+    The nudge is control text a caller may inject into a prompt, so it carries
+    no error lines, inputs, or file paths: those can come from an attacker (a
+    crafted test message, a file name) and stay in the JSON ``signals``. Tool
+    names appear only when allowlisted.
     """
     lines = []
     # Churn names a file-level loop, the most actionable signal: list it first

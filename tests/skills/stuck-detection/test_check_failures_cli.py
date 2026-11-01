@@ -235,3 +235,32 @@ class TestRoundTwoCli:
         monkeypatch.setattr(sys, "stdin", None)
         assert main([]) == 2
         assert "stdin is closed" in capsys.readouterr().err
+
+    def test_missing_sibling_module_exits_two(self, tmp_path: Path) -> None:
+        lone = tmp_path / "stuck_detection.py"
+        lone.write_text((TestRuntimeContract.SCRIPT / "stuck_detection.py").read_text())
+        proc = subprocess.run(
+            [sys.executable, str(lone), "check-failures"],
+            input=b"[]",
+            capture_output=True,
+            cwd=tmp_path,
+            timeout=60,
+            check=False,
+        )
+        assert proc.returncode == 2
+        assert proc.stdout == b""
+        assert proc.stderr.startswith(b"stuck-detection: cannot load")
+
+    def test_loader_reports_unloadable_sibling(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(entry, "__file__", str(tmp_path / "stuck_detection.py"))
+        assert entry.main(["check-failures"]) == 2
+        assert capsys.readouterr().err.startswith("stuck-detection: cannot load")
+
+    def test_loader_reports_missing_spec(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(entry.importlib.util, "spec_from_file_location", lambda *a: None)
+        assert entry.main(["check-failures"]) == 2
+        assert capsys.readouterr().err.startswith("stuck-detection: cannot load")

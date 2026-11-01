@@ -399,10 +399,15 @@ def _run_failure_loops(argv: list[str]) -> int:
     """Load the sibling ``failure_loops.py`` by path and run its CLI."""
     path = Path(__file__).resolve().with_name("failure_loops.py")
     spec = importlib.util.spec_from_file_location("stuck_detection_failure_loops", path)
-    # A .py path always yields a spec with a loader; mypy needs the narrowing.
-    assert spec is not None and spec.loader is not None
+    if spec is None or spec.loader is None:
+        print(f"stuck-detection: cannot load {path}", file=sys.stderr)
+        return 2
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except (OSError, ImportError, SyntaxError) as exc:
+        print(f"stuck-detection: cannot load {path}: {exc}", file=sys.stderr)
+        return 2
     result: int = module.main(argv)
     return result
 
