@@ -48,9 +48,10 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
     are checked to sit under ``tests/`` with no ``..`` by the caller before this
     runs; ``validation_record`` skips collection when that scope check fails.
 
-    Trust model: pytest imports each named module and every ``conftest.py``
-    above it under ``tests/``. The scope check limits which files load, not
-    what code they hold, so run this only on a checkout you trust.
+    Trust model: pytest imports each named module, every ``conftest.py`` from
+    its rootdir down to that module (the repository root one included), and
+    every installed pytest plugin. The scope check limits which test modules
+    load, not what code runs, so run this only on a checkout you trust.
     """
     if importlib.util.find_spec("pytest") is None:
         raise PytestUnavailableError(

@@ -192,10 +192,11 @@ Rules `validation_record.py` enforces:
    `pytest --collect-only -q` over the `moved_to` files and compares the real
    ids with `tests_after`. It never runs the record's own `collect_command`.
    A collection that fails or finds no tests is a defect.
-   Trust model: collection imports each `moved_to` module and every
-   `conftest.py` above it under `tests/`. The path checks bound which files
-   load, not what code they hold. Run the CLI only on a checkout you trust,
-   as you would run its test suite.
+   Trust model: collection imports each `moved_to` module, every
+   `conftest.py` from the pytest rootdir down to it (the repository root one
+   included), and every installed pytest plugin. The path checks bound which
+   test modules load, not what code runs. Run the CLI only on a checkout you
+   trust, as you would run its test suite.
 
 ## Anti-Patterns
 
