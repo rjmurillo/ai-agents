@@ -1,0 +1,192 @@
+{
+ "checks": [
+  {
+   "id": "R1",
+   "kind": "path_exists",
+   "path": "src/claude/skills/adr-review/SKILL.md"
+  },
+  {
+   "id": "R2",
+   "kind": "contains",
+   "path": "src/claude/skills/adr-review/SKILL.md",
+   "text": "debate"
+  },
+  {
+   "id": "R3",
+   "kind": "path_exists",
+   "path": "src/claude/skills/buy-vs-build-framework/SKILL.md"
+  },
+  {
+   "id": "R4",
+   "kind": "contains",
+   "path": "src/claude/skills/buy-vs-build-framework/SKILL.md",
+   "text": "Go/No-go"
+  },
+  {
+   "id": "R5",
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "new cap buy-vs-build"
+  },
+  {
+   "id": "R6",
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "ADR review: debate log required"
+  },
+  {
+   "id": "R7",
+   "kind": "path_exists",
+   "path": "src/claude/skills/memory-gate/references/contradiction-log.md"
+  },
+  {
+   "id": "R8",
+   "kind": "contains",
+   "path": "src/claude/skills/memory-gate/references/contradiction-log.md",
+   "text": "decision-"
+  },
+  {
+   "id": "R9",
+   "kind": "path_exists",
+   "path": "scripts/eval/eval-prompt-change.py"
+  },
+  {
+   "id": "R10",
+   "kind": "contains",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "text": "Validate inputs, no API calls"
+  },
+  {
+   "id": "R11",
+   "kind": "contains",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "text": "--dry-run"
+  },
+  {
+   "id": "R12",
+   "kind": "path_exists",
+   "path": "scripts/eval/eval-rule-activation.py"
+  },
+  {
+   "id": "R13",
+   "kind": "contains",
+   "path": ".project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md",
+   "text": "misdiagnosed root cause"
+  },
+  {
+   "id": "R14",
+   "kind": "contains",
+   "path": ".project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md",
+   "text": "addressed-by-prevention"
+  },
+  {
+   "id": "R15",
+   "kind": "contains",
+   "path": ".project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md",
+   "text": "status: proposed"
+  },
+  {
+   "id": "R16",
+   "kind": "path_exists",
+   "path": ".project-toolkit/retrospective"
+  },
+  {
+   "id": "R17",
+   "kind": "path_exists",
+   "path": "src/claude/skills/decision-critic/SKILL.md"
+  },
+  {
+   "id": "R18",
+   "kind": "path_exists",
+   "path": "src/claude/skills/chestertons-fence/SKILL.md"
+  },
+  {
+   "id": "R19",
+   "kind": "path_exists",
+   "path": "src/claude/skills/prose-self-check/SKILL.md"
+  },
+  {
+   "id": "R20",
+   "kind": "path_exists",
+   "path": "src/claude/skills/doc-accuracy/SKILL.md"
+  },
+  {
+   "id": "R21",
+   "kind": "absent",
+   "path": "src/copilot-cli/hooks/PreToolUse/push_guard_base.py"
+  },
+  {
+   "id": "R22",
+   "kind": "absent",
+   "path": ".claude/hooks/PreToolUse/push_guard_base.py"
+  },
+  {
+   "id": "R23",
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-084-vendored-hook-roi-bar.md"
+  },
+  {
+   "id": "R24",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-empirical-probe-toolkit/SKILL.md"
+  },
+  {
+   "id": "R25",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-research-frontier/SKILL.md"
+  },
+  {
+   "id": "R26",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-failure-archaeology/SKILL.md"
+  },
+  {
+   "id": "R27",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-external-claims/SKILL.md"
+  },
+  {
+   "id": "R28",
+   "kind": "path_exists",
+   "path": ".claude/agents/critic.md"
+  },
+  {
+   "id": "R29",
+   "kind": "path_exists",
+   "path": ".claude/agents/independent-thinker.md"
+  },
+  {
+   "id": "R30",
+   "kind": "line_count_at_least",
+   "path": "scripts/eval/eval-prompt-change.py",
+   "min": 961
+  },
+  {
+   "id": "R31",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-research-methodology/scripts/instruments.py"
+  },
+  {
+   "id": "R32",
+   "kind": "contains",
+   "path": ".claude/skills/ai-agents-research-methodology/scripts/instruments.py",
+   "text": "drift-self-check"
+  },
+  {
+   "id": "R33",
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-failure-archaeology/scripts/corpus_index.py"
+  },
+  {
+   "id": "R34",
+   "kind": "path_exists",
+   "path": "tests/skills/ai-agents-research-methodology/test_instruments.py"
+  },
+  {
+   "id": "R35",
+   "kind": "contains",
+   "path": ".project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md",
+   "text": "#2230 (addressed-by-prevention)"
+  }
+ ]
+}

@@ -57,7 +57,7 @@ pointing at the install dir, even though the public docs list none of them
 - `tests/e2e/test_cli_hook_e2e.py` (real-CLI smoke, gated by `RUN_CLI_E2E=1`).
 - `.claude/rules/generated-artifacts.md` (binding rule: customer-facing
   generated artifacts MUST be executed in their target runtime before release).
-- FM-11 added to `.agents/governance/FAILURE-MODES.md:404`.
+- FM-11 added to `.agents/governance/FAILURE-MODES.md` (section `## 11.`).
 - `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`.
 
 **Status**: SETTLED. Fixed in plugin v0.5.7 through v0.5.12, gated since.
@@ -245,10 +245,10 @@ translator, and the workflow gate (commits `5bbf355`, `c1d8209`, `6cb5370`).
 
 **Root cause**: defaulting a missing signal to PASS (or any neutral value)
 hides uncertainty. The canonical statement, quoted verbatim from
-`.agents/governance/FAILURE-MODES.md:387`: "there is no neutral default for a
+`.agents/governance/FAILURE-MODES.md:390`: "there is no neutral default for a
 missing signal."
 
-**Evidence**: `.agents/governance/FAILURE-MODES.md:315-401` (FM-10, includes
+**Evidence**: `.agents/governance/FAILURE-MODES.md:318-410` (FM-10, includes
 the code shapes: `except: pass`, `x or default` on numerics,
 `dict.get(key, default)` on required keys, verdict laundering, `|| true`).
 Related: issue #2006 (truncated security-agent output silently became a

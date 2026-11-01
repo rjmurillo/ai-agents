@@ -26,8 +26,10 @@ __all__ = [
     "PullRequestTarget",
     "cancel_runs",
     "collect_runs_for_targets",
+    "PaginationState",
     "iter_paginated",
     "run_artifact_count",
+    "run_artifact_tally",
     "run_contexts",
     "with_artifact_counts",
 ]
@@ -107,10 +109,28 @@ class CancellationOutcome:
         return not self.failed
 
 
-def iter_paginated(client: GitHubClient, endpoint: str, items_key: str) -> Iterator[dict[str, Any]]:
+@dataclass(slots=True)
+class PaginationState:
+    """Out-parameter for :func:`iter_paginated`.
+
+    ``truncated`` is set when the walk stopped at ``_MAX_PAGES`` while the last
+    page was still full, so more items may exist than were yielded.
+    """
+
+    truncated: bool = False
+
+
+def iter_paginated(
+    client: GitHubClient,
+    endpoint: str,
+    items_key: str,
+    state: PaginationState | None = None,
+) -> Iterator[dict[str, Any]]:
     """Yield every item across the paginated GitHub REST endpoint.
 
-    Stops on the first short page, on an empty page, or at ``_MAX_PAGES``. The
+    Stops on the first short page, on an empty page, or at ``_MAX_PAGES``. When
+    the cap is hit with a full last page, ``state.truncated`` is set so the
+    caller can report an undercount instead of presenting it as complete. The
     separator between ``endpoint`` and the paging parameters is chosen from
     whether the endpoint already carries a query string, so a caller may pass
     filters such as ``?status=queued`` without corrupting the URL.
@@ -135,6 +155,8 @@ def iter_paginated(client: GitHubClient, endpoint: str, items_key: str) -> Itera
                 yield dict(item)
         if len(items) < PAGE_SIZE:
             return
+        if page == _MAX_PAGES and state is not None:
+            state.truncated = True
 
 
 class JobsNotMaterializedError(RuntimeError):
@@ -178,8 +200,11 @@ def run_contexts(client: GitHubClient, repository: str, run_id: int) -> tuple[st
     return tuple(names)
 
 
-def run_artifact_count(client: GitHubClient, repository: str, run_id: int) -> int:
+def run_artifact_tally(client: GitHubClient, repository: str, run_id: int) -> tuple[int, bool]:
     """Count the live artifacts one workflow run has uploaded.
+
+    Returns ``(count, truncated)``. ``truncated`` is True when the page cap was
+    hit, so ``count`` is a lower bound (``_MAX_PAGES * PAGE_SIZE`` items read).
 
     Issue #5365. Cancelling a run orphans what it already uploaded and
     interrupts any upload in flight, so the count belongs in the blast radius
@@ -191,11 +216,21 @@ def run_artifact_count(client: GitHubClient, repository: str, run_id: int) -> in
     puts at risk.
     """
     endpoint = f"repos/{_path_segment(repository)}/actions/runs/{run_id}/artifacts"
-    return sum(
+    state = PaginationState()
+    count = sum(
         1
-        for artifact in iter_paginated(client, endpoint, "artifacts")
+        for artifact in iter_paginated(client, endpoint, "artifacts", state)
         if not artifact.get("expired")
     )
+    return count, state.truncated
+
+
+def run_artifact_count(client: GitHubClient, repository: str, run_id: int) -> int:
+    """Count the live artifacts one workflow run has uploaded.
+
+    See :func:`run_artifact_tally` for the form that also reports truncation.
+    """
+    return run_artifact_tally(client, repository, run_id)[0]
 
 
 def with_artifact_counts(
@@ -207,12 +242,13 @@ def with_artifact_counts(
     leaving a run unmeasured: the caller asked for the number, and a report
     that silently omits it is the gap this exists to close.
     """
-    measured: dict[int, int] = {}
+    measured: dict[int, tuple[int, bool]] = {}
     counted: list[WorkflowRun] = []
     for run in runs:
         if run.run_id not in measured:
-            measured[run.run_id] = run_artifact_count(client, repository, run.run_id)
-        counted.append(replace(run, artifact_count=measured[run.run_id]))
+            measured[run.run_id] = run_artifact_tally(client, repository, run.run_id)
+        count, truncated = measured[run.run_id]
+        counted.append(replace(run, artifact_count=count, artifact_count_truncated=truncated))
     return counted
 
 

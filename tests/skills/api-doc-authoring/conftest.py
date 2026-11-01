@@ -15,6 +15,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 from api_fixtures import QTY_FIELD_V1, QTY_FIELD_V2, serve
 
 
+@pytest.fixture(autouse=True)
+def _run_from_tmp_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``--evidence`` is confined to the working directory, so each test runs from its tmp_path."""
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.fixture
 def order_api() -> Iterator[str]:
     """The API as the worked example documents it (field `qty`)."""

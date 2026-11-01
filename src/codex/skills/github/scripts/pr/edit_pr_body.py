@@ -125,12 +125,13 @@ def hash_matches(expected: str, current_body: str) -> bool:
     ``gh pr view <n> --json body --jq .body > f`` gets a
     file with one extra trailing newline, so its hash never equals the hash of
     the API body. Accept the exact body, the body plus one newline (the
-    redirection case), and the body with trailing newlines removed.
+    redirection case). Nothing else matches: a body with extra trailing
+    newlines hashes differently, so an edit made against a changed body is
+    refused.
     """
     accepted = {
         body_hash(current_body),
         body_hash(current_body + "\n"),
-        body_hash(current_body.rstrip("\r\n")),
     }
     return expected in accepted
 

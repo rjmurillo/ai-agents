@@ -12,8 +12,8 @@ What it decides:
   * every required State Record field is present and not a ``{placeholder}``
   * the timestamp parses as ISO 8601
   * every decision under ``## Decisions Made`` has a ``Provenance:`` line
-  * recorded remote owner/name, branch, worktree, and head SHA equal the live
-    repository
+  * recorded remote host (when present) and owner/name, branch, worktree, and
+    head SHA equal the live repository
 
 What it does not decide (the orchestrator still does):
   * whether the Next action is already done, reverted, or superseded. When the
@@ -88,7 +88,14 @@ _TABLE_SEPARATOR_CELL = re.compile(r"^:?-+:?$")
 _ATTRIBUTE_KEYS = frozenset({"alternatives considered", "provenance", "superseded by"})
 _TOP_LEVEL_ATTRIBUTE = re.compile(r"^[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _SUB_BULLET = re.compile(r"^\s+[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
-_REMOTE_URL = re.compile(r"[:/](?P<owner>[^/:]+)/(?P<name>[^/]+?)(?:\.git)?/?$")
+_URL_REMOTE = re.compile(
+    r"^(?:https?|ssh|git|git\+ssh|ssh\+git)://(?:[^@/\s]+@)?(?P<host>[^/:@\s]+)(?::\d+)?/(?P<path>\S+)$",
+    re.IGNORECASE,
+)
+_SCP_REMOTE = re.compile(r"^(?:[^@/\s]+@)?(?P<host>[^/:@\s]+):(?P<path>[^/\s]\S*)$")
+_URL_USERINFO = re.compile(r"(?<=://)[^/\s]*@")
+_SCP_USERINFO = re.compile(r"^[^\s/@]+@")
+NO_ORIGIN = "(no origin remote)"
 
 
 class GitError(RuntimeError):
@@ -304,9 +311,36 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def _remote_owner_name(url: str) -> str:
-    match = _REMOTE_URL.search(url)
-    return f"{match.group('owner')}/{match.group('name')}" if match else url
+def _owner_name(path: str) -> str | None:
+    parts = [part for part in path.removesuffix("/").removesuffix(".git").split("/") if part]
+    return f"{parts[-2]}/{parts[-1]}" if len(parts) >= 2 else None
+
+
+def _redact(text: str) -> str:
+    """Drop userinfo (user:token@) from a remote before it reaches a report."""
+    return _SCP_USERINFO.sub("", _URL_USERINFO.sub("", text.strip()))
+
+
+def _parse_remote(text: str) -> tuple[str | None, str] | None:
+    """Return (host, owner/name) from a remote, or None when it is not a repository reference.
+
+    Accepts http(s), ssh, and git URLs, scp-style git@host:owner/name, host/owner/name,
+    and the host-less owner/name shorthand (host is None). Anything else, including
+    file URLs and the no-origin sentinel, is rejected.
+    """
+    text = text.strip()
+    if not text or any(char.isspace() for char in text):
+        return None
+    match = _URL_REMOTE.match(text) or _SCP_REMOTE.match(text)
+    if match:
+        owner_name = _owner_name(match.group("path"))
+        return (match.group("host").lower(), owner_name) if owner_name else None
+    parts = text.removesuffix("/").removesuffix(".git").split("/")
+    if len(parts) == 2 and all(parts):
+        return None, f"{parts[0]}/{parts[1]}"
+    if len(parts) == 3 and all(parts) and "." in parts[0]:
+        return parts[0].lower(), f"{parts[1]}/{parts[2]}"
+    return None
 
 
 def _check_required(record: dict[str, str], report: Report) -> None:
@@ -349,21 +383,54 @@ def _ahead(repo: Path, recorded: str) -> str:
     return f" (live head is {count} commit(s) ahead; read them against the Next action)"
 
 
-def _live_remote(repo: Path) -> str:
+def _live_origin(repo: Path) -> str | None:
+    """Return the raw origin URL, or None when the repository has no origin."""
     try:
-        return _remote_owner_name(_git(repo, "remote", "get-url", "origin"))
+        return _git(repo, "remote", "get-url", "origin")
     except GitError:
         _git(repo, "rev-parse", "--git-dir")  # not a repository: raise as an external failure
-        return "(no origin remote)"
+        return None
+
+
+def _format_remote(remote: tuple[str | None, str]) -> str:
+    host, owner_name = remote
+    return f"{host}/{owner_name}" if host else owner_name
+
+
+def _check_remote(recorded_text: str, repo: Path, report: Report) -> None:
+    recorded = _parse_remote(recorded_text)
+    if recorded is None:
+        report.hold(f"remote is not a repository URL or owner/name: {_redact(recorded_text)}")
+        return
+    recorded_label = _format_remote(recorded)
+    origin = _live_origin(repo)
+    if origin is None:
+        report.hold(f"remote mismatch: recorded {recorded_label}, live {NO_ORIGIN}")
+        return
+    live = _parse_remote(origin)
+    if live is None:
+        report.hold(f"live origin is not a repository URL: {_redact(origin)}")
+        return
+    recorded_host, recorded_name = recorded
+    live_host, live_name = live
+    host_differs = recorded_host is not None and recorded_host != live_host
+    if host_differs or recorded_name.lower() != live_name.lower():
+        report.hold(f"remote mismatch: recorded {recorded_label}, live {_format_remote(live)}")
+
+
+def _check_worktree(recorded_text: str, live_tree: Path, report: Report) -> None:
+    recorded = Path(recorded_text).expanduser()
+    if not recorded.is_absolute():
+        report.hold(f"worktree is not an absolute path: {recorded_text}")
+        return
+    _compare(report, "worktree", str(recorded.resolve()), str(live_tree))
 
 
 def _check_live(record: dict[str, str], repo: Path, report: Report) -> None:
-    live_remote = _live_remote(repo)
-    _compare(report, "remote", _remote_owner_name(record["Remote"]).lower(), live_remote.lower())
+    _check_remote(record["Remote"], repo, report)
     _compare(report, "branch", record["Branch"], _git(repo, "rev-parse", "--abbrev-ref", "HEAD"))
     live_tree = Path(_git(repo, "rev-parse", "--show-toplevel")).resolve()
-    recorded_tree = Path(record["Worktree"]).expanduser().resolve()
-    _compare(report, "worktree", str(recorded_tree), str(live_tree))
+    _check_worktree(record["Worktree"], live_tree, report)
     _check_head(repo, record["Head SHA"], _git(repo, "rev-parse", "HEAD"), report)
 
 

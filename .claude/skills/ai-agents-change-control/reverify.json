@@ -1,0 +1,269 @@
+{
+ "checks": [
+  {
+   "kind": "absent",
+   "path": ".claude-plugin/plugin.json",
+   "id": "R1"
+  },
+  {
+   "kind": "absent",
+   "path": "scripts/validation/pr_commit_count.py",
+   "id": "R2"
+  },
+  {
+   "kind": "absent",
+   "path": "scripts/git_hook_policy.py",
+   "id": "R3"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/modules/investigation_allowlist.py",
+   "text": "r\"^\\.project-toolkit/critique/\"",
+   "id": "R4"
+  },
+  {
+   "kind": "contains",
+   "path": "scripts/modules/investigation_allowlist.py",
+   "text": "r\"^\\.project-toolkit/architecture/REVIEW-\"",
+   "id": "R5"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "adr-review-policy",
+   "id": "R6"
+  },
+  {
+   "kind": "contains",
+   "path": "lefthook.yml",
+   "text": "scripts/validation/git_hook_policy.py adr-review {staged_files}",
+   "id": "R7"
+  },
+  {
+   "kind": "contains",
+   "path": "build/generate_agents.py",
+   "text": "\"--validate\"",
+   "id": "R8"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "build/scripts/build_all.py --check",
+   "id": "R9"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "def assert_no_claude_writes(",
+   "id": "R10"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/build_all.py",
+   "text": "REQ-003-010 VIOLATION",
+   "id": "R11"
+  },
+  {
+   "kind": "contains",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "text": "WHY THE FIELD MUST BE ABSENT",
+   "id": "R12"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/PROJECT-CONSTRAINTS.md",
+   "text": "**Exceptions**: None. All third-party actions must be SHA-pinned.",
+   "id": "R13"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/golden-principles.md",
+   "text": "### GP-006: Pin Actions to SHA",
+   "id": "R14"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "## 10. Silent Defaults and Guard-Clause Suppression",
+   "id": "R15"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "## 9. Confident-Incorrectness Recurrence",
+   "id": "R16"
+  },
+  {
+   "kind": "contains",
+   "path": ".agents/governance/FAILURE-MODES.md",
+   "text": "there is no neutral default for a missing signal",
+   "id": "R17"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "coverage: security 100%, business 80%, docs 60%",
+   "id": "R18"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "ADR review: debate log required",
+   "id": "R19"
+  },
+  {
+   "kind": "contains",
+   "path": "AGENTS.md",
+   "text": "No manifest version (ADR-092)",
+   "id": "R20"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/universal.md",
+   "text": "MUST NOT use em-dashes",
+   "id": "R21"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/rules/canonical-source-mirror.md",
+   "text": "verbatim",
+   "id": "R22"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md",
+   "id": "R23"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/validate_hook_anchoring.py",
+   "id": "R24"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/checks_dash.py",
+   "id": "R25"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/git_hook_policy.py",
+   "id": "R26"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/pre_pr.py",
+   "id": "R27"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/validate-plugin-version-bump.yml",
+   "id": "R28"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/agent-drift-detection.yml",
+   "id": "R29"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/workflows/drift-detection.yml",
+   "id": "R30"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".agents/governance/drift-allowlist.json",
+   "id": "R31"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/hooks/hooks.json",
+   "id": "R32"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/settings.json",
+   "id": "R33"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/claude/.claude-plugin/plugin.json",
+   "id": "R34"
+  },
+  {
+   "kind": "path_exists",
+   "path": "src/copilot-cli/.claude-plugin/plugin.json",
+   "id": "R35"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude-plugin/marketplace.json",
+   "id": "R36"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".github/scripts/validate_investigation_claims.py",
+   "id": "R37"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md",
+   "id": "R38"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-066-hook-fail-open-reconciliation.md",
+   "id": "R39"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md",
+   "id": "R40"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-change-control/scripts/classify_change.py",
+   "id": "S1"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-change-control/scripts/instruments.py",
+   "id": "S2"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-change-control/references/gate-ladder.md",
+   "id": "S3"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-change-control/references/incident-history.md",
+   "id": "S4"
+  },
+  {
+   "kind": "path_exists",
+   "path": ".claude/skills/ai-agents-change-control/references/provenance.md",
+   "id": "S5"
+  },
+  {
+   "kind": "contains",
+   "path": ".claude/skills/ai-agents-change-control/scripts/classify_change.py",
+   "text": "CLASS_MAP",
+   "id": "S6"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/validation/check_citation_freshness.py",
+   "id": "S7"
+  },
+  {
+   "kind": "path_exists",
+   "path": "build/scripts/validate_plugin_version_bump.py",
+   "id": "S8"
+  },
+  {
+   "kind": "path_exists",
+   "path": "scripts/modules/investigation_allowlist.py",
+   "id": "S9"
+  }
+ ]
+}

@@ -16,7 +16,9 @@ from scripts.github_core.recovery_manifest import (
 )
 from scripts.github_core.workflow_runs import (
     PAGE_SIZE,
+    iter_paginated,
     run_artifact_count,
+    run_artifact_tally,
     with_artifact_counts,
 )
 from tests.ci.bulk_cancel_fixtures import healthy_subscriptions, make_run
@@ -174,3 +176,98 @@ class TestManifestArtifacts:
         payload = manifest_to_dict(self._manifest(runs))
 
         assert payload["blast_radius"]["artifacts"] == 6
+
+
+class TestPageCapTruncation:
+    """The page cap must be reported, not silently treated as a complete count (#6506)."""
+
+    def _capped_client(self, monkeypatch, *, pages: int = 2):
+        monkeypatch.setattr("scripts.github_core.workflow_runs._MAX_PAGES", pages)
+        return FakeClient(
+            {
+                page_url(artifacts_endpoint(7), n): artifact_page(PAGE_SIZE)
+                for n in range(1, pages + 2)
+            }
+        )
+
+    def test_full_pages_to_the_cap_report_truncation(self, monkeypatch):
+        client = self._capped_client(monkeypatch)
+
+        count, truncated = run_artifact_tally(client, REPOSITORY, 7)
+
+        assert truncated is True
+        assert count == 2 * PAGE_SIZE
+        assert len(client.gets) == 2
+
+    def test_a_short_page_before_the_cap_is_not_truncated(self, monkeypatch):
+        monkeypatch.setattr("scripts.github_core.workflow_runs._MAX_PAGES", 3)
+        client = FakeClient(
+            {
+                page_url(artifacts_endpoint(7), 1): artifact_page(PAGE_SIZE),
+                page_url(artifacts_endpoint(7), 2): artifact_page(4),
+            }
+        )
+
+        assert run_artifact_tally(client, REPOSITORY, 7) == (PAGE_SIZE + 4, False)
+
+    def test_a_short_page_at_the_cap_is_not_truncated(self, monkeypatch):
+        monkeypatch.setattr("scripts.github_core.workflow_runs._MAX_PAGES", 2)
+        client = FakeClient(
+            {
+                page_url(artifacts_endpoint(7), 1): artifact_page(PAGE_SIZE),
+                page_url(artifacts_endpoint(7), 2): artifact_page(PAGE_SIZE - 1),
+            }
+        )
+
+        assert run_artifact_tally(client, REPOSITORY, 7)[1] is False
+
+    def test_iter_paginated_without_state_still_works_at_the_cap(self, monkeypatch):
+        client = self._capped_client(monkeypatch)
+
+        items = list(iter_paginated(client, artifacts_endpoint(7), "artifacts"))
+
+        assert len(items) == 2 * PAGE_SIZE
+
+    def test_with_artifact_counts_stamps_the_flag_and_the_radius_carries_it(self, monkeypatch):
+        client = self._capped_client(monkeypatch)
+
+        runs = with_artifact_counts(client, REPOSITORY, [make_run(7)])
+        radius = summarize_blast_radius(runs, REQUIRED_CONTEXTS)
+
+        assert runs[0].artifact_count_truncated is True
+        assert radius.artifact_count_truncated is True
+
+    def test_an_untruncated_radius_is_not_flagged(self):
+        client = FakeClient({page_url(artifacts_endpoint(1), 1): artifact_page(2)})
+        runs = with_artifact_counts(client, REPOSITORY, [make_run(1)])
+
+        assert summarize_blast_radius(runs, REQUIRED_CONTEXTS).artifact_count_truncated is False
+
+    def test_the_manifest_surfaces_truncation(self, monkeypatch):
+        client = self._capped_client(monkeypatch)
+        runs = with_artifact_counts(client, REPOSITORY, [make_run(7)])
+        manifest = plan_recovery(
+            runs,
+            required=REQUIRED_CONTEXTS,
+            subscriptions=healthy_subscriptions(),
+            recovery_event="reopened",
+            repository="rjmurillo/ai-agents",
+        )
+
+        blast = manifest_to_dict(manifest)["blast_radius"]
+
+        assert blast["artifacts"] == 2 * PAGE_SIZE
+        assert blast["artifacts_truncated"] is True
+
+    def test_the_manifest_omits_the_flag_when_complete(self):
+        client = FakeClient({page_url(artifacts_endpoint(1), 1): artifact_page(2)})
+        runs = with_artifact_counts(client, REPOSITORY, [make_run(1)])
+        manifest = plan_recovery(
+            runs,
+            required=REQUIRED_CONTEXTS,
+            subscriptions=healthy_subscriptions(),
+            recovery_event="reopened",
+            repository="rjmurillo/ai-agents",
+        )
+
+        assert "artifacts_truncated" not in manifest_to_dict(manifest)["blast_radius"]

@@ -2297,14 +2297,18 @@ def _surface_parity_exit(repo_root: Path, stale_paths: list[str]) -> int:
     copy answers to. ``--check`` runs the same checks as
     ``check_surface_parity.py``, so CI and a local run share one result, and
     labels each stale path the generators left with the surface that owns it.
-    A tree with no manifest has no parity claims; the standalone CLI and
-    ``tests/build_scripts/test_surface_parity_repo.py`` fail on a missing
-    manifest in this repository. Returns 0 (holds) or 2 (finding or bad config).
+    A missing manifest is a config error, so a deleted
+    ``templates/platforms/surface-parity.yaml`` cannot turn the gate off.
+    Returns 0 (holds) or 2 (finding, missing manifest, or bad config).
     """
     try:
         manifest = check_surface_parity.load_manifest(repo_root)
         if manifest is None:
-            return 0
+            print(
+                "Error: surface parity manifest missing: templates/platforms/surface-parity.yaml",
+                file=sys.stderr,
+            )
+            return 2
         findings = [
             *check_surface_parity.classify_changes(manifest, stale_paths),
             *check_surface_parity.run_checks(repo_root, manifest, owned_prefixes=OWNED_PREFIXES),

@@ -1,0 +1,189 @@
+{
+  "checks": [
+    {
+      "id": "R1",
+      "kind": "path_exists",
+      "path": ".claude/skills/github/scripts/pr/why_pr_blocked.py"
+    },
+    {
+      "id": "R2",
+      "kind": "path_exists",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py"
+    },
+    {
+      "id": "R3",
+      "kind": "path_exists",
+      "path": ".claude/skills/github/scripts/pr/get_pr_context.py"
+    },
+    {
+      "id": "R4",
+      "kind": "path_exists",
+      "path": ".claude/skills/github/scripts/pr/get_pr_review_threads.py"
+    },
+    {
+      "id": "R5",
+      "kind": "path_exists",
+      "path": ".claude/skills/github/scripts/pr/get_pr_check_logs.py"
+    },
+    {
+      "id": "R6",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "GREEN_ON_MAIN"
+    },
+    {
+      "id": "R7",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "RED_ON_MAIN"
+    },
+    {
+      "id": "R8",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "PR_ONLY"
+    },
+    {
+      "id": "R9",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "CANCELLED_ON_MAIN"
+    },
+    {
+      "id": "R10",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "UNKNOWN"
+    },
+    {
+      "id": "R11",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "--history-depth"
+    },
+    {
+      "id": "R12",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "3 - PR_ONLY / CANCELLED_ON_MAIN / UNKNOWN"
+    },
+    {
+      "id": "R13",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/triage_red_check.py",
+      "text": "\"Verdict\": verdict"
+    },
+    {
+      "id": "R14",
+      "kind": "contains",
+      "path": ".claude/skills/github/scripts/pr/why_pr_blocked.py",
+      "text": "MISSING_GRACE_SECONDS"
+    },
+    {
+      "id": "R15",
+      "kind": "path_exists",
+      "path": ".claude/skills/github/SKILL.md"
+    },
+    {
+      "id": "R16",
+      "kind": "path_exists",
+      "path": ".claude/skills/reviewer-findings/SKILL.md"
+    },
+    {
+      "id": "R17",
+      "kind": "path_exists",
+      "path": ".claude/skills/pr-comment-responder/SKILL.md"
+    },
+    {
+      "id": "R18",
+      "kind": "path_exists",
+      "path": "templates/rules/ci-scripts.md"
+    },
+    {
+      "id": "R19",
+      "kind": "contains",
+      "path": "templates/rules/ci-scripts.md",
+      "text": "22. **A job `name:` is a branch-protection identifier."
+    },
+    {
+      "id": "R20",
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-pr-recovery/references/library.md"
+    },
+    {
+      "id": "R21",
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-pr-recovery/references/evaluation.md"
+    },
+    {
+      "id": "R22",
+      "kind": "contains",
+      "path": ".claude/skills/repository-pr-recovery/references/library.md",
+      "text": "## Common execution contract"
+    },
+    {
+      "id": "R23",
+      "kind": "contains",
+      "path": ".claude/skills/repository-pr-recovery/references/library.md",
+      "text": "## Maintenance"
+    },
+    {
+      "id": "R24",
+      "kind": "contains",
+      "path": ".claude/skills/repository-pr-recovery/references/library.md",
+      "text": "## Working boundary"
+    },
+    {
+      "id": "R25",
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-completion-proof/SKILL.md"
+    },
+    {
+      "id": "R26",
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-pr-recovery/scripts/instruments.py"
+    },
+    {
+      "id": "R27",
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-pr-recovery/scripts/required_check_producer_join.py"
+    },
+    {
+      "id": "R28",
+      "kind": "path_exists",
+      "path": "scripts/validation/check_required_context_conditions.py"
+    },
+    {
+      "id": "R29",
+      "kind": "contains",
+      "path": "templates/skills/repository-pr-recovery.SKILL.md.tmpl",
+      "text": "--history-depth"
+    },
+    {
+      "id": "R30",
+      "kind": "contains",
+      "path": "templates/skills/repository-pr-recovery.SKILL.md.tmpl",
+      "text": "required_check_producer_join.py"
+    },
+    {
+      "id": "R31",
+      "kind": "path_exists",
+      "path": "tests/skills/repository-pr-recovery/test_instruments.py"
+    },
+    {
+      "id": "R32",
+      "kind": "path_exists",
+      "path": "tests/skills/repository-pr-recovery/test_required_check_producer_join.py"
+    },
+    {
+      "id": "R33",
+      "kind": "path_exists",
+      "path": "tests/skills/repository-pr-recovery/test_skill_md_contract.py"
+    },
+    {
+      "id": "R34",
+      "kind": "path_exists",
+      "path": "tests/skills/repository-pr-recovery/test_structure_repository_pr_recovery.py"
+    }
+  ]
+}

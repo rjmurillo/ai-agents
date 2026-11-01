@@ -54,11 +54,19 @@ Select the lowest layer that lacks evidence:
 | Structural tests pass but agent behavior is wrong | Select a runtime parity fixture and negative control. | Valid live samples meet the maintained behavioral thresholds. |
 
 For generated artifacts, inspect current owners before loading older generation instructions.
-`.claude/skills/*/SKILL.md`, hooks, settings, agents, and rules are generated outputs.
-Skill support files remain canonical under `.claude/skills/`, except the review validator sidecar.
-See [build ownership](../../../build/AGENTS.md),
-[binplace manifest](../../../templates/platforms/binplace.yaml),
-and [.claude ownership](../../../.claude/AGENTS.md).
+The [.claude ownership guide](../../../.claude/AGENTS.md) lists the generated outputs.
+See also [build ownership](../../../build/AGENTS.md).
+Ask the manifest which layer owns a path:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-consumer-proof/scripts/artifact_owner.py" --repo . <repo-relative-path>
+```
+
+It reads [the binplace manifest](../../../templates/platforms/binplace.yaml) and prints each row that covers the path, the layer (source, plugin, installed), and whether the row links, copies, or only renders it.
+Each match lists `upstream` rows that write the plugin-side copy, so a linked file resolves to its canonical source.
+Exit 1 means no row covers the path.
+A `metadata.distribution: repo-local` skill skips the plugin hop, so the `skills` row's link does not apply to it.
+It does not say whether the installed bytes are stale; use `build_all.py --check` for that.
 Do not repair a mirror or edit canonical input merely to match a stale output.
 
 If diagnosis is requested, report the discriminating result without changing code.
@@ -89,8 +97,6 @@ and [plugin-root suite](../../../tests/build_scripts/test_generate_hooks_plugin_
 
 For the installed dispatcher, select `test_the_bundled_config_runs_its_criteria_end_to_end`.
 Require exit code zero, `all_passed: true`, and the expected trust classifications.
-The fixture reports `config_trust.status: install-trusted` and `command_trust.status: trusted`.
-Require `criteria[0].passed: true`, `criteria[0].exit_code: 0`, and `criteria[0].stdout_json.gate_ran: true`.
 `gate_ran` belongs to the fixture command's JSON, not the dispatcher's top-level payload.
 For real criteria, inspect `all_passed`, `config_trust.status`, `command_trust.status`, and `criteria[].passed`.
 When JSON exists, inspect `criteria[].stdout_json` for the intended command's observable result.
@@ -144,6 +150,18 @@ An artifact build does not prove publication, promotion, or consumer adoption.
 Report each measured layer, the consumer-visible result, and remaining operator work.
 If live runtime access is unavailable, report runtime impact as unmeasured.
 
+## Scripts
+
+List or run the proofs this skill names:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-consumer-proof/scripts/instruments.py" --repo . list
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/repository-consumer-proof/scripts/instruments.py" --repo . run <id>
+```
+
+Rows cover `build_all.py --check`, the dispatcher and hook suites, the runtime parity dry-run (pass `-- --model <id>` after `run runtime-parity-dry-run`), `artifact-owner`, and the drift self-check.
+`list` proves the instrument files exist. It does not prove consumer behavior; only a `run` result does.
+
 ## Verification
 
 - [ ] The selected layer has observed positive and negative evidence.
@@ -156,3 +174,13 @@ Follow the [shared outcome boundary](../repository-pr-recovery/references/librar
 ## Evolution
 
 Follow the [shared maintenance policy](../repository-pr-recovery/references/library.md#maintenance).
+
+## Provenance and Maintenance
+
+Last verified 2026-10-31 at commit `42e409325`. `reverify.json` holds the checks for the paths and strings this skill relies on. Check drift with:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root .claude/skills --name repository-consumer-proof --require
+```
+
+The installed-dispatcher fixture fields live in `tests/test_run_completion_gate_install.py`; read the test, not a copy.

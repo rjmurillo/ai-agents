@@ -26,6 +26,7 @@ module's docstring for the full reasoning behind both triggers.
 from __future__ import annotations
 
 import dataclasses
+import os
 import re
 import subprocess
 import time
@@ -59,6 +60,15 @@ from scripts.metrics.lefthook_summary import parse_summary
 # per-job timeout: values already bound the individual jobs. A timeout is
 # recorded as a failed repetition, never raised past the caller (AC-06).
 _HOOK_TIMEOUT_SECONDS = 3600.0
+
+# ``lefthook.yml`` leaves ``summary`` out of its ``output`` setting (``false``,
+# later a list without it), which suppresses the summary block
+# ``parse_summary`` reads, so every repetition parsed zero jobs and the report
+# kept only the hook wall clock (issue #6734). The override applies to the
+# measured subprocess alone: ``output`` changes what lefthook prints, never
+# which jobs run. ``failure`` makes lefthook print a failing job's output too;
+# this module reads only the summary and keeps none of that output.
+_LEFTHOOK_OUTPUT = "summary,failure"
 
 
 _URL_USERINFO_RE = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)(?P<userinfo>[^/@\s]+)@")
@@ -139,6 +149,7 @@ def _run_repetition(
             check=False,
             input="" if stdin_ref_line is None else stdin_ref_line.rstrip("\n") + "\n",
             timeout=_HOOK_TIMEOUT_SECONDS,
+            env={**os.environ, "LEFTHOOK_OUTPUT": _LEFTHOOK_OUTPUT},
         )
         stdout, exit_code = result.stdout, result.returncode
     except subprocess.TimeoutExpired as expired:

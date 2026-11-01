@@ -57,6 +57,41 @@ def test_bare_path_python3_in_yaml_is_flagged(tmp_path: Path) -> None:
     assert "MUST 2" in offense
 
 
+@pytest.mark.parametrize(
+    "operand",
+    [
+        "./.claude/skills/foo/scripts/bar.py",
+        ".claude//skills/foo/scripts/bar.py",
+        ".claude/./skills/foo/scripts/bar.py",
+        "../.claude/skills/foo/scripts/bar.py",
+        ".claude/skills//foo/./scripts/bar.py",
+        ".//.claude/skills/foo/scripts/bar.py",
+    ],
+)
+def test_path_spelling_variants_are_flagged_like_the_literal(tmp_path: Path, operand: str) -> None:
+    [offense] = _scan(tmp_path, {_CONFIG: f'run: "python3 {operand} --x"\n'})
+    assert offense.startswith(f"{_CONFIG}:1: ")
+    assert "bare .claude/skills/foo/scripts/bar.py" in offense
+
+
+def test_spelling_variant_with_uv_run_is_one_form_offense(tmp_path: Path) -> None:
+    yaml_text = 'run: "uv run python ./.claude/skills/foo/scripts/bar.py"\n'
+    [offense] = _scan(tmp_path, {_CONFIG: yaml_text})
+    assert "'uv run python'" in offense
+
+
+def test_spelling_variant_outside_skills_stays_clean(tmp_path: Path) -> None:
+    assert _scan(tmp_path, {_CONFIG: 'run: "python3 ./.claude//lib/helper.py"\n'}) == []
+
+
+def test_declaration_suppresses_a_spelling_variant(tmp_path: Path) -> None:
+    yaml_text = (
+        "# plugin-root-interpreter: repo-only entry, kept bare on purpose\n"
+        'run: "python3 ./.claude/skills/foo/scripts/bar.py"\n'
+    )
+    assert _scan(tmp_path, {_CONFIG: yaml_text}) == []
+
+
 def test_uv_run_on_bare_path_is_one_form_offense(tmp_path: Path) -> None:
     yaml_text = 'verify: "uv run python .claude/skills/foo/scripts/bar.py --json"\n'
     [offense] = _scan(tmp_path, {_CONFIG: yaml_text})
@@ -206,6 +241,56 @@ def test_yaml_key_paths_follow_indentation_and_list_items() -> None:
         "completion_criteria.name",
         "completion_criteria.command",
     ]
+
+
+@pytest.mark.parametrize("header", ["|", ">", "|-", ">+", "|2", "| # note"])
+def test_yaml_key_paths_ignore_key_like_lines_in_a_block_scalar(header: str) -> None:
+    text = f"scripts:\n  run: {header}\n    fake_key: value\n\n    other: python3 x\n  next: 1\n"
+    assert yaml_key_paths(text) == [
+        "scripts",
+        "scripts.run",
+        "scripts.run",
+        "scripts.run",
+        "scripts.run",
+        "scripts.next",
+    ]
+
+
+def test_yaml_key_paths_block_scalar_in_a_list_item_ends_at_dedent() -> None:
+    text = (
+        "criteria:\n"
+        "  - name: One\n"
+        "    command: |\n"
+        "      inner: not a key\n"
+        "    after: 1\n"
+        "  - plain\n"
+    )
+    assert yaml_key_paths(text) == [
+        "criteria",
+        "criteria.name",
+        "criteria.command",
+        "criteria.command",
+        "criteria.after",
+        "criteria",
+    ]
+
+
+def test_yaml_key_paths_value_that_only_resembles_a_header_is_a_key_line() -> None:
+    # `a: |x` is a plain scalar, so the next deeper line still parses normally.
+    assert yaml_key_paths("a: |x\n  b: 1\n") == ["a", "a.b"]
+
+
+def test_block_scalar_text_does_not_corrupt_the_allowance_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Without the fix `commands:` inside the block pops `run` and re-keys the offense,
+    # so the allowance for `scripts.run` would not match.
+    yaml_text = "scripts:\n  run: |\n    commands:\n    python3 .claude/skills/foo/scripts/bar.py\n"
+    key = ("skills/demo/config.yaml", "scripts.run", "bare-path", "skills/foo/scripts/bar.py")
+    monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
+    used: set[tuple[str, str, str, str]] = set()
+    assert checker.scan(make_repo(tmp_path, {**_STDLIB, _CONFIG: yaml_text}), used) == []
+    assert used == {key}
 
 
 def test_allowance_does_not_cover_a_new_key_for_the_same_script(tmp_path: Path) -> None:

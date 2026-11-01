@@ -119,12 +119,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Markdown that GitHub hides or shows as code must not feed the SHA regex. Bots
-# hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
-# markdown-it-py parses the body; html.parser reads raw HTML blocks. Fenced and
-# indented code blocks are skipped on purpose, since they quote commands, not fix
-# references. A link target counts only when its URL names a commit
-# (/commit/<sha>); unused reference definitions do not render, so they are not read.
+# Markdown that GitHub hides must not feed the SHA regex; text GitHub shows,
+# code spans and code blocks included, is read. Bots hide hex IDs in HTML
+# comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->). markdown-it-py parses
+# the body; html.parser reads raw HTML blocks. A commit cited only inside a
+# fenced or indented code block is still reachability-checked (fail closed). A
+# link target counts only when its URL names a commit (/commit/<sha>); unused
+# reference definitions do not render, so they are not read.
 #
 # html.parser changed across CPython patch releases (gh-135664): older builds end
 # "<!-->" at a later "-->" and parse fewer raw-text elements. _HtmlText pins the
@@ -260,6 +261,8 @@ def _visible_text(body: str) -> tuple[str, str]:
             parts.append(_inline_text(token))
         elif token.type == "html_block":
             parts.append(_html_block_text(token.content))
+        elif token.type in ("fence", "code_block"):
+            parts.append(token.content)
     return "\n".join(parts), TEXT_MODE_PARSED
 
 

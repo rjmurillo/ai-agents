@@ -126,7 +126,7 @@ class TestShippedClosureRatchet:
             check=False,
         )
         if proc.returncode != 0:
-            pytest.skip(f"not a git checkout: {proc.stderr.decode(errors='replace').strip()}")
+            pytest.fail(f"git ls-files failed: {proc.stderr.decode(errors='replace').strip()}")
         tracked = set(proc.stdout.decode().split("\0"))
         _named, closure_paths = shipped_verifier_closure()
 

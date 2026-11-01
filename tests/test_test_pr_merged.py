@@ -288,6 +288,7 @@ def _graphql_payload(merged: bool) -> dict:
                 "mergedBy": {"login": "octocat"} if merged else None,
                 "headRefName": "feat/x",
                 "headRefOid": "a" * 40,
+                "headRepository": {"nameWithOwner": "fork/r"},
                 "mergeCommit": {"oid": "b" * 40} if merged else None,
             },
         },
@@ -336,6 +337,7 @@ class TestOutputFormat:
         output = json.loads(capsys.readouterr().out)
         assert output["head_ref"] == "feat/x"
         assert output["head_sha"] == "a" * 40
+        assert output["head_repo"] == "fork/r"
         assert output["merge_commit_sha"] == ("b" * 40 if merged else None)
 
     def test_human_reports_merged_in_one_line(self, capsys):

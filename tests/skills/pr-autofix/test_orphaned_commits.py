@@ -27,14 +27,14 @@ def _record(sha: str, subject: str, *files: tuple[str, ...]) -> str:
 class FakeGit:
     """Scripted git runner keyed on the subcommand."""
 
-    def __init__(self, ancestor=0, log=(0, ""), show=(0, "")):
-        self.ancestor, self.log, self.show = ancestor, log, show
+    def __init__(self, ancestor=0, log=(0, ""), show=(0, ""), base=(0, "d" * 40)):
+        self.ancestor, self.log, self.show, self.base = ancestor, log, show, base
         self.calls: list[list[str]] = []
 
     def __call__(self, args):
         self.calls.append(args)
         if args[0] == "merge-base":
-            return self.ancestor, ""
+            return (self.ancestor, "") if "--is-ancestor" in args else self.base
         if args[0] == "log":
             return self.log
         return self.show
@@ -112,11 +112,10 @@ class TestClassify:
         assert result.risks == (oc.RISK_TEST_DEFS_REMOVED,)
         assert git.calls[0][-2:] == ["--", "tests/test_wiring.py"]
 
-    def test_renamed_test_definition_is_not_flagged(self):
-        patch_text = "-def test_old():\n+def test_new():\n"
-        git = FakeGit(show=(0, patch_text))
+    def test_removed_definition_offset_by_an_added_one_is_still_flagged(self):
+        git = FakeGit(show=(0, "-def test_old():\n+def test_new():\n"))  # issue #6506
         result = oc.classify(self._commit(("M", "tests/test_wiring.py")), git)
-        assert result.risks == ()
+        assert result.risks == (oc.RISK_TEST_DEFS_REMOVED,)
 
     def test_js_and_csharp_test_markers_count(self):
         patch_text = "-  it('works', () => {\n-  [Fact]\n+  it('new', () => {\n"
@@ -124,10 +123,10 @@ class TestClassify:
         result = oc.classify(self._commit(("M", "web/app.test.ts")), git)
         assert result.risks == (oc.RISK_TEST_DEFS_REMOVED,)
 
-    def test_failed_show_is_not_flagged(self):
+    def test_failed_show_is_flagged_unreadable_not_clean(self):
         git = FakeGit(show=(1, "-def test_x():\n"))
         result = oc.classify(self._commit(("M", "tests/test_wiring.py")), git)
-        assert result.risks == ()
+        assert result.risks == (oc.RISK_DIFF_UNREADABLE,)
 
     def test_modified_non_test_file_skips_show(self):
         git = FakeGit()

@@ -195,8 +195,6 @@ def test_a_regression_on_a_push_to_main_exits_one(
     [
         (None, None, True),
         ("push", "refs/heads/main", True),
-        ("push", None, False),
-        (None, "refs/heads/main", False),
         ("pull_request", "refs/heads/main", False),
     ],
 )

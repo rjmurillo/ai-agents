@@ -99,6 +99,11 @@ query($owner: String!, $repo: String!, $number: Int!) {
                     commit {
                         oid
                         committedDate
+                        checkSuites(first: 100) {
+                            nodes {
+                                createdAt
+                            }
+                        }
                         statusCheckRollup {
                             state
                             contexts(first: 100) {
@@ -197,6 +202,7 @@ _DATA_KEYS = (
     "Repo",
     "BaseBranch",
     "AllState",
+    "OverallState",
     "RequiredState",
     "MergeState",
     "MergeStateStatus",
@@ -215,9 +221,13 @@ _DATA_KEYS = (
     "MissingRequiredChecks",
     "MissingRequiredQueued",
     "HeadCommittedAt",
+    "HeadPushedAt",
 )
 # Exit code to Error.Type for failures raised as SystemExit before any query.
-_PREFLIGHT_ERROR_TYPES = {3: "ApiError", 4: "AuthError"}
+_PREFLIGHT_ERROR_TYPES = {2: "InvalidParams", 3: "ApiError", 4: "AuthError"}
+# assert_gh_authenticated exits 2 when session policy refuses GitHub outright,
+# which is a transport fault, not a bad argument.
+_TRANSPORT_BLOCKED_ERROR_TYPE = "ApiError"
 _MISSING_RECOVERY_HINT = (
     "Recovery: close and reopen the PR to re-fire pull_request workflows "
     "(see fix-ci.md, 'Required check never reported')."
@@ -554,6 +564,21 @@ def _fetch_checks_over_rest(
     }
 
 
+def _earliest_suite_created_at(commit_obj: dict) -> str | None:
+    """Return the earliest check suite ``createdAt`` for the head commit.
+
+    GitHub stamps the suite when it first sees the commit, so the author
+    cannot forge it the way they can ``committedDate``. It stands in for the
+    push time. Returns None when the commit has no suites or no readable date
+    (the REST fallback never supplies one); the queued window then rests on
+    ``committedDate`` and its future-skew bound alone.
+    """
+    nodes = (commit_obj.get("checkSuites") or {}).get("nodes") or []
+    stamps = [n.get("createdAt") for n in nodes if isinstance(n, dict) and n.get("createdAt")]
+    # ISO 8601 UTC strings from one API sort lexically in time order.
+    return min(stamps) if stamps else None
+
+
 def fetch_checks(
     owner: str,
     repo: str,
@@ -601,6 +626,7 @@ def fetch_checks(
             "AllState": "UNKNOWN",
             "HasChecks": False,
             "HeadCommittedAt": None,
+            "HeadPushedAt": None,
         }
 
     commit = commits[0]
@@ -616,6 +642,7 @@ def fetch_checks(
             "AllState": "UNKNOWN",
             "HasChecks": False,
             "HeadCommittedAt": commit_obj.get("committedDate"),
+            "HeadPushedAt": _earliest_suite_created_at(commit_obj),
         }
 
     all_state = rollup.get("state", "UNKNOWN")
@@ -654,6 +681,7 @@ def fetch_checks(
         "HasChecks": True,
         "ChecksIncomplete": not pages_complete,
         "HeadCommittedAt": commit_obj.get("committedDate"),
+        "HeadPushedAt": _earliest_suite_created_at(commit_obj),
     }
 
 
@@ -832,7 +860,9 @@ def build_output(
     # jobs finish, so inside the grace window after the head commit an absent
     # check is queued, not stranded. Unknown head age stays "absent".
     missing_queued = bool(missing_required) and missing_checks_queued(
-        check_data.get("HeadCommittedAt"), missing_grace_seconds
+        check_data.get("HeadCommittedAt"),
+        missing_grace_seconds,
+        pushed_at=check_data.get("HeadPushedAt"),
     )
     required_state = derive_required_state(
         has_checks=has_checks,
@@ -863,6 +893,10 @@ def build_output(
         # check makes this FAILURE while the PR stays mergeable. Use
         # RequiredState to decide whether a required gate blocks.
         "AllState": check_data.get("AllState", "UNKNOWN"),
+        # Deprecated alias of AllState for out-of-repo consumers that still
+        # read the old key. Drop the key once no caller reads OverallState; the
+        # removal issue is for the PR author to file (#6506 follow-up).
+        "OverallState": check_data.get("AllState", "UNKNOWN"),
         "RequiredState": required_state,
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
@@ -904,6 +938,7 @@ def build_output(
         # window after the head commit, so it may be queued rather than absent.
         "MissingRequiredQueued": missing_queued,
         "HeadCommittedAt": check_data.get("HeadCommittedAt"),
+        "HeadPushedAt": check_data.get("HeadPushedAt"),
     }
 
 
@@ -1089,23 +1124,30 @@ def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]
     with the original exit code.
     """
     captured = io.StringIO()
+    in_auth_check = True
     try:
         with contextlib.redirect_stderr(captured):
             assert_gh_authenticated()
+            in_auth_check = False
             resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit as exc:
-        sys.stderr.write(captured.getvalue())
         code = exc.code if isinstance(exc.code, int) and not isinstance(exc.code, bool) else 1
+        error_type = _PREFLIGHT_ERROR_TYPES.get(code, "General")
+        if in_auth_check and code == 2:
+            error_type = _TRANSPORT_BLOCKED_ERROR_TYPE
         if fmt == "json":
             _emit_failure(
                 captured.getvalue().strip() or f"Preflight failed with exit code {code}",
                 code,
-                _PREFLIGHT_ERROR_TYPES.get(code, "General"),
+                error_type,
                 fmt,
                 failure_data(args.pull_request, args.owner or None, args.repo or None),
             )
         raise
-    sys.stderr.write(captured.getvalue())
+    finally:
+        # Any exception, not only SystemExit, must not swallow what the
+        # helpers wrote to stderr.
+        sys.stderr.write(captured.getvalue())
     return resolved.owner, resolved.repo
 
 

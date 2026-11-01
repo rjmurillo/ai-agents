@@ -192,9 +192,21 @@ _INTERP_PHRASE = (
 _INVOCATION_HEAD = re.compile(_INTERP_PHRASE + r"\$\{(?:" + "|".join(_PLUGIN_ROOT_VARS) + r")\b")
 
 # Rule 3 (YAML only): the same interpreter phrase on a bare fallback-root path.
+# The operand may spell the same path with `./`, `../`, `//`, or `/./` segments
+# (`./.claude/skills`, `.claude//skills`, `.claude/./skills`, `../.claude/skills`);
+# `_normalize_tail` collapses them so every spelling reaches the same offense (#6506).
 _BARE_INVOCATION = re.compile(
-    _INTERP_PHRASE + r"\.claude/(?P<tail>skills/[A-Za-z0-9_./-]*\.py)(?![\w./-])"
+    _INTERP_PHRASE
+    + r"(?:\.{1,2}/+)*\.claude/+(?:\./+)*"
+    + r"(?P<tail>skills/+[A-Za-z0-9_./-]*\.py)(?![\w./-])"
 )
+_REDUNDANT_SEPARATORS = re.compile(r"/(?:\.?/)+")
+
+
+def _normalize_tail(tail: str) -> str:
+    """Collapse ``//`` and ``/./`` runs so equivalent spellings match one key."""
+    return _REDUNDANT_SEPARATORS.sub("/", tail)
+
 
 # The `skills/...py` tail once the plugin-root expansion is behind us.
 _PATH_TAIL = re.compile(r"/skills/[A-Za-z0-9_./-]*\.py")
@@ -278,7 +290,9 @@ def _find_bare_invocations(line: str) -> Iterator[_Invocation]:
     """Yield every interpreter call on a bare ``.claude/skills/...py`` path."""
     for match in _BARE_INVOCATION.finditer(line):
         yield _Invocation(
-            start=match.start(), interp=match.group("interp"), tail=match.group("tail")
+            start=match.start(),
+            interp=match.group("interp"),
+            tail=_normalize_tail(match.group("tail")),
         )
 
 

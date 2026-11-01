@@ -1,0 +1,146 @@
+{
+  "checks": [
+    {
+      "kind": "path_exists",
+      "path": "build/AGENTS.md",
+      "id": "R1"
+    },
+    {
+      "kind": "path_exists",
+      "path": "templates/platforms/binplace.yaml",
+      "id": "R2"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/AGENTS.md",
+      "id": "R3"
+    },
+    {
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_generate_hooks_runtime_contract.py",
+      "id": "R4"
+    },
+    {
+      "kind": "path_exists",
+      "path": "tests/build_scripts/test_generate_hooks_plugin_root.py",
+      "id": "R5"
+    },
+    {
+      "kind": "path_exists",
+      "path": "tests/test_run_completion_gate_install.py",
+      "id": "R6"
+    },
+    {
+      "kind": "contains",
+      "path": "tests/test_run_completion_gate_install.py",
+      "text": "def test_the_bundled_config_runs_its_criteria_end_to_end",
+      "id": "R7"
+    },
+    {
+      "kind": "contains",
+      "path": "tests/test_run_completion_gate_install.py",
+      "text": "\"install-trusted\"",
+      "id": "R8"
+    },
+    {
+      "kind": "contains",
+      "path": "tests/test_run_completion_gate_install.py",
+      "text": "payload[\"command_trust\"][\"status\"] == \"trusted\"",
+      "id": "R9"
+    },
+    {
+      "kind": "contains",
+      "path": "tests/test_run_completion_gate_install.py",
+      "text": "criterion[\"stdout_json\"] == {\"gate_ran\": True}",
+      "id": "R10"
+    },
+    {
+      "kind": "path_exists",
+      "path": "lefthook.yml",
+      "id": "R11"
+    },
+    {
+      "kind": "contains",
+      "path": "lefthook.yml",
+      "text": "pre-push",
+      "id": "R12"
+    },
+    {
+      "kind": "path_exists",
+      "path": "scripts/eval/README.md",
+      "id": "R13"
+    },
+    {
+      "kind": "path_exists",
+      "path": "scripts/eval/eval_runtime_parity.py",
+      "id": "R14"
+    },
+    {
+      "kind": "contains",
+      "path": "scripts/eval/eval_runtime_parity.py",
+      "text": "\"--dry-run\"",
+      "id": "R15"
+    },
+    {
+      "kind": "path_exists",
+      "path": "tests/evals/completion-terminal-runtime-fixtures.json",
+      "id": "R16"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-portability-campaign/SKILL.md",
+      "id": "R17"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/agent-harness-reference/SKILL.md",
+      "id": "R18"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+      "id": "R19"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-change-control/SKILL.md",
+      "id": "R20"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/ai-agents-validation-and-qa/SKILL.md",
+      "id": "R21"
+    },
+    {
+      "kind": "path_exists",
+      "path": "build/scripts/build_all.py",
+      "id": "R22"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-completion-proof/SKILL.md",
+      "id": "R23"
+    },
+    {
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-pr-recovery/references/library.md",
+      "id": "R24"
+    },
+    {
+      "kind": "contains",
+      "path": ".claude/skills/repository-pr-recovery/references/library.md",
+      "text": "## Working boundary",
+      "id": "R25"
+    },
+    {
+      "id": "R26",
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-consumer-proof/scripts/artifact_owner.py"
+    },
+    {
+      "id": "R27",
+      "kind": "path_exists",
+      "path": ".claude/skills/repository-consumer-proof/scripts/instruments.py"
+    }
+  ]
+}

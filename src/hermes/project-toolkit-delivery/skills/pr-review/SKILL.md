@@ -216,7 +216,7 @@ Wording, pushback, deferral, and escalation of review comments follow the review
 
 ## Thread Resolution
 
-Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `resolve_thread` calls. For batch resolution, use the GraphQL template in config.
+Replying does NOT resolve threads. Use `add_thread_reply_resolve` (`{head_sha}` is `head_sha` from `get_pr_context`; `--resolve` exits 2 without it) or separate `resolve_thread` calls. For batch resolution, use the GraphQL template in config.
 
 ## Completion Gate
 

@@ -22,7 +22,21 @@ import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
 import lib_mirror  # noqa: E402
 
+_REAL_SURFACE_PARITY_EXIT = build_all._surface_parity_exit
+
 # Helpers --------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _stub_surface_parity_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fixture repos here carry no surface-parity manifest, which now exits 2.
+
+    The parity gate has its own tests in test_check_surface_parity_inventory.py
+    and test_surface_parity_repo.py; these tests exercise the other --check gates.
+    test_cli_check_exits_2_when_the_surface_parity_manifest_is_missing restores
+    the real gate and is the one guard on the --check wiring.
+    """
+    monkeypatch.setattr(build_all, "_surface_parity_exit", lambda *_a, **_k: 0)
 
 
 def _write_skill(skills_dir: Path, name: str) -> None:
@@ -3440,6 +3454,33 @@ def test_cli_exits_3_when_git_state_read_times_out(
 
     assert rc == 3, f"expected CLI exit 3 when git times out, got {rc}"
     assert "cannot read git state" in capsys.readouterr().err
+
+
+def test_cli_check_exits_2_when_the_surface_parity_manifest_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--check reaches the real parity gate, so a deleted manifest cannot turn it off."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    monkeypatch.setattr(build_all, "_surface_parity_exit", _REAL_SURFACE_PARITY_EXIT)
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    rc = build_all.main(["--repo-root", str(repo), "--check"])
+
+    assert rc == 2, f"expected CLI exit 2 for a missing parity manifest, got {rc}"
+    assert "surface parity manifest missing" in capsys.readouterr().err
 
 
 def test_cli_exits_3_when_git_state_is_unreadable(
