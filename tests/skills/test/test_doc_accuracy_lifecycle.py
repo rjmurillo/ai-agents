@@ -282,10 +282,11 @@ def test_gate_exit_two_summary_covers_a_malformed_build_record() -> None:
 def test_gate_scan_of_changed_documents_runs_in_git_mode() -> None:
     """The trigger shares the review selector's `_doc_accuracy_reads`.
 
-    That predicate mirrors doc-accuracy's git-mode exclusions, so the gate's
-    changed-document scan must pass `--diff-base`. Without it the scanner walks
-    the tree, prunes build/ and bin/, and reads none of a file the trigger
-    called readable. `/review` pins its own call in
+    That predicate mirrors doc-accuracy's git-mode exclusions. `--diff-base`
+    keeps this scan incremental: without it the scanner inventories every
+    document and reports every line, downgrading none. It also forces a
+    git-backed inventory, failing instead of falling back to a walk that
+    prunes build/ and bin/. `/review` pins its own call in
     tests/skills/review/test_select_axes.py.
     """
     text = _read(GATE_REFERENCE)
