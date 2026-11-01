@@ -409,15 +409,9 @@ def _run_failure_loops(argv: list[str]) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
-    args_list = sys.argv[1:] if argv is None else argv
-    if args_list[:1] == ["check-failures"]:
-        return _run_failure_loops(args_list[1:])
     parser = argparse.ArgumentParser(
         prog="stuck-detection",
-        description=(
-            "Detect agent conversation loops via topic-signature similarity. "
-            "Run 'check-failures --help' for the tool-failure loop detector."
-        ),
+        description="Detect agent loops via topic signatures or repeated tool failures.",
     )
     parser.add_argument(
         "--history",
@@ -436,7 +430,19 @@ def main(argv: list[str] | None = None) -> int:
     extract_parser = sub.add_parser("extract", help="Extract topic signature only.")
     extract_parser.add_argument("text", nargs="*", help="Text to analyze (or stdin).")
 
-    args = parser.parse_args(argv)
+    # check-failures owns its own flags in failure_loops.py, so its parser
+    # here only claims the name; every argument after it is passed through.
+    sub.add_parser(
+        "check-failures",
+        add_help=False,
+        help="Check tool events for a failure loop (see 'check-failures --help').",
+    )
+
+    args, extra = parser.parse_known_args(argv)
+    if args.command == "check-failures":
+        return _run_failure_loops(extra)
+    if extra:
+        parser.error(f"unrecognized arguments: {' '.join(extra)}")
     raw_path = args.history or default_history_path()
     history_path = Path(raw_path).expanduser().resolve()
 

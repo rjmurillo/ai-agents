@@ -45,10 +45,10 @@ MAX_NUDGE_SIGNALS = 5
 EDIT_TOOLS: frozenset[str] = frozenset(
     {"edit", "write", "multiedit", "str_replace", "create", "apply_patch", "notebookedit"}
 )
-# A hash or address: 7 or more hex characters holding at least one digit and
-# one letter, so plain numbers fall to the digit rule and words like
-# "defaced" stay words.
-_HEX_RUN = re.compile(r"\b(?:0x)?(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,}\b")
+# A hash or address: 0x plus 7 or more hex characters, or a bare run of 7 or
+# more holding at least one digit and one letter, so plain numbers fall to the
+# digit rule and words like "defaced" stay words.
+_HEX_RUN = re.compile(r"\b0x[0-9a-f]{7,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,}\b")
 _DIGIT_RUN = re.compile(r"\d+")
 _WHITESPACE_RUN = re.compile(r"\s+")
 _UNSAFE_TOOL_CHARS = re.compile(r"[^a-z0-9_.-]")
@@ -93,7 +93,8 @@ def _optional_string(item: dict[str, Any], key: str, index: int) -> str | None:
         return None
     if not isinstance(value, str):
         raise EventError(f"event {index}: '{key}' must be a string")
-    return value if value.strip() else None
+    stripped = value.strip()
+    return stripped if stripped else None
 
 
 def parse_events(raw: Any) -> list[dict[str, Any]]:
@@ -143,64 +144,77 @@ def _progress_key(event: dict[str, Any]) -> tuple[str, str] | None:
     return (event["tool"], event["input"])
 
 
-def _scan(
-    events: list[dict[str, Any]],
-) -> tuple[dict[str, int], dict[str, dict[str, int]]]:
-    """Walk events once; return failure counts and per-file churn outcomes.
+Tally = dict[tuple[tuple[str, str] | None, str], int]
 
-    Progress is a success whose ``(tool, input)`` matches an earlier failure
-    in the window: the check that failed now passes. It clears the churn
-    state and the failure counts recorded under that pair. An event without
-    ``input`` cannot match, so without ``input`` nothing resets.
 
-    The first fingerprinted failure after successful edits is the outcome of
+def _scan(events: list[dict[str, Any]]) -> tuple[Tally, dict[str, Tally]]:
+    """Walk events once; return failure tallies and per-file churn tallies.
+
+    Every count is keyed by ``(progress key, fingerprint)``, where the
+    progress key is the event's ``(tool, input)`` pair, or None without
+    ``input``. Progress is a success whose pair matches an earlier failure in
+    the window: the check that failed now passes. It removes only the counts
+    recorded under that pair, so fixing one command never hides a loop in
+    another that shares its first error line, and it closes the pending edit
+    cycle. Without ``input`` nothing can match, so nothing resets.
+
+    Every fingerprinted failure is tallied, failed edits included. The first
+    fingerprinted non-edit failure after successful edits is the outcome of
     each file edited since the previous outcome; several edits of one file
-    before one failure count once (one cycle). Failed edits are ignored.
+    before one failure count once (one cycle).
     """
-    counts: dict[str, int] = {}
-    fingerprints_by_key: dict[tuple[str, str], set[str]] = {}
-    outcomes: dict[str, dict[str, int]] = {}
+    tally: Tally = {}
+    churn: dict[str, Tally] = {}
     pending: set[str] = set()
     for event in events:
         key = _progress_key(event)
-        if event["is_edit"]:
-            if event["ok"]:
-                pending.add(event["target"])
-            continue
         if event["ok"]:
-            if key is not None and key in fingerprints_by_key:
-                for fingerprint in fingerprints_by_key.pop(key):
-                    counts.pop(fingerprint, None)
+            if event["is_edit"]:
+                pending.add(event["target"])
+            elif key is not None and any(k == key for k, _ in tally):
+                tally = {kf: n for kf, n in tally.items() if kf[0] != key}
+                for target, per_file in churn.items():
+                    churn[target] = {kf: n for kf, n in per_file.items() if kf[0] != key}
                 pending.clear()
-                outcomes.clear()
             continue
         fingerprint = event["fingerprint"]
         if fingerprint is None:
             continue
-        counts[fingerprint] = counts.get(fingerprint, 0) + 1
-        if key is not None:
-            fingerprints_by_key.setdefault(key, set()).add(fingerprint)
+        tally[(key, fingerprint)] = tally.get((key, fingerprint), 0) + 1
+        if event["is_edit"]:
+            continue
         for target in pending:
-            per_file = outcomes.setdefault(target, {})
-            per_file[fingerprint] = per_file.get(fingerprint, 0) + 1
+            per_file = churn.setdefault(target, {})
+            per_file[(key, fingerprint)] = per_file.get((key, fingerprint), 0) + 1
         pending.clear()
-    return counts, outcomes
+    return tally, churn
+
+
+def _by_fingerprint(tally: Tally) -> dict[str, int]:
+    """Sum a tally over progress keys: one count per fingerprint."""
+    totals: dict[str, int] = {}
+    for (_, fingerprint), n in tally.items():
+        totals[fingerprint] = totals.get(fingerprint, 0) + n
+    return totals
 
 
 def detect_signals(
     events: list[dict[str, Any]], repeat_threshold: int, churn_threshold: int
 ) -> list[dict[str, Any]]:
     """Both signals over ``events``: failure-repeat first (most frequent first), then churn."""
-    counts, outcomes = _scan(events)
+    tally, churn = _scan(events)
     repeats = sorted(
-        ((fp, n) for fp, n in counts.items() if n >= repeat_threshold),
+        ((fp, n) for fp, n in _by_fingerprint(tally).items() if n >= repeat_threshold),
         key=lambda kv: (-kv[1], kv[0]),
     )
     signals: list[dict[str, Any]] = [
         {"signal": "failure-repeat", "fingerprint": fp, "count": n} for fp, n in repeats
     ]
-    for target in sorted(outcomes):
-        fp, n = max(outcomes[target].items(), key=lambda kv: (kv[1], kv[0]))
+    for target in sorted(churn):
+        totals = _by_fingerprint(churn[target])
+        if not totals:
+            continue
+        fp, n = max(totals.items(), key=lambda kv: (kv[1], kv[0]))
         if n >= churn_threshold:
             signals.append(
                 {"signal": "edit-churn", "target": target, "fingerprint": fp, "count": n}
@@ -220,7 +234,10 @@ def build_failure_nudge(signals: list[dict[str, Any]]) -> str:
     (a crafted test message, a file name). They stay in the JSON ``signals``.
     """
     lines = []
-    for sig in signals[:MAX_NUDGE_SIGNALS]:
+    # Churn names a file-level loop, the most actionable signal: list it first
+    # so a pile of failure-repeat signals cannot push it past the cap.
+    ordered = sorted(signals, key=lambda sig: sig["signal"] != "edit-churn")
+    for sig in ordered[:MAX_NUDGE_SIGNALS]:
         tool = _safe_tool(sig["fingerprint"])
         if sig["signal"] == "failure-repeat":
             lines.append(f"- failure-repeat: the same {tool} failure {sig['count']} times")
@@ -276,10 +293,14 @@ def check_failures(
 def _read_input(path: Path | None) -> str:
     """Read at most ``MAX_INPUT_BYTES`` from the file or stdin, tolerating a BOM."""
     if path is not None:
-        if path.stat().st_size > MAX_INPUT_BYTES:
+        # A bounded read, not stat(): a FIFO or /dev/zero reports size 0.
+        with path.open("rb") as handle:
+            data = handle.read(MAX_INPUT_BYTES + 1)
+        if len(data) > MAX_INPUT_BYTES:
             raise EventError(f"{path} is over the {MAX_INPUT_BYTES}-byte input limit")
-        data = path.read_bytes()
     else:
+        if sys.stdin is None:
+            raise EventError("no --events file and stdin is closed")
         if sys.stdin.isatty():
             raise EventError("no --events file and stdin is a terminal; pipe the events in")
         buffer = getattr(sys.stdin, "buffer", None)

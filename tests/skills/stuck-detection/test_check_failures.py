@@ -283,3 +283,53 @@ class TestThresholdValidation:
     def test_below_two_raises(self, name: str) -> None:
         with pytest.raises(ValueError, match=f"{name} \\(1\\) must be >= 2"):
             check_failures([], **{name: 1})
+
+
+class TestRoundTwoRegressions:
+    """Each test pins a /review round-2 finding."""
+
+    def test_repeated_failed_edits_with_target_trip_failure_repeat(self) -> None:
+        bad_edit = {"tool": "Edit", "ok": False, "error": "old_string not found", "target": "a"}
+        result = run([bad_edit] * 3)
+        assert result["signals"] == [
+            {"signal": "failure-repeat", "fingerprint": "edit|old_string not found", "count": 3}
+        ]
+
+    def test_fixing_one_command_keeps_another_commands_count(self) -> None:
+        events = [fail("Bash", "exit code 1", "npm test")] * 2
+        events += [fail("Bash", "exit code 1", "make build"), ok("Bash", command="make build")]
+        events += [fail("Bash", "exit code 1", "npm test")]
+        assert run(events)["signals"] == [
+            {"signal": "failure-repeat", "fingerprint": "bash|exit code N", "count": 3}
+        ]
+
+    def test_fixing_lint_keeps_test_churn(self) -> None:
+        events = []
+        for _ in range(3):
+            events += [ok("Edit", "a.py"), fail("Bash", "test_x failed", TEST_CMD)]
+            events += [fail("Bash", "lint error", "ruff check"), ok("Bash", command="ruff check")]
+        assert kinds(run(events, repeat_threshold=10)) == ["edit-churn"]
+
+    def test_prefixed_hex_without_digits_collapses(self) -> None:
+        assert failure_fingerprint("Bash", "fault at 0xdeadbeef") == "bash|fault at H"
+
+    def test_input_and_target_whitespace_is_trimmed(self) -> None:
+        events = [fail("Bash", "boom", " pytest ")] * 2 + [ok("Bash", command="pytest")]
+        events += [ok("Edit", " a.py"), fail("Bash", "boom", "pytest")]
+        assert run(events)["stuck"] is False
+        assert parse_events([ok("Edit", " a.py ")])[0]["target"] == "a.py"
+
+    def test_nudge_lists_churn_before_repeats(self) -> None:
+        signals = [
+            {"signal": "failure-repeat", "fingerprint": f"bash|e{i}", "count": 3} for i in range(6)
+        ]
+        signals.append(
+            {"signal": "edit-churn", "target": "a.py", "fingerprint": "bash|x", "count": 3}
+        )
+        nudge = build_failure_nudge(signals)
+        assert nudge.index("- edit-churn") < nudge.index("- failure-repeat")
+
+    def test_reset_that_empties_a_files_churn_reports_nothing(self) -> None:
+        events = [ok("Edit", "a.py"), fail("Bash", "x", TEST_CMD)] * 2
+        events += [ok("Bash", command=TEST_CMD)]
+        assert run(events, churn_threshold=2, repeat_threshold=10)["signals"] == []

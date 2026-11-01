@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -208,3 +209,46 @@ class TestRuntimeContract:
         assert proc.returncode == 2
         assert proc.stdout == b""
         assert proc.stderr.startswith(b"stuck-detection: ")
+
+
+class TestRoundTwoCli:
+    """Each test pins a /review round-2 finding."""
+
+    def test_entry_point_accepts_global_flag_first(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        events = tmp_path / "events.json"
+        events.write_text(json.dumps([fail("Bash", "x")] * 3), encoding="utf-8")
+        argv = ["--history", str(tmp_path / "h.json"), "check-failures", "--events", str(events)]
+        assert entry.main(argv) == 0
+        assert json.loads(capsys.readouterr().out)["stuck"] is True
+
+    def test_entry_point_help_lists_check_failures(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit):
+            entry.main(["--help"])
+        assert "check-failures" in capsys.readouterr().out
+
+    def test_entry_point_still_rejects_unknown_arguments(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as exc:
+            entry.main(["--history", str(tmp_path / "h.json"), "status", "--bogus"])
+        assert exc.value.code == 2
+        assert "unrecognized arguments: --bogus" in capsys.readouterr().err
+
+    @pytest.mark.skipif(not os.path.exists("/dev/zero"), reason="needs /dev/zero")
+    def test_special_file_read_is_bounded(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(mod, "MAX_INPUT_BYTES", 1024)
+        assert main(["--events", "/dev/zero"]) == 2
+        assert "input limit" in capsys.readouterr().err
+
+    def test_closed_stdin_exits_two(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", None)
+        assert main([]) == 2
+        assert "stdin is closed" in capsys.readouterr().err
