@@ -2215,21 +2215,265 @@ class TestVerifyConfigOnlyHarnessScope:
         assert captured.out == "", "an unknown harness still printed a verdict"
         assert "has no scripts map" in captured.err
 
-    def test_clean_checkout_copilot_launchers_do_not_block_claude(self):
-        """The shipped config: copilot launcher tokens must not stop Claude.
+    def test_clean_checkout_attributes_every_token_to_its_map(self):
+        """The shipped config: a token only ever blocks the map that names it.
 
         Devin thread PRRT_kwDOQoWRls6yTHyP counted 12 copilot launcher
-        tokens on a clean checkout. The exact count drifts with the map,
-        so this pins the attribution, not the number.
+        tokens on a clean checkout. With no verifier bound, every launcher
+        stays unverifiable (fail closed), so this pins the attribution.
         """
         config = yaml.safe_load(_PR_REVIEW_CONFIG_PATH.read_text(encoding="utf-8"))
         found = _dispatcher._unverifiable_by_harness(config, 1)
 
         copilot_tokens = [token for owner, token in found if owner == "copilot"]
-        assert copilot_tokens, "precondition: the copilot map has launcher tokens"
+        assert copilot_tokens, "precondition: unbound launchers stay unverifiable"
         assert _dispatcher._blocking_tokens(found, "claude_code") == []
         assert _dispatcher._blocking_tokens(found, "copilot") == list(dict.fromkeys(copilot_tokens))
         assert _dispatcher._blocking_tokens(found, "") == list(dict.fromkeys(t for _, t in found))
+
+    def test_unsplittable_command_is_attributed_to_its_own_map(self):
+        """The except ValueError branch: an unbalanced quote names its entry.
+
+        main never reaches it, because the trust check raises ConfigError on
+        the same command first. It is still the attribution the report
+        uses, so it is pinned directly.
+        """
+        config = {
+            "scripts": {
+                "claude_code": {"check_transport": "true"},
+                "copilot": {"check_transport": "python3 'unterminated.py"},
+            },
+        }
+
+        found = _dispatcher._unverifiable_by_harness(config, 1)
+
+        assert found == [("copilot", "scripts.copilot.check_transport")]
+        assert _dispatcher._blocking_tokens(found, "copilot") == [
+            "scripts.copilot.check_transport",
+        ]
+        assert _dispatcher._blocking_tokens(found, "claude_code") == []
+        assert _dispatcher._blocking_tokens(found, "") == ["scripts.copilot.check_transport"]
+
+
+_LAUNCHED_REL = "skills/demo/scripts/run.py"
+
+
+class TestCopilotLauncherVerification:
+    """D5 (#6506): the verifier reads the launcher payload and checks its script.
+
+    A launcher is trusted only when re-rendering it for the script its
+    payload names reproduces it byte for byte, and that script is a
+    tracked work-tree file matching the trusted ref. Everything else
+    keeps its payload in the unverifiable list.
+    """
+
+    @staticmethod
+    def _launcher(rel: str = _LAUNCHED_REL, tail: str = "--pull-request {number}") -> str:
+        command = _dispatcher._render_launcher(rel)
+        return f"{command} {tail}" if tail else command
+
+    @staticmethod
+    def _config(tmp_path: Path, copilot: dict[str, str], claude: str = "true") -> Path:
+        config = tmp_path / "pr-review-config.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "scripts": {
+                        "claude_code": {"check_transport": claude},
+                        "copilot": copilot,
+                    },
+                    "completion_criteria": [
+                        {
+                            "name": "Unused",
+                            "verification": "command",
+                            "command": "true",
+                            "pass_when": "stdout-json.ok == true",
+                        },
+                    ],
+                },
+            ),
+            encoding="utf-8",
+        )
+        return config
+
+    @staticmethod
+    def _script(repo: Path, rel: str = _LAUNCHED_REL) -> Path:
+        script = repo / ".claude" / rel
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("print('ok')\n", encoding="utf-8")
+        return script
+
+    @staticmethod
+    def _verify(config: Path, capsys, *extra: str) -> tuple[int, dict]:
+        rc = _dispatcher.main(
+            [
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
+                "--verify-config-only",
+                "--json",
+                *extra,
+            ],
+        )
+        out = capsys.readouterr().out
+        return rc, (json.loads(out) if out else {})
+
+    @pytest.fixture(autouse=True)
+    def _no_plugin_root(self, monkeypatch):
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+
+    def test_every_shipped_copilot_entry_verifies(self, git_repo, capsys):
+        shipped = yaml.safe_load(_PR_REVIEW_CONFIG_PATH.read_text(encoding="utf-8"))
+        copilot = dict(shipped["scripts"]["copilot"])
+        scripts = []
+        for key, command in copilot.items():
+            rel = _dispatcher._launcher_script(command)
+            assert rel is not None, f"{key} is not a canonical launcher"
+            scripts.append(self._script(git_repo, rel))
+        config = self._config(git_repo, copilot)
+        _commit_as_trusted(git_repo, config, *scripts)
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert payload["unverifiable_command_tokens"] == []
+        assert payload["blocking_unverifiable_command_tokens"] == []
+        for script in scripts:
+            assert script.relative_to(git_repo).as_posix() in payload["checked_files"]
+
+    def test_no_harness_passes_when_every_launcher_verifies(self, git_repo, capsys):
+        script = self._script(git_repo)
+        config = self._config(git_repo, {"check_transport": self._launcher()})
+        _commit_as_trusted(git_repo, config, script)
+
+        rc, payload = self._verify(config, capsys)
+
+        assert rc == 0
+        assert payload["blocking_unverifiable_command_tokens"] == []
+
+    def test_launched_script_that_diverges_halts(self, git_repo, capsys):
+        script = self._script(git_repo)
+        config = self._config(git_repo, {"check_transport": self._launcher()})
+        _commit_as_trusted(git_repo, config, script)
+        script.write_text("print('rewritten by the PR')\n", encoding="utf-8")
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 2
+        assert payload == {}
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            pytest.param(
+                lambda c: c.replace("-CommandWithArgs '", "-CommandWithArgs 'Write-Host x; ", 1),
+                id="extra-command-in-payload",
+            ),
+            pytest.param(
+                lambda c: c.replace("@args; exit", "@args; Remove-Item x; exit", 1),
+                id="extra-command-before-exit",
+            ),
+            pytest.param(
+                lambda c: c.replace(
+                    "if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT }",
+                    "if ($env:EVIL_ROOT) { $env:EVIL_ROOT }",
+                    1,
+                ),
+                id="changed-root-chain",
+            ),
+            pytest.param(lambda c: c + "; rm -rf x", id="appended-shell-command"),
+            pytest.param(lambda c: c + " $(id)", id="appended-substitution"),
+            pytest.param(
+                lambda c: c.replace("pwsh -NoProfile", "pwsh  -NoProfile", 1),
+                id="changed-prefix",
+            ),
+        ],
+    )
+    def test_tampered_launcher_stays_blocking(self, git_repo, capsys, tamper):
+        script = self._script(git_repo)
+        command = tamper(self._launcher())
+        assert command != self._launcher()
+        config = self._config(git_repo, {"check_transport": command})
+        _commit_as_trusted(git_repo, config, script)
+
+        assert _dispatcher._launcher_script(command) is None
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert payload["blocking_unverifiable_command_tokens"]
+
+    def test_missing_script_stays_blocking(self, git_repo, capsys):
+        command = self._launcher("skills/demo/scripts/missing.py")
+        config = self._config(git_repo, {"check_transport": command})
+        _commit_as_trusted(git_repo, config)
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert payload["blocking_unverifiable_command_tokens"]
+
+    def test_untracked_script_stays_blocking(self, git_repo, capsys):
+        config = self._config(git_repo, {"check_transport": self._launcher()})
+        _commit_as_trusted(git_repo, config)
+        script = self._script(git_repo)
+
+        rc, payload = self._verify(config, capsys, "--harness", "copilot")
+
+        assert rc == 0
+        assert script.relative_to(git_repo).as_posix() in payload["skipped_untracked_files"]
+        assert payload["blocking_unverifiable_command_tokens"]
+
+    def test_claude_code_is_unchanged(self, git_repo, capsys):
+        """A bad copilot launcher is reported but does not stop claude_code."""
+        command = self._launcher("skills/demo/scripts/missing.py")
+        config = self._config(
+            git_repo,
+            {"check_transport": command},
+            claude=_PWSH_TOKEN_COMMAND,
+        )
+        _commit_as_trusted(git_repo, config)
+
+        rc, payload = self._verify(config, capsys, "--harness", "claude_code")
+
+        assert rc == 0
+        assert len(payload["unverifiable_command_tokens"]) == 2
+        assert payload["blocking_unverifiable_command_tokens"] == [
+            token for token in payload["unverifiable_command_tokens"] if "x.py" in token
+        ]
+
+    def test_no_harness_blocks_on_an_unverified_launcher(self, git_repo, capsys):
+        command = self._launcher("skills/demo/scripts/missing.py")
+        config = self._config(git_repo, {"check_transport": command})
+        _commit_as_trusted(git_repo, config)
+
+        rc, payload = self._verify(config, capsys)
+
+        assert rc == 0
+        assert payload["active_harness"] is None
+        assert payload["blocking_unverifiable_command_tokens"]
+
+    def test_unbound_verifier_keeps_every_payload(self):
+        config = {"scripts": {"copilot": {"check_transport": self._launcher()}}}
+
+        found = _dispatcher._unverifiable_by_harness(config, 1)
+
+        assert len(found) == 1
+        assert found[0][0] == "copilot"
+
+    @pytest.mark.parametrize(
+        "rel",
+        ["skills/../x.py", "skills/demo/run.sh", "other/run.py"],
+    )
+    def test_script_path_outside_the_pattern_is_not_a_launcher(self, rel):
+        payload = _dispatcher._render_launcher_payload(rel)
+        command = f"{_dispatcher._LAUNCHER_PREFIX}'{payload}'"
+
+        assert _dispatcher._launcher_script(command) is None
+
+    def test_launcher_without_arguments_is_recognized(self):
+        assert _dispatcher._launcher_script(self._launcher(tail="")) == _LAUNCHED_REL
 
 
 class TestConfigTrustBoundary:

@@ -18,7 +18,7 @@ Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
   - `mcp__github__<op>`        -> not a Copilot tool name; Copilot spells the
                                   same server `github/<op>` (`templates/toolsets.yaml`)
 
-The translation applies five transforms, all in place. Transforms 1 to 3 also
+The translation applies six transforms, all in place. Transforms 1 to 3 also
 run over ``references/*.md`` (`translate_reference_file`), which ship beside
 ``SKILL.md`` and describe the same Claude surface:
 
@@ -40,6 +40,8 @@ run over ``references/*.md`` (`translate_reference_file`), which ship beside
      frontmatterDrop` -> dropped. Copilot CLI lists `model` and
      `model-rationale`: its skills have no per-skill model field, and a bare
      alias such as `haiku` is not a Copilot model id (ADR-111, issue #5606).
+  6. `--harness {harness}` -> `--harness copilot`. The Copilot copy always
+     runs the `copilot` scripts map, so the build names it (issue #6506).
 
 Transform 3 rewrites each call where it sits (structural rework, #2743). The
 earlier design appended a reference table to sidestep the Step 0 / Step 9
@@ -388,6 +390,21 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
     return "".join(out)
 
 
+_HARNESS_FLAG = "--harness {harness}"
+_COPILOT_HARNESS_FLAG = "--harness copilot"
+
+
+def _translate_harness(body: str) -> str:
+    """Write the Copilot harness key into a ``--harness {harness}`` flag.
+
+    The pr-review Step 0 verifier stops only on tokens from the map
+    ``--harness`` names. This copy only ever runs under Copilot, so the
+    agent is not left to pick the map that decides what blocks it (D3 and
+    D5 on issue #6506).
+    """
+    return body.replace(_HARNESS_FLAG, _COPILOT_HARNESS_FLAG)
+
+
 def translate_body(body: str, skills_output_dir: Path) -> str:
     """Translate Claude Code conventions in a SKILL.md body for Copilot CLI.
 
@@ -396,6 +413,7 @@ def translate_body(body: str, skills_output_dir: Path) -> str:
     """
     translated = _translate_includes(body)
     translated = _translate_arguments(translated)
+    translated = _translate_harness(translated)
     plugin_name = resolve_plugin_name(skills_output_dir)
     return _translate_invocations(translated, plugin_name)
 

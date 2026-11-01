@@ -17,6 +17,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REVIEW = REPO_ROOT / ".claude" / "skills" / "pr-review" / "SKILL.md"
 PROMPT = REPO_ROOT / ".github" / "prompts" / "pr-review.prompt.md"
 COPILOT_REVIEW = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-review" / "SKILL.md"
+TEMPLATE = REPO_ROOT / "templates" / "skills" / "pr-review.SKILL.md.tmpl"
+# Copies with no scripts map of their own (D3 and D5 on #6506).
+MAPLESS_COPIES = [
+    REPO_ROOT / "src" / "codex" / "skills" / "pr-review" / "SKILL.md",
+    REPO_ROOT / "src" / "cursor" / "skills" / "pr-review" / "SKILL.md",
+    REPO_ROOT / "src" / "hermes" / "project-toolkit-delivery" / "skills" / "pr-review" / "SKILL.md",
+]
 
 
 class TestStepZeroStopsOnUnverifiableTokens:
@@ -36,7 +43,7 @@ class TestStepZeroStopsOnUnverifiableTokens:
             or "they are reported and do not stop it" in body
         )
         assert (
-            "No `--harness`: all block" in body
+            "drop the line and every token blocks" in body
             or "If you omit `--harness`, every token blocks" in body
         )
         assert "Only after exit 0 with an empty `unverifiable_command_tokens` list" not in body
@@ -54,3 +61,19 @@ class TestStepZeroStopsOnUnverifiableTokens:
     def test_old_continue_on_exit_zero_wording_is_gone(self, path):
         body = path.read_text(encoding="utf-8")
         assert "Only after exit 0, run `transport_preflight.command_key` from config" not in body
+
+
+class TestHarnessValuePerCopy:
+    """Each rendered copy names the --harness value its agent must pass."""
+
+    def test_copilot_copy_renders_its_own_harness(self):
+        body = COPILOT_REVIEW.read_text(encoding="utf-8")
+        assert "--harness copilot \\\n" in body
+        assert "{harness}" not in body
+
+    @pytest.mark.parametrize("path", [REVIEW, TEMPLATE, *MAPLESS_COPIES])
+    def test_copy_states_every_accepted_value(self, path):
+        body = path.read_text(encoding="utf-8")
+        assert "--harness {harness}" in body
+        assert "`claude_code` in Claude Code, `copilot` in Copilot" in body
+        assert "Codex, Cursor, and Hermes have no map, so drop the line" in body

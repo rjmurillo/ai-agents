@@ -1621,6 +1621,95 @@ def _unverifiable_argv(argv: list[str]) -> list[str]:
     return found
 
 
+# The Copilot launcher (issue #5521), ported from
+# build/scripts/copilot_launcher.py because build/ does not ship with this
+# skill. tests/build_scripts/test_copilot_launcher.py pins the port equal to
+# that module for every scripts.copilot entry, so the two cannot drift.
+_LAUNCHER_PREFIX = "pwsh -NoProfile -CommandWithArgs "
+_LAUNCHER_ROOT_ENV_VARS: tuple[str, str] = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
+_LAUNCHER_FALLBACK_ROOT = ".claude"
+# The plain plugin-root form that names the same root the payload resolves:
+# COPILOT_PLUGIN_ROOT, then CLAUDE_PLUGIN_ROOT, then .claude.
+_LAUNCHER_ROOT_FORM = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+_LAUNCHER_SCRIPT_REL_RE = re.compile(r"skills/[A-Za-z0-9_.\-/]+\.py")
+_LAUNCHER_PAYLOAD_RE = re.compile(
+    r"'[^']*?\(Join-Path \$root \"(?P<rel>[^\"]+)\"\) @args; exit \(\$LASTEXITCODE \?\? 1\)'"
+    r"(?: (?P<tail>.*))?$"
+)
+# The words after the payload may hold only these characters. A shell
+# operator, quote, `$`, or newline there would run outside the payload, so a
+# tail with any of them leaves the launcher unrecognized (fail closed). Each
+# shipped tail is flags and {placeholder} words only.
+_LAUNCHER_TAIL_RE = re.compile(r"[A-Za-z0-9_.\-{}= ]*")
+
+
+def _render_launcher_payload(script_rel: str) -> str:
+    """Return the payload ``copilot_launcher.render_payload`` builds."""
+    first, second = _LAUNCHER_ROOT_ENV_VARS
+    root = (
+        f"$root = if ($env:{first}) {{ $env:{first} }} "
+        f"elseif ($env:{second}) {{ $env:{second} }} "
+        f'else {{ "{_LAUNCHER_FALLBACK_ROOT}" }}'
+    )
+    interpreter = (
+        "$exe, $pre = if (Get-Command python3 -EA SilentlyContinue) "
+        '{ "python3", @() } '
+        "elseif (Get-Command py -EA SilentlyContinue) "
+        '{ "py", @("-3") } '
+        'else { "python", @() }'
+    )
+    return (
+        f"{root}; {interpreter}; "
+        f'& $exe @pre (Join-Path $root "{script_rel}") @args; exit ($LASTEXITCODE ?? 1)'
+    )
+
+
+def _render_launcher(script_rel: str) -> str:
+    """Return the launcher command, without arguments, for ``script_rel``."""
+    return f"{_LAUNCHER_PREFIX}'{_render_launcher_payload(script_rel)}'"
+
+
+def _launcher_script(command: str) -> str | None:
+    """The plugin-root-relative script a canonical launcher runs, else ``None``.
+
+    Strict on purpose. The command must start with the launcher prefix,
+    the payload pattern must name a plugin-root script path, and
+    re-rendering the launcher for that path must reproduce the command's
+    launcher portion byte for byte. The words after it must be plain
+    flags and placeholders. Any other command, including a launcher with
+    an extra statement, another root chain, or a shell operator in its
+    arguments, returns ``None`` and its tokens stay unverifiable.
+    """
+    if not command.startswith(_LAUNCHER_PREFIX):
+        return None
+    match = _LAUNCHER_PAYLOAD_RE.search(command[len(_LAUNCHER_PREFIX) :])
+    if match is None:
+        return None
+    script_rel = match.group("rel")
+    if not _LAUNCHER_SCRIPT_REL_RE.fullmatch(script_rel) or ".." in script_rel.split("/"):
+        return None
+    launcher = _render_launcher(script_rel)
+    if command == launcher:
+        return script_rel
+    if not command.startswith(f"{launcher} "):
+        return None
+    if not _LAUNCHER_TAIL_RE.fullmatch(command[len(launcher) + 1 :]):
+        return None
+    return script_rel
+
+
+def _launcher_script_token(command: str) -> str | None:
+    """The expanded plain token naming the script a launcher runs, else ``None``.
+
+    The token is the one a POSIX command for the same script would carry,
+    so it is classified and compared exactly as that command's is.
+    """
+    script_rel = _launcher_script(command)
+    if script_rel is None:
+        return None
+    return _expand_plugin_root(f"{_LAUNCHER_ROOT_FORM}/{script_rel}")
+
+
 def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     """Classify one argv element for trust verification.
 
@@ -1739,6 +1828,12 @@ def _collect_command_paths(
             raise ConfigError(
                 f"command is not a parseable command line: {exc}",
             ) from exc
+        # A Copilot launcher names its script inside a PowerShell payload.
+        # Classify that script as the plain token it would be in a POSIX
+        # command, so it is compared against the trusted ref like one.
+        launched = _launcher_script_token(cmd_template)
+        if launched is not None:
+            argv = [*argv, launched]
         for token in argv:
             embedded = _split_long_option_value(token)
             candidates = (token, embedded) if embedded is not None else (token,)
@@ -3879,9 +3974,46 @@ def _scripts_map_entries(config: dict[str, Any]) -> list[tuple[str, dict[str, An
     return entries
 
 
+def _launcher_target_verified(
+    token: str,
+    command_trust: CommandTrustCheck,
+    toplevel: Path,
+) -> bool:
+    """True when the trust check compared ``token``'s file and it matched.
+
+    The file must be a tracked work-tree file the check compared and did
+    not flag, or an external file it recorded, which is how a plain token
+    naming it is treated. A missing, untracked, or escaping path is not
+    verified, so the launcher that names it stays unverifiable.
+    """
+    kind, value = _classify_argv_token(token, toplevel)
+    if kind == _ARGV_VERIFY:
+        return value in command_trust.checked_files and value not in command_trust.untrusted_files
+    if kind == _ARGV_EXTERNAL:
+        return value in command_trust.skipped_external_files
+    return False
+
+
+def _launcher_verifier(command_trust: CommandTrustCheck) -> Callable[[str], bool] | None:
+    """Bind :func:`_launcher_target_verified` to this work tree, or ``None``.
+
+    ``None`` when the work tree cannot be located, so every launcher
+    stays unverifiable rather than being judged against a guessed root.
+    """
+    try:
+        proc = _run_git(["rev-parse", "--show-toplevel"], _PROJECT_ROOT)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    toplevel = Path(proc.stdout.decode(errors="replace").strip()).resolve()
+    return lambda token: _launcher_target_verified(token, command_trust, toplevel)
+
+
 def _unverifiable_by_harness(
     config: dict[str, Any],
     pr_number: int,
+    verified: Callable[[str], bool] | None = None,
 ) -> list[tuple[str, str]]:
     """Return ``(harness, token)`` for every token no file comparison covers.
 
@@ -3890,6 +4022,11 @@ def _unverifiable_by_harness(
     first. A command line that cannot be split is a config-shape fault
     the schema validator owns; it executes nothing here, so its
     criterion name is recorded as unverifiable rather than halting.
+
+    ``verified`` answers whether the trust check compared the file a
+    canonical Copilot launcher names (:func:`_launcher_target_verified`).
+    Only then is that launcher's payload token dropped. With no
+    ``verified`` callable every payload stays unverifiable (fail closed).
     """
     found: list[tuple[str, str]] = []
     for harness, criterion in _scripts_map_entries(config):
@@ -3900,6 +4037,11 @@ def _unverifiable_by_harness(
             if pair not in found:
                 found.append(pair)
             continue
+        launched = _launcher_script_token(criterion["command"])
+        if launched is not None and verified is not None and verified(launched):
+            # argv[3] is the payload: the prefix splits into three words.
+            # The tail was checked free of `$`, so nothing else is dropped.
+            argv = [*argv[:3], *argv[4:]]
         # _format_command already expanded the plugin-root form, so a
         # token it resolved is not reported as unresolvable.
         for token in _unverifiable_argv(argv):
@@ -4093,7 +4235,11 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        found = _unverifiable_by_harness(config, args.pull_request)
+        found = _unverifiable_by_harness(
+            config,
+            args.pull_request,
+            _launcher_verifier(command_trust),
+        )
         unverifiable: list[str] = []
         for _, token in found:
             if token not in unverifiable:
