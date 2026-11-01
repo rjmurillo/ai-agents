@@ -53,6 +53,16 @@ YAML_ALLOWANCES: dict[tuple[str, str, str, str], str] = {
 }
 
 _KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?:\s|$)")
+# A block scalar header closes a key line (or a `- ` item): `|`, `>`, with an
+# optional chomping or indentation indicator and an optional trailing comment.
+_BLOCK_HEADER_RE = re.compile(r"[|>](?:[+-]?\d?|\d[+-])[ \t]*(?:#.*)?$")
+
+
+def _opens_block_scalar(content: str) -> bool:
+    """Return whether ``content`` (dash already stripped) ends in a block scalar header."""
+    match = _KEY_RE.match(content)
+    value = content[match.end() :].strip() if match else content.strip()
+    return bool(_BLOCK_HEADER_RE.fullmatch(value))
 
 
 def yaml_key_paths(text: str) -> list[str]:
@@ -61,11 +71,21 @@ def yaml_key_paths(text: str) -> list[str]:
     Stdlib only, for the block-style YAML this repository ships: a key's
     parents are the keys at smaller indentation above it, and a ``- `` list
     item adds no path segment. A comment or blank line inherits the open path.
+    The body of a block scalar (``|`` or ``>``) is text, not keys: its lines
+    inherit the owning key's path even when one reads like ``key:`` (issue #6506).
     """
     stack: list[tuple[int, str]] = []
     paths: list[str] = []
+    block_floor: int | None = None  # body lines must be indented deeper than this
     for raw in text.splitlines():
-        content = raw.lstrip(" ")
+        stripped = raw.lstrip(" ")
+        if block_floor is not None:
+            if not stripped or len(raw) - len(stripped) > block_floor:
+                paths.append(".".join(key for _, key in stack))
+                continue
+            block_floor = None
+        content = stripped
+        floor = len(raw) - len(stripped)
         if content.startswith("- "):
             content = content[2:].lstrip(" ")
         if content and not content.startswith("#"):
@@ -75,5 +95,8 @@ def yaml_key_paths(text: str) -> list[str]:
             match = _KEY_RE.match(content)
             if match:
                 stack.append((indent, match.group(1)))
+                floor = indent
+            if _opens_block_scalar(content):
+                block_floor = floor
         paths.append(".".join(key for _, key in stack))
     return paths

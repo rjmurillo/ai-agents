@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation.check_plugin_root_interpreter import (
+    _find_bare_invocations,
     find_offenses,
     is_in_scope,
     main,
@@ -82,6 +83,22 @@ def test_python3_with_short_option_is_still_canonical(tmp_path: Path) -> None:
 
 
 # --- negative: form violations (rule 1) ------------------------------------
+
+
+@pytest.mark.parametrize(
+    "operand", [".claude/skillsmith/x.py", ".claude/skills.py", ".claude/skillset/a/b.py"]
+)
+def test_bare_operand_without_a_skills_segment_is_not_matched(operand: str) -> None:
+    assert list(_find_bare_invocations(f"Run `uv run python {operand}` to sync.")) == []
+
+
+@pytest.mark.parametrize(
+    "operand",
+    [".claude/skills//foo/bar.py", ".claude/./skills/foo/bar.py", ".claude/skills/./foo/bar.py"],
+)
+def test_bare_operand_with_redundant_separators_still_normalizes(operand: str) -> None:
+    found = list(_find_bare_invocations(f"Run `uv run python {operand}` to sync."))
+    assert [inv.tail for inv in found] == ["skills/foo/bar.py"]
 
 
 def test_uv_run_python_is_flagged(tmp_path: Path) -> None:
