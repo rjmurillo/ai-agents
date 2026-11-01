@@ -2,9 +2,9 @@
 
 ## Summary
 
-- **Rounds**: 2 of 10
+- **Rounds**: 3 of 10
 - **Prior debate log**: none for this amendment (the closed ADR-101 logs are cited as precedent only)
-- **Outcome**: Consensus (architect Accept, critic Accept after one revision)
+- **Outcome**: Consensus (architect Accept, critic Accept after two revisions)
 - **Final Status**: accepted (ADR-101 stays `accepted`; this is an amendment in its Status section)
 - **Panel**: reduced panel of architect and critic, the size `adr-review` SKILL.md assigns to a prose-only or metadata-only edit
 - **Records**: `.project-toolkit/architecture/ADR-101-enforcement-planes.md`, `.github/PULL_REQUEST_TEMPLATE.md`
@@ -166,6 +166,28 @@ Changes checked: the revised ADR-101 paragraph (still one line, file still 500 l
 
 Critic verdict in definition terms: APPROVED_WITH_CONCERNS, with the single concern that the link requirement stays unenforced. That concern is documented in the ADR text itself, so it travels with the record.
 
+## Round 3: bot review finding on the frontmatter date
+
+After round 2 was pushed, a bot reviewer (Cursor Bugbot) found that the amendment is dated 2026-11-01 while the frontmatter `date` stayed 2026-08-20. ADR-073 line 49 defines that field as "last updated". Both seats re-read the evidence.
+
+### Claims Checked (round 3)
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| ADR-073 defines frontmatter `date` as last updated | contract | `.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md` line 49, `date: YYYY-MM-DD  # last updated` | VERIFIED |
+| Earlier ADR-101 amendments left `date` unchanged | status | `git log` of ADR-101: edits on 2026-10-10 and 2026-10-11 with `date: 2026-08-20` still in place | VERIFIED, so the stale value predates this amendment |
+| A check reads the frontmatter `date` against the body | contract | `grep` of `scripts/validation/check_adr_lifecycle.py` finds no date comparison | REFUTED, nothing enforces it |
+| The `## Date` section is the decision date | contract | ADR-101 line 41 and ADR-073 `## Date` use the acceptance date | VERIFIED, so it stays 2026-08-20 |
+
+### Agent Positions
+
+| Agent | Position | Notes |
+|-------|----------|-------|
+| architect | Accept | Set frontmatter `date` to 2026-11-01 as ADR-073 defines it. Leave the `## Date` section at the decision date. This is a metadata edit with no Decision clause change. |
+| critic | Accept | The finding is valid by the written schema. The older stale value is not this amendment's to fix, and is reported rather than rewritten. Still one session, so still one vote. |
+
+Resolution: frontmatter `date` set to 2026-11-01 in this change. The line count is unchanged at 500.
+
 ## Outcome
 
-Consensus after 2 rounds. Final status: accepted. Unresolved P0 and P1 issues: none. Open P2: a script that enforces the link requirement is not built, by design (see Dissent recorded).
+Consensus after 3 rounds. Final status: accepted. Unresolved P0 and P1 issues: none. Open P2: a script that enforces the link requirement is not built, by design (see Dissent recorded).
