@@ -197,6 +197,28 @@ No ADR text changed between the round 5 confirm votes and the review repairs bel
 
 **Post-round-5 review repairs (fresh `/review`, 2026-11-01).** Three ADR clauses changed: condition b names the bare-repo gap; condition e allows the refusal's `stat` walk; the sunset also lapses on an AC-19 drop. Both reviewers confirmed them (Accept, no P0 or P1). Both raised the same P2: condition b's first sentence overclaimed against the bare-repo gap. The architect's verbatim wording, "any repository it can detect", was applied. A second `/review` pass then found condition b broader than AC-24's ancestor walk. Condition b now reads: it refuses a state root when it or any ancestor directory holds a `.git` entry, and both sentences say "it can detect". Both reviewers confirmed that final text (Accept, no P0 or P1). No other ADR text changed. REQ-048 fixed the ADR-085 item 7 and 8 mapping, the Q5 term, the kill floor's link to the baseline, and the label rubric.
 
+## Rationale moved from ADR-084 (2026-11-01)
+
+Moved verbatim to keep ADR-084 under the 500-line size cap (`check_adr_lifecycle.py` size-cap). No wording changed.
+
+Rule 6 is not engaged. Its four events (rule 6 text) exclude `Stop`. ADR-097
+"Neutral" names four events as unaffected by its retirement: `SessionStart`,
+`UserPromptSubmit`, `SessionEnd`, and `PreCompact`. It does not name `Stop`.
+That `Stop` sits outside ADR-097's scope is INFERRED from its stated reason:
+those hooks "fire once per session or per turn, not once per tool call", and
+`Stop` fires once per turn. `.claude/AGENTS.md` also lists `Stop` among the
+five session-boundary events.
+
+The output channel is undocumented on both harnesses. The Stop output section
+of `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`
+documents only `decision` and `reason`, for Claude Code and for Copilot
+`agentStop` alike. Both permit completion when `decision` is omitted. On
+Claude Code the user-visible `systemMessage` is observed behavior: the
+dogfood `invoke_reflect_nudge.py` relies on it today. REQ-048 AC-17 must
+confirm it in the real CLI before a vendored hook ships. Copilot is excluded
+for two further reasons: no documented `transcript_path`, and no observed
+advisory field. Hence the `copilotExclude` requirement in rule 2a.
+
 ### Next Steps
 
 - The owner (@rjmurillo) accepts or rejects rule 2a. Rule 2a binds only after acceptance.

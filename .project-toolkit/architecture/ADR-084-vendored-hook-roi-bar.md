@@ -444,23 +444,11 @@ Rule 2a lapses under its sunset clause. Consumers keep the hook until they
 upgrade the plugin, and its off switch covers that gap. Their marker directory (`ai-agents-reflect-nudge` under the
 per-user state root) stays until they delete it.
 
-Rule 6 is not engaged. Its four events (rule 6 text) exclude `Stop`. ADR-097
-"Neutral" names four events as unaffected by its retirement: `SessionStart`,
-`UserPromptSubmit`, `SessionEnd`, and `PreCompact`. It does not name `Stop`.
-That `Stop` sits outside ADR-097's scope is INFERRED from its stated reason:
-those hooks "fire once per session or per turn, not once per tool call", and
-`Stop` fires once per turn. `.claude/AGENTS.md` also lists `Stop` among the
-five session-boundary events.
-
-The output channel is undocumented on both harnesses. The Stop output section
-of `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`
-documents only `decision` and `reason`, for Claude Code and for Copilot
-`agentStop` alike. Both permit completion when `decision` is omitted. On
-Claude Code the user-visible `systemMessage` is observed behavior: the
-dogfood `invoke_reflect_nudge.py` relies on it today. REQ-048 AC-17 must
-confirm it in the real CLI before a vendored hook ships. Copilot is excluded
-for two further reasons: no documented `transcript_path`, and no observed
-advisory field. Hence the `copilotExclude` requirement in rule 2a.
+Rule 6 is not engaged, since `Stop` is outside its four events. The Stop
+output channel is undocumented on both harnesses, which is why REQ-048 AC-17
+and the Copilot exclusion exist. The full reasoning for both is in
+`.project-toolkit/critique/ADR-084-debate-log-2.md` ("Rationale moved from
+ADR-084").
 
 The rule 5 correction is a fact repair, not a policy change. The two enforcing
 tests went with the vendored surface in `f79e70c01`. The rule still binds, so
