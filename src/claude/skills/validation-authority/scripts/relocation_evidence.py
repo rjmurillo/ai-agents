@@ -47,6 +47,10 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
     commands. The argv here is fixed, so only the module paths vary, and they
     are checked to sit under ``tests/`` with no ``..`` by the caller before this
     runs; ``validation_record`` skips collection when that scope check fails.
+
+    Trust model: pytest imports each named module and every ``conftest.py``
+    above it under ``tests/``. The scope check limits which files load, not
+    what code they hold, so run this only on a checkout you trust.
     """
     if importlib.util.find_spec("pytest") is None:
         raise PytestUnavailableError(
