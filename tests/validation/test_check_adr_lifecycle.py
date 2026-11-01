@@ -1020,6 +1020,16 @@ def test_a_record_with_no_frontmatter_is_still_measured(tmp_path):
     assert counts["frontmatter-parses"] == 1
 
 
+def test_an_undecodable_record_reports_only_frontmatter_parses(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    (adr_dir / "ADR-001-thing.md").write_bytes(b"\xff\xfe" + b"line\n" * (SIZE_CAP_LINES + 5))
+
+    counts = _counts(tmp_path)
+
+    assert counts["frontmatter-parses"] == 1
+    assert counts["size-cap"] == 0
+
+
 def test_a_new_oversized_record_fails_the_gate(tmp_path):
     _write_sized(tmp_path, SIZE_CAP_LINES + 1)
 

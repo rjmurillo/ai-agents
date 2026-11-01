@@ -858,8 +858,9 @@ def _check_size(record: Record) -> list[Violation]:
     one violation, 551 is two, and the baseline pins how far past the cap a
     grandfathered record already runs. The count is read from the file as
     written, frontmatter included, so it matches what a reader scrolls and what
-    the whole-tree file-size ratchet counts. Applies to every record, parseable
-    frontmatter or not.
+    the whole-tree file-size ratchet counts. Applies to every record that can be
+    read and decoded as UTF-8, parseable frontmatter or not; an unreadable or
+    undecodable record has no line count and reports only `frontmatter-parses`.
     """
     over = record.lines - SIZE_CAP_LINES
     if over <= 0:
