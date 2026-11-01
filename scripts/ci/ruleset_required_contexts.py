@@ -22,9 +22,11 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
     }
 )
 
-# Reasons a PR-triggered workflow is report-only. A report-only workflow can fail
-# or stay pending and still let a pull request merge, because none of its job
-# names is in REQUIRED_CONTEXTS.
+# Reasons a PR-triggered workflow is report-only. The branch ruleset does not wait
+# on a report-only workflow, because none of its job names is in REQUIRED_CONTEXTS,
+# so GitHub lets a pull request merge while it fails or stays pending. The local
+# merge-readiness check (check_merge_readiness) is a separate policy and still
+# rejects a failed non-required check that has no recorded disposition.
 AI_QUOTA = (
     "model-driven: spends provider quota or waits on an agent-<cli> environment "
     "approval, so it must never gate a merge"

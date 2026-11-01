@@ -13,6 +13,7 @@ labelled deterministic.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,7 @@ import yaml
 from scripts.ci import ruleset_required_contexts as contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
+WORKFLOW_DIR = ".github/workflows"
 PR_EVENTS = frozenset({"pull_request", "pull_request_target", "merge_group"})
 MODEL_MARKERS = (
     "ANTHROPIC_API_KEY",
@@ -33,9 +34,28 @@ MODEL_MARKERS = (
 )
 
 
-def _load(path: Path) -> dict[Any, Any]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert isinstance(data, dict), f"{path.name} did not parse to a mapping"
+def _git(*args: str) -> bytes:
+    return subprocess.run(["git", *args], cwd=REPO_ROOT, check=True, capture_output=True).stdout
+
+
+def _workflow_names() -> list[str]:
+    """List workflow files at HEAD, so untracked residue cannot change a claim about HEAD."""
+    listing = _git("ls-tree", "-r", "-z", "--name-only", "HEAD", "--", WORKFLOW_DIR)
+    paths = (raw.decode("utf-8") for raw in listing.split(b"\0") if raw)
+    return sorted(
+        path.removeprefix(f"{WORKFLOW_DIR}/")
+        for path in paths
+        if path.endswith((".yml", ".yaml")) and "/" not in path.removeprefix(f"{WORKFLOW_DIR}/")
+    )
+
+
+def _text(name: str) -> str:
+    return _git("show", f"HEAD:{WORKFLOW_DIR}/{name}").decode("utf-8")
+
+
+def _load(name: str) -> dict[Any, Any]:
+    data = yaml.safe_load(_text(name))
+    assert isinstance(data, dict), f"{name} did not parse to a mapping"
     return data
 
 
@@ -52,15 +72,11 @@ def _events(workflow: dict[Any, Any]) -> set[str]:
 
 
 def _pr_triggered() -> set[str]:
-    return {
-        path.name
-        for path in sorted(WORKFLOW_DIR.glob("*.y*ml"))
-        if _events(_load(path)) & PR_EVENTS
-    }
+    return {name for name in _workflow_names() if _events(_load(name)) & PR_EVENTS}
 
 
 def _reads_model_credential(name: str) -> bool:
-    text = (WORKFLOW_DIR / name).read_text(encoding="utf-8")
+    text = _text(name)
     return any(marker in text for marker in MODEL_MARKERS)
 
 
@@ -107,14 +123,14 @@ def test_classification_names_only_pr_triggered_workflows() -> None:
 def test_every_required_context_comes_from_a_required_workflow() -> None:
     produced: set[str] = set()
     for name in contract.REQUIRED_WORKFLOWS:
-        produced |= _job_names(_load(WORKFLOW_DIR / name))
+        produced |= _job_names(_load(name))
     missing = sorted(contract.REQUIRED_CONTEXTS - produced)
     assert not missing, f"required contexts no required workflow produces: {missing}"
 
 
 def test_report_only_workflows_do_not_produce_a_required_context() -> None:
     for name in contract.REPORT_ONLY_WORKFLOWS:
-        clash = _job_names(_load(WORKFLOW_DIR / name)) & contract.REQUIRED_CONTEXTS
+        clash = _job_names(_load(name)) & contract.REQUIRED_CONTEXTS
         assert not clash, f"{name} is report-only but produces required {sorted(clash)}"
 
 
