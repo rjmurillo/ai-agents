@@ -58,7 +58,7 @@ def test_changed_document_without_a_code_cause_does_not_need_coupled_documents(
 @pytest.mark.parametrize(
     ("paths", "effects"),
     [
-        (["docs/guide.md", "build/AGENTS.md"], []),
+        (["docs/guide.md", ".doc-accuracy/notes.md"], []),
         (["docs/guide.md", ".claude/skills/test/scripts/doc_accuracy_trigger.py"], []),
         (["docs/guide.md", "src/service.py"], ["no-such-effect"]),
         (["docs/guide.md", "totally/unknown.zzz"], []),
