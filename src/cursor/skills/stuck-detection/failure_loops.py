@@ -1,92 +1,69 @@
 #!/usr/bin/env python3
-"""Detect tool-failure loops in a list of recent tool events.
+"""Consumer A of REQ-048: check caller-supplied tool events for a failure loop.
 
 Stateless. The caller passes the recent tool events; nothing is stored, no
-model is called, and no hook runs this. It reports two signals:
+model is called, and no hook runs this. Every signal definition lives in the
+shared FailureClassifier (`lib/failure_classifier`, canonical source
+`scripts/failure_classifier/` in the rjmurillo/ai-agents repository), which
+the Stop retrospective nudge (consumer B) also uses, so the two never
+disagree. This module only validates input, applies `--window`, `--repeat`,
+and `--churn`, and builds the nudge. It reports two signals:
 
-- ``failure-repeat``: one failure fingerprint seen again and again.
-- ``edit-churn``: one file edited across several cycles while the same
-  failure keeps coming back.
-
-The signal definitions are adapted from the failure-loop guard in
-microsoft/TokenEconomizer (https://github.com/microsoft/TokenEconomizer,
-Apache-2.0). No code was copied. Unlike that guard, this one calls no judge
-model and never stops a turn; it only reports.
+- ``failure-repeat`` (AC-33): one failure fingerprint seen again and again.
+- ``edit-churn`` (AC-32): one file edited across several cycles while the
+  same failure keeps coming back.
 
 Run it as ``stuck_detection.py check-failures`` (the skill's entry point) or
 directly as ``failure_loops.py``.
 
 EXIT CODES (ADR-035):
     0 - Success (regardless of stuck/not-stuck)
-    2 - Invalid arguments or event input
+    2 - Invalid arguments or event input (AC-35)
 
-Stdlib only.
+Stdlib only, plus this plugin's own ``lib/``.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import posixpath
-import re
+import os
 import sys
 from pathlib import Path
 from typing import Any
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+# The skill directory sits at <plugin root>/skills/stuck-detection/.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_LIB_DIR = (
+    Path(_PLUGIN_ROOT) / "lib" if _PLUGIN_ROOT else Path(__file__).resolve().parents[2] / "lib"
+)
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from failure_classifier import (  # noqa: E402
+    EDIT_TOOLS,
+    FailureEvent,
+    FailureSignals,
+    classify,
+)
 
 DEFAULT_REPEAT = 3
 DEFAULT_CHURN = 3
 DEFAULT_WINDOW = 20
 MAX_EVENTS = 10_000
 MAX_INPUT_BYTES = 8 * 1024 * 1024
-FINGERPRINT_MAX_CHARS = 200
-TARGET_MAX_CHARS = 512
 MAX_NUDGE_SIGNALS = 5
-EDIT_TOOLS: frozenset[str] = frozenset(
-    {"edit", "write", "multiedit", "str_replace", "create", "apply_patch", "notebookedit"}
-)
-# Tool names the nudge may print verbatim; any other name prints as "tool".
+# AC-34: tool names the nudge may print verbatim; any other name prints as "tool".
 NUDGE_TOOL_NAMES: frozenset[str] = EDIT_TOOLS | frozenset(
     {"bash", "shell", "powershell", "read", "view", "grep", "glob", "webfetch", "task"}
 )
-# A hash or address: 0x plus 7 or more hex characters, or a bare run of 7 or
-# more holding at least one digit and one letter, so plain numbers fall to the
-# digit rule and words like "defaced" stay words.
-_HEX_RUN = re.compile(r"\b0x[0-9a-f]{7,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,}\b")
-_DIGIT_RUN = re.compile(r"\d+")
-_WHITESPACE_RUN = re.compile(r"\s+")
+# AC-35: the output fields that echo tool output and file names.
+UNTRUSTED_FIELDS: tuple[str, ...] = ("signals[].fingerprint", "signals[].target")
 
 
 class EventError(ValueError):
     """Raised when the tool-event input does not match the documented shape."""
-
-
-def normalize_tool(tool: str) -> str:
-    """Lowercase and strip a tool name. The one place tool names are compared."""
-    return tool.strip().lower()
-
-
-def failure_fingerprint(tool: str, error: str) -> str | None:
-    """Reduce a failure to ``<tool>|<first error line>``, or None with no error text.
-
-    Hex runs (hashes, addresses) become ``H`` and digit runs (line numbers,
-    PIDs) become ``N``, so the same failure on another line or run still
-    matches. The line is lowercased, whitespace-collapsed, and capped at
-    ``FINGERPRINT_MAX_CHARS``. A failure with no error text has no
-    fingerprint: it carries nothing that could tell two failures apart.
-    """
-    first = next((line for line in error.splitlines() if line.strip()), "")
-    line = first.strip().lower()
-    if not line:
-        return None
-    line = _HEX_RUN.sub("H", line)
-    line = _DIGIT_RUN.sub("N", line)
-    line = _WHITESPACE_RUN.sub(" ", line)[:FINGERPRINT_MAX_CHARS]
-    return f"{normalize_tool(tool)}|{line}"
-
-
-def _normalize_target(target: str) -> str:
-    """Collapse ``./a.py``, ``a//b.py`` and Windows separators to one spelling."""
-    return posixpath.normpath(target.replace("\\", "/"))[:TARGET_MAX_CHARS]
 
 
 def _optional_string(item: dict[str, Any], key: str, index: int) -> str | None:
@@ -95,24 +72,23 @@ def _optional_string(item: dict[str, Any], key: str, index: int) -> str | None:
         return None
     if not isinstance(value, str):
         raise EventError(f"event {index}: '{key}' must be a string")
-    stripped = value.strip()
-    return stripped if stripped else None
+    return value
 
 
-def parse_events(raw: Any) -> list[dict[str, Any]]:
-    """Validate decoded JSON and return normalized events.
+def parse_events(raw: Any) -> list[FailureEvent]:
+    """Validate decoded JSON and return FailureEvents.
 
     Accepts a list of objects. Each needs ``tool`` (non-empty string) and
     ``ok`` (boolean). ``error``, ``input`` and ``target`` are optional
-    strings on every event and are type-checked whenever present; ``error``
-    is used only for failures. Unknown keys are ignored. Anything else
-    raises ``EventError`` naming the bad index.
+    strings on every event and are type-checked whenever present. Unknown
+    keys are ignored. Anything else raises ``EventError`` naming the bad
+    index. Normalization (trimming, target paths) is the classifier's.
     """
     if not isinstance(raw, list):
         raise EventError("input must be a JSON array of tool events")
     if len(raw) > MAX_EVENTS:
         raise EventError(f"input holds {len(raw)} events; the limit is {MAX_EVENTS}")
-    events: list[dict[str, Any]] = []
+    events: list[FailureEvent] = []
     for index, item in enumerate(raw):
         if not isinstance(item, dict):
             raise EventError(f"event {index} is not an object")
@@ -122,118 +98,31 @@ def parse_events(raw: Any) -> list[dict[str, Any]]:
             raise EventError(f"event {index}: 'tool' must be a non-empty string")
         if not isinstance(ok, bool):
             raise EventError(f"event {index}: 'ok' must be true or false")
-        error = _optional_string(item, "error", index) or ""
-        command = _optional_string(item, "input", index)
-        target = _optional_string(item, "target", index)
-        key = normalize_tool(tool)
         events.append(
-            {
-                "tool": key,
-                "ok": ok,
-                "fingerprint": None if ok else failure_fingerprint(key, error),
-                "input": command,
-                "target": _normalize_target(target) if target else None,
-                "edit_tool": key in EDIT_TOOLS,
-                "is_edit": key in EDIT_TOOLS and target is not None,
-            }
+            FailureEvent.build(
+                tool=tool,
+                ok=ok,
+                error=_optional_string(item, "error", index),
+                input=_optional_string(item, "input", index),
+                target=_optional_string(item, "target", index),
+            )
         )
     return events
 
 
-def _progress_key(event: dict[str, Any]) -> tuple[str, str] | None:
-    """The (tool, input) pair a later success must match to count as progress."""
-    if event["input"] is None:
-        return None
-    return (event["tool"], event["input"])
-
-
-ProgressKey = tuple[str, str] | None
-# progress key -> fingerprint -> count. Keying by progress key first makes a
-# reset one dict removal, so its cost never grows with the window.
-Counts = dict[ProgressKey, dict[str, int]]
-
-
-def _bump(counts: Counts, key: ProgressKey, fingerprint: str) -> None:
-    per_key = counts.setdefault(key, {})
-    per_key[fingerprint] = per_key.get(fingerprint, 0) + 1
-
-
-def _scan(events: list[dict[str, Any]]) -> tuple[Counts, dict[str, Counts]]:
-    """Walk events once; return failure counts and per-file churn counts.
-
-    Every count is filed under the event's progress key, its ``(tool,
-    input)`` pair, or None without ``input``. Progress is a success whose pair
-    matches an earlier failure in the window: the check that failed now
-    passes, or a retried edit now applies. It removes only the counts filed
-    under that pair, so fixing one command never hides a loop in another that
-    shares its first error line. Without ``input`` nothing can match, so
-    nothing resets.
-
-    Every fingerprinted failure is counted, failed edits included. The first
-    fingerprinted failure of a non-edit tool after successful edits is the
-    outcome of each file edited since the previous outcome; several edits of
-    one file before one failure count once (one cycle). A failed edit-tool
-    event, with or without ``target``, closes no cycle. A non-edit check that
-    makes progress also closes the pending cycle (those edits worked); an
-    edit retry that makes progress leaves other files' pending edits alone.
-    """
-    tally: Counts = {}
-    churn: dict[str, Counts] = {}
-    pending: set[str] = set()
-    for event in events:
-        key = _progress_key(event)
-        if event["ok"]:
-            if key is not None and key in tally:
-                del tally[key]
-                for per_file in churn.values():
-                    per_file.pop(key, None)
-                if not event["edit_tool"]:
-                    pending.clear()
-            if event["is_edit"]:
-                pending.add(event["target"])
-            continue
-        fingerprint = event["fingerprint"]
-        if fingerprint is None:
-            continue
-        _bump(tally, key, fingerprint)
-        if event["edit_tool"]:
-            continue
-        for target in pending:
-            _bump(churn.setdefault(target, {}), key, fingerprint)
-        pending.clear()
-    return tally, churn
-
-
-def _by_fingerprint(counts: Counts) -> dict[str, int]:
-    """Sum counts over progress keys: one total per fingerprint."""
-    totals: dict[str, int] = {}
-    for per_key in counts.values():
-        for fingerprint, n in per_key.items():
-            totals[fingerprint] = totals.get(fingerprint, 0) + n
-    return totals
-
-
 def detect_signals(
-    events: list[dict[str, Any]], repeat_threshold: int, churn_threshold: int
+    classified: FailureSignals, repeat_threshold: int, churn_threshold: int
 ) -> list[dict[str, Any]]:
-    """Both signals over ``events``: failure-repeat first (most frequent first), then churn."""
-    tally, churn = _scan(events)
+    """Both signals: failure-repeat first (most frequent first), then churn."""
     repeats = sorted(
-        ((fp, n) for fp, n in _by_fingerprint(tally).items() if n >= repeat_threshold),
+        ((fp, n) for fp, n in classified.repeat_totals().items() if n >= repeat_threshold),
         key=lambda kv: (-kv[1], kv[0]),
     )
     signals: list[dict[str, Any]] = [
         {"signal": "failure-repeat", "fingerprint": fp, "count": n} for fp, n in repeats
     ]
-    for target in sorted(churn):
-        totals = _by_fingerprint(churn[target])
-        if not totals:
-            continue
-        fp, n = max(totals.items(), key=lambda kv: (kv[1], kv[0]))
-        if n >= churn_threshold:
-            signals.append(
-                {"signal": "edit-churn", "target": target, "fingerprint": fp, "count": n}
-            )
+    for target, (fp, n) in classified.churned_targets(churn_threshold).items():
+        signals.append({"signal": "edit-churn", "target": target, "fingerprint": fp, "count": n})
     return signals
 
 
@@ -285,7 +174,7 @@ def build_failure_nudge(signals: list[dict[str, Any]]) -> str:
 
 
 def check_failures(
-    events: list[dict[str, Any]],
+    events: list[FailureEvent],
     *,
     repeat_threshold: int = DEFAULT_REPEAT,
     churn_threshold: int = DEFAULT_CHURN,
@@ -300,12 +189,20 @@ def check_failures(
         if value < 2:
             raise ValueError(f"{name} ({value}) must be >= 2")
     recent = events[-window:]
-    signals = detect_signals(recent, repeat_threshold, churn_threshold)
+    classified = classify(recent)
+    signals = detect_signals(classified, repeat_threshold, churn_threshold)
     result: dict[str, Any] = {
         "stuck": bool(signals),
         "events_total": len(events),
         "events_checked": len(recent),
+        "counts": {
+            "tool_error": classified.tool_error,
+            "permission_denial": classified.permission_denial,
+            "failed_retry": classified.failed_retry,
+            "unfingerprinted": classified.unfingerprinted,
+        },
         "signals": signals,
+        "untrusted": list(UNTRUSTED_FIELDS),
     }
     if signals:
         result["nudge"] = build_failure_nudge(signals)
@@ -335,7 +232,7 @@ def _read_input(path: Path | None) -> str:
     return data.decode("utf-8-sig")
 
 
-def read_events(path: Path | None) -> list[dict[str, Any]]:
+def read_events(path: Path | None) -> list[FailureEvent]:
     """Read, decode and validate the event input."""
     text = _read_input(path)
     try:

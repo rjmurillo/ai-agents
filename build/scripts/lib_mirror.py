@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile ``scripts/{hook_utilities,github_core,ai_review_common}/`` into
+"""Compile ``scripts/{hook_utilities,github_core,ai_review_common,failure_classifier}/`` into
 the lib plugin trees (ADR-109 B5, TASK-035).
 
 Absorbs `scripts/sync_plugin_lib.py`'s copy logic (its `SYNC_PAIRS`,
@@ -60,7 +60,12 @@ from atomic_write import publish_bytes_atomically, read_bytes_no_redirect  # noq
 
 # Package name -> canonical scripts/ source. Each package lands at
 # "<plugin_root>/<package>" under every root in PLUGIN_ROOTS.
-PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common")
+PACKAGES: tuple[str, ...] = (
+    "hook_utilities",
+    "github_core",
+    "ai_review_common",
+    "failure_classifier",
+)
 
 # Every plugin tree a package (or a SYNC_FILE_PAIRS-equivalent single file)
 # is rendered into. `.claude/lib/` is never a render target here: it is an
@@ -133,9 +138,11 @@ IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"from scripts\.github_core\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.hook_utilities\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.ai_review_common\.(\w+) import"), r"from .\1 import"),
+    (re.compile(r"from scripts\.failure_classifier\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.github_core import"), "from . import"),
     (re.compile(r"from scripts\.hook_utilities import"), "from . import"),
     (re.compile(r"from scripts\.ai_review_common import"), "from . import"),
+    (re.compile(r"from scripts\.failure_classifier import"), "from . import"),
 ]
 
 # Files that exist only in a destination package dir and must not be

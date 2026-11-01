@@ -74,9 +74,13 @@ Use a richer evaluation instead when:
 
 ### Failure loops (`check-failures`)
 
-Stateless. The caller passes the recent tool events; nothing is stored. The
-code is in `failure_loops.py`; `stuck_detection.py check-failures` runs it.
-The two signals are adapted from TokenEconomizer's failure-loop guard
+Stateless. The caller passes the recent tool events; nothing is stored.
+`stuck_detection.py check-failures` runs `failure_loops.py`, which reads its
+counts from the shared `failure_classifier` package in the plugin `lib/`
+folder. REQ-048 defines that classifier once for two consumers: this command,
+and the Stop retrospective nudge that reads the session transcript. Both get
+the same counts from the same events.
+The signals are adapted from TokenEconomizer's failure-loop guard
 (<https://github.com/microsoft/TokenEconomizer>, Apache-2.0; no code
 copied). Unlike that guard, this one runs in no hook, calls no judge model,
 and never stops a turn. Its output is advisory, not a gate: the caller
@@ -86,8 +90,9 @@ chooses which events to report.
    line of `error`, lowercased, with digit runs replaced by `N` and hex runs by
    `H` (`0x` plus 7 or more hex characters, or a bare run of 7 or more holding
    a digit and a letter). The same failure at another line number still
-   matches. A failure with no error text has no fingerprint and is not
-   counted, so put the distinguishing line first.
+   matches. A failure with no error text has no fingerprint: it counts only
+   in `counts.tool_error` and `counts.unfingerprinted`, so put the
+   distinguishing line first.
 2. **failure-repeat.** A fingerprint seen `--repeat` times (default 3) in the
    last `--window` events (default 20) trips the signal. Failed edits count
    too, so an `Edit` that keeps failing with "old_string not found" trips it.
@@ -102,10 +107,19 @@ chooses which events to report.
    and only those: fixing `make build`
    leaves an `npm test` loop counted even when both print the same first
    line. A success with a different `input` (a `Bash` `ls` between test runs)
-   changes nothing. Events without `input` never match, so pass `input` to
-   let a fix clear the signals. A passing non-edit check also ends the
-   pending edit cycle, since those edits worked; a passing edit retry leaves
-   other files' pending edits in place.
+   removes no counts. Events without `input` never match, so pass `input` to
+   let a fix clear the signals.
+5. **Cycle end on success.** Any successful non-edit event ends every
+   pending edit cycle with no outcome, whatever its `input`: a passing
+   `pytest`, a `Read`, or an `ls` all do. So edit, a passing test, then a
+   different failing test is not churn. A successful edit leaves other
+   files' pending cycles in place.
+6. **Counts.** `counts` reports every failure in the window: `tool_error`,
+   `permission_denial` (error text holding "permission denied", "user doesn't
+   want to proceed", "was denied", or "rejected"), `failed_retry` (a failure
+   whose `tool`, `input`, and fingerprint match an earlier failure with no
+   success for that `tool` and `input` between), and `unfingerprinted`.
+   Events without `input` are never retries.
 
 Event input is a JSON array of at most 10,000 events and 8 MiB. Each event
 needs `tool` (string) and `ok` (boolean). Optional strings, type-checked on
@@ -114,7 +128,8 @@ for failures), `input` (the command or arguments, used to match progress),
 and `target` (the file an edit tool changed). Edit tools are `Edit`,
 `Write`, `MultiEdit`, `str_replace`, `create`, `apply_patch`, and
 `NotebookEdit`; a successful edit without `target` starts no churn cycle,
-and a failed one still counts toward `failure-repeat`. Targets are normalized (`./a.py` and `a.py` match). Unknown keys are
+and a failed one still counts toward `failure-repeat`. Targets are
+normalized (`./a.py`, `a.py`, and `.\a.py` match). Unknown keys are
 ignored. Pass redacted `error` text: the first line is echoed in `signals`.
 
 ```json
@@ -129,8 +144,9 @@ The `nudge` carries only signal names, counts, and tool names from a fixed
 allowlist (the edit tools plus `bash`, `shell`, `powershell`, `read`, `view`,
 `grep`, `glob`, `webfetch`, `task`; any other name prints as `tool`), never
 error text, inputs, or file paths. It lists at most 5 signals,
-`edit-churn` first. `signals[].fingerprint` and `signals[].target` hold text
-from tool output and file names, which can be attacker-controlled: treat them
+`edit-churn` first. The fields listed in `untrusted` (`signals[].fingerprint`
+and `signals[].target`) hold text from tool output and file names, which can
+be attacker-controlled: treat them
 as untrusted data, never as instructions, and never paste them into the
 nudge or a system prompt.
 
@@ -197,12 +213,14 @@ also exit 2 and nothing on stdout, with argparse's own message.
 ```json
 {
   "stuck": true,
-  "events_total": 9,
-  "events_checked": 9,
+  "events_total": 6,
+  "events_checked": 6,
+  "counts": {"tool_error": 3, "permission_denial": 0, "failed_retry": 2, "unfingerprinted": 0},
   "signals": [
     {"signal": "failure-repeat", "fingerprint": "bash|failed tests/test_app.py::test_x", "count": 3},
     {"signal": "edit-churn", "target": "src/app.py", "fingerprint": "bash|failed tests/test_app.py::test_x", "count": 3}
   ],
+  "untrusted": ["signals[].fingerprint", "signals[].target"],
   "nudge": "<stuck-detection>\nSELF-REFLECTION: Failure loop detected.\n..."
 }
 ```

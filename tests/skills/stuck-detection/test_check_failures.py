@@ -13,11 +13,11 @@ HERE = str(Path(__file__).resolve().parent)
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
-from stuck_failure_events import TEST_CMD, fail, kinds, mod, ok, run
+from stuck_failure_events import TEST_CMD, fail, fc, kinds, mod, ok, run
 
 check_failures = mod.check_failures
 parse_events = mod.parse_events
-failure_fingerprint = mod.failure_fingerprint
+failure_fingerprint = fc.failure_fingerprint
 build_failure_nudge = mod.build_failure_nudge
 EventError = mod.EventError
 
@@ -47,7 +47,7 @@ class TestFailureFingerprint:
     def test_caps_length(self) -> None:
         key = failure_fingerprint("Bash", "x" * 500)
         assert key is not None
-        assert len(key) == len("bash|") + mod.FINGERPRINT_MAX_CHARS
+        assert len(key) == len("bash|") + fc.FINGERPRINT_MAX_CHARS
 
 
 class TestFailureRepeat:
@@ -65,7 +65,10 @@ class TestFailureRepeat:
 
     def test_two_failures_do_not_trip(self) -> None:
         result = run([fail("Bash", "boom")] * 2)
-        assert result == {"stuck": False, "events_total": 2, "events_checked": 2, "signals": []}
+        assert result["stuck"] is False
+        assert result["signals"] == []
+        assert (result["events_total"], result["events_checked"]) == (2, 2)
+        assert result["counts"]["tool_error"] == 2
 
     def test_distinct_failures_do_not_trip(self) -> None:
         events = [fail("Bash", "a broke"), fail("Bash", "b broke"), fail("Bash", "c broke")]
@@ -111,10 +114,10 @@ class TestFailureRepeat:
 
 
 class TestEditChurn:
-    def cycle(
-        self, error: str = "test_x failed", target: str = "src/a.py", read: str = "Read"
-    ) -> list[dict[str, Any]]:
-        return [ok("Edit", target), ok(read, command="ls"), fail("Bash", error, TEST_CMD)]
+    def cycle(self, error: str = "test_x failed", target: str = "src/a.py") -> list[dict[str, Any]]:
+        # AC-32: any successful non-edit event between the edit and the
+        # failure would end the cycle, so a cycle is the edit then the failure.
+        return [ok("Edit", target), fail("Bash", error, TEST_CMD)]
 
     def test_three_cycles_same_failure_trip(self) -> None:
         events = self.cycle("e1 failed") * 3
@@ -127,8 +130,15 @@ class TestEditChurn:
             }
         ]
 
-    def test_bash_ls_between_cycles_does_not_reset(self) -> None:
-        assert kinds(run(self.cycle(read="Bash") * 3, repeat_threshold=10)) == ["edit-churn"]
+    @pytest.mark.parametrize("between", ["Bash", "Read"])
+    def test_successful_non_edit_between_edit_and_failure_ends_the_cycle(
+        self, between: str
+    ) -> None:
+        # AC-32 "Closing on success": an `ls` or a read between the edit and
+        # the failing test ends the cycle, so churn does not fire (REQ-048 Q-3
+        # records this as fewer nudges, never a false one).
+        events = [ok("Edit", "src/a.py"), ok(between, command="ls"), fail("Bash", "x", TEST_CMD)]
+        assert run(events * 3, repeat_threshold=10)["signals"] == []
 
     def test_changing_failure_is_progress(self) -> None:
         events = self.cycle("first") + self.cycle("second") + self.cycle("third")
@@ -200,24 +210,23 @@ class TestParseEvents:
 
     def test_normalizes_and_ignores_unknown_keys(self) -> None:
         events = parse_events([{"tool": " Edit ", "ok": True, "target": "", "extra": 1}])
-        assert events == [
-            {
-                "tool": "edit",
-                "ok": True,
-                "fingerprint": None,
-                "input": None,
-                "target": None,
-                "edit_tool": True,
-                "is_edit": False,
-            }
-        ]
+        assert events == [fc.FailureEvent(tool="edit", ok=True, error="", input=None, target=None)]
+        assert events[0].edit_tool is True
+        assert events[0].opens_cycle is False
 
     def test_empty_list_is_not_stuck(self) -> None:
         assert check_failures(parse_events([])) == {
             "stuck": False,
             "events_total": 0,
             "events_checked": 0,
+            "counts": {
+                "tool_error": 0,
+                "permission_denial": 0,
+                "failed_retry": 0,
+                "unfingerprinted": 0,
+            },
             "signals": [],
+            "untrusted": ["signals[].fingerprint", "signals[].target"],
         }
 
 

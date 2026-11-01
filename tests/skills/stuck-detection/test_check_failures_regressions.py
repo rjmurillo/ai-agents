@@ -10,11 +10,11 @@ HERE = str(Path(__file__).resolve().parent)
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
-from stuck_failure_events import TEST_CMD, fail, kinds, mod, ok, run
+from stuck_failure_events import TEST_CMD, fail, fc, kinds, mod, ok, run
 
 check_failures = mod.check_failures
 parse_events = mod.parse_events
-failure_fingerprint = mod.failure_fingerprint
+failure_fingerprint = fc.failure_fingerprint
 build_failure_nudge = mod.build_failure_nudge
 EventError = mod.EventError
 
@@ -80,7 +80,7 @@ class TestRoundTwoRegressions:
         events = [fail("Bash", "boom", " pytest ")] * 2 + [ok("Bash", command="pytest")]
         events += [ok("Edit", " a.py"), fail("Bash", "boom", "pytest")]
         assert run(events)["stuck"] is False
-        assert parse_events([ok("Edit", " a.py ")])[0]["target"] == "a.py"
+        assert parse_events([ok("Edit", " a.py ")])[0].target == "a.py"
 
     def test_nudge_lists_churn_before_repeats(self) -> None:
         signals = [

@@ -295,6 +295,13 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-claude-plugin
+    path: src/claude/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
   - id: lib-bootstrap-claude-plugin
     path: src/claude/lib/bootstrap.py
     relation: translated
@@ -320,6 +327,13 @@ surfaces:
     path: src/copilot-cli/lib/ai_review_common
     relation: translated
     authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-copilot-plugin
+    path: src/copilot-cli/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
@@ -351,6 +365,13 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-cursor-plugin
+    path: src/cursor/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
   - id: lib-bootstrap-cursor-plugin
     path: src/cursor/lib/bootstrap.py
     relation: translated
@@ -376,6 +397,13 @@ surfaces:
     path: src/codex/lib/ai_review_common
     relation: translated
     authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-codex-plugin
+    path: src/codex/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.

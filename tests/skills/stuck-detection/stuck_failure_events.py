@@ -14,6 +14,8 @@ from claude_skills_import import import_skill_script
 
 mod: Any = import_skill_script(".claude/skills/stuck-detection/failure_loops.py")
 entry: Any = import_skill_script(".claude/skills/stuck-detection/stuck_detection.py")
+# The shared FailureClassifier, as failure_loops.py imported it from the plugin lib.
+fc: Any = sys.modules["failure_classifier"]
 
 TEST_CMD = "pytest tests/test_app.py"
 
