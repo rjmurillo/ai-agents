@@ -390,19 +390,9 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
     return "".join(out)
 
 
-_HARNESS_FLAG = "--harness {harness}"
-_COPILOT_HARNESS_FLAG = "--harness copilot"
-
-
 def _translate_harness(body: str) -> str:
-    """Write the Copilot harness key into a ``--harness {harness}`` flag.
-
-    The pr-review Step 0 verifier stops only on tokens from the map
-    ``--harness`` names. This copy only ever runs under Copilot, so the
-    agent is not left to pick the map that decides what blocks it (D3 and
-    D5 on issue #6506).
-    """
-    return body.replace(_HARNESS_FLAG, _COPILOT_HARNESS_FLAG)
+    """Transform 6: name the ``copilot`` map so the agent never picks it."""
+    return body.replace("--harness {harness}", "--harness copilot")
 
 
 def translate_body(body: str, skills_output_dir: Path) -> str:
