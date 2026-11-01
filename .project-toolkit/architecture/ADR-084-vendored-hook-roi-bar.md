@@ -405,7 +405,7 @@ a Stop hook that suggests `/retrospective` when a session shows heavy tool-side
 friction. Rule 2 as written listed "retros" as internal, so any such hook was
 barred, even one that only advises. The word was meant for this repository's
 retro protocol, not for a consumer's own sessions. The hook that motivated the
-word was `invoke_auto_retrospective.py`. It wrote skeleton files at Stop and
+word was the since-deleted `invoke_auto_retrospective.py`. It wrote skeleton files at Stop and
 returned `decision: "block"`, which dirtied the tree and kept turns alive
 (#3140). PR #3372 (issue #3349) deleted it in `b862e14e9`. Rule 2a draws the
 line at that behavior. Writing, blocking, demanding, or instructing the agent
