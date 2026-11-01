@@ -160,7 +160,7 @@ ACTIVATE_CASES = [
     pytest.param(".claude/rules/universal.md", "changed_documents", id="rule-markdown"),
     pytest.param(".agents/governance/golden-principles.md", "changed_documents", id="governance"),
     pytest.param(".claude/agents/analyst.md", "changed_documents", id="agent-markdown"),
-    pytest.param("build/AGENTS.md", "unreadable_documents", id="scanner-excluded-markdown"),
+    pytest.param(".doc-accuracy/notes.md", "unreadable_documents", id="scanner-excluded-markdown"),
 ]
 
 
@@ -172,7 +172,7 @@ def test_document_paths_activate_and_land_in_the_right_field(classifier, path, f
 
 
 def test_unreadable_document_is_not_counted_as_scannable(classifier) -> None:
-    result = _decide(classifier, ["build/AGENTS.md"])
+    result = _decide(classifier, [".doc-accuracy/notes.md"])
     assert result["changed_documents"] == []
     assert result["coupled_documents_needed"] is True
 

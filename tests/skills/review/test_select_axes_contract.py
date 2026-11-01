@@ -36,12 +36,22 @@ REFERENCES_DIR = REVIEW_SKILL_DIR / "references"
 CANDIDATES = mod.discover_canonical_axes(REFERENCES_DIR)
 
 
+# Deep review skips a local scanner that reads no changed file (issue #7004),
+# so a full-set assertion needs a change every scanner reads: Python for
+# assess.py, a skill file for golden-principles, Markdown for doc-accuracy and
+# taste-lints.
+EVERY_SCANNER_READS = ["docs/guide.md", ".claude/skills/review/SKILL.md", "src/app.py"]
+
+
 def select(paths: list[str], **kwargs: object) -> dict:
     return mod.select_axes(changed_paths=paths, canonical_candidates=CANDIDATES, **kwargs)
 
 
 class TestDeepReviewRunsTheWholeSet:
     """Issue #4981 AC-10: a full-set mode stays available for a deep review.
+
+    Since issue #7004, deep runs every local axis only when each scanner reads
+    a changed file, so these tests use ``EVERY_SCANNER_READS``.
 
     The issue's Problem section counts "15 review axes" as the state BEFORE
     this work: 1 Stage-1 gate, 11 Stage-2 canonical axes, and 3 chained
@@ -56,19 +66,30 @@ class TestDeepReviewRunsTheWholeSet:
     """
 
     def test_deep_review_selects_every_canonical_and_local_axis(self) -> None:
-        result = select(["docs/guide.md"], deep=True)
+        result = select(EVERY_SCANNER_READS, deep=True)
         assert set(result["canonical_selected"]) == set(CANDIDATES)
         assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
 
+    def test_every_scanner_reads_input_does_not_fail_closed(self) -> None:
+        """A fail-closed run keeps all four local axes without narrowing.
+
+        Deep output forces ``fail_closed`` to False, so check the input in
+        risk mode, where the field is real. This proves the full set above
+        comes from narrowing that kept every scanner, not from a bypass.
+        """
+        result = select(EVERY_SCANNER_READS)
+        assert result["fail_closed"] is False
+        assert result["unclassified_paths"] == []
+
     def test_deep_review_stage2_total_is_canonical_plus_local(self) -> None:
-        result = select(["docs/guide.md"], deep=True)
+        result = select(EVERY_SCANNER_READS, deep=True)
         stage2 = len(result["canonical_selected"]) + len(result["local_selected"])
         assert stage2 == len(CANDIDATES) + len(mod.LOCAL_AXES)
         assert stage2 == 15, "11 canonical + 4 local with the current set"
 
     def test_deep_review_reports_one_more_row_than_stage2_axes(self) -> None:
         """The Stage-1 gate is a reported row but never a Stage-2 candidate."""
-        result = select(["docs/guide.md"], deep=True)
+        result = select(EVERY_SCANNER_READS, deep=True)
         assert mod.STAGE1_AXIS not in result["canonical_selected"]
         assert mod.STAGE1_AXIS not in result["local_selected"]
         rows = 1 + len(result["canonical_selected"]) + len(result["local_selected"])
@@ -77,7 +98,7 @@ class TestDeepReviewRunsTheWholeSet:
     def test_deep_review_skips_nothing(self) -> None:
         # Negative control: a risk-mode run on the same path DOES skip axes,
         # so an assertion that passed in both modes would prove nothing.
-        assert select(["docs/guide.md"], deep=True)["skipped"] == {}
+        assert select(EVERY_SCANNER_READS, deep=True)["skipped"] == {}
         assert select(["docs/guide.md"])["skipped"] != {}
 
 
@@ -497,7 +518,7 @@ class TestSkillCountClaimsMatchTheCode:
         assert set(claims) == {len(CANDIDATES)}, claims
 
     def test_every_deep_review_row_claim_matches_the_reported_rows(self) -> None:
-        claims = self._counts(r"(\d+) rows") + self._counts(r"full (\d+)-axis set")
+        claims = self._counts(r"(\d+) rows")
         claims += self._counts(r"(\d+) total in deep-review mode")
         assert set(claims) == {self.ROWS}, claims
 
