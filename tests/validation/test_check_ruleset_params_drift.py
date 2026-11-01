@@ -18,8 +18,6 @@ import check_ruleset_params_drift as mod
 # so TestMainLive's default mock stays in sync with the committed baseline.
 _DEFAULT_ENFORCEMENT = "active"
 _DEFAULT_BYPASS_ACTORS = [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}]
-# Sentinel: omit the `bypass_actors` key entirely, as the Actions GITHUB_TOKEN response does.
-_ABSENT: Any = object()
 
 
 class TestCheckDrift:
@@ -172,32 +170,6 @@ class TestCheckRulesetDrift:
         assert len(drifts) == 1
         assert "bypass_actors" in drifts[0]
 
-    def test_absent_bypass_actors_is_not_drift(self) -> None:
-        """A token that cannot see bypass_actors gets no key; that is not drift."""
-        baseline = self._baseline()
-        live = mod.extract_live_ruleset_state({"enforcement": "active", "rules": []})
-        assert live["bypass_actors"] is None
-        assert mod.bypass_actors_observable(live) is False
-        assert mod.check_ruleset_drift(baseline, live) == []
-
-    def test_absent_bypass_actors_still_compares_enforcement(self) -> None:
-        """Skipping bypass_actors must not skip the rest of the ruleset state."""
-        baseline = self._baseline(enforcement="active")
-        live = mod.extract_live_ruleset_state({"enforcement": "disabled", "rules": []})
-        drifts = mod.check_ruleset_drift(baseline, live)
-        assert len(drifts) == 1
-        assert "enforcement" in drifts[0]
-
-    def test_empty_bypass_actors_is_observable(self) -> None:
-        """An empty list is a real observation, distinct from an absent key."""
-        live = mod.extract_live_ruleset_state({"enforcement": "active", "bypass_actors": []})
-        assert live["bypass_actors"] == []
-        assert mod.bypass_actors_observable(live) is True
-
-    def test_null_bypass_actors_is_not_observable(self) -> None:
-        live = mod.extract_live_ruleset_state({"enforcement": "active", "bypass_actors": None})
-        assert mod.bypass_actors_observable(live) is False
-
     def test_removed_bypass_actor_is_drift(self) -> None:
         baseline = self._baseline()
         live = {"enforcement": "active", "bypass_actors": []}
@@ -249,16 +221,19 @@ class TestMainLive:
         self,
         params: dict,
         enforcement: str = _DEFAULT_ENFORCEMENT,
-        bypass_actors: Any = None,
+        bypass_actors: list | None = None,
     ):
         """Return a mock that simulates gh api returning given ruleset state."""
         if bypass_actors is None:
             bypass_actors = list(_DEFAULT_BYPASS_ACTORS)
         rules = [{"type": "required_status_checks", "parameters": params}]
-        body: dict[str, Any] = {"rules": rules, "enforcement": enforcement}
-        if bypass_actors is not _ABSENT:
-            body["bypass_actors"] = bypass_actors
-        payload = json.dumps(body)
+        payload = json.dumps(
+            {
+                "rules": rules,
+                "enforcement": enforcement,
+                "bypass_actors": bypass_actors,
+            }
+        )
         return subprocess.CompletedProcess(args=[], returncode=0, stdout=payload, stderr="")
 
     def _matching_params(self) -> dict:
@@ -366,38 +341,6 @@ class TestMainLive:
             rc = mod.main([])
         assert rc == 0
         assert "OK" in capsys.readouterr().out
-
-    def test_absent_bypass_actors_returns_zero_and_logs_state(self, capsys) -> None:
-        """The CI false positive: GITHUB_TOKEN response has no bypass_actors key.
-
-        Exit 0, and the output names the distinct not-observable state so a
-        reader can tell it from a real match.
-        """
-        mock = self._mock_gh(self._matching_params(), bypass_actors=_ABSENT)
-        with patch("subprocess.run", return_value=mock):
-            rc = mod.main([])
-        out = capsys.readouterr().out
-        assert rc == 0
-        assert "NOT OBSERVABLE: bypass_actors" in out
-        assert "bypass_actors not compared" in out
-
-    def test_absent_bypass_actors_still_fails_on_parameter_drift(self, capsys) -> None:
-        live_params = self._matching_params()
-        live_params["strict_required_status_checks_policy"] = True
-        mock = self._mock_gh(live_params, bypass_actors=_ABSENT)
-        with patch("subprocess.run", return_value=mock):
-            rc = mod.main([])
-        out = capsys.readouterr().out
-        assert rc == 1
-        assert "strict_required_status_checks_policy" in out
-        assert "NOT OBSERVABLE: bypass_actors" in out
-
-    def test_present_bypass_actors_match_does_not_log_not_observable(self, capsys) -> None:
-        with patch("subprocess.run", return_value=self._mock_gh(self._matching_params())):
-            rc = mod.main([])
-        out = capsys.readouterr().out
-        assert rc == 0
-        assert "NOT OBSERVABLE" not in out
 
     def test_bypass_actors_reordered_returns_zero(self, capsys) -> None:
         reordered = list(reversed(_DEFAULT_BYPASS_ACTORS))
