@@ -71,19 +71,25 @@ class TestMirrorsMatchTheScannerSources:
         """Widening DOC_GLOBS must force the routing predicate to widen too."""
         assert doc_accuracy.DOC_GLOBS == ["docs/**/*.md", "**/*.md"]
 
-    def test_doc_accuracy_excluded_dirs_match_the_scanner(self):
-        """The inventory walk prunes these, so a matching suffix is not enough."""
-        assert mod._DOC_ACCURACY_EXCLUDED_DIRS == frozenset(doc_accuracy.EXCLUDE_DIRS)
+    def test_doc_accuracy_excluded_dirs_match_the_git_mode_scanner(self):
+        """/review runs the scanner with --diff-base, which forces git mode."""
+        assert mod._DOC_ACCURACY_EXCLUDED_DIRS == frozenset(doc_accuracy._GIT_EXCLUDE_DIRS)
 
-    @pytest.mark.parametrize("excluded", sorted(doc_accuracy.EXCLUDE_DIRS))
+    @pytest.mark.parametrize("excluded", sorted(doc_accuracy._GIT_EXCLUDE_DIRS))
     def test_markdown_under_an_excluded_dir_is_not_routed(self, excluded):
-        """Parity for every excluded directory, not just the reported one.
-
-        This repository tracks `build/AGENTS.md`, which matches `**/*.md` and is
-        still never inventoried, so routing it produced an empty scan and an
-        UNKNOWN the review could not finish on.
-        """
+        """Parity for every directory git mode drops."""
         assert not mod._doc_accuracy_reads(f"{excluded}/AGENTS.md")
+
+    @pytest.mark.parametrize(
+        "walk_only", sorted(set(doc_accuracy.EXCLUDE_DIRS) - doc_accuracy._GIT_EXCLUDE_DIRS)
+    )
+    def test_markdown_under_a_walk_only_dir_is_routed(self, walk_only):
+        """Git mode reads tracked docs under build/, bin/, and the rest.
+
+        This repository tracks `build/AGENTS.md`. Mirroring the walk-mode
+        exclusions made deep review skip doc-accuracy for it.
+        """
+        assert mod._doc_accuracy_reads(f"{walk_only}/AGENTS.md")
 
     def test_markdown_outside_an_excluded_dir_is_still_routed(self):
         """Negative control: the exclusion must not swallow ordinary docs."""
@@ -185,11 +191,107 @@ class TestCaseSensitivityFollowsEachScanner:
         assert "code-qualities-assessment" in select(["src/App.PY"])["local_selected"]
 
 
-class TestOverrideModesKeepEveryLocalAxis:
-    """Deep and fail-closed are explicit run-everything modes."""
+class TestOverrideModesAndLocalAxes:
+    """Deep narrows local axes to scanner reads; fail-closed keeps all four.
 
-    def test_deep_keeps_every_local_axis(self):
-        assert set(select(["src/main.rs"], deep=True)["local_selected"]) == set(mod.LOCAL_AXES)
+    Issue #7004: deep ran every local scanner, and one that read no changed
+    file reported UNKNOWN that nothing could clear.
+    """
+
+    # One launcher, its Pester tests, and a README: the reported change shape.
+    POWERSHELL_CHANGE = ["bin/launcher.ps1", "tests/launcher.Tests.ps1", "README.md"]
+
+    def test_deep_skips_scanners_that_read_no_changed_file(self):
+        result = select(self.POWERSHELL_CHANGE, deep=True)
+        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
+        for axis in ("code-qualities-assessment", "golden-principles"):
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+
+    def test_deep_still_runs_every_canonical_axis_when_narrowing(self):
+        result = select(self.POWERSHELL_CHANGE, deep=True)
+        assert set(result["canonical_selected"]) == set(CANDIDATES)
+        # The output forces fail_closed to False under deep, so assert the
+        # classification evidence instead: every path classified, so the
+        # narrowing ran rather than a fail-closed bypass.
+        assert result["unclassified_paths"] == []
+
+    def test_deep_with_no_paths_keeps_every_local_axis(self):
+        """A caller unsure of the changed paths passes none, so nothing narrows."""
+        result = select([], deep=True)
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        assert result["skipped"] == {}
+
+    def test_deep_powershell_module_with_manifest_does_not_fail_closed(self):
+        """A module change with its .psd1 manifest and .ps1xml files narrows too."""
+        module = ["mod/M.psm1", "mod/M.psd1", "mod/M.Format.ps1xml", "README.md"]
+        result = select(module, deep=True)
+        assert result["unclassified_paths"] == []
+        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
+        for axis in ("code-qualities-assessment", "golden-principles"):
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+
+    def test_deep_keeps_doc_accuracy_for_a_tracked_build_doc(self):
+        """Git-mode doc-accuracy reads build/AGENTS.md, so deep must keep it."""
+        result = select(["bin/launcher.ps1", "build/AGENTS.md"], deep=True)
+        assert "doc-accuracy" in result["local_selected"]
+        assert "doc-accuracy" not in result["skipped"]
+
+    def test_deep_keeps_a_scanner_that_reads_one_changed_file(self):
+        """Negative control: narrowing must not drop a scanner with work to do."""
+        result = select([*self.POWERSHELL_CHANGE, "src/app.py"], deep=True)
+        assert "code-qualities-assessment" in result["local_selected"]
+
+    def test_deep_with_no_readable_file_selects_no_local_axis(self):
+        result = select(["src/main.rs"], deep=True)
+        assert result["local_selected"] == []
+        assert set(result["skipped"]) == set(mod.LOCAL_AXES)
+
+    def test_deep_pin_overrides_the_scanner_narrowing(self):
+        result = select(self.POWERSHELL_CHANGE, deep=True, pinned=["golden-principles"])
+        assert "golden-principles" in result["local_selected"]
+        assert "golden-principles" not in result["skipped"]
+
+    def test_deep_and_fail_closed_keeps_every_local_axis(self):
+        """An unclassified path leaves no path list to trust, even in deep."""
+        result = select(["some/unclassifiable/blob.bin"], deep=True)
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        assert result["skipped"] == {}
+
+    def test_deep_and_unknown_effect_keeps_every_local_axis(self):
+        result = mod.select_axes(
+            changed_paths=self.POWERSHELL_CHANGE,
+            effects=["not-a-real-effect"],
+            canonical_candidates=CANDIDATES,
+            deep=True,
+        )
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        assert result["skipped"] == {}
+
+    @pytest.mark.parametrize("paths", [[], ["some/unclassifiable/blob.bin"]])
+    def test_deep_fail_closed_reason_says_why_narrowing_did_not_run(self, paths):
+        """The output forces fail_closed to False under deep, so the reason must."""
+        result = select(paths, deep=True)
+        for axis in mod.LOCAL_AXES:
+            assert result["selection_reasons"][axis] == mod._FAIL_CLOSED_REASON
+
+    def test_deep_with_an_unresolved_axis_says_why_narrowing_did_not_run(self):
+        """A demanded axis with no prompt fails closed, so deep must not narrow."""
+        candidates = [axis for axis in CANDIDATES if axis != "analyst"]
+        result = mod.select_axes(
+            changed_paths=self.POWERSHELL_CHANGE,
+            canonical_candidates=candidates,
+            deep=True,
+        )
+        assert result["unresolved_axes"] == ["analyst"]
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        for axis in mod.LOCAL_AXES:
+            assert result["selection_reasons"][axis] == mod._UNRESOLVED_REASON
+
+    def test_deep_narrowing_keeps_the_deep_reason(self):
+        """Negative control: a classified deep run still says deep review."""
+        result = select(self.POWERSHELL_CHANGE, deep=True)
+        for axis in result["local_selected"]:
+            assert result["selection_reasons"][axis] == mod._DEEP_REASON
 
     def test_fail_closed_keeps_every_local_axis(self):
         result = select(["some/unclassifiable/blob.bin"])
@@ -219,6 +321,33 @@ class TestExecutableCodeCoversEveryScannerSuffix:
         # executable-code speaks for source only.
         non_source = {".yml", ".yaml", ".md", ".json"}
         assert (scanner_suffixes - non_source) <= mod._CODE_SUFFIXES
+
+    @pytest.mark.parametrize(
+        "path", ["mod/M.psd1", "mod/M.Types.ps1xml", "mod/M.Format.PS1XML", "mod/M.PSD1"]
+    )
+    def test_powershell_manifest_and_format_files_are_executable_code(self, path):
+        """Issue #7004: these were unclassified, so the run failed closed and
+        assess and golden-principles scanned zero files."""
+        result = select([path])
+        assert result["fail_closed"] is False
+        assert result["unclassified_paths"] == []
+        assert "code-quality" in result["canonical_selected"]
+        # No local scanner reads them, so none is selected.
+        assert result["local_selected"] == []
+
+    @pytest.mark.parametrize("path", ["mod/M.psd1", "mod/M.PSD1"])
+    def test_powershell_manifest_also_routes_the_dependency_axes(self, path):
+        """A manifest declares RequiredModules, so it gets security and devops
+        like a .csproj, not code-quality alone."""
+        result = select([path])
+        assert "dependencies" in result["matched_categories"]
+        assert {"security", "devops"} <= set(result["canonical_selected"])
+
+    def test_ps1xml_does_not_route_the_dependency_axes(self):
+        """Negative control: a format file declares no dependencies."""
+        result = select(["mod/M.Format.ps1xml"])
+        assert "dependencies" not in result["matched_categories"]
+        assert "devops" not in result["canonical_selected"]
 
     def test_bash_under_a_toolkit_path_still_reaches_taste_lints(self):
         """Reported case: toolkit-governance classified it and nothing else ran.
@@ -259,13 +388,12 @@ class TestUnreviewablePathsFailClosed:
     still finish PASS with no evidence about the change at all.
     """
 
-    @pytest.mark.parametrize("path", ["build/AGENTS.md", "README.MD"])
+    @pytest.mark.parametrize("path", [".doc-accuracy/notes.md", "README.MD"])
     def test_stranded_documentation_fails_the_run_closed(self, path):
         """Both reach doc-accuracy's row and neither can be inventoried.
 
-        `build/AGENTS.md` is tracked in this repository and pruned by
-        EXCLUDE_DIRS; `README.MD` matches the lowercased docs predicate but not
-        the case-sensitive glob.
+        `.doc-accuracy/` is dropped even in git mode; `README.MD` matches the
+        lowercased docs predicate but not the case-sensitive glob.
         """
         result = select([path])
         assert result["fail_closed"] is True
@@ -291,9 +419,9 @@ class TestUnreviewablePathsFailClosed:
 
     def test_one_stranded_path_strands_the_whole_run(self):
         """Fail-closed is per run, so a covered sibling does not excuse it."""
-        result = select(["docs/guide.md", "build/AGENTS.md"])
+        result = select(["docs/guide.md", "README.MD"])
         assert result["fail_closed"] is True
-        assert "build/AGENTS.md" in result["unclassified_paths"]
+        assert "README.MD" in result["unclassified_paths"]
         assert "docs/guide.md" not in result["unclassified_paths"]
 
 
