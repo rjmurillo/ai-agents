@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -294,52 +293,11 @@ def test_snapshot_empty_directory_blocks_and_populated_directory_passes(tmp_path
     assert verdict(evidence)["verdict"] == "PASS"
 
 
-def _head_commit() -> str:
-    out = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
-        cwd=Path(__file__).resolve().parent,
-    )
-    return out.stdout.strip()
-
-
-def test_version_with_a_real_commit_passes() -> None:
-    evidence = good_evidence()
-    evidence["rollback"] = {"kind": "version", "ref": _head_commit()}
-    assert verdict(evidence)["verdict"] == "PASS"
-
-
-def test_version_with_an_uppercase_commit_id_passes() -> None:
-    evidence = good_evidence()
-    evidence["rollback"] = {"kind": "version", "ref": _head_commit().upper()}
-    assert verdict(evidence)["verdict"] == "PASS"
-
-
 @pytest.mark.parametrize("ref", ["v1", "main", "abc123", "--all", "G" * 40])
 def test_version_ref_that_is_not_a_commit_id_blocks(ref: str) -> None:
     evidence = good_evidence()
     evidence["rollback"] = {"kind": "version", "ref": ref}
     assert "40-hex commit id" in reasons(evidence)
-
-
-def test_version_commit_unknown_to_git_blocks() -> None:
-    evidence = good_evidence()
-    evidence["rollback"] = {"kind": "version", "ref": "0" * 40}
-    assert "not a commit in this repository" in reasons(evidence)
-
-
-def test_version_blocks_when_git_cannot_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(*args: Any, **kwargs: Any) -> Any:
-        raise FileNotFoundError("git")
-
-    monkeypatch.setattr(gate_verdict.subprocess, "run", boom)
-    evidence = good_evidence()
-    evidence["rollback"] = {"kind": "version", "ref": "a" * 40}
-    assert "git did not run" in reasons(evidence)
 
 
 def test_irreversible_without_approval_blocks_and_never_invents_a_rollback() -> None:

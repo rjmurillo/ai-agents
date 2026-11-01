@@ -34,12 +34,10 @@ EXIT CODES (ADR-035), through ``destructive_gate.py``:
 
 from __future__ import annotations
 
-import hashlib
-import re
-import subprocess
 from collections.abc import Callable
-from pathlib import Path
 from typing import TypeGuard
+
+from rollback_checks import KIND_CHECKS
 
 Evidence = dict[str, object]
 Rule = Callable[[Evidence, "list[str]"], list[str]]
@@ -47,8 +45,6 @@ Rule = Callable[[Evidence, "list[str]"], list[str]]
 SCAN_DECISIONS = {"skip", "activate", "unknown"}
 ROLLBACK_KINDS = {"backup", "snapshot", "version", "irreversible"}
 REFERENCED_KINDS = {"backup", "snapshot", "version"}
-_COMMIT_ID = re.compile(r"[0-9a-fA-F]{40}")
-_GIT_TIMEOUT_SECONDS = 30
 
 
 def as_dict(value: object) -> dict[str, object]:
@@ -122,66 +118,11 @@ def rule_cardinality(evidence: Evidence, scanned: list[str]) -> list[str]:
     return ["no expected scope declared: cardinality cannot be checked"]
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def backup_reasons(rollback: dict[str, object]) -> list[str]:
-    """A backup needs both paths, both files must exist, and their hashes must match."""
-    backup, source = rollback.get("backup_path"), rollback.get("source_path")
-    if not (backup and source):
-        return ["rollback kind backup needs both backup_path and source_path to be verified"]
-    backup_file, source_file = Path(str(backup)), Path(str(source))
-    if not backup_file.is_file() or not source_file.is_file():
-        return ["rollback backup or source file does not exist"]
-    if sha256(backup_file) != sha256(source_file):
-        return ["rollback backup does not match the source file"]
-    return []
-
-
-def snapshot_reasons(rollback: dict[str, object]) -> list[str]:
-    """A snapshot must point at an existing file or a non-empty directory."""
-    raw = rollback.get("snapshot_path")
-    if not raw:
-        return ["rollback kind snapshot needs a snapshot_path to be verified"]
-    path = Path(str(raw))
-    if path.is_file():
-        return []
-    if path.is_dir() and any(path.iterdir()):
-        return []
-    return ["rollback snapshot_path does not exist or is empty"]
-
-
-def version_reasons(rollback: dict[str, object]) -> list[str]:
-    """A version ref must be a full commit id that git resolves in the current repository."""
-    ref = str(rollback.get("ref") or "")
-    if not _COMMIT_ID.fullmatch(ref):
-        return ["rollback kind version needs ref to be a 40-hex commit id"]
-    try:
-        result = subprocess.run(
-            ["git", "cat-file", "-e", f"{ref}^{{commit}}"],
-            capture_output=True,
-            timeout=_GIT_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return ["rollback version ref could not be checked: git did not run"]
-    return (
-        []
-        if result.returncode == 0
-        else ["rollback version ref is not a commit in this repository"]
-    )
-
-
-_KIND_CHECKS: dict[str, Callable[[dict[str, object]], list[str]]] = {
-    "backup": backup_reasons,
-    "snapshot": snapshot_reasons,
-    "version": version_reasons,
-}
-
-
 def rule_rollback(evidence: Evidence, scanned: list[str]) -> list[str]:
-    """Recovery must be stated before execution; irreversible needs a human."""
+    """Recovery must be stated before execution; irreversible needs a human.
+
+    Each referenced kind is verified by its check in ``rollback_checks``.
+    """
     rollback = as_dict(evidence.get("rollback"))
     kind = rollback.get("kind")
     if kind not in ROLLBACK_KINDS:
@@ -190,7 +131,7 @@ def rule_rollback(evidence: Evidence, scanned: list[str]) -> list[str]:
         approved = as_dict(evidence.get("approval")).get("human")
         return [] if approved else ["irreversible operation needs human approval"]
     reasons = [] if rollback.get("ref") else [f"rollback kind {kind} names no ref"]
-    return reasons + _KIND_CHECKS[str(kind)](rollback)
+    return reasons + KIND_CHECKS[str(kind)](rollback)
 
 
 def rule_checks(evidence: Evidence, scanned: list[str]) -> list[str]:
