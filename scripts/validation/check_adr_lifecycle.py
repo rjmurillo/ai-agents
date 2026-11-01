@@ -67,6 +67,7 @@ Checks, each named so the baseline tracks them separately:
                                   (both directions), plus no supersession cycles
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
+    implemented-implies-decided  `implemented: true` requires a status other than `proposed`
     prose-frontmatter-agree      a `## Status` section, when present, opens with the frontmatter
                                   enum and says more than that word (ADR-073, amended 2026-09-29)
     status-edge-consistency      status: superseded iff a superseded-by edge resolves
@@ -109,12 +110,16 @@ and only the format check reads it. The checks cover calendar deadlines only. A
 condition-triggered revisit ("if the eval sets change") is not a date and carries no
 `review-by`; inventing one would make the gate fire on a deadline the prose never made.
 
-A check called `implemented-implies-decided` (`implemented: true` with
-`status: proposed`) was removed, not replaced by `status-edge-consistency`
-above: ADR-073's own schema defines `implemented` as flipping at first
-merged change independent of decision state, and ADR-098 documents that
-exact pairing as deliberate. See `_check_lifecycle_rules` for the full
-removal rationale.
+`implemented-implies-decided` (`implemented: true` with `status: proposed`) was
+removed in PR #5209 on the argument that ADR-073 defines `implemented` as flipping at
+first merged change, independent of decision state, and ADR-098 called the pairing
+deliberate. The repository owner reversed that on 2026-11-01: sixteen records sat in
+that state, so `proposed` no longer said whether the decision was in force. The check
+is back. `implemented` still flips at first merged change; what the gate now refuses is
+a record that is shipped and still reads `proposed`. Records that cannot move to
+`accepted` without a prose or citation edit (for example a `## Status` section that
+still opens with `Proposed`) stay in the baseline until that edit is made. See
+`_check_implemented_implies_decided`.
 
 Checks 2 to 10 need parseable frontmatter, so a record failing `frontmatter-parses`
 contributes one violation, not ten. The same containment runs downstream:
@@ -186,6 +191,7 @@ CHECKS: tuple[str, ...] = (
     "supersession-reciprocal",
     "supersession-target-exists",
     "proposed-cannot-supersede",
+    "implemented-implies-decided",
     "prose-frontmatter-agree",
     "status-edge-consistency",
     "cited-paths-exist",
@@ -789,21 +795,7 @@ def _check_prose(record: Record) -> list[Violation]:
 
 
 def _check_lifecycle_rules(record: Record) -> list[Violation]:
-    """`proposed-cannot-supersede`.
-
-    This function used to also own `implemented-implies-decided`, blocking
-    `implemented: true` with `status: proposed`. Removed (Copilot, PR #5209):
-    ADR-073's own schema comment defines `implemented` as flipping "at first
-    merged change", independent of decision state, and ADR-098 documents
-    `status: proposed` with `implemented: true` as a deliberate pairing for
-    exactly this reason (a governance ADR's own acceptance is a maintainer
-    act, not something its own debate log can self-assert). The corpus
-    already carries six such records by design (ADR-075, ADR-077, ADR-078,
-    ADR-089, ADR-093, ADR-098; see ADR-055's Provenance section), all
-    baselined at the removed check's full count. A blocking gate against a
-    pattern the canonical schema and a live record both call deliberate is a
-    gate encoding an invariant the corpus rejects, not the corpus drifting.
-    """
+    """`proposed-cannot-supersede`."""
     if _status_of(record) != "proposed":
         return []
     entries = _supersedes_entries(record)
@@ -814,6 +806,31 @@ def _check_lifecycle_rules(record: Record) -> list[Violation]:
         "cannot retire an accepted decision."
     )
     return [Violation("proposed-cannot-supersede", record.path, detail)]
+
+
+def _check_implemented_implies_decided(record: Record) -> list[Violation]:
+    """`implemented-implies-decided`: shipped work cannot still read `proposed`.
+
+    Only a boolean `true` counts. ADR-073 defines `implemented` as a boolean that
+    flips at first merged change, so a quoted "true" is not the field's value and
+    `status-enum` or review owns that defect, not this check. A record that is
+    `proposed` and `implemented: false` is the normal pre-merge state and passes.
+
+    History: this check existed, was removed in PR #5209 as contradicting ADR-073
+    and ADR-098, and was restored on 2026-11-01 by the repository owner. The fix
+    for a hit is to move the record to `accepted` (or `rejected`, `deprecated`,
+    `superseded`), or to set `implemented: false` when nothing has merged.
+    """
+    if _frontmatter_of(record).get("implemented") is not True:
+        return []
+    if _status_of(record) != "proposed":
+        return []
+    detail = (
+        "status is proposed but implemented is true, so the decision is already in "
+        "force. Move status to accepted (the debate log or owner approval is the "
+        "evidence), or set implemented: false if nothing has merged."
+    )
+    return [Violation("implemented-implies-decided", record.path, detail)]
 
 
 def _check_structure(record: Record) -> list[Violation]:
@@ -1156,6 +1173,7 @@ def scan(adr_dir: Path, repo_root: Path, today: date | None = None) -> list[Viol
         violations.extend(_check_cited_paths(record, repo_root, tracked))
         violations.extend(_check_prose(record))
         violations.extend(_check_lifecycle_rules(record))
+        violations.extend(_check_implemented_implies_decided(record))
         violations.extend(_check_structure(record))
         violations.extend(_check_review_by(record, today))
     by_number = {r.number: r for r in records if r.frontmatter is not None}

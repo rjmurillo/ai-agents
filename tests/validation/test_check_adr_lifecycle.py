@@ -27,11 +27,12 @@ Pins the ratcheted ADR lifecycle gate. Coverage per check name:
   unparseable entry, non-list ``supersedes``)
 - proposed-cannot-supersede: pos, neg
 
-`implemented-implies-decided` (`implemented: true` with `status: proposed`) was
-removed after Copilot review on PR #5209: ADR-073's own schema comment defines
-`implemented` as flipping at first merged change regardless of decision state,
-and ADR-098 documents that exact pairing as deliberate. Its three tests are
-removed with it rather than left asserting a contract the gate no longer has.
+- implemented-implies-decided: pos (`proposed` with `implemented: false`, and every
+  other status with `implemented: true`, pass), neg (`proposed` with `implemented: true`),
+  edge (mixed-case `Proposed` is still proposed; a quoted "true" or an absent field is
+  not a boolean true; a hit is a (check, path) identity the baseline can hold). The check
+  was removed after Copilot review on PR #5209 and restored by the repository owner on
+  2026-11-01.
 
 - prose-frontmatter-agree: pos (decorated prose still matches), neg (drift),
   edge (inline ``**Status**:`` counts as the section; an amendment-first line
@@ -821,7 +822,7 @@ def test_the_mapping_and_the_template_agree():
             assert name in template.lower(), f"{name!r} is accepted by the gate but undocumented"
 
 
-# --- proposed-cannot-supersede / implemented-implies-decided ----------------
+# --- proposed-cannot-supersede ----------------------------------------------
 
 
 def test_accepted_record_may_supersede(tmp_path):
@@ -846,6 +847,101 @@ def test_proposed_record_may_not_supersede(tmp_path):
     )
 
     assert _counts(tmp_path)["proposed-cannot-supersede"] == 1
+
+
+# --- implemented-implies-decided --------------------------------------------
+
+
+def _write_implemented(tmp_path: Path, status: str, implemented: str) -> Path:
+    adr_dir = _adr_dir(tmp_path)
+    return _write(
+        adr_dir,
+        1,
+        _valid(1, status=status, implemented=implemented),
+        f"\n## Status\n\n{status.capitalize()}. Reviewed.\n",
+    )
+
+
+def test_proposed_and_implemented_is_flagged(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 1
+    assert "move status to accepted" in _hits(tmp_path, "implemented-implies-decided")[0].lower()
+
+
+def test_proposed_and_not_implemented_passes(tmp_path):
+    _write_implemented(tmp_path, "proposed", "false")
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+@pytest.mark.parametrize("status", ["accepted", "rejected", "deprecated"])
+def test_decided_and_implemented_passes(tmp_path, status):
+    _write_implemented(tmp_path, status, "true")
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_superseded_and_implemented_passes(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="superseded", **{"superseded-by": "ADR-002"}),
+        "\n## Status\n\nSuperseded by ADR-002.\n",
+    )
+    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"), _STATUS_SECTION)
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_mixed_case_proposed_is_still_proposed(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="Proposed", implemented="true"),
+        "\n## Status\n\nProposed. Reviewed.\n",
+    )
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 1
+
+
+@pytest.mark.parametrize("implemented", ['"true"', "yes-please", "null", "1"])
+def test_non_boolean_implemented_is_not_a_hit(tmp_path, implemented):
+    _write_implemented(tmp_path, "proposed", implemented)
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_absent_implemented_is_not_a_hit(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        "id: ADR-001\nstatus: proposed\ndate: 2026-08-21\nsupersedes: []\nsuperseded-by: null",
+        "\n## Status\n\nProposed. Reviewed.\n",
+    )
+
+    assert _counts(tmp_path)["implemented-implies-decided"] == 0
+
+
+def test_a_new_proposed_implemented_record_fails_the_gate(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+
+    result = _run(tmp_path, "--baseline", str(_baseline(tmp_path)))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "implemented-implies-decided" in result.stdout
+
+
+def test_a_grandfathered_proposed_implemented_record_passes_the_gate(tmp_path):
+    _write_implemented(tmp_path, "proposed", "true")
+    baseline = _baseline(tmp_path, **{"implemented-implies-decided": {_rel(1): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
 
 
 # --- prose-frontmatter-agree ------------------------------------------------
