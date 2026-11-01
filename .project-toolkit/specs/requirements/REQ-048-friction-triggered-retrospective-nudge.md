@@ -176,7 +176,7 @@ Sessions with heavy tool-side friction end with no prompt to run a retrospective
 | FrictionScore | session_id | integer >= 0 | Recomputed every Stop |
 | FrictionTier | (session_id, tier) | tier n needs score >= threshold * 2^(n-1) | Monotonic within one session |
 | FailureTally | (ProgressKey, Fingerprint) | count >= 0 | A success for a key removes only that key's entries |
-| ChurnCycle | target path | targets normalized (AC-32) | Opens on a successful edit and closes on the next successful or fingerprinted non-edit event (AC-32) |
+| ChurnCycle | target path | targets normalized (AC-32) | Opens on a successful edit and closes on the next check event (AC-32, AC-40) |
 | FrictionMarker | sha of (session_id, marker version, "friction", tier) | mode 0o600, dir 0o700, outside any repo, body holds counts only | Exclusive create; same 30-day prune as correction markers |
 
 The correction marker key (`invoke_reflect_nudge.py:293-295,351`) stays unchanged. Correction counts never enter the friction key, so a new correction cannot re-fire a friction tier.
@@ -220,7 +220,8 @@ Idempotency: the same transcript and tier always produce the same marker key, so
 | State root sits inside any repository (for example a dotfile-managed `$HOME` repo, even when `cwd` is a nested project repo) | Both nudges silent for that user | AC-24 refusal, stderr status line | Set `XDG_STATE_HOME` or `LOCALAPPDATA` outside the repository. If `/` holds a `.git` entry, every root is refused and only the stderr line signals it |
 | An edit's own check passes, then an unrelated check fails | Spurious churn on the edited file | Churn on a file whose test passed | AC-32: any successful non-edit event ends the cycle. Found by Devin's review on PR #7035: the code at `7f3f4d255` clears pending cycles only when the success matches a failed key (`failure_loops.py:186-191`) |
 | A passing verification that AC-40 does not recognize leaves a cycle open | Spurious churn on that file | Churn reported where the file's own check passed | The caller sets `check: true` (consumer A). TASK-001 measures the vocabulary's miss rate, and the AC-40 fixtures pin each listed head |
-| An incidental success (`ls`, `git status`, a read) ends a cycle early | Missed churn | Churn count lower than the edits suggest | Removed by AC-32 and AC-40: only a check ends a cycle on success (Q-3 resolution) |
+| An incidental success (`ls`, `git status`, a read) ends a cycle early | Missed churn | Churn count lower than the edits suggest | Removed by AC-32 and AC-40: only a check ends a cycle (Q-3 resolution) |
+| An incidental failure (a failed `cat`, a `grep` with no match) closes a cycle with its fingerprint | Spurious churn | Churn whose fingerprint is not a check's | Removed by AC-32: only a check failure records an outcome (Q-3 resolution) |
 | Consumers A and B drift apart | Two definitions again | AC-36 fails | One module; AC-36 feeds one fixture through both adapters |
 | A tool name or error text reaches the agent nudge | Prompt injection (CWE-74) | AC-34 fails | Counts plus an allowlist of tool names only |
 | Bare-repository dotfile setup (for example yadm) leaves no `.git` entry | State written inside a repository's work tree | None: the `stat` walk cannot see it | Accepted gap; named in AC-24 |
@@ -298,11 +299,12 @@ No network, no model call, no writes inside any repository.
 31. **AC-31** When an edit tool fails with error text, the classifier shall count it toward `failed_retry` and in the FailureTally that failure-repeat reads. Example: `old_string not found` three times.
 32. **AC-32** The classifier shall track `edit_churn` with ChurnCycles:
     - **Opening.** A successful edit with a target opens a pending cycle for that target. Targets are normalized: backslashes become forward slashes, then `posixpath.normpath`, capped at 512 characters.
-    - **Closing on failure.** The first fingerprinted failure of a non-edit tool closes every pending cycle and records that fingerprint as the cycle's outcome.
+    - **Closing on failure.** The first fingerprinted failure of a check (AC-40) closes every pending cycle and records its fingerprint as the cycle's outcome. A non-check failure, such as a failed `cat` or a `grep` with no match, leaves pending cycles open.
     - **Closing on success.** A successful check (AC-40) ends every pending cycle with no outcome, whether or not its key failed earlier and whether or not it has a ProgressKey. Any other successful non-edit event, such as `ls`, `git status`, or a file read, leaves pending cycles open. AC-30's tally reset still needs a matching key. Fixtures:
       - Devin's case reports no churn on `a.py`: edit `a.py`, pass `pytest tests/a.py`, fail `pytest tests/b.py`, three times.
       - A keyless successful check ends the cycle.
       - Edit `a.py`, run `ls` and `git status` successfully, then fail `pytest tests/a.py` the same way three times. That reports churn on `a.py`.
+      - Edit `a.py`, fail `cat missing.txt`, then pass `pytest tests/a.py`. That cycle records no outcome.
     - **Firing.** `edit_churn` fires when one target has a set number of cycles that share a fingerprint: `--churn` (default 3) within the last `--window` events for consumer A, and 3 over the whole scan for consumer B.
     - **Exceptions.** A failed edit closes no cycle. A successful edit without a target opens none. A successful edit leaves other targets' pending cycles in place.
     - **Edit tools.** edit, write, multiedit, str_replace, create, apply_patch, and notebookedit.
@@ -320,16 +322,16 @@ No network, no model call, no writes inside any repository.
     - an unreadable file, a TTY, or a closed stdin;
     - a threshold or window below 2.
     On valid input it shall exit 0 with JSON. That JSON marks `fingerprint` and `target` as untrusted.
-36. **AC-36** When one fixture of 20 or fewer events runs through the transcript adapter (consumer B) and through CheckFailures input (consumer A), the classifier shall return the same FailureTally and the same per-target ChurnCycle counts for both.
+36. **AC-36** When one fixture of 20 or fewer events runs through the transcript adapter (consumer B) and through CheckFailures input (consumer A), the classifier shall return the same FailureTally and the same per-target ChurnCycle counts for both. The fixture events carry no `check` field, so both consumers apply the derived AC-40 rule.
 37. **AC-37** When an errored FailureEvent has no error text, the classifier shall count it as a `tool_error` and in an `unfingerprinted` count, and shall leave it out of every fingerprinted signal.
 38. **AC-38** When a transcript holds a non-sidechain `tool_use` and its `tool_result`, the transcript adapter shall emit exactly one FailureEvent for the pair, with the fields listed under Definitions. Its canonical input is the tool input serialized as JSON with:
     - sorted keys;
     - `,` and `:` as separators, with no other whitespace;
     - non-ASCII characters escaped as `\uXXXX`.
     When a JSON object repeats a key, the last value wins.
-39. **AC-39** When CheckFailures reads an event whose `input` is a string that parses as JSON, it shall canonicalize the parsed value the way AC-38 does: sorted keys, compact separators, `\uXXXX` escapes, and the last value winning on a repeated key. It shall use any other `input` string as given, after trimming. A non-string `input` is a wrong event shape (AC-35, exit 2). The AC-36 parity fixture therefore compares equal keys for equal inputs. Fixtures cover keys out of order, extra whitespace, non-ASCII text, a repeated key, and a non-JSON command string.
+39. **AC-39** When CheckFailures reads an event whose `input` is a string that parses as RFC 8259 JSON (so `NaN` and `Infinity` do not count), it shall canonicalize the parsed value the way AC-38 does: sorted keys, compact separators, `\uXXXX` escapes, and the last value winning on a repeated key. It shall use any other `input` string as given, after trimming. A non-string `input` is a wrong event shape (AC-35, exit 2). The AC-36 parity fixture therefore compares equal keys for equal inputs. Fixtures cover keys out of order, extra whitespace, non-ASCII text, a repeated key, and a non-JSON command string.
 40. **AC-40** A non-edit FailureEvent is a check under these rules:
-    - **Caller-marked.** Its `check` field is `true`. A `check: false` makes it not a check. A non-bool `check` is a wrong event shape (AC-35).
+    - **Caller-marked.** Its `check` field is `true`. A `check: false` makes it not a check. A non-bool `check` is a wrong event shape (AC-35). On an edit event, `check` is ignored.
     - **Derived when unmarked.** With no `check` field, the event is a check when both of these hold:
       - its tool is a shell tool: bash, shell, or powershell;
       - its command, after leading wrappers are stripped, starts with a check head.
@@ -337,9 +339,10 @@ No network, no model call, no writes inside any repository.
     - **Test heads.** pytest, py.test, unittest, tox, nox, jest, vitest, and mocha.
     - **Build heads.** make, mvn, and gradle; `npm`, `yarn`, or `pnpm` followed by `test`, `build`, `lint`, or `typecheck` (optionally after `run`); `cargo test`, `cargo build`, `cargo check`, and `cargo clippy`; `go test`, `go build`, and `go vet`; `dotnet test` and `dotnet build`.
     - **Lint and typecheck heads.** tsc, eslint, ruff, mypy, pyright, shellcheck, and markdownlint.
+    - **Script and hook heads.** `python` or `python3` running a script whose file name starts with `test_`, `check_`, or `validate_`, or is `pre_pr.py`. Also `lefthook run` and `pre-commit run`.
     - **Everything else.** Any other event is not a check: a read tool, a non-shell tool, or a shell command with no check head.
     - **Both consumers.** The transcript adapter applies the derived rule, because transcripts carry no `check` field. CheckFailures uses the caller's field and falls back to the derived rule.
-    - **Fixtures.** One per listed head, one per wrapper, and the non-checks `ls`, `git status`, `cat`, and `echo pytest`.
+    - **Fixtures.** One per listed head, one per wrapper, and these non-checks: `ls`, `git status`, `cat`, `echo pytest`, and `python3 scripts/foo.py`.
 
 ## Out of scope
 
@@ -369,40 +372,41 @@ No network, no model call, no writes inside any repository.
 |---|---|
 | Q-1 (resolved 2026-10-31): both. Rule 2 narrows to "retro enforcement" and rule 2a adds the named exception. The ADR-084 Amendment Record gives the reasons. | ADR-084 review panel |
 | Q-2 (resolved 2026-10-31): yes. The ADR-084 rule 5 correction records zero vendored hooks at `9254b9945`. | ADR-084 review panel |
-| Q-3 (resolved 2026-11-01): only a successful check ends a ChurnCycle (AC-32, AC-40). Evidence is under "Q-3 evidence" below. | Richard Murillo |
+| Q-3 (resolved 2026-11-01): only a check event, success or failure, ends a ChurnCycle (AC-32, AC-40). Evidence is under "Q-3 evidence" below. | Richard Murillo |
 
 ### Q-3 evidence
 
 Measured 2026-11-01 over the same corpus location as Q5, `~/.claude/projects/*ai-agents*/*.jsonl`:
 
-- 8,490 transcripts, 3,577 MiB. 5,476 of them hold no tool calls.
-- 29,028 non-sidechain tool events.
+- 8,491 transcripts, 3,578 MiB. 5,476 of them hold no tool calls.
+- 29,060 non-sidechain tool events.
 
-The replay uses a check vocabulary close to AC-40. These are the successes that fell inside open cycles:
+The replay's check rule is AC-40 exactly: its head list, its wrappers, and the shell tools bash, shell, and powershell. Of the non-edit successes inside open cycles, 244 are checks and 8,578 (97 percent) are not:
 
 | Success kind | Count |
 |---|---|
-| Check commands | 2,158 |
-| Other shell commands | 4,820 |
-| Read tools | 1,009 |
-| Other tools | 804 |
+| Other shell commands | 6,756 |
+| Read and search tools | 1,017 |
+| Other tools | 805 |
+| Checks | 244 |
 
-So 75 percent of the successes that end a cycle under the old rule are not checks.
+The four cycle-end rules give these results:
 
-The three cycle-end rules give these results:
-
-| Cycle-end rule | edit_churn fires | Cycles closed by a fingerprinted failure | Cycles ended by a success |
+| Rule | edit_churn fires | Cycles closed by a failure (of which a check failed) | Cycles ended by a success |
 |---|---|---|---|
-| Any non-edit success (AC-32 as of `8dd4f43d5`) | 1 | 15 | 649 |
-| Only a check success (adopted) | 1 | 46 | 414 |
-| Only a success whose own key failed (`failure_loops.py` at `7f3f4d255`) | 5, in 3 sessions | 154 | 0 |
+| A: any non-edit event closes or ends (AC-32 as of `8dd4f43d5`) | 1 | 15 (2) | 650 |
+| B: only a check success ends; any failure closes | 2, in 2 sessions | 124 (2) | 119 |
+| C: only a success on a failed key ends (`failure_loops.py` at `7f3f4d255`) | 5, in 3 sessions | 154 (4) | 0 |
+| D: only a check event ends or closes (adopted) | 0 | 2 (2) | 139 |
 
 What the numbers show:
 
-- The adopted rule fires as often as the old one.
-- It lets three times as many cycles reach a real outcome, so churn evidence can build up.
-- The last rule keeps Devin's false positive.
-- Churn is rare in this corpus under every rule. The default threshold of 3 is unmeasured for false positives, and TASK-001 measures it.
+- Under rule B, 122 of 124 failure closes come from non-check failures, so its extra outcomes are noise.
+- Rule C keeps Devin's false positive, and also attaches non-check failures as outcomes.
+- Rule D attaches only check results to an edit, which is what edit-churn means. It fires 0 times here, because only 2 cycles ever reached a check failure.
+- In this corpus, edit-churn is close to absent. TASK-001 measures its precision and may weight it 0 in consumer B's FrictionScore. Consumer A keeps it, judged by SLI 6.
+
+The replay script lives outside the repository. TASK-001's calibration script supersedes it.
 
 Prior art, read by a research subagent on 2026-11-01 (raw files on each project's default branch):
 
@@ -413,7 +417,7 @@ Prior art, read by a research subagent on 2026-11-01 (raw files on each project'
 - **Aider** (`aider/coders/base_coder.py:318-321`, `:1599-1625`) uses caller-declared `--test-cmd` and `--lint-cmd`, judged by exit code.
 - **OpenHands and SWE-agent.** OpenHands' `stuck_detector.py` detects exact repetition only. SWE-agent has no loop detector and lints inside its edit tool. Neither has a check concept.
 
-No source ends an edit cycle on any non-edit success. AC-40 combines a caller-marked field, as Aider has, with a vocabulary fallback, as TokenEconomizer has.
+No source ends an edit cycle on any non-edit event. AC-40 combines a caller-marked field, as Aider has, with a vocabulary fallback, as TokenEconomizer has.
 
 ## CVA summary
 
