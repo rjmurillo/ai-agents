@@ -176,7 +176,7 @@ Sessions with heavy tool-side friction end with no prompt to run a retrospective
 | FrictionScore | session_id | integer >= 0 | Recomputed every Stop |
 | FrictionTier | (session_id, tier) | tier n needs score >= threshold * 2^(n-1) | Monotonic within one session |
 | FailureTally | (ProgressKey, Fingerprint) | count >= 0 | A success for a key removes only that key's entries |
-| ChurnCycle | target path | targets normalized (AC-32) | Opens on a successful edit and closes on the next check event (AC-32, AC-40) |
+| ChurnCycle | target path | targets normalized (AC-32) | Opens on a successful edit and closes on the next successful check or fingerprinted check failure (AC-32, AC-37, AC-40) |
 | FrictionMarker | sha of (session_id, marker version, "friction", tier) | mode 0o600, dir 0o700, outside any repo, body holds counts only | Exclusive create; same 30-day prune as correction markers |
 
 The correction marker key (`invoke_reflect_nudge.py:293-295,351`) stays unchanged. Correction counts never enter the friction key, so a new correction cannot re-fire a friction tier.
@@ -218,7 +218,7 @@ Idempotency: the same transcript and tier always produce the same marker key, so
 | Subagent Stop fires the parent nudge | #3140 recurrence | Marker for a sidechain | Register on `Stop` only; sidechains excluded |
 | Stop `systemMessage` stops rendering in a CLI update | Silent advisory | Real-CLI smoke fails | AC-17 |
 | State root sits inside any repository (for example a dotfile-managed `$HOME` repo, even when `cwd` is a nested project repo) | Both nudges silent for that user | AC-24 refusal, stderr status line | Set `XDG_STATE_HOME` or `LOCALAPPDATA` outside the repository. If `/` holds a `.git` entry, every root is refused and only the stderr line signals it |
-| An edit's own check passes, then an unrelated check fails | Spurious churn on the edited file | Churn on a file whose test passed | AC-32: any successful non-edit event ends the cycle. Found by Devin's review on PR #7035: the code at `7f3f4d255` clears pending cycles only when the success matches a failed key (`failure_loops.py:186-191`) |
+| An edit's own check passes, then an unrelated check fails | Spurious churn on the edited file | Churn on a file whose test passed | AC-32: only a check event ends the cycle; a successful check ends it (AC-40). Found by Devin's review on PR #7035: the code at `7f3f4d255` clears pending cycles only when the success matches a failed key (`failure_loops.py:186-191`) |
 | A passing verification that AC-40 does not recognize leaves a cycle open | Spurious churn on that file | Churn reported where the file's own check passed | The caller sets `check: true` (consumer A). TASK-001 measures the vocabulary's miss rate, and the AC-40 fixtures pin each listed head |
 | An incidental success (`ls`, `git status`, a read) ends a cycle early | Missed churn | Churn count lower than the edits suggest | Removed by AC-32 and AC-40: only a check ends a cycle (Q-3 resolution) |
 | An incidental failure (a failed `cat`, a `grep` with no match) closes a cycle with its fingerprint | Spurious churn | Churn whose fingerprint is not a check's | Removed by AC-32: only a check failure records an outcome (Q-3 resolution) |
@@ -251,7 +251,7 @@ No network, no model call, no writes inside any repository.
 - SLI 3, volume: friction nudges per 100 sessions on the owner's corpus. Over 15 means the threshold is too low.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
 - SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions. If the baseline is at or above 20 percent, the owner sets a higher kill floor before release.
-- SLI 6, consumer A precision: share of `check-failures` nudges a human labels "the agent was looping". TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule: if SLI 6 precision is under 50 percent on at least 20 labeled `check-failures` nudges, TASK-008 raises the defaults. If precision is still under 50 percent on a fresh sample of at least 20, the owner removes the nudge. Below 20 labeled nudges, no SLO is set and the rule waits. The sample grows in 30-day steps, and the owner decides at 90 days. Consumer A's windows count from the date `check-failures` ships with these defaults, which is the merge of the TASK-007 PR (#7035), not from consumer B's Release. The defaults ship at that merge, before SLI 6 is measured. This is owner decision D12 (2026-11-01). Consumer A runs only when an agent calls it, and it prints counts only, so an early ship costs little.
+- SLI 6, consumer A precision, reported per signal (failure-repeat and edit-churn): share of `check-failures` nudges a human labels "the agent was looping". Each signal's floor and kill rule apply to its own labeled nudges. TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule: if SLI 6 precision is under 50 percent on at least 20 labeled `check-failures` nudges, TASK-008 raises the defaults. If precision is still under 50 percent on a fresh sample of at least 20, the owner removes the nudge. Below 20 labeled nudges, no SLO is set and the rule waits. The sample grows in 30-day steps, and the owner decides at 90 days. Consumer A's windows count from the date `check-failures` ships with these defaults, which is the merge of the TASK-007 PR (#7035), not from consumer B's Release. The defaults ship at that merge, before SLI 6 is measured. This is owner decision D12 (2026-11-01). Consumer A runs only when an agent calls it, and it prints counts only, so an early ship costs little.
 - SLI 7, consumer A effect: the number of later calls that repeat a nudged fingerprint in the same session, compared with un-nudged loops of the same fingerprint. TASK-008 measures and reports it. It feeds the owner's 90-day decision and is not an automatic kill rule (owner decision D11, 2026-11-01). TokenEconomizer's own docs say a nudge's effect on a looping model is unproven, so this is the claim to test.
 - Recorded, not gating: billed cost per session, counted as TokenEconomizer counts it (cache pricing included). TASK-001 records it for nudged and un-nudged sessions so a later decision can use it.
 - Release: the date AC-19 clears and the default ships. Each window below counts from that date.
@@ -338,7 +338,8 @@ No network, no model call, no writes inside any repository.
     - **Wrappers.** `cd <dir> &&`, `VAR=value` assignments, `uv run`, `npx`, `python -m`, `python3 -m`, and `timeout <n>`.
     - **Test heads.** pytest, py.test, unittest, tox, nox, jest, vitest, and mocha.
     - **Build heads.** make, mvn, and gradle; `npm`, `yarn`, or `pnpm` followed by `test`, `build`, `lint`, or `typecheck` (optionally after `run`); `cargo test`, `cargo build`, `cargo check`, and `cargo clippy`; `go test`, `go build`, and `go vet`; `dotnet test` and `dotnet build`.
-    - **Lint and typecheck heads.** tsc, eslint, ruff, mypy, pyright, shellcheck, and markdownlint.
+    - **Lint and typecheck heads.** tsc, eslint, ruff, mypy, pyright, shellcheck, and markdownlint or any `markdownlint`-prefixed command, such as `markdownlint-cli2`.
+    - **Matching.** Heads and wrappers match case-insensitively. A head must be followed by whitespace or the end of the command.
     - **Script and hook heads.** `python` or `python3` running a script whose file name starts with `test_`, `check_`, or `validate_`, or is `pre_pr.py`. Also `lefthook run` and `pre-commit run`.
     - **Everything else.** Any other event is not a check: a read tool, a non-shell tool, or a shell command with no check head.
     - **Both consumers.** The transcript adapter applies the derived rule, because transcripts carry no `check` field. CheckFailures uses the caller's field and falls back to the derived rule.
@@ -381,13 +382,13 @@ Measured 2026-11-01 over the same corpus location as Q5, `~/.claude/projects/*ai
 - 8,491 transcripts, 3,578 MiB. 5,476 of them hold no tool calls.
 - 29,060 non-sidechain tool events.
 
-The replay's check rule is AC-40 exactly: its head list, its wrappers, and the shell tools bash, shell, and powershell. Of the non-edit successes inside open cycles, 244 are checks and 8,578 (97 percent) are not:
+The replay's check rule is AC-40 exactly: its head list, its wrappers, and the shell tools bash, shell, and powershell. The success counts below use a wide window: from a successful edit up to the next fingerprinted non-edit failure, with no success ending it. That window can hold several checks, so the 244 checks below are more than the 139 cycles rule D ends. Of the non-edit successes inside those windows, 244 are checks and 8,578 (97 percent) are not:
 
 | Success kind | Count |
 |---|---|
-| Other shell commands | 6,756 |
+| Other bash commands | 6,756 |
 | Read and search tools | 1,017 |
-| Other tools | 805 |
+| Other tools, including non-check `shell` and `powershell` calls | 805 |
 | Checks | 244 |
 
 The four cycle-end rules give these results:
@@ -404,7 +405,7 @@ What the numbers show:
 - Under rule B, 122 of 124 failure closes come from non-check failures, so its extra outcomes are noise.
 - Rule C keeps Devin's false positive, and also attaches non-check failures as outcomes.
 - Rule D attaches only check results to an edit, which is what edit-churn means. It fires 0 times here, because only 2 cycles ever reached a check failure.
-- In this corpus, edit-churn is close to absent. TASK-001 measures its precision and may weight it 0 in consumer B's FrictionScore. Consumer A keeps it, judged by SLI 6.
+- In this corpus, edit-churn is close to absent. TASK-001 measures its precision and may weight it 0 in consumer B's FrictionScore. Consumer A keeps it, judged by SLI 6's per-signal edit-churn floor once it has 20 labeled edit-churn nudges. Until then it ships under D12 and is reviewed at the 90-day decision.
 
 The replay script lives outside the repository. TASK-001's calibration script supersedes it.
 
