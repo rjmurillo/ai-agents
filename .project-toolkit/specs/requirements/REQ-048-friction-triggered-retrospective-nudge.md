@@ -67,7 +67,7 @@ Two branches had each defined "a failing call retried". This spec now holds one 
 - **Consumer B, Stop nudge.** `invoke_reflect_nudge.py` sends transcript events to the classifier and prints the retrospective advisory, as before.
 - **Consumer C, cross-session facts.** This is deferred. It needs its own ADR-084 decision.
 
-Consumer A registers no hook. ADR-084 defines a vendored hook by its registration, not its directory (rule 5, `ADR-084-vendored-hook-roi-bar.md:203`), so rule 2a does not bind consumer A. A hook trigger for it would be a per-call event, which must clear rule 6's additional bar and a new ADR-084 decision.
+Consumer A registers no hook. ADR-084 defines a vendored hook by its registration, not its directory (rule 5, `ADR-084-vendored-hook-roi-bar.md:203`), so rule 2a does not bind consumer A. A hook trigger for it would be a per-call event, which must clear rule 6's additional bar and needs its own decision.
 
 The Step 0 answers above are the original wedge and stay verbatim. The deltas are:
 
@@ -172,7 +172,7 @@ Sessions with heavy tool-side friction end with no prompt to run a retrospective
 | FrictionScore | session_id | integer >= 0 | Recomputed every Stop |
 | FrictionTier | (session_id, tier) | tier n needs score >= threshold * 2^(n-1) | Monotonic within one session |
 | FailureTally | (ProgressKey, Fingerprint) | count >= 0 | A success for a key removes only that key's entries |
-| ChurnCycle | target path | targets normalized (AC-32) | Opens on a successful edit and closes on the next non-edit event |
+| ChurnCycle | target path | targets normalized (AC-32) | Opens on a successful edit and closes on the next successful or fingerprinted non-edit event (AC-32) |
 | FrictionMarker | sha of (session_id, marker version, "friction", tier) | mode 0o600, dir 0o700, outside any repo, body holds counts only | Exclusive create; same 30-day prune as correction markers |
 
 The correction marker key (`invoke_reflect_nudge.py:293-295,351`) stays unchanged. Correction counts never enter the friction key, so a new correction cannot re-fire a friction tier.
@@ -245,7 +245,7 @@ No network, no model call, no writes inside any repository.
 - SLI 3, volume: friction nudges per 100 sessions on the owner's corpus. Over 15 means the threshold is too low.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
 - SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions. If the baseline is at or above 20 percent, the owner sets a higher kill floor before release.
-- SLI 6, consumer A precision: share of `check-failures` nudges a human labels "the agent was looping". TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule: if SLI 6 precision is under 50 percent on at least 20 labeled `check-failures` nudges, TASK-001 raises the defaults. If raised defaults still miss, the owner removes the nudge.
+- SLI 6, consumer A precision: share of `check-failures` nudges a human labels "the agent was looping". TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule: if SLI 6 precision is under 50 percent on at least 20 labeled `check-failures` nudges, TASK-001 raises the defaults. If precision is still under 50 percent on a fresh sample of at least 20, the owner removes the nudge. Below 20 labeled nudges, no SLO is set and the rule waits. The sample grows in 30-day steps, and the owner decides at 90 days, as for consumer B.
 - Recorded, not gating: billed cost per session, counted as TokenEconomizer counts it (cache pricing included). TASK-001 records it for nudged and un-nudged sessions so a later decision can use it.
 - Release: the date AC-19 clears and the default ships. Each window below counts from that date.
 - Kill criteria: 30 days after release, remove the friction branch if the conversion rate (nudged sessions that run `/retrospective` later in the same session, divided by all nudged sessions) is under the kill floor (20 percent, or the higher floor set under SLI 5 and recorded in the TASK-001 report), or if precision on a fresh 30-day labeled sample is under 50 percent. Judged on the owner's own transcripts only, since the hook sends no telemetry. The check needs at least 20 nudged sessions in the window; below that, the window extends in 30-day steps and the owner decides at 90 days. The check runs once; later decay is an accepted gap, open to an owner-requested re-check. Removal, or an owner drop at a 90-day decision point, lapses ADR-084 rule 2a.
@@ -294,7 +294,7 @@ No network, no model call, no writes inside any repository.
     - **Opening.** A successful edit with a target opens a pending cycle for that target. Targets are normalized: backslashes become forward slashes, then `posixpath.normpath`, capped at 512 characters.
     - **Closing on failure.** The first fingerprinted failure of a non-edit tool closes every pending cycle and records that fingerprint as the cycle's outcome.
     - **Closing on success.** Any successful non-edit FailureEvent ends every pending cycle with no outcome. This holds whether or not its key failed earlier, and whether or not it has a ProgressKey. AC-30's tally reset still needs a matching key. Fixtures: Devin's case (edit `a.py`, pass `pytest tests/a.py`, fail `pytest tests/b.py`, three times) reports no churn on `a.py`. A keyless success also ends the cycle.
-    - **Firing.** `edit_churn` fires when one target has `--churn` cycles (default 3) that share a fingerprint.
+    - **Firing.** `edit_churn` fires when one target has a set number of cycles that share a fingerprint: `--churn` (default 3) for consumer A, and 3 over the whole scan for consumer B.
     - **Exceptions.** A failed edit closes no cycle. A successful edit without a target opens none. A successful edit leaves other targets' pending cycles in place.
     - **Edit tools.** edit, write, multiedit, str_replace, create, apply_patch, and notebookedit.
 33. **AC-33** When the errored FailureTally entries for one Fingerprint, summed across keys, reach `--repeat` (default 3) within the last `--window` FailureEvents (default 20), CheckFailures shall report failure-repeat.
@@ -384,4 +384,4 @@ Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudg
 | TASK-007 | Move `check-failures` (PR #7035) onto the shared FailureClassifier and delete its private definitions. Keep the PR #7035 regression tests | AC-33 to AC-36 | TASK-002 | 1 day / 1 h |
 | TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance with each of its nine items mapped to this use (item 3: a new authorizing issue; item 4: ADR-084 rule 2a; item 5: Copilot users get no nudge; item 7: the reintroduction trigger is Copilot documenting an advisory field and `transcript_path`, replacing the #5013 gates; item 8: the exclusion is conditional, so the cleanup obligation applies only if it becomes permanent; items 1, 2, 6, and 9 as written), the `dispatch_groups.json` `description` wording for a non-security exclusion, `tool-use-hook-bar.md` wording, ledger text; launcher changes for a Stop advisory group (systemMessage pass-through, fail-open manifest load) | AC-16 to AC-18, AC-21, AC-25 to AC-28 | TASK-004, TASK-005 | 2 days / 2 h |
 
-Total: 10.5 human days, 11 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.
+TASK-002 and TASK-007 may ship in one PR (#7035), so AC-36 is tested where the classifier lands. Total: 10.5 human days, 11 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.
