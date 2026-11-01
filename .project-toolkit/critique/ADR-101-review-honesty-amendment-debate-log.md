@@ -34,6 +34,11 @@ older figure as history.
    section. No other text in the record was edited, and the frontmatter is
    unchanged.
 
+3. `ADR-101-enforcement-planes.md`: one doubled blank line between two list
+   items was removed. It is whitespace only and renders the same. The amendment
+   would otherwise push the record to 501 lines and regress the 500 line taste
+   ceiling, and an ignore header cannot go above the frontmatter.
+
 ## Position
 
 Owner direction: accepted as the decision for this amendment.
