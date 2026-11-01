@@ -154,7 +154,7 @@ def make_relocation_target(**overrides: Any) -> dict[str, Any]:
 
 def make_record(*targets: Any, trigger: Any = None) -> dict[str, Any]:
     return {
-        "trigger": trigger if trigger is not None else {"decision": "activate"},
+        "trigger": trigger if trigger is not None else {"decision": "activate", "effects": []},
         "targets": list(targets),
     }
 

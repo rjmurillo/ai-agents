@@ -82,6 +82,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The scripts that grade the spec run from the trusted base, never from
+      # the pull request tree, so a same-repo PR cannot edit them
+      # (issue #6506, review-gates-14). The workflow file itself still comes from
+      # the merge commit on pull_request, so this blocks script edits, not
+      # workflow edits. The merge checkout above stays the working directory,
+      # so git diff and the spec files are still the PR's.
+      - name: Checkout trusted base scripts
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch || 'main' }}
+          path: trusted-base
+          sparse-checkout: |
+            scripts/ci
+            scripts/external_signals
+            .github/scripts
+          persist-credentials: false
+
       # Both SHAs come from the event payload, never a branch name: on
       # pull_request the checkout is the synthetic refs/pull/N/merge commit, so
       # an implicit HEAD would credit this pull request with base-branch files.
@@ -91,7 +108,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 scripts/ci/spec_coverage_scope.py
+        run: python3 trusted-base/scripts/ci/spec_coverage_scope.py
 
       - name: Extract Spec References
         if: steps.should-run.outputs.skip != 'true'
@@ -99,7 +116,7 @@ jobs:
         env:
           PR_TITLE_INPUT: ${{ github.event.pull_request.title }}
           PR_BODY_INPUT: ${{ github.event.pull_request.body }}
-        run: python3 scripts/ci/spec_extract_refs.py
+        run: python3 trusted-base/scripts/ci/spec_extract_refs.py
 
       # The PR body is author-controlled. It reaches the script through env,
       # never interpolated into a run block (CWE-78).
@@ -112,4 +129,4 @@ jobs:
           # fetched it, and a second fetch could return an edited body.
           PR_BODY_FILE: ${{ steps.spec-ref.outputs.pr_body_file }}
           EVENT_NAME: ${{ github.event_name }}
-        run: python3 scripts/ci/spec_coverage_verdict.py
+        run: python3 trusted-base/scripts/ci/spec_coverage_verdict.py

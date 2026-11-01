@@ -154,6 +154,11 @@ Rules `validation_record.py` enforces:
    or `skip`. A `skip` that lists effects or targets is a contradiction. When
    the trigger activated, the record needs at least one target, and each path
    the trigger named needs a record target.
+   An activated trigger must carry an `effects` list; a record without one is a
+   defect. The validator cannot recompute `effects` from paths: they are
+   diff-verified declarations, and an empty list is trusted. With
+   `--changed-path`, the validator reruns the trigger on those paths and
+   refuses a `skip` the trigger would activate.
 2. `UNKNOWN` category or `unknown` diagnosis is always a blocking defect: stop
    semantic edits and request ownership evidence.
 3. `GENERATED` needs `provenance.canonical_source`, and
@@ -183,6 +188,11 @@ Rules `validation_record.py` enforces:
    assertion, so declare `--effect fixture-redefines-case` (or the matching
    effect) to the trigger when an assertion changed. A record that pairs
    this diagnosis with any trigger effect is a defect.
+   Every `moved_from` and `moved_to` path follows the same rule as the target:
+   under `tests/`, no `..`, a test module name. The CLI also runs a fixed
+   `pytest --collect-only -q` over the `moved_to` files and compares the real
+   ids with `tests_after`. It never runs the record's own `collect_command`.
+   A collection that fails or finds no tests is a defect.
 
 ## Anti-Patterns
 
