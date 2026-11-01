@@ -413,25 +413,13 @@ _TASTE_LINT_SUFFIXES = frozenset(
 # tests/skills/review/test_select_axes_scanner_capability.py, so widening the
 # canonical list reds that test instead of silently drifting from this one.
 _DOC_ACCURACY_SUFFIXES = frozenset({".md"})
-# Same file, `EXCLUDE_DIRS`, quoted verbatim. The inventory walk skips any path
-# under one of these, so a Markdown file inside one is never read even though
-# its suffix matches. This repository tracks `build/AGENTS.md`, which is
-# exactly that case.
-_DOC_ACCURACY_EXCLUDED_DIRS = frozenset(
-    {
-        ".git",
-        "node_modules",
-        "__pycache__",
-        ".venv",
-        "venv",
-        "target",
-        "dist",
-        "build",
-        "bin",
-        "obj",
-        ".doc-accuracy",
-    }
-)
+# Same file, `_GIT_EXCLUDE_DIRS`, quoted verbatim. /review always runs the
+# scanner with `--diff-base`, which forces git mode: the inventory comes from
+# `git ls-files` and drops only these two directories. The walk-mode
+# `EXCLUDE_DIRS` (build, bin, dist, ...) does not apply, so a tracked
+# `build/AGENTS.md` is read (issue #6202). Mirroring the walk-mode set here
+# made deep review skip doc-accuracy for such a file.
+_DOC_ACCURACY_EXCLUDED_DIRS = frozenset({".git", ".doc-accuracy"})
 # scan_principles._is_applicable compares these two names literally. The
 # classifier above matches them lowercased; this mirror keeps the real casing.
 _GP_SCANNER_SKILL_FILENAME = "SKILL.md"
@@ -470,12 +458,11 @@ def _taste_lints_reads(path: str) -> bool:
 def _doc_accuracy_reads(path: str) -> bool:
     """Return True when doc_accuracy.py would inventory *path*.
 
-    Mirrors `DOC_GLOBS` and `EXCLUDE_DIRS` in
+    Mirrors `DOC_GLOBS` and the git-mode `_GIT_EXCLUDE_DIRS` in
     `.claude/skills/doc-accuracy/scripts/doc_accuracy.py`; see the constants
-    above for the quoted contracts and the divergence notes. The suffix alone
-    is not enough: the inventory walk prunes excluded directories first, so a
-    tracked file like `build/AGENTS.md` matches the glob and is still never
-    read.
+    above for the quoted contracts. The suffix alone is not enough: git mode
+    still drops `.git/` and `.doc-accuracy/`. A tracked `build/AGENTS.md` is
+    read, because git mode skips the walk-mode `EXCLUDE_DIRS`.
     """
     if _suffix(path) not in _DOC_ACCURACY_SUFFIXES:
         return False
@@ -661,8 +648,8 @@ def unreviewable_paths(paths: Sequence[str]) -> list[str]:
     other axis still covers the path. `executable-code` also contributes the
     canonical `code-quality` subagent, so dropping both scanners for a Rust file
     still leaves it reviewed. `docs-and-instructions` and `toolkit-governance`
-    contribute local axes alone, so dropping theirs leaves nobody: a tracked
-    `build/AGENTS.md` or a `README.MD` would be classified, skipped by every
+    contribute local axes alone, so dropping theirs leaves nobody: a
+    `.doc-accuracy/notes.md` or a `README.MD` would be classified, skipped by every
     axis that claimed it, and the run could still finish PASS with no
     documentation evidence at all. Those paths are reported so the caller fails
     the run closed instead.
