@@ -94,7 +94,6 @@ class TestCli:
         [
             ("not json", [], "not valid JSON"),
             ("{}", [], "JSON array"),
-            ("[" * 100_000, [], "nested too deeply"),
             (b"\xff\xfe[]", [], "can't decode"),
             ("[]", ["--window", "1"], "window (1) must be >= 2"),
         ],
@@ -113,6 +112,22 @@ class TestCli:
         assert captured.out == ""
         assert captured.err.startswith("stuck-detection: ")
         assert message in captured.err
+
+    def test_recursion_error_exits_two(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Which error a deeply nested, unterminated array raises first (RecursionError or a
+        # JSONDecodeError at end of input) depends on the interpreter's recursion settings,
+        # so the handler is exercised directly instead of through such an input.
+        def too_deep(_text: str) -> object:
+            raise RecursionError("maximum recursion depth exceeded")
+
+        monkeypatch.setattr(mod.json, "loads", too_deep)
+        path = write(tmp_path, "[]")
+        assert main(["--events", str(path)]) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == "stuck-detection: input JSON is nested too deeply to decode\n"
 
     def test_oversized_file_exits_two(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
