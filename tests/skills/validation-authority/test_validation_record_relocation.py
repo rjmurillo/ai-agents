@@ -19,18 +19,20 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import relocation_evidence as reloc
-from validation_record_fixtures import (
+from relocation_cli_fixtures import (
     PROJECT_ROOT,
     RECORD_SCRIPT,
+    run_script,
+    trigger_output,
+    write_moved_modules,
+)
+from validation_record_fixtures import (
     make_generated_target,
     make_record,
     make_relocation_target,
     make_target,
     mod,
     record_errors,
-    run_script,
-    trigger_output,
-    write_moved_modules,
 )
 
 

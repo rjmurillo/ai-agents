@@ -1,95 +1,21 @@
 """Relocation-evidence checks for ``validation_record.py`` (issue #6214).
 
 Split out so the record validator stays under the repository file-size limit.
-The shape checks are pure: they read the record fragment they are given and
-return defect strings. The one exception is ``collect_tests``, which the CLI
-passes in as a ``collector`` so the claimed test ids are checked against what
-pytest really collects (issue #6506, review-gates-03).
+Every function is pure: it reads the record fragment it is given and returns
+defect strings. Nothing here touches the filesystem or runs a command. Real
+pytest collection lives in ``relocation_collector``; the CLI passes it in as a
+``collector`` so the claimed test ids are checked against what pytest really
+collects (issue #6506, review-gates-03).
 """
 
 from __future__ import annotations
 
-import importlib.util
-import os
-import subprocess
-import sys
 from collections import Counter
-from collections.abc import Callable, Iterable, Sequence
-from pathlib import Path
+from collections.abc import Iterable
 from typing import Any
 
 RELOCATION = "relocation-no-semantic-change"
 _RELOCATION_DIFF_LIMIT = 5
-_COLLECT_TIMEOUT_SECONDS = 300
-
-# A collector takes the moved_to module paths and returns the collected test
-# ids, or raises CollectionError when collection cannot be trusted.
-Collector = Callable[[Sequence[str]], list[str]]
-
-
-class CollectionError(RuntimeError):
-    """Real test collection failed, so the relocation claim cannot be verified."""
-
-
-class PytestUnavailableError(RuntimeError):
-    """pytest is not importable here, a config error rather than a record defect.
-
-    Deliberately not a ``CollectionError``: that one becomes a record defect
-    (exit 1), while a missing tool means the check never ran (exit 2).
-    """
-
-
-def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
-    """Collect test ids from ``paths`` with a fixed pytest command in ``repo_root``.
-
-    The validator never runs the record's own ``collect_command``: that string
-    is agent-supplied, and executing it would let the record run arbitrary
-    commands. The argv here is fixed, so only the module paths vary, and they
-    are checked to sit under ``tests/`` with no ``..`` by the caller before this
-    runs; ``validation_record`` skips collection when that scope check fails.
-
-    Trust model: pytest imports each named module, every ``conftest.py`` from
-    its rootdir down to that module (the repository root one included), and
-    every installed pytest plugin. The scope check limits which test modules
-    load, not what code runs, so run this only on a checkout you trust.
-    """
-    if importlib.util.find_spec("pytest") is None:
-        raise PytestUnavailableError(
-            f"pytest is not installed for {sys.executable}; install it to verify relocations"
-        )
-    # --override-ini=addopts= drops the repo's addopts: its -v cancels -q and
-    # prints a tree with no "::" ids, which would collect zero tests.
-    argv = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "--override-ini=addopts=",
-        "--import-mode=importlib",
-        "--collect-only",
-        "-q",
-        "-p",
-        "no:cacheprovider",
-    ]
-    # PYTEST_ADDOPTS reaches pytest too: an inherited -v would cancel -q.
-    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
-    try:
-        result = subprocess.run(
-            [*argv, "--", *paths],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            timeout=_COLLECT_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise CollectionError(f"pytest collection could not run: {exc}") from exc
-    if result.returncode != 0:
-        tail = (result.stdout + result.stderr).strip().splitlines()[-1:] or ["no output"]
-        raise CollectionError(f"pytest collection exited {result.returncode}: {tail[0]}")
-    return [line.strip() for line in result.stdout.splitlines() if "::" in line]
 
 
 def is_text(value: object) -> bool:
@@ -167,35 +93,8 @@ def _relocation_path_defects(
     return defects
 
 
-def _collected_defects(
-    where: str, evidence: dict[str, Any], after: Counter[str], collector: Collector
-) -> list[str]:
-    """Compare the claimed ids with real collection of the moved_to modules."""
-    destination = sorted({path_key(item) for item in evidence["moved_to"]})
-    try:
-        real, shape = test_names(where, "collected", collector(destination))
-    except CollectionError as exc:
-        return [f"{where}: relocation_evidence could not be verified by real collection: {exc}"]
-    if shape:
-        return [f"{where}: real collection of the moved_to files found no tests"]
-    if real != after:
-        return [
-            f"{where}: relocation_evidence.tests_after does not match real collection of the "
-            f"moved_to files ({sum(after.values())} claimed, {sum(real.values())} collected); "
-            f"{name_diff(after, real)}"
-        ]
-    return []
-
-
-def relocation_defects(
-    where: str, target: dict[str, Any], collector: Collector | None = None
-) -> list[str]:
-    """Check the `relocation_evidence` block required for a relocation diagnosis.
-
-    With a ``collector``, ``tests_after`` is also compared with what the
-    collector reports for the ``moved_to`` files. Because ``tests_before`` must
-    equal ``tests_after`` by name, the comparison covers both lists.
-    """
+def relocation_defects(where: str, target: dict[str, Any]) -> list[str]:
+    """Check the `relocation_evidence` block required for a relocation diagnosis."""
     evidence = target.get("relocation_evidence")
     if not isinstance(evidence, dict):
         return [f"{where}: {RELOCATION} diagnosis needs a `relocation_evidence` object"]
@@ -217,8 +116,6 @@ def relocation_defects(
             f"({sum(before.values())} before, {sum(after.values())} after); "
             f"{name_diff(before, after)}; use a defect diagnosis"
         )
-    if collector is not None and not defects:
-        defects += _collected_defects(where, evidence, after, collector)
     return defects
 
 

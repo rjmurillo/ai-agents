@@ -15,17 +15,19 @@ from typing import Any
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import relocation_evidence as reloc
-from validation_record_fixtures import (
+import relocation_collector as collector_mod
+from relocation_cli_fixtures import (
     PROJECT_ROOT,
     RECORD_SCRIPT,
+    run_script,
+    trigger_output,
+    write_moved_modules,
+)
+from validation_record_fixtures import (
     make_record,
     make_relocation_target,
     mod,
     record_errors,
-    run_script,
-    trigger_output,
-    write_moved_modules,
 )
 
 
@@ -94,15 +96,15 @@ def test_collect_tests_raises_pytest_unavailable_not_collection_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The missing-tool error must not be caught as a record defect."""
-    real_find_spec = reloc.importlib.util.find_spec
+    real_find_spec = collector_mod.importlib.util.find_spec
 
     def find_spec(name: str, *args: Any) -> Any:
         return None if name == "pytest" else real_find_spec(name, *args)
 
-    monkeypatch.setattr(reloc.importlib.util, "find_spec", find_spec)
-    with pytest.raises(reloc.PytestUnavailableError, match="pytest is not installed"):
-        reloc.collect_tests(["tests/validation/test_x.py"], PROJECT_ROOT)
-    assert not issubclass(reloc.PytestUnavailableError, reloc.CollectionError)
+    monkeypatch.setattr(collector_mod.importlib.util, "find_spec", find_spec)
+    with pytest.raises(collector_mod.PytestUnavailableError, match="pytest is not installed"):
+        collector_mod.collect_tests(["tests/validation/test_x.py"], PROJECT_ROOT)
+    assert not issubclass(collector_mod.PytestUnavailableError, collector_mod.CollectionError)
 
 
 def test_cli_fails_closed_when_the_moved_files_do_not_exist(tmp_path: Path) -> None:
@@ -154,7 +156,7 @@ def test_collector_returning_nothing_fails() -> None:
 
 def test_collector_error_is_a_defect() -> None:
     def boom(paths: Any) -> list[str]:
-        raise reloc.CollectionError("pytest collection exited 2: boom")
+        raise collector_mod.CollectionError("pytest collection exited 2: boom")
 
     errors = _errors_with(boom)
     assert any(
@@ -163,8 +165,8 @@ def test_collector_error_is_a_defect() -> None:
 
 
 def test_collect_tests_reports_a_nonzero_exit_as_collection_error(tmp_path: Path) -> None:
-    with pytest.raises(reloc.CollectionError, match="exited"):
-        reloc.collect_tests(["tests/missing/test_none.py"], tmp_path)
+    with pytest.raises(collector_mod.CollectionError, match="exited"):
+        collector_mod.collect_tests(["tests/missing/test_none.py"], tmp_path)
 
 
 def test_moved_from_must_sit_under_tests_with_no_parent_segments() -> None:
@@ -241,7 +243,7 @@ def test_recomputed_trigger_refusal_is_reported(tmp_path: Path) -> None:
 
 def test_collect_tests_yields_ids_from_the_real_repo_root_despite_addopts() -> None:
     """review-gates-03: repo addopts (-v) must not turn the id list into a tree."""
-    ids = reloc.collect_tests(
+    ids = collector_mod.collect_tests(
         ["tests/validation/test_check_memory_placement_growth.py"], PROJECT_ROOT
     )
     assert ids
@@ -253,7 +255,7 @@ def test_collect_tests_ignores_an_inherited_pytest_addopts(
 ) -> None:
     """PYTEST_ADDOPTS=-v must not cancel -q and drop the node ids."""
     monkeypatch.setenv("PYTEST_ADDOPTS", "-v")
-    ids = reloc.collect_tests(
+    ids = collector_mod.collect_tests(
         ["tests/validation/test_check_memory_placement_growth.py"], PROJECT_ROOT
     )
     assert ids
@@ -263,7 +265,7 @@ def test_collect_tests_ignores_an_inherited_pytest_addopts(
 def test_cli_passes_a_pure_move_from_the_real_repo_root(tmp_path: Path) -> None:
     """review-gates-03: end to end with --repo-root set to the real repository."""
     module = "tests/validation/test_check_memory_placement_growth.py"
-    ids = reloc.collect_tests([module], PROJECT_ROOT)
+    ids = collector_mod.collect_tests([module], PROJECT_ROOT)
     target = make_relocation_target(
         target=module,
         authority={

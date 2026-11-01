@@ -75,12 +75,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from relocation_evidence import (
-    RELOCATION,
+from relocation_collector import (
     Collector,
     PytestUnavailableError,
     collect_tests,
+    collected_defects,
 )
+from relocation_evidence import RELOCATION
 from relocation_evidence import (
     is_text as _text,
 )
@@ -96,6 +97,7 @@ from relocation_evidence import (
 from relocation_evidence import (
     relocation_scope_defects as _relocation_scope_defects,
 )
+from trigger_recheck import recomputed_trigger_defects
 
 CATEGORIES = ("LOCAL", "GENERATED", "VENDOR", "UPSTREAM", "UNKNOWN")
 DIAGNOSES = (
@@ -268,10 +270,11 @@ def _target_defects(
     if diagnosis == "baseline-update":
         defects += _baseline_defects(where, target, repo_root)
     if diagnosis == RELOCATION:
-        scope_defects = _relocation_scope_defects(where, target)
-        defects += scope_defects
+        relocation = _relocation_scope_defects(where, target) + _relocation_defects(where, target)
+        defects += relocation
         # pytest collection imports the named files, so only vetted paths reach it.
-        defects += _relocation_defects(where, target, None if scope_defects else collector)
+        if collector is not None and not relocation:
+            defects += collected_defects(where, target, collector)
     return defects
 
 
@@ -371,29 +374,6 @@ def _relocation_effect_defects(trigger: object, targets: list[Any]) -> list[str]
     ]
 
 
-def _recomputed_trigger_defects(
-    trigger: object,
-    changed_paths: Sequence[str],
-    repo_root: Path | None,
-    trigger_module: ModuleType | None,
-) -> list[str]:
-    """Rerun the trigger on the real changed paths and catch a record that skipped too early."""
-    if trigger_module is None or not changed_paths or not isinstance(trigger, dict):
-        return []
-    effects = trigger.get("effects")
-    declared = effects if _is_text_list(effects) else []
-    try:
-        fresh = trigger_module.decide(list(changed_paths), declared, repo_root or Path.cwd())
-    except ValueError as exc:
-        return [f"trigger recomputed from the changed paths was refused: {exc}"]
-    if fresh.get("decision") == "activate" and trigger.get("decision") != "activate":
-        return [
-            "trigger.decision is `skip` but the trigger recomputed from the changed paths "
-            f"activates: {fresh.get('reason')}"
-        ]
-    return []
-
-
 def validate(
     record: Any,
     changed_paths: Sequence[str] = (),
@@ -415,7 +395,7 @@ def validate(
     if not isinstance(targets, list):
         return ["`targets` must be a list"]
     defects = _trigger_defects(record["trigger"], targets)
-    defects += _recomputed_trigger_defects(
+    defects += recomputed_trigger_defects(
         record["trigger"], changed_paths, repo_root, trigger_module
     )
     defects += _relocation_effect_defects(record["trigger"], targets)
