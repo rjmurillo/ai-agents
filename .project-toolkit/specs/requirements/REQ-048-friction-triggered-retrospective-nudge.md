@@ -46,7 +46,7 @@ Plugin consumers are not evidenced as blocked. Vendoring is the owner's decision
 
 ### Q4
 
-Extend the existing scanner in `invoke_reflect_nudge.py` with three tool-side friction counts. Emit a retrospective advisory when a threshold is crossed. Ship it on the Claude Code plugin surface after an ADR-084 amendment. Estimate: about 9.5 AI-assisted hours (about 9 human days) for the original wedge, 11 hours (10.5 days) with the 2026-11-01 amendment, plus the ADR review cycle and the AC-19 collection period. The task table holds the breakdown.
+Extend the existing scanner in `invoke_reflect_nudge.py` with three tool-side friction counts. Emit a retrospective advisory when a threshold is crossed. Ship it on the Claude Code plugin surface after an ADR-084 amendment. Estimate: about 9.5 AI-assisted hours (about 9 human days) for the original wedge, 12.5 hours (12 days) with the 2026-11-01 amendment, plus the ADR review cycle and the AC-19 collection period. The task table holds the breakdown.
 
 ### Q5
 
@@ -71,7 +71,7 @@ Consumer A registers no hook. ADR-084 defines a vendored hook by its registratio
 
 The Step 0 answers above are the original wedge and stay verbatim. The deltas are:
 
-- Q4 grows by TASK-007 and a larger TASK-002.
+- Q4 grows by TASK-007 and TASK-008, and TASK-001 and TASK-002 get larger.
 - Q5's note that its repeat count is broader than AC-03 held for the 2026-10-31 rule. The windowed AC-03 can count repeats that are not back-to-back, which Q5 missed, so neither count contains the other. TASK-001 measures both.
 - Q5 now covers consumer A as well. The stuck-detection session's own Step 0 found no tool-failure loop in 243 retrospectives. The owner overrode that gate, and the Q5 corpus supplies the missing evidence.
 
@@ -91,7 +91,7 @@ The Step 0 answers above are the original wedge and stay verbatim. The deltas ar
   - The authors claim 18.4 to 30.9 percent lower mean cost on 277 SWE-Bench tasks. No replication was found.
   - Its `docs/PLUGIN.md` says a nudge has not been shown to change a looping model's course.
   - This spec takes the loop guard with deterministic counts in place of the judge model. It takes no tool pruning.
-- PR #7035, `src/claude/skills/stuck-detection/failure_loops.py` at `7f3f4d255`, provides the fingerprint, progress-key, failure-repeat, and edit-churn definitions. Its /review marker `1c887ef30` binds that commit; that is the peer's report and was not re-run here. AC-29 to AC-31 and AC-33 to AC-35 restate its definitions and its fixed review findings. AC-03, AC-32's cycle end on success, and AC-36 to AC-38 change or extend that code.
+- PR #7035, `src/claude/skills/stuck-detection/failure_loops.py` at `7f3f4d255`, provides the fingerprint, progress-key, failure-repeat, and edit-churn definitions. Its /review marker `1c887ef30` binds that commit; that is the peer's report and was not re-run here. AC-29 to AC-31, AC-33, and AC-34 restate its definitions and its fixed review findings. AC-35 restates its input limits. Five things change or extend that code: AC-03, AC-32's cycle end on success, AC-35's untrusted-field marking, AC-36 to AC-38, and AC-39.
 
 ### Connected context from prior-art search
 
@@ -150,8 +150,11 @@ Sessions with heavy tool-side friction end with no prompt to run a retrospective
   - Optional fields: `error`, `input`, and `target`.
   - The transcript adapter and the caller-supplied JSON both produce FailureEvents.
 - **Fingerprint**: `<tool>|<normalized first error line>` (AC-29). A failure with no error text has none.
-- **ProgressKey**: `(tool, input)`, or none when `input` is absent.
-- **FailureClassifier**: the one shared module. It turns a FailureEvent sequence into FailureSignals: the four FrictionSignal counts, the FailureTally, and the per-target ChurnCycle counts. Consumers A and B both call it, so no consumer holds a second definition.
+- **ProgressKey**: `(tool, canonical input)`, or none when `input` is absent.
+  - Canonical input: AC-38 gives consumer B's form, and AC-39 gives consumer A's.
+  - A missing ProgressKey matches no other key, so it neither counts toward `failed_retry` nor resets anything (AC-30).
+  - Keyless failures still enter the FailureTally under one keyless entry, so failure-repeat sees them.
+- **FailureClassifier**: the one shared module. It turns a FailureEvent sequence into FailureSignals: the four FrictionSignal counts, the FailureTally, the per-target ChurnCycle counts, and the `unfingerprinted` count (AC-37). The `unfingerprinted` count is reported and does not feed the FrictionScore. Consumers A and B both call it, so no consumer holds a second definition.
 - **FailureSignal**: one classifier output, as listed above.
 - **TranscriptScan**: one bounded pass over a Stop event's transcript. It feeds FailureEvents to the FailureClassifier. Existing aggregate.
 - **FrictionSignal**: a named count. Kinds: `tool_error`, `permission_denial`, `failed_retry`, `edit_churn`.
@@ -187,7 +190,7 @@ Definitions:
   - `tool` is the tool name, and `ok` is `not is_error`.
   - `error` is the result text. It is used only to compute the fingerprint and is never emitted.
   - `input` is the canonical JSON input.
-  - `target` is the `file_path` or `path` input field when the tool is an edit tool.
+  - `target` is the `file_path`, `notebook_path`, or `path` input field when the tool is an edit tool.
 
 ## Integrations
 
@@ -210,7 +213,7 @@ Idempotency: the same transcript and tier always produce the same marker key, so
 | Tool output fakes an error string | Spurious nudge | Nudge with no real failures | `tool_error` reads only the `is_error` flag |
 | Polling loop counted as retries | Spurious nudge | High `failed_retry` with low `tool_error` | `failed_retry` needs an errored prior result |
 | Scan hits time or byte budget | Missed nudge | AC-14 stderr status line | SLI 4 tracks the share that fits |
-| Someone re-adds a block decision | Trapped turns (#3140) | Test failure | AC-04 |
+| Someone re-adds a block decision | Trapped turns (#3140) | Test failure | AC-06 |
 | Subagent Stop fires the parent nudge | #3140 recurrence | Marker for a sidechain | Register on `Stop` only; sidechains excluded |
 | Stop `systemMessage` stops rendering in a CLI update | Silent advisory | Real-CLI smoke fails | AC-17 |
 | State root sits inside any repository (for example a dotfile-managed `$HOME` repo, even when `cwd` is a nested project repo) | Both nudges silent for that user | AC-24 refusal, stderr status line | Set `XDG_STATE_HOME` or `LOCALAPPDATA` outside the repository. If `/` holds a `.git` entry, every root is refused and only the stderr line signals it |
@@ -245,7 +248,8 @@ No network, no model call, no writes inside any repository.
 - SLI 3, volume: friction nudges per 100 sessions on the owner's corpus. Over 15 means the threshold is too low.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
 - SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions. If the baseline is at or above 20 percent, the owner sets a higher kill floor before release.
-- SLI 6, consumer A precision: share of `check-failures` nudges a human labels "the agent was looping". TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule: if SLI 6 precision is under 50 percent on at least 20 labeled `check-failures` nudges, TASK-001 raises the defaults. If precision is still under 50 percent on a fresh sample of at least 20, the owner removes the nudge. Below 20 labeled nudges, no SLO is set and the rule waits. The sample grows in 30-day steps, and the owner decides at 90 days. Consumer A's windows count from the date `check-failures` ships with these defaults, which is the merge of the TASK-007 PR (#7035), not from consumer B's Release.
+- SLI 6, consumer A precision: share of `check-failures` nudges a human labels "the agent was looping". TASK-001 measures it on the Q5 corpus for the defaults `--repeat 3`, `--churn 3`, `--window 20`. The SLO is set from that measurement, and it may not be below 50 percent. Kill rule: if SLI 6 precision is under 50 percent on at least 20 labeled `check-failures` nudges, TASK-008 raises the defaults. If precision is still under 50 percent on a fresh sample of at least 20, the owner removes the nudge. Below 20 labeled nudges, no SLO is set and the rule waits. The sample grows in 30-day steps, and the owner decides at 90 days. Consumer A's windows count from the date `check-failures` ships with these defaults, which is the merge of the TASK-007 PR (#7035), not from consumer B's Release. The defaults ship at that merge, before SLI 6 is measured. This is owner decision D12 (2026-11-01). Consumer A runs only when an agent calls it, and it prints counts only, so an early ship costs little.
+- SLI 7, consumer A effect: the number of later calls that repeat a nudged fingerprint in the same session, compared with un-nudged loops of the same fingerprint. TASK-008 measures and reports it. It feeds the owner's 90-day decision and is not an automatic kill rule (owner decision D11, 2026-11-01). TokenEconomizer's own docs say a nudge's effect on a looping model is unproven, so this is the claim to test.
 - Recorded, not gating: billed cost per session, counted as TokenEconomizer counts it (cache pricing included). TASK-001 records it for nudged and un-nudged sessions so a later decision can use it.
 - Release: the date AC-19 clears and the default ships. Each window below counts from that date.
 - Kill criteria: 30 days after release, remove the friction branch if the conversion rate (nudged sessions that run `/retrospective` later in the same session, divided by all nudged sessions) is under the kill floor (20 percent, or the higher floor set under SLI 5 and recorded in the TASK-001 report), or if precision on a fresh 30-day labeled sample is under 50 percent. Judged on the owner's own transcripts only, since the hook sends no telemetry. The check needs at least 20 nudged sessions in the window; below that, the window extends in 30-day steps and the owner decides at 90 days. The check runs once; later decay is an accepted gap, open to an owner-requested re-check. Removal, or an owner drop at a 90-day decision point, lapses ADR-084 rule 2a.
@@ -294,7 +298,7 @@ No network, no model call, no writes inside any repository.
     - **Opening.** A successful edit with a target opens a pending cycle for that target. Targets are normalized: backslashes become forward slashes, then `posixpath.normpath`, capped at 512 characters.
     - **Closing on failure.** The first fingerprinted failure of a non-edit tool closes every pending cycle and records that fingerprint as the cycle's outcome.
     - **Closing on success.** Any successful non-edit FailureEvent ends every pending cycle with no outcome. This holds whether or not its key failed earlier, and whether or not it has a ProgressKey. AC-30's tally reset still needs a matching key. Fixtures: Devin's case (edit `a.py`, pass `pytest tests/a.py`, fail `pytest tests/b.py`, three times) reports no churn on `a.py`. A keyless success also ends the cycle.
-    - **Firing.** `edit_churn` fires when one target has a set number of cycles that share a fingerprint: `--churn` (default 3) for consumer A, and 3 over the whole scan for consumer B.
+    - **Firing.** `edit_churn` fires when one target has a set number of cycles that share a fingerprint: `--churn` (default 3) within the last `--window` events for consumer A, and 3 over the whole scan for consumer B.
     - **Exceptions.** A failed edit closes no cycle. A successful edit without a target opens none. A successful edit leaves other targets' pending cycles in place.
     - **Edit tools.** edit, write, multiedit, str_replace, create, apply_patch, and notebookedit.
 33. **AC-33** When the errored FailureTally entries for one Fingerprint, summed across keys, reach `--repeat` (default 3) within the last `--window` FailureEvents (default 20), CheckFailures shall report failure-repeat.
@@ -313,7 +317,8 @@ No network, no model call, no writes inside any repository.
     On valid input it shall exit 0 with JSON. That JSON marks `fingerprint` and `target` as untrusted.
 36. **AC-36** When one fixture of 20 or fewer events runs through the transcript adapter (consumer B) and through CheckFailures input (consumer A), the classifier shall return the same FailureTally and the same per-target ChurnCycle counts for both.
 37. **AC-37** When an errored FailureEvent has no error text, the classifier shall count it as a `tool_error` and in an `unfingerprinted` count, and shall leave it out of every fingerprinted signal.
-38. **AC-38** When a transcript holds a non-sidechain `tool_use` and its `tool_result`, the transcript adapter shall emit exactly one FailureEvent for the pair, with the fields listed under Definitions.
+38. **AC-38** When a transcript holds a non-sidechain `tool_use` and its `tool_result`, the transcript adapter shall emit exactly one FailureEvent for the pair, with the fields listed under Definitions. Its canonical input is the tool input serialized as JSON with sorted keys and no insignificant whitespace.
+39. **AC-39** When CheckFailures reads an event whose `input` is a valid JSON document, it shall canonicalize it the way AC-38 does. Any other `input` it shall use as given, after trimming, so the AC-36 parity fixture compares equal keys.
 
 ## Out of scope
 
@@ -370,18 +375,19 @@ No network, no model call, no writes inside any repository.
 
 ## ADR cross-reference
 
-Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, and AC-29 to AC-38 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35) sits outside rule 2a, because it registers no hook. ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:203`).
+Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, AC-29 to AC-32, and AC-36 to AC-38 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35 and AC-39) ships in the plugin when #7035 merges, because `src/claude/skills/` is plugin source. It sits outside rule 2a, because it registers no hook. ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:203`).
 
 ## Tasks (sequenced)
 
 | ID | Task | ACs | Depends on | Estimate (human / AI) |
 |---|---|---|---|---|
-| TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; measure both `failed_retry` definitions (the AC-03 rule and Q5's broader repeat count); measure SLI 6 for the consumer A defaults (3, 3, 20) and set its SLO; record billed cost; pick weights and default; report SLI 4; measure the SLI 5 baseline and build the same-session follow check for the kill criterion; write the SLI 2 label rubric before any labeling | AC-19 | none | 2.5 days / 3 h |
+| TASK-001 | Calibration script; seeded 70/30 session split of the measured window; owner labels the sample; check `DENIAL_MARKERS`; measure both `failed_retry` definitions (the AC-03 rule and Q5's broader repeat count); measure SLI 6 for the consumer A defaults (3, 3, 20) and set its SLO; record billed cost; pick weights and default; report SLI 4; measure the SLI 5 baseline and build the same-session follow check for the kill criterion; write the SLI 2 label rubric before any labeling | AC-19 | none | 3 days / 3.5 h |
 | TASK-002 | Shared FailureClassifier and transcript adapter, with fixture tests. Its location follows the generated-lib rules in `.claude/AGENTS.md`. AC-01 to AC-04 fix the counters, so calibration is not needed first. Includes the AC-32 fixtures for Devin's cycle-end case | AC-01 to AC-04, AC-29 to AC-32, AC-37, AC-38 | none | 1.5 days / 1.5 h |
 | TASK-003 | Friction marker, merged output, env config, budget status | AC-07 to AC-14, AC-20, AC-23 | TASK-002 | 1 day / 1 h |
 | TASK-004 | Exit, no-block, clean-tree, and input-limit tests; reorder `_safe_marker_dir` so the state-root walk runs before any `mkdir` | AC-05, AC-06, AC-15, AC-22, AC-24 | TASK-003 | 0.5 day / 30 min |
 | TASK-005 | ADR-084 amendment with debate log | Q-1, Q-2 | none | 2 days / 2 h plus review |
-| TASK-007 | Move `check-failures` (PR #7035) onto the shared FailureClassifier and delete its private definitions. Keep the PR #7035 regression tests | AC-33 to AC-36 | TASK-002 | 1 day / 1 h |
+| TASK-007 | Move `check-failures` (PR #7035) onto the shared FailureClassifier and delete its private definitions. Keep the PR #7035 regression tests | AC-33 to AC-36, AC-39 | TASK-002 | 1 day / 1 h |
+| TASK-008 | Post-ship consumer A review: label `check-failures` nudges from the #7035 merge on, measure SLI 6 and SLI 7, retune the defaults, and bring the 90-day decision to the owner | SLI 6, SLI 7 (no AC) | TASK-007 | 1 day / 1 h |
 | TASK-006 | `plugin-*` Stop dispatch group with `copilotExclude`, `Customer value:` line, restore both rule 5 tests, runtime-contract test, real-CLI smoke, ADR-071 runtime contract, ADR-085 Decision 7 field governance with each of its nine items mapped to this use (item 3: a new authorizing issue; item 4: ADR-084 rule 2a; item 5: Copilot users get no nudge; item 7: the reintroduction trigger is Copilot documenting an advisory field and `transcript_path`, replacing the #5013 gates; item 8: the exclusion is conditional, so the cleanup obligation applies only if it becomes permanent; items 1, 2, 6, and 9 as written), the `dispatch_groups.json` `description` wording for a non-security exclusion, `tool-use-hook-bar.md` wording, ledger text; launcher changes for a Stop advisory group (systemMessage pass-through, fail-open manifest load) | AC-16 to AC-18, AC-21, AC-25 to AC-28 | TASK-004, TASK-005 | 2 days / 2 h |
 
-TASK-002 and TASK-007 may ship in one PR (#7035), so AC-36 is tested where the classifier lands. Total: 10.5 human days, 11 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.
+TASK-002 and TASK-007 may ship in one PR (#7035), so AC-36 is tested where the classifier lands. Total: 12 human days, 12.5 AI-assisted hours, plus ADR review. Calendar time is set by the AC-19 collection period, which may pass the 90-day decision point.
