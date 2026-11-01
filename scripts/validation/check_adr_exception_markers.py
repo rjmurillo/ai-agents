@@ -9,8 +9,10 @@ PR #1604 renumbered it from ADR-032 and left the body unswept, and the retired s
 gate read the pattern, so a marker could name an ADR that does not exist, or one
 that a later record retired, and still pass.
 
-This gate scans `.github/workflows/*.yml` and `*.yaml` for the marker and checks
-each cited number against `.project-toolkit/architecture/ADR-NNN-*.md`:
+This gate scans `.github/workflows/*.yml` and `*.yaml`, plus every composite
+action's `.github/actions/**/action.yml` or `action.yaml` (issue #6506: a
+`runs-on` exception can sit in an action a workflow calls), for the marker and
+checks each cited number against `.project-toolkit/architecture/ADR-NNN-*.md`:
 
     missing   no ADR file carries that number
     retired   the ADR's frontmatter `status` is superseded, deprecated, or rejected
@@ -65,6 +67,8 @@ EXIT_CONFIG = 2
 
 ADR_DIR = Path(".project-toolkit") / "architecture"
 WORKFLOW_DIR = Path(".github") / "workflows"
+ACTIONS_DIR = Path(".github") / "actions"
+ACTION_FILE_NAMES: tuple[str, ...] = ("action.yml", "action.yaml")
 
 # `# ADR-055 Exception:`, case-insensitive, any spacing around the words.
 MARKER_RE = re.compile(r"#\s*ADR-(?P<number>\d+)\s+Exception\s*:", re.IGNORECASE)
@@ -160,6 +164,18 @@ def _workflow_files(workflow_dir: Path) -> list[Path]:
     return sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")])
 
 
+def _action_files(actions_dir: Path) -> list[Path]:
+    """Return every ``action.yml`` or ``action.yaml`` under ``actions_dir``, at any depth.
+
+    The directory is optional: a repository with no composite action scans none.
+    """
+    if not actions_dir.is_dir():
+        return []
+    return sorted(
+        path for path in actions_dir.rglob("*") if path.is_file() and path.name in ACTION_FILE_NAMES
+    )
+
+
 def find_near_miss(line: str) -> str | None:
     """Return the comment text when ``line`` holds a marker-like comment `MARKER_RE` misses."""
     for match in CANDIDATE_RE.finditer(line):
@@ -171,11 +187,19 @@ def find_near_miss(line: str) -> str | None:
     return None
 
 
-def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], list[NearMiss], int]:
-    """Return every marker, every near miss, and the count of workflow files examined."""
+def scan_markers(
+    repo_root: Path, workflow_dir: Path, actions_dir: Path | None = None
+) -> tuple[list[Marker], list[NearMiss], int]:
+    """Return every marker, every near miss, and the count of files examined.
+
+    Examined files are the workflows under ``workflow_dir`` and, when
+    ``actions_dir`` is given, every composite action definition under it.
+    """
     markers: list[Marker] = []
     near_misses: list[NearMiss] = []
     files = _workflow_files(workflow_dir)
+    if actions_dir is not None:
+        files += _action_files(actions_dir)
     for wf in files:
         rel = wf.relative_to(repo_root).as_posix()
         try:
@@ -230,7 +254,9 @@ def run(repo_root: Path) -> int:
             print(f"[CONFIG] {label} directory not found: {directory}", file=sys.stderr)
             return EXIT_CONFIG
     try:
-        markers, near_misses, examined = scan_markers(repo_root, workflow_dir)
+        markers, near_misses, examined = scan_markers(
+            repo_root, workflow_dir, repo_root / ACTIONS_DIR
+        )
     except ConfigError as exc:
         print(f"[CONFIG] {exc}", file=sys.stderr)
         return EXIT_CONFIG
@@ -241,7 +267,7 @@ def run(repo_root: Path) -> int:
         f"{n.path}:{n.line}: near-miss marker {n.text!r}; write it as `# ADR-NNN Exception:`"
         for n in near_misses
     ]
-    summary = f"{len(markers)} marker(s) in {examined} workflow file(s)"
+    summary = f"{len(markers)} marker(s) in {examined} workflow and action file(s)"
     if problems:
         header = (
             "[FAIL] Runner-exception markers cite a missing, retired, or unreadable-status ADR,"
