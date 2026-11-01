@@ -130,7 +130,9 @@ def rule_rollback(evidence: Evidence, scanned: list[str]) -> list[str]:
     if kind == "irreversible":
         approved = as_dict(evidence.get("approval")).get("human")
         return [] if approved else ["irreversible operation needs human approval"]
-    reasons = [] if rollback.get("ref") else [f"rollback kind {kind} names no ref"]
+    # A version kind reports its own ref defect, so skip the generic one there.
+    has_ref = rollback.get("ref") or kind == "version"
+    reasons = [] if has_ref else [f"rollback kind {kind} names no ref"]
     return reasons + KIND_CHECKS[str(kind)](rollback)
 
 

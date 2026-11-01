@@ -300,6 +300,14 @@ def test_version_ref_that_is_not_a_commit_id_blocks(ref: str) -> None:
     assert "40-hex commit id" in reasons(evidence)
 
 
+def test_version_without_a_ref_reports_one_reason() -> None:
+    evidence = good_evidence()
+    evidence["rollback"] = {"kind": "version"}
+    assert verdict(evidence)["reasons"] == [
+        "rollback kind version needs ref to be a 40-hex commit id"
+    ]
+
+
 def test_irreversible_without_approval_blocks_and_never_invents_a_rollback() -> None:
     evidence = good_evidence()
     evidence["rollback"] = {"kind": "irreversible"}
