@@ -76,6 +76,7 @@ jobs:
               - 'build/scripts/check_plugin_manifest_parity.py'
               - 'build/scripts/lib_mirror.py'
               - 'scripts/ai_review_common/**'
+              - 'scripts/failure_classifier/**'
               - 'scripts/github_core/**'
               - 'scripts/hook_utilities/**'
               - '.claude/lib/**'

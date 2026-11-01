@@ -26,6 +26,8 @@
 # name: retargeting one would swap the lib every hook and verifier imports.
 /scripts/ai_review_common/                @rjmurillo
 /.claude/lib/ai_review_common             @rjmurillo
+/scripts/failure_classifier/              @rjmurillo
+/.claude/lib/failure_classifier           @rjmurillo
 /scripts/hook_utilities/                  @rjmurillo
 /.claude/lib/hook_utilities               @rjmurillo
 /scripts/github_core/                     @rjmurillo
