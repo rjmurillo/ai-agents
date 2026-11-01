@@ -141,7 +141,6 @@ jobs:
       - name: Post PR Comment
         id: post-comment
         if: steps.should-run.outputs.skip != 'true'
-        # Stays advisory because the "[STATE] pr-validation-comment" log line and step summary show a failed post.
         continue-on-error: true
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
