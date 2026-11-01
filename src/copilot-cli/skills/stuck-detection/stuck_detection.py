@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
-"""Detect agent loops: repeated topics across responses, or repeated tool failures.
+"""Detect conversation loops via Jaccard similarity on topic signatures.
 
-Two independent detectors share this module:
+Tracks recent response signatures in a JSON history file. When the most
+recent N entries exceed a similarity threshold, emits a nudge payload so
+the orchestrator can break the loop.
 
-- ``check`` tracks response topic signatures in a JSON history file. When the
-  most recent N entries exceed a Jaccard similarity threshold, it emits a
-  nudge payload so the orchestrator can break the loop.
-- ``check-failures`` is stateless. It reads a list of recent tool events and
-  reports two signals adapted from TokenEconomizer's failure-loop guard
-  (https://github.com/microsoft/TokenEconomizer, tokeneconomizer/loopguard):
-  the same failure fingerprint repeating, and one file edited again and again
-  while the same failure keeps coming back. Unlike TokenEconomizer it calls no
-  judge model, runs in no hook, and never stops a turn; it only reports.
+The ``check-failures`` subcommand is a separate, stateless detector for
+repeated tool failures. It lives in the sibling ``failure_loops.py`` and is
+dispatched before this module's own argument parsing.
 
 EXIT CODES (ADR-035):
     0 - Success (regardless of stuck/not-stuck)
-    2 - Invalid command, arguments, or check-failures event input
+    2 - Invalid command or arguments
 
 This module is intentionally stdlib-only and self-contained. It does not
 import from `semantic_hooks` so behavior stays deterministic regardless of
@@ -25,6 +21,7 @@ which optional packages happen to be installed in the environment.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -33,18 +30,6 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
-DEFAULT_FAILURE_REPEAT = 3
-DEFAULT_EDIT_CHURN = 3
-DEFAULT_FAILURE_WINDOW = 20
-MAX_EVENTS = 10_000
-FINGERPRINT_MAX_CHARS = 200
-EDIT_TOOLS: frozenset[str] = frozenset(
-    {"edit", "write", "multiedit", "str_replace", "create", "apply_patch", "notebookedit"}
-)
-_HEX_RUN = re.compile(r"\b(?:0x)?[0-9a-f]{7,}\b")
-_DIGIT_RUN = re.compile(r"\d+")
-_WHITESPACE_RUN = re.compile(r"\s+")
 
 DEFAULT_MAX_HISTORY = 10
 DEFAULT_STUCK_THRESHOLD = 3
@@ -387,178 +372,6 @@ def check_stuck(
     return {"stuck": False, "signature": signature, "similar_count": similar}
 
 
-class EventError(ValueError):
-    """Raised when the tool-event input does not match the documented shape."""
-
-
-def failure_fingerprint(tool: str, error: str) -> str:
-    """Reduce a tool failure to a stable key: tool plus its first error line.
-
-    Hex runs of 7 or more characters (hashes, addresses) become ``H`` and
-    digit runs (line numbers, PIDs, durations) become ``N`` so the same failure
-    at a different line or on a different run still matches. The line is
-    lowercased, whitespace-collapsed, and capped at ``FINGERPRINT_MAX_CHARS``.
-    """
-    first = next((line for line in error.splitlines() if line.strip()), "")
-    line = first.strip().lower()
-    line = _HEX_RUN.sub("H", line)
-    line = _DIGIT_RUN.sub("N", line)
-    line = _WHITESPACE_RUN.sub(" ", line)[:FINGERPRINT_MAX_CHARS]
-    return f"{tool.strip().lower()}|{line}"
-
-
-def parse_events(raw: Any) -> list[dict[str, Any]]:
-    """Validate the decoded JSON input and return normalized events.
-
-    Accepts a list of objects. Each object needs ``tool`` (non-empty string)
-    and ``ok`` (boolean). ``error`` (string) is read only when ``ok`` is false;
-    ``target`` (string) names the file an edit tool changed. Unknown keys are
-    ignored. Anything else raises ``EventError`` naming the bad index.
-    """
-    if not isinstance(raw, list):
-        raise EventError("input must be a JSON array of tool events")
-    if len(raw) > MAX_EVENTS:
-        raise EventError(f"input holds {len(raw)} events; the limit is {MAX_EVENTS}")
-    events: list[dict[str, Any]] = []
-    for index, item in enumerate(raw):
-        if not isinstance(item, dict):
-            raise EventError(f"event {index} is not an object")
-        tool = item.get("tool")
-        ok = item.get("ok")
-        if not isinstance(tool, str) or not tool.strip():
-            raise EventError(f"event {index}: 'tool' must be a non-empty string")
-        if not isinstance(ok, bool):
-            raise EventError(f"event {index}: 'ok' must be true or false")
-        error = item.get("error", "")
-        target = item.get("target")
-        if not isinstance(error, str):
-            raise EventError(f"event {index}: 'error' must be a string")
-        if target is not None and not isinstance(target, str):
-            raise EventError(f"event {index}: 'target' must be a string")
-        events.append({"tool": tool, "ok": ok, "error": error, "target": target or None})
-    return events
-
-
-def _is_edit(event: dict[str, Any]) -> bool:
-    return event["tool"].strip().lower() in EDIT_TOOLS and event["target"] is not None
-
-
-def detect_failure_repeat(events: list[dict[str, Any]], threshold: int) -> list[dict[str, Any]]:
-    """Fingerprints that failed at least ``threshold`` times, most frequent first."""
-    counts: dict[str, int] = {}
-    for event in events:
-        if not event["ok"]:
-            key = failure_fingerprint(event["tool"], event["error"])
-            counts[key] = counts.get(key, 0) + 1
-    hits = [(key, n) for key, n in counts.items() if n >= threshold]
-    hits.sort(key=lambda kv: (-kv[1], kv[0]))
-    return [{"signal": "failure-repeat", "fingerprint": key, "count": n} for key, n in hits]
-
-
-def detect_edit_churn(events: list[dict[str, Any]], threshold: int) -> list[dict[str, Any]]:
-    """Files edited at least ``threshold`` times where the same failure followed each edit.
-
-    The first failure after an edit is that edit's outcome. A success counts
-    as progress, and resets the churn state (pending edits and the outcomes
-    counted so far), only when its tool already failed earlier in the window:
-    a check that failed and now passes ends the loop. Other
-    successes (reads, searches) leave the chain alone, so the common
-    edit, read, re-run cycle still counts. A file is churning when
-    ``threshold`` of its edits share one outcome fingerprint. Failed edits are
-    ignored.
-    """
-    outcomes: dict[str, dict[str, int]] = {}
-    pending: set[str] = set()
-    failed_tools: set[str] = set()
-    for event in events:
-        tool = event["tool"].strip().lower()
-        if _is_edit(event):
-            if event["ok"]:
-                pending.add(event["target"])
-            continue
-        if event["ok"]:
-            if tool in failed_tools:
-                pending.clear()
-                outcomes.clear()
-            continue
-        failed_tools.add(tool)
-        if not pending:
-            continue
-        key = failure_fingerprint(event["tool"], event["error"])
-        for target in pending:
-            per_file = outcomes.setdefault(target, {})
-            per_file[key] = per_file.get(key, 0) + 1
-        pending.clear()
-    hits: list[dict[str, Any]] = []
-    for target in sorted(outcomes):
-        key, n = max(outcomes[target].items(), key=lambda kv: (kv[1], kv[0]))
-        if n >= threshold:
-            hits.append({"signal": "edit-churn", "target": target, "fingerprint": key, "count": n})
-    return hits
-
-
-def build_failure_nudge(signals: list[dict[str, Any]]) -> str:
-    """Build the nudge for tool-failure loops."""
-    lines = []
-    for sig in signals:
-        if sig["signal"] == "failure-repeat":
-            lines.append(f"- Same failure {sig['count']} times: {sig['fingerprint']}")
-        else:
-            lines.append(
-                f"- {sig['target']} edited {sig['count']} times, same failure after each: "
-                f"{sig['fingerprint']}"
-            )
-    return (
-        "<stuck-detection>\n"
-        "SELF-REFLECTION: Failure loop detected.\n" + "\n".join(lines) + "\n\n"
-        "BREAK THE LOOP:\n"
-        "1. Stop retrying the same command or edit\n"
-        "2. Re-read the full error and state its cause in one sentence\n"
-        "3. Try a different approach, or ask the user if the cause is unclear\n"
-        "</stuck-detection>"
-    )
-
-
-def check_failures(
-    events: list[dict[str, Any]],
-    *,
-    repeat_threshold: int = DEFAULT_FAILURE_REPEAT,
-    churn_threshold: int = DEFAULT_EDIT_CHURN,
-    window: int = DEFAULT_FAILURE_WINDOW,
-) -> dict[str, Any]:
-    """Report failure-loop signals over the last ``window`` events."""
-    for name, value in (
-        ("repeat_threshold", repeat_threshold),
-        ("churn_threshold", churn_threshold),
-        ("window", window),
-    ):
-        if value < 2:
-            raise ValueError(f"{name} ({value}) must be >= 2")
-    recent = events[-window:]
-    signals = detect_failure_repeat(recent, repeat_threshold) + detect_edit_churn(
-        recent, churn_threshold
-    )
-    result: dict[str, Any] = {
-        "stuck": bool(signals),
-        "events_checked": len(recent),
-        "signals": signals,
-    }
-    if signals:
-        result["nudge"] = build_failure_nudge(signals)
-    return result
-
-
-def _read_events(path: Path | None) -> list[dict[str, Any]]:
-    text = path.read_text(encoding="utf-8") if path else sys.stdin.read()
-    try:
-        raw = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise EventError(f"input is not valid JSON: {exc.msg} at line {exc.lineno}") from exc
-    except RecursionError as exc:
-        raise EventError("input JSON is nested too deeply to decode") from exc
-    return parse_events(raw)
-
-
 def reset_history(history_path: Path) -> dict[str, bool]:
     """Truncate history (call after a confirmed topic change)."""
     save_history(history_path, [], DEFAULT_MAX_HISTORY)
@@ -582,27 +395,29 @@ def _read_text(positional: list[str]) -> str:
     return sys.stdin.read()
 
 
-def _run_check_failures(args: argparse.Namespace) -> int:
-    try:
-        events = _read_events(args.events)
-        result = check_failures(
-            events,
-            repeat_threshold=args.repeat,
-            churn_threshold=args.churn,
-            window=args.window,
-        )
-    except (EventError, ValueError, OSError, UnicodeDecodeError) as exc:
-        print(f"stuck-detection: {exc}", file=sys.stderr)
-        return 2
-    print(json.dumps(result, indent=2))
-    return 0
+def _run_failure_loops(argv: list[str]) -> int:
+    """Load the sibling ``failure_loops.py`` by path and run its CLI."""
+    path = Path(__file__).resolve().with_name("failure_loops.py")
+    spec = importlib.util.spec_from_file_location("stuck_detection_failure_loops", path)
+    # A .py path always yields a spec with a loader; mypy needs the narrowing.
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    result: int = module.main(argv)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
+    args_list = sys.argv[1:] if argv is None else argv
+    if args_list[:1] == ["check-failures"]:
+        return _run_failure_loops(args_list[1:])
     parser = argparse.ArgumentParser(
         prog="stuck-detection",
-        description="Detect agent loops via topic signatures or repeated tool failures.",
+        description=(
+            "Detect agent conversation loops via topic-signature similarity. "
+            "Run 'check-failures --help' for the tool-failure loop detector."
+        ),
     )
     parser.add_argument(
         "--history",
@@ -615,16 +430,6 @@ def main(argv: list[str] | None = None) -> int:
     check_parser = sub.add_parser("check", help="Check text for a stuck loop.")
     check_parser.add_argument("text", nargs="*", help="Text to check (or read from stdin).")
 
-    failures_parser = sub.add_parser(
-        "check-failures", help="Check a JSON array of tool events for a failure loop."
-    )
-    failures_parser.add_argument(
-        "--events", type=Path, default=None, help="JSON file of tool events (default: stdin)."
-    )
-    failures_parser.add_argument("--repeat", type=int, default=DEFAULT_FAILURE_REPEAT)
-    failures_parser.add_argument("--churn", type=int, default=DEFAULT_EDIT_CHURN)
-    failures_parser.add_argument("--window", type=int, default=DEFAULT_FAILURE_WINDOW)
-
     sub.add_parser("reset", help="Clear history.")
     sub.add_parser("status", help="Show current state.")
 
@@ -632,8 +437,6 @@ def main(argv: list[str] | None = None) -> int:
     extract_parser.add_argument("text", nargs="*", help="Text to analyze (or stdin).")
 
     args = parser.parse_args(argv)
-    if args.command == "check-failures":
-        return _run_check_failures(args)
     raw_path = args.history or default_history_path()
     history_path = Path(raw_path).expanduser().resolve()
 
