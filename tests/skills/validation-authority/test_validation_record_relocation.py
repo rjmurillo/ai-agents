@@ -10,7 +10,6 @@ semantic effect.
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -21,19 +20,18 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import relocation_evidence as reloc
 from validation_record_fixtures import (
+    PROJECT_ROOT,
+    RECORD_SCRIPT,
     make_generated_target,
     make_record,
     make_relocation_target,
     make_target,
     mod,
     record_errors,
+    run_script,
+    trigger_output,
+    write_moved_modules,
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SKILLS_ROOT = PROJECT_ROOT / ".claude" / "skills"
-_RECORD_SCRIPT = SKILLS_ROOT / "validation-authority" / "scripts" / "validation_record.py"
-_TRIGGER_SCRIPT = SKILLS_ROOT / "build" / "scripts" / "validation_trigger.py"
-_TIMEOUT_S = 60
 
 
 def _evidence(target: dict[str, Any]) -> dict[str, Any]:
@@ -218,53 +216,17 @@ def test_other_targets_in_the_record_keep_their_own_rules() -> None:
     assert record_errors(record) == []
 
 
-def _run(script: Path, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(script), *args],
-        cwd=cwd,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=_TIMEOUT_S,
-        check=False,
-    )
-
-
-def _trigger_output(cwd: Path, path: str, *effects: str) -> dict[str, Any]:
-    args = ["--repo-root", str(PROJECT_ROOT), "--changed-path", path]
-    for effect in effects:
-        args += ["--effect", effect]
-    result = _run(_TRIGGER_SCRIPT, cwd, *args)
-    assert result.returncode == 0, result.stderr
-    output: dict[str, Any] = json.loads(result.stdout)
-    return output
-
-
-def _write_moved_modules(root: Path, *, drop_param: bool = False) -> None:
-    """Write the two destination modules that make_relocation_target() describes."""
-    tests = root / "tests" / "validation"
-    tests.mkdir(parents=True)
-    (tests / "test_slow_part1.py").write_text("def test_a():\n    pass\n", encoding="utf-8")
-    params = '"y"' if drop_param else '"x"'
-    (tests / "test_slow_part2.py").write_text(
-        "import pytest\n\n\nclass TestB:\n"
-        f"    @pytest.mark.parametrize('v', [{params}])\n"
-        "    def test_b(self, v):\n        pass\n",
-        encoding="utf-8",
-    )
-
-
 def test_real_trigger_then_record_cli_passes_for_a_pure_move(tmp_path: Path) -> None:
     """End to end: the trigger activates on the move, and the record clears it."""
-    _write_moved_modules(tmp_path)
+    write_moved_modules(tmp_path)
     path = "tests/validation/test_slow_part2.py"
-    trigger = _trigger_output(tmp_path, path)
+    trigger = trigger_output(tmp_path, path)
     assert trigger["decision"] == "activate"
     assert trigger["effects"] == []
     record = tmp_path / "record.json"
     record.write_text(json.dumps(make_record(make_relocation_target(), trigger=trigger)))
-    result = _run(
-        _RECORD_SCRIPT,
+    result = run_script(
+        RECORD_SCRIPT,
         tmp_path,
         "--record",
         str(record),
@@ -280,11 +242,11 @@ def test_real_trigger_then_record_cli_passes_for_a_pure_move(tmp_path: Path) -> 
 def test_real_trigger_then_record_cli_fails_when_an_assertion_changed(tmp_path: Path) -> None:
     """A move that also redefines a case declares the effect, so relocation is refused."""
     path = "tests/validation/test_slow_part2.py"
-    trigger = _trigger_output(tmp_path, path, "fixture-redefines-case")
+    trigger = trigger_output(tmp_path, path, "fixture-redefines-case")
     record = tmp_path / "record.json"
     record.write_text(json.dumps(make_record(make_relocation_target(), trigger=trigger)))
-    result = _run(
-        _RECORD_SCRIPT,
+    result = run_script(
+        RECORD_SCRIPT,
         tmp_path,
         "--record",
         str(record),

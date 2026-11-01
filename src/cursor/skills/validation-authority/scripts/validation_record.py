@@ -57,7 +57,7 @@ EXIT CODES (ADR-035):
     1 - The record has defects. The JSON summary lists them.
     2 - Config error: a file is unreadable, the record is not valid JSON, the
         sibling trigger module could not be loaded when a `--changed-path`
-        needed it, or the arguments are bad.
+        needed it, pytest is missing for a relocation check, or the arguments are bad.
 """
 
 from __future__ import annotations
@@ -68,6 +68,7 @@ import json
 import sys
 from collections import Counter
 from collections.abc import Sequence
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -77,6 +78,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from relocation_evidence import (
     RELOCATION,
     Collector,
+    PytestUnavailableError,
     collect_tests,
 )
 from relocation_evidence import (
@@ -484,14 +486,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ImportError) as exc:
             print(f"validation_record: cannot load sibling trigger: {exc}", file=sys.stderr)
             return 2
-    root = args.repo_root or Path.cwd()
-    defects = validate(
-        record,
-        args.changed_path,
-        args.repo_root,
-        trigger_module,
-        lambda paths: collect_tests(paths, root),
-    )
+    collector: Collector = partial(collect_tests, repo_root=args.repo_root or Path.cwd())
+    try:
+        defects = validate(record, args.changed_path, args.repo_root, trigger_module, collector)
+    except PytestUnavailableError as exc:
+        print(f"validation_record: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps(_summary(record, defects, args.record), sort_keys=True))
     return 1 if defects else 0
 

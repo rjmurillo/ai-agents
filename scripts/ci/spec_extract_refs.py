@@ -44,7 +44,7 @@ is a GitHub issue ref, because GitHub is the platform that reads it.
 
 EXIT CODES (ADR-035):
   0 - extraction complete
-  3 - GitHub or incremental-scope subprocess failed
+  3 - GitHub or incremental-scope subprocess failed or timed out
 """
 
 from __future__ import annotations
@@ -305,6 +305,9 @@ def _extract_azure_refs(combined: str) -> str:
 _SCOPE_HELPER = (
     Path(__file__).resolve().parents[2] / ".github" / "scripts" / "extract_incremental_scope.py"
 )
+# The helper parses one title with no I/O, so it should finish at once. The
+# bound keeps a hung helper from holding the workflow step until its timeout.
+_SCOPE_TIMEOUT_SECONDS = 30
 
 
 def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
@@ -321,10 +324,17 @@ def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=_SCOPE_TIMEOUT_SECONDS,
             check=False,
         )
     except OSError as exc:
         print(f"::error::failed to launch incremental scope parser: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL, ""
+    except subprocess.TimeoutExpired:
+        print(
+            f"::error::incremental scope parser timed out after {_SCOPE_TIMEOUT_SECONDS}s",
+            file=sys.stderr,
+        )
         return EXIT_EXTERNAL, ""
     if result.returncode != 0:
         print(

@@ -17,17 +17,16 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import relocation_evidence as reloc
 from validation_record_fixtures import (
+    PROJECT_ROOT,
+    RECORD_SCRIPT,
     make_record,
     make_relocation_target,
     mod,
     record_errors,
+    run_script,
+    trigger_output,
+    write_moved_modules,
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SKILLS_ROOT = PROJECT_ROOT / ".claude" / "skills"
-_RECORD_SCRIPT = SKILLS_ROOT / "validation-authority" / "scripts" / "validation_record.py"
-_TRIGGER_SCRIPT = SKILLS_ROOT / "build" / "scripts" / "validation_trigger.py"
-_TIMEOUT_S = 60
 
 
 def _evidence(target: dict[str, Any]) -> dict[str, Any]:
@@ -39,53 +38,17 @@ def _errors(target: dict[str, Any], trigger: Any = None) -> list[str]:
     return record_errors(make_record(target, trigger=trigger))
 
 
-def _run(script: Path, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(script), *args],
-        cwd=cwd,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=_TIMEOUT_S,
-        check=False,
-    )
-
-
-def _trigger_output(cwd: Path, path: str, *effects: str) -> dict[str, Any]:
-    args = ["--repo-root", str(PROJECT_ROOT), "--changed-path", path]
-    for effect in effects:
-        args += ["--effect", effect]
-    result = _run(_TRIGGER_SCRIPT, cwd, *args)
-    assert result.returncode == 0, result.stderr
-    output: dict[str, Any] = json.loads(result.stdout)
-    return output
-
-
-def _write_moved_modules(root: Path, *, drop_param: bool = False) -> None:
-    """Write the two destination modules that make_relocation_target() describes."""
-    tests = root / "tests" / "validation"
-    tests.mkdir(parents=True)
-    (tests / "test_slow_part1.py").write_text("def test_a():\n    pass\n", encoding="utf-8")
-    params = '"y"' if drop_param else '"x"'
-    (tests / "test_slow_part2.py").write_text(
-        "import pytest\n\n\nclass TestB:\n"
-        f"    @pytest.mark.parametrize('v', [{params}])\n"
-        "    def test_b(self, v):\n        pass\n",
-        encoding="utf-8",
-    )
-
-
 def test_cli_fails_closed_when_real_collection_disagrees_with_the_claimed_ids(
     tmp_path: Path,
 ) -> None:
     """review-gates-03: the claimed ids are compared with what pytest really collects."""
-    _write_moved_modules(tmp_path, drop_param=True)
+    write_moved_modules(tmp_path, drop_param=True)
     path = "tests/validation/test_slow_part2.py"
-    trigger = _trigger_output(tmp_path, path)
+    trigger = trigger_output(tmp_path, path)
     record = tmp_path / "record.json"
     record.write_text(json.dumps(make_record(make_relocation_target(), trigger=trigger)))
-    result = _run(
-        _RECORD_SCRIPT,
+    result = run_script(
+        RECORD_SCRIPT,
         tmp_path,
         "--record",
         str(record),
@@ -98,14 +61,58 @@ def test_cli_fails_closed_when_real_collection_disagrees_with_the_claimed_ids(
     assert "does not match real collection" in result.stdout
 
 
+# Runs the record CLI with pytest hidden, the way an interpreter without it behaves.
+_NO_PYTEST_LAUNCHER = (
+    "import runpy, sys; sys.modules['pytest'] = None; "
+    "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
+)
+
+
+def test_cli_exits_2_when_pytest_is_missing(tmp_path: Path) -> None:
+    """A missing pytest is a config error (exit 2), not a record defect (exit 1)."""
+    write_moved_modules(tmp_path)
+    path = "tests/validation/test_slow_part2.py"
+    trigger = trigger_output(tmp_path, path)
+    record = tmp_path / "record.json"
+    record.write_text(json.dumps(make_record(make_relocation_target(), trigger=trigger)))
+    argv = ["--record", str(record), "--changed-path", path, "--repo-root", str(tmp_path)]
+    result = subprocess.run(
+        [sys.executable, "-c", _NO_PYTEST_LAUNCHER, str(RECORD_SCRIPT), *argv],
+        cwd=tmp_path,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "pytest is not installed" in result.stderr
+    assert result.stdout == ""
+
+
+def test_collect_tests_raises_pytest_unavailable_not_collection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The missing-tool error must not be caught as a record defect."""
+    real_find_spec = reloc.importlib.util.find_spec
+
+    def find_spec(name: str, *args: Any) -> Any:
+        return None if name == "pytest" else real_find_spec(name, *args)
+
+    monkeypatch.setattr(reloc.importlib.util, "find_spec", find_spec)
+    with pytest.raises(reloc.PytestUnavailableError, match="pytest is not installed"):
+        reloc.collect_tests(["tests/validation/test_x.py"], PROJECT_ROOT)
+    assert not issubclass(reloc.PytestUnavailableError, reloc.CollectionError)
+
+
 def test_cli_fails_closed_when_the_moved_files_do_not_exist(tmp_path: Path) -> None:
     """A collect failure is a defect, never a silent pass."""
     path = "tests/validation/test_slow_part2.py"
-    trigger = _trigger_output(tmp_path, path)
+    trigger = trigger_output(tmp_path, path)
     record = tmp_path / "record.json"
     record.write_text(json.dumps(make_record(make_relocation_target(), trigger=trigger)))
-    result = _run(
-        _RECORD_SCRIPT,
+    result = run_script(
+        RECORD_SCRIPT,
         tmp_path,
         "--record",
         str(record),
@@ -270,11 +277,11 @@ def test_cli_passes_a_pure_move_from_the_real_repo_root(tmp_path: Path) -> None:
     old = "tests/validation/test_old_home.py"
     target["relocation_evidence"]["tests_before"] = [item.replace(module, old, 1) for item in ids]
     target["relocation_evidence"]["tests_after"] = list(ids)
-    trigger = _trigger_output(tmp_path, module)
+    trigger = trigger_output(tmp_path, module)
     record = tmp_path / "record.json"
     record.write_text(json.dumps(make_record(target, trigger=trigger)))
-    result = _run(
-        _RECORD_SCRIPT,
+    result = run_script(
+        RECORD_SCRIPT,
         tmp_path,
         "--record",
         str(record),

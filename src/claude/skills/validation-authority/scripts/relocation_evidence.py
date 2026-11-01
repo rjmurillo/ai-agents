@@ -9,6 +9,7 @@ pytest really collects (issue #6506, review-gates-03).
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -30,6 +31,14 @@ class CollectionError(RuntimeError):
     """Real test collection failed, so the relocation claim cannot be verified."""
 
 
+class PytestUnavailableError(RuntimeError):
+    """pytest is not importable here, a config error rather than a record defect.
+
+    Deliberately not a ``CollectionError``: that one becomes a record defect
+    (exit 1), while a missing tool means the check never ran (exit 2).
+    """
+
+
 def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
     """Collect test ids from ``paths`` with a fixed pytest command in ``repo_root``.
 
@@ -39,6 +48,10 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
     are checked to sit under ``tests/`` with no ``..`` by the caller before this
     runs; ``validation_record`` skips collection when that scope check fails.
     """
+    if importlib.util.find_spec("pytest") is None:
+        raise PytestUnavailableError(
+            f"pytest is not installed for {sys.executable}; install it to verify relocations"
+        )
     # --override-ini=addopts= drops the repo's addopts: its -v cancels -q and
     # prints a tree with no "::" ids, which would collect zero tests.
     argv = [

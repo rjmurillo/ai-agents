@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import scripts.ci.spec_extract_refs as spec_extract_refs
@@ -36,3 +39,22 @@ class TestExtractIncrementalScope:
         mock = MagicMock(returncode=1, stdout="", stderr="parser failed")
         with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock):
             assert _extract_incremental_scope("feat: unknown") == (EXIT_EXTERNAL, "")
+
+    def test_passes_a_bounded_timeout(self) -> None:
+        """A hung helper must not hold the workflow step until the job timeout."""
+        mock = MagicMock(returncode=0, stdout="")
+        with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock) as run:
+            _extract_incremental_scope("feat: x")
+        timeout = run.call_args.kwargs["timeout"]
+        assert timeout == spec_extract_refs._SCOPE_TIMEOUT_SECONDS
+        assert 0 < timeout <= 60
+
+    def test_timeout_maps_to_external_error(self, capsys: pytest.CaptureFixture[str]) -> None:
+        expired = subprocess.TimeoutExpired(cmd="extract_incremental_scope.py", timeout=30)
+        with patch("scripts.ci.spec_extract_refs.subprocess.run", side_effect=expired):
+            assert _extract_incremental_scope("feat: x") == (EXIT_EXTERNAL, "")
+        assert "timed out after" in capsys.readouterr().err
+
+    def test_launch_failure_maps_to_external_error(self) -> None:
+        with patch("scripts.ci.spec_extract_refs.subprocess.run", side_effect=OSError("boom")):
+            assert _extract_incremental_scope("feat: x") == (EXIT_EXTERNAL, "")
