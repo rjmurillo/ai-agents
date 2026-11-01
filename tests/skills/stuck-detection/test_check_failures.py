@@ -212,7 +212,7 @@ class TestParseEvents:
         events = parse_events([{"tool": " Edit ", "ok": True, "target": "", "extra": 1}])
         assert events == [fc.FailureEvent(tool="edit", ok=True, error="", input=None, target=None)]
         assert events[0].edit_tool is True
-        assert events[0].opens_cycle is False
+        assert events[0].cycle_target is None
 
     def test_empty_list_is_not_stuck(self) -> None:
         assert check_failures(parse_events([])) == {

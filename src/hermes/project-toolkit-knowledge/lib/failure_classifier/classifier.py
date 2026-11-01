@@ -118,9 +118,12 @@ class FailureEvent:
         return self.tool in EDIT_TOOLS
 
     @property
-    def opens_cycle(self) -> bool:
-        """AC-32: a successful edit with a target opens a pending ChurnCycle."""
-        return self.ok and self.edit_tool and self.target is not None
+    def cycle_target(self) -> str | None:
+        """AC-32: the target whose ChurnCycle this event opens, if any.
+
+        Only a successful edit with a target opens one.
+        """
+        return self.target if self.ok and self.edit_tool else None
 
     @property
     def progress_key(self) -> ProgressKey:
@@ -187,6 +190,61 @@ def _bump(tally: Tally, key: ProgressKey, fingerprint: str) -> None:
     per_key[fingerprint] = per_key.get(fingerprint, 0) + 1
 
 
+def _record_success(
+    signals: FailureSignals,
+    retry_seen: dict[tuple[str, str], set[str]],
+    pending: set[str],
+    event: FailureEvent,
+) -> None:
+    key = event.progress_key
+    if key is not None:
+        retry_seen.pop(key, None)
+        # AC-30: a success for a key removes only that key's entries.
+        if signals.tally.pop(key, None) is not None:
+            for per_key in signals.churn.values():
+                per_key.pop(key, None)
+    # Closing on success: any successful non-edit event ends every pending
+    # cycle with no outcome, keyed or not (Devin's case).
+    if not event.edit_tool:
+        pending.clear()
+    # Opening: a successful edit with a target. Other targets' pending cycles
+    # stay in place.
+    target = event.cycle_target
+    if target is not None:
+        pending.add(target)
+
+
+def _record_failure(
+    signals: FailureSignals,
+    retry_seen: dict[tuple[str, str], set[str]],
+    pending: set[str],
+    event: FailureEvent,
+) -> None:
+    if is_denial(event.error):
+        signals.permission_denial += 1
+    else:
+        signals.tool_error += 1
+    fingerprint = event.fingerprint
+    if fingerprint is None:
+        signals.unfingerprinted += 1
+        return
+    key = event.progress_key
+    if key is not None:
+        seen = retry_seen.setdefault(key, set())
+        if fingerprint in seen:
+            signals.failed_retry += 1
+        seen.add(fingerprint)
+    _bump(signals.tally, key, fingerprint)
+    # A failed edit closes no cycle.
+    if event.edit_tool:
+        return
+    # Closing on failure: the first fingerprinted non-edit failure records its
+    # fingerprint as the outcome of every pending cycle.
+    for target in pending:
+        _bump(signals.churn.setdefault(target, {}), key, fingerprint)
+    pending.clear()
+
+
 def classify(events: Iterable[FailureEvent]) -> FailureSignals:
     """Classify one event sequence in a single pass.
 
@@ -201,50 +259,12 @@ def classify(events: Iterable[FailureEvent]) -> FailureSignals:
       key between them. A keyless or unfingerprinted event never matches.
     - FailureTally (AC-30, AC-33): fingerprinted errors by key; a success for
       a key removes only that key's entries, here and in the churn tallies.
-    - ChurnCycles (AC-32): see the inline comments.
+    - ChurnCycles (AC-32): see the comments in the two handlers.
     """
     signals = FailureSignals()
     retry_seen: dict[tuple[str, str], set[str]] = {}
     pending: set[str] = set()
     for event in events:
-        key = event.progress_key
-        if event.ok:
-            if key is not None:
-                retry_seen.pop(key, None)
-                if key in signals.tally:
-                    del signals.tally[key]
-                    for per_key in signals.churn.values():
-                        per_key.pop(key, None)
-            # Closing on success: any successful non-edit event ends every
-            # pending cycle with no outcome, keyed or not (Devin's case).
-            if not event.edit_tool:
-                pending.clear()
-            # Opening: a successful edit with a target. Other targets' pending
-            # cycles stay in place.
-            if event.opens_cycle:
-                pending.add(event.target)  # type: ignore[arg-type]  # opens_cycle checks it
-            continue
-        if is_denial(event.error):
-            signals.permission_denial += 1
-        else:
-            signals.tool_error += 1
-        fingerprint = event.fingerprint
-        if fingerprint is None:
-            signals.unfingerprinted += 1
-            continue
-        if key is not None:
-            seen = retry_seen.setdefault(key, set())
-            if fingerprint in seen:
-                signals.failed_retry += 1
-            else:
-                seen.add(fingerprint)
-        _bump(signals.tally, key, fingerprint)
-        # A failed edit closes no cycle.
-        if event.edit_tool:
-            continue
-        # Closing on failure: the first fingerprinted non-edit failure records
-        # its fingerprint as the outcome of every pending cycle.
-        for target in pending:
-            _bump(signals.churn.setdefault(target, {}), key, fingerprint)
-        pending.clear()
+        record = _record_success if event.ok else _record_failure
+        record(signals, retry_seen, pending, event)
     return signals
