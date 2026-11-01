@@ -96,3 +96,25 @@ class TestRoundTwoRegressions:
         events = [ok("Edit", "a.py"), fail("Bash", "x", TEST_CMD)] * 2
         events += [ok("Bash", command=TEST_CMD)]
         assert run(events, churn_threshold=2, repeat_threshold=10)["signals"] == []
+
+
+class TestRoundThreeRegressions:
+    """Each test pins a /review round-3 finding."""
+
+    def test_recovered_edit_retry_clears_its_failures(self) -> None:
+        bad = {"tool": "Write", "ok": False, "input": "X", "target": "a/b.py", "error": "no dir"}
+        good = {"tool": "Write", "ok": True, "input": "X", "target": "a/b.py"}
+        assert run([bad] * 3 + [good])["stuck"] is False
+
+    def test_recovered_edit_retry_starts_a_new_cycle(self) -> None:
+        bad = {"tool": "Write", "ok": False, "input": "X", "target": "a.py", "error": "no dir"}
+        good = {"tool": "Write", "ok": True, "input": "X", "target": "a.py"}
+        events = (
+            [bad, good] + [fail("Bash", "same"), ok("Edit", "a.py")] * 2 + [fail("Bash", "same")]
+        )
+        assert kinds(run(events, repeat_threshold=10)) == ["edit-churn"]
+
+    def test_failed_edit_without_target_closes_no_cycle(self) -> None:
+        bad_edit = {"tool": "Edit", "ok": False, "error": "old_string not found"}
+        events = [ok("Edit", "a.py"), bad_edit] * 3
+        assert kinds(run(events)) == ["failure-repeat"]

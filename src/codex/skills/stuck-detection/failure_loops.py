@@ -131,6 +131,7 @@ def parse_events(raw: Any) -> list[dict[str, Any]]:
                 "fingerprint": None if ok else failure_fingerprint(key, error),
                 "input": command,
                 "target": _normalize_target(target) if target else None,
+                "edit_tool": key in EDIT_TOOLS,
                 "is_edit": key in EDIT_TOOLS and target is not None,
             }
         )
@@ -159,9 +160,10 @@ def _scan(events: list[dict[str, Any]]) -> tuple[Tally, dict[str, Tally]]:
     cycle. Without ``input`` nothing can match, so nothing resets.
 
     Every fingerprinted failure is tallied, failed edits included. The first
-    fingerprinted non-edit failure after successful edits is the outcome of
-    each file edited since the previous outcome; several edits of one file
-    before one failure count once (one cycle).
+    fingerprinted failure of a non-edit tool after successful edits is the
+    outcome of each file edited since the previous outcome; several edits of
+    one file before one failure count once (one cycle). A failed edit-tool
+    event, with or without ``target``, closes no cycle.
     """
     tally: Tally = {}
     churn: dict[str, Tally] = {}
@@ -169,19 +171,21 @@ def _scan(events: list[dict[str, Any]]) -> tuple[Tally, dict[str, Tally]]:
     for event in events:
         key = _progress_key(event)
         if event["ok"]:
-            if event["is_edit"]:
-                pending.add(event["target"])
-            elif key is not None and any(k == key for k, _ in tally):
+            # Progress first, for every tool: a retried Write that now succeeds
+            # clears its own failures, then starts a new edit cycle.
+            if key is not None and any(k == key for k, _ in tally):
                 tally = {kf: n for kf, n in tally.items() if kf[0] != key}
                 for target, per_file in churn.items():
                     churn[target] = {kf: n for kf, n in per_file.items() if kf[0] != key}
                 pending.clear()
+            if event["is_edit"]:
+                pending.add(event["target"])
             continue
         fingerprint = event["fingerprint"]
         if fingerprint is None:
             continue
         tally[(key, fingerprint)] = tally.get((key, fingerprint), 0) + 1
-        if event["is_edit"]:
+        if event["edit_tool"]:
             continue
         for target in pending:
             per_file = churn.setdefault(target, {})

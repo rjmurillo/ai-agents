@@ -153,7 +153,7 @@ class TestEditChurn:
     def test_edit_without_target_is_not_an_edit(self) -> None:
         assert run([ok("Edit"), fail("Bash", "boom")] * 3, repeat_threshold=10)["stuck"] is False
 
-    def test_failed_edits_are_ignored(self) -> None:
+    def test_failed_edits_below_threshold_are_not_stuck(self) -> None:
         bad_edit = {"tool": "Edit", "ok": False, "error": "old_string not found", "target": "a"}
         assert run([bad_edit, bad_edit, fail("Bash", "boom")])["stuck"] is False
 
@@ -207,6 +207,7 @@ class TestParseEvents:
                 "fingerprint": None,
                 "input": None,
                 "target": None,
+                "edit_tool": True,
                 "is_edit": False,
             }
         ]

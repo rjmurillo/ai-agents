@@ -91,13 +91,15 @@ chooses which events to report.
 2. **failure-repeat.** A fingerprint seen `--repeat` times (default 3) in the
    last `--window` events (default 20) trips the signal. Failed edits count
    too, so an `Edit` that keeps failing with "old_string not found" trips it.
-3. **edit-churn.** The first fingerprinted non-edit failure after successful
-   edits is the outcome of every file edited since the previous outcome. A
-   file whose `--churn` cycles (default 3) share one outcome trips the
-   signal. Several edits of one file before one failure count as one cycle.
+3. **edit-churn.** The first fingerprinted failure of a non-edit tool after
+   successful edits is the outcome of every file edited since the previous
+   outcome. A file whose `--churn` cycles (default 3) share one outcome trips
+   the signal. Several edits of one file before one failure count as one
+   cycle. A failed edit, with or without `target`, closes no cycle.
 4. **Progress.** A success whose `tool` and `input` both match an earlier
-   failure (the check that failed now passes) removes the failure and churn
-   counts recorded under that pair, and only those: fixing `make build`
+   failure (the check that failed now passes, or a retried edit that now
+   applies) removes the failure and churn counts recorded under that pair,
+   and only those: fixing `make build`
    leaves an `npm test` loop counted even when both print the same first
    line. A success with a different `input` (a `Bash` `ls` between test runs)
    changes nothing. Events without `input` never match, so pass `input` to
@@ -107,9 +109,10 @@ Event input is a JSON array of at most 10,000 events and 8 MiB. Each event
 needs `tool` (string) and `ok` (boolean). Optional strings, type-checked on
 every event when present and trimmed of surrounding whitespace: `error` (used
 for failures), `input` (the command or arguments, used to match progress),
-and `target` (the file an edit tool changed). Edit tools are `Edit`, `Write`, `MultiEdit`, `str_replace`,
-`create`, `apply_patch`, and `NotebookEdit`; an edit without `target` is not
-counted. Targets are normalized (`./a.py` and `a.py` match). Unknown keys are
+and `target` (the file an edit tool changed). Edit tools are `Edit`,
+`Write`, `MultiEdit`, `str_replace`, `create`, `apply_patch`, and
+`NotebookEdit`; a successful edit without `target` starts no churn cycle,
+and a failed one still counts toward `failure-repeat`. Targets are normalized (`./a.py` and `a.py` match). Unknown keys are
 ignored. Pass redacted `error` text: the first line is echoed in `signals`.
 
 ```json
