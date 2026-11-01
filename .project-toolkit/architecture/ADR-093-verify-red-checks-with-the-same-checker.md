@@ -1,6 +1,6 @@
 ---
 id: ADR-093
-status: proposed
+status: accepted
 date: 2026-08-07
 decision-makers: [rjmurillo]
 supersedes: []
