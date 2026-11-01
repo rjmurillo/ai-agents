@@ -109,17 +109,31 @@ class TestClaudeToolList:
         assert run_gate(tmp_path) == gate.EXIT_DIVERGED
 
 
+# Both platform keys of the SHARED fixture. The generator
+# (build/generate_agents_common.py, the ``tools`` branch of the frontmatter
+# loop and the ``elif "tools" in frontmatter`` fallback) copies a list-valued
+# bare ``tools`` key only when no platform key exists, so a fixture that keeps
+# ``tools_vscode`` would read as unrestricted.
+PLATFORM_KEYS = "tools_vscode: [read, search]\ntools_copilot: [read, search]\n"
+
+
 class TestSharedSourceFallback:
     def test_shared_bare_tools_key_is_read_like_the_generator(self, tmp_path: Path) -> None:
-        """detection-gaps-04: no tools_copilot means the generator emits the bare list."""
-        shared = mutate(SHARED, "tools_copilot: [read, search]\n", "tools: [read, search]\n")
+        """detection-gaps-04: no platform key means the generator emits the bare list."""
+        shared = mutate(SHARED, PLATFORM_KEYS, "tools: [read, search]\n")
         build_repo(tmp_path, shared=shared)
         assert (gate.PAIR_CLAUDE, "capability:declaration") not in divergence_units(tmp_path)
 
     def test_shared_bare_tools_key_that_differs_is_a_divergence(self, tmp_path: Path) -> None:
-        shared = mutate(SHARED, "tools_copilot: [read, search]\n", "tools: [read, search, shell]\n")
+        shared = mutate(SHARED, PLATFORM_KEYS, "tools: [read, search, shell]\n")
         build_repo(tmp_path, shared=shared)
         assert (gate.PAIR_CLAUDE, "capability:builtin") in divergence_units(tmp_path)
+
+    def test_bare_tools_list_beside_a_platform_key_is_not_read(self, tmp_path: Path) -> None:
+        """The generator skips a list-valued bare key once any platform key exists."""
+        shared = mutate(SHARED, "tools_copilot: [read, search]\n", "tools: [read, search]\n")
+        build_repo(tmp_path, shared=shared)
+        assert (gate.PAIR_CLAUDE, "capability:declaration") in divergence_units(tmp_path)
 
 
 class TestCopilotToolLists:
