@@ -138,3 +138,27 @@ class TestRoundFourRegressions:
 
     def test_known_tool_name_prints_verbatim(self) -> None:
         assert "the same bash failure 3 times" in run([fail("Bash", "boom")] * 3)["nudge"]
+
+
+class TestAC39JsonInput:
+    """AC-39: JSON `input` canonicalizes, so key order and spacing do not split keys."""
+
+    def test_reordered_json_success_resets_the_loop(self) -> None:
+        events = [fail("Bash", "boom", '{"command": "make", "timeout": 5}')] * 3
+        events.append(ok("Bash", command='{"timeout":5,"command":"make"}'))
+        events.append(fail("Bash", "boom", '{"command":"make","timeout":5}'))
+        result = run(events)
+        assert result["stuck"] is False
+        # Two retries before the success; the failure after it starts fresh.
+        assert result["counts"]["failed_retry"] == 2
+
+    def test_reordered_json_failures_are_retries(self) -> None:
+        events = [
+            fail("Bash", "boom", '{"a": 1, "b": 2}'),
+            fail("Bash", "boom", '{"b":2,"a":1}'),
+        ]
+        assert run(events)["counts"]["failed_retry"] == 1
+
+    def test_plain_command_is_not_rewritten(self) -> None:
+        [event] = parse_events([fail("Bash", "boom", "  pytest -k 'a b'  ")])
+        assert event.input == "pytest -k 'a b'"

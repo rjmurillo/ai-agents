@@ -8,6 +8,7 @@ ChurnCycle counts for both.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -62,7 +63,9 @@ def check_failures_input() -> list[dict[str, Any]]:
             "tool": tool,
             "ok": not is_error,
             "error": text,
-            "input": fc.canonical_input(tool_input),
+            # AC-39: the caller's own JSON, unsorted and spaced, canonicalizes
+            # to the key consumer B builds.
+            "input": json.dumps(tool_input),
         }
         path = tool_input.get("file_path")
         if fc.normalize_tool(tool) in fc.EDIT_TOOLS and path:

@@ -120,7 +120,8 @@ chooses which events to report.
 Event input is a JSON array of at most 10,000 events and 8 MiB. Each event
 needs `tool` (string) and `ok` (boolean). Optional strings, type-checked on
 every event when present and trimmed of surrounding whitespace: `error` (used
-for failures), `input` (the command or arguments, used to match progress),
+for failures), `input` (the command or arguments, used to match progress; a
+JSON document is compared after sorting keys and dropping spaces),
 and `target` (the file an edit tool changed). Edit tools are `Edit`,
 `Write`, `MultiEdit`, `str_replace`, `create`, `apply_patch`, and
 `NotebookEdit`; a successful edit without `target` starts no churn cycle,

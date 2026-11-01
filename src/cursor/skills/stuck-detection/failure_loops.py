@@ -45,6 +45,7 @@ from failure_classifier import (  # noqa: E402
     EDIT_TOOLS,
     FailureEvent,
     FailureSignals,
+    canonicalize_input_text,
     classify,
 )
 
@@ -75,6 +76,12 @@ def _optional_string(item: dict[str, Any], key: str, index: int) -> str | None:
     return value
 
 
+def _canonical_input(item: dict[str, Any], index: int) -> str | None:
+    """AC-39: a JSON ``input`` gets AC-38's canonical form; other text stays as given."""
+    value = _optional_string(item, "input", index)
+    return None if value is None else canonicalize_input_text(value)
+
+
 def parse_events(raw: Any) -> list[FailureEvent]:
     """Validate decoded JSON and return FailureEvents.
 
@@ -82,7 +89,8 @@ def parse_events(raw: Any) -> list[FailureEvent]:
     ``ok`` (boolean). ``error``, ``input`` and ``target`` are optional
     strings on every event and are type-checked whenever present. Unknown
     keys are ignored. Anything else raises ``EventError`` naming the bad
-    index. Normalization (trimming, target paths) is the classifier's.
+    index. An ``input`` that is a JSON document is canonicalized (AC-39).
+    Other normalization (trimming, target paths) is the classifier's.
     """
     if not isinstance(raw, list):
         raise EventError("input must be a JSON array of tool events")
@@ -103,7 +111,7 @@ def parse_events(raw: Any) -> list[FailureEvent]:
                 tool=tool,
                 ok=ok,
                 error=_optional_string(item, "error", index),
-                input=_optional_string(item, "input", index),
+                input=_canonical_input(item, index),
                 target=_optional_string(item, "target", index),
             )
         )

@@ -26,14 +26,29 @@ from typing import Any
 
 from scripts.failure_classifier.classifier import EDIT_TOOLS, FailureEvent, normalize_tool
 
-# REQ-048 Definitions: `target` is the `file_path` or `path` input field when
-# the tool is an edit tool.
-_TARGET_FIELDS: tuple[str, ...] = ("file_path", "path")
+# REQ-048 Definitions: `target` is the `file_path`, `notebook_path`, or `path`
+# input field, first present, when the tool is an edit tool.
+_TARGET_FIELDS: tuple[str, ...] = ("file_path", "notebook_path", "path")
 
 
 def canonical_input(value: object) -> str:
-    """The canonical JSON form of a tool input: sorted keys, no spaces."""
+    """AC-38: the canonical JSON form of a tool input: sorted keys, no spaces."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def canonicalize_input_text(text: str) -> str:
+    """AC-39: canonicalize ``text`` when it is a JSON document, else return it trimmed.
+
+    Consumer A takes ``input`` as caller text. A caller that passes the tool
+    input as JSON then gets the same ProgressKey consumer B builds from the
+    transcript, whatever its key order or spacing.
+    """
+    trimmed = text.strip()
+    try:
+        value = json.loads(trimmed)
+    except (ValueError, RecursionError):
+        return trimmed
+    return canonical_input(value)
 
 
 def _result_text(content: object) -> str:

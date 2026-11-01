@@ -15,6 +15,7 @@ from scripts.failure_classifier import (
     FINGERPRINT_MAX_CHARS,
     FailureEvent,
     canonical_input,
+    canonicalize_input_text,
     classify,
     events_from_records,
     failure_fingerprint,
@@ -240,8 +241,11 @@ class TestAC38TranscriptAdapter:
             result("t1", "ok"),
             use("t2", "apply_patch", {"path": "src\\b.py"}),
             result("t2", "ok"),
+            use("t3", "NotebookEdit", {"notebook_path": "nb/c.ipynb", "new_source": "x"}),
+            result("t3", "ok"),
         ]
-        assert [e.target for e in events_from_records(records)] == ["src/a.py", "src/b.py"]
+        targets = [e.target for e in events_from_records(records)]
+        assert targets == ["src/a.py", "src/b.py", "nb/c.ipynb"]
 
     def test_list_content_joins_text_blocks(self) -> None:
         content = [
@@ -269,3 +273,23 @@ class TestAC38TranscriptAdapter:
             == canonical_input({"a": "é", "b": 1})
             == '{"a":"é","b":1}'
         )
+
+
+class TestAC39InputCanonicalization:
+    def test_json_document_gets_the_ac38_form(self) -> None:
+        text = ' {"timeout": 5,  "command": "ls"} '
+        assert canonicalize_input_text(text) == canonical_input({"command": "ls", "timeout": 5})
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("  pytest tests/a.py  ", "pytest tests/a.py"),
+            ("{not json", "{not json"),
+            ("[" * 100_000, "[" * 100_000),
+        ],
+    )
+    def test_other_text_is_used_as_given_after_trimming(self, text: str, expected: str) -> None:
+        assert canonicalize_input_text(text) == expected
+
+    def test_scalar_json_round_trips(self) -> None:
+        assert canonicalize_input_text('"ls"') == '"ls"'

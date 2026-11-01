@@ -15,7 +15,11 @@ from scripts.failure_classifier.classifier import (
     normalize_target,
     normalize_tool,
 )
-from scripts.failure_classifier.transcript import canonical_input, events_from_records
+from scripts.failure_classifier.transcript import (
+    canonical_input,
+    canonicalize_input_text,
+    events_from_records,
+)
 
 __all__ = [
     "DENIAL_MARKERS",
@@ -25,6 +29,7 @@ __all__ = [
     "FailureEvent",
     "FailureSignals",
     "canonical_input",
+    "canonicalize_input_text",
     "classify",
     "events_from_records",
     "failure_fingerprint",
