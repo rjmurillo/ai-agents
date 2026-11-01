@@ -143,10 +143,6 @@ def test_module_level_sink_has_unknown_callers(
             "git argv from starred argument",
         ),
         (
-            "def f(git, args):\n    git(*args)\n",
-            "git argv from starred argument",
-        ),
-        (
             "import subprocess\ndef f(sub):\n    subprocess.run(['git', sub, 'x'])\n",
             "git argv with non-literal subcommand",
         ),

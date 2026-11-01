@@ -5,11 +5,11 @@ Pins the runner-exception marker gate:
 - pos: a marker naming a live ADR passes; a tree with no markers passes
 - neg: a marker naming a missing ADR, or a superseded, deprecated, or
   rejected ADR, exits 1 and names file, line, and ADR
-- edge: marker spelling variants, `.yaml` files, composite action files under
-  `.github/actions/**/action.yml` (scanned, issue #6506), an ADR whose status
-  cannot be read (absent, malformed, or non-scalar; the marker fails, issue
-  #6506), a `# ADR-NNN:` line that is not an exception marker, missing
-  directories (exit 2 per ADR-035)
+- edge: marker spelling variants, `.yaml` files, an ADR whose status cannot be
+  read (absent, malformed, or non-scalar; the marker fails, issue #6506), a
+  `# ADR-NNN:` line that is not an exception marker, missing directories
+  (exit 2 per ADR-035)
+- composite action files: see test_check_adr_exception_markers_actions.py
 - wiring: the pre-PR adapter returns a bool that follows the exit code
 """
 
@@ -52,27 +52,6 @@ def _workflow(repo: Path, comment: str, name: str = "ci.yml") -> Path:
               build:
                 {comment}
                 runs-on: windows-latest
-            """
-        ),
-        encoding="utf-8",
-    )
-    return path
-
-
-def _action(repo: Path, comment: str, name: str = "setup", file_name: str = "action.yml") -> Path:
-    action_dir = repo / ".github" / "actions" / name
-    action_dir.mkdir(parents=True, exist_ok=True)
-    path = action_dir / file_name
-    path.write_text(
-        textwrap.dedent(
-            f"""\
-            name: {name}
-            runs:
-              using: composite
-              steps:
-                {comment}
-                - run: echo hi
-                  shell: bash
             """
         ),
         encoding="utf-8",
@@ -408,85 +387,6 @@ def test_non_workflow_files_are_not_scanned(tmp_path: Path) -> None:
         "# ADR-999 Exception: documentation example\n", encoding="utf-8"
     )
     assert _run(tmp_path).returncode == 0
-
-
-def test_action_marker_naming_live_adr_passes_and_is_counted(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _workflow(tmp_path, "# plain")
-    _action(tmp_path, "# ADR-055 Exception: composite action needs x64")
-    result = _run(tmp_path)
-    assert result.returncode == 0
-    assert "1 marker(s) in 2 workflow and action file(s)" in result.stdout
-
-
-@pytest.mark.parametrize("file_name", ["action.yml", "action.yaml"])
-def test_action_marker_naming_missing_adr_fails(tmp_path: Path, file_name: str) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _workflow(tmp_path, "# plain")
-    _action(tmp_path, "# ADR-999 Exception: reason", file_name=file_name)
-    result = _run(tmp_path)
-    assert result.returncode == 1
-    assert f".github/actions/setup/{file_name}:5: ADR-999 does not exist" in result.stdout
-
-
-def test_action_marker_naming_retired_adr_fails(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _adr(tmp_path, 32, "superseded")
-    _workflow(tmp_path, "# ADR-055 Exception: live")
-    _action(tmp_path, "# ADR-032 Exception: stale")
-    result = _run(tmp_path)
-    assert result.returncode == 1
-    assert ".github/actions/setup/action.yml:5: ADR-032 is superseded" in result.stdout
-
-
-def test_action_near_miss_fails(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _workflow(tmp_path, "# plain")
-    _action(tmp_path, "# ADR-055 Exeption: typo")
-    result = _run(tmp_path)
-    assert result.returncode == 1
-    assert "near-miss marker" in result.stdout
-    assert ".github/actions/setup/action.yml:5" in result.stdout
-
-
-def test_nested_action_file_is_scanned(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _workflow(tmp_path, "# plain")
-    _action(tmp_path, "# ADR-999 Exception: deep", name="group/inner")
-    result = _run(tmp_path)
-    assert result.returncode == 1
-    assert ".github/actions/group/inner/action.yml:5: ADR-999 does not exist" in result.stdout
-
-
-def test_other_yaml_under_actions_is_not_scanned(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _workflow(tmp_path, "# plain")
-    _action(tmp_path, "# plain")
-    (tmp_path / ".github" / "actions" / "setup" / "config.yml").write_text(
-        "# ADR-999 Exception: not an action definition\n", encoding="utf-8"
-    )
-    result = _run(tmp_path)
-    assert result.returncode == 0
-    assert "0 marker(s) in 2 workflow and action file(s)" in result.stdout
-
-
-def test_missing_actions_dir_is_not_a_config_error(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _workflow(tmp_path, "# ADR-055 Exception: reason")
-    assert not (tmp_path / ".github" / "actions").exists()
-    result = _run(tmp_path)
-    assert result.returncode == 0
-    assert "1 marker(s) in 1 workflow and action file(s)" in result.stdout
-
-
-def test_non_utf8_action_is_reported_not_crashed(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _workflow(tmp_path, "# plain")
-    path = _action(tmp_path, "# plain")
-    path.write_bytes(b"\xff\xfe# ADR-055 Exception\n")
-    result = _run(tmp_path)
-    assert result.returncode == 2
-    assert "actions/setup/action.yml" in result.stderr
 
 
 def test_non_scalar_status_does_not_crash(tmp_path: Path) -> None:
