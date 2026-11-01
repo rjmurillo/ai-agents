@@ -1,20 +1,14 @@
 """The shared FailureClassifier: one definition of every tool-failure signal.
 
-REQ-048 (https://github.com/rjmurillo/ai-agents/blob/main/.project-toolkit/specs/requirements/REQ-048-friction-triggered-retrospective-nudge.md)
-names this module the single owner of `tool_error`, `permission_denial`,
-`failed_retry`, and `edit_churn`; the AC numbers in comments here point into
-it. Consumer A (`stuck_detection.py check-failures`) feeds it caller-supplied
-events. Consumer B, a planned Stop retrospective nudge that is not shipped
-yet, will feed it transcript events through the sibling ``transcript``
-module. A parity test runs one fixture through both adapters so the two
-cannot drift.
+REQ-048, whose AC numbers the comments cite:
+https://github.com/rjmurillo/ai-agents/blob/main/.project-toolkit/specs/requirements/REQ-048-friction-triggered-retrospective-nudge.md
+Consumer A (`stuck_detection.py check-failures`) feeds it caller events; a
+planned, unshipped Stop nudge (consumer B) will feed it transcript events via
+``transcript``. A parity test keeps the two adapters in step.
 
-The signal definitions are adapted from the failure-loop guard in
-microsoft/TokenEconomizer (arXiv 2610.22732, Apache-2.0). No code was copied.
-This module uses deterministic counts only: no judge model.
-
-Stdlib only. Nothing here reads a file, the environment, or the network, and
-nothing here emits event text: callers decide what to print.
+Adapted from the failure-loop guard in microsoft/TokenEconomizer (arXiv
+2610.22732, Apache-2.0); no code copied, no judge model. Stdlib only: nothing
+here reads a file, the environment, or the network, or prints event text.
 """
 
 from __future__ import annotations
@@ -33,11 +27,9 @@ EDIT_TOOLS: frozenset[str] = frozenset(
     {"edit", "write", "multiedit", "str_replace", "create", "apply_patch", "notebookedit"}
 )
 
-# REQ-048 Definitions: an errored result whose text holds one of these,
-# case-insensitive, is a permission_denial rather than a tool_error. The set is
-# not yet checked against a labeled corpus, and the bare words can match
-# ordinary errors (a rejected git push, a rejected patch hunk), so treat the
-# permission_denial count as provisional.
+# An errored result holding one of these (any case) is a permission_denial,
+# not a tool_error. Provisional: not checked against a labeled corpus, and the
+# bare words also match ordinary errors such as a rejected git push.
 DENIAL_MARKERS: tuple[str, ...] = (
     "permission denied",
     "user doesn't want to proceed",
@@ -70,16 +62,16 @@ def canonical_input(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def canonicalize_input_text(text: str) -> str:
-    """AC-39: canonicalize ``text`` when it is a JSON document, else return it trimmed.
+def canonicalize_input_text(text: str) -> str | None:
+    """AC-39: a JSON document gets AC-38's form, JSON ``null`` none; other text is trimmed.
 
-    Consumer A takes ``input`` as caller text. A caller that passes the tool
-    input as JSON then gets the same ProgressKey the transcript adapter builds,
-    whatever its key order or spacing.
+    So a caller passing the tool input as JSON gets the transcript adapter's
+    ProgressKey, whatever its key order or spacing.
     """
     trimmed = text.strip()
     try:
-        return canonical_input(json.loads(trimmed))
+        value = json.loads(trimmed)
+        return None if value is None else canonical_input(value)
     except (ValueError, RecursionError):
         return trimmed
 

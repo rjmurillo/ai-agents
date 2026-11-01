@@ -8,8 +8,9 @@ model is called, and no hook runs this. Every signal definition lives in the
 shared FailureClassifier (`lib/failure_classifier`, canonical source
 `scripts/failure_classifier/` in the rjmurillo/ai-agents repository). A
 planned Stop retrospective nudge (consumer B, not shipped yet) will use the
-same classifier; a parity test keeps the two adapters in step. This module only validates input, applies `--window`, `--repeat`,
-and `--churn`, and builds the nudge. It reports two signals:
+same classifier; a parity test keeps the two adapters in step. This module
+only validates input, applies `--window`, `--repeat`, and `--churn`, and
+builds the nudge. It reports two signals:
 
 - ``failure-repeat`` (AC-33): one failure fingerprint seen again and again.
 - ``edit-churn`` (AC-32): one file edited across several cycles while the

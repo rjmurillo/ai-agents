@@ -220,7 +220,7 @@ def sync_pair(
     original scope exactly.
 
     A missing source directory fails closed (error, not warning): the
-    three packages in `PACKAGES` are registered, tracked sources that
+    packages in `PACKAGES` are registered, tracked sources that
     always exist in a real checkout, so a missing one means the package
     was deleted, not that it is legitimately optional. Warning and
     leaving the destination mirrors untouched let a deleted package's

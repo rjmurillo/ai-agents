@@ -266,29 +266,6 @@ class TestRoundTwoCli:
         assert proc.stdout == b""
         assert proc.stderr.startswith(b"stuck-detection: cannot load")
 
-    def test_missing_shared_lib_exits_two(self, tmp_path: Path) -> None:
-        skill = tmp_path / "skills" / "stuck-detection"
-        skill.mkdir(parents=True)
-        for name in ("stuck_detection.py", "failure_loops.py"):
-            (skill / name).write_text((TestRuntimeContract.SCRIPT / name).read_text())
-        env = {
-            k: v
-            for k, v in os.environ.items()
-            if k not in {"CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "PYTHONPATH"}
-        }
-        proc = subprocess.run(
-            [sys.executable, "-I", str(skill / "stuck_detection.py"), "check-failures"],
-            input=b"[]",
-            capture_output=True,
-            cwd=tmp_path,
-            env=env,
-            timeout=60,
-            check=False,
-        )
-        assert proc.returncode == 2
-        assert proc.stdout == b""
-        assert proc.stderr.startswith(b"stuck-detection: cannot load")
-
     def test_loader_reports_unloadable_sibling(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:

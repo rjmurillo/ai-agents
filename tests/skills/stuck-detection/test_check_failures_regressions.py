@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -157,6 +159,39 @@ class TestAC39JsonInput:
         ]
         assert run(events)["counts"]["failed_retry"] == 1
 
+    def test_json_null_input_is_keyless(self) -> None:
+        [event] = parse_events([fail("Bash", "boom", "null")])
+        assert event.progress_key is None
+
     def test_plain_command_is_not_rewritten(self) -> None:
         [event] = parse_events([fail("Bash", "boom", "  pytest -k 'a b'  ")])
         assert event.input == "pytest -k 'a b'"
+
+
+class TestSharedLibRequired:
+    """Without the plugin lib the command fails loud, never silently clean."""
+
+    SCRIPT = Path(__file__).resolve().parents[3] / "src/claude/skills/stuck-detection"
+
+    def test_missing_shared_lib_exits_two(self, tmp_path: Path) -> None:
+        skill = tmp_path / "skills" / "stuck-detection"
+        skill.mkdir(parents=True)
+        for name in ("stuck_detection.py", "failure_loops.py"):
+            (skill / name).write_text((self.SCRIPT / name).read_text())
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "PYTHONPATH"}
+        }
+        proc = subprocess.run(
+            [sys.executable, "-I", str(skill / "stuck_detection.py"), "check-failures"],
+            input=b"[]",
+            capture_output=True,
+            cwd=tmp_path,
+            env=env,
+            timeout=60,
+            check=False,
+        )
+        assert proc.returncode == 2
+        assert proc.stdout == b""
+        assert proc.stderr.startswith(b"stuck-detection: cannot load")
