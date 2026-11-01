@@ -91,7 +91,7 @@ The Step 0 answers above are the original wedge and stay verbatim. The deltas ar
   - The authors claim 18.4 to 30.9 percent lower mean cost on 277 SWE-Bench tasks. No replication was found.
   - Its `docs/PLUGIN.md` says a nudge has not been shown to change a looping model's course.
   - This spec takes the loop guard with deterministic counts in place of the judge model. It takes no tool pruning.
-- PR #7035, `src/claude/skills/stuck-detection/failure_loops.py` at `7f3f4d255`, provides the fingerprint, progress-key, failure-repeat, and edit-churn definitions. Its /review marker `1c887ef30` binds that commit; that is the peer's report and was not re-run here. AC-29 to AC-31, AC-33, and AC-34 restate its definitions and its fixed review findings. AC-35 restates its input limits. Five things change or extend that code: AC-03, AC-32's cycle end on success, AC-35's untrusted-field marking, AC-36 to AC-38, and AC-39.
+- PR #7035, `src/claude/skills/stuck-detection/failure_loops.py` at `7f3f4d255`, provides the fingerprint, progress-key, failure-repeat, and edit-churn definitions. Its /review marker `1c887ef30` binds that commit; that is the peer's report and was not re-run here. AC-29 to AC-31, AC-33, and AC-34 restate its definitions and its fixed review findings. AC-35 restates its input limits. Six things change or extend that code: AC-03, AC-32's cycle end, AC-35's untrusted-field marking, AC-36 to AC-38, AC-39, and AC-40.
 
 ### Connected context from prior-art search
 
@@ -322,7 +322,7 @@ No network, no model call, no writes inside any repository.
     - an unreadable file, a TTY, or a closed stdin;
     - a threshold or window below 2.
     On valid input it shall exit 0 with JSON. That JSON marks `fingerprint` and `target` as untrusted.
-36. **AC-36** When one fixture of 20 or fewer events runs through the transcript adapter (consumer B) and through CheckFailures input (consumer A), the classifier shall return the same FailureTally and the same per-target ChurnCycle counts for both. The fixture events carry no `check` field, so both consumers apply the derived AC-40 rule.
+36. **AC-36** When one fixture of 20 or fewer events runs through the transcript adapter (consumer B) and through CheckFailures input (consumer A), the classifier shall return the same FailureTally and the same per-target ChurnCycle counts for both. The fixture events carry no `check` field, so both consumers apply the derived AC-40 rule. One fixture event gives consumer B the tool input `{"command":"pytest tests/a.py"}` and consumer A the same JSON as a string; both shall treat it as a check.
 37. **AC-37** When an errored FailureEvent has no error text, the classifier shall count it as a `tool_error` and in an `unfingerprinted` count, and shall leave it out of every fingerprinted signal.
 38. **AC-38** When a transcript holds a non-sidechain `tool_use` and its `tool_result`, the transcript adapter shall emit exactly one FailureEvent for the pair, with the fields listed under Definitions. Its canonical input is the tool input serialized as JSON with:
     - sorted keys;
@@ -334,12 +334,12 @@ No network, no model call, no writes inside any repository.
     - **Caller-marked.** Its `check` field is `true`. A `check: false` makes it not a check. A non-bool `check` is a wrong event shape (AC-35). On an edit event, `check` is ignored.
     - **Derived when unmarked.** With no `check` field, the event is a check when both of these hold:
       - its tool is a shell tool: bash, shell, or powershell;
-      - its command, after leading wrappers are stripped, starts with a check head.
+      - its command, after leading wrappers are stripped, starts with a check head. The command is the `command` field when `input` is a JSON object, as transcript inputs are and as AC-39 parses them. Otherwise it is the trimmed `input` string.
     - **Wrappers.** `cd <dir> &&`, `VAR=value` assignments, `uv run`, `npx`, `python -m`, `python3 -m`, and `timeout <n>`.
     - **Test heads.** pytest, py.test, unittest, tox, nox, jest, vitest, and mocha.
     - **Build heads.** make, mvn, and gradle; `npm`, `yarn`, or `pnpm` followed by `test`, `build`, `lint`, or `typecheck` (optionally after `run`); `cargo test`, `cargo build`, `cargo check`, and `cargo clippy`; `go test`, `go build`, and `go vet`; `dotnet test` and `dotnet build`.
     - **Lint and typecheck heads.** tsc, eslint, ruff, mypy, pyright, shellcheck, and markdownlint or any `markdownlint`-prefixed command, such as `markdownlint-cli2`.
-    - **Matching.** Heads and wrappers match case-insensitively. A head must be followed by whitespace or the end of the command. The one exception is the `markdownlint` prefix, which may also be followed by `-`, as in `markdownlint-cli2`.
+    - **Matching.** Heads, wrappers, and tool names match case-insensitively, so `Bash` is the shell tool bash. The same rule applies to the AC-32 edit-tool list. A head must be followed by whitespace or the end of the command. The one exception is the `markdownlint` prefix, which may also be followed by `-`, as in `markdownlint-cli2`.
     - **Script and hook heads.** `python` or `python3` running a script whose file name starts with `test_`, `check_`, or `validate_`, or is `pre_pr.py`. Also `lefthook run` and `pre-commit run`.
     - **Everything else.** Any other event is not a check: a read tool, a non-shell tool, or a shell command with no check head.
     - **Both consumers.** The transcript adapter applies the derived rule, because transcripts carry no `check` field. CheckFailures uses the caller's field and falls back to the derived rule.
@@ -379,16 +379,17 @@ No network, no model call, no writes inside any repository.
 
 Measured 2026-11-01 over the same corpus location as Q5, `~/.claude/projects/*ai-agents*/*.jsonl`:
 
-- 8,508 transcripts, 3,597 MiB. 5,476 of them hold no tool calls.
-- 29,156 non-sidechain tool events.
+- 8,541 transcripts, 3,636 MiB. 5,476 of them hold no tool calls.
+- 29,265 non-sidechain tool events.
+- The live corpus grows between runs, because sessions keep writing transcripts. The rule results below were identical across the last two runs, both made with this AC-40 rule.
 
-The replay's check rule is AC-40 exactly: its head list, its wrappers, and the shell tools bash, shell, and powershell. The success counts below use a wide window: from a successful edit up to the next fingerprinted non-edit failure, with no success ending it. That window can hold several checks, so the 246 checks below are more than the 140 cycles rule D ends. Of the non-edit successes inside those windows, 246 are checks and 8,613 (97 percent) are not:
+The replay's check rule is AC-40 exactly: its head list, its wrappers, and the shell tools bash, shell, and powershell. The success counts below use a wide window: from a successful edit up to the next fingerprinted non-edit failure, with no success ending it. That window can hold several checks, so the 246 checks below are more than the 140 cycles rule D ends. Of the non-edit successes inside those windows, 246 are checks and 8,632 (97 percent) are not:
 
 | Success kind | Count |
 |---|---|
-| Other bash commands | 6,775 |
-| Read and search tools | 1,033 |
-| Other tools, including non-check `shell` and `powershell` calls | 805 |
+| Other bash commands | 6,784 |
+| Read, search, and agent tools | 1,041 |
+| Other tools, including non-check `shell` and `powershell` calls | 807 |
 | Checks | 246 |
 
 The four cycle-end rules give these results:
@@ -405,7 +406,7 @@ What the numbers show:
 - Under rule B, 122 of 124 failure closes come from non-check failures, so its extra outcomes are noise.
 - Rule C keeps Devin's false positive, and also attaches non-check failures as outcomes.
 - Rule D attaches only check results to an edit, which is what edit-churn means. It fires 0 times here, because only 2 cycles ever reached a check failure.
-- In this corpus, edit-churn is close to absent. TASK-001 measures its precision and may weight it 0 in consumer B's FrictionScore. Consumer A keeps it, judged by SLI 6's per-signal edit-churn floor once it has 20 labeled edit-churn nudges. Until then it ships under D12 and is reviewed at the 90-day decision.
+- In this corpus, edit-churn is close to absent. TASK-001 measures its precision and may weight it 0 in consumer B's FrictionScore. Consumer A keeps it, judged by SLI 6's per-signal edit-churn floor once it has 20 labeled edit-churn nudges. Until then it ships under D12. If fewer than 20 labeled edit-churn nudges exist at the 90-day decision, the owner decides whether to keep or remove edit-churn, from the fire count in the TASK-008 report.
 
 The replay script lives outside the repository. TASK-001's calibration script supersedes it.
 
@@ -445,7 +446,7 @@ No source ends an edit cycle on any non-edit event. AC-40 combines a caller-mark
 
 ## ADR cross-reference
 
-Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, AC-29 to AC-32, AC-36 to AC-38, and AC-40 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35 and AC-39) ships in the plugin when #7035 merges, because `src/claude/skills/` is plugin source. It sits outside rule 2a, because it registers no hook. ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:203`).
+Requires ADR-084 rule 2a (proposed 2026-10-31 on branch `docs/adr-084-retro-nudge-amendment`, debate log `ADR-084-debate-log-2.md`). Rule 2a conditions map as follows: a to AC-05 and AC-06; b to AC-15 and AC-24; c to AC-07; d to AC-25; launcher path for a, e, and f to AC-26 to AC-28; e to AC-22; f to AC-07 and AC-17; g to AC-09, AC-11 to AC-13, AC-18, AC-20, and AC-23. The amendment blocks AC-16 to AC-18, AC-21, and AC-25 to AC-28 only. AC-01 to AC-15, AC-19, AC-20, AC-22 to AC-24, AC-29 to AC-32 and AC-36 to AC-38 can land dogfood-first under the existing authorization. Consumer A (AC-33 to AC-35, AC-39, and AC-40) ships in the plugin when #7035 merges, because `src/claude/skills/` is plugin source. It sits outside rule 2a, because it registers no hook. ADR-084 defines a vendored hook by its registration (`ADR-084-vendored-hook-roi-bar.md:203`).
 
 ## Tasks (sequenced)
 
