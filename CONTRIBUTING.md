@@ -811,6 +811,22 @@ uv run bandit -r .claude/ scripts/          # Static analysis
 uv run pytest tests/build_scripts/test_generate_agents.py
 ```
 
+### Reading the Flaky Test Report
+
+When a CI pytest leg fails, `pytest.yml` reruns only the failed tests once.
+The rerun is serial and capped at 25 tests. `scripts/ci/flaky_test_report.py` then classifies each failure.
+
+- **flaky**: the test failed, then passed on rerun.
+- **consistent**: the test failed both times. Treat it as a real failure.
+- **unclassified**: no verdict. The rerun was skipped above the cap, did not finish, or gave an unusable result.
+
+The table appears in the leg's job summary, under "Flaky test report".
+Each flaky test also raises a warning annotation.
+The `flaky-tests-<partition>` artifact holds the same result as JSON.
+
+Detection never masks a failure. The leg stays red even when every failure was flaky.
+Fix the flaky test, then push again or re-run the job.
+
 ## Copilot CLI Version Management
 
 The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) uses GitHub Copilot CLI to prove the plugin loads. The `ai-review` action reviews with Claude and no longer installs Copilot (REQ-047, issue #6069). The CLI version is pinned to prevent regressions from auto-updates.
