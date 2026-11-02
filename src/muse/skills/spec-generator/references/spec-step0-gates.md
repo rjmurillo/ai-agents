@@ -142,3 +142,5 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
 **Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.project-toolkit/metrics/STEP-0-METRICS.md` to `.project-toolkit/metrics/STEP-0-METRICS-YYYYMMDDTHHMMSSZ.md` (using the rotation timestamp in UTC) and start a fresh file with the same header. The timestamped suffix prevents same-day collisions when two rotations land in the same calendar day (collision safety). The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
 
 ---
+
+
