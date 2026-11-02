@@ -27,14 +27,17 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # Shrink-only pins. Lower each number when you fix debt; never raise it to make
 # an entry fit. Adding an entry without editing these constants fails the
 # length tests below, so the growth shows up in the diff a reviewer reads.
-EXPECTED_C901_BASELINE_ENTRIES = 79
-# 158 is the complete count for this PR, not growth: the first cut counted 144
+# 81 is 79 plus the two src/muse/lib copies that #7041 added on main while
+# this PR was open; they mirror src/claude/lib files already listed.
+EXPECTED_C901_BASELINE_ENTRIES = 81
+# 159 is the complete count for this PR, not growth: the first cut counted 144
 # and missed the modules that fail only an error code (type-arg,
 # no-any-return, call-overload). Those now count, which is 148, plus the 10
-# modules whose debt strict mode surfaced and no override named at all. From
-# here the number only goes down. It counts entries, not distinct modules
-# (144): a module listed in three blocks lowers it by three once fixed.
-EXPECTED_STRICT_BASELINE_MODULE_NAMES = 158
+# modules whose debt strict mode surfaced and no override named at all, plus
+# build/scripts/generate_hooks_events.py, which failed even before strict
+# mode. From here the number only goes down. It counts entries, not distinct
+# modules (145): a module listed in three blocks lowers it by three once fixed.
+EXPECTED_STRICT_BASELINE_MODULE_NAMES = 159
 
 C901_BASELINE_CODES = ["C901"]
 DISABLE_ERROR_CODE_KEY = "disable_error_code"
@@ -98,6 +101,7 @@ GENERATED_MIRROR_C90_GLOBS = frozenset(
         "src/copilot-cli/skills/**/*.py",
         "src/cursor/skills/**/*.py",
         "src/hermes/**/*.py",
+        "src/muse/skills/**/*.py",
     }
 )
 _GLOB_CHARS = frozenset("*?[")

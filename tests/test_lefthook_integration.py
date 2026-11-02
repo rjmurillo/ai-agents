@@ -679,7 +679,9 @@ def test_mypy_job_cap_covers_the_documented_child_boundary() -> None:
     """
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
     jobs = {job["name"]: job for job in _flatten_jobs(config["pre-push"]["jobs"])}
-    outer_seconds = _parse_lefthook_duration(jobs["python-type-check"]["timeout"])
+    job_timeout = jobs["python-type-check"]["timeout"]
+    assert isinstance(job_timeout, str)
+    outer_seconds = _parse_lefthook_duration(job_timeout)
     inner_seconds = policy.MYPY_TIMEOUT_SECONDS
 
     ordinary_children = len(policy._mypy_invocations(list(_MYPY_BATCH_SAMPLE)))
