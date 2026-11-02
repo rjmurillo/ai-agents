@@ -86,8 +86,8 @@ There is no `byte` value. Byte equality is `derived` with an identity transform.
 | `agents` | `src/claude/agents/`, `.claude/agents/`, `.github/agents/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` | `derived` | `build/scripts/build_all.py` with `--check` (pre-PR gate Generated Artifact Staleness) | - | - |
 | `agent-catalog` | `docs/agent-catalog.md` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
 | `adr-index` | `.project-toolkit/architecture/README.md` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
-| `lib` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/codex/lib/` packages, the `.claude/lib/` links, the `review` sidecar validator | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
-| `skills` | `src/claude/skills/`, `.claude/skills/`, `src/copilot-cli/skills/`, `src/codex/skills/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `lib` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/codex/lib/`, `src/muse/lib/` packages, the `.claude/lib/` links, the `review` sidecar validator | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `skills` | `src/claude/skills/`, `.claude/skills/`, `src/copilot-cli/skills/`, `src/codex/skills/`, `src/muse/skills/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
 | `rules` | `src/claude/rules/`, `.claude/rules/`, `.github/instructions/`, `src/copilot-cli/instructions/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
 | `hooks` | `src/claude/hooks/`, `.claude/hooks/`, `.claude/settings.json`, `src/copilot-cli/hooks/`, `.github/hooks/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
 | `pr-quality-prompts` | `.github/prompts/pr-quality-gate-*.md` | `derived` | `build/scripts/run_drift_check_ci.py` (runs the generator with `--dry-run`) | - | - |

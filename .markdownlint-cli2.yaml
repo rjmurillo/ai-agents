@@ -196,6 +196,10 @@ ignores:
   # report each one a second time, in a tree no one edits.
   - "src/hermes/**"
 
+  # The Muse tree is a generated render of src/claude/skills content
+  # (templates/platforms/muse.yaml), so the same reasoning holds.
+  - "src/muse/**"
+
   # XML specification document stored with .md extension for GitHub rendering.
   # The file is valid XML (skill specification schema), not authored Markdown.
   # Its 4-space-indented XML structure produces false-positive MD046 violations
