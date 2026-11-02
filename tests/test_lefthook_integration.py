@@ -610,12 +610,17 @@ _POLICY_SUBCOMMAND_TIMEOUT: dict[str, int] = {
 _MINIMUM_MARGIN_SECONDS = 30
 # The pre-push gate splits a push into one mypy child per batch class:
 # _mypy_invocations() keeps test and non-test files apart because only a batch
-# made entirely of test paths gets the annotation relaxation. This sample fills
-# both classes, so it is the smallest push that runs two children, and the sum
-# below is the cost the job cap has to cover. Each further class adds its own
-# capped child: a scripts/validation/ path is one child of its own.
+# made entirely of test paths gets the annotation relaxation, and it gives each
+# scripts/validation/ path its own child because those modules also resolve
+# under a bare name through MYPYPATH. This sample fills all three classes, so
+# it is the ordinary push that runs three children and the sum below is the
+# cost the job cap has to cover. A push touching a second validation file runs
+# a fourth child, which no fixed wall-clock cap can cover while every child
+# keeps its own 60s timeout; the cap is sized for the common case and the inner
+# timeout is what a larger push relies on.
 _MYPY_BATCH_SAMPLE = (
     "build/scripts/build_all.py",
+    "scripts/validation/git_hook_policy.py",
     "tests/test_lefthook_integration.py",
 )
 

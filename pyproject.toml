@@ -660,26 +660,43 @@ module = [
 check_untyped_defs = false
 
 [[tool.mypy.overrides]]
-# Debt strict mode surfaces in modules that passed `mypy` on main because the
-# checks below were off: a bare `dict`/`list` annotation (type-arg), a value
-# returned from a function typed `Any` (no-any-return), and an `int()` call on a
-# value typed `object` (call-overload). Each module is named here rather than
-# fixed inline, so the debt stays visible and the baseline stays shrink-only:
-# fix a module, delete its name, and lower the pinned count in
-# tests/test_mypy_strict_baseline.py.
+# Debt strict mode surfaced in modules that passed `mypy` on main because the
+# check below was off: an `int()` call on a value typed `object`.
 module = [
     "scripts.ci.parse_drift_results",
+]
+disable_error_code = ["call-overload"]
+
+[[tool.mypy.overrides]]
+# Debt strict mode surfaced in modules that passed `mypy` on main because the
+# checks below were off: a bare `dict`/`list` annotation (type-arg) and a value
+# returned from a function typed `Any` (no-any-return).
+module = [
     "scripts.eval.analyze-pr-churn",
     "scripts.eval.eval-e2e-delivery",
+]
+disable_error_code = ["type-arg", "no-any-return"]
+
+[[tool.mypy.overrides]]
+# Debt strict mode surfaced in modules that passed `mypy` on main because
+# no-any-return was off: a value returned from a function typed `Any`.
+module = [
     "scripts.eval.eval_autoplan_routes",
-    "scripts.eval.variance-control",
-    "scripts.validate_pr_review_config",
     "scripts.validation.checks_ci_parity",
     "scripts.validation.memory_placement_git",
     "scripts.validation.run_install_parity_ci",
     "scripts.validation.run_plugin_version_bump_ci",
 ]
-disable_error_code = ["type-arg", "no-any-return", "call-overload"]
+disable_error_code = ["no-any-return"]
+
+[[tool.mypy.overrides]]
+# Debt strict mode surfaced in modules that passed `mypy` on main because
+# disallow_any_generics was off: a bare `dict`/`list` annotation.
+module = [
+    "scripts.eval.variance-control",
+    "scripts.validate_pr_review_config",
+]
+disable_error_code = ["type-arg"]
 
 # Mirror of [project.optional-dependencies].dev above. Both tables must list the
 # same dev tools: `uv pip install -e ".[dev]"` reads only the extra, while a plain
