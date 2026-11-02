@@ -5730,6 +5730,76 @@ def test_mypy_invocation_disables_color_before_the_paths(
     assert args.index("--no-color-output") < args.index("--")
 
 
+def test_mypy_test_path_matches_the_ruff_ann_waiver_globs() -> None:
+    assert policy._is_mypy_test_path("tests/test_a.py")
+    assert policy._is_mypy_test_path("tests/skills/memory/test_b.py")
+    assert policy._is_mypy_test_path("src/claude/skills/x/tests/test_c.py")
+    assert not policy._is_mypy_test_path("scripts/validation/checks_spec.py")
+    # A file named like a test outside a tests/ directory is not covered by
+    # the ruff waiver, so it keeps strict annotation checks.
+    assert not policy._is_mypy_test_path(".codeql/scripts/test_codeql_config.py")
+    assert not policy._is_mypy_test_path("tests.py")
+
+
+def test_mypy_partition_keeps_test_and_source_files_in_separate_batches() -> None:
+    invocations = policy._mypy_invocations(
+        ["pkg/a.py", "pkg/b.py", "tests/test_a.py", "tests/skills/x/test_b.py"]
+    )
+
+    assert invocations == [
+        (["pkg/a.py", "pkg/b.py"], False),
+        (["tests/test_a.py", "tests/skills/x/test_b.py"], False),
+    ]
+
+
+def test_mypy_partition_omits_empty_test_batch() -> None:
+    assert policy._mypy_invocations(["pkg/a.py"]) == [(["pkg/a.py"], False)]
+    assert policy._mypy_invocations(["tests/test_a.py"]) == [(["tests/test_a.py"], False)]
+
+
+def test_mypy_invocation_relaxes_annotation_checks_only_for_test_batches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        _root: Path,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.append(list(args))
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    policy._invoke_mypy(["tests/test_a.py"], tmp_path, False)
+    policy._invoke_mypy(["source.py"], tmp_path, False)
+    policy._invoke_mypy(["tests/test_a.py", "source.py"], tmp_path, False)
+
+    test_args, source_args, mixed_args = captured
+    flags = set(policy.MYPY_TEST_PATH_FLAGS)
+    assert flags <= set(test_args[: test_args.index("--")])
+    assert not flags & set(source_args)
+    assert not flags & set(mixed_args)
+
+
+def test_mypy_invocation_strict_config_spares_unannotated_tests_only(tmp_path: Path) -> None:
+    # Real mypy, no mocks: under strict = true an unannotated function fails in
+    # a source file and passes in a tests/ directory with no __init__.py.
+    _write_lf(tmp_path / "pyproject.toml", "[tool.mypy]\nstrict = true\n")
+    (tmp_path / "tests" / "skills").mkdir(parents=True)
+    _write_lf(tmp_path / "tests" / "skills" / "test_a.py", "def test_a():\n    pass\n")
+    _write_lf(tmp_path / "src_a.py", "def helper():\n    pass\n")
+
+    test_result = policy._invoke_mypy(["tests/skills/test_a.py"], tmp_path, False)
+    source_result = policy._invoke_mypy(["src_a.py"], tmp_path, False)
+
+    assert test_result.returncode == 0, test_result.stdout
+    assert source_result.returncode == 1
+    assert "[no-untyped-def]" in source_result.stdout
+
+
 def test_push_ref_parser_preserves_multiple_refs_and_deletions() -> None:
     zero = "0" * 40
     one = "1" * 40

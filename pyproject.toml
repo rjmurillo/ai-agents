@@ -169,8 +169,11 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90"]
 ignore = []
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
 # Eval scripts contain embedded prompt text that exceeds 100 chars by design
@@ -217,13 +220,14 @@ ignore = []
 "src/claude/skills/**/*.py" = ["ANN", "E501"]
 # ADR-115: src/cursor/skills/ copies the same support files byte for byte
 # (generate_skills.py, artifacts.skills in templates/platforms/cursor.yaml), so it
-# carries the same pre-existing violations and gets the same waiver.
-"src/cursor/skills/**/*.py" = ["ANN", "E501"]
+# carries the same pre-existing violations and gets the same waiver. C90 is
+# waived too: the src/claude/skills/ copy carries the C901 baseline entries.
+"src/cursor/skills/**/*.py" = ["ANN", "E501", "C90"]
 # ADR-115: src/codex/skills/ is the same non-SKILL.md content again.
-"src/codex/skills/**/*.py" = ["ANN", "E501"]
+"src/codex/skills/**/*.py" = ["ANN", "E501", "C90"]
 # src/muse/skills/ is the same non-SKILL.md content again, rendered with
-# frontmatterKeep (templates/platforms/muse.yaml).
-"src/muse/skills/**/*.py" = ["ANN", "E501"]
+# frontmatterKeep (templates/platforms/muse.yaml), so it takes the same C90 waiver.
+"src/muse/skills/**/*.py" = ["ANN", "E501", "C90"]
 # Copilot CLI mirror trees are generated wholesale from the .claude sources by
 # build/scripts/build_all.py (the canonical sources above are the linted copy).
 # The generator inlines hooks into wrapper functions, which trips N-series and
@@ -231,11 +235,11 @@ ignore = []
 # rule set is exempt for these trees. Without this, regenerating a single mirror
 # surfaces the tree's pre-existing generator-induced violations (~1200) the
 # moment the file enters a changed-set.
-"src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
-"src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
+"src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90"]
+"src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90"]
 # Hermes packs (ADR-115) hold byte copies of the .claude skill scripts and the
 # rendered lib, so the linted sources above are the copy that matters.
-"src/hermes/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
+"src/hermes/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90"]
 "packages/**/*.py" = ["ANN", "E501"]
 # The skillbook schema checker validates values of arbitrary JSON type;
 # `Any` is the honest annotation for an instance the checker will narrow.
@@ -255,8 +259,101 @@ ignore = []
 # semgrep false-positive on the JWT test fixture in a scan of changed files).
 "tests/test_redact_secrets.py" = ["RUF100"]
 
+# C901 baseline. These files held a function over max-complexity when C90
+# landed (2026-11-01, 217 functions in 189 files). The generated copies waived
+# above (src/copilot-cli, src/hermes, src/cursor/skills, src/codex/skills) are
+# not listed, which leaves 79 files. This table holds only the baseline,
+# which may only shrink: split the function, then delete the file's line.
+# tests/test_strict_baselines.py fails when a listed file no longer exists or
+# no longer has a C901 violation.
+[tool.ruff.lint.extend-per-file-ignores]
+".claude/lib/claude_hook_dispatch.py" = ["C901"]
+".claude/lib/hook_dispatch.py" = ["C901"]
+".codeql/scripts/invoke_codeql_scan.py" = ["C901"]
+".codeql/scripts/test_codeql_config.py" = ["C901"]
+"build/generate_agents.py" = ["C901"]
+"build/scripts/build_all.py" = ["C901"]
+"build/scripts/generate_hooks_body.py" = ["C901"]
+"build/scripts/generate_hooks_events.py" = ["C901"]
+"build/scripts/generate_pr_quality_prompts.py" = ["C901"]
+"build/scripts/generate_rules.py" = ["C901"]
+"build/scripts/generate_skills.py" = ["C901"]
+"build/scripts/lib_mirror.py" = ["C901"]
+"scripts/ai_review_common/verdict.py" = ["C901"]
+"scripts/eval/_optimizer_adapters.py" = ["C901"]
+"scripts/eval/_optimizer_core.py" = ["C901"]
+"scripts/eval/eval-agent-vs-baseline.py" = ["C901"]
+"scripts/eval/eval-agents.py" = ["C901"]
+"scripts/eval/eval-knowledge-integration.py" = ["C901"]
+"scripts/eval/eval-model-sweep.py" = ["C901"]
+"scripts/eval/eval-prompt-change.py" = ["C901"]
+"scripts/eval/eval-rule-activation.py" = ["C901"]
+"scripts/eval/optimize-artifact.py" = ["C901"]
+"scripts/eval/variance-control.py" = ["C901"]
+"scripts/github_core/body_file.py" = ["C901"]
+"scripts/incoherence.py" = ["C901"]
+"scripts/maintenance/gc_worktrees.py" = ["C901"]
+"scripts/redact_secrets.py" = ["C901"]
+"scripts/security/invoke_precommit_security.py" = ["C901"]
+"scripts/traceability/show_traceability_graph.py" = ["C901"]
+"scripts/validate_pr_review_config.py" = ["C901"]
+"scripts/validation/check_skill_contract_tests.py" = ["C901"]
+"scripts/validation/check_skill_md_drift.py" = ["C901"]
+"scripts/validation/check_subprocess_encoding.py" = ["C901"]
+"scripts/validation/git_hook_policy.py" = ["C901"]
+"scripts/validation/memory_index.py" = ["C901"]
+"scripts/validation/run_workflow_local_test.py" = ["C901"]
+"scripts/validation/skill_frontmatter.py" = ["C901"]
+"src/claude/lib/ai_review_common/verdict.py" = ["C901"]
+"src/claude/lib/github_core/body_file.py" = ["C901"]
+"src/claude/skills/adr-review/scripts/detect_adr_changes.py" = ["C901"]
+"src/claude/skills/buy-vs-build-framework/scripts/calculate_tco.py" = ["C901"]
+"src/claude/skills/context-optimizer/scripts/test_skill_passive_compliance.py" = ["C901"]
+"src/claude/skills/doc-accuracy/scripts/doc_accuracy.py" = ["C901"]
+"src/claude/skills/github/scripts/issue/invoke_copilot_assignment.py" = ["C901"]
+"src/claude/skills/github/scripts/issue/post_issue_comment.py" = ["C901"]
+"src/claude/skills/github/scripts/issue/redact_secrets.py" = ["C901"]
+"src/claude/skills/github/scripts/issue/set_issue_labels.py" = ["C901"]
+"src/claude/skills/github/scripts/issue/set_issue_milestone.py" = ["C901"]
+"src/claude/skills/github/scripts/pr/detect_copilot_followup_pr.py" = ["C901"]
+"src/claude/skills/github/scripts/pr/get_pr_comments_by_reviewer.py" = ["C901"]
+"src/claude/skills/github/scripts/pr/get_pr_review_comments.py" = ["C901"]
+"src/claude/skills/github/scripts/pr/get_unaddressed_comments.py" = ["C901"]
+"src/claude/skills/github/scripts/pr/pr_validations.py" = ["C901"]
+"src/claude/skills/github/scripts/pr/run_completion_gate.py" = ["C901"]
+"src/claude/skills/github/scripts/test_workflow_locally.py" = ["C901"]
+"src/claude/skills/github/scripts/utils/extract_github_context.py" = ["C901"]
+"src/claude/skills/memory/memory_core/schema_validation.py" = ["C901"]
+"src/claude/skills/memory/scripts/extract_session_episode.py" = ["C901"]
+"src/claude/skills/memory/scripts/invoke_memory_cross_reference.py" = ["C901"]
+"src/claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py" = ["C901"]
+"src/claude/skills/observability/scripts/query_logs.py" = ["C901"]
+"src/claude/skills/orphan-ref-validator/scripts/scan.py" = ["C901"]
+"src/claude/skills/skillforge/scripts/quick_validate.py" = ["C901"]
+"src/claude/skills/skillforge/scripts/triage_skill_request.py" = ["C901"]
+"src/claude/skills/spec/scripts/redact_secrets.py" = ["C901"]
+"src/claude/skills/style-enforcement/scripts/check_style.py" = ["C901"]
+"src/codex/lib/ai_review_common/verdict.py" = ["C901"]
+"src/codex/lib/github_core/body_file.py" = ["C901"]
+"src/copilot-cli/lib/ai_review_common/verdict.py" = ["C901"]
+"src/copilot-cli/lib/claude_hook_dispatch.py" = ["C901"]
+"src/copilot-cli/lib/github_core/body_file.py" = ["C901"]
+"src/copilot-cli/lib/hook_dispatch.py" = ["C901"]
+"src/cursor/lib/ai_review_common/verdict.py" = ["C901"]
+"src/cursor/lib/github_core/body_file.py" = ["C901"]
+"tests/build_scripts/test_github_url_routing_contract.py" = ["C901"]
+"tests/ci/test_merge_group_readiness.py" = ["C901"]
+"tests/ci/test_validation_scripts_are_reachable.py" = ["C901"]
+"tests/integration/test_vendored_install.py" = ["C901"]
+"tests/test_analyst_skill_resolution.py" = ["C901"]
+
 [tool.mypy]
 python_version = "3.14"
+# strict turns on every optional check. The flags below it predate strict and
+# stay listed so the base policy reads the same with or without it. Modules
+# that fail a strict check on main relax only that check in the
+# "Strict-mode baseline" overrides at the end of this section.
+strict = true
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
@@ -346,6 +443,221 @@ disallow_any_generics = false
 module = "tests.*"
 disallow_any_generics = false
 warn_return_any = false
+# The same ANN waiver means test functions carry no annotations, so the strict
+# annotation checks stay off here. check_untyped_defs stays off too: under it,
+# the bodies of those unannotated tests would be type-checked for the first
+# time and every touched test would trip pre-existing errors.
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = false
+
+# Strict-mode baseline. These modules failed a strict check on main when
+# strict = true landed (2026-11-01, 917 errors in 241 files, measured file by
+# file the way the pre-push mypy gate runs). Each override turns off only the
+# strict check the listed modules failed, so the rest of strict still applies to
+# them. A scripts/validation module can be listed twice, because the gate also
+# loads it by its bare name through MYPYPATH. The baseline may only shrink: fix
+# a module, then delete its line. tests/test_strict_baselines.py fails when a
+# listed module no longer exists.
+[[tool.mypy.overrides]]
+# Other modules import names these modules never re-export (attr-defined).
+module = [
+    "ai_review_common.quality_gate",
+    "check_adr_lifecycle",
+    "checks_common",
+    "checks_spec",
+    "github_core.api",
+    "scripts.ai_review_common.quality_gate",
+    "scripts.bulk_cancel_guard",
+    "scripts.ci.adr101_publisher",
+    "scripts.ci.check_pr_merge_state",
+    "scripts.ci.consecutive_breach",
+    "scripts.ci.diff_line_scope",
+    "scripts.ci.merge_tree_materialization",
+    "scripts.ci.merge_tree_ratchet_check",
+    "scripts.ci.mypy_ratchet",
+    "scripts.ci.ruff_ratchet",
+    "scripts.ci.ruleset_context_drift",
+    "scripts.ci.run_pytest_partition",
+    "scripts.ci.run_pytest_windows",
+    "scripts.ci.spec_coverage_scope",
+    "scripts.ci.verify_code_env",
+    "scripts.ci.verify_dispatch_closure",
+    "scripts.ci.windows_path_filter",
+    "scripts.github_core.api",
+    "scripts.github_core.validation",
+    "scripts.hook_utilities.guards",
+    "scripts.maintenance._gc_apply",
+    "scripts.maintenance.gc_worktrees",
+    "scripts.maintenance.prune_branch_config",
+    "scripts.maintenance.repair_packed_refs",
+    "scripts.metrics.control_plane_baseline",
+    "scripts.metrics.gate_latency",
+    "scripts.metrics.gate_latency_io",
+    "scripts.metrics.gate_latency_sampler",
+    "scripts.metrics.kill_criteria",
+    "scripts.metrics.metric_artifact_io",
+    "scripts.metrics.sg_diff_artifact",
+    "scripts.metrics.sg_diff_reference",
+    "scripts.metrics.sg_reference_ab",
+    "scripts.metrics.sg_reference_ab_api",
+    "scripts.quality_gate.run_pytest",
+    "scripts.security.run_semgrep",
+    "scripts.skillbook",
+    "scripts.testing.mutation_workspace_git",
+    "scripts.testing.temp_roots",
+    "scripts.validate_session_json",
+    "scripts.validation.agent_skill_discriminator_baseline",
+    "scripts.validation.check_adr_lifecycle",
+    "scripts.validation.check_adr_links",
+    "scripts.validation.check_agent_skill_discriminator",
+    "scripts.validation.check_bypass_allowlist",
+    "scripts.validation.check_doc_interpreter_portability",
+    "scripts.validation.check_handoff_resume",
+    "scripts.validation.check_in_root_worktrees",
+    "scripts.validation.check_index_line_endings",
+    "scripts.validation.check_measurement_anchoring",
+    "scripts.validation.check_plugin_root_interpreter",
+    "scripts.validation.check_skill_md_portability",
+    "scripts.validation.check_tmp_worktrees",
+    "scripts.validation.checks_common",
+    "scripts.validation.checks_plugin",
+    "scripts.validation.checks_tooling",
+    "scripts.validation.cli_smoke_paths",
+    "scripts.validation.effective_context",
+    "scripts.validation.effective_context_resolvers",
+    "scripts.validation.effective_context_sources",
+    "scripts.validation.git_hook_policy",
+    "scripts.validation.instruction_bytes",
+    "scripts.validation.instruction_bytes_delta",
+    "scripts.validation.lefthook_runner",
+    "scripts.validation.portability_baseline",
+    "scripts.validation.portability_common",
+    "scripts.validation.portability_git",
+    "scripts.validation.pr_description",
+    "scripts.validation.pre_pr",
+    "scripts.validation.pre_pr_headroom",
+    "scripts.validation.pre_pr_sequence",
+    "scripts.validation.promotion_fetch",
+    "scripts.validation.push_file_list",
+    "scripts.validation.skill_size",
+    "scripts.validation.subprocess_runner",
+    "scripts.validation.testmon_lane_db",
+    "scripts.validation.testmon_seed",
+    "scripts.validation.testmon_seed_archive",
+    "scripts.validation.testmon_seed_gh",
+    "scripts.validation.testmon_seed_trust",
+    "scripts.validation.tracked_paths",
+    "scripts.validation.validate_argument_hint",
+    "tests.bare_repo_scan",
+    "tests.build_scripts._surface_parity_helpers",
+    "tests.build_scripts.test_check_agent_source_parity",
+    "tests.ci.pytest_split_group_collection",
+    "tests.ci.shared_once",
+    "tests.eval._routing_verdicts_test_support",
+    "tests.metrics.test_sg_reference_ab",
+    "tests.skills.skillforge.triage_support",
+    "tests.test_gc_worktrees_real_git_apply",
+    "tests.validation.citation_freshness_helpers",
+    "tests.validation.measurement_anchoring_helpers",
+    "tests.validation.test_check_index_line_endings_repo",
+    "tests.validation.test_check_nl_structural_debt",
+]
+implicit_reexport = true
+
+[[tool.mypy.overrides]]
+# Subclasses a class that mypy sees as Any (misc).
+module = [
+    "check_adr_lifecycle",
+    "instruction_budget_globs",
+    "scripts.eval._capability_probes",
+    "scripts.eval._codex_frames",
+    "scripts.eval._copilot_wire",
+    "scripts.eval._recorded_captures",
+    "scripts.generate_adr_index",
+    "scripts.skill_support_mirror",
+    "scripts.validate_agent_matrix_refs",
+    "scripts.validate_workflows",
+    "scripts.validation.check_adr_lifecycle",
+    "scripts.validation.frontmatter_contract",
+    "scripts.validation.instruction_budget_globs",
+]
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+# Carries a cast that mypy can prove redundant (redundant-cast).
+module = [
+    "checks_tooling",
+    "citation_head_state",
+    "scripts.eval._eval_api_adapter",
+    "scripts.validation.checks_tooling",
+    "scripts.validation.citation_head_state",
+]
+disable_error_code = ["redundant-cast"]
+
+[[tool.mypy.overrides]]
+# Carries a type: ignore that strict mode reads as unused (unused-ignore).
+module = [
+    "github_core.bot_config",
+    "scripts.github_core.bot_config",
+    "scripts.skill_template_grammar",
+    "scripts.validate_pr_review_config",
+    "tests.lib.conftest",
+    "tests.test_github_client",
+    "tests.test_markdown_parser",
+]
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+# Defines functions with missing annotations (no-untyped-def).
+module = [
+    "analyze",
+    "evalkit",
+    "run_github_comparison",
+    "run_sweep",
+    "scripts.incoherence",
+    "select_files",
+    "semantic_hooks",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+# Calls an unannotated function from typed code (no-untyped-call).
+module = [
+    "analyze",
+    "run_github_comparison",
+    "run_sweep",
+    "scripts.incoherence",
+    "select_files",
+]
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+# Applies an untyped decorator (untyped-decorator).
+module = [
+    "scripts.validate_session_json",
+    "tests.e2e.test_security_review_e2e",
+]
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+# Compares values whose types cannot overlap (comparison-overlap).
+module = [
+    "scripts.validate_workflows",
+    "tests.validation.test_evidence_contract",
+]
+strict_equality = false
+
+[[tool.mypy.overrides]]
+# Has type errors inside unannotated function bodies.
+module = [
+    "analyze",
+    "run_github_comparison",
+    "run_sweep",
+]
+check_untyped_defs = false
 
 # Mirror of [project.optional-dependencies].dev above. Both tables must list the
 # same dev tools: `uv pip install -e ".[dev]"` reads only the extra, while a plain

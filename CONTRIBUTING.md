@@ -789,6 +789,18 @@ The repository enforces quality automatically at multiple stages:
 
 **No manual test runs required for routine development.** Quality gates run automatically.
 
+### Type and Complexity Baselines
+
+mypy runs in strict mode. ruff enforces C901 with a max complexity of 15.
+Code that failed either check when it landed sits in a baseline in `pyproject.toml`:
+
+- The "Strict-mode baseline" `[[tool.mypy.overrides]]` entries. Each turns off one strict check for the modules it lists.
+- The `[tool.ruff.lint.extend-per-file-ignores]` table. Each entry waives C901 for one file.
+
+The baselines may only shrink. Do not add an entry for new code; fix the code.
+When you fix a listed module or file, delete its entry in the same change.
+`tests/test_strict_baselines.py` fails on a stale entry.
+
 ### Manual Testing (Optional)
 
 For local debugging or development iteration:
