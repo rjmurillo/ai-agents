@@ -92,13 +92,22 @@ def test_devcontainer_updates_require_a_manual_merge(config: dict[str, Any]) -> 
     Without this rule a Renovate feature bump automerges on its own and leaves
     devcontainer-lock.json holding digests for refs that are no longer used,
     which breaks `devcontainer up --frozen-lockfile` for every contributor.
-    Every rule naming the manager is checked, so a later rule cannot re-enable
-    automerge behind the first one.
+
+    Renovate applies packageRules in order with later rules winning, so the
+    requirement only holds while the exemption is the last rule that sets
+    automerge. That is why this test pins position and not just presence: a
+    later rule carrying `automerge: true` reaches devcontainer too, whether it
+    is unscoped, narrowed by `matchUpdateTypes`, or narrowed by
+    `matchDatasources` such as `docker`, none of which exclude the manager.
     """
-    rules = [r for r in config["packageRules"] if "devcontainer" in r.get("matchManagers", [])]
-    assert rules, "no packageRules entry targets the devcontainer manager"
-    assert all(rule.get("automerge") is not True for rule in rules), rules
-    assert any(rule.get("automerge") is False for rule in rules), rules
+    rules = config["packageRules"]
+    deciders = [rule for rule in rules if "automerge" in rule]
+    assert deciders, "no packageRules entry sets automerge"
+    last = deciders[-1]
+    assert last.get("automerge") is False, f"the last automerge rule re-enables it: {last}"
+    assert "devcontainer" in last.get("matchManagers", []), (
+        f"the last automerge rule must be the devcontainer exemption: {last}"
+    )
 
 
 def test_no_package_rule_excludes_packages_from_automerge(config: dict[str, Any]) -> None:
