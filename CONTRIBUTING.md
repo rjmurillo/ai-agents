@@ -34,6 +34,15 @@ Thank you for your interest in contributing to this project. This guide explains
 
 ### Setup Steps
 
+**One command.** From a fresh clone, this installs the locked environment and
+Git hooks, then runs a quick test to prove the setup works:
+
+```bash
+uv sync --frozen --extra dev && uv run --frozen lefthook install --reset-hooks-path && uv run --frozen lefthook check-install && git config blame.ignoreRevsFile .git-blame-ignore-revs && uv run --frozen pytest tests/test_workspace_limits.py -q
+```
+
+It covers steps 4, 6, and 7 below. Step 5 (Git configuration) stays manual.
+
 1. Fork the repository
 2. Clone your fork locally
 3. **Install Python 3.14.x** (see Prerequisites above)

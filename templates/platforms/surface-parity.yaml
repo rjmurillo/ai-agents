@@ -503,6 +503,7 @@ surfaces:
       - copilot-instructions.md
       - dependabot.yml
       - labeler.yml
+      - release.yml
     reason: Repository configuration authored in place.
   - id: github-workflows
     path: .github/workflows

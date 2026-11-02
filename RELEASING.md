@@ -73,6 +73,45 @@ Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-age
 and select `dry-run: true` (the default). This builds and validates the package, runs
 the gate advisory, and runs `npm publish --dry-run` without publishing.
 
+## Writing release notes
+
+Release notes start from a generated draft and end as a hand-written narrative.
+
+### 1. Generate the draft
+
+`.github/release.yml` sorts merged PRs into categories by label: Security,
+Features, Fixes, Dependencies, Documentation, CI and build, and Other changes.
+A PR lands in the first category that matches one of its labels. Most labels
+come from `.github/labeler.yml`, which keys on changed paths and branch prefixes
+such as `feat/` and `fix/`.
+
+Pick one way to get the draft:
+
+- **GitHub UI:** open [Draft a new release](https://github.com/rjmurillo/ai-agents/releases/new),
+  choose the tag and the previous tag, then click **Generate release notes**.
+- **REST API:** call `POST /repos/{owner}/{repo}/releases/generate-notes`. It
+  returns the draft and creates nothing. The `github` skill has no release
+  script, so use `gh api` directly:
+
+  ```bash
+  gh api --method POST repos/rjmurillo/ai-agents/releases/generate-notes \
+    -f tag_name=vX.Y.Z -f previous_tag_name=vA.B.C --jq .body
+  ```
+
+### 2. Write the narrative
+
+Follow [docs/release-notes-styleguide.md](docs/release-notes-styleguide.md).
+Use the draft as raw input, not as the published body:
+
+1. Group the Features and Fixes entries into benefit-focused feature sections.
+2. Count the PRs in the draft for the opening paragraph. Get the commit count
+   with `git rev-list --count vA.B.C..vX.Y.Z`.
+3. Move the full categorized list into the "All Changes" section.
+4. Take the contributor list from the draft's "New Contributors" block and PR authors.
+
+Unlabeled PRs fall into "Other changes". Before you publish, add the right
+label to any PR that belongs in a named category, then regenerate the draft.
+
 ## Rollback procedures
 
 ### Deprecate a version

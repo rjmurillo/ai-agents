@@ -1,0 +1,51 @@
+# GitHub generated release notes configuration.
+#
+# Used by "Generate release notes" in the GitHub release UI and by
+# POST /repos/{owner}/{repo}/releases/generate-notes. The output is a
+# draft list of merged PRs. The hand-written narrative follows
+# docs/release-notes-styleguide.md (see RELEASING.md).
+#
+# A PR lands in the first category whose labels match, so order matters.
+# Labels come from .github/labeler.yml (paths and branch prefixes) and
+# renovate.json. Authors mirror .github/bot-authors.yml where the bot
+# opens PRs that carry no user-facing change.
+#
+# Docs: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+
+changelog:
+  exclude:
+    labels:
+      - invalid
+      - wontfix
+    authors:
+      - github-actions[bot]
+  categories:
+    - title: Security
+      labels:
+        - security
+        - agent-security
+    - title: Features
+      labels:
+        - enhancement
+    - title: Fixes
+      labels:
+        - bug
+    - title: Dependencies
+      labels:
+        - dependencies
+        - python:uv
+        - renovate-major
+    - title: Documentation
+      labels:
+        - documentation
+    - title: CI and build
+      labels:
+        - github-actions
+        - area-workflows
+        - area-ci
+        - ci
+        - area-infrastructure
+        - automation
+    - title: Other changes
+      labels:
+        - "*"

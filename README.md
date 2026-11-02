@@ -526,27 +526,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 If you're contributing code or running tests locally:
 
 1. Fork and clone the repository
-2. Install Python dependencies:
+2. From the clone root, run one command to install dependencies and Git hooks
+   and to prove the setup with a quick test:
 
    ```bash
-   # Create virtual environment (optional but recommended)
-   uv venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-   # Install project with dev dependencies
-   uv pip install -e ".[dev]"
+   uv sync --frozen --extra dev && uv run --frozen lefthook install --reset-hooks-path && uv run --frozen lefthook check-install && git config blame.ignoreRevsFile .git-blame-ignore-revs && uv run --frozen pytest tests/test_workspace_limits.py -q
    ```
+
+   It needs Python 3.14 and [UV](https://docs.astral.sh/uv/getting-started/installation/).
+   Run the full suite later with `uv run --frozen pytest tests/`.
 
 3. Set up environment variables (copy `.env.example` to `.env` and fill in your API keys)
-4. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
-5. Run tests to verify setup:
-
-   ```bash
-   python -m pytest tests/ -v
-   ```
-
-6. Make changes following the guidelines
-7. Submit a pull request
+4. Make changes following the guidelines
+5. Submit a pull request
 
 ### Agent Development
 
