@@ -17,8 +17,11 @@ from scripts.ci._flaky_inputs import JunitCounts
 def _cell(text: str) -> str:
     """Escape a value for a markdown table cell or a summary line.
 
-    A node id can carry a literal newline (a parametrized id may), which would
-    end the table row, so CR and LF both collapse to a space.
+    A pipe would split the table and a backtick would end the code span, so both
+    are escaped. CR and LF collapse to a space as defence in depth: pytest
+    stores a CR or LF in a parametrized id as the two characters ``\\r`` or
+    ``\\n``, so a raw one would not normally reach here, but a collapsed space
+    costs nothing and an unhandled newline would end the row.
     """
     return text.replace("|", "\\|").replace("`", "'").replace("\r", " ").replace("\n", " ")
 
@@ -29,10 +32,12 @@ def command_value(text: str) -> str:
     The runner parses these lines by hand, so a ``%`` starts a percent escape,
     a ``\\r`` ends the message, and a ``\\n`` starts a new command. A ``%`` is
     reachable: pytest keeps it in a parametrized id (``test_x[100%]``), and an
-    id that already read ``%0A`` would otherwise be decoded by the runner as a
-    newline. CR and LF are escaped too, as defence in depth. The order matters:
-    ``%`` must go first, or the escapes this function inserts would themselves
-    be escaped.
+    id that read ``%0A`` would otherwise be decoded by the runner as a newline.
+    CR and LF are escaped as the same kind of defence: pytest stores them in an
+    id as the two characters ``\\r`` and ``\\n``, so a raw one is not the
+    expected input, and escaping it keeps a hand-edited or quoted value from
+    breaking the line. The order matters: ``%`` must go first, or the escapes
+    this function inserts would themselves be escaped.
     """
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
