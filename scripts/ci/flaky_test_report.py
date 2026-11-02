@@ -87,7 +87,9 @@ def run_report(first_junit: Path, first_outcome: str, out_dir: Path, partition: 
     for nodeid in outcome.flaky:
         escaped = _flaky_render.command_value(nodeid)
         print(f"::warning title=Flaky test::{escaped} failed, then passed on rerun")
-    print(outcome.headline)
+    # The headline can quote a node id from the rerun cache, and stdout is the
+    # runner's workflow-command channel, so it is escaped on the way out too.
+    print(_flaky_render.command_value(outcome.headline))
     fs.write_json(
         report_path,
         {

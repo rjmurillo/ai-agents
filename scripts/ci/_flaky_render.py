@@ -15,7 +15,12 @@ from scripts.ci._flaky_inputs import JunitCounts
 
 
 def _cell(text: str) -> str:
-    return text.replace("|", "\\|").replace("`", "'").replace("\n", " ")
+    """Escape a value for a markdown table cell or a summary line.
+
+    A node id can carry a literal newline (a parametrized id may), which would
+    end the table row, so CR and LF both collapse to a space.
+    """
+    return text.replace("|", "\\|").replace("`", "'").replace("\r", " ").replace("\n", " ")
 
 
 def command_value(text: str) -> str:
@@ -30,8 +35,13 @@ def command_value(text: str) -> str:
 
 
 def render_summary(partition: str, outcome: Outcome, cache_note: str) -> str:
-    """The markdown block for the job step summary."""
-    lines = [f"## Flaky test report ({_cell(partition)})", "", outcome.headline, ""]
+    """The markdown block for the job step summary.
+
+    The headline can quote a node id from the rerun cache, so it is escaped like
+    any other cell: an unescaped newline would end the line and an unescaped
+    pipe would split the table.
+    """
+    lines = [f"## Flaky test report ({_cell(partition)})", "", _cell(outcome.headline), ""]
     if cache_note:
         lines += [f"> [!NOTE]\n> {cache_note}", ""]
     if outcome.rows:

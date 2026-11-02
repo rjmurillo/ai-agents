@@ -124,3 +124,18 @@ def test_exit_one_failure_count_mismatch_is_inconclusive():
     assert outcome.exit_code == fs.EXIT_EXTERNAL
     assert outcome.unclassified == [BROKEN, FLAKY]
     assert "disagree" in outcome.headline
+
+
+def test_skipped_on_rerun_is_inconclusive():
+    """A skip proves nothing about passing.
+
+    An xfail run as a skip, or a test that skipped on the rerun, is absent from
+    lastfailed and is not a failure, so it would otherwise read as "failed, then
+    passed". A skip did not run, so the rerun cannot prove it passed.
+    """
+    state = make_state(rerun_failures=[])
+    rerun = JunitCounts(tests=2, failed=0, skipped=2)
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, rerun)
+    assert outcome.exit_code == fs.EXIT_EXTERNAL
+    assert outcome.unclassified == [BROKEN, FLAKY]
+    assert "never rerun" in outcome.headline

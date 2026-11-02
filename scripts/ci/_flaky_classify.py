@@ -116,10 +116,11 @@ def _rerun_problem(state: dict[str, object], rerun: JunitCounts | None, nodeids:
             f"The rerun exited {rerun_exit} without a usable JUnit report, so its "
             "result cannot be classified."
         )
-    if rerun.tests < len(nodeids):
+    if rerun.ran < len(nodeids):
         return (
-            f"The rerun ran {rerun.tests} test(s), fewer than the {len(nodeids)} that "
-            "failed, so some failures were never rerun. Their result cannot be classified."
+            f"The rerun ran {rerun.ran} test(s), fewer than the {len(nodeids)} that "
+            "failed, so some failures were never rerun (a skipped test did not run "
+            "either). Their result cannot be classified."
         )
     still_failing = fs.string_list(state, "rerun_failures")
     if rerun_exit != 0 and not still_failing:

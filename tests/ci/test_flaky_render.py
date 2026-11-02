@@ -62,3 +62,17 @@ def test_command_value_escapes_workflow_command_metacharacters():
     assert command_value("a\rb") == "a%0Db"
     assert command_value("a\nb") == "a%0Ab"
     assert command_value("plain::id") == "plain::id"
+
+
+def test_summary_escapes_a_newline_in_the_headline():
+    """The headline can quote a node id from the rerun cache.
+
+    An unescaped newline would end the summary line, and an unescaped pipe
+    would split a table row, so both are folded in the summary.
+    """
+    from scripts.ci._flaky_classify import Outcome
+
+    outcome = Outcome(1, "bad\nid | here", unclassified=["x"])
+    summary = fr.render_summary("split-1", outcome, "")
+    assert "bad id \\| here" in summary
+    assert "bad\nid" not in summary

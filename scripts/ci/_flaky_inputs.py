@@ -26,6 +26,12 @@ class JunitCounts:
 
     tests: int
     failed: int
+    skipped: int = 0
+
+    @property
+    def ran(self) -> int:
+        """Testcases that executed, so neither failed nor skipped."""
+        return self.tests - self.skipped
 
 
 def load_junit_counts(path: Path) -> JunitCounts:
@@ -54,7 +60,10 @@ def load_junit_counts(path: Path) -> JunitCounts:
     failed = sum(
         1 for case in cases if case.find("failure") is not None or case.find("error") is not None
     )
-    return JunitCounts(tests=len(cases), failed=failed)
+    # A skipped case (including an xfail run as a skip) did not execute, so it
+    # can never prove a test passed on the rerun.
+    skipped = sum(1 for case in cases if case.find("skipped") is not None)
+    return JunitCounts(tests=len(cases), failed=failed, skipped=skipped)
 
 
 def load_lastfailed(path: Path) -> list[str]:
