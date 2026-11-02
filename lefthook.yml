@@ -763,13 +763,17 @@ pre-push:
             run: uv run --frozen python scripts/ci/report_advisory_result.py run --propagate-errors --validator python-lint-advisory --scope "pushed Python files" --timeout 100 --findings-exit 1 -- uv run --frozen --extra dev ruff check -- {push_files}
             glob: "**/*.py"
 
-          # 4m, not main's 2m: the gate splits a push into a source batch, a
-          # test batch, and one child per scripts/validation/ path, each capped
-          # at MYPY_TIMEOUT_SECONDS (60s) in git_hook_policy.py. An ordinary
-          # push runs three, so 4m leaves 60s of margin above that sum; at main's
-          # 2m lefthook killed mypy before its own timeout could print a
+          # 4m, not main's 2m. git_hook_policy.py splits a push into one mypy
+          # child per batch class and caps each child at MYPY_TIMEOUT_SECONDS
+          # (60s): a source batch, a test batch, and then one child per
+          # scripts/validation/ path and one per colliding basename. Those last
+          # two sources are unbounded, so no fixed cap covers every reachable
+          # push. 4m covers the ordinary three-child push (source, test, one
+          # validation file) with 60s to spare. A fourth child uses the margin
+          # up, and a fifth overruns. The inner 60s timeout is the real guard
+          # past that point; the job cap only decides whether you see its
           # diagnostic. tests/test_lefthook_integration.py sums the children per
-          # job and asserts the margin.
+          # job and asserts the three-child margin.
           - name: python-type-check
             timeout: 4m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}

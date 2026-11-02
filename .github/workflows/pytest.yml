@@ -420,10 +420,12 @@ jobs:
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the
       # hook: pre-existing errors print, errors on changed lines block.
-      # run_mypy may issue up to two batches, one for changed source files and
-      # one for changed test files, because git_hook_policy._mypy_invocations
-      # keeps those apart so only a test-only batch takes the annotation
-      # relaxation. Each batch is a separate mypy process with a 60s cap and
+      # run_mypy issues one batch for changed source files and one for changed
+      # test files, because git_hook_policy._mypy_invocations keeps those apart
+      # so only a test-only batch takes the annotation relaxation. It also
+      # starts one child per scripts/validation/ path and one per colliding
+      # basename (see the python-type-check comment in lefthook.yml). Each
+      # child is a separate mypy process with a 60s cap and
       # they run in series, so the step cap below covers the total for the step,
       # not one call, and keeps a stall from eating the pytest steps' share of
       # the job's 10 min. The earlier cold-cache measurement predates strict

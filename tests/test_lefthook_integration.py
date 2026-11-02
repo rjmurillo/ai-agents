@@ -669,6 +669,34 @@ def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
             )
 
 
+def test_mypy_job_cap_covers_the_documented_child_boundary() -> None:
+    """Pin where the mypy cap runs out, so the comment cannot drift from it.
+
+    The cap covers the ordinary three-child push with margin to spare, and a
+    fourth child uses the margin up. The count is unbounded, because each
+    ``scripts/validation/`` path and each colliding basename starts a child, so
+    the boundary is a fact about the configuration rather than a guarantee.
+    """
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    jobs = {job["name"]: job for job in _flatten_jobs(config["pre-push"]["jobs"])}
+    outer_seconds = _parse_lefthook_duration(jobs["python-type-check"]["timeout"])
+    inner_seconds = policy.MYPY_TIMEOUT_SECONDS
+
+    ordinary_children = len(policy._mypy_invocations(list(_MYPY_BATCH_SAMPLE)))
+    assert ordinary_children == 3, (
+        "the sample is meant to be the ordinary push: one source batch, one "
+        f"test batch, one validation child, not {ordinary_children}"
+    )
+    assert outer_seconds - inner_seconds * ordinary_children >= _MINIMUM_MARGIN_SECONDS
+    assert outer_seconds == inner_seconds * (ordinary_children + 1), (
+        "the cap should end exactly at the fourth child, so the boundary in "
+        "the lefthook.yml comment matches the arithmetic here: "
+        f"outer={outer_seconds}s, inner={inner_seconds}s per child"
+    )
+    # A fifth child overruns the cap, which is the limit the comment names.
+    assert inner_seconds * (ordinary_children + 2) > outer_seconds
+
+
 def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
     pre_commit = config["pre-commit"]

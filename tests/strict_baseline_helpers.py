@@ -32,7 +32,8 @@ EXPECTED_C901_BASELINE_ENTRIES = 79
 # and missed the modules that fail only an error code (type-arg,
 # no-any-return, call-overload). Those now count, which is 148, plus the 10
 # modules whose debt strict mode surfaced and no override named at all. From
-# here the number only goes down.
+# here the number only goes down. It counts entries, not distinct modules
+# (144): a module listed in three blocks lowers it by three once fixed.
 EXPECTED_STRICT_BASELINE_MODULE_NAMES = 158
 
 C901_BASELINE_CODES = ["C901"]
