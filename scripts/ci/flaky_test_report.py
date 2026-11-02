@@ -19,15 +19,18 @@ EXIT CODES (ADR-035):
        flaky), or the rerun was skipped above the cap.
   2  - Config: bad arguments, or a state file this script did not write.
   3  - External: a missing or malformed JUnit report or cache file, or a rerun
-       that cannot be classified. A rerun cannot be classified when any of
-       these holds, which is every route ``_flaky_classify._rerun_problem``
-       rejects: it did not finish; it exited 2 (a collection error or an
-       interrupt, where pytest blames the module instead of the test); it
-       exited nonzero but recorded no failed test; it exited 0 yet recorded a
-       failure; it named a failure for a node id that did not fail first; it
-       ran no test at all; or its passed, failed, and skipped tests do not
-       account for every one of those node ids, because a test that skipped,
-       aborted, or never reran cannot prove it passed.
+       that cannot be classified. The rerun cannot be classified when any of
+       these holds. One is decided in ``_flaky_classify._without_rerun``: the
+       first run failed and the rerun step wrote no state at all, so it crashed
+       before starting. Two are decided in ``_flaky_classify._before_rerun``:
+       the cache listed no failing node id, or the rerun started but did not
+       finish. The rest come from ``_flaky_classify._rerun_problem``: it exited
+       2 (a collection error or an interrupt, where pytest blames the module
+       instead of the test); it exited nonzero but recorded no failed test; it
+       exited 0 yet recorded a failure; it named a failure for a node id that
+       did not fail first; it ran no test at all; or its passed, failed, and
+       skipped tests do not account for every one of those node ids, because a
+       test that skipped, aborted, or never reran cannot prove it passed.
 """
 
 from __future__ import annotations
