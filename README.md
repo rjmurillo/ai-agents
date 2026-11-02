@@ -525,7 +525,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
 If you're contributing code or running tests locally:
 
-**Dev container option:** open the repository in a dev container (VS Code "Reopen in Container", or `devcontainer up`). It installs Python 3.14, uv, Node LTS, PowerShell 7.5, and the GitHub CLI, then syncs `.venv` and installs the Git hooks. Skip to step 3.
+**Dev container option:** open the repository in a dev container (VS Code "Reopen in Container", or `devcontainer up`). It installs Python 3.14, uv, Node LTS, PowerShell 7.5, and the GitHub CLI, then syncs `.venv` and installs the Git hooks. That covers steps 2 and 4; do steps 1 and 3 yourself. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128.
 
 1. Fork and clone the repository
 2. From the clone root, run one command to install dependencies and Git hooks
