@@ -122,6 +122,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".coderabbit.yaml",
         ".config",
         ".cursor-plugin",
+        ".devcontainer",
         ".env.example",
         ".factory",
         ".gemini",

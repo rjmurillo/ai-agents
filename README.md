@@ -525,6 +525,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
 If you're contributing code or running tests locally:
 
+**Dev container option:** open the repository in a dev container (VS Code "Reopen in Container", or `devcontainer up`). It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, runs `uv sync --frozen --extra dev`, and installs the Git hooks. That covers most of step 2; run the remaining `git config blame.ignoreRevsFile` command and the smoke test yourself. Steps 1, 3, 4, and 5 stay manual. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128. Each feature reference carries a sha256 digest, so integrity is verified without an extra flag; add `--frozen-lockfile` to also check `devcontainer-lock.json`.
+
 1. Fork and clone the repository
 2. From the clone root, run one command to install dependencies and Git hooks
    and to prove the setup with a quick test:

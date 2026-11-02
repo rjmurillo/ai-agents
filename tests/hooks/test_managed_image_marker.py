@@ -336,11 +336,10 @@ def test_every_tracked_managed_image_sets_the_marker() -> None:
     ``_is_remote_container()``. A new image either carries the marker or adds
     its own measured filesystem signal and removes itself from this check.
 
-    Limit: AC3 covers image definitions tracked in this repository only. No
-    Dockerfile, Containerfile, or devcontainer.json path is tracked today, so this
-    test scans zero files and passes vacuously until one lands. An image
-    provisioned outside the repo (such as the Claude web image) has no check
-    here; the SessionStart hook is its setter.
+    Limit: AC3 covers image definitions tracked in this repository only. Today
+    that is ``.devcontainer/devcontainer.json``, which sets the marker in
+    ``containerEnv``. An image provisioned outside the repo (such as the Claude
+    web image) has no check here; the SessionStart hook is its setter.
     """
     assert images_missing_marker(REPO_ROOT, _tracked_files(REPO_ROOT)) == []
 
