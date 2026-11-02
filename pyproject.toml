@@ -458,8 +458,8 @@ check_untyped_defs = false
 # strict check the listed modules failed, so the rest of strict still applies to
 # them. A scripts/validation module can be listed twice, because the gate also
 # loads it by its bare name through MYPYPATH. The baseline may only shrink: fix
-# a module, then delete its line. tests/test_strict_baselines.py fails when a
-# listed module no longer exists.
+# a module, then delete its line. tests/test_mypy_strict_baseline.py fails when
+# a listed module no longer exists.
 [[tool.mypy.overrides]]
 # Other modules import names these modules never re-export (attr-defined).
 module = [
@@ -658,6 +658,28 @@ module = [
     "run_sweep",
 ]
 check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+# Debt strict mode surfaces in modules that passed `mypy` on main because the
+# checks below were off: a bare `dict`/`list` annotation (type-arg), a value
+# returned from a function typed `Any` (no-any-return), and an `int()` call on a
+# value typed `object` (call-overload). Each module is named here rather than
+# fixed inline, so the debt stays visible and the baseline stays shrink-only:
+# fix a module, delete its name, and lower the pinned count in
+# tests/test_mypy_strict_baseline.py.
+module = [
+    "scripts.ci.parse_drift_results",
+    "scripts.eval.analyze-pr-churn",
+    "scripts.eval.eval-e2e-delivery",
+    "scripts.eval.eval_autoplan_routes",
+    "scripts.eval.variance-control",
+    "scripts.validate_pr_review_config",
+    "scripts.validation.checks_ci_parity",
+    "scripts.validation.memory_placement_git",
+    "scripts.validation.run_install_parity_ci",
+    "scripts.validation.run_plugin_version_bump_ci",
+]
+disable_error_code = ["type-arg", "no-any-return", "call-overload"]
 
 # Mirror of [project.optional-dependencies].dev above. Both tables must list the
 # same dev tools: `uv pip install -e ".[dev]"` reads only the extra, while a plain

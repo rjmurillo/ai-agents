@@ -799,8 +799,9 @@ Code that failed either check when it landed sits in a baseline in `pyproject.to
 
 The baselines may only shrink. Do not add an entry for new code; fix the code.
 When you fix a listed module or file, delete its entry in the same change.
-`tests/test_strict_baselines.py` fails on a stale entry. It also pins both
-baseline sizes as constants, so adding an entry fails until you raise the
+`tests/test_strict_baselines.py` fails on a stale C901 entry and
+`tests/test_mypy_strict_baseline.py` on a stale mypy entry. Both pin their
+baseline size as a constant, so adding an entry fails until you raise the
 matching constant in the same diff, which is the edit a reviewer sees.
 
 ### Manual Testing (Optional)
