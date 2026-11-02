@@ -853,9 +853,13 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     # The Muse tree renders the same skill files and lib packages
     # (templates/platforms/muse.yaml). SKILL.md keeps only name and
     # description, which carry no suppression comment; every script is
-    # a byte copy.
-    ("src/muse/lib/", ".claude/lib/", None),
-    ("src/muse/skills/", ".claude/skills/", None),
+    # a byte copy. Its rows name the real source trees rather than the
+    # .claude/ links the rows above use: `git show <ref>:<path>` cannot
+    # traverse a symlinked directory at a ref, so a .claude/ source
+    # reads as absent and the verbatim comparison can never succeed
+    # for a tree added after those rows were written.
+    ("src/muse/lib/", "src/claude/lib/", None),
+    ("src/muse/skills/", "src/claude/skills/", None),
 )
 # Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
