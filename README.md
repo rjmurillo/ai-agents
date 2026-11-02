@@ -525,6 +525,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
 If you're contributing code or running tests locally:
 
+**Dev container option:** open the repository in a dev container (VS Code "Reopen in Container", or `devcontainer up`). It installs Python 3.14, uv, Node LTS, PowerShell 7.5, and the GitHub CLI, then syncs `.venv` and installs the Git hooks. Skip to step 3.
+
 1. Fork and clone the repository
 2. From the clone root, run one command to install dependencies and Git hooks
    and to prove the setup with a quick test:
