@@ -14,11 +14,6 @@
       "version": "2.0.3",
       "resolved": "ghcr.io/devcontainers/features/powershell@sha256:460fb241f4f9e098a30f9e1ea4a6ac8cac8cdf5df89ba2edfcf177f66e17d8b7",
       "integrity": "sha256:460fb241f4f9e098a30f9e1ea4a6ac8cac8cdf5df89ba2edfcf177f66e17d8b7"
-    },
-    "ghcr.io/va-h/devcontainers-features/uv:1.1.4": {
-      "version": "1.1.4",
-      "resolved": "ghcr.io/va-h/devcontainers-features/uv@sha256:a15737142539d150ef4d358e2d6a7424a0a2f3dc43b29a3aa1b50162a8b11bc1",
-      "integrity": "sha256:a15737142539d150ef4d358e2d6a7424a0a2f3dc43b29a3aa1b50162a8b11bc1"
     }
   }
 }

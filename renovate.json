@@ -41,6 +41,13 @@
       "minimumReleaseAge": "7 days"
     },
     {
+      "matchManagers": [
+        "devcontainer"
+      ],
+      "description": "A feature or image bump must refresh devcontainer-lock.json in the same PR. Automerge would land the bump alone and leave the lock stale, so these updates stay reviewable.",
+      "automerge": false
+    },
+    {
       "matchUpdateTypes": [
         "major"
       ],
