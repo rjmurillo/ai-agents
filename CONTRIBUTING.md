@@ -53,7 +53,7 @@ It covers steps 4, 6, and 7 below. Step 5 (Git configuration) stays manual.
 8. Make your changes following the guidelines below
 9. Submit a pull request
 
-**Open in dev container:** `.devcontainer/devcontainer.json` covers steps 3, 4, and 6. It installs Python 3.14, uv, Node LTS, PowerShell 7.5, and the GitHub CLI, then runs the `uv sync` and Lefthook commands above. Use VS Code "Reopen in Container" or `devcontainer up --workspace-folder .`. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128.
+**Open in dev container:** `.devcontainer/devcontainer.json` covers steps 3, 4, and 6; steps 5 and 7 stay manual. It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, then runs the `uv sync` and Lefthook commands above. Use VS Code "Reopen in Container" or `devcontainer up --workspace-folder .`. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128.
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 

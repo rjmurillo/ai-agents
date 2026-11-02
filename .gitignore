@@ -132,9 +132,6 @@ scripts/validation/.agent_skill_discriminator_baseline.json.write-lock
 # IDE settings
 .idea/
 *.DotSettings.user
-# devcontainer CLI writes this on `up`; Renovate bumps the feature pins in
-# devcontainer.json but does not rewrite this lock, so it would go stale.
-.devcontainer/devcontainer-lock.json
 
 # Obsidian workspace (user-specific state)
 **/.obsidian/workspace.json
