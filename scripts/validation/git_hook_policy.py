@@ -850,6 +850,12 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     # anything.
     ("src/codex/lib/", ".claude/lib/", None),
     ("src/codex/skills/", ".claude/skills/", None),
+    # The Muse tree renders the same skill files and lib packages
+    # (templates/platforms/muse.yaml). SKILL.md keeps only name and
+    # description, which carry no suppression comment; every script is
+    # a byte copy.
+    ("src/muse/lib/", ".claude/lib/", None),
+    ("src/muse/skills/", ".claude/skills/", None),
 )
 # Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
