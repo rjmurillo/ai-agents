@@ -608,6 +608,23 @@ _POLICY_SUBCOMMAND_TIMEOUT: dict[str, int] = {
 }
 
 _MINIMUM_MARGIN_SECONDS = 30
+# The pre-push gate splits a push into one mypy child per batch class:
+# _mypy_invocations() keeps test and non-test files apart because only a batch
+# made entirely of test paths gets the annotation relaxation. This sample fills
+# both classes, so it is the smallest push that runs two children, and the sum
+# below is the cost the job cap has to cover. Each further class adds its own
+# capped child: a scripts/validation/ path is one child of its own.
+_MYPY_BATCH_SAMPLE = (
+    "build/scripts/build_all.py",
+    "tests/test_lefthook_integration.py",
+)
+
+
+def _capped_children(subcommand: str) -> int:
+    """How many inner-timeout-capped children one run of ``subcommand`` starts."""
+    if subcommand == "mypy":
+        return len(policy._mypy_invocations(list(_MYPY_BATCH_SAMPLE)))
+    return 1
 
 
 def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
@@ -635,10 +652,15 @@ def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
                 subcommand, policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
             )
 
-            margin = outer_seconds - inner_seconds
+            # Sum every child the run can start before the job cap fires: the
+            # inner timeouts run in series, so one child per batch, not one.
+            children = _capped_children(subcommand)
+            inner_total = inner_seconds * children
+            margin = outer_seconds - inner_total
             assert margin >= _MINIMUM_MARGIN_SECONDS, (
-                f"{job_name!r} ({hook_name}): outer={outer_seconds}s, "
-                f"inner={inner_seconds}s, margin={margin}s < {_MINIMUM_MARGIN_SECONDS}s"
+                f"{job_name!r} ({hook_name}): outer={outer_seconds}s, inner="
+                f"{inner_seconds}s x {children} child(ren) = {inner_total}s, "
+                f"margin={margin}s < {_MINIMUM_MARGIN_SECONDS}s"
             )
 
 

@@ -3767,9 +3767,11 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
 
 # The ruff ANN waiver covers "tests/**/*.py" and "**/tests/**/*.py", so test
 # functions carry no annotations. pyproject's tests.* override turns the strict
-# annotation checks off, but a test directory with no __init__.py (tests/skills/,
-# for one) gives its files top-level module names that no override pattern can
-# match. These flags apply the same relaxation by path instead.
+# annotation checks off, but a tests/ subdirectory with no __init__.py
+# (tests/context-optimizer/, tests/eval/, tests/maintenance/ and the
+# tests/skills/<name>/ trees that lack one, while tests/ and tests/skills/ both
+# have one) gives its files top-level module names that no override pattern can
+# match. These flags apply the same annotation relaxation by path instead.
 MYPY_TEST_PATH_FLAGS = (
     "--allow-untyped-defs",
     "--allow-incomplete-defs",

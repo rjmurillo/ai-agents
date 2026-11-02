@@ -420,9 +420,14 @@ jobs:
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the
       # hook: pre-existing errors print, errors on changed lines block.
-      # Each mypy call has a 60s cap, but the calls run in series. The step cap
-      # keeps a stall from eating the pytest steps' share of the job's 10 min.
-      # Measured: 40 scripts/validation files with a cold cache took 6.7s.
+      # run_mypy may issue up to two batches, one for changed source files and
+      # one for changed test files, because git_hook_policy._mypy_invocations
+      # keeps those apart so only a test-only batch takes the annotation
+      # relaxation. Each batch is a separate mypy process with a 60s cap and
+      # they run in series, so the step cap below covers the total for the step,
+      # not one call, and keeps a stall from eating the pytest steps' share of
+      # the job's 10 min. The earlier cold-cache measurement predates strict
+      # mode and this split, so it no longer sizes the cap.
       - name: Run mypy ratchet (changed Python files)
         if: matrix.primary
         timeout-minutes: 3
