@@ -85,18 +85,11 @@ A PR lands in the first category that matches one of its labels. Most labels
 come from `.github/labeler.yml`, which keys on changed paths and branch prefixes
 such as `feat/` and `fix/`.
 
-Pick one way to get the draft:
-
-- **GitHub UI:** open [Draft a new release](https://github.com/rjmurillo/ai-agents/releases/new),
-  choose the tag and the previous tag, then click **Generate release notes**.
-- **REST API:** call `POST /repos/{owner}/{repo}/releases/generate-notes`. It
-  returns the draft and creates nothing. The `github` skill has no release
-  script, so use `gh api` directly:
-
-  ```bash
-  gh api --method POST repos/rjmurillo/ai-agents/releases/generate-notes \
-    -f tag_name=vX.Y.Z -f previous_tag_name=vA.B.C --jq .body
-  ```
+To get the draft, open
+[Draft a new release](https://github.com/rjmurillo/ai-agents/releases/new),
+choose the tag and the previous tag, then click **Generate release notes**.
+The draft fills the release body. Nothing publishes until you click
+**Publish release**, so you can edit or discard the draft first.
 
 ### 2. Write the narrative
 
@@ -104,8 +97,11 @@ Follow [docs/release-notes-styleguide.md](docs/release-notes-styleguide.md).
 Use the draft as raw input, not as the published body:
 
 1. Group the Features and Fixes entries into benefit-focused feature sections.
-2. Count the PRs in the draft for the opening paragraph. Get the commit count
-   with `git rev-list --count vA.B.C..vX.Y.Z`.
+2. Put the commit count and the closed-issue count in the opening paragraph,
+   as the style guide asks. Get the commit count with
+   `git rev-list --count vA.B.C..vX.Y.Z`. Get the issue count from a GitHub
+   issue search, `is:issue is:closed closed:START..END`, using the dates of
+   the two tags.
 3. Move the full categorized list into the "All Changes" section.
 4. Take the contributor list from the draft's "New Contributors" block and PR authors.
 
