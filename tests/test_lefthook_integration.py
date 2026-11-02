@@ -608,6 +608,28 @@ _POLICY_SUBCOMMAND_TIMEOUT: dict[str, int] = {
 }
 
 _MINIMUM_MARGIN_SECONDS = 30
+# The pre-push gate splits a push into one mypy child per batch class:
+# _mypy_invocations() keeps test and non-test files apart because only a batch
+# made entirely of test paths gets the annotation relaxation, and it gives each
+# scripts/validation/ path its own child because those modules also resolve
+# under a bare name through MYPYPATH. This sample fills all three classes, so
+# it is the ordinary push that runs three children and the sum below is the
+# cost the job cap has to cover. A push touching a second validation file runs
+# a fourth child, which no fixed wall-clock cap can cover while every child
+# keeps its own 60s timeout; the cap is sized for the common case and the inner
+# timeout is what a larger push relies on.
+_MYPY_BATCH_SAMPLE = (
+    "build/scripts/build_all.py",
+    "scripts/validation/git_hook_policy.py",
+    "tests/test_lefthook_integration.py",
+)
+
+
+def _capped_children(subcommand: str) -> int:
+    """How many inner-timeout-capped children one run of ``subcommand`` starts."""
+    if subcommand == "mypy":
+        return len(policy._mypy_invocations(list(_MYPY_BATCH_SAMPLE)))
+    return 1
 
 
 def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
@@ -635,11 +657,46 @@ def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
                 subcommand, policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
             )
 
-            margin = outer_seconds - inner_seconds
+            # Sum every child the run can start before the job cap fires: the
+            # inner timeouts run in series, so one child per batch, not one.
+            children = _capped_children(subcommand)
+            inner_total = inner_seconds * children
+            margin = outer_seconds - inner_total
             assert margin >= _MINIMUM_MARGIN_SECONDS, (
-                f"{job_name!r} ({hook_name}): outer={outer_seconds}s, "
-                f"inner={inner_seconds}s, margin={margin}s < {_MINIMUM_MARGIN_SECONDS}s"
+                f"{job_name!r} ({hook_name}): outer={outer_seconds}s, inner="
+                f"{inner_seconds}s x {children} child(ren) = {inner_total}s, "
+                f"margin={margin}s < {_MINIMUM_MARGIN_SECONDS}s"
             )
+
+
+def test_mypy_job_cap_covers_the_documented_child_boundary() -> None:
+    """Pin where the mypy cap runs out, so the comment cannot drift from it.
+
+    The cap covers the ordinary three-child push with margin to spare, and a
+    fourth child uses the margin up. The count is unbounded, because each
+    ``scripts/validation/`` path and each colliding basename starts a child, so
+    the boundary is a fact about the configuration rather than a guarantee.
+    """
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    jobs = {job["name"]: job for job in _flatten_jobs(config["pre-push"]["jobs"])}
+    job_timeout = jobs["python-type-check"]["timeout"]
+    assert isinstance(job_timeout, str)
+    outer_seconds = _parse_lefthook_duration(job_timeout)
+    inner_seconds = policy.MYPY_TIMEOUT_SECONDS
+
+    ordinary_children = len(policy._mypy_invocations(list(_MYPY_BATCH_SAMPLE)))
+    assert ordinary_children == 3, (
+        "the sample is meant to be the ordinary push: one source batch, one "
+        f"test batch, one validation child, not {ordinary_children}"
+    )
+    assert outer_seconds - inner_seconds * ordinary_children >= _MINIMUM_MARGIN_SECONDS
+    assert outer_seconds == inner_seconds * (ordinary_children + 1), (
+        "the cap should end exactly at the fourth child, so the boundary in "
+        "the lefthook.yml comment matches the arithmetic here: "
+        f"outer={outer_seconds}s, inner={inner_seconds}s per child"
+    )
+    # A fifth child overruns the cap, which is the limit the comment names.
+    assert inner_seconds * (ordinary_children + 2) > outer_seconds
 
 
 def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
@@ -5728,6 +5785,76 @@ def test_mypy_invocation_disables_color_before_the_paths(
     args = list(captured[0])
     assert "--no-color-output" in args
     assert args.index("--no-color-output") < args.index("--")
+
+
+def test_mypy_test_path_matches_the_ruff_ann_waiver_globs() -> None:
+    assert policy._is_mypy_test_path("tests/test_a.py")
+    assert policy._is_mypy_test_path("tests/skills/memory/test_b.py")
+    assert policy._is_mypy_test_path("src/claude/skills/x/tests/test_c.py")
+    assert not policy._is_mypy_test_path("scripts/validation/checks_spec.py")
+    # A file named like a test outside a tests/ directory is not covered by
+    # the ruff waiver, so it keeps strict annotation checks.
+    assert not policy._is_mypy_test_path(".codeql/scripts/test_codeql_config.py")
+    assert not policy._is_mypy_test_path("tests.py")
+
+
+def test_mypy_partition_keeps_test_and_source_files_in_separate_batches() -> None:
+    invocations = policy._mypy_invocations(
+        ["pkg/a.py", "pkg/b.py", "tests/test_a.py", "tests/skills/x/test_b.py"]
+    )
+
+    assert invocations == [
+        (["pkg/a.py", "pkg/b.py"], False),
+        (["tests/test_a.py", "tests/skills/x/test_b.py"], False),
+    ]
+
+
+def test_mypy_partition_omits_empty_test_batch() -> None:
+    assert policy._mypy_invocations(["pkg/a.py"]) == [(["pkg/a.py"], False)]
+    assert policy._mypy_invocations(["tests/test_a.py"]) == [(["tests/test_a.py"], False)]
+
+
+def test_mypy_invocation_relaxes_annotation_checks_only_for_test_batches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        _root: Path,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.append(list(args))
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    policy._invoke_mypy(["tests/test_a.py"], tmp_path, False)
+    policy._invoke_mypy(["source.py"], tmp_path, False)
+    policy._invoke_mypy(["tests/test_a.py", "source.py"], tmp_path, False)
+
+    test_args, source_args, mixed_args = captured
+    flags = set(policy.MYPY_TEST_PATH_FLAGS)
+    assert flags <= set(test_args[: test_args.index("--")])
+    assert not flags & set(source_args)
+    assert not flags & set(mixed_args)
+
+
+def test_mypy_invocation_strict_config_spares_unannotated_tests_only(tmp_path: Path) -> None:
+    # Real mypy, no mocks: under strict = true an unannotated function fails in
+    # a source file and passes in a tests/ directory with no __init__.py.
+    _write_lf(tmp_path / "pyproject.toml", "[tool.mypy]\nstrict = true\n")
+    (tmp_path / "tests" / "skills").mkdir(parents=True)
+    _write_lf(tmp_path / "tests" / "skills" / "test_a.py", "def test_a():\n    pass\n")
+    _write_lf(tmp_path / "src_a.py", "def helper():\n    pass\n")
+
+    test_result = policy._invoke_mypy(["tests/skills/test_a.py"], tmp_path, False)
+    source_result = policy._invoke_mypy(["src_a.py"], tmp_path, False)
+
+    assert test_result.returncode == 0, test_result.stdout
+    assert source_result.returncode == 1
+    assert "[no-untyped-def]" in source_result.stdout
 
 
 def test_push_ref_parser_preserves_multiple_refs_and_deletions() -> None:
