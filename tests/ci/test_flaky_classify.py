@@ -7,10 +7,12 @@ import pytest
 from scripts.ci import _flaky_classify as fc
 from scripts.ci import _flaky_state as fs
 from scripts.ci._flaky_inputs import JunitCounts
-from tests.ci.flaky_test_helpers import BROKEN, FLAKY, make_state
+from tests.ci.flaky_test_helpers import BROKEN, FLAKY, MODULE, make_state
 
 _FAILED_FIRST = JunitCounts(tests=10, failed=2)
 _RERUN_TWO = JunitCounts(tests=2, failed=1)
+# A rerun that measured one failure but executed only one of the two tests.
+_RERUN_SHORT = JunitCounts(tests=1, failed=1)
 
 
 def test_first_run_passed():
@@ -84,8 +86,41 @@ def test_all_flaky_still_fails_the_leg():
     assert outcome.flaky == [BROKEN, FLAKY]
 
 
-def test_collection_error_rerun_counts_as_consistent():
-    state = make_state(rerun_exit=2, rerun_failures=[BROKEN, FLAKY])
+def test_collection_error_rerun_is_inconclusive():
+    """A collection error makes pytest blame the module, not the test.
+
+    On exit 2 pytest records the failure against the module node id, so the
+    rerun proves nothing about the individual tests. They must not be called
+    flaky just because their node ids are absent from the rerun's cache.
+    """
+    state = make_state(rerun_exit=2, rerun_failures=[MODULE])
     outcome = fc.classify(_FAILED_FIRST, "failure", state, _RERUN_TWO)
-    assert outcome.consistent == [BROKEN, FLAKY]
-    assert outcome.exit_code == fs.EXIT_FAILED
+    assert outcome.exit_code == fs.EXIT_EXTERNAL
+    assert outcome.unclassified == [BROKEN, FLAKY]
+    assert "collection error" in outcome.headline
+
+
+def test_rerun_failure_outside_first_failures_is_inconclusive():
+    """A module-level failure entry is not one of the tests that failed."""
+    state = make_state(rerun_exit=1, rerun_failures=[MODULE])
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, _RERUN_TWO)
+    assert outcome.exit_code == fs.EXIT_EXTERNAL
+    assert outcome.unclassified == [BROKEN, FLAKY]
+    assert MODULE in outcome.headline
+
+
+def test_short_rerun_is_inconclusive():
+    """Fewer tests ran than failed, so the missing ones were never measured."""
+    outcome = fc.classify(_FAILED_FIRST, "failure", make_state(), _RERUN_SHORT)
+    assert outcome.exit_code == fs.EXIT_EXTERNAL
+    assert outcome.unclassified == [BROKEN, FLAKY]
+    assert "never rerun" in outcome.headline
+
+
+def test_exit_one_failure_count_mismatch_is_inconclusive():
+    """The JUnit failure count and the cache node id count must agree."""
+    state = make_state(rerun_failures=[BROKEN])
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(2, 2))
+    assert outcome.exit_code == fs.EXIT_EXTERNAL
+    assert outcome.unclassified == [BROKEN, FLAKY]
+    assert "disagree" in outcome.headline

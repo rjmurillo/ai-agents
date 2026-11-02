@@ -48,3 +48,17 @@ def test_emit_summary_without_env_prints(monkeypatch, capsys):
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     assert fr.emit_summary("hello\n") is True
     assert capsys.readouterr().out == "hello\n"
+
+
+def test_command_value_escapes_workflow_command_metacharacters():
+    """A node id reaches a ``::warning`` line, which the runner parses by hand.
+
+    An unescaped newline starts a new command and an unescaped ``%`` starts a
+    percent escape, so both (and a carriage return) are escaped before printing.
+    """
+    from scripts.ci._flaky_render import command_value
+
+    assert command_value("a%b") == "a%25b"
+    assert command_value("a\rb") == "a%0Db"
+    assert command_value("a\nb") == "a%0Ab"
+    assert command_value("plain::id") == "plain::id"

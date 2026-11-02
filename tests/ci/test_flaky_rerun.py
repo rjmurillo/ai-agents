@@ -80,3 +80,17 @@ def test_rerun_state_says_started_while_pytest_runs(tmp_path):
 
     fr.run_rerun(write_lastfailed(tmp_path / "lf", [FLAKY]), out, 25, runner)
     assert seen == [fs.STATUS_STARTED]
+
+
+def test_option_shaped_nodeid_is_passed_as_a_path(tmp_path):
+    """A node id is repository text, so it must never be read as an option.
+
+    ``--`` ends option parsing, so a file named ``-k_something.py`` is rerun
+    as a path instead of changing what pytest collects.
+    """
+    out = tmp_path / "out"
+    nodeid = "-k_evil.py::test_x"
+    args = fr.rerun_args([nodeid], out)
+    separator = args.index("--")
+    assert args[separator + 1 :] == [nodeid]
+    assert all(not arg.startswith("-k") for arg in args[:separator])

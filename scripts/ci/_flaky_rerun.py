@@ -26,6 +26,12 @@ def rerun_args(nodeids: Sequence[str], out_dir: Path) -> list[str]:
     ``-n 0`` keeps xdist loaded, so a test using its ``worker_id`` fixture still
     resolves, but runs in-process. The separate cache directory means the
     rerun's own ``lastfailed`` holds exactly the tests that failed again.
+
+    ``--`` precedes the node ids, so a node id that begins with ``-`` (a test
+    file named ``-k_something.py``, say) is read as a path rather than as an
+    option. The cache is a file this job wrote, but a node id is still
+    repository-controlled text, and an option-shaped one could otherwise change
+    what the rerun collects.
     """
     return [
         "-n",
@@ -33,6 +39,7 @@ def rerun_args(nodeids: Sequence[str], out_dir: Path) -> list[str]:
         "-o",
         f"cache_dir={(out_dir / fs.RERUN_CACHE_DIR).resolve()}",
         f"--junitxml={(out_dir / fs.RERUN_JUNIT_FILE).resolve()}",
+        "--",
         *nodeids,
     ]
 

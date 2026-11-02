@@ -9,6 +9,9 @@ from scripts.ci import _flaky_state as fs
 
 FLAKY = "tests/test_a.py::test_flaky"
 BROKEN = "tests/test_a.py::test_broken[a|b]"
+# On a collection error or an import failure, pytest records the failure against
+# the module rather than a test function.
+MODULE = "tests/test_a.py"
 
 
 def write_junit(path: Path, cases: list[str | None]) -> Path:

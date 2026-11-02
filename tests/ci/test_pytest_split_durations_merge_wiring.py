@@ -36,7 +36,10 @@ class TestMergeFeedsTheSave:
             for s in steps_using("test", "actions/upload-artifact")
             if str(s["with"]["name"]).startswith("pytest-results-")
         ]
-        assert [s["with"]["path"] for s in uploads] == [f"{runner.LEG_DURATIONS_DIR}/"]
+        # The artifacts dir is the include; a later `!` pattern only narrows it,
+        # so the leg's durations file still ships with the upload.
+        includes = [str(s["with"]["path"]).split()[0] for s in uploads]
+        assert includes == [f"{runner.LEG_DURATIONS_DIR}/"]
 
     def test_the_merge_job_downloads_the_leg_artifacts(self) -> None:
         downloads = steps_using("test-durations", "actions/download-artifact")

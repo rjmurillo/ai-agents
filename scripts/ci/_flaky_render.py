@@ -18,6 +18,17 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("`", "'").replace("\n", " ")
 
 
+def command_value(text: str) -> str:
+    """Escape a value for a GitHub workflow ``::warning``/``::error`` line.
+
+    The runner parses these lines by hand, so a ``%`` starts a percent escape,
+    a ``\\r`` ends the message, and a ``\\n`` starts a new command. A node id may
+    contain any of them (a parametrized id can carry a literal newline), so they
+    are escaped here rather than written raw.
+    """
+    return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
 def render_summary(partition: str, outcome: Outcome, cache_note: str) -> str:
     """The markdown block for the job step summary."""
     lines = [f"## Flaky test report ({_cell(partition)})", "", outcome.headline, ""]

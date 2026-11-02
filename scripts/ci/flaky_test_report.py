@@ -18,8 +18,11 @@ EXIT CODES (ADR-035):
   1  - ``report``: the first run failed (always, even when every failure was
        flaky), or the rerun was skipped above the cap.
   2  - Config: bad arguments, or a state file this script did not write.
-  3  - External: a missing or malformed JUnit report or cache file, a rerun
-       that did not finish, or a rerun whose result cannot be classified.
+  3  - External: a missing or malformed JUnit report or cache file, or a rerun
+       that cannot be classified. The last case covers a rerun that did not
+       finish, exited 2 (a collection error or an interrupt, where pytest
+       blames the module instead of the test), ran fewer tests than failed, or
+       disagreed between its JUnit failure count and its cache.
 """
 
 from __future__ import annotations
@@ -82,7 +85,8 @@ def run_report(first_junit: Path, first_outcome: str, out_dir: Path, partition: 
 
     nodeids = fs.string_list(state, "first_failures") if state is not None else []
     for nodeid in outcome.flaky:
-        print(f"::warning title=Flaky test::{nodeid} failed, then passed on rerun")
+        escaped = _flaky_render.command_value(nodeid)
+        print(f"::warning title=Flaky test::{escaped} failed, then passed on rerun")
     print(outcome.headline)
     fs.write_json(
         report_path,

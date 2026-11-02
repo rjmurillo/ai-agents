@@ -587,7 +587,13 @@ jobs:
         if: always()
         with:
           name: pytest-results-${{ matrix.partition }}
-          path: artifacts/
+          # artifacts/flaky/ holds the rerun's own JUnit file and cache. It is
+          # a second measurement of the same tests, and the downstream wall-time
+          # and slow-test gates must read the first run only, so it is excluded
+          # here rather than being filtered again in each of those gates.
+          path: |
+            artifacts/
+            !artifacts/flaky/
           include-hidden-files: true
           overwrite: true
           retention-days: 7
