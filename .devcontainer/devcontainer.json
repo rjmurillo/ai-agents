@@ -31,7 +31,8 @@
   },
   // uv comes from PyPI through the base image's pipx, not from a third-party
   // container feature, so no unaffiliated publisher script runs at create.
-  // The version is pinned to the one CI uses.
+  // The version is the uv release current when this landed; CI pins none, so
+  // bump this with the feature pins rather than tracking latest at build time.
   "postCreateCommand": "pipx install --force uv==0.13.6 && uv sync --frozen --extra dev && uv run --frozen --extra dev lefthook install --reset-hooks-path && uv run --frozen --extra dev lefthook check-install",
   "customizations": {
     "vscode": {
