@@ -94,19 +94,30 @@ def test_devcontainer_updates_require_a_manual_merge(config: dict[str, Any]) -> 
     which breaks `devcontainer up --frozen-lockfile` for every contributor.
 
     Renovate applies packageRules in order with later rules winning, so the
-    requirement only holds while the exemption is the last rule that sets
-    automerge. That is why this test pins position and not just presence: a
-    later rule carrying `automerge: true` reaches devcontainer too, whether it
-    is unscoped, narrowed by `matchUpdateTypes`, or narrowed by
-    `matchDatasources` such as `docker`, none of which exclude the manager.
+    requirement only holds while no rule after the exemption turns automerge
+    back on. That is why this test pins position and not just presence: a later
+    rule carrying `automerge: true` reaches devcontainer too, whether it is
+    unscoped, narrowed by `matchUpdateTypes`, or narrowed by `matchDatasources`
+    such as `docker`, none of which exclude the manager. A later `automerge:
+    false` rule is allowed, since it can only keep updates reviewable.
     """
     rules = config["packageRules"]
-    deciders = [rule for rule in rules if "automerge" in rule]
-    assert deciders, "no packageRules entry sets automerge"
-    last = deciders[-1]
-    assert last.get("automerge") is False, f"the last automerge rule re-enables it: {last}"
-    assert "devcontainer" in last.get("matchManagers", []), (
-        f"the last automerge rule must be the devcontainer exemption: {last}"
+    exemptions = [
+        index
+        for index, rule in enumerate(rules)
+        if "devcontainer" in rule.get("matchManagers", []) and rule.get("automerge") is False
+    ]
+    assert exemptions, "no packageRules entry disables automerge for the devcontainer manager"
+    exemption = rules[exemptions[-1]]
+    # The exemption must cover every devcontainer update. Narrow it with a
+    # matchUpdateTypes or matchDatasources key and an earlier automerge:true
+    # rule takes over for the rest, silently, with this test still green.
+    extra = set(exemption) - {"matchManagers", "description", "automerge"}
+    assert not extra, f"the devcontainer exemption is narrowed by {sorted(extra)}"
+    reenabled = [rule for rule in rules[exemptions[-1] + 1 :] if rule.get("automerge") is True]
+    assert not reenabled, (
+        "a rule after the devcontainer exemption re-enables automerge, which would "
+        f"land a bump without the lock refresh: {reenabled}"
     )
 
 

@@ -67,7 +67,7 @@
       "matchManagers": [
         "devcontainer"
       ],
-      "description": "A feature or image bump must refresh devcontainer-lock.json in the same PR. Automerge would land the bump alone and leave the lock stale, so these updates stay reviewable. This rule is last on purpose: it must be the final rule that sets automerge, so no earlier or later rule can re-enable it.",
+      "description": "A feature or image bump must refresh devcontainer-lock.json in the same PR. Automerge would land the bump alone and leave the lock stale, so these updates stay reviewable. This rule sits last on purpose: Renovate applies rules in order, and no rule after it may re-enable automerge.",
       "automerge": false
     }
   ],
