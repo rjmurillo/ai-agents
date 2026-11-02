@@ -22,20 +22,22 @@ class InputError(Exception):
 
 @dataclass(frozen=True)
 class JunitCounts:
-    """Testcase totals from one JUnit report."""
+    """Testcase totals from one JUnit report.
+
+    ``passed`` is the only count that can prove a test ran and passed, so it
+    requires a named testcase with no failure, error, or skipped child. A
+    hand-built value must set it: the default of 0 makes a verdict
+    inconclusive, which fails closed.
+    """
 
     tests: int
     failed: int
     skipped: int = 0
-
-    @property
-    def ran(self) -> int:
-        """Testcases that executed, so neither failed nor skipped."""
-        return self.tests - self.skipped
+    passed: int = 0
 
 
 def load_junit_counts(path: Path) -> JunitCounts:
-    """Count testcases and failed testcases (a failure or error child).
+    """Count testcases, failed testcases, and testcases that provably passed.
 
     ``defusedxml`` is not a project dependency, so a report declaring a DTD or
     an entity is rejected before the stdlib parser can expand it (CWE-611,
@@ -57,13 +59,24 @@ def load_junit_counts(path: Path) -> JunitCounts:
     if root.tag not in {"testsuites", "testsuite"}:
         raise InputError(f"{path}: root element <{root.tag}> is not a JUnit report")
     cases = list(root.iter("testcase"))
-    failed = sum(
-        1 for case in cases if case.find("failure") is not None or case.find("error") is not None
-    )
+
+    def has(case: ET.Element, child: str) -> bool:
+        return case.find(child) is not None
+
+    failed = sum(1 for case in cases if has(case, "failure") or has(case, "error"))
     # A skipped case (including an xfail run as a skip) did not execute, so it
     # can never prove a test passed on the rerun.
-    skipped = sum(1 for case in cases if case.find("skipped") is not None)
-    return JunitCounts(tests=len(cases), failed=failed, skipped=skipped)
+    skipped = sum(1 for case in cases if has(case, "skipped"))
+    # Only a named case with no outcome child proves an executed pass. pytest
+    # writes a nameless case when a session aborts, and a module-level case for
+    # a collection error, so requiring a name keeps both out of this count.
+    passed = sum(
+        1
+        for case in cases
+        if case.get("name")
+        and not any(has(case, child) for child in ("failure", "error", "skipped"))
+    )
+    return JunitCounts(tests=len(cases), failed=failed, skipped=skipped, passed=passed)
 
 
 def load_lastfailed(path: Path) -> list[str]:

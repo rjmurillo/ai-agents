@@ -112,16 +112,7 @@ def _rerun_problem(state: dict[str, object], rerun: JunitCounts | None, nodeids:
                 "that failure against the module, not the test, so the rerun cannot say "
                 "which tests ran. Its result cannot be classified."
             )
-        return (
-            f"The rerun exited {rerun_exit} without a usable JUnit report, so its "
-            "result cannot be classified."
-        )
-    if rerun.ran < len(nodeids):
-        return (
-            f"The rerun ran {rerun.ran} test(s), fewer than the {len(nodeids)} that "
-            "failed, so some failures were never rerun (a skipped test did not run "
-            "either). Their result cannot be classified."
-        )
+        return f"The rerun exited {rerun_exit} and ran no test, so its result cannot be classified."
     still_failing = fs.string_list(state, "rerun_failures")
     if rerun_exit != 0 and not still_failing:
         return f"The rerun exited {rerun_exit} but recorded no failed test."
@@ -135,11 +126,18 @@ def _rerun_problem(state: dict[str, object], rerun: JunitCounts | None, nodeids:
             "first run. A module-level or collection failure reads this way, so the "
             "result cannot be classified."
         )
-    if len(still_failing) != rerun.failed:
+    # Positive proof: every first-run failure must appear either as a cache entry
+    # (it failed again) or as a named JUnit case with no outcome child (it ran and
+    # passed). Counting testcases instead would treat a skip, an aborted session,
+    # or a failure the cache lost as a pass, which is the defect this guard
+    # exists to prevent. Duplicate JUnit cases for one node id are normal, so the
+    # cache count is compared against node ids, never against element counts.
+    if rerun.passed + len(still_failing) != len(nodeids):
         return (
-            f"The rerun's JUnit report records {rerun.failed} failed test(s) but its "
-            f"cache lists {len(still_failing)}. The two disagree, so the result "
-            "cannot be classified."
+            f"The rerun recorded {rerun.passed} passed, {len(still_failing)} failed, and "
+            f"{rerun.skipped} skipped test(s), which does not account for the "
+            f"{len(nodeids)} that failed first. A test that was skipped, aborted, or "
+            "never rerun cannot prove it passed, so its result cannot be classified."
         )
     return ""
 

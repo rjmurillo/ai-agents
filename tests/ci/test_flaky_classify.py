@@ -10,7 +10,8 @@ from scripts.ci._flaky_inputs import JunitCounts
 from tests.ci.flaky_test_helpers import BROKEN, FLAKY, MODULE, make_state
 
 _FAILED_FIRST = JunitCounts(tests=10, failed=2)
-_RERUN_TWO = JunitCounts(tests=2, failed=1)
+# BROKEN failed again and FLAKY ran and passed.
+_RERUN_TWO = JunitCounts(tests=2, failed=1, passed=1)
 # A rerun that measured one failure but executed only one of the two tests.
 _RERUN_SHORT = JunitCounts(tests=1, failed=1)
 
@@ -81,7 +82,7 @@ def test_flaky_and_consistent():
 
 def test_all_flaky_still_fails_the_leg():
     state = make_state(rerun_exit=0, rerun_failures=[])
-    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(2, 0))
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(2, 0, passed=2))
     assert outcome.exit_code == fs.EXIT_FAILED
     assert outcome.flaky == [BROKEN, FLAKY]
 
@@ -114,16 +115,47 @@ def test_short_rerun_is_inconclusive():
     outcome = fc.classify(_FAILED_FIRST, "failure", make_state(), _RERUN_SHORT)
     assert outcome.exit_code == fs.EXIT_EXTERNAL
     assert outcome.unclassified == [BROKEN, FLAKY]
-    assert "never rerun" in outcome.headline
+    assert "does not account for the 2" in outcome.headline
 
 
-def test_exit_one_failure_count_mismatch_is_inconclusive():
-    """The JUnit failure count and the cache node id count must agree."""
+def test_failure_lost_by_the_cache_is_inconclusive():
+    """A failing testcase the cache does not list means a failure was lost.
+
+    The proof must account for both node ids: one failed again (BROKEN) and the
+    other produced no passing testcase, so the rerun cannot say it passed.
+    """
     state = make_state(rerun_failures=[BROKEN])
-    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(2, 2))
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(2, 1))
     assert outcome.exit_code == fs.EXIT_EXTERNAL
     assert outcome.unclassified == [BROKEN, FLAKY]
-    assert "disagree" in outcome.headline
+    assert "does not account for the 2" in outcome.headline
+
+
+def test_duplicate_junit_cases_for_one_node_id_are_tolerated():
+    """A call failure plus a teardown error writes two cases for one test.
+
+    pytest emits one testcase per report, so a test that fails in the call phase
+    and again in a fixture finalizer produces two failing cases against one
+    cache entry. Element counts therefore cannot be compared with node ids; the
+    leg must still classify instead of going inconclusive.
+    """
+    state = make_state(rerun_failures=[BROKEN])
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(3, 2, passed=1))
+    assert outcome.exit_code == fs.EXIT_FAILED
+    assert outcome.flaky == [FLAKY]
+    assert outcome.consistent == [BROKEN]
+
+
+def test_aborted_session_case_is_not_a_pass():
+    """An aborted session writes a nameless case that proves nothing.
+
+    ``pytest.exit`` mid-run still writes a testcase element, so counting
+    elements would read the aborted test as having passed.
+    """
+    state = make_state(rerun_failures=[BROKEN])
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(2, 1, passed=0))
+    assert outcome.exit_code == fs.EXIT_EXTERNAL
+    assert outcome.unclassified == [BROKEN, FLAKY]
 
 
 def test_skipped_on_rerun_is_inconclusive():
@@ -131,11 +163,21 @@ def test_skipped_on_rerun_is_inconclusive():
 
     An xfail run as a skip, or a test that skipped on the rerun, is absent from
     lastfailed and is not a failure, so it would otherwise read as "failed, then
-    passed". A skip did not run, so the rerun cannot prove it passed.
+    passed". A skip did not run, so the rerun cannot prove it passed. BROKEN
+    failed again and FLAKY skipped, which is the only signal that separates this
+    from a genuine flake.
     """
-    state = make_state(rerun_failures=[])
-    rerun = JunitCounts(tests=2, failed=0, skipped=2)
+    state = make_state(rerun_failures=[BROKEN])
+    rerun = JunitCounts(tests=2, failed=1, skipped=1)
     outcome = fc.classify(_FAILED_FIRST, "failure", state, rerun)
     assert outcome.exit_code == fs.EXIT_EXTERNAL
     assert outcome.unclassified == [BROKEN, FLAKY]
-    assert "never rerun" in outcome.headline
+    assert "1 skipped" in outcome.headline
+
+
+def test_all_skipped_rerun_is_inconclusive():
+    """Every first-run failure skipped, so nothing was proven."""
+    state = make_state(rerun_failures=[])
+    outcome = fc.classify(_FAILED_FIRST, "failure", state, JunitCounts(2, 0, skipped=2))
+    assert outcome.exit_code == fs.EXIT_EXTERNAL
+    assert outcome.unclassified == [BROKEN, FLAKY]

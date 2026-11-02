@@ -19,10 +19,11 @@ EXIT CODES (ADR-035):
        flaky), or the rerun was skipped above the cap.
   2  - Config: bad arguments, or a state file this script did not write.
   3  - External: a missing or malformed JUnit report or cache file, or a rerun
-       that cannot be classified. The last case covers a rerun that did not
-       finish, exited 2 (a collection error or an interrupt, where pytest
-       blames the module instead of the test), ran fewer tests than failed, or
-       disagreed between its JUnit failure count and its cache.
+       that cannot be classified. The last case covers: a rerun that did not
+       finish; exit 2 (a collection error or an interrupt, where pytest blames
+       the module instead of the test); a rerun that names a failure for a node
+       id that did not fail first; and a rerun whose passed, failed, and
+       skipped tests do not account for every one of those node ids.
 """
 
 from __future__ import annotations

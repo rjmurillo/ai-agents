@@ -27,9 +27,12 @@ def command_value(text: str) -> str:
     """Escape a value for a GitHub workflow ``::warning``/``::error`` line.
 
     The runner parses these lines by hand, so a ``%`` starts a percent escape,
-    a ``\\r`` ends the message, and a ``\\n`` starts a new command. A node id may
-    contain any of them (a parametrized id can carry a literal newline), so they
-    are escaped here rather than written raw.
+    a ``\\r`` ends the message, and a ``\\n`` starts a new command. A ``%`` is
+    reachable: pytest keeps it in a parametrized id (``test_x[100%]``), and an
+    id that already read ``%0A`` would otherwise be decoded by the runner as a
+    newline. CR and LF are escaped too, as defence in depth. The order matters:
+    ``%`` must go first, or the escapes this function inserts would themselves
+    be escaped.
     """
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 

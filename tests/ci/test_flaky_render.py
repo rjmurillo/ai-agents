@@ -9,7 +9,7 @@ from tests.ci.flaky_test_helpers import make_state
 
 
 def _outcome() -> Outcome:
-    return classify(JunitCounts(10, 2), "failure", make_state(), JunitCounts(2, 1))
+    return classify(JunitCounts(10, 2), "failure", make_state(), JunitCounts(2, 1, passed=1))
 
 
 def test_summary_escapes_pipes_and_shows_note():
