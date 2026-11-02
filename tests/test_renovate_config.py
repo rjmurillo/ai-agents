@@ -92,13 +92,13 @@ def test_devcontainer_updates_require_a_manual_merge(config: dict[str, Any]) -> 
     Without this rule a Renovate feature bump automerges on its own and leaves
     devcontainer-lock.json holding digests for refs that are no longer used,
     which breaks `devcontainer up --frozen-lockfile` for every contributor.
+    Every rule naming the manager is checked, so a later rule cannot re-enable
+    automerge behind the first one.
     """
-    rule = next(
-        (r for r in config["packageRules"] if "devcontainer" in r.get("matchManagers", [])),
-        None,
-    )
-    assert rule is not None, "no packageRules entry targets the devcontainer manager"
-    assert rule["automerge"] is False
+    rules = [r for r in config["packageRules"] if "devcontainer" in r.get("matchManagers", [])]
+    assert rules, "no packageRules entry targets the devcontainer manager"
+    assert all(rule.get("automerge") is not True for rule in rules), rules
+    assert any(rule.get("automerge") is False for rule in rules), rules
 
 
 def test_no_package_rule_excludes_packages_from_automerge(config: dict[str, Any]) -> None:

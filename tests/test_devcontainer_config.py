@@ -16,6 +16,8 @@ import json
 import re
 from pathlib import Path
 
+from tests.hooks.managed_image_marker_parsers import MARKER_NAME, _strip_jsonc
+
 CONTAINER_DIR = Path(__file__).resolve().parents[1] / ".devcontainer"
 CONFIG_PATH = CONTAINER_DIR / "devcontainer.json"
 LOCK_PATH = CONTAINER_DIR / "devcontainer-lock.json"
@@ -23,13 +25,13 @@ LOCK_PATH = CONTAINER_DIR / "devcontainer-lock.json"
 _DIGEST = re.compile(r"@sha256:(?P<digest>[0-9a-f]{64})$")
 
 
-def _strip_jsonc(text: str) -> str:
-    """Drop // comments and trailing commas so the config parses as JSON."""
-    without_comments = re.sub(r"^\s*//.*$", "", text, flags=re.MULTILINE)
-    return re.sub(r",(\s*[}\]])", r"\1", without_comments)
-
-
 def _config() -> dict:
+    """Parse the config with the same JSONC reader the marker test uses.
+
+    A local stripper would be a second, weaker copy of that rule: this file
+    carries trailing comments and the marker parser already handles those and
+    comments inside string literals.
+    """
     return json.loads(_strip_jsonc(CONFIG_PATH.read_text(encoding="utf-8")))
 
 
@@ -69,5 +71,10 @@ def test_base_image_is_pinned_by_digest() -> None:
 
 
 def test_config_marks_the_container_as_a_managed_image() -> None:
-    """ADR-104 rule 8 needs the marker, and the marker test requires it here."""
-    assert _config()["containerEnv"]["AI_AGENTS_REMOTE_CONTAINER"] == "1"
+    """ADR-104 rule 8 needs this marker for hook deadlines to clamp.
+
+    ``tests/hooks/test_managed_image_marker.py`` enforces the same property over
+    the tracked file. This asserts it where the container is defined, reading the
+    marker name from that module so the two cannot drift.
+    """
+    assert _config()["containerEnv"][MARKER_NAME] == "1"
