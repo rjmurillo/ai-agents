@@ -54,7 +54,6 @@ def test_every_feature_reference_carries_a_digest() -> None:
 
 def test_each_lock_entry_matches_its_reference_digest() -> None:
     """A digest edited in one file and not the other must fail here."""
-    features = _config()["features"]
     for reference, entry in _lock()["features"].items():
         digest = _DIGEST.search(reference)
         assert digest, f"lock key {reference} carries no digest"
