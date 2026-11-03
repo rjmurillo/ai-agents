@@ -24,6 +24,20 @@ from scripts.failure_classifier.classifier import (
     normalize_target,
     normalize_tool,
 )
+from scripts.failure_classifier.friction import (
+    THRESHOLD_ENV,
+    Friction,
+    build_friction_message,
+    collect_record,
+    compute_friction,
+    friction_marker_body,
+    friction_marker_name,
+    friction_status,
+    friction_tier,
+    keeps_record,
+    parse_threshold,
+    partial_budget,
+)
 from scripts.failure_classifier.transcript import events_from_records, stop_feedback_count
 
 __all__ = [
@@ -32,6 +46,18 @@ __all__ = [
     "FINGERPRINT_MAX_CHARS",
     "FRICTION_TIER1_DEFAULT",
     "FRICTION_WEIGHTS",
+    "THRESHOLD_ENV",
+    "Friction",
+    "build_friction_message",
+    "collect_record",
+    "compute_friction",
+    "friction_marker_body",
+    "friction_marker_name",
+    "friction_status",
+    "friction_tier",
+    "keeps_record",
+    "parse_threshold",
+    "partial_budget",
     "SHELL_TOOLS",
     "TARGET_MAX_CHARS",
     "FailureEvent",

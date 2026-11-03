@@ -22,6 +22,7 @@ from tests.hooks.reflect_nudge_support import (
     REPO_ROOT,
     human,
     nudge,
+    nudge_state,
     payload,
     run_hook,
     write_transcript,
@@ -64,7 +65,7 @@ class TestDedupe:
     ) -> None:
         state = tmp_path / "state"
         run_hook(payload(corrected), state)
-        directory = state / nudge.STATE_SUBDIR
+        directory = state / nudge_state.STATE_SUBDIR
         (marker,) = list(directory.iterdir())
         text = marker.read_text(encoding="utf-8")
         assert set(json.loads(text)) == {"v", "high", "med"}
@@ -81,7 +82,7 @@ class TestDedupe:
         """A torn or empty marker for this signal set still means already nudged."""
         state = tmp_path / "state"
         run_hook(payload(corrected), state)
-        (marker,) = list((state / nudge.STATE_SUBDIR).iterdir())
+        (marker,) = list((state / nudge_state.STATE_SUBDIR).iterdir())
         marker.write_text(content, encoding="utf-8")
         code, out, err = run_hook(payload(corrected), state)
         assert (code, out) == (0, "")
@@ -106,7 +107,7 @@ class TestDedupe:
     ) -> None:
         state = tmp_path / "state"
         run_hook(payload(corrected), state)
-        directory = state / nudge.STATE_SUBDIR
+        directory = state / nudge_state.STATE_SUBDIR
         (marker,) = list(directory.iterdir())
         victim = tmp_path / "victim"
         victim.write_text("keep", encoding="utf-8")
@@ -126,7 +127,7 @@ class TestDedupe:
         link.symlink_to(real)
         _, out, _ = run_hook(payload(corrected), link)
         assert "systemMessage" in out
-        assert (real / nudge.STATE_SUBDIR).is_dir()
+        assert (real / nudge_state.STATE_SUBDIR).is_dir()
 
     @pytest.mark.skipif(os.name != "posix", reason="mode bits")
     def test_group_writable_state_root_is_accepted(self, corrected: Path, tmp_path: Path) -> None:
@@ -142,7 +143,7 @@ class TestDedupe:
     ) -> None:
         state = tmp_path / "state"
         run_hook(payload(corrected), state)
-        (marker,) = list((state / nudge.STATE_SUBDIR).iterdir())
+        (marker,) = list((state / nudge_state.STATE_SUBDIR).iterdir())
         marker.unlink()
         marker.mkdir()
         code, out, _ = run_hook(payload(corrected), state)
@@ -154,7 +155,7 @@ class TestDedupe:
         state.mkdir()
         elsewhere = tmp_path / "elsewhere"
         elsewhere.mkdir()
-        (state / nudge.STATE_SUBDIR).symlink_to(elsewhere)
+        (state / nudge_state.STATE_SUBDIR).symlink_to(elsewhere)
         code, out, err = run_hook(payload(corrected), state)
         assert (code, out) == (0, "")
         assert "marker directory unsafe" in err
@@ -179,7 +180,7 @@ class TestDedupe:
         state = tmp_path / "state"
         path = write_transcript(tmp_path / "t.jsonl", [human("no, x")])
         run_hook(payload(path), state)
-        directory = state / nudge.STATE_SUBDIR
+        directory = state / nudge_state.STATE_SUBDIR
         write_transcript(path, [human("no, x"), human("wrong again")])
         directory.chmod(0o500)
         try:
@@ -193,7 +194,7 @@ class TestDedupe:
         old.write_text("{}", encoding="utf-8")
         fresh.write_text("{}", encoding="utf-8")
         os.utime(old, (1, 1))
-        just_inside_window = fresh.stat().st_mtime + nudge.MARKER_MAX_AGE_SECONDS - 1
+        just_inside_window = fresh.stat().st_mtime + nudge_state.MARKER_MAX_AGE_SECONDS - 1
         nudge.prune_markers(tmp_path, just_inside_window)
         assert not old.exists()
         assert fresh.exists()
@@ -204,7 +205,7 @@ class TestDedupe:
         for i in range(4):
             (tmp_path / f"{i}.json").write_text("{}", encoding="utf-8")
             os.utime(tmp_path / f"{i}.json", (1, 1))
-        monkeypatch.setattr(nudge, "MARKER_PRUNE_LIMIT", 2)
+        monkeypatch.setattr(nudge_state, "MARKER_PRUNE_LIMIT", 2)
         nudge.prune_markers(tmp_path, 10**12)
         assert len(list(tmp_path.iterdir())) == 2
 
@@ -232,7 +233,7 @@ class TestDedupe:
     def test_marker_directory_open_to_group_or_other_is_refused(
         self, corrected: Path, tmp_path: Path
     ) -> None:
-        directory = tmp_path / "state" / nudge.STATE_SUBDIR
+        directory = tmp_path / "state" / nudge_state.STATE_SUBDIR
         directory.mkdir(parents=True)
         directory.chmod(0o755)
         code, out, err = run_hook(payload(corrected), tmp_path / "state")
