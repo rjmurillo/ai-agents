@@ -59,6 +59,8 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
         )
     # --override-ini=addopts= drops the repo's addopts: its -v cancels -q and
     # prints a tree with no "::" ids, which would collect zero tests.
+    # -p no:warnings drops the warnings summary: a warning text holding "::"
+    # would otherwise be read as a test id.
     argv = [
         sys.executable,
         "-m",
@@ -69,6 +71,8 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
         "-q",
         "-p",
         "no:cacheprovider",
+        "-p",
+        "no:warnings",
     ]
     # PYTEST_ADDOPTS reaches pytest too: an inherited -v would cancel -q.
     env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}

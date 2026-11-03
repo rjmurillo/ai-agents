@@ -82,3 +82,21 @@ def test_cli_exits_2_when_the_trigger_cannot_read_its_inputs(
     assert code == 2
     assert captured.out == ""
     assert "trigger could not read its inputs" in captured.err
+
+
+def test_collect_tests_ignores_warning_text_that_holds_a_double_colon(tmp_path: Path) -> None:
+    """A module warning at import with "::" in its text yields only the real id."""
+    module = tmp_path / "tests" / "v" / "test_w.py"
+    module.parent.mkdir(parents=True)
+    module.write_text(
+        "import warnings\n"
+        'warnings.warn("mod::level", DeprecationWarning)\n'
+        "\n\n"
+        "def test_a():\n"
+        "    assert True\n"
+    )
+
+    ids = collector_mod.collect_tests(["tests/v/test_w.py"], tmp_path)
+
+    assert len(ids) == 1
+    assert ids[0].endswith("test_w.py::test_a")
