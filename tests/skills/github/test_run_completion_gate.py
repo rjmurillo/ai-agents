@@ -4362,6 +4362,30 @@ class TestClassifyArgvToken:
             str(link),
         )
 
+    def test_dotdot_after_a_symlink_classifies_the_executed_file(
+        self,
+        tmp_path,
+        tmp_path_factory,
+        monkeypatch,
+    ):
+        # CWE-59: normpath turns "pkg/link/../verify.py" into the benign
+        # in-tree "pkg/verify.py", but the kernel follows "link" before "..",
+        # so the file that runs is outside/verify.py. The classifier must
+        # judge the executed file, never the lexically collapsed one.
+        outside = tmp_path_factory.mktemp("outside")
+        (outside / "sub").mkdir()
+        (outside / "verify.py").write_text("evil", encoding="utf-8")
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "verify.py").write_text("benign", encoding="utf-8")
+        (pkg / "link").symlink_to(outside / "sub")
+        monkeypatch.chdir(tmp_path)
+
+        assert _dispatcher._classify_argv_token("pkg/link/../verify.py", tmp_path) == (
+            _dispatcher._ARGV_ESCAPES,
+            "pkg/link/../verify.py",
+        )
+
     def test_nonexistent_path_outside_work_tree_is_skipped(self, tmp_path):
         assert _dispatcher._classify_argv_token(
             "/nonexistent/x.py",

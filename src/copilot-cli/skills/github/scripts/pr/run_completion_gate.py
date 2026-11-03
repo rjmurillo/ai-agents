@@ -1801,8 +1801,14 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
 
     # Lexical (``literal``) and resolved paths answer different questions:
     # the first finds a link on the way, the second names the executed file.
+    # Resolve the token as written, never its normpath: normpath drops
+    # "link/.." lexically, while the kernel follows the link first, so the
+    # normalized path can name a different file than the one that runs
+    # (CWE-59).
     literal = _literal_argv_path(token)
-    candidate = literal
+    candidate = Path(token)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
 
     if _first_symlinked_component(literal, toplevel) is not None:
         return _ARGV_ESCAPES, token
