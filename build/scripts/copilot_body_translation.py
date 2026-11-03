@@ -18,7 +18,7 @@ Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
   - `mcp__github__<op>`        -> not a Copilot tool name; Copilot spells the
                                   same server `github/<op>` (`templates/toolsets.yaml`)
 
-The translation applies five transforms, all in place. Transforms 1 to 3 also
+The translation applies six transforms, all in place. Transforms 1 to 3 also
 run over ``references/*.md`` (`translate_reference_file`), which ship beside
 ``SKILL.md`` and describe the same Claude surface:
 
@@ -40,6 +40,8 @@ run over ``references/*.md`` (`translate_reference_file`), which ship beside
      frontmatterDrop` -> dropped. Copilot CLI lists `model` and
      `model-rationale`: its skills have no per-skill model field, and a bare
      alias such as `haiku` is not a Copilot model id (ADR-111, issue #5606).
+  6. `--harness {harness}` -> `--harness copilot`. The Copilot copy always
+     runs the `copilot` scripts map, so the build names it (issue #6506).
 
 Transform 3 rewrites each call where it sits (structural rework, #2743). The
 earlier design appended a reference table to sidestep the Step 0 / Step 9
@@ -388,6 +390,11 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
     return "".join(out)
 
 
+def _translate_harness(body: str) -> str:
+    """Transform 6: name the ``copilot`` map so the agent never picks it."""
+    return body.replace("--harness {harness}", "--harness copilot")
+
+
 def translate_body(body: str, skills_output_dir: Path) -> str:
     """Translate Claude Code conventions in a SKILL.md body for Copilot CLI.
 
@@ -396,6 +403,7 @@ def translate_body(body: str, skills_output_dir: Path) -> str:
     """
     translated = _translate_includes(body)
     translated = _translate_arguments(translated)
+    translated = _translate_harness(translated)
     plugin_name = resolve_plugin_name(skills_output_dir)
     return _translate_invocations(translated, plugin_name)
 
