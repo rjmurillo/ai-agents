@@ -1724,6 +1724,19 @@ def _launcher_script_token(command: str) -> str | None:
     return _expand_plugin_root(f"{_LAUNCHER_ROOT_FORM}/{script_rel}")
 
 
+def _literal_argv_path(token: str) -> Path:
+    """The absolute, unresolved path ``token`` names, as the dispatch cwd reads it.
+
+    normpath collapses ".." lexically without following symlinks.
+    Path.relative_to is purely lexical, so it would otherwise accept
+    "<toplevel>/../etc/passwd" as living inside the work tree.
+    """
+    candidate = Path(token)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    return Path(os.path.normpath(candidate))
+
+
 def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     """Classify one argv element for trust verification.
 
@@ -1769,10 +1782,7 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     candidate = Path(token)
     if not candidate.is_absolute():
         candidate = Path.cwd() / candidate
-    # normpath collapses ".." lexically without following symlinks.
-    # Path.relative_to is purely lexical, so it would otherwise accept
-    # "<toplevel>/../etc/passwd" as living inside the work tree.
-    literal = Path(os.path.normpath(candidate))
+    literal = _literal_argv_path(token)
 
     if _first_symlinked_component(literal, toplevel) is not None:
         return _ARGV_ESCAPES, token
@@ -1826,6 +1836,24 @@ def _collect_command_paths(
     Raises :class:`ConfigError` on a schema violation or an unparseable
     command line; the caller exits 2 per ADR-035.
     """
+    to_verify, external, escaping, _ = _collect_command_spellings(criteria, pr_number, toplevel)
+    return to_verify, external, escaping
+
+
+def _collect_command_spellings(
+    criteria: list[Any],
+    pr_number: int,
+    toplevel: Path,
+) -> tuple[list[str], list[str], list[str], dict[str, list[Path]]]:
+    """:func:`_collect_command_paths` plus each external file's unresolved spellings.
+
+    An external value is a resolved path, so the links on the way to it
+    are gone. The fourth item maps each external value to the literal
+    paths the commands spelled it with, so :func:`_partition_external_files`
+    can refuse a link in another work tree of this repository the way the
+    in-tree check refuses one (D10, CWE-59).
+    """
+    spellings: dict[str, list[Path]] = {}
     to_verify: list[str] = []
     external: list[str] = []
     escaping: list[str] = []
@@ -1857,8 +1885,13 @@ def _collect_command_paths(
                 bucket = buckets.get(kind)
                 if bucket is not None and value not in bucket:
                     bucket.append(value)
+                if kind == _ARGV_EXTERNAL:
+                    literal = _literal_argv_path(candidate)
+                    known = spellings.setdefault(value, [])
+                    if literal not in known:
+                        known.append(literal)
 
-    return to_verify, external, escaping
+    return to_verify, external, escaping, spellings
 
 
 def _import_roots(script: Path, toplevel: Path) -> list[Path]:
@@ -3116,16 +3149,82 @@ def _same_repository_root(
     "Same repository" means the same git common dir (a linked worktree of
     this clone) or the same normalized origin URL (a separate clone).
 
-    The caller has already found a ``.git`` above ``path``
-    (:func:`_inside_git_work_tree`). ``(None, "")`` is a work tree of
-    another repository, which keeps install trust. ``(None, error)``
-    means git could not decide, and the caller fails closed.
+    Every ancestor holding a ``.git`` entry is asked, innermost first, so
+    a nested repository or submodule inside a work tree of this
+    repository does not hide that tree. The file then sits under this
+    repository's root, untracked there, and blocks as it would in-tree.
+    ``(None, "")`` means no enclosing work tree is this repository, which
+    keeps install trust. ``(None, error)`` means git could not decide,
+    and the caller fails closed.
     """
-    theirs, error = _repository_identity(path.parent)
-    if theirs is None:
-        return None, error
-    if theirs.common_dir == ours.common_dir or (ours.origin and theirs.origin == ours.origin):
-        return theirs.toplevel, ""
+    for ancestor in (path, *path.parents):
+        try:
+            os.lstat(ancestor / ".git")
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError as exc:
+            return None, f"cannot probe {ancestor / '.git'}: {exc}"
+        theirs, error = _repository_identity(ancestor)
+        if theirs is None:
+            return None, error
+        if theirs.common_dir == ours.common_dir or (ours.origin and theirs.origin == ours.origin):
+            return theirs.toplevel, ""
+    return None, ""
+
+
+def _unpinned_link_in(literal: Path, root: Path) -> Path | None:
+    """First link under ``root`` on ``literal``'s way that the trusted ref does not pin.
+
+    ``root`` is a resolved work tree of this repository (D10). The in-tree
+    check refuses such a link (:func:`_classify_argv_token`) because the
+    LINK is the blob a PR controls, while resolving it compares only the
+    target (CWE-59). External values are already resolved, so this
+    re-reads the spelling the command used. Pinned links (ADR-119) are
+    looked up against ``root``. A spelling with no ancestor that resolves
+    to ``root`` cannot be scanned and is returned as is (fail closed).
+    """
+    lexical = next(
+        (ancestor for ancestor in literal.parents if ancestor.resolve() == root),
+        None,
+    )
+    if lexical is None:
+        return literal
+    _SAME_REPOSITORY_TREES.add(root)
+    try:
+        return _first_symlinked_component(literal, lexical)
+    finally:
+        _SAME_REPOSITORY_TREES.discard(root)
+
+
+def _aliased_same_repository_root(
+    literal: Path,
+    ours: _RepositoryIdentity,
+) -> tuple[Path | None, str]:
+    """Root of a work tree of this repository that ``literal`` enters only through a link.
+
+    The lexical walk in :func:`_same_repository_root` misses a spelling
+    such as ``<alias>/skills/x.py`` when ``<alias>`` is a host link to a
+    sibling work tree's ``.claude``: no lexical ancestor holds the
+    sibling's ``.git``. Each ancestor is resolved, innermost first, and a
+    resolved ancestor in a work tree of this repository names that root.
+    The caller then scans the spelling with :func:`_unpinned_link_in`,
+    which refuses it: the alias is a link no trusted ref pins (D10,
+    CWE-59). This costs availability, not safety. ``(None, error)`` means
+    an ancestor could not be resolved or probed, and the caller fails
+    closed.
+    """
+    seen: set[Path] = set()
+    for ancestor in literal.parents:
+        try:
+            resolved = ancestor.resolve()
+        except (OSError, RuntimeError) as exc:
+            return None, f"cannot resolve {ancestor}: {exc}"
+        if resolved == ancestor or resolved in seen:
+            continue
+        seen.add(resolved)
+        root, error = _same_repository_root(resolved, ours)
+        if error or root is not None:
+            return root, error
     return None, ""
 
 
@@ -3219,39 +3318,63 @@ def _partition_external_files(
     external: list[str],
     toplevel: Path,
     trust_anchor_ref: str,
+    spellings: dict[str, list[Path]] | None = None,
 ) -> tuple[list[str], _SameRepositoryCheck]:
     """Split external files into true installs and same-repository files.
 
     Returns ``(installed, same_repository)``. ``installed`` keeps the
     #5112 install trust: recorded, not compared. Every file in another
     work tree of this repository is verified by
-    :func:`_verify_same_repository_files` instead. Any git failure while
-    deciding is returned as the check's ``error`` (fail closed).
+    :func:`_verify_same_repository_files` instead. Each unresolved
+    spelling in ``spellings`` is checked too: one in such a tree that
+    crosses a link the trusted ref does not pin is untrusted, as in-tree.
+    Any git failure while deciding is returned as the check's ``error``
+    (fail closed).
     """
     installed: list[str] = []
     groups: dict[Path, list[Path]] = {}
+    linked: list[str] = []
     ours: _RepositoryIdentity | None = None
     for value in external:
         path = Path(value)
-        found, error = _inside_git_work_tree(path)
-        if error:
-            return installed, _SameRepositoryCheck([], [], [], error)
-        if not found:
-            installed.append(value)
-            continue
-        if ours is None:
-            ours, error = _repository_identity(toplevel)
-            if ours is None:
+        owner: Path | None = None
+        refused = False
+        for spelling in [*(spellings or {}).get(value, []), path]:
+            aliased = spelling != path
+            found, error = _inside_git_work_tree(spelling)
+            if error:
                 return installed, _SameRepositoryCheck([], [], [], error)
-        root, error = _same_repository_root(path, ours)
-        if error:
-            return installed, _SameRepositoryCheck([], [], [], error)
-        if root is None:
+            if not found and not aliased:
+                continue
+            if ours is None:
+                ours, error = _repository_identity(toplevel)
+                if ours is None:
+                    return installed, _SameRepositoryCheck([], [], [], error)
+            root: Path | None = None
+            if found:
+                root, error = _same_repository_root(spelling, ours)
+                if error:
+                    return installed, _SameRepositoryCheck([], [], [], error)
+            if root is None and aliased:
+                root, error = _aliased_same_repository_root(spelling, ours)
+                if error:
+                    return installed, _SameRepositoryCheck([], [], [], error)
+            if root is None:
+                continue
+            if aliased and _unpinned_link_in(spelling, root) is not None:
+                linked.append(str(spelling))
+                refused = True
+                break
+            if owner is None and _is_within(path, root):
+                owner = root
+        if refused:
+            continue
+        if owner is None:
             installed.append(value)
         else:
-            groups.setdefault(root, []).append(path)
+            groups.setdefault(owner, []).append(path)
     checked: list[str] = []
-    untrusted: list[str] = []
+    untrusted: list[str] = list(linked)
     untracked: list[str] = []
     errors: list[str] = []
     for root, paths in groups.items():
@@ -3308,7 +3431,7 @@ def _verify_command_trust(
                 f"relative command paths cannot be classified",
             )
 
-        named, external, escaping = _collect_command_paths(
+        named, external, escaping, spellings = _collect_command_spellings(
             criteria,
             pr_number,
             toplevel,
@@ -3320,6 +3443,7 @@ def _verify_command_trust(
             external,
             toplevel,
             trust_anchor_ref,
+            spellings,
         )
         if same_repository.error:
             return CommandTrustCheck(
@@ -3945,6 +4069,28 @@ def _host_declared_roots() -> Iterator[Path]:
             yield root
 
 
+def _in_same_repository_tree(root: Path, work_tree: Path) -> bool:
+    """True when ``root`` lies in a work tree of the repository ``work_tree`` holds.
+
+    Raises :exc:`WorkTreeUnavailableError` when git cannot decide, so the
+    caller exits 3 rather than granting trust. A root with no ``.git``
+    entry at or above it is a true install and costs no git call.
+    """
+    # The parents of root/.git start at root itself.
+    found, error = _inside_git_work_tree(root / ".git")
+    if error:
+        raise WorkTreeUnavailableError(error)
+    if not found:
+        return False
+    ours, error = _repository_identity(work_tree)
+    if ours is None:
+        raise WorkTreeUnavailableError(error)
+    same, error = _same_repository_root(root, ours)
+    if error:
+        raise WorkTreeUnavailableError(error)
+    return same is not None
+
+
 def _install_trusted_root(config_arg: str) -> InstallTrust | None:
     """The host-declared plugin root that install-trusts ``config_arg``.
 
@@ -4069,6 +4215,12 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
         if not _are_disjoint(root, work_tree):
             continue
         if not _are_disjoint(root, project_root):
+            continue
+        # D10 (#6506): a root inside another work tree of THIS repository
+        # is not an install. A PR branch can be checked out there, so its
+        # config gets no install trust and falls to the containment check,
+        # which refuses it. A git failure here is exit 3, not trust.
+        if _in_same_repository_tree(root, work_tree):
             continue
         resolved_config = _resolve_or_none(candidate)
         if resolved_config is None:
