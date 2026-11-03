@@ -18,12 +18,12 @@ from scripts.failure_classifier.transcript import _blocks, _result_text
 from scripts.metrics.friction_calibration_samples import clip
 from scripts.metrics.friction_calibration_scan import (
     Tracker,
-    first_error_line,
     hook,
     iter_records,
     stop_counts,
     user_text,
 )
+from scripts.metrics.friction_calibration_text import first_error_line
 
 FIRST_PROMPT_CHARS = 300
 LATER_TURN_CHARS = 200

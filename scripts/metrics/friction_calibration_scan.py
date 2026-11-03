@@ -51,6 +51,10 @@ from scripts.failure_classifier import (
     is_denial,
 )
 from scripts.failure_classifier.transcript import _blocks
+from scripts.metrics.friction_calibration_text import (
+    SNIPPET_CHARS,
+    matching_line,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK_PATH = _REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py"
@@ -58,7 +62,6 @@ LOOPS_PATH = _REPO_ROOT / "src" / "claude" / "skills" / "stuck-detection" / "fai
 
 CHURN_THRESHOLD = 3  # consumer B whole-scan churn rule (REQ-048 Definitions)
 DENIAL_LIKE_WORDS: tuple[str, ...] = ("denied", "not allowed", "blocked", "refused", "forbidden")
-SNIPPET_CHARS = 2000  # raw text kept per candidate until the parent redacts it
 DENIAL_SAMPLE_MAX = 300
 WORD_SAMPLE_MAX = 200
 SHELL_SAMPLE_MAX = 400
@@ -333,13 +336,6 @@ class Pool(Generic[T]):
         return [(-neg, item) for neg, _, item in self._heap]
 
 
-def first_error_line(text: str) -> str:
-    for line in text.splitlines():
-        if line.strip():
-            return line.strip()[:SNIPPET_CHARS]
-    return ""
-
-
 def shell_command(event: FailureEvent) -> str:
     return check_command(event.input) or ""
 
@@ -384,13 +380,6 @@ def tally_events(
         elif event.tool in SHELL_TOOLS:
             _tally_shell(event, session_id, shell, cands)
     return hits, shell
-
-
-def matching_line(text: str, term: str) -> str:
-    """The first line holding ``term`` (any case), so a judge sees what matched."""
-    needle = term.lower()
-    line = next((line.strip() for line in text.splitlines() if needle in line.lower()), "")
-    return line[:SNIPPET_CHARS]
 
 
 def _tally_error(
