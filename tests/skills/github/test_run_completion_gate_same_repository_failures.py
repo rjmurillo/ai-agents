@@ -21,6 +21,7 @@ from tests.skills.github.same_repository_helpers import (
     make_repo,
     plain,
     trusted_repo,
+    verify,
     write,
 )
 
@@ -114,8 +115,8 @@ class TestSameRepositoryRootProbe:
 
 class TestUnpinnedLinkResolveFailure:
     @pytest.mark.parametrize("error", [OSError("io"), RuntimeError("loop")])
-    def test_unresolvable_ancestor_refuses_the_spelling(self, tmp_path, monkeypatch, error) -> None:
-        """No scan is possible, so the spelling itself is returned as the refusal."""
+    def test_unresolvable_ancestor_raises_os_error(self, tmp_path, monkeypatch, error) -> None:
+        """The spelling cannot be scanned; OSError routes it to the exit-3 handler."""
         literal = tmp_path / "alias" / "skills" / "x.py"
         real_resolve = Path.resolve
 
@@ -126,4 +127,33 @@ class TestUnpinnedLinkResolveFailure:
 
         monkeypatch.setattr(Path, "resolve", resolve)
 
-        assert gate._unpinned_link_in(literal, tmp_path.resolve()) == literal
+        with pytest.raises(OSError, match=f"cannot resolve {literal.parent}"):
+            gate._unpinned_link_in(literal, tmp_path.resolve())
+
+    def test_resolve_failure_in_link_scan_exits_3(
+        self, repo, tmp_path, monkeypatch, capsys
+    ) -> None:
+        """End to end: a resolve failure is "cannot decide", not a diff to approve."""
+        trusted_repo(repo, plain())
+        sibling = linked_worktree(repo, tmp_path, monkeypatch)
+        host = tmp_path / "host"
+        host.mkdir()
+        alias = host / "plugin"
+        os.symlink(sibling / ".claude", alias)
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(alias))
+        real_resolve = Path.resolve
+
+        # The alias walk stops at the innermost ancestor, which finds the
+        # sibling; only the link scan climbs as far as ``host``.
+        def resolve(self: Path, strict: bool = False) -> Path:
+            if self == host:
+                raise OSError("simulated resolve failure")
+            return real_resolve(self, strict=strict)
+
+        monkeypatch.setattr(Path, "resolve", resolve)
+
+        rc, payload, err = verify(repo, capsys, "--harness", "copilot")
+
+        assert rc == 3, err
+        assert payload == {}
+        assert f"cannot resolve {host}: simulated resolve failure" in err

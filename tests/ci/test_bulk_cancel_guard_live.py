@@ -127,12 +127,11 @@ class TestLiveEnumeration:
         self, workflows: Path, monkeypatch
     ):
         """Only the payload-shape error maps to exit 3; a code bug still raises."""
-        import scripts.bulk_cancel_guard as guard
 
         def broken(args, client):
             raise TypeError("local bug")
 
-        monkeypatch.setattr(guard, "gather_runs", broken)
+        monkeypatch.setattr("scripts.bulk_cancel_guard.gather_runs", broken)
 
         with pytest.raises(TypeError, match="local bug"):
             main(["--pr", "7", "--workflows-dir", str(workflows)], client=self._pulls_client())
