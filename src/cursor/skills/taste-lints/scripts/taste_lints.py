@@ -121,6 +121,12 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # hand-written src/codex/plugin.json stays classified authored.
     ("src", "codex", "skills"),
     ("src", "codex", "lib"),
+    # The Muse tree renders the same skills and lib packages
+    # (templates/platforms/muse.yaml), with SKILL.md frontmatter
+    # reduced to name and description. The hand-written
+    # src/muse/README.md stays classified authored.
+    ("src", "muse", "skills"),
+    ("src", "muse", "lib"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",

@@ -420,9 +420,16 @@ jobs:
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the
       # hook: pre-existing errors print, errors on changed lines block.
-      # Each mypy call has a 60s cap, but the calls run in series. The step cap
-      # keeps a stall from eating the pytest steps' share of the job's 10 min.
-      # Measured: 40 scripts/validation files with a cold cache took 6.7s.
+      # run_mypy issues one batch for changed source files and one for changed
+      # test files, because git_hook_policy._mypy_invocations keeps those apart
+      # so only a test-only batch takes the annotation relaxation. It also
+      # starts one child per scripts/validation/ path and one per colliding
+      # basename (see the python-type-check comment in lefthook.yml). Each
+      # child is a separate mypy process with a 60s cap and
+      # they run in series, so the step cap below covers the total for the step,
+      # not one call, and keeps a stall from eating the pytest steps' share of
+      # the job's 10 min. The earlier cold-cache measurement predates strict
+      # mode and this split, so it no longer sizes the cap.
       - name: Run mypy ratchet (changed Python files)
         if: matrix.primary
         timeout-minutes: 3
@@ -486,6 +493,47 @@ jobs:
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
 
+      # Flaky test detection, detect only. When the leg's tests fail, rerun
+      # just the failed tests once and report the ones that failed and then
+      # passed as flaky in the step summary and the flaky-tests artifact. The
+      # Run pytest step above has no continue-on-error, so its failure already
+      # fails the job; nothing below can turn the leg green, and the report
+      # exits nonzero too. scripts/ci/flaky_test_report.py holds the logic
+      # (ADR-006). The rerun must come straight after Run pytest: it reads the
+      # pytest cache's lastfailed file, which the pin steps below overwrite.
+      # It writes its JUnit report under artifacts/flaky/, never to the leg's
+      # junit_file, so the wall-time and budget gates read only the first run.
+      # The script skips the rerun above 25 failed tests, and the step cap
+      # keeps one slow rerun from eating the job's 10 minutes.
+      - name: Rerun failed tests once (flaky detection)
+        id: flaky-rerun
+        if: failure() && steps.run-pytest.outcome == 'failure'
+        timeout-minutes: 3
+        env:
+          PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest-rerun
+        run: >-
+          uv run --frozen python scripts/ci/flaky_test_report.py rerun
+          --out-dir artifacts/flaky/${{ matrix.partition }}
+
+      - name: Report flaky tests (detect only)
+        if: failure() && steps.run-pytest.outcome == 'failure'
+        run: >-
+          uv run --frozen python scripts/ci/flaky_test_report.py report
+          --first-junit ${{ matrix.junit_file }}
+          --first-outcome ${{ steps.run-pytest.outcome }}
+          --out-dir artifacts/flaky/${{ matrix.partition }}
+          --partition ${{ matrix.partition }}
+
+      - name: Upload flaky test report
+        if: failure() && steps.run-pytest.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flaky-tests-${{ matrix.partition }}
+          path: artifacts/flaky/${{ matrix.partition }}/flaky-tests.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
+
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto
       # --dist worksteal` shard above measures the runner's load, not the
@@ -546,7 +594,13 @@ jobs:
         if: always()
         with:
           name: pytest-results-${{ matrix.partition }}
-          path: artifacts/
+          # artifacts/flaky/ holds the rerun's own JUnit file and cache. It is
+          # a second measurement of the same tests, and the downstream wall-time
+          # and slow-test gates must read the first run only, so it is excluded
+          # here rather than being filtered again in each of those gates.
+          path: |
+            artifacts/
+            !artifacts/flaky/
           include-hidden-files: true
           overwrite: true
           retention-days: 7

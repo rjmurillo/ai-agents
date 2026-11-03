@@ -375,7 +375,9 @@ class TestWorkflowWiring:
         assert str(checkout["uses"]).startswith("actions/checkout@")
         assert "if" not in checkout
         assert checkout["with"]["fetch-depth"] == 0
-        assert ids.index("should-run") == 1
+        # A second checkout of the trusted base may sit between the two (issue #6506).
+        extra = sum(1 for s in steps[1:] if str(s.get("uses", "")).startswith("actions/checkout@"))
+        assert ids.index("should-run") == 1 + extra
 
     def test_no_step_reads_another_jobs_output(
         self, workflow_and_job: tuple[dict[str, Any], str]

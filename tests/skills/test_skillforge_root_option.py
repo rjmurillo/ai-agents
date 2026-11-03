@@ -23,6 +23,7 @@ _SCRIPT_NAMES = ("quick_validate.py", "validate-skill.py")
 _TREES = (
     "src/claude",
     "src/codex",
+    "src/muse",
     "src/copilot-cli",
     "src/cursor",
     "src/hermes/project-toolkit-knowledge",

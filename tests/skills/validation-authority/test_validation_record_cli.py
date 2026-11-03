@@ -138,6 +138,8 @@ def test_main_prints_the_summary_as_json(
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["targets"] == 1
+    # No --changed-path and no relocation target: neither optional check ran.
+    assert payload["checks"] == {"trigger_recheck": False, "collected_targets": 0}
 
 
 def test_main_returns_2_and_prints_nothing_for_a_missing_record(

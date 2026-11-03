@@ -16,6 +16,10 @@ ADR-115 Decision 1 and has no binplace row because the Cursor tree has no instal
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/claude/lib/<pkg>/*.py
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/copilot-cli/lib/<pkg>/*.py
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/codex/lib/<pkg>/*.py
+    scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/muse/lib/<pkg>/*.py
+
+The Muse tree (src/muse/lib) follows the Cursor pattern: a render
+destination with no binplace row and no install tree.
 
 `binplace_manifest.binplace()` then copies `src/claude/lib/<pkg>/` onto its
 `.claude/lib/<pkg>/` install-tree counterpart; `src/copilot-cli/lib/<pkg>/`
@@ -76,6 +80,7 @@ PLUGIN_ROOTS: tuple[str, ...] = (
     "src/copilot-cli/lib",
     "src/codex/lib",
     "src/cursor/lib",
+    "src/muse/lib",
 )
 
 # Individual file copies: (source file, destination file name under each
@@ -108,12 +113,14 @@ SKILLS_SIDECAR_PLUGIN_TREE = "src/claude/skills/review/scripts/validate_review_m
 SKILLS_SIDECAR_COPILOT_TREE = "src/copilot-cli/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_CURSOR_TREE = "src/cursor/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_CODEX_TREE = "src/codex/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_MUSE_TREE = "src/muse/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_INSTALL_TREE = ".claude/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREES: tuple[str, ...] = (
     SKILLS_SIDECAR_PLUGIN_TREE,
     SKILLS_SIDECAR_COPILOT_TREE,
     SKILLS_SIDECAR_CURSOR_TREE,
     SKILLS_SIDECAR_CODEX_TREE,
+    SKILLS_SIDECAR_MUSE_TREE,
 )
 SKILLS_SIDECAR_OWNED: tuple[str, str] = ("review", "scripts/validate_review_marker.py")
 
