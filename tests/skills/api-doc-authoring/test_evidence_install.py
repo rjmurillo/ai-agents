@@ -195,11 +195,24 @@ def test_failed_install_after_the_move_puts_the_prior_report_back(
     real_link = os.link
     calls: list[str] = []
 
-    def fail_install(src: str, dst: str, **kwargs: object) -> None:
+    def fail_install(
+        src: str,
+        dst: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+        follow_symlinks: bool = True,
+    ) -> None:
         calls.append(dst)
         if dst == "evidence.json" and src.endswith(".tmp"):
             raise OSError(5, "Input/output error")
-        real_link(src, dst, **kwargs)  # type: ignore[arg-type]
+        real_link(
+            src,
+            dst,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+            follow_symlinks=follow_symlinks,
+        )
 
     monkeypatch.setattr(ax.os, "link", fail_install)
 
@@ -282,14 +295,16 @@ def test_report_swapped_in_only_for_the_read_cannot_vouch_for_another_file(
     _write_prior(report)
     real_open = os.open
 
-    def swap_for_the_read(path: str, flags: int, *args: object, **kwargs: object) -> int:
+    def swap_for_the_read(
+        path: str, flags: int, mode: int = 0o777, *, dir_fd: int | None = None
+    ) -> int:
         if path == "evidence.json" and not flags & os.O_CREAT:
             evidence.rename(work / "hold")
             report.rename(evidence)
-            fd = real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+            fd = real_open(path, flags, mode, dir_fd=dir_fd)
             (work / "hold").rename(evidence)
             return fd
-        return real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+        return real_open(path, flags, mode, dir_fd=dir_fd)
 
     monkeypatch.setattr(ax, "_check_evidence_path", lambda raw: Path(raw))
     monkeypatch.setattr(ax.os, "open", swap_for_the_read)
@@ -309,11 +324,13 @@ def test_fifo_swapped_in_before_the_read_is_refused_without_hanging(
     _write_prior(evidence)
     real_open = os.open
 
-    def fifo_for_the_read(path: str, flags: int, *args: object, **kwargs: object) -> int:
+    def fifo_for_the_read(
+        path: str, flags: int, mode: int = 0o777, *, dir_fd: int | None = None
+    ) -> int:
         if path == "evidence.json" and not flags & os.O_CREAT:
             evidence.unlink()
             os.mkfifo(evidence)
-        return real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+        return real_open(path, flags, mode, dir_fd=dir_fd)
 
     monkeypatch.setattr(ax.os, "open", fifo_for_the_read)
 
@@ -366,10 +383,10 @@ def test_failed_cleanup_of_the_old_copy_keeps_the_new_report(
     _write_prior(evidence)
     real_unlink = os.unlink
 
-    def keep_old(path: str, *args: object, **kwargs: object) -> None:
+    def keep_old(path: str, *, dir_fd: int | None = None) -> None:
         if path.endswith(".old"):
             raise OSError(errno.EIO, "Input/output error")
-        real_unlink(path, *args, **kwargs)  # type: ignore[arg-type]
+        real_unlink(path, dir_fd=dir_fd)
 
     monkeypatch.setattr(ax.os, "unlink", keep_old)
 
