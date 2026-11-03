@@ -306,7 +306,7 @@ No network, no model call, no writes inside any repository.
       - Edit `a.py`, run `ls` and `git status` successfully, then fail `pytest tests/a.py` the same way three times. That reports churn on `a.py`.
       - Edit `a.py`, fail `cat missing.txt`, then pass `pytest tests/a.py`. That cycle records no outcome.
     - **Firing.** `edit_churn` fires when one target has a set number of cycles that share a fingerprint: `--churn` (default 3) within the last `--window` events for consumer A, and 3 over the whole scan for consumer B.
-    - **Exceptions.** A failed edit closes no cycle. A successful edit without a target opens none. A successful edit leaves other targets' pending cycles in place.
+    - **Exceptions.** A failed edit closes no cycle. A successful edit without a target opens none. A successful edit leaves other targets' pending cycles in place. A successful edit of a target that already has a pending cycle, compared after normalization, keeps that one cycle and opens no second. Fixture: edit `a.py` twice, then fail `pytest tests/a.py`. That records one cycle outcome for `a.py`, not two.
     - **Edit tools.** edit, write, multiedit, str_replace, create, apply_patch, and notebookedit.
 33. **AC-33** When the errored FailureTally entries for one Fingerprint, summed across keys, reach `--repeat` (default 3) within the last `--window` FailureEvents (default 20), CheckFailures shall report failure-repeat.
 34. **AC-34** When CheckFailures reports a signal, its nudge shall contain only these things:
