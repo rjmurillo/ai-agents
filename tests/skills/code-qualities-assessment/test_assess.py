@@ -1334,6 +1334,56 @@ def _regression_argv() -> list[str]:
     return ["--target", ".", "--changed-only", "--base", "main", "--format", "json"]
 
 
+def _go_service(module: str) -> str:
+    specs = "".join(f'    "{module}/internal/p{i}"\n' for i in range(4))
+    return f'package service\n\nimport (\n    "fmt"\n{specs})\n\nfunc F() {{ fmt.Println() }}\n'
+
+
+def test_regression_mode_scores_base_go_against_base_go_mod(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A dotless module rename keeps coupling unchanged. Scoring the base blob
+    against the working-tree go.mod made its imports look standard, scored the
+    base 10 against a head of 6, and failed regression mode with exit 10."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "go.mod", "module myapp\n", "base mod")
+    _commit(tmp_path, "service.go", _go_service("myapp"), "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _write(tmp_path, "go.mod", "module newapp\n")
+    _commit(tmp_path, "service.go", _go_service("newapp"), "rename module")
+    monkeypatch.chdir(tmp_path)
+    output = tmp_path / "out.json"
+
+    rc = main([*_regression_argv(), "--output", str(output)])
+
+    coupling = next(
+        d
+        for c in json.loads(output.read_text())["comparisons"]
+        for d in c["deltas"]
+        if d["quality"] == "coupling"
+    )
+    assert (coupling["base"], coupling["head"]) == (6.0, 6.0)
+    assert rc == 0
+
+
+def test_go_module_path_at_revision_reads_nearest_base_go_mod(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The nearest go.mod at the revision wins; no go.mod at all yields None."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "go.mod", "module outer\n", "outer")
+    (tmp_path / "sub").mkdir()
+    _commit(tmp_path, "sub/go.mod", "module inner\n", "inner")
+    monkeypatch.chdir(tmp_path)
+    lookup = _mod._go_module_path_at_revision
+
+    assert lookup(Path("sub/pkg/a.go"), "main") == "inner"
+    assert lookup(Path("other/a.go"), "main") == "outer"
+    _run_git(tmp_path, "rm", "-q", "go.mod", "sub/go.mod")
+    _run_git(tmp_path, "commit", "-m", "drop")
+    assert lookup(Path("other/a.go"), "main") is None
+
+
 def test_regression_mode_passes_a_comment_only_change_to_a_legacy_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

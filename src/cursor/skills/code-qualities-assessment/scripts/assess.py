@@ -27,7 +27,9 @@ import json
 import math
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -828,7 +830,7 @@ def _get_base_assessments(
         raw = get_file_at_revision(relative_path, revision)
         if raw is None:
             continue
-        assessments[str(file_path)] = _assess_base_bytes(file_path, raw)
+        assessments[str(file_path)] = _assess_base_bytes(file_path, raw, revision, relative_path)
     return assessments
 
 
@@ -1015,7 +1017,7 @@ def build_comparisons(
             )
             new_files.append(head)
             continue
-        base_assessment = _assess_base_bytes(base_path, raw)
+        base_assessment = _assess_base_bytes(base_path, raw, revision)
         absolute_reason = None if _has_scored_quality(base_assessment) else "base_unscored"
         comparisons.append(
             compare_assessments(
@@ -1032,14 +1034,25 @@ def build_comparisons(
     return comparisons, new_files
 
 
-def _assess_base_bytes(path: Path, raw: bytes) -> FileAssessment:
+def _assess_base_bytes(
+    path: Path,
+    raw: bytes,
+    revision: str | None = None,
+    revision_path: Path | None = None,
+) -> FileAssessment:
     """Score the base revision's bytes, or record it as unmeasurable.
 
     An undecodable base scores nothing, so every quality reads as newly scored
-    and no delta is fabricated from a file the assessor could not read.
+    and no delta is fabricated from a file the assessor could not read. With
+    *revision*, Go module context comes from that revision's go.mod, found
+    from *revision_path* (the path ``git show`` accepts, default *path*).
     """
+    resolver: Callable[[], str | None] | None = None
+    if revision is not None:
+        resolver = partial(_go_module_path_at_revision, revision_path or path, revision)
+
     try:
-        return assess_content(path, raw.decode("utf-8"))
+        return assess_content(path, raw.decode("utf-8"), resolver)
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(path, f"decode failed at base: {exc}")
 
@@ -1114,8 +1127,17 @@ def _score_cohesion(language: str | None, code_lines: list[str], loc: int) -> Qu
     return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
 
 
+def _parse_go_module(raw: bytes) -> str | None:
+    """Return the ``module`` directive of go.mod bytes, or None if unreadable."""
+    try:
+        match = _GO_MODULE_DIRECTIVE.search(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        return None
+    return match.group(1) if match else None
+
+
 def _go_module_path(file_path: Path | None) -> str | None:
-    """Return the module path from the nearest go.mod above *file_path*.
+    """Return the module path from the nearest working-tree go.mod.
 
     The module's own packages are application coupling even when the module
     path has no dot (``module myapp``), so they must not read as standard
@@ -1128,10 +1150,23 @@ def _go_module_path(file_path: Path | None) -> str | None:
         if not go_mod.is_file():
             continue
         try:
-            match = _GO_MODULE_DIRECTIVE.search(go_mod.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError):
+            return _parse_go_module(go_mod.read_bytes())
+        except OSError:
             return None
-        return match.group(1) if match else None
+    return None
+
+
+def _go_module_path_at_revision(file_path: Path, revision: str) -> str | None:
+    """Return the module path from the nearest go.mod at *revision*.
+
+    Base scoring must read the base go.mod, not the working tree's. A renamed
+    dotless module would otherwise classify the base's own imports as
+    standard library and report a false coupling regression.
+    """
+    for directory in file_path.parents:
+        raw = get_file_at_revision(directory / "go.mod", revision)
+        if raw is not None:
+            return _parse_go_module(raw)
     return None
 
 
@@ -1152,7 +1187,7 @@ def _is_go_standard_import(import_path: str, module_path: str | None) -> bool:
 def _score_coupling(
     language: str | None,
     code_lines: list[str],
-    file_path: Path | None = None,
+    go_module_resolver: Callable[[], str | None] | None = None,
 ) -> QualityScore:
     """Approximate coupling from the number of import/dependency statements.
 
@@ -1171,7 +1206,7 @@ def _score_coupling(
         import_lines = [line for line in code_lines if pattern.search(line)]
         import_count = len(import_lines)
         if language == "go":
-            module_path = _go_module_path(file_path)
+            module_path = go_module_resolver() if go_module_resolver else None
             for line in import_lines:
                 match = _GO_IMPORT_PATH.search(line)
                 if match and _is_go_standard_import(match.group(1), module_path):
@@ -1332,14 +1367,23 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     )
 
 
-def assess_content(file_path: Path, content: str) -> FileAssessment:
+def assess_content(
+    file_path: Path,
+    content: str,
+    go_module_resolver: Callable[[], str | None] | None = None,
+) -> FileAssessment:
     """Score already-loaded *content* attributed to *file_path*.
 
     Split out of ``assess_file`` so the same scoring runs over a base revision
     fetched with ``git show``, which never touches the working tree. Keeping
     one scoring body is what makes a base-to-head delta meaningful: two bodies
     would drift and the delta would measure the drift instead of the code.
+
+    *go_module_resolver* supplies the enclosing Go module path. It defaults to
+    the working-tree go.mod; base scoring passes one that reads the revision.
     """
+    resolve_go_module = go_module_resolver or (lambda: _go_module_path(file_path))
+
     language = detect_language(file_path)
     comment_prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
 
@@ -1359,7 +1403,7 @@ def assess_content(file_path: Path, content: str) -> FileAssessment:
         file_path=str(file_path),
         category=category,
         cohesion=_score_cohesion(language, code_lines, loc),
-        coupling=_score_coupling(language, code_lines, file_path),
+        coupling=_score_coupling(language, code_lines, resolve_go_module),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
         non_redundancy=_score_non_redundancy(lines, language is not None),
