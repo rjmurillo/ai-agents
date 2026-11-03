@@ -125,13 +125,23 @@ class TestFailOpen:
         assert code == 0 and "/reflect" in out and "/retrospective" not in out
         assert "classifier unavailable" in err
 
+    @pytest.mark.parametrize("raw", ["0", "off", "5", "junk"])
+    def test_without_lib_a_set_threshold_stays_silent_unset_keeps_correction(
+        self, raw: str, both: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(nudge, "failure_classifier", None)
+        code, out, err = run_env(both, tmp_path / "s1", {THRESHOLD_ENV: raw})
+        assert (code, out, err) == (0, "", "")
+        _, unset, _ = run_env(both, tmp_path / "s2")
+        assert "/reflect" in unset
+
     def test_classifier_crash_exits_zero_through_main(
         self, both: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         def boom(*_a: Any, **_k: Any) -> Any:
             raise RuntimeError("kaput")
 
-        monkeypatch.setattr(nudge.failure_classifier, "classify", boom)
+        monkeypatch.setattr(nudge.failure_classifier, "compute_friction", boom)
         monkeypatch.setattr(
             sys, "stdin", io.StringIO(json.dumps({"session_id": "s", "transcript_path": str(both)}))
         )

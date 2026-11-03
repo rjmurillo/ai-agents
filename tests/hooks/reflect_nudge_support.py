@@ -41,6 +41,7 @@ def _load() -> ModuleType:
 
 
 nudge = _load()
+nudge_state = sys.modules["_reflect_nudge_state"]
 
 
 def human(text: str, **extra: Any) -> dict[str, Any]:

@@ -23,11 +23,12 @@ from tests.hooks.friction_nudge_support import (
     run_env,
     write_transcript,
 )
-from tests.hooks.reflect_nudge_support import human, nudge
+from tests.hooks.reflect_nudge_support import human, nudge, nudge_state
+
+fc = nudge.failure_classifier
 
 STATE_DIR = "ai-agents-reflect-nudge"
 OFF_VALUES = ["0", "off", "OFF", "Off", "  0  ", "\toff\n", " oFf "]
-NOT_OFF_DEFAULTS = ["00", "+0", "-0", "-5", "abc", "1.5", "", "1_0", "５", "0x5", "off0"]
 
 
 def markers(state: Path) -> list[Path]:
@@ -48,41 +49,6 @@ def friction10(tmp_path: Path) -> Path:
     return write_transcript(tmp_path / "f.jsonl", friction_records(denials=4, feedback=1))
 
 
-class TestParseThreshold:
-    @pytest.mark.parametrize("raw", OFF_VALUES)
-    def test_off_values(self, raw: str) -> None:
-        assert nudge.parse_threshold({THRESHOLD_ENV: raw}, 10) is None
-
-    @pytest.mark.parametrize("raw", NOT_OFF_DEFAULTS)
-    def test_not_off_and_not_positive_uses_default(self, raw: str) -> None:
-        assert nudge.parse_threshold({THRESHOLD_ENV: raw}, 10) == 10
-
-    @pytest.mark.parametrize(("raw", "value"), [("5", 5), (" 7 ", 7), ("+3", 3), ("1", 1)])
-    def test_positive_integer_sets_tier_one(self, raw: str, value: int) -> None:
-        assert nudge.parse_threshold({THRESHOLD_ENV: raw}, 10) == value
-
-    def test_unset_uses_default(self) -> None:
-        assert nudge.parse_threshold({}, 10) == 10
-
-    def test_huge_digit_string_does_not_crash(self) -> None:
-        assert nudge.parse_threshold({THRESHOLD_ENV: "9" * 5000}, 10) == 10
-
-    def test_default_comes_from_the_classifier(self) -> None:
-        import failure_classifier as fc
-
-        assert nudge.failure_classifier is fc
-        assert fc.FRICTION_TIER1_DEFAULT == 10
-
-
-class TestTier:
-    @pytest.mark.parametrize(
-        ("score", "tier"),
-        [(0, 0), (3, 0), (4, 1), (7, 1), (8, 2), (15, 2), (16, 3), (32, 4)],
-    )
-    def test_tier_n_needs_threshold_times_two_to_n_minus_one(self, score: int, tier: int) -> None:
-        assert nudge.friction_tier(score, 4) == tier
-
-
 class TestOff:
     @pytest.mark.parametrize("raw", OFF_VALUES)
     def test_off_runs_nothing_from_either_branch(
@@ -97,7 +63,7 @@ class TestOff:
 
         monkeypatch.setattr(nudge, "open_transcript", forbidden)
         monkeypatch.setattr(nudge, "read_payload", forbidden)
-        monkeypatch.setattr(nudge, "_safe_marker_dir", forbidden)
+        monkeypatch.setattr(nudge, "safe_marker_dir", forbidden)
         state = tmp_path / "state"
         code, out, err = run_env(both, state, {THRESHOLD_ENV: raw})
         assert (code, out, err) == (0, "", "")
@@ -222,7 +188,7 @@ class TestMarkers:
         state = tmp_path / "state"
         run_env(friction10, state)
         (marker,) = markers(state)
-        assert marker.name == nudge.friction_marker_name("sess-1", 1)
+        assert marker.name == fc.friction_marker_name("sess-1", 1, nudge.MARKER_VERSION)
         if os.name != "nt":
             assert stat.S_IMODE(marker.stat().st_mode) == 0o600
             assert stat.S_IMODE((state / STATE_DIR).stat().st_mode) == 0o700
@@ -237,7 +203,7 @@ class TestMarkers:
         }
 
     def test_marker_names_differ_per_tier_and_session(self) -> None:
-        names = {nudge.friction_marker_name(s, t) for s in ("a", "b") for t in (1, 2)}
+        names = {fc.friction_marker_name(s, t, 1) for s in ("a", "b") for t in (1, 2)}
         assert len(names) == 4
 
     def test_friction_marker_is_separate_from_correction_marker(self, tmp_path: Path) -> None:
@@ -254,10 +220,12 @@ class TestMarkers:
         state = tmp_path / "state"
         run_env(friction10, state, session_id="old")
         (old,) = markers(state)
-        long_ago = old.stat().st_mtime - nudge.MARKER_MAX_AGE_SECONDS - 10
+        long_ago = old.stat().st_mtime - nudge_state.MARKER_MAX_AGE_SECONDS - 10
         os.utime(old, (long_ago, long_ago))
         run_env(friction10, state, session_id="new")
-        assert [m.name for m in markers(state)] == [nudge.friction_marker_name("new", 1)]
+        assert [m.name for m in markers(state)] == [
+            fc.friction_marker_name("new", 1, nudge.MARKER_VERSION)
+        ]
 
 
 class TestBothBranches:
