@@ -8,7 +8,7 @@ Gates|S init/handoff/resume/memory/git|P `pre_pr.py`/no BLOCKING/security/style|
 **Autonomy Guardrail**: tiers ADR-112|irreversible->human|ambiguous minimal+flag
 **Never**: Secrets|New bash scripts|YAML logic|Raw `gh`|Force-push|No-verify|Internal refs|Scratch
 Setup|one command: `CONTRIBUTING.md` Setup Steps
-Root|never run hooks/tests/push as root: use the container's non-root user, own clone, `env -i`|recipe: memory `ci/ci-run-hooks-as-non-root-in-managed-containers`
+Root|no hooks/tests/push as root: non-root user, own clone, `env -i` (memory ci-run-hooks-as-non-root)
 Disk|wt: `~/worktrees/<repo>/<branch>`|scratch: wt `.project-toolkit/scratch/`|done: remove wt+branch
 Block|artifact->test|security->fix/owner|conflict->resolve|validation->pre-PR
 Skills|route autoplan|no skill -> autoplan|multi -> orchestrator|conflict -> GitHub/merge-resolver|CI ladder|new cap buy-vs-build|agent-harness-reference|ai-agents-portability-campaign|ADR review: debate log required for any non-frontmatter ADR edit; full panel only when the change touches executable enforcement or a rule other gates read, else reduced panel (architect+critic)
