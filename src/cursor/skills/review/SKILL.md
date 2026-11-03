@@ -182,7 +182,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs before Stage 2 (Process step 2)
 - [ ] Every non-spec `references/*.md` file is either selected by change risk or reported as SKIPPED with a reason, and deep review still runs the full set (11 with the current set: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality)
-- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; the 4 local axes stayed in `local_selected`; an unclassifiable path, a blank-only path list, or an unknown `--effect` gave `fail_closed: true`
+- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; local axes stayed out of `canonical_selected`; an unclassifiable path, a blank-only path list, or an unknown `--effect` gave `fail_closed: true`
 - [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
 - [ ] The verdict library resolves under one of the two documented candidate paths
 - [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7

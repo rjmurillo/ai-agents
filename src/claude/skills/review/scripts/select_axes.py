@@ -548,11 +548,11 @@ def scannable_local_axes(paths: Sequence[str]) -> set[str]:
 def readable_local_axes(paths: Sequence[str]) -> set[str]:
     """Local axes whose scanner reads at least one of *paths*.
 
-    Deep review uses this whole-list question on purpose. It routes no axis by
-    category, so every changed path is in scope for every axis, and the only
-    question left is whether the scanner can read any of them. A path the
-    scanner cannot read stays covered by the canonical axes, which deep always
-    runs in full.
+    Deep and fail-closed runs use this whole-list question on purpose. Neither
+    routes an axis by category, so every changed path is in scope for every
+    axis, and the only question left is whether the scanner can read any of
+    them. A path the scanner cannot read stays covered by the canonical axes,
+    which both modes always run in full.
     """
     return {
         axis
@@ -650,9 +650,11 @@ def unreviewable_paths(paths: Sequence[str]) -> list[str]:
     still leaves it reviewed. `docs-and-instructions` and `toolkit-governance`
     contribute local axes alone, so dropping theirs leaves nobody: a
     `.doc-accuracy/notes.md` or a `README.MD` would be classified, skipped by every
-    axis that claimed it, and the run could still finish PASS with no
-    documentation evidence at all. Those paths are reported so the caller fails
-    the run closed instead.
+    axis that claimed it, and reviewed by no axis at all. Those paths are
+    reported so the caller fails the run closed, which selects every canonical
+    axis. doc-accuracy still cannot read them, so the fail-closed narrowing
+    skips it with a reason rather than scanning zero files into an UNKNOWN that
+    blocks PASS forever (issue #7031). The canonical axes are their review.
     """
     stranded: list[str] = []
     for raw in paths:

@@ -7,8 +7,8 @@ path list stays trustworthy on a fail-closed run, so a scanner that reads no
 changed file is skipped with a reason. Only a run with no usable path keeps all
 four, because there is nothing to narrow against.
 
-Kept out of ``test_select_axes_scanner_capability.py``, which sits at the
-500-line taste limit.
+Kept out of ``test_select_axes.py``, which is already over the 500-line taste
+limit, and ``test_select_axes_scanner_capability.py``, which is near it.
 """
 
 from __future__ import annotations
@@ -39,13 +39,6 @@ def select(paths: list[str], **kwargs: object) -> dict:
 
 
 class TestFailClosedNarrowsLocalAxes:
-    def test_fail_closed_skips_scanners_that_read_no_changed_file(self):
-        result = select(["some/unclassifiable/blob.bin"])
-        assert result["fail_closed"] is True
-        assert result["local_selected"] == []
-        for axis in mod.LOCAL_AXES:
-            assert result["skipped"][axis] == mod._UNREADABLE_REASON
-
     @pytest.mark.parametrize(
         "unclassified",
         # The two #6506 branches that hit the deadlock on 2026-11-01.
@@ -69,10 +62,25 @@ class TestFailClosedNarrowsLocalAxes:
         for axis in result["local_selected"]:
             assert result["selection_reasons"][axis] == mod._FAIL_CLOSED_REASON
 
-    @pytest.mark.parametrize("paths", [[], ["", "   "]])
-    def test_fail_closed_with_no_usable_path_keeps_every_local_axis(self, paths):
-        """With nothing to narrow against, all four local axes still run."""
-        result = select(paths)
+    @pytest.mark.parametrize("stranded", ["README.MD", ".doc-accuracy/notes.md"])
+    def test_stranded_doc_skips_doc_accuracy_and_keeps_every_canonical_axis(self, stranded):
+        """unreviewable_paths folds these in; the canonical axes now review them.
+
+        doc-accuracy cannot read either path, so keeping it would scan zero
+        files into an UNKNOWN that blocks PASS on every round.
+        """
+        result = select([stranded])
+        assert result["fail_closed"] is True
+        assert result["unclassified_paths"] == [stranded]
+        assert result["skipped"]["doc-accuracy"] == mod._UNREADABLE_REASON
+        assert set(result["canonical_selected"]) == set(CANDIDATES)
+
+    def test_fail_closed_with_blank_only_paths_keeps_every_local_axis(self):
+        """With nothing to narrow against, all four local axes still run.
+
+        The empty-list case lives in test_select_axes.py.
+        """
+        result = select(["", "   "])
         assert result["fail_closed"] is True
         assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
         assert result["skipped"] == {}
