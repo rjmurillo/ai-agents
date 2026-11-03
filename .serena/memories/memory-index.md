@@ -138,7 +138,7 @@
 |local passes CI fails same commit gitignored build: [decision-local-pass-does-not-clear-red-ci](decision-local-pass-does-not-clear-red-ci.md) (942)
 |spec coverage acceptance criteria checkbox fails unchecked linked spec observe-only history verdict spec_coverage_verdict linked spec rerun stale body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (1256)
 |mutation harness restore failure truncate empty target sibling: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
-|root uid 0 non-root claude user managed container pre-push hooks testmon env -i GH_TOKEN PYTHONUNBUFFERED mutation marker push: [ci/ci-run-hooks-as-non-root](ci/ci-run-hooks-as-non-root.md) (693)
+|root uid 0 non-root claude user managed container pre-push hooks testmon env -i GH_TOKEN PYTHONUNBUFFERED mutation marker push: [ci/ci-run-hooks-as-non-root](ci/ci-run-hooks-as-non-root.md) (925)
 |BOT_PAT github.token runner token AI review read calls: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (1609)
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
