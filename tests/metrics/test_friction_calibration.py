@@ -15,6 +15,7 @@ import pytest
 
 from scripts.metrics import friction_calibration as cal
 from scripts.metrics import friction_calibration_scan as scan
+from scripts.metrics import friction_calibration_text as text_helpers
 from tests.metrics.friction_calibration_helpers import (
     FAKE_TOKEN,
     SINCE,
@@ -342,10 +343,10 @@ class TestReviewFixes:
         assert result_row["retro_stops"] == [0, 2]
 
     def test_denial_sample_carries_the_matching_line(self) -> None:
-        assert scan.matching_line(
+        assert text_helpers.matching_line(
             "Exit code 1\nPermission for this command was denied", "was denied"
         ) == ("Permission for this command was denied")
-        assert scan.matching_line("no match here", "denied") == ""
+        assert text_helpers.matching_line("no match here", "denied") == ""
 
 
 class TestExcerptAtEvent:
