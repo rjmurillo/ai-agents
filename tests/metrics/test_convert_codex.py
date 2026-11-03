@@ -336,14 +336,23 @@ def test_main_prints_counts(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
 
 
 @pytest.mark.parametrize("hostile", ["../x", "a/b", "", ".hidden"])
-def test_hostile_session_id_is_skipped_and_counted(tmp_path: Path, hostile: str) -> None:
+def test_hostile_session_id_falls_back_to_the_safe_file_stem(tmp_path: Path, hostile: str) -> None:
     src = _write_src(tmp_path / "rollout-a.jsonl", _meta(id=hostile), _cmd("c", "x", 0, ""))
     out = tmp_path / "out"
     out.mkdir()
     totals = cc.convert_files([src], out, date(2026, 1, 1))
-    assert (totals["sessions"], totals["skipped"], totals["skipped_unsafe_id"]) == (0, 1, 1)
-    assert list(out.iterdir()) == []
+    assert totals["sessions"] == 1 and totals.get("skipped_unsafe_id", 0) == 0
+    assert [p.name for p in out.iterdir()] == ["rollout-a.jsonl"]
     assert not (tmp_path / "x.jsonl").exists()
+
+
+def test_unsafe_id_and_unsafe_stem_is_skipped(tmp_path: Path) -> None:
+    src = _write_src(tmp_path / "rollout a.jsonl", _meta(id="../x"), _cmd("c", "x", 0, ""))
+    out = tmp_path / "out"
+    out.mkdir()
+    totals = cc.convert_files([src], out, date(2026, 1, 1))
+    assert (totals["sessions"], totals["skipped_unsafe_id"]) == (0, 1)
+    assert list(out.iterdir()) == []
 
 
 def test_planted_symlink_at_output_is_not_written_through(tmp_path: Path) -> None:
@@ -358,3 +367,25 @@ def test_planted_symlink_at_output_is_not_written_through(tmp_path: Path) -> Non
     target = out / "sess-1.jsonl"
     assert not target.is_symlink()
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_missing_session_id_falls_back_to_the_file_stem(tmp_path: Path) -> None:
+    from scripts.metrics import convert_codex as cc
+
+    rollout = tmp_path / "rollout-2026-10-10T10-00-00-abc.jsonl"
+    rollout.write_text(
+        json.dumps(
+            {
+                "type": "event_msg",
+                "timestamp": "2026-10-10T10:00:00Z",
+                "payload": {"type": "user_message", "message": "fix the bug"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "out"
+    out.mkdir()
+    totals = cc.convert_files([str(rollout)], out, date(2026, 10, 1))
+    assert totals.get("skipped_unsafe_id", 0) == 0
+    assert (out / f"{rollout.stem}.jsonl").exists()

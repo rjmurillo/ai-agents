@@ -282,7 +282,7 @@ class _Session:
 def convert_lines(lines: Iterable[str]) -> tuple[str | None, str, list[dict[str, Any]]]:
     """Convert one rollout. Returns (skip reason or None, session id, records)."""
     session = _Session()
-    session_id, start = "", ""
+    session_id = ""
     for idx, line in enumerate(lines):
         try:
             record = json.loads(line)
@@ -295,9 +295,8 @@ def convert_lines(lines: Iterable[str]) -> tuple[str | None, str, list[dict[str,
             if _is_subagent_or_fork(payload):
                 return "subagent_or_fork", str(payload.get("id", "")), []
             session_id = str(payload.get("id", ""))
-            start = str(record.get("timestamp", ""))
         session.handle(idx, record)
-    return None, session_id or start, session.records()
+    return None, session_id, session.records()
 
 
 def _count(records: list[dict[str, Any]]) -> Counter[str]:
@@ -329,7 +328,8 @@ def convert_files(paths: Iterable[str], out_dir: Path, since: date) -> Counter[s
             totals["skipped"] += 1
             totals[f"skipped_{reason or 'empty_or_before_since'}"] += 1
             continue
-        stem = safe_session_id(session_id)
+        # A rollout with no session_meta id falls back to its file name.
+        stem = safe_session_id(session_id) or safe_session_id(Path(path).stem)
         if stem is None:
             totals["skipped"] += 1
             totals["skipped_unsafe_id"] += 1
