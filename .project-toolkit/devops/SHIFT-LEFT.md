@@ -428,6 +428,7 @@ a security gate.
 | pre-push | `planning-artifacts` | unscoped | Planning artifact validation | - | no | CI, not required: validate-planning-artifacts.yml |
 | pre-push | `branch-context-policy` | unscoped | Blocks when the branch contradicts today's session log | pre-commit | no | None found |
 | pre-push | `review-axis-drift` | unscoped | Review axis prompts match their source | - | no | Required: Validate Generated Files, step Review-axes drift check (REQ-008-03) |
+| pre-push | `import-boundaries` | unscoped | import-linter contracts in pyproject.toml | - | no | Required: Run Python Tests, step Check import boundaries (lint-imports) |
 | pre-push | `dash-prohibition` | unscoped | Em and en dash scan of the whole branch | - | no | None found |
 | pre-push | `security-scan` | push range (stdin) | Semgrep on every pushed head | - | yes | None found |
 | pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 115 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |

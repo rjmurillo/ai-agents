@@ -31,6 +31,7 @@ dev = [
     "pytest-testmon>=2.2.0",
     "pytest-split>=0.11.0",
     "chevron==0.14.0",
+    "import-linter>=2.15",
 ]
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
@@ -703,6 +704,81 @@ module = [
 ]
 disable_error_code = ["type-arg"]
 
+# Module boundaries, enforced by `lint-imports` (import-linter) in the pre-push
+# `import-boundaries` job and the pytest workflow. Each contract states a rule
+# the repository already documents; tests/test_import_linter_contracts.py ties
+# the module lists to their sources and pins the ignore count.
+[tool.importlinter]
+root_packages = ["scripts", "memory_enhancement", "tests"]
+# Third-party packages join the graph so a forbidden contract can name them.
+include_external_packages = true
+
+# build/scripts/lib_mirror.py ships these four packages into every plugin lib
+# tree (ADR-109 B5). Its IMPORT_CONVERSIONS rewrite turns any
+# `from scripts.<pkg> import` into `from . import`, so an import of a sibling
+# package would resolve inside the importing package in the shipped copy.
+[[tool.importlinter.contracts]]
+id = "shipped-lib-independence"
+name = "Shipped lib packages do not import each other"
+type = "independence"
+modules = [
+    "scripts.hook_utilities",
+    "scripts.github_core",
+    "scripts.ai_review_common",
+    "scripts.failure_classifier",
+]
+
+# plugin-self-containment.md MUST 1: a shipped file may not depend on a path
+# that exists only in this repository. The rest of scripts/, memory_enhancement/,
+# and tests/ never ship, so a shipped lib package may not import them.
+[[tool.importlinter.contracts]]
+id = "shipped-lib-self-contained"
+name = "Shipped lib packages import nothing else from the repository"
+type = "forbidden"
+source_modules = [
+    "scripts.hook_utilities",
+    "scripts.github_core",
+    "scripts.ai_review_common",
+    "scripts.failure_classifier",
+]
+forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
+
+# plugin-self-containment.md MUST 4: a plugin-root script runs under bare
+# `python3` and must be stdlib-only at import time, and its closure includes
+# the shipped lib. The list is the import name of each [project] dependency.
+# The ignores are existing debt. They may only shrink: delete an entry in the
+# change that removes its import, and lint-imports fails on an entry that no
+# longer matches an import.
+[[tool.importlinter.contracts]]
+id = "shipped-lib-no-runtime-dependencies"
+name = "Shipped lib packages do not import the project's third-party dependencies"
+type = "forbidden"
+source_modules = [
+    "scripts.hook_utilities",
+    "scripts.github_core",
+    "scripts.ai_review_common",
+    "scripts.failure_classifier",
+]
+forbidden_modules = ["anthropic", "jsonschema", "markdown_it", "frontmatter", "yaml", "tiktoken"]
+ignore_imports = [
+    # Guarded by `except ImportError`, so the module still loads without
+    # PyYAML. import-linter cannot see the guard.
+    "scripts.github_core.bot_config -> yaml",
+    # Unguarded top-level import: loading this module needs PyYAML.
+    "scripts.github_core.workflow_event_subscriptions -> yaml",
+    # Unguarded top-level import: loading this module needs PyYAML.
+    "scripts.github_core.workflow_provenance -> yaml",
+]
+
+# [tool.setuptools.packages.find] ships scripts* and memory_enhancement*, never
+# tests, so an installed package that imported tests would fail at import.
+[[tool.importlinter.contracts]]
+id = "production-does-not-import-tests"
+name = "Production code does not import tests"
+type = "forbidden"
+source_modules = ["scripts", "memory_enhancement"]
+forbidden_modules = ["tests"]
+
 # Mirror of [project.optional-dependencies].dev above. Both tables must list the
 # same dev tools: `uv pip install -e ".[dev]"` reads only the extra, while a plain
 # `uv sync` installs this group by default and ignores extras (issue #3111). Keep
@@ -723,6 +799,7 @@ dev = [
     "pytest-testmon>=2.2.0",
     "pytest-split>=0.11.0",
     "chevron==0.14.0",
+    "import-linter>=2.15",
 ]
 
 # Seconds a validator suite's tests may sum to in one JUnit report, enforced by

@@ -806,6 +806,21 @@ When you fix a listed module or file, delete its entry in the same change.
 baseline size from a constant in `tests/strict_baseline_helpers.py`, so adding an entry fails until you raise the
 matching constant in the same diff, which is the edit a reviewer sees.
 
+### Import Boundaries
+
+`lint-imports` ([import-linter](https://import-linter.readthedocs.io/)) checks the contracts in `pyproject.toml` under `[tool.importlinter]`.
+The pre-push `import-boundaries` job and the pytest workflow both run `uv run --frozen --extra dev lint-imports --no-cache`.
+Each contract enforces a rule the repository already states:
+
+- The four packages `build/scripts/lib_mirror.py` ships into plugin lib trees (`scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common`, `scripts/failure_classifier`) do not import each other. The mirror rewrites `from scripts.<pkg> import` to `from . import`, so a sibling import would break in the shipped copy.
+- Those packages import nothing else from `scripts/`, `memory_enhancement/`, or `tests/`. Those trees never ship (`.claude/rules/plugin-self-containment.md` MUST 1).
+- Those packages do not import a `[project]` dependency, because shipped scripts run under bare `python3` (MUST 4 of the same rule).
+- `scripts` and `memory_enhancement` never import `tests`, which is not part of the installed package.
+
+The `ignore_imports` entries are existing debt, one comment each. They may only shrink.
+Delete an entry in the change that removes its import; `lint-imports` fails on an entry that no longer matches.
+`tests/test_import_linter_contracts.py` pins the entry count in `IGNORE_IMPORTS_BASELINE`, so a new entry fails until you raise that constant in the same diff.
+
 ### Manual Testing (Optional)
 
 For local debugging or development iteration:

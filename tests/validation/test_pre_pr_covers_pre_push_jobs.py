@@ -114,6 +114,11 @@ EXEMPT: dict[str, str] = {
         "One pytest collection over testpaths, about 38 seconds measured. "
         "pre-pr-validation has a four minute run budget against a 192 second baseline."
     ),
+    "import-boundaries": (
+        "Runs lint-imports over the whole tree in about half a second. The job sits "
+        "in the fast stage, so it has already passed before pre-pr-validation "
+        "starts, and the pytest workflow runs the same command."
+    ),
     "python-lint-advisory": (
         "Advisory ruff report over pushed files. Findings do not block the push. "
         "pre-commit python-check runs ruff on staged files, and Count Ratchets "

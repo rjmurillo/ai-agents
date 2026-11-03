@@ -50,6 +50,7 @@ ENV/
 .pytest_cache/
 .pytest_tmp/
 .ruff_cache/
+.import_linter_cache/
 # Legacy python build/dist outputs live at /build and /dist, anchored to repo
 # root. An unanchored `build/` rule silently shadowed
 # `src/copilot-cli/skills/build/` (the M4 generated `/build` slash-command
