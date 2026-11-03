@@ -55,7 +55,7 @@ The 46 were relabeled from excerpts that end at the crossing Stop, as the rubric
 
 The nudge-Stop labels are the result of record. The labels CSV holds them.
 
-Consumer A was relabeled the same way. Its excerpts now end at the fired call itself, not at the Stop that holds it.
+Consumer A was relabeled the same way. Its excerpts now end at the fired call itself, not at the Stop that holds it. A parallel result in the same record is cut too; regenerating the 24 excerpts with that cut left all of them unchanged.
 
 ## Finding: the adapter double counted
 
@@ -134,7 +134,7 @@ The SLO cannot be set from this measurement, since the spec puts the floor at 50
 
 ## DENIAL_MARKERS check
 
-The judge labeled 21 marker matches and a sample of 104 unmatched denial-like words. Each sample shows the error line that holds the term, not only the first line. A first pass on first lines gave the same counts.
+The judge labeled 21 marker matches and a sample of 104 unmatched denial-like words. Each sample shows the error line that holds the term, not only the first line. A long line is windowed so the term stays inside the 200-character sample. A first pass on first lines gave the same counts, and so did a relabel of the 35 windowed rows.
 
 | Term | Denial | Not denial | Typical line |
 |---|---|---|---|
@@ -166,11 +166,11 @@ Causes seen in the sample:
 
 ## Billed cost
 
-Subagent tokens for this task totaled 2,146,541:
+Subagent tokens for this task totaled 2,358,438:
 
 - 167,729 for the replay script.
-- 1,604,984 for thirteen judge runs, including four relabel runs.
-- 373,828 for three review rounds.
+- 1,676,111 for fourteen judge runs, including five relabel runs.
+- 514,598 for four review rounds.
 
 The parent session's own tokens are not measured here. No dollar figure is given, because the per-token price was not checked.
 
