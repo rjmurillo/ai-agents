@@ -87,3 +87,35 @@ The old fingerprint grouped every `Exit code N` first line together. That inflat
 
 - SLI 3 volume under v2: the frozen config nudges 20 of 6,289 tuning sessions (0.32 per 100) and 7 of 2,695 held-out sessions (0.26 per 100).
 - Live precision after release. TASK-003 builds the hook, and the post-release check is SLI 2 on new sessions.
+
+## Cross-harness check
+
+Owner request, 2026-11-03: does the frozen config hold on other harnesses' histories?
+
+### Method
+
+- Each harness's 30-day history was converted to the Claude Code record shape. The converters live in `scripts/metrics`: `convert_codex.py`, `convert_copilot.py`, and `convert_droid.py`.
+- The converters translate structure only. Error and denial text stay exactly as each harness wrote them.
+- The frozen config ran unchanged, with no refit.
+
+### Result
+
+The config does not carry over.
+
+| Harness | Sessions | Nudges | Top score | Cause |
+|---|---|---|---|---|
+| Codex | 792 | 0 | 3 | Denials read "rejected by user approval settings" or "blocked by read-only sandbox". No stop-hook blocks fell in the window. |
+| Copilot | 367 | 1 | 153 | Mostly synthetic probe sessions (246 tool calls). Its 35 real denials read "Permission denied because no interactive user response was available". |
+| Droid | 20 | 0 | 6 | 149 of 170 recent sessions are subagent sessions. Droid records no stop-hook blocks. |
+
+### What this means
+
+- Two of the three weighted signals read Claude Code text: `DENIAL_MARKERS` and the `Stop hook feedback:` prefix.
+- Copilot marks a denial structurally, with `error.code` set to `denied`.
+- Codex and Droid record hook runs, but no Stop blocks fell in this window.
+- No other harness has enough real sessions in this window to reach the 15-nudge floor.
+
+By spec, consumer B ships on Claude Code only. AC-21 excludes Copilot, and REQ-048 does not target Codex or Droid. So the v2 config is valid for consumer B as specified. Taking the friction nudge to another harness needs two things first:
+
+- that harness's adapter must supply denial and stop-block detection from its own structured fields;
+- a labeled sample from that harness must pass the same gate.
