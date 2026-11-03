@@ -362,17 +362,18 @@ def _is_report(data: object) -> bool:
     return isinstance(data, dict) and "verdict" in data and isinstance(data.get("doc_sha256"), dict)
 
 
-def _check_entry_at(raw: str, parent_fd: int, name: str) -> None:
+def _check_entry_at(raw: str, parent_fd: int, name: str) -> os.stat_result | None:
     """Apply the target refusals to ``name`` inside ``parent_fd``, the entry the write replaces.
 
     The path check reads ``raw`` while the anchored write uses the resolved parent. A path
     such as ``missing/../README.md`` reads as absent through ``raw`` yet names an existing
-    file through the handle, so the refusals run again on the entry itself.
+    file through the handle, so the refusals run again on the entry itself. Returns the
+    prior report's ``lstat`` result, or ``None`` when the name is free.
     """
     try:
         info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
-        return
+        return None
     if not stat.S_ISREG(info.st_mode):
         raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
     data: object = None
@@ -385,6 +386,7 @@ def _check_entry_at(raw: str, parent_fd: int, name: str) -> None:
             data = None
     if not _is_report(data):
         raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
+    return info
 
 
 def _parent_parts(raw: str, target: Path) -> tuple[str, ...]:
@@ -399,15 +401,18 @@ def _parent_parts(raw: str, target: Path) -> tuple[str, ...]:
     return parent.relative_to(cwd).parts
 
 
-# The evidence parent is opened by a no-follow walk and written through its handle where
-# the platform supports it. os.replace shares rename's dir_fd support (renameat).
+# The evidence parent is opened by a no-follow walk and every write goes through its
+# handle. A platform without these calls (Windows) cannot pin the parent, so --evidence
+# is refused there. os.link installs the report without replacing a name (linkat).
 _DIR_FLAGS = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
 _ANCHORED_WRITES = (
     hasattr(os, "O_DIRECTORY")
     and hasattr(os, "O_NOFOLLOW")
-    and {os.open, os.rename, os.stat, os.unlink} <= os.supports_dir_fd
-    and os.stat in os.supports_follow_symlinks
+    and {os.open, os.link, os.rename, os.stat, os.unlink} <= os.supports_dir_fd
+    and {os.link, os.stat} <= os.supports_follow_symlinks
 )
+# The report holds request URLs and identifiers, so only its owner may read it.
+_EVIDENCE_MODE = 0o600
 
 
 def _open_parent(parts: tuple[str, ...]) -> int:
@@ -437,8 +442,14 @@ def _check_evidence_path(raw: str) -> Path:
     target's parent, relative or absolute, must resolve inside the working
     directory, which stops a symlinked directory or a `..` segment from
     carrying the write out of the checkout. Run the tool from the directory
-    the evidence belongs in.
+    the evidence belongs in. A platform without no-follow, ``dir_fd`` writes is
+    refused outright: a path-based write there could follow a swapped parent.
     """
+    if not _ANCHORED_WRITES:
+        raise InputError(
+            "--evidence needs O_NOFOLLOW and dir_fd file calls, which this platform lacks; "
+            "run without it and save the report printed to stdout"
+        )
     target = Path(raw)
     try:
         info: os.stat_result | None = target.lstat()
@@ -454,44 +465,116 @@ def _check_evidence_path(raw: str) -> Path:
     return target
 
 
+def _same_entry(moved: os.stat_result, checked: os.stat_result) -> bool:
+    """Return whether ``moved`` is the unchanged prior report that ``checked`` described."""
+    return stat.S_ISREG(moved.st_mode) and (
+        moved.st_dev,
+        moved.st_ino,
+        moved.st_size,
+        moved.st_mtime_ns,
+    ) == (checked.st_dev, checked.st_ino, checked.st_size, checked.st_mtime_ns)
+
+
+def _link_new(raw: str, parent_fd: int, src: str, name: str) -> None:
+    """Give ``src`` the name ``name``; refuse if any entry already holds that name."""
+    try:
+        os.link(src, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+    except FileExistsError:
+        raise InputError(
+            f"evidence path `{raw}` was created by another writer after the check; refusing"
+        ) from None
+
+
+def _put_back(
+    raw: str, parent_fd: int, aside: str, name: str, moved: os.stat_result | None
+) -> None:
+    """Return the moved entry to ``name`` without replacing anything, or say where it is.
+
+    A directory cannot be hard linked, so it goes back by rename, which fails rather
+    than replace a file or a non-empty directory.
+    """
+    try:
+        if moved is not None and stat.S_ISDIR(moved.st_mode):
+            os.rename(aside, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        else:
+            os.link(aside, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+            os.unlink(aside, dir_fd=parent_fd)
+    except OSError as exc:
+        raise InputError(
+            f"cannot write evidence to `{raw}`: the name changed during the write and the "
+            f"prior report is kept at `{aside}` ({exc.strerror or exc})"
+        ) from exc
+
+
+def _install(
+    raw: str, parent_fd: int, temporary: str, name: str, checked: os.stat_result | None, token: str
+) -> None:
+    """Move the finished temp file to ``name`` without destroying an entry nobody validated.
+
+    A free name takes a hard link, which fails if another writer claimed it. A prior report
+    is renamed aside first, so whatever holds the name at that instant is kept, not lost. The
+    moved entry must be the report ``checked`` saw; otherwise it goes back and the write is
+    refused. A probe link first proves the filesystem supports hard links before anything moves.
+    """
+    if checked is None:
+        _link_new(raw, parent_fd, temporary, name)
+        return
+    probe = f".{name}.{token}.probe"
+    os.link(temporary, probe, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+    os.unlink(probe, dir_fd=parent_fd)
+    aside = f".{name}.{token}.old"
+    try:
+        os.rename(name, aside, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+    except FileNotFoundError:
+        _link_new(raw, parent_fd, temporary, name)
+        return
+    moved: os.stat_result | None = None
+    try:
+        moved = os.stat(aside, dir_fd=parent_fd, follow_symlinks=False)
+        if not _same_entry(moved, checked):
+            raise InputError(f"evidence path `{raw}` changed after the check; refusing")
+        _link_new(raw, parent_fd, temporary, name)
+    except (OSError, InputError):
+        _put_back(raw, parent_fd, aside, name, moved)
+        raise
+    os.unlink(aside, dir_fd=parent_fd)
+
+
 def _write_evidence(target: Path, report: dict[str, Any]) -> None:
-    """Check the target again, then write through an exclusive, no-follow sibling temp file.
+    """Check the target again, then write an owner-only temp file and install it.
 
     A run can last ``RUN_DEADLINE_SECONDS`` after the first check, so every refusal
-    is checked again here. Where ``_ANCHORED_WRITES`` holds, the parent is opened by a
-    no-follow walk, the refusals run on the entry it holds, and the temp file, rename,
-    and cleanup all use that handle, so a directory swapped for a symlink after the
-    check cannot carry the write elsewhere.
+    is checked again here. The parent is opened by a no-follow walk, the refusals run
+    on the entry it holds, and the temp file, install, and cleanup all use that handle,
+    so a directory swapped for a symlink after the check cannot carry the write
+    elsewhere. ``_install`` never replaces an entry that changed after the check.
     """
     raw = str(target)
     _check_evidence_path(raw)
     parts = _parent_parts(raw, target)
     text = json.dumps(report, indent=2) + "\n"
-    temporary = f".{target.name}.{os.urandom(8).hex()}.tmp"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    token = os.urandom(8).hex()
+    temporary = f".{target.name}.{token}.tmp"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     parent_fd: int | None = None
-    src: str = str(target.with_name(temporary))
-    dst: str = raw
     created = False
     try:
-        if _ANCHORED_WRITES:
-            parent_fd = _open_parent(parts)
-            _check_entry_at(raw, parent_fd, target.name)
-            src, dst = temporary, target.name
-        fd = os.open(src, flags, 0o644, dir_fd=parent_fd)
+        parent_fd = _open_parent(parts)
+        checked = _check_entry_at(raw, parent_fd, target.name)
+        fd = os.open(temporary, flags, _EVIDENCE_MODE, dir_fd=parent_fd)
         created = True
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
-        os.replace(src, dst, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        _install(raw, parent_fd, temporary, target.name, checked, token)
     except OSError as exc:
-        if created:
-            try:
-                os.unlink(src, dir_fd=parent_fd)
-            except OSError:
-                pass
         raise InputError(f"cannot write evidence to `{target}`: {exc.strerror or exc}") from exc
     finally:
         if parent_fd is not None:
+            if created:
+                try:
+                    os.unlink(temporary, dir_fd=parent_fd)
+                except OSError:
+                    pass
             os.close(parent_fd)
 
 

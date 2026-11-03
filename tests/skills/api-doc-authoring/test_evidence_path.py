@@ -138,9 +138,8 @@ def test_evidence_write_failure_is_unverifiable_input_not_a_traceback(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
-def test_evidence_file_is_world_readable_but_not_group_writable(
-    order_api: str, tmp_path: Path
-) -> None:
+def test_evidence_file_is_readable_only_by_its_owner(order_api: str, tmp_path: Path) -> None:
+    """The report records request URLs and identifiers, so other users get no access (#7034)."""
     evidence = tmp_path / "evidence.json"
     old_umask = os.umask(0o022)
     try:
@@ -148,7 +147,7 @@ def test_evidence_file_is_world_readable_but_not_group_writable(
     finally:
         os.umask(old_umask)
 
-    assert stat.S_IMODE(evidence.stat().st_mode) == 0o644
+    assert stat.S_IMODE(evidence.stat().st_mode) == 0o600
 
 
 def test_cli_exits_2_with_unverified_json_for_a_refused_evidence_path(
@@ -168,7 +167,7 @@ def test_cli_exits_2_with_unverified_json_for_a_refused_evidence_path(
     assert victim.read_text(encoding="utf-8") == "keep me\n"
 
 
-def test_failed_replace_removes_the_temp_file_and_leaves_prior_evidence(
+def test_failed_install_removes_the_temp_file_and_leaves_prior_evidence(
     order_api: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     evidence = tmp_path / "evidence.json"
@@ -176,9 +175,9 @@ def test_failed_replace_removes_the_temp_file_and_leaves_prior_evidence(
     before = evidence.read_bytes()
 
     def boom(*_args: object, **_kwargs: object) -> None:
-        raise OSError("simulated swap failure")
+        raise OSError("simulated link failure")
 
-    monkeypatch.setattr(ax.os, "replace", boom)
+    monkeypatch.setattr(ax.os, "link", boom)
 
     with pytest.raises(ax.InputError, match="cannot write evidence"):
         ax.cmd_run(run_args([WORKED_EXAMPLE], order_api, evidence))
