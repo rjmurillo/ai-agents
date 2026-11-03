@@ -48,12 +48,14 @@ EXPECTED_HOOK_TREE_FILES = frozenset(
 
 
 def test_expected_corpus_matches_committed_templates_tree() -> None:
-    """The frozen expectation and the on-disk template tree agree (sans hooks.json)."""
+    """The frozen expectation and the on-disk template tree agree (sans hooks.json, caches)."""
     templates_root = _REPO_ROOT / "templates" / "hooks"
     on_disk = {
         p.relative_to(templates_root).as_posix()
         for p in templates_root.rglob("*")
-        if p.is_file() and p.name not in {"hooks.json", "settings.tmpl"}
+        if p.is_file()
+        and p.name not in {"hooks.json", "settings.tmpl"}
+        and "__pycache__" not in p.parts
     }
     assert on_disk == EXPECTED_HOOK_TREE_FILES
 

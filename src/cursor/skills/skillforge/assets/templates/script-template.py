@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore naming -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 {{SCRIPT_NAME}}.py - {{BRIEF_DESCRIPTION}}
 

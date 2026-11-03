@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
 # Script Patterns Catalog
 
 Standard Python patterns for skill scripts, derived from successful implementations across the ecosystem. These patterns ensure consistency, reliability, and agentic capability.

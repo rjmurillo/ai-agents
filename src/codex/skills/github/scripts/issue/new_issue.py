@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Create a new GitHub Issue.
 
 Supports both inline body text and file-based body content.

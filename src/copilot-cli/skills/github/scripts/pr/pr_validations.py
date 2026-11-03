@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Pre-creation validation pipeline for new_pr.py (issue #4764).
 
 Split out of ``new_pr.py``, which had reached 678 lines carrying both the CLI

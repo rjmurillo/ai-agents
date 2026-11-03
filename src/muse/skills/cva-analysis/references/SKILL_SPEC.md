@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
 <skill_specification version="1.0">
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->

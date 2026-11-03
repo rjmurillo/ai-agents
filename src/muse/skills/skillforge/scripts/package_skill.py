@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 package_skill.py - Creates a distributable .skill file
 

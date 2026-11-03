@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Verify commit references in resolved review threads are in the PR head."""
 
 from __future__ import annotations
