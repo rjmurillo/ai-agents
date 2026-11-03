@@ -370,3 +370,13 @@ class TestExcerptAtEvent:
         path = write(tmp_path / "s.jsonl", [human("go"), *call(1, err="first")])
         with pytest.raises(StopOutOfRangeError):
             excerpt_session(path, 0, event=5)
+
+    def test_excerpt_cli_passes_event(self, tmp_path: Path) -> None:
+        path = write(
+            tmp_path / "s.jsonl", [human("go"), *call(1, err="first"), *call(2, err="second")]
+        )
+        out = tmp_path / "x.txt"
+        args = ["excerpt", "--corpus-glob", str(path), "--session", "s", "--stop", "0"]
+        assert cal.main([*args, "--event", "0", "--out", str(out)]) == 0
+        text = out.read_text(encoding="utf-8")
+        assert "first" in text and "second" not in text

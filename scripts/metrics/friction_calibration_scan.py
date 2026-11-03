@@ -389,7 +389,8 @@ def tally_events(
 def matching_line(text: str, term: str) -> str:
     """The first line holding ``term`` (any case), so a judge sees what matched."""
     needle = term.lower()
-    return next((line.strip() for line in text.splitlines() if needle in line.lower()), "")
+    line = next((line.strip() for line in text.splitlines() if needle in line.lower()), "")
+    return line[:SNIPPET_CHARS]
 
 
 def _tally_error(
