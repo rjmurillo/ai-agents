@@ -3183,10 +3183,16 @@ def _unpinned_link_in(literal: Path, root: Path) -> Path | None:
     looked up against ``root``. A spelling with no ancestor that resolves
     to ``root`` cannot be scanned and is returned as is (fail closed).
     """
-    lexical = next(
-        (ancestor for ancestor in literal.parents if ancestor.resolve() == root),
-        None,
-    )
+    lexical: Path | None = None
+    for ancestor in literal.parents:
+        try:
+            resolved = ancestor.resolve()
+        except (OSError, RuntimeError):
+            # Unresolvable: the spelling cannot be scanned, so it is refused.
+            return literal
+        if resolved == root:
+            lexical = ancestor
+            break
     if lexical is None:
         return literal
     _SAME_REPOSITORY_TREES.add(root)
@@ -4082,10 +4088,15 @@ def _in_same_repository_tree(root: Path, work_tree: Path) -> bool:
         raise WorkTreeUnavailableError(error)
     if not found:
         return False
-    ours, error = _repository_identity(work_tree)
-    if ours is None:
-        raise WorkTreeUnavailableError(error)
-    same, error = _same_repository_root(root, ours)
+    # A git that cannot start or hangs is "cannot decide": exit 3, never
+    # a traceback at exit 1 and never trust.
+    try:
+        ours, error = _repository_identity(work_tree)
+        if ours is None:
+            raise WorkTreeUnavailableError(error)
+        same, error = _same_repository_root(root, ours)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise WorkTreeUnavailableError(f"git probe for {root} failed: {exc}") from exc
     if error:
         raise WorkTreeUnavailableError(error)
     return same is not None

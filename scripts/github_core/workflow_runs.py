@@ -120,6 +120,16 @@ class PaginationState:
     truncated: bool = False
 
 
+class UnexpectedPayloadError(TypeError):
+    """A paginated Actions endpoint returned something other than a JSON object.
+
+    That is an API-contract break on a read, not a local bug. It subclasses
+    ``TypeError`` so existing callers keep working, and a caller that maps
+    it to an external-failure exit can catch it without also catching every
+    programming ``TypeError``.
+    """
+
+
 def iter_paginated(
     client: GitHubClient,
     endpoint: str,
@@ -146,7 +156,9 @@ def iter_paginated(
         # array, so a list response here is a real API-contract break,
         # not a shape this function is meant to accept.
         if not isinstance(payload, dict):
-            raise TypeError(f"expected a JSON object from {url}, got {type(payload).__name__}")
+            raise UnexpectedPayloadError(
+                f"expected a JSON object from {url}, got {type(payload).__name__}"
+            )
         items = payload.get(items_key)
         if not isinstance(items, list) or not items:
             return

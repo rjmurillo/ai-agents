@@ -123,6 +123,20 @@ class TestLiveEnumeration:
         assert code == EXIT_EXTERNAL
         assert "GitHub API read failed: expected a JSON object" in capsys.readouterr().err
 
+    def test_a_local_type_error_is_not_reported_as_an_api_failure(
+        self, workflows: Path, monkeypatch
+    ):
+        """Only the payload-shape error maps to exit 3; a code bug still raises."""
+        import scripts.bulk_cancel_guard as guard
+
+        def broken(args, client):
+            raise TypeError("local bug")
+
+        monkeypatch.setattr(guard, "gather_runs", broken)
+
+        with pytest.raises(TypeError, match="local bug"):
+            main(["--pr", "7", "--workflows-dir", str(workflows)], client=self._pulls_client())
+
     def test_a_fork_run_sharing_the_branch_name_is_not_cancelled_for_this_pr(
         self, tmp_path: Path, workflows: Path
     ):
