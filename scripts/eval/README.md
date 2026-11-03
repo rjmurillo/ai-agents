@@ -810,8 +810,17 @@ mechanisms:
 Each scenario × mechanism produces a response that is graded by an LLM judge on
 three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
 The eval passes only when the `description` mechanism averages ≥3.5 and beats
-baseline by ≥0.5. `full` cannot rescue a failed description route. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
-overriding the score-based gate.
+baseline by ≥0.5. `full` cannot rescue a failed description route. A gating
+cell with no graded judge sample, or an errored call, forces verdict
+`FAIL_JUDGE_ERRORS`, overriding the score-based gate. A cell that lost some
+judge samples but graded the rest is reduced over the graded samples and
+reported as an incomplete measurement caveat (#7061).
+
+The judge passes its own output budget, `JUDGE_TOKEN_BUDGETS[0]` (2048 tokens),
+instead of the shared 1024 default. A judge reply cut at that budget
+(`token_limit`) is retried once at the next budget (4096). The cut attempts stay
+on the sample under `truncated_attempts`. Refusals and unparseable replies are
+not retried, so the dry-run call count is a floor when truncation occurs.
 
 Both pools are required, and a file missing either one is refused. A file with
 no positive case (only `skip-rule-not-applicable` scenarios) yields

@@ -140,6 +140,14 @@ DEFAULT_JUDGE_REPEATS = 3
 DEFAULT_JUDGE_REDUCER = "median"
 RESULTS_SCHEMA_VERSION = 1
 MAX_JUDGE_EVIDENCE_CHARS = 16_384
+# Output budgets for one judge sample, tried in order (#7061). The judge answers
+# with three scores and a reasoning string, and a verbose reasoning string
+# overran the shared 1024 default, so the JSON was cut mid-string and the
+# sample scored as a failure. The first budget doubles that default. A sample
+# cut at it is retried once at the second, so one truncation does not cost the
+# cell a graded sample. The last budget stays under MAX_JUDGE_EVIDENCE_CHARS at
+# roughly four characters per token, so a reply it admits can still be stored.
+JUDGE_TOKEN_BUDGETS: tuple[int, ...] = (2048, 4096)
 _SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 _SCORE_REDUCERS: dict[str, Callable[[list[float]], float]] = {
     "mean": statistics.fmean,
@@ -456,8 +464,13 @@ def score_response(
     response: str,
     model: str = DEFAULT_MODEL,
     seed: int | None = None,
+    max_tokens: int = JUDGE_TOKEN_BUDGETS[0],
 ) -> dict[str, Any]:
-    """Use the API to score a response on rule activation."""
+    """Use the API to score a response on rule activation.
+
+    `max_tokens` is the judge's own output budget. It is passed explicitly so
+    the judge never inherits the transport's shared default (#7061).
+    """
     expected_signals = scenario.get("expected_signals", [])
     expected_gate = scenario.get("expected_gate", "")
     rationale = scenario.get("rationale", "")
@@ -514,6 +527,7 @@ Respond in JSON only, no other text:
         api_key,
         [{"role": "user", "content": judge_prompt}],
         model=model,
+        max_tokens=max_tokens,
         seed=seed,
         metadata=metadata,
     )
@@ -1232,17 +1246,35 @@ def _score_judge_sample(
     judge_seed: int | None,
     sample_index: int,
 ) -> dict[str, Any]:
-    """Score one judge sample while preserving provenance contract failures."""
-    try:
-        sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
-    except MalformedProviderMetadataError:
-        raise
-    except RuntimeError as error:
-        return {
-            "judge_failed": True,
-            "reasoning": f"judge API failure: {error}",
-            "sample_index": sample_index,
-        }
+    """Score one judge sample while preserving provenance contract failures.
+
+    A sample cut at its output budget is retried at the next budget in
+    `JUDGE_TOKEN_BUDGETS`, so one truncation does not consume a graded sample
+    (#7061). Every cut attempt is kept under `truncated_attempts` as evidence.
+    Only `token_limit` retries: a refusal or an unparseable reply is the
+    judge's answer, and asking again until it says something else would
+    select the result.
+    """
+    truncated: list[dict[str, Any]] = []
+    for attempt, budget in enumerate(JUDGE_TOKEN_BUDGETS):
+        if attempt:
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
+        try:
+            sample = score_response(
+                api_key, scenario, response, model=model, seed=judge_seed, max_tokens=budget
+            )
+        except MalformedProviderMetadataError:
+            raise
+        except RuntimeError as error:
+            sample = {"judge_failed": True, "reasoning": f"judge API failure: {error}"}
+            break
+        sample["judge_max_tokens"] = budget
+        if not (sample.get("judge_failed") and sample.get("termination") == "token_limit"):
+            break
+        truncated.append(sample)
+    earlier = [cut for cut in truncated if cut is not sample]
+    if earlier:
+        sample["truncated_attempts"] = earlier
     sample["sample_index"] = sample_index
     return sample
 
@@ -1675,10 +1707,22 @@ def _round_mean(value: float | None) -> float | None:
     return None if value is None else round(value, 1)
 
 
+def _has_graded_sample(scores: dict[str, Any]) -> bool:
+    """True when a cell's record shows at least one judge sample graded.
+
+    Only `_reduce_score_samples` writes `graded_sample_count`. A failed cell
+    without it (an errored call, or an artifact older than sample reduction)
+    gives no evidence that any sample graded, so it is not treated as partial.
+    """
+    count = scores.get("graded_sample_count")
+    return isinstance(count, int) and not isinstance(count, bool) and count > 0
+
+
 def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
     failure_cells = 0
+    ungraded_failure_cells = 0
     failure_samples = 0
     legacy = 0
     route_missed = 0
@@ -1688,11 +1732,13 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
             route_missed += 1
         if score is not None:
             scores.append(score)
+        sc = s.get("mechanisms", {}).get(mech, {}).get("scores", {})
         if failed:
             failure_cells += 1
+            if score is None or not _has_graded_sample(sc):
+                ungraded_failure_cells += 1
         if legacy_reduced:
             legacy += 1
-        sc = s.get("mechanisms", {}).get(mech, {}).get("scores", {})
         failure_samples += sc.get("failed_sample_count", 0)
     # None rather than 0.0 when nothing graded. A 0.0 reads as a real score
     # in every consumer: it becomes a published average, a delta against
@@ -1715,6 +1761,10 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
         "graded_count": len(scores),
         "judge_failures": failure_cells,
         "judge_failure_cells": failure_cells,
+        # Failed cells left with no graded sample at all. Only these fail the
+        # run closed; a cell that lost some samples but graded the rest is an
+        # incomplete measurement, disclosed as a caveat (#7061).
+        "judge_ungraded_failure_cells": ungraded_failure_cells,
         "judge_failure_samples": failure_samples,
         "legacy_reduced_count": legacy,
         "route_mismatch_count": route_missed,
@@ -1785,10 +1835,12 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     a non-measurement in as one biases the mean toward whichever mechanism
     happened to fail more often, which can invert the ranking outright.
 
-    This does not soften the failure signal. `judge_failures` still counts
-    every failure and any non-zero count still forces the FAIL_JUDGE_ERRORS
-    verdict below, so a broken judge can never yield a PASS. `graded_count`
-    exposes how many scenarios each average actually rests on.
+    `judge_failures` still counts every failed cell. A gating cell the judge
+    left with no graded sample forces FAIL_JUDGE_ERRORS below, so a broken
+    judge can never yield a PASS. A gating cell that lost some samples but
+    graded the rest is reported in `partial_judge_failure_cells` and as a
+    caveat, not as a run failure (#7061). `graded_count` exposes how many
+    scenarios each average actually rests on.
     """
     summary: dict[str, Any] = {"per_mechanism": {}, "negative_case_per_mechanism": {}}
     _require_boolean_pool_markers(scenarios)
@@ -1848,9 +1900,21 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # restraint floor below; counting failures over a wider set than the floor
     # reads them off contradicted it.
     neg_gate_mechs = ["description"] if routed else [m for m in MECHANISMS if m != "baseline"]
-    gating_judge_failures = sum(
-        summary["per_mechanism"][m]["judge_failures"] for m in measured_mechs
-    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failures"] for m in neg_gate_mechs)
+
+    def _gating_sum(field: str) -> int:
+        return int(
+            sum(summary["per_mechanism"][m][field] for m in measured_mechs)
+            + sum(summary["negative_case_per_mechanism"][m][field] for m in neg_gate_mechs)
+        )
+
+    # Failed cells on gating surfaces, graded or not. The divergence caveat
+    # compares this against the whole-run count.
+    gating_surface_judge_failures = _gating_sum("judge_failures")
+    # The verdict fails closed only on a gating cell the judge left with no
+    # graded sample (#7061). A cell that lost one sample to the judge but
+    # graded the rest still carries a measurement, so failing the whole run on
+    # it reads a judge infrastructure limit as a behavior failure.
+    gating_judge_failures = _gating_sum("judge_ungraded_failure_cells")
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
@@ -1906,6 +1970,8 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
                 excluded_cells.append(f"{pool_label} {mech}")
     summary["excluded_judge_failure_cells"] = excluded_cells
     summary["gating_judge_failures"] = gating_judge_failures
+    summary["gating_surface_judge_failures"] = gating_surface_judge_failures
+    summary["partial_judge_failure_cells"] = gating_surface_judge_failures - gating_judge_failures
     summary["unreachable_mechanisms"] = [m for m in MECHANISMS if m not in measured_mechs]
 
     # Negative scenarios were measured but never gated: a rule that fired on
@@ -2003,7 +2069,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
         summary["per_mechanism"][m].get("route_mismatch_count", 0) for m in measured_mechs
     )
 
-    common = {
+    common: dict[str, Any] = {
         "gating_judge_failures": gating_judge_failures,
         "has_positive_cases": bool(pos_scenarios),
         "has_negative_cases": bool(neg_scenarios),
@@ -2269,7 +2335,15 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     if unreachable:
         lines.append("Excluded as unreachable for a routed target: " + ", ".join(unreachable))
     total_jf = summary.get("total_judge_failures", 0)
-    gating_jf = summary.get("gating_judge_failures", 0)
+    gating_jf = summary.get(
+        "gating_surface_judge_failures", summary.get("gating_judge_failures", 0)
+    )
+    partial_jf = summary.get("partial_judge_failure_cells", 0)
+    if partial_jf:
+        lines.append(
+            f"Incomplete measurement: {partial_jf} gating cell(s) lost judge "
+            "sample(s) and were reduced over the samples that graded"
+        )
     if total_jf != gating_jf:
         # Fire on any divergence. Tying this to `unreachable` alone meant the
         # negative-baseline exclusion printed nothing at all, so a reader saw a
@@ -2997,8 +3071,11 @@ def _selected_summary(repeats: list[dict[str, Any]], arms: tuple[str, ...]) -> d
     }
     for arm, cell in per_arm.items():
         cell["declined_count"] = declined[arm]
+    # A cell that lost a judge sample but graded the rest is measured, so it
+    # does not mark the run incomplete (#7061); `judge_failures` still records
+    # it per arm. A failed cell with no graded sample still does.
     incomplete = any(
-        cell["judge_failures"]
+        cell["judge_ungraded_failure_cells"]
         or cell["graded_count"] + cell["declined_count"] < cell["scenario_count"]
         for cell in per_arm.values()
     )
@@ -3297,7 +3374,7 @@ def _classify_verdict(verdict: str) -> int:
     under-firing rule from a misconfigured input. FAIL_JUDGE_ERRORS is external
     so CI can distinguish transient infrastructure trouble from a genuine
     activation failure. A selected-scenario run certifies nothing: NOT_GATED
-    is 0, and NOT_GATED_INCOMPLETE (a cell errored or the judge failed) is
+    is 0, and NOT_GATED_INCOMPLETE (a cell errored or graded no sample) is
     external for the same reason FAIL_JUDGE_ERRORS is.
 
     A run reduces these with max(), which makes the precedence a property of
