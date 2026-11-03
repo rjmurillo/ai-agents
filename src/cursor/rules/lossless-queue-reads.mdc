@@ -13,4 +13,4 @@ A limit or `head` is a guess about how many rows matter. A dropped row is a drop
 - MUST NOT pipe queue output through `head`, `tail`, or `sed` before the full set has been seen.
 - MUST fail loud when pagination cannot complete (missing cursor, page cap hit) and state what was not read. Never present a partial read as the full set.
 
-Canonical implementation: `.claude/skills/pr-comment-responder/scripts/cluster_threads.py:448-456` fails with `missing pagination info`, `missing pagination cursor`, and `pagination exceeded 50 pages`.
+Canonical implementation: `.claude/skills/pr-comment-responder/scripts/cluster_threads.py:449-457` fails with `missing pagination info`, `missing pagination cursor`, and `pagination exceeded 50 pages`.
