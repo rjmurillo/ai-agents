@@ -146,7 +146,7 @@ class TestAggregateLefthookDelegation:
         job = _real_count_ratchets_job()
         assert job is not None
         assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/checks_ratchet.py"
+            "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
         )
 
     def test_aggregate_job_is_unconditional(self) -> None:
@@ -199,19 +199,23 @@ class TestAggregateLefthookDelegation:
     def test_main_returns_nonzero_when_a_ratchet_fails(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: False)
+        monkeypatch.setattr(
+            checks_ratchet, "validate_count_ratchets", lambda _root, _deadline=None: False
+        )
         assert checks_ratchet.main() == 1
 
     def test_main_returns_zero_when_every_ratchet_passes(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: True)
+        monkeypatch.setattr(
+            checks_ratchet, "validate_count_ratchets", lambda _root, _deadline=None: True
+        )
         assert checks_ratchet.main() == 0
 
     def test_main_returns_config_error_when_uv_is_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        def unavailable(_root: Path) -> bool:
+        def unavailable(_root: Path, _deadline: float | None = None) -> bool:
             raise checks_ratchet.MissingScriptSkip("uv missing")
 
         monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", unavailable)
@@ -564,9 +568,9 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
     to 30 seconds, which the real registry cannot meet. Constants agreeing with
     constants cannot calibrate a timeout; only running the registry can.
 
-    So this runs it, with the deadline lifted so the measurement is not clipped
-    by the thing under test, and requires the shipped deadline to clear the
-    measured wall clock by ``_REQUIRED_HEADROOM``. A bare
+    So this runs it. Since issue #7070 the shipped deadline is a 600s hang
+    bound, so the run is held to ``_MEASUREMENT_CEILING_SECONDS`` instead, a
+    speed budget well below it. A bare
     ``measured <= deadline`` would only go red once the gate was already
     failing, which is where issue #4876 was reopened from: 74.7s measured
     against an 85s deadline passed, and the same tree timed out on a busier
@@ -578,10 +582,12 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
     one (ci-scripts.md MUST-16), never to lower this factor.
     """
 
-    # Above the deadline, so the measurement reflects the registry rather than
-    # the thing under test, and below the 120s pytest-timeout cap in
-    # pyproject.toml, so a hung ratchet still reports through the assertion
-    # message below instead of through a bare Timeout.
+    # The speed budget this test holds the registry to. Issue #7070 raised the
+    # shipped deadline to 600s as a hang bound for slow temp storage, so this
+    # ceiling is the tighter number: on the uncontended merge-group runner the
+    # registry must still pass inside 100s, so a speed regression goes red
+    # here, not at the 600s deadline. Below the test's 600s pytest timeout, so
+    # a hung ratchet still reports through the assertion message below.
     _MEASUREMENT_CEILING_SECONDS = 100
 
     # Reported, not required. An earlier revision asserted a 1.5x headroom
@@ -598,7 +604,7 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
     # part worth keeping.
     #
     # Measurements on record, all post-cut: 50.29s and 56.00s local at load
-    # average 6.5, 59.9s in CI, 49.45s on a real push. Deadline 85s.
+    # average 6.5, 59.9s in CI, 49.45s on a real push. Deadline 85s at the time.
     _REPORTED_HEADROOM_TARGET = 1.5
 
     # Issue #5610. The measurement is only meaningful on a runner that is not
@@ -657,33 +663,28 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
         if shutil.which("uv") is None:
             pytest.skip("uv is absent; the registry cannot be run to be measured")
 
-        deadline = checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
-        monkeypatch.setattr(
-            checks_ratchet,
-            "_AGGREGATE_TIMEOUT_SECONDS",
-            self._MEASUREMENT_CEILING_SECONDS,
+        budget = self._MEASUREMENT_CEILING_SECONDS
+        assert budget < checks_ratchet._AGGREGATE_TIMEOUT_SECONDS, (
+            "the speed budget must be tighter than the shipped hang bound, or "
+            "this test measures nothing the deadline does not already enforce"
         )
+        monkeypatch.setattr(checks_ratchet, "_AGGREGATE_TIMEOUT_SECONDS", budget)
         start = time.monotonic()
         passed = checks_ratchet.validate_count_ratchets(REPO_ROOT)
         measured = time.monotonic() - start
         captured = capsys.readouterr()
 
-        assert passed, (
-            f"the registry did not pass, so its runtime is not a calibration "
-            f"input. measured={measured:.1f}s\n{captured.out}{captured.err}"
-        )
-        headroom = deadline / measured if measured else float("inf")
+        headroom = budget / measured if measured else float("inf")
         print(
             f"count-ratchet registry: measured {measured:.1f}s against a "
-            f"{deadline}s deadline, headroom {headroom:.2f}x "
+            f"{budget}s speed budget, headroom {headroom:.2f}x "
             f"(target {self._REPORTED_HEADROOM_TARGET}x)"
         )
-        assert measured <= deadline, (
-            f"measured registry runtime {measured:.1f}s exceeds "
-            f"checks_ratchet._AGGREGATE_TIMEOUT_SECONDS at {deadline}s, so the "
-            f"gate cannot finish inside its own budget. Cut the work, or pay "
-            f"for a larger cap by cutting another (ci-scripts.md MUST-16). "
-            f"Issue #4876."
+        assert passed, (
+            f"the registry did not pass inside the {budget}s speed budget. A "
+            f"'did not finish' line below means a speed regression: cut the "
+            f"work (issue #4876). A 'failed' line means a count regression. "
+            f"measured={measured:.1f}s\n{captured.out}{captured.err}"
         )
 
 

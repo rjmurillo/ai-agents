@@ -776,7 +776,10 @@ def run_all_validations(
     fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
         if fast_stage_ran and gate.already_run_by:
-            detail = f"already passed as the unconditional pre-push job {gate.already_run_by}"
+            detail = (
+                f"covered by the unconditional pre-push job {gate.already_run_by}, "
+                "which blocks the push when it fails"
+            )
             outcome = CheckOutcome.skipped(gate.name, reason=REASON_ALREADY_RUN, detail=detail)
             if not state.hides(outcome):
                 print(f"[SKIP] {gate.name} ({detail})")

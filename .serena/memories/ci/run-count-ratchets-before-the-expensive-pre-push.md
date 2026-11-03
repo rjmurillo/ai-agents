@@ -1,5 +1,16 @@
 # Run the count ratchets before you push, because pre-push finds them last
 
+## Update 2026-11-03: the ratchets moved back to the expensive stage (issue #7070)
+
+The `count-ratchets` job now runs in the expensive parallel group, beside
+`python-tests` and `pre-pr-validation`, not in the fast stage. It has a 600s
+deadline under a 660s cap. On slow temp storage the old 85s deadline killed
+every ratchet, so the gate only passed on fast disks. The cost: a ratchet
+failure now shows up when the expensive stage finishes, not in seconds.
+So the "Do this instead" advice below is useful again. Run the ratchets by
+hand before you push. `uv run --frozen python
+scripts/validation/git_hook_policy.py count-ratchets` runs the whole set.
+
 ## Update 2026-08-15: the ordering is fixed in tooling (issue #5066)
 
 `lefthook.yml` pre-push is now staged: the count ratchets and the other
