@@ -2627,11 +2627,26 @@ class TestCopilotLauncherVerification:
         assert script.relative_to(git_repo).as_posix() in payload["checked_files"]
         assert len(payload["blocking_unverifiable_command_tokens"]) == 1
 
-    def test_launcher_verifier_returns_none_when_git_fails(self, monkeypatch):
+    @pytest.mark.parametrize(
+        ("failure", "cause"),
+        [
+            pytest.param(_raise_os_error, "git not found", id="os-error"),
+            pytest.param(_raise_timeout, "timed out", id="timeout"),
+            pytest.param(_exit_128, "exited 128", id="non-zero-exit"),
+        ],
+    )
+    def test_launcher_verifier_returns_none_and_names_the_cause(
+        self, monkeypatch, capsys, failure, cause
+    ):
+        """An operator must tell "git failed" apart from a non-canonical launcher."""
         trust = _dispatcher.CommandTrustCheck("trusted", [], [], [], [], "")
-        monkeypatch.setattr(_dispatcher, "_run_git", lambda args, cwd: self._exit_128(args))
+        monkeypatch.setattr(_dispatcher, "_run_git", lambda args, cwd: failure.__func__(args))
 
         assert _dispatcher._launcher_verifier(trust) is None
+        err = capsys.readouterr().err
+        assert "NOTE: launcher verification unavailable" in err
+        assert cause in err
+        assert "every Copilot payload stays blocking" in err
 
     def test_prefix_that_splits_differently_keeps_the_payload(self, monkeypatch):
         """The payload is dropped only after the exact prefix words."""

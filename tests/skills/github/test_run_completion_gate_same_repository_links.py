@@ -120,6 +120,23 @@ class TestSiblingLinks:
         assert rc == 0, err
         assert str(real.resolve()) in payload["skipped_external_files"]
 
+    def test_plugin_root_with_dotdot_after_a_link_blocks(
+        self, repo, tmp_path, monkeypatch, capsys
+    ) -> None:
+        """The host variable names "<sibling>/.claude/hop/..", and "hop" leaves every tree."""
+        trusted_repo(repo, plain())
+        sibling = linked_worktree(repo, tmp_path, monkeypatch)
+        write(tmp_path / "outside", "x/keep", "")
+        write(tmp_path / "outside", "skills/demo/scripts/run.py", "print('pr code')\n")
+        os.symlink(tmp_path / "outside" / "x", sibling / ".claude" / "hop")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", f"{sibling}/.claude/hop/..")
+
+        rc, payload, err = verify(repo, capsys, "--harness", "copilot")
+
+        assert rc == 2, err
+        assert payload == {}
+        assert "hop/../skills/demo/scripts/run.py" in err
+
     def test_a_true_install_keeps_its_own_links(self, repo, tmp_path, monkeypatch, capsys) -> None:
         """A link inside a true install is the operator's, not a PR's."""
         trusted_repo(repo, plain())
@@ -339,6 +356,7 @@ class TestConfigInSameRepositoryRoot:
         captured = capsys.readouterr()
         assert captured.out == ""
         assert "Refusing to load config from unsafe path" in captured.err
+        assert "is a work tree of this repository (D10)" in captured.err
 
     def test_true_install_config_keeps_install_trust(self, repo, tmp_path, monkeypatch) -> None:
         trusted_repo(repo, plain())

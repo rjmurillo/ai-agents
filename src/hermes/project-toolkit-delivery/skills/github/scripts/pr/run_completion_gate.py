@@ -313,7 +313,7 @@ import sys
 import unicodedata
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeVar
 
 
 # Resolve the project root by walking up to find the ``scripts/``
@@ -3275,13 +3275,15 @@ def _aliased_same_repository_root(
     return None, ""
 
 
-class _SameRepositoryCheck(NamedTuple):
-    """Outcome of verifying files that live in another work tree of this repository.
+class _TreeTrustCheck(NamedTuple):
+    """Outcome of the command trust pipeline over one work tree's files.
 
-    Paths are absolute, so they cannot be mistaken for this work tree's
-    relative paths in the report. ``untracked`` holds the import-closure
-    files skipped as the operator's own, as in-tree. A non-empty ``error``
-    halts with exit 3.
+    :func:`_verify_tree_files` returns paths relative to the tree it
+    checked, which serves this work tree. :func:`_verify_same_repository_files`
+    returns absolute paths for another work tree of this repository (D10),
+    so they cannot be mistaken for this work tree's relative paths in the
+    report. ``untracked`` holds the import-closure files skipped as the
+    operator's own. A non-empty ``error`` halts with exit 3.
     """
 
     checked: list[str]
@@ -3297,7 +3299,7 @@ def _verify_tree_files(
     trust_anchor_ref: str,
     *,
     named_must_be_tracked: bool,
-) -> _SameRepositoryCheck:
+) -> _TreeTrustCheck:
     """The command trust pipeline over ``rels``, relative to work tree ``root``.
 
     One pipeline for this work tree (``root == toplevel``) and for another
@@ -3314,7 +3316,7 @@ def _verify_tree_files(
     candidates = _expand_import_closure(rels, root)
     tracked, probe_error = _tracked_subset(candidates, root)
     if probe_error:
-        return _SameRepositoryCheck([], [], [], probe_error)
+        return _TreeTrustCheck([], [], [], probe_error)
     checked = [path for path in candidates if path in tracked]
     absent = [path for path in candidates if path not in tracked]
     untrusted = [
@@ -3331,7 +3333,7 @@ def _verify_tree_files(
     found_shadows = [path for path in _shadowing_import_files(checked, root) if path not in checked]
     tracked_shadows, shadow_error = _tracked_subset(found_shadows, root)
     if shadow_error:
-        return _SameRepositoryCheck([], [], [], shadow_error)
+        return _TreeTrustCheck([], [], [], shadow_error)
     shadows = [path for path in found_shadows if path in tracked_shadows]
     untrusted.extend(
         path
@@ -3351,7 +3353,7 @@ def _verify_tree_files(
             errors.append(error)
         elif not is_trusted:
             untrusted.append(rel_path)
-    return _SameRepositoryCheck([*checked, *shadows], untrusted, untracked, "\n".join(errors))
+    return _TreeTrustCheck([*checked, *shadows], untrusted, untracked, "\n".join(errors))
 
 
 def _verify_same_repository_files(
@@ -3359,7 +3361,7 @@ def _verify_same_repository_files(
     root: Path,
     toplevel: Path,
     trust_anchor_ref: str,
-) -> _SameRepositoryCheck:
+) -> _TreeTrustCheck:
     """Verify files under ``root``, another work tree of this repository, like in-tree ones.
 
     :func:`_verify_tree_files` with ``named_must_be_tracked`` set (D10): an
@@ -3380,10 +3382,10 @@ def _verify_same_repository_files(
             named_must_be_tracked=True,
         )
     if result.error:
-        return _SameRepositoryCheck([], [], [], result.error)
+        return _TreeTrustCheck([], [], [], result.error)
     # Spelled as _classify_argv_token spells an external file, so the
     # launcher check's membership test matches on every platform.
-    return _SameRepositoryCheck(
+    return _TreeTrustCheck(
         [str(resolved_root / path) for path in result.checked],
         [str(resolved_root / entry) for entry in result.untrusted],
         [str(resolved_root / path) for path in result.untracked],
@@ -3391,11 +3393,14 @@ def _verify_same_repository_files(
     )
 
 
+_ProbeT = TypeVar("_ProbeT")
+
+
 class _SameRepositoryProbeError(Exception):
     """Git or the filesystem could not decide sameness; the caller fails closed."""
 
 
-def _probed(result: tuple[Any, str]) -> Any:
+def _probed(result: tuple[_ProbeT, str]) -> _ProbeT:
     """The value of a ``(value, error)`` probe; a non-empty error raises."""
     value, error = result
     if error:
@@ -3465,7 +3470,7 @@ def _partition_external_files(
     toplevel: Path,
     trust_anchor_ref: str,
     spellings: dict[str, list[Path]] | None = None,
-) -> tuple[list[str], _SameRepositoryCheck]:
+) -> tuple[list[str], _TreeTrustCheck]:
     """Split external files into true installs and same-repository files.
 
     Returns ``(installed, same_repository)``. ``installed`` keeps the
@@ -3491,7 +3496,7 @@ def _partition_external_files(
             else:
                 groups.setdefault(owner, []).append(Path(value))
     except _SameRepositoryProbeError as exc:
-        return installed, _SameRepositoryCheck([], [], [], str(exc))
+        return installed, _TreeTrustCheck([], [], [], str(exc))
     checked: list[str] = []
     untracked: list[str] = []
     errors: list[str] = []
@@ -3502,7 +3507,7 @@ def _partition_external_files(
         untracked.extend(path for path in result.untracked if path not in untracked)
         if result.error:
             errors.append(result.error)
-    return installed, _SameRepositoryCheck(checked, untrusted, untracked, "\n".join(errors))
+    return installed, _TreeTrustCheck(checked, untrusted, untracked, "\n".join(errors))
 
 
 def _verify_command_trust(
@@ -4281,6 +4286,11 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
         # config gets no install trust and falls to the containment check,
         # which refuses it. A git failure here is exit 3, not trust.
         if _in_same_repository_tree(root, work_tree):
+            print(
+                f"NOTE: plugin root {_escape_terminal_controls(str(root))} is a work "
+                "tree of this repository (D10); its config gets no install trust.",
+                file=sys.stderr,
+            )
             continue
         resolved_config = _resolve_or_none(candidate)
         if resolved_config is None:
@@ -4494,15 +4504,30 @@ def _launcher_verifier(command_trust: CommandTrustCheck) -> Callable[[str], bool
 
     ``None`` when the work tree cannot be located, so every launcher
     stays unverifiable rather than being judged against a guessed root.
+    A NOTE on stderr names the cause, so an operator can tell this apart
+    from a launcher that is not canonical or a target that is untracked.
     """
     try:
         proc = _run_git(["rev-parse", "--show-toplevel"], _PROJECT_ROOT)
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _note_launcher_verification_unavailable(str(exc))
         return None
     if proc.returncode != 0:
+        _note_launcher_verification_unavailable(
+            f"git rev-parse --show-toplevel exited {proc.returncode}",
+        )
         return None
     toplevel = Path(proc.stdout.decode(errors="replace").strip()).resolve()
     return lambda token: _launcher_target_verified(token, command_trust, toplevel)
+
+
+def _note_launcher_verification_unavailable(cause: str) -> None:
+    """Tell the operator why every Copilot launcher payload stays blocking."""
+    print(
+        "NOTE: launcher verification unavailable: "
+        f"{_escape_terminal_controls(cause)}; every Copilot payload stays blocking.",
+        file=sys.stderr,
+    )
 
 
 def _unverifiable_by_harness(

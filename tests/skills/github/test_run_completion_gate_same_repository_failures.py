@@ -157,3 +157,20 @@ class TestUnpinnedLinkResolveFailure:
         assert rc == 3, err
         assert payload == {}
         assert f"cannot resolve {host}: simulated resolve failure" in err
+
+
+class TestKeyedToTree:
+    def test_nested_use_keeps_the_outer_key(self, tmp_path) -> None:
+        """The inner exit must not clear a root the outer block still needs."""
+        root = tmp_path.resolve()
+        with gate._keyed_to_tree(root):
+            with gate._keyed_to_tree(root):
+                assert root in gate._SAME_REPOSITORY_TREES
+            assert root in gate._SAME_REPOSITORY_TREES
+        assert root not in gate._SAME_REPOSITORY_TREES
+
+    def test_exit_on_error_clears_the_key(self, tmp_path) -> None:
+        root = tmp_path.resolve()
+        with pytest.raises(RuntimeError), gate._keyed_to_tree(root):
+            raise RuntimeError("boom")
+        assert root not in gate._SAME_REPOSITORY_TREES
