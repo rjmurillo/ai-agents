@@ -9279,6 +9279,29 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
     return 1
 
 
+def _handle_count_ratchets(args: argparse.Namespace) -> int:
+    """Run the count-ratchet registry as a pre-push job (issue #7070).
+
+    Routed through this module so a managed container bounds it. The registry
+    deadline is clamped to the container ceiling, so it fires before the
+    whole-process watchdog and names the slow ratchet. Outside a container the
+    deadline is ``checks_ratchet._AGGREGATE_TIMEOUT_SECONDS`` unchanged.
+
+    Imported inside the handler, like ``_handle_branch_dashes``, so other
+    subcommands do not pay for it. Exit codes match ``checks_ratchet.main``.
+    """
+    import checks_ratchet
+    from checks_common import MissingScriptSkip
+
+    deadline = _container_clamped(float(checks_ratchet._AGGREGATE_TIMEOUT_SECONDS))
+    try:
+        passed = checks_ratchet.validate_count_ratchets(_repo_root(args), deadline)
+    except MissingScriptSkip as exc:
+        print(f"[ERROR] count ratchets: {exc}", file=sys.stderr)
+        return 2
+    return 0 if passed else 1
+
+
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
     return check_staged_action_pins(args.paths, _repo_root(args))
 
@@ -9577,6 +9600,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
         ("branch-dashes", _handle_branch_dashes),
+        ("count-ratchets", _handle_count_ratchets),
         ("pytest", _handle_pytest),
     )
     for name, handler in path_commands:

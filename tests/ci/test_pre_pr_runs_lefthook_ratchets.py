@@ -146,7 +146,7 @@ class TestAggregateLefthookDelegation:
         job = _real_count_ratchets_job()
         assert job is not None
         assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/checks_ratchet.py"
+            "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
         )
 
     def test_aggregate_job_is_unconditional(self) -> None:
@@ -578,10 +578,12 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
     one (ci-scripts.md MUST-16), never to lower this factor.
     """
 
-    # Above the deadline, so the measurement reflects the registry rather than
-    # the thing under test, and below the 120s pytest-timeout cap in
-    # pyproject.toml, so a hung ratchet still reports through the assertion
-    # message below instead of through a bare Timeout.
+    # Below the 120s pytest-timeout cap in pyproject.toml, so a hung ratchet
+    # still reports through the assertion message below instead of through a
+    # bare Timeout. Issue #7070 raised the shipped deadline to 600s as a hang
+    # bound for slow temp storage. This ceiling is now the tighter number: on
+    # the uncontended merge-group runner the registry must still pass inside
+    # 100s, so a speed regression goes red here, not at the 600s deadline.
     _MEASUREMENT_CEILING_SECONDS = 100
 
     # Reported, not required. An earlier revision asserted a 1.5x headroom
@@ -598,7 +600,7 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
     # part worth keeping.
     #
     # Measurements on record, all post-cut: 50.29s and 56.00s local at load
-    # average 6.5, 59.9s in CI, 49.45s on a real push. Deadline 85s.
+    # average 6.5, 59.9s in CI, 49.45s on a real push. Deadline 85s at the time.
     _REPORTED_HEADROOM_TARGET = 1.5
 
     # Issue #5610. The measurement is only meaningful on a runner that is not

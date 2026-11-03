@@ -37,7 +37,9 @@ def _aggregate_job() -> dict:
 
 def test_ruff_ratchets_block_through_the_aggregate_job() -> None:
     job = _aggregate_job()
-    assert job["run"] == "uv run --frozen python scripts/validation/checks_ratchet.py"
+    assert job["run"] == (
+        "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
+    )
     assert job.get("glob") is None
 
 
