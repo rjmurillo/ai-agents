@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: scan.py groups the regex constants,

@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
 # Multi-Agent Synthesis Protocol
 
 The final quality gate ensuring generated skills meet the highest standards through diverse perspective evaluation.

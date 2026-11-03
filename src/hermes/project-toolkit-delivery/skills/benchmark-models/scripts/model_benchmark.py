@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """model_benchmark.py - run one prompt across Claude, GPT, and Gemini and compare.
 
 Cross-model benchmark for skills/prompts. Runs the same prompt through each

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Apply or remove labels on a GitHub Issue or PR with auto-creation support.
 
 Creates labels if they don't exist, applies multiple labels to an issue,

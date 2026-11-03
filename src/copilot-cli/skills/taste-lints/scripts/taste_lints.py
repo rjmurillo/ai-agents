@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Taste invariant linter with agent-readable remediation instructions.
 
 Exit codes: 0 = clean, 1 = script error, 10 = violations detected.

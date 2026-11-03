@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Select Stage-2 review axes from verified changed paths and diff effects.
 
 ``/review`` runs a Stage-1 ``spec-compliance`` gate, then a set of Stage-2

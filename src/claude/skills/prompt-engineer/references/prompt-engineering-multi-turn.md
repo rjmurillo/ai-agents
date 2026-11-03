@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
 # Prompt Engineering: Research-Backed Techniques for Multi-Turn Prompts
 
 This document synthesizes practical prompt engineering patterns with academic research on iterative LLM reasoning. All techniques target **multi-turn prompts**, structured sequences of messages where output from one turn becomes input to subsequent turns. These techniques leverage the observation that models can improve their own outputs through deliberate self-examination across multiple passes.

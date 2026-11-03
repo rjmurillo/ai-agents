@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """List GitHub Pull Requests with optional filters.
 
 Enumerates PRs in a repository with filtering capabilities:

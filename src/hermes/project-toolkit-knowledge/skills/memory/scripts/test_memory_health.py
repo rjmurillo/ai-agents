@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """Health check for all memory system tiers.
 
 Validates that all components of the tiered memory system are operational.

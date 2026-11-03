@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
 # Prompt Engineering: Research-Backed Techniques for Single-Turn Prompts
 
 This document synthesizes practical prompt engineering patterns with academic research on LLM reasoning and instruction-following. All techniques target **single-turn system prompts**, static instructions executed in one LLM call. Techniques may include internal structure (e.g., "first extract, then analyze") but do not rely on multi-message orchestration, external tool loops, or dynamic prompt modification.

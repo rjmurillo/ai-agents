@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
 # Script Integration Framework
 
 <!-- vendor-portability-exec: example invocations only; scripts referenced here are mostly illustrative; the real scripts are get_unresolved_review_threads.py in the github skill and validate-skill.py in the skillforge skill -->

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Orchestrate the retrospective workflow and persist an artifact.
 
 This is the thin Phase 0..5 orchestrator the SKILL.md contract describes. It
