@@ -80,6 +80,7 @@ from relocation_collector import (
     PytestUnavailableError,
     collect_tests,
     collected_defects,
+    counting,
 )
 from relocation_evidence import RELOCATION
 from relocation_evidence import (
@@ -409,10 +410,8 @@ def validate(
     return defects
 
 
-def _summary(
-    record: object, defects: list[str], record_path: Path, checks: dict[str, Any] | None = None
-) -> dict[str, Any]:
-    """Build the stdout summary; ``checks`` says which optional checks ran."""
+def _summary(record: object, defects: list[str], record_path: Path) -> dict[str, Any]:
+    """Build the stdout summary for a validated record."""
     data = record if isinstance(record, dict) else {}
     targets = data.get("targets")
     targets = targets if isinstance(targets, list) else []
@@ -427,7 +426,6 @@ def _summary(
         "targets": len(targets),
         "categories": dict(sorted(categories.items())),
         "defects": defects,
-        "checks": checks or {},
     }
 
 
@@ -469,21 +467,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ImportError) as exc:
             print(f"validation_record: cannot load sibling trigger: {exc}", file=sys.stderr)
             return 2
-    collect = partial(collect_tests, repo_root=args.repo_root or Path.cwd())
     collected: list[Sequence[str]] = []
-
-    def collector(paths: Sequence[str]) -> list[str]:
-        collected.append(paths)
-        return collect(paths)
-
+    collect = partial(collect_tests, repo_root=args.repo_root or Path.cwd())
+    collector = counting(collect, collected)
     try:
         defects = validate(record, args.changed_path, args.repo_root, trigger_module, collector)
     except (PytestUnavailableError, TriggerRecheckError) as exc:
         print(f"validation_record: {exc}", file=sys.stderr)
         return 2
+    summary = _summary(record, defects, args.record)
     # An ok record with no recheck and no collection passed fewer checks; say so.
-    checks = {"trigger_recheck": trigger_module is not None, "collected_targets": len(collected)}
-    print(json.dumps(_summary(record, defects, args.record, checks), sort_keys=True))
+    summary["checks"] = {
+        "trigger_recheck": trigger_module is not None,
+        "collected_targets": len(collected),
+    }
+    print(json.dumps(summary, sort_keys=True))
     return 1 if defects else 0
 
 

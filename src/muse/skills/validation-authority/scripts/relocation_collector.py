@@ -116,6 +116,16 @@ def _failure_detail(result: subprocess.CompletedProcess[str]) -> str:
     return " | ".join([*cause, lines[-1].strip()])
 
 
+def counting(inner: Collector, calls: list[Sequence[str]]) -> Collector:
+    """Wrap ``inner`` so each call is appended to ``calls``; the CLI reports what ran."""
+
+    def collector(paths: Sequence[str]) -> list[str]:
+        calls.append(paths)
+        return inner(paths)
+
+    return collector
+
+
 def collected_defects(where: str, target: dict[str, Any], collector: Collector) -> list[str]:
     """Compare ``tests_after`` with real collection of the ``moved_to`` modules.
 
