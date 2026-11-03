@@ -102,13 +102,13 @@ revision. D10 and D11 were made in the PR #7014 working session; no issue
 comment records them. This amendment records all five where the gate's
 design lives. The Decision items 1 to 6 above are unchanged.
 
-Line numbers below hold at the commit that last changed this paragraph,
-on branch `fix/6506-batch7-merge-pr-automation-2`, unless a bullet names
-another commit. The gate source is `src/claude/skills/github/scripts/pr/run_completion_gate.py`,
-served at `.claude/skills/github/scripts/pr/run_completion_gate.py`
-(ADR-119). It is cited below as `gate.py`. Function names are the durable
-key: this repository squash-merges, so the branch commit may not stay
-reachable. Resolve a cite by its function name on `main` when it is gone.
+Line numbers below hold at commit `8d8c3b01d` (2026-11-02) on branch
+`fix/6506-batch7-merge-pr-automation-2`, and at any later commit that leaves
+the cited file unchanged, unless a bullet names another commit. The gate
+source is `src/claude/skills/github/scripts/pr/run_completion_gate.py`, served
+at `.claude/skills/github/scripts/pr/run_completion_gate.py` (ADR-119). It is
+cited below as `gate.py`. Function names are the durable key: this repository
+squash-merges, so the commit may not stay reachable. Resolve a cite by its function name on `main` when it is gone.
 
 ### Context
 
@@ -129,17 +129,17 @@ path sits inside a quoted payload, so every Copilot run stopped.
 **R1 (D3): the Step 0 stop is scoped to the running harness.**
 
 - The trust check still covers the union of all `scripts` maps.
-  `_scripts_map_criteria` (`gate.py:4354-4375`) feeds every map to
+  `_scripts_map_criteria` (`gate.py:4424-4445`) feeds every map to
   `_enforce_command_trust`. A diverged tracked script in any map exits 2,
   whatever harness runs.
-- `_unverifiable_by_harness` (`gate.py:4448-4493`) pairs each unverifiable
+- `_unverifiable_by_harness` (`gate.py:4533-4578`) pairs each unverifiable
   token with the map that names it. A token in two maps appears once per
   map.
-- `_blocking_tokens` (`gate.py:4496-4513`) keeps only the tokens of the
+- `_blocking_tokens` (`gate.py:4581-4598`) keeps only the tokens of the
   harness named by `--harness`. They go in
-  `blocking_unverifiable_command_tokens` (`gate.py:4540-4554`). Tokens from
+  `blocking_unverifiable_command_tokens` (`gate.py:4625-4639`). Tokens from
   other maps stay in `unverifiable_command_tokens` and do not stop the run.
-- With no `--harness`, every unverifiable token blocks (`gate.py:4509-4510`).
+- With no `--harness`, every unverifiable token blocks (`gate.py:4594-4595`).
   This is the fail closed reading for Codex, Cursor, and Hermes, which
   have no map. They are not known to set either plugin-root variable; no
   source for that is cited here. Unset, every launcher target falls back
@@ -151,12 +151,12 @@ path sits inside a quoted payload, so every Copilot run stopped.
   target is missing, so every Copilot payload blocks. Two other routes
   pass there: a config with no Copilot map, or a plugin-root variable that
   names a true install, which makes the target external and verified
-  (`gate.py:1604-1609`, `1810-1817`, `4425-4426`). The shipped Codex,
+  (`gate.py:1624-1629`, `1845-1852`, `4495-4496`). The shipped Codex,
   Cursor, and Hermes configs all carry a Copilot map at line 30, so the
   first route never holds as shipped (`src/codex/.../pr-review-config.yaml:30`).
 - An `--harness` value with no `scripts` map exits 2 before any verdict
-  prints (`gate.py:4673-4683`).
-- `--harness` without `--verify-config-only` exits 2 (`gate.py:4609-4613`).
+  prints (`gate.py:4758-4768`).
+- `--harness` without `--verify-config-only` exits 2 (`gate.py:4694-4698`).
   A caller cannot believe it narrowed a full gate run.
 - The stop is in the skill text. Step 0 proceeds only on exit 0 with an
   empty `blocking_unverifiable_command_tokens` list
@@ -164,7 +164,7 @@ path sits inside a quoted payload, so every Copilot run stopped.
   `verify_config_only_exits` summarizes it; the template governs
   (`src/claude/skills/pr-review/pr-review-config.yaml:116-122`).
 - So R1 has two strengths. Exit 2 is enforced by the gate. A blocking
-  token is not: the gate still exits 0 (`gate.py:4693-4702`) and lists the
+  token is not: the gate still exits 0 (`gate.py:4778-4787`) and lists the
   token for the agent to stop on. The ADR-101 plane table rates files
   under version control as advisory (`ADR-101-enforcement-planes.md:128`),
   and rule 1 bars such a stop from being the only gate (`:142`). This stop
@@ -178,14 +178,14 @@ path sits inside a quoted payload, so every Copilot run stopped.
 **R2 (D5): a canonical Copilot launcher counts as the plain token for its
 script.**
 
-- `_launcher_script` (`gate.py:1686-1712`) reads the script path from the
+- `_launcher_script` (`gate.py:1706-1732`) reads the script path from the
   payload. It accepts only a path that matches `skills/<path>.py` with no
   `..` segment.
-- It re-renders the launcher for that path (`gate.py:1660-1683`). The
+- It re-renders the launcher for that path (`gate.py:1680-1703`). The
   command must equal the rendering byte for byte. One added statement, a
   changed root chain, or a changed prefix returns `None`.
 - Words after the launcher must match `_LAUNCHER_TAIL_RE`
-  (`gate.py:1657`): letters, digits, `_ . - { } =`, and spaces. A quote,
+  (`gate.py:1677`): letters, digits, `_ . - { } =`, and spaces. A quote,
   `$`, shell operator, or newline there returns `None`. As stored in the
   config, before placeholder substitution, the tail cannot run code or
   reach another script. This is not a dispatch-time guarantee: the agent
@@ -199,12 +199,12 @@ script.**
   rule only indirectly: every shipped entry must still be recognized.
 - A recognized launcher adds the plain token
   `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/<path>`
-  (`gate.py:1715-1724`) to the argv the trust check classifies
-  (`gate.py:1874-1879`). The script is then compared like a plain token,
+  (`gate.py:1735-1744`) to the argv the trust check classifies
+  (`gate.py:1910-1915`). The script is then compared like a plain token,
   with the differences R3 names.
 - The payload token is dropped from the unverifiable list only when the
   launched script verified and the argv starts with the exact prefix words
-  (`gate.py:4475-4486`). Otherwise the payload blocks.
+  (`gate.py:4560-4571`). Otherwise the payload blocks.
 - The renderer in the gate is a port of `build/scripts/copilot_launcher.py`,
   because `build/` does not ship with the skill. `TestGatePortMatchesTheRenderer`
   (`tests/build_scripts/test_copilot_launcher.py:210-242`) pins the port's
@@ -212,38 +212,38 @@ script.**
   `scripts.copilot` entry renders the same in both.
 - Tests: `TestCopilotLauncherVerification`, including
   `test_tampered_launcher_stays_blocking`
-  (`tests/skills/github/test_run_completion_gate.py:2291-2651`).
+  (`tests/skills/github/test_run_completion_gate.py:2291-2666`).
 
 **R3 (D6, narrowed by D10): where the launched script lives decides how it
 is verified.**
 
-- `_launcher_target_verified` (`gate.py:4409-4429`) classifies the plain
+- `_launcher_target_verified` (`gate.py:4479-4499`) classifies the plain
   token with `_classify_argv_token`, the same rule a plain token gets.
 - Inside the work tree, the script must be in `checked_files` and not in
-  `untrusted_files` (`gate.py:4427-4428`). So it must be tracked and match
+  `untrusted_files` (`gate.py:4497-4498`). So it must be tracked and match
   the trusted ref. A diverged tracked script exits 2 through R1's union
-  check before any payload is classified (`gate.py:4671-4672`). So does a
+  check before any payload is classified (`gate.py:4756-4757`). So does a
   script reached through a symlink the trusted ref does not pin:
-  `_classify_argv_token` returns escapes (`gate.py:1787-1788`), escaping
-  paths join `untrusted` (`gate.py:3479`), and the check halts. These two
+  `_classify_argv_token` returns escapes (`gate.py:1822-1823`), escaping
+  paths join `untrusted` (`gate.py:3602`), and the check halts. These two
   exits hold unless a human passes `--approve-untrusted-config`. An
   untracked script outside a nested repository, or a missing script,
   leaves the payload blocking at exit 0 under the right or no `--harness`.
   An untracked script inside a nested repository joins `untrusted` and
-  exits 2 (`gate.py:3472-3479`). A PR can produce a missing target by
+  exits 2 (`gate.py:3321-3327`). A PR can produce a missing target by
   deleting the tracked script. A non-file path, such as a directory,
-  classifies as skip like a missing one (`gate.py:1819-1820`). Under a
+  classifies as skip like a missing one (`gate.py:1854-1855`). Under a
   wrong `--harness`, all three exit-0 cases drop out of the blocking list
   (Residual risk).
 - A link the trusted ref pins (ADR-119) is followed, and its target is
-  byte-compared (`gate.py:1546-1567`). `main` binds the pinned-link
-  source, loaded on first use, before any path is classified (`gate.py:4617-4619`). In-tree
+  byte-compared (`gate.py:1552-1587`). `main` binds the pinned-link
+  source, loaded on first use, before any path is classified (`gate.py:4702-4704`). In-tree
   R3 depends on it here: every `.claude/skills/github/...` launcher target
   crosses such a link. Without the manifest the target classifies as
   escapes; with it, as the `src/claude/...` file.
 - Untracked files are stricter than the plain-token rule. A plain token
   naming an untracked file outside a nested repository is recorded in
-  `skipped_untracked_files` and does not block (`gate.py:3469-3477`). A
+  `skipped_untracked_files` and does not block (`gate.py:3321-3327`). A
   launcher naming the same file stays blocking
   (`test_untracked_script_stays_blocking`). The launcher's file is reached
   through a payload the gate cannot read as argv, so the gate wants a
@@ -251,47 +251,47 @@ is verified.**
   plain tokens without a new decision.
 - Human approval is stricter for launchers too. With
   `--approve-untrusted-config`, `_enforce_command_trust` returns no halt
-  for a diverged script (`gate.py:3612-3618`), so a plain token for it
+  for a diverged script (`gate.py:3672-3678`), so a plain token for it
   proceeds. The file stays in `untrusted_files`, so the launcher stays
   blocking. Approval cannot unblock a Copilot payload. This fails closed.
   `TestApprovalNeverUnblocksALauncher` pins it for in-tree and
   same-repository targets.
 - Outside the work tree, D10 splits the external files in two
-  (`_partition_external_files`, `gate.py:3317-3387`). A file with no
+  (`_partition_external_files`, `gate.py:3468-3510`). A file with no
   `.git` entry above it is a true install (`_inside_git_work_tree`,
-  `gate.py:3122-3137`). So is a file in a work tree of another repository.
+  `gate.py:3158-3173`). So is a file in a work tree of another repository.
   Either is recorded in `skipped_external_files` uncompared, and a
-  launcher on it counts as verified (`gate.py:4425-4426`). This is the
+  launcher on it counts as verified (`gate.py:4495-4496`). This is the
   #5112 plain-token rule: a PR cannot rewrite that file through this work
   tree.
 - A file in another work tree of this repository is verified like an
-  in-tree file (`_verify_same_repository_files`, `gate.py:3246-3314`). Same
+  in-tree file (`_verify_same_repository_files`, `gate.py:3359-3393`). Same
   repository means the same `git rev-parse --git-common-dir`, which every
   linked worktree of a clone shares, or the same normalized origin URL, as
-  for a separate clone (`_same_repository_root`, `gate.py:3140-3172`).
+  for a separate clone (`_same_repository_root`, `gate.py:3176-3208`).
   URLs compare as lowercase `host/path`, so HTTPS, scp, and ssh spellings
-  match (`_normalized_remote`, `gate.py:3075-3093`). Two work trees that
+  match (`_normalized_remote`, `gate.py:3111-3129`). Two work trees that
   both lack an origin do not match by URL. The file must be tracked there
   and match the trusted ref read from this work tree's git. A diverged
   file joins `untrusted`, so Step 0 exits 2 unless a human passes
   `--approve-untrusted-config`. One rule is stricter than in-tree: a named
-  file git does not track there blocks too (`gate.py:3275-3277`). A
+  file git does not track there blocks too (`gate.py:3322-3326`). A
   launcher on such a file counts as verified only when the file is
   compared and not flagged. Every enclosing `.git` is asked, innermost
   first (`_same_repository_root`), so a file in a nested repository under
   such a tree is untracked there and blocks, as in-tree. The command's
-  unresolved spelling is scanned for links under that tree
-  (`_unpinned_link_in`): a link the trusted ref does not pin is untrusted,
-  as in-tree; a pinned one is followed and its target compared. A spelling
+  spelling, as written, blocks if it holds `..` anywhere. Otherwise it is
+  scanned for links under that tree (`_unpinned_link_in`): an unpinned link
+  is untrusted, as in-tree; a pinned one is followed and its target compared. A spelling
   that enters such a tree only through a host link, such as an aliased
   plugin root, is found by resolving its ancestors
   (`_aliased_same_repository_root`) and blocks: no ref pins the alias. Any git
   failure while deciding or comparing halts with exit 3
-  (`gate.py:3448`, `3574-3589`). Plain tokens and launchers share this
+  (`gate.py:3571`, `3634-3649`). Plain tokens and launchers share this
   rule: both reach `_verify_command_trust` as one external-file list.
 - The launcher string itself is bounded by config trust: compared with
   the trusted ref, install-trusted with no comparison (#5112,
-  `gate.py:872-893`), or human-approved. D10 covers a sibling root's
+  `gate.py:874-895`), or human-approved. D10 covers a sibling root's
   config. Here conditions 3a and 3b of `_install_trusted_root` deny it
   install trust: every work tree holds `scripts/utils/path_validation.py`,
   so a sibling-served gate takes that tree as `_PROJECT_ROOT` and
@@ -306,7 +306,7 @@ is verified.**
   tree>/.claude` and the Step 0 command, this branch's gate compared its
   own config with `origin/main` and exited 2 (diverged). A matching config
   exits 3 instead: the cwd is outside the gate's work tree
-  (`gate.py:3423-3432`). A PR-modified gate there is checked by
+  (`gate.py:3546-3555`). A PR-modified gate there is checked by
   nothing, like an in-tree gate on a checked-out PR branch. A host that
   names a PR-writable plugin root hands it the plugin, past any check.
 - R3's true-install branch is a scoped exception to ADR-101 rule 4
@@ -320,20 +320,20 @@ is verified.**
   A sibling-checkout plugin root broke that. Asked by log 2 to reaffirm D6,
   the owner made D10 on 2026-11-01: D6 holds for true installs only.
 - If the work tree cannot be located, `_launcher_verifier`
-  (`gate.py:4432-4445`) returns `None`; every payload stays unverifiable.
+  (`gate.py:4502-4521`) returns `None`; every payload stays unverifiable.
 - Tests: `test_missing_script_stays_blocking`,
   `test_untracked_script_stays_blocking`,
   `test_installed_plugin_launcher_passes`,
   `test_installed_plugin_launcher_with_tampered_payload_blocks`,
   `test_installed_plugin_without_the_script_blocks`, and
-  `test_launcher_verifier_returns_none_when_git_fails`
-  (`tests/skills/github/test_run_completion_gate.py:2438-2634`). D10 adds
+  `test_launcher_verifier_returns_none_and_names_the_cause`
+  (`tests/skills/github/test_run_completion_gate.py:2438-2649`). D10 adds
   `test_run_completion_gate_same_repository.py` (linked worktree, sibling
   clone, kept install trust) and
   `test_run_completion_gate_same_repository_contracts.py` (probe failures,
-  approval, wrong-harness drop), and `..._same_repository_links.py`
-  (links, nested repository, config in both layouts), all under
-  `tests/skills/github/`.
+  approval, wrong-harness drop), `..._same_repository_links.py` (links,
+  `..` spellings, nested repository, config in both layouts), and
+  `..._same_repository_failures.py` (git and resolve failures), all under `tests/skills/github/`.
 
 **Step 0 text (D11).** Exit 0 says tracked scripts match; an untracked
 in-tree script is skipped and an installed plugin install-trusted, not
@@ -391,7 +391,7 @@ Negative:
   `_unverifiable_by_harness`. Both call `_launcher_script_token`, but they
   must stay in step.
 - `_launcher_verifier` runs `git rev-parse --show-toplevel` a second time,
-  from `_PROJECT_ROOT` as the first (`gate.py:3405`, `4439`). If they
+  from `_PROJECT_ROOT` as the first (`gate.py:3528`, `4511`). If they
   disagreed, the payload stays blocking (read from code; no test).
 - Only the Copilot skill copy gets `--harness` filled in at build time.
   The other copies rely on the agent to substitute `{harness}` or drop the
@@ -426,7 +426,7 @@ Negative:
   the real install.
 - The verdict holds only for the environment and files present at Step 0.
   The gate expands the plugin-root variables in its own process
-  (`gate.py:1594-1610`). PowerShell reads `$env:COPILOT_PLUGIN_ROOT` again
+  (`gate.py:1614-1630`). PowerShell reads `$env:COPILOT_PLUGIN_ROOT` again
   at dispatch, and the `.claude` fallback resolves from the dispatch
   working directory. If either changes between Step 0 and dispatch, an
   unchecked file runs (CWE-367). Plain tokens under #5112 share this
@@ -442,16 +442,16 @@ Negative:
   proven. A wrong but valid `--harness` fails open: `_blocking_tokens`
   drops every token owned by the map that actually runs, and Step 0
   proceeds. The bound has two parts. First, the union check still runs on
-  every map and appends each launcher's target (`gate.py:1874-1879`), so a
-  PR-modified tracked target still exits 2 (`gate.py:4671-4672`), in this
+  every map and appends each launcher's target (`gate.py:1910-1915`), so a
+  PR-modified tracked target still exits 2 (`gate.py:4756-4757`), in this
   work tree or a same-repository one. The fail-open reaches targets that
   check left uncompared: untracked files outside a nested repository,
   which checkout does not produce, and missing or non-file paths, which a
   PR can produce. True-install files count as verified, uncompared,
-  under every harness (`gate.py:4425-4426`), so no exposure is added. A
+  under every harness (`gate.py:4495-4496`), so no exposure is added. A
   deleted target finds no file at dispatch unless one appears in the
   CWE-367 window above. A directory of the same name holding
-  `__main__.py` is worse: the gate skips it (`gate.py:1819-1820`) and
+  `__main__.py` is worse: the gate skips it (`gate.py:1854-1855`) and
   Python runs it, so PR code reaches dispatch uncompared.
   `TestWrongHarnessDropsTheMissingTarget` pins both blocking under
   `copilot` and dropping under `claude_code`; no test pins Python running
