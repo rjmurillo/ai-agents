@@ -34,6 +34,7 @@ such a stop is still exit 1. A stop with ``--evidence`` writes the file (UNVERIF
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import http.client
 import ipaddress
@@ -367,8 +368,12 @@ def _check_entry_at(raw: str, parent_fd: int, name: str) -> os.stat_result | Non
 
     The path check reads ``raw`` while the anchored write uses the resolved parent. A path
     such as ``missing/../README.md`` reads as absent through ``raw`` yet names an existing
-    file through the handle, so the refusals run again on the entry itself. Returns the
-    prior report's ``lstat`` result, or ``None`` when the name is free.
+    file through the handle, so the refusals run again on the entry itself.
+
+    The open handle must be the same regular file the ``lstat`` saw, so the identity
+    returned is the file whose contents were validated. ``O_NONBLOCK`` keeps a FIFO
+    swapped in between the two calls from hanging the open. Returns that file's
+    ``fstat`` result, or ``None`` when the name is free.
     """
     try:
         info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
@@ -377,16 +382,23 @@ def _check_entry_at(raw: str, parent_fd: int, name: str) -> os.stat_result | Non
     if not stat.S_ISREG(info.st_mode):
         raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
     data: object = None
-    if info.st_size <= _MAX_EVIDENCE_BYTES:
-        try:
-            fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
-            with os.fdopen(fd, encoding="utf-8") as handle:
+    opened: os.stat_result | None = None
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0)
+    try:
+        fd = os.open(name, flags, dir_fd=parent_fd)
+        with os.fdopen(fd, encoding="utf-8") as handle:
+            opened = os.fstat(handle.fileno())
+            if (
+                stat.S_ISREG(opened.st_mode)
+                and (opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino)
+                and opened.st_size <= _MAX_EVIDENCE_BYTES
+            ):
                 data = json.loads(handle.read())
-        except (OSError, ValueError):
-            data = None
-    if not _is_report(data):
+    except (OSError, ValueError):
+        data = None
+    if opened is None or not _is_report(data):
         raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
-    return info
+    return opened
 
 
 def _parent_parts(raw: str, target: Path) -> tuple[str, ...]:
@@ -475,10 +487,40 @@ def _same_entry(moved: os.stat_result, checked: os.stat_result) -> bool:
     ) == (checked.st_dev, checked.st_ino, checked.st_size, checked.st_mtime_ns)
 
 
+# errno values linkat returns when the filesystem has no hard links (vfat, exFAT, some
+# FUSE and SMB mounts) or the file is at its link limit.
+_NO_LINK_ERRNOS = frozenset(
+    code
+    for code in (
+        getattr(errno, "EPERM", None),
+        getattr(errno, "ENOTSUP", None),
+        getattr(errno, "EOPNOTSUPP", None),
+        getattr(errno, "EMLINK", None),
+    )
+    if code is not None
+)
+
+
+def _link(raw: str, parent_fd: int, src: str, dst: str) -> None:
+    """Hard link ``src`` to ``dst`` in ``parent_fd``; name a missing link feature plainly."""
+    try:
+        os.link(src, dst, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+    except FileExistsError:
+        raise
+    except OSError as exc:
+        if exc.errno in _NO_LINK_ERRNOS:
+            raise InputError(
+                f"cannot write evidence to `{raw}`: its filesystem does not support hard "
+                f"links ({exc.strerror or exc}); run without --evidence and save the report "
+                "printed to stdout"
+            ) from exc
+        raise
+
+
 def _link_new(raw: str, parent_fd: int, src: str, name: str) -> None:
     """Give ``src`` the name ``name``; refuse if any entry already holds that name."""
     try:
-        os.link(src, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+        _link(raw, parent_fd, src, name)
     except FileExistsError:
         raise InputError(
             f"evidence path `{raw}` was created by another writer after the check; refusing"
@@ -491,7 +533,9 @@ def _put_back(
     """Return the moved entry to ``name`` without replacing anything, or say where it is.
 
     A directory cannot be hard linked, so it goes back by rename, which fails rather
-    than replace a file or a non-empty directory.
+    than replace a file or a non-empty directory. Accepted gap: the stdlib has no
+    no-replace rename, so an empty directory created at ``name`` in that instant is
+    replaced. It holds no data.
     """
     try:
         if moved is not None and stat.S_ISDIR(moved.st_mode):
@@ -520,7 +564,7 @@ def _install(
         _link_new(raw, parent_fd, temporary, name)
         return
     probe = f".{name}.{token}.probe"
-    os.link(temporary, probe, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+    _link(raw, parent_fd, temporary, probe)
     os.unlink(probe, dir_fd=parent_fd)
     aside = f".{name}.{token}.old"
     try:
@@ -534,10 +578,13 @@ def _install(
         if not _same_entry(moved, checked):
             raise InputError(f"evidence path `{raw}` changed after the check; refusing")
         _link_new(raw, parent_fd, temporary, name)
-    except (OSError, InputError):
+    except BaseException:  # an interrupt here must not strand the prior entry at `aside`
         _put_back(raw, parent_fd, aside, name, moved)
         raise
-    os.unlink(aside, dir_fd=parent_fd)
+    try:
+        os.unlink(aside, dir_fd=parent_fd)
+    except OSError as exc:  # the new report is in place; only the old copy is left behind
+        sys.stderr.write(f"api_examples: could not remove `{aside}`: {exc.strerror or exc}\n")
 
 
 def _write_evidence(target: Path, report: dict[str, Any]) -> None:
