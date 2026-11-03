@@ -27,6 +27,7 @@ The relevant fragment, copied verbatim:
         ("scripts/hook_utilities", ".claude/lib/hook_utilities"),
         ("scripts/github_core", ".claude/lib/github_core"),
         ("scripts/ai_review_common", ".claude/lib/ai_review_common"),
+        ("scripts/failure_classifier", ".claude/lib/failure_classifier"),
     ]
 
 See `.claude/rules/canonical-source-mirror.md`.
@@ -60,6 +61,7 @@ SOURCE_ROOTS: tuple[str, ...] = (
     "scripts/github_core",
     "scripts/hook_utilities",
     "scripts/ai_review_common",
+    "scripts/failure_classifier",
 )
 
 # `.claude/lib/` package directories that are allowed to exist without a

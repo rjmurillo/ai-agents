@@ -180,6 +180,26 @@ rows:
     plugin_tree: src/codex/lib/ai_review_common
     install_tree: null
     compile: lib_mirror
+  - class: lib-failure_classifier
+    source: scripts/failure_classifier
+    plugin_tree: src/claude/lib/failure_classifier
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-failure_classifier-copilot
+    source: scripts/failure_classifier
+    plugin_tree: src/copilot-cli/lib/failure_classifier
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-failure_classifier-cursor
+    source: scripts/failure_classifier
+    plugin_tree: src/cursor/lib/failure_classifier
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-failure_classifier-codex
+    source: scripts/failure_classifier
+    plugin_tree: src/codex/lib/failure_classifier
+    install_tree: null
+    compile: lib_mirror
   # File-shaped rows (single registered file, not a package directory):
   # sync_plugin_lib.py's two SYNC_FILE_PAIRS entries. bootstrap.py gets a
   # Copilot-side counterpart, same as the three packages above; the review
