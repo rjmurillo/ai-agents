@@ -658,8 +658,8 @@ pre-push:
           # pins both. Routed through git_hook_policy so a managed container
           # clamps it to the container ceiling. Cost: a count violation now
           # surfaces when this stage finishes, not in the first minute of a
-          # push. The group is parallel and the e2e smokes hold it at 20m, so
-          # the pre-push declared total does not move.
+          # push. The group is parallel and workflow-local-run holds it at
+          # 30m, so the pre-push declared total does not move.
           - name: count-ratchets
             timeout: 660s
             run: uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets

@@ -9282,24 +9282,26 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
 def _handle_count_ratchets(args: argparse.Namespace) -> int:
     """Run the count-ratchet registry as a pre-push job (issue #7070).
 
-    Routed through this module so a managed container bounds it. The registry
-    deadline is clamped to the container ceiling, so it fires before the
-    whole-process watchdog and names the slow ratchet. Outside a container the
-    deadline is ``checks_ratchet._AGGREGATE_TIMEOUT_SECONDS`` unchanged.
+    Routed through this module so a managed container bounds it twice: the
+    registry deadline is clamped to the container ceiling, and ``main`` arms
+    the whole-process watchdog above it. The clamp fires first and names the
+    slow ratchet. Outside a container the deadline is
+    ``checks_ratchet._AGGREGATE_TIMEOUT_SECONDS`` unchanged.
 
     Imported inside the handler, like ``_handle_branch_dashes``, so other
-    subcommands do not pay for it. Exit codes match ``checks_ratchet.main``.
+    subcommands do not pay for it. ``checks_ratchet.main`` owns the exit codes.
     """
     import checks_ratchet
-    from checks_common import MissingScriptSkip
 
-    deadline = _container_clamped(float(checks_ratchet._AGGREGATE_TIMEOUT_SECONDS))
-    try:
-        passed = checks_ratchet.validate_count_ratchets(_repo_root(args), deadline)
-    except MissingScriptSkip as exc:
-        print(f"[ERROR] count ratchets: {exc}", file=sys.stderr)
-        return 2
-    return 0 if passed else 1
+    declared = float(checks_ratchet._AGGREGATE_TIMEOUT_SECONDS)
+    deadline = _container_clamped(declared)
+    if deadline < declared:
+        print(
+            f"count ratchets: deadline clamped {declared:.0f}s -> {deadline:.0f}s "
+            "in a managed container (ADR-104 rule 8)",
+            file=sys.stderr,
+        )
+    return checks_ratchet.main(_repo_root(args), deadline)
 
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
