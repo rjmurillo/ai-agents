@@ -125,19 +125,46 @@ class TestFailOpen:
         assert code == 0 and "/reflect" in out and "/retrospective" not in out
         assert "classifier unavailable" in err
 
-    @pytest.mark.parametrize("raw", ["0", "off", "5", "junk"])
-    def test_without_lib_a_set_threshold_stays_silent_unset_keeps_correction(
+    @pytest.mark.parametrize("raw", ["0", "off", " OFF "])
+    def test_without_lib_off_still_silences_both_branches(
         self, raw: str, both: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(nudge, "failure_classifier", None)
         code, out, err = run_env(both, tmp_path / "s1", {THRESHOLD_ENV: raw})
         assert (code, out, err) == (0, "", "")
-        _, unset, _ = run_env(both, tmp_path / "s2")
-        assert "/reflect" in unset
+        assert not (tmp_path / "s1").exists()
+
+    @pytest.mark.parametrize("raw", ["5", "junk", "-3", "00"])
+    def test_without_lib_a_non_off_threshold_keeps_correction(
+        self, raw: str, both: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(nudge, "failure_classifier", None)
+        code, out, err = run_env(both, tmp_path / "s1", {THRESHOLD_ENV: raw})
+        assert code == 0 and "/reflect" in out and "/retrospective" not in out
+        assert "classifier unavailable" in err
+
+    @pytest.mark.parametrize("broken", ["compute_friction", "collect_record", "partial_budget"])
+    def test_classifier_error_keeps_correction(
+        self, broken: str, both: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def boom(*_args: object, **_kwargs: object) -> object:
+            raise RuntimeError("broken lib")
+
+        monkeypatch.setattr(nudge.failure_classifier, broken, boom)
+        code, out, err = run_env(both, tmp_path / "state")
+        assert code == 0 and "/reflect" in out and "/retrospective" not in out
+        assert "friction skipped" in err
 
     def test_classifier_crash_exits_zero_through_main(
-        self, both: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self,
+        both: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
+        # main() reads os.environ: keep its marker state out of the real home.
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
         def boom(*_a: Any, **_k: Any) -> Any:
             raise RuntimeError("kaput")
 
@@ -146,7 +173,9 @@ class TestFailOpen:
             sys, "stdin", io.StringIO(json.dumps({"session_id": "s", "transcript_path": str(both)}))
         )
         assert nudge.main() == 0
-        assert "RuntimeError: kaput" in capsys.readouterr().err
+        captured = capsys.readouterr()
+        assert "friction skipped: classifier error" in captured.err
+        assert "/reflect" in captured.out
 
     def test_single_definition_the_hook_holds_no_copy(self) -> None:
         import failure_classifier as fc

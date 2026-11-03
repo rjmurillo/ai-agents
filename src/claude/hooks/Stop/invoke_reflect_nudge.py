@@ -14,14 +14,9 @@ Exit Codes:
         The registered command ends in ``|| true`` because python itself
         exits 2 when the script file is missing, and exit 2 on Stop blocks.
 
-Stop payload (source: issue #3184, which probed the real event; the
-agent-harness-reference skill does not define these fields): "the Claude Code
-Stop payload carries `session_id`, `transcript_path`, and `cwd`, not
-`messages`."
-    {"session_id": "...", "transcript_path": "...", "cwd": "..."}
-The deleted invoke_skill_learning.py read ``hook_input["messages"]``, a field
-the event never sent, and early-returned on every Stop. This hook reads
-``transcript_path`` and reports the fail-open reason when it is absent.
+Stop payload (issue #3184 probed the real event): ``session_id``,
+``transcript_path``, and ``cwd``, not ``messages``. A missing
+``transcript_path`` is reported as the fail-open reason.
 
 Transcript contract (measured on real sessions, issue #5817): newline-delimited
 JSON. ``type == "user"`` also covers tool results, which carry
@@ -36,41 +31,30 @@ events cannot both nudge: the loser sees the file exists and stays silent.
 The name carries a hash of the counts. The body holds counts, never
 transcript text.
 
-Friction branch (REQ-048 TASK-003): the scan also keeps conversation records,
-up to MAX_FRICTION_RECORDS. The shared ``failure_classifier`` (``lib/``, which
-holds the weights, thresholds, tier math, and message) scores them. Each
-(session, tier) gets its own marker. ``0`` or ``off`` in
-AI_AGENTS_RETRO_NUDGE_THRESHOLD silences both branches before any I/O. A scan
-that stops on the time, byte, or event budget skips friction and says so on
-stderr. A missing lib skips friction only.
+Friction branch (REQ-048 TASK-003): the scan keeps conversation records, up
+to MAX_FRICTION_RECORDS, and the shared ``failure_classifier`` (``lib/``, the
+one home of the weights, tiers, and message) scores them, one marker per
+(session, tier). ``0`` or ``off`` in AI_AGENTS_RETRO_NUDGE_THRESHOLD silences
+both branches before any I/O, even without the lib. A budget stop, a missing
+lib, or a lib error skips friction only and says so on stderr.
 
-Calibration status (issue #5820, AC-9): the patterns are anchored at the
-start of a turn or are fixed phrases, except one bounded "use ... instead"
-window. The original set was tuned on one operator's 191 human turns.
-Recall was not measured. See the pull request that introduced this hook
-for the examined counts and the limits.
+Calibration status (issue #5820, AC-9): patterns are turn-anchored or fixed
+phrases, except one bounded "use ... instead" window, tuned on one operator's
+191 human turns. Recall was not measured.
 
-The HIGH patterns under the "Adapted from claude-mem" comment adapt the
-user-side correction regexes in thedotmack/claude-mem (Apache-2.0),
-plugin/skills/agent-cost-report/scripts/acr/patterns.py and behavior.py,
-at commit 356b7c08f64c. Only fixed phrases were kept. Bare words such as
-"already", "stop", "never", and "again", and profanity other than "wtf",
-were dropped as too broad. claude-mem carries no praise regexes.
+HIGH patterns under "Adapted from claude-mem" adapt thedotmack/claude-mem
+(Apache-2.0) acr/patterns.py and behavior.py at commit 356b7c08f64c, fixed
+phrases only. Bare words ("already", "stop", "never", "again") and profanity
+other than "wtf" were dropped as too broad.
 
-The newer transcript-derived patterns (the "we don't use/open" HIGH
-phrase and the MED preference phrases) were checked against a second
-corpus from the same operator: 326 distinct human turns of Claude Code
-history over 30 days. Every new match in that corpus was read by hand and
-was a real correction or preference. The MED phrases "use ... instead"
-and "prefer" follow the MEDIUM trigger table in the reflect skill's
-references/triggers.md; "I don't want" and "I don't like" come from the
-transcripts. A cross-check on 30 days of Codex and Droid history (141 and
-97 distinct user turns) found no new false positive except "rather than",
-which matched pasted prose in 4 of 5 turns and was left out. Copilot CLI
-history held only automated prompts. Recall was not measured.
+The newer patterns ("we don't use/open" HIGH; MED "use ... instead",
+"prefer", "I don't want", "I don't like") were read by hand on 326 human
+turns of 30-day Claude Code history: every match was a real correction or
+preference. Codex and Droid history (141 and 97 turns) found no new false
+positive except "rather than" (pasted prose in 4 of 5), left out. Recall
+was not measured.
 
-References:
-    - Issue #5817 (this hook), #5820 (PRD), #3184 (the no-op it replaces)
+References: issue #5817 (this hook), #5820 (PRD), #3184 (the replaced no-op).
 """
 
 from __future__ import annotations
@@ -96,12 +80,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling state module
 from _reflect_nudge_state import (
     claim,
     default_state_root,
+    is_off,
     prune_markers,
     safe_marker_dir,
 )
 
 HOOK_NAME = "reflect-trigger"
-THRESHOLD_ENV = "AI_AGENTS_RETRO_NUDGE_THRESHOLD"
 MARKER_VERSION = 1
 SESSION_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,128}")
 
@@ -198,6 +182,7 @@ class ScanResult:
     dropped_records: int = 0
     lines_scanned: int = 0
     records: tuple[Mapping[str, Any], ...] = field(default=(), compare=False, repr=False)
+    collect_failed: bool = field(default=False, compare=False, repr=False)
 
 
 def read_payload(stream: IO[str]) -> dict[str, Any] | None:
@@ -298,7 +283,9 @@ def scan_transcript(
     MAX_FRICTION_RECORDS, for the friction branch.
     """
     deadline = clock() + budget
-    counts = {"user": 0, "human": 0, "high": 0, "med": 0, "skipped": 0, "dropped": 0, "lines": 0}
+    counts = dict.fromkeys(
+        ("user", "human", "high", "med", "skipped", "dropped", "lines", "collect_failed"), 0
+    )
     kept: list[Mapping[str, Any]] | None = [] if collect and failure_classifier else None
     stopped_on = ""
     seen_bytes = 0
@@ -306,7 +293,8 @@ def scan_transcript(
         if clock() > deadline:
             stopped_on = "time"
             break
-        seen_bytes += len(line.encode("utf-8", errors="replace"))
+        # Count each U+FFFD (errors="replace") as one byte: never above real size.
+        seen_bytes += len(line.encode("utf-8")) - 2 * line.count("\ufffd")
         if seen_bytes > MAX_TRANSCRIPT_BYTES:
             stopped_on = "bytes"
             break
@@ -323,6 +311,7 @@ def scan_transcript(
         dropped_records=counts["dropped"],
         lines_scanned=counts["lines"],
         records=tuple(kept) if kept is not None else (),
+        collect_failed=bool(counts["collect_failed"]),
     )
 
 
@@ -339,8 +328,13 @@ def _scan_line(
     if not isinstance(record, dict):
         counts["skipped"] += 1
         return
-    if kept is not None:
-        counts["dropped"] += failure_classifier.collect_record(kept, record, MAX_FRICTION_RECORDS)
+    if kept is not None and not counts["collect_failed"]:
+        try:
+            counts["dropped"] += failure_classifier.collect_record(
+                kept, record, MAX_FRICTION_RECORDS
+            )
+        except Exception:  # fail-open: a broken lib skips friction only
+            counts["collect_failed"] = 1
     if record.get("type") == "user":
         counts["user"] += 1
     if not is_human_turn(record):
@@ -410,10 +404,15 @@ def run(
     now: Callable[[], float] = time.time,
 ) -> int:
     """Run one Stop event. Always returns 0."""
+    if is_off(env):
+        return 0  # AC-12, AC-20: off is checked before any read or write
     fc = failure_classifier
-    threshold = fc.parse_threshold(env) if fc is not None else None
-    if threshold is None and (fc is not None or env.get(THRESHOLD_ENV) is not None):
-        return 0  # off; without the lib the setting is unreadable, so stay silent
+    threshold: int | None = None
+    if fc is not None:
+        try:
+            threshold = fc.parse_threshold(env)
+        except Exception:  # fail-open: a broken lib skips friction only
+            fc = None
     payload = read_payload(stdin)
     if payload is None:
         return _fail_open(stderr, "stop payload missing or malformed")
@@ -425,21 +424,29 @@ def run(
     if handle is None:
         return _fail_open(stderr, "transcript_path missing, unreadable, or too large")
     with handle:
-        result = scan_transcript(handle, clock=clock, collect=failure_classifier is not None)
-    friction = None
-    partial = fc.partial_budget(result.stopped_on, result.dropped_records) if fc else ""
-    if fc is not None and threshold is not None and not partial:
-        friction = fc.compute_friction(result.records, threshold)
-    if fc is None:
-        note = ", friction skipped: classifier unavailable"
-    else:
-        note = fc.friction_status(result.stopped_on, result.dropped_records, friction)
+        result = scan_transcript(handle, clock=clock, collect=fc is not None)
+    friction, note = _friction(fc, result, threshold)
     wants_friction = friction is not None and friction.tier >= 1
     if not (has_signal(result) or wants_friction):
         print(status_line(result, "silent", note), file=stderr)
         return 0
     root = state_root or default_state_root(env)
     return _nudge_once(result, friction, session_id, (stdout, stderr), root, now, note)
+
+
+def _friction(
+    fc: ModuleType | None, result: ScanResult, threshold: int | None
+) -> tuple[Friction | None, str]:
+    """Score friction; any classifier error skips friction and keeps correction."""
+    if fc is None or threshold is None or result.collect_failed:
+        return None, ", friction skipped: classifier unavailable"
+    try:
+        if fc.partial_budget(result.stopped_on, result.dropped_records):
+            return None, fc.friction_status(result.stopped_on, result.dropped_records, None)
+        friction = fc.compute_friction(result.records, threshold)
+        return friction, fc.friction_status(result.stopped_on, result.dropped_records, friction)
+    except Exception:  # fail-open: a broken lib skips friction only
+        return None, ", friction skipped: classifier error"
 
 
 def _nudge_once(
@@ -459,8 +466,12 @@ def _nudge_once(
     if has_signal(result) and claim_marker(directory, session_id, result):
         messages.append(build_message(result))
     if friction is not None and friction.tier >= 1:
-        if claim_friction_marker(directory, session_id, friction):
-            messages.append(failure_classifier.build_friction_message(friction, HOOK_NAME))
+        try:
+            text = failure_classifier.build_friction_message(friction, HOOK_NAME)
+        except Exception:  # fail-open: a broken lib skips friction only
+            text = ""
+        if text and claim_friction_marker(directory, session_id, friction):
+            messages.append(text)
     if not messages:
         print(status_line(result, "already nudged", note), file=stderr)
         return 0

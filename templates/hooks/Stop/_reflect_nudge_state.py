@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 STATE_SUBDIR = "ai-agents-reflect-nudge"
+THRESHOLD_ENV = "AI_AGENTS_RETRO_NUDGE_THRESHOLD"
 MARKER_MAX_AGE_SECONDS = 30 * 24 * 3600
 MARKER_PRUNE_LIMIT = 500
 
@@ -91,3 +92,13 @@ def prune_markers(directory: Path, now: float) -> None:
                 entry.unlink()
         except OSError:
             continue
+
+
+def is_off(env: Mapping[str, str]) -> bool:
+    """AC-12 off values (``0`` or ``off``), read here so a missing lib still honors them.
+
+    The classifier's ``parse_threshold`` owns every other value; ``00``, ``+0``,
+    and ``-0`` are not off.
+    """
+    raw = env.get(THRESHOLD_ENV)
+    return raw is not None and raw.strip().lower() in {"0", "off"}
