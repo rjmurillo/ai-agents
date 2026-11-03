@@ -48,19 +48,21 @@ _WHITESPACE_RUN = re.compile(r"\s+")
 SHELL_TOOLS: frozenset[str] = frozenset({"bash", "shell", "powershell"})
 
 # AC-40 wrappers, stripped from the front of a command before the head match.
+# Neither pattern starts with `^`: `match(text, pos)` anchors at pos, and `^`
+# would anchor at the string start instead.
 _CHECK_WRAPPER = re.compile(
-    r"^(?:cd\s+\S+\s*&&|[A-Za-z_][A-Za-z0-9_]*=\S*|uv\s+run|npx|python3?\s+-m|timeout\s+\S+)\s+",
+    r"(?:cd\s+\S+\s*&&|[A-Za-z_][A-Za-z0-9_]*=\S*|uv\s+run|npx|python3?\s+-m|timeout\s+\S+)\s+",
     re.IGNORECASE,
 )
 # AC-40 heads. Each must be followed by whitespace or the end of the command;
 # only the markdownlint prefix may also be followed by `-`.
 _CHECK_HEAD = re.compile(
-    r"^(?:pytest|py\.test|unittest|tox|nox|jest|vitest|mocha"
+    r"(?:pytest|py\.test|unittest|tox|nox|jest|vitest|mocha"
     r"|make|mvn|gradle"
     r"|(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:test|build|lint|typecheck)"
     r"|cargo\s+(?:test|build|check|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)"
     r"|tsc|eslint|ruff|mypy|pyright|shellcheck|markdownlint(?:-\S*)?"
-    r"|python3?\s+(?:\S*[/\\])?(?:(?:test_|check_|validate_)\S*|pre_pr\.py)"
+    r"|python3?\s+(?:\S*[/\\])?(?:(?:test_|check_|validate_)[^\s/\\]*|pre_pr\.py)"
     r"|lefthook\s+run|pre-commit\s+run)(?:\s|$)",
     re.IGNORECASE,
 )
@@ -131,10 +133,13 @@ def check_command(input_text: str | None) -> str | None:
 
 def is_check_command(command: str) -> bool:
     """AC-40: the command starts with a check head once wrappers are stripped."""
-    rest = command.strip()
-    while (match := _CHECK_WRAPPER.match(rest)) is not None:
-        rest = rest[match.end() :]
-    return _CHECK_HEAD.match(rest) is not None
+    text = command.strip()
+    # Advance an offset rather than slicing, so a long run of wrappers stays
+    # linear in the command length (CWE-400).
+    pos = 0
+    while (match := _CHECK_WRAPPER.match(text, pos)) is not None:
+        pos = match.end()
+    return _CHECK_HEAD.match(text, pos) is not None
 
 
 def fingerprint_tool(fingerprint: str) -> str:

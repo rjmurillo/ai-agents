@@ -142,17 +142,29 @@ class TestAC38MalformedRecords:
         assert [(e.ok, e.error) for e in events] == [(False, "")]
         assert classify(events).unfingerprinted == 1
 
-    def test_missing_or_null_input_has_no_progress_key(self) -> None:
+    def test_missing_input_has_no_progress_key(self) -> None:
         bare = {
             "type": "assistant",
             "message": {"content": [{"type": "tool_use", "id": "t1", "name": "Bash"}]},
         }
+        bare2 = {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "id": "t2", "name": "Bash"}]},
+        }
+        records = [bare, result("t1", "boom", True), bare2, result("t2", "boom", True)]
+        events = events_from_records(records)
+        assert [e.progress_key for e in events] == [None, None]
+        assert classify(events).failed_retry == 0
+
+    def test_explicit_null_input_keys_as_null(self) -> None:
+        # AC-38 serializes null as `null`; consumer A keys the string "null"
+        # the same way (AC-39), so the two adapters agree.
         records = [
-            bare,
+            use("t1", "Bash", None),
             result("t1", "boom", True),
             use("t2", "Bash", None),
             result("t2", "boom", True),
         ]
         events = events_from_records(records)
-        assert [e.progress_key for e in events] == [None, None]
-        assert classify(events).failed_retry == 0
+        assert [e.progress_key for e in events] == [("bash", "null"), ("bash", "null")]
+        assert classify(events).failed_retry == 1

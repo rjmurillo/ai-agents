@@ -118,15 +118,18 @@ chooses which events to report.
    `"check": true` or `false` on the event to say so; the mark wins. Without
    `check`, a `Bash`, `shell`, or `PowerShell` event is a check when its
    command starts with a check head after wrappers (`cd <dir> &&`, `VAR=value`,
-   `uv run`, `npx`, `python -m`, `timeout <n>`) are stripped. The command is the
+   `uv run`, `npx`, `python -m`, `python3 -m`, `timeout <n>`) are stripped. The command is the
    `command` field when `input` is a JSON object, else the trimmed `input`.
-   Heads, case-insensitive: test runners (`pytest`, `tox`, `nox`, `jest`,
-   `vitest`, `mocha`, `unittest`), build tools (`make`, `mvn`, `gradle`,
-   `npm`/`yarn`/`pnpm` `test`, `build`, `lint`, or `typecheck`, `cargo`, `go`,
-   and `dotnet` test or build forms), linters and type checkers (`tsc`,
-   `eslint`, `ruff`, `mypy`, `pyright`, `shellcheck`, `markdownlint`), a
-   `python` script named `test_*`, `check_*`, `validate_*`, or `pre_pr.py`,
-   `lefthook run`, and `pre-commit run`. Anything else is not a check. An edit
+   Heads, case-insensitive, each followed by whitespace or the end of the
+   command: test runners (`pytest`, `py.test`, `tox`, `nox`, `jest`, `vitest`,
+   `mocha`, `unittest`), build tools (`make`, `mvn`, `gradle`,
+   `npm`/`yarn`/`pnpm` `test`, `build`, `lint`, or `typecheck`, optionally
+   after `run`, `cargo test`/`build`/`check`/`clippy`, `go test`/`build`/`vet`,
+   `dotnet test`/`build`), linters and type checkers (`tsc`, `eslint`, `ruff`,
+   `mypy`, `pyright`, `shellcheck`, and `markdownlint` or any
+   `markdownlint-` command such as `markdownlint-cli2`), a `python` or
+   `python3` script whose file name starts with `test_`, `check_`, or
+   `validate_`, or is `pre_pr.py`, `lefthook run`, and `pre-commit run`. Anything else is not a check. An edit
    is never a check; `check` on an edit is ignored.
 
 Event input is a JSON array of at most 10,000 events and 8 MiB. Each event

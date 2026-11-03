@@ -16,7 +16,7 @@ Record shapes, observed in Claude Code transcripts (2026-11-01):
 
 Each non-sidechain ``tool_use`` and its ``tool_result`` become exactly one
 FailureEvent, in result order. A use with no result yet emits nothing. A use
-with no ``input`` (or a null one) gets no ProgressKey, as in consumer A.
+with no ``input`` key gets no ProgressKey; an explicit null keys as ``null``.
 
 No shipped caller uses this module yet: the planned Stop retrospective nudge
 (consumer B) will. Tests pin it to consumer A through the AC-36 parity test.
@@ -37,6 +37,11 @@ from scripts.failure_classifier.classifier import (
 # REQ-048 Definitions: `target` is the `file_path`, `notebook_path`, or `path`
 # input field, first present, when the tool is an edit tool.
 _TARGET_FIELDS: tuple[str, ...] = ("file_path", "notebook_path", "path")
+
+# Marks a tool_use with no ``input`` key, which gets no ProgressKey. An
+# explicit JSON null is input and serializes as ``null`` (AC-38), as consumer A
+# keys the string ``"null"`` (AC-39).
+_NO_INPUT = object()
 
 
 def _result_text(content: object) -> str:
@@ -90,7 +95,7 @@ def events_from_records(records: Iterable[object]) -> list[FailureEvent]:
             if kind == "tool_use":
                 use_id, name = block.get("id"), block.get("name")
                 if isinstance(use_id, str) and isinstance(name, str) and name.strip():
-                    uses[use_id] = (name, block.get("input"))
+                    uses[use_id] = (name, block["input"] if "input" in block else _NO_INPUT)
             elif kind == "tool_result":
                 use_id = block.get("tool_use_id")
                 use = uses.pop(use_id, None) if isinstance(use_id, str) else None
@@ -102,7 +107,7 @@ def events_from_records(records: Iterable[object]) -> list[FailureEvent]:
                         tool=name,
                         ok=block.get("is_error") is not True,
                         error=_result_text(block.get("content")),
-                        input=None if tool_input is None else canonical_input(tool_input),
+                        input=None if tool_input is _NO_INPUT else canonical_input(tool_input),
                         target=_target(name, tool_input),
                     )
                 )

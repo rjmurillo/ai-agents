@@ -6,6 +6,8 @@ are quoted from the 2026-11-01 amendment.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from scripts.failure_classifier import (
@@ -360,6 +362,9 @@ NOT_CHECK_COMMANDS = [
     "dotnet publish",
     "markdown",
     "python3 foo.py",
+    "python3 scripts/foo.py",
+    "python test_utils/run.py",
+    "python3 check_dir/deploy.py",
     "python scripts/pre_pr.sh",
     "python scripts/precheck_x.py",
     "lefthook install",
@@ -380,6 +385,14 @@ class TestAC40Heads:
     @pytest.mark.parametrize("command", NOT_CHECK_COMMANDS)
     def test_other_commands_do_not_match(self, command: str) -> None:
         assert is_check_command(command) is False
+
+    def test_long_wrapper_run_stays_linear(self) -> None:
+        # CWE-400: 200,000 assignment wrappers. Slicing per wrapper was
+        # quadratic; the offset loop finishes well inside the bound.
+        command = "a=1 " * 200_000 + "pytest"
+        start = time.perf_counter()
+        assert is_check_command(command) is True
+        assert time.perf_counter() - start < 2.0
 
     @pytest.mark.parametrize("wrapper", WRAPPERS)
     def test_each_wrapper_is_stripped(self, wrapper: str) -> None:
