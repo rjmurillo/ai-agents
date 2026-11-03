@@ -63,7 +63,7 @@ JSON on stdout:
 | `selection_reasons` | Per axis, why it was selected: the risk categories, the effects, `always-on`, `caller-pinned`, `deep review`, or `fail-closed`. |
 | `skipped` | Per unselected axis, the skip reason. Copy it into the output table verbatim. A skipped axis is never PASS. |
 | `unresolved_axes` | Axes a matched risk category or diff effect demanded that have no `references/{stem}.md` prompt to load. Non-empty sets `fail_closed`. Report each as UNKNOWN; an axis the change demanded is never silently absent from both `canonical_selected` and `skipped`. |
-| `fail_closed` | True when the change could not be classified, or `unresolved_axes` is non-empty, and every candidate axis was selected. Intended behavior, not an error. |
+| `fail_closed` | True when the change could not be classified, or `unresolved_axes` is non-empty. Every canonical candidate is selected; local axes narrow to scanner reads unless no usable path was passed. Intended behavior, not an error. |
 | `matched_categories`, `unclassified_paths`, `unknown_effects` | The classification evidence behind the fields above. |
 
 Exit codes: `0` a selection was emitted; `2` config error (an unknown pinned
@@ -117,17 +117,21 @@ and its skip reason says so.
 Two consequences worth knowing. A `.rs` or `.rb` change selects no local axis
 at all, because neither scanner scores it; the canonical `code-quality`
 subagent still reviews it. A `.txt`, `.rst`, or `.mdx` change is not classified
-at all, so the run fails closed onto the full set rather than handing the file
-to a scanner that would not open it.
+at all, so the run fails closed onto every canonical axis rather than handing
+the file to a scanner that would not open it.
 
 `--deep` narrows by scanner reads alone. It routes no axis by category, so a
 local axis runs when its scanner reads any changed file, and is skipped with
 the same reason otherwise. A PowerShell-only change therefore skips
 `code-qualities-assessment` and `golden-principles` instead of reporting an
 UNKNOWN that no review can clear. Every canonical axis still runs. A
-fail-closed run skips the narrowing, deep or not, because it has no
-trustworthy path list. A `--pin` also overrides it: a caller who names the
-axis gets it.
+fail-closed run narrows the same way, deep or not (issue #7031). Failing
+closed on an unclassified path, an unknown effect, or a missing prompt does
+not make the verified path list untrustworthy, and no effect routes a local
+axis. Without the narrowing, a change whose only unclassified path was
+`src/cursor/rules/python.mdc` ran `golden-principles` over zero files and
+could never reach PASS. A run with no usable path keeps all four local axes.
+A `--pin` also overrides the narrowing: a caller who names the axis gets it.
 
 The narrowing trusts the path list, so pass only the verified diff paths. A
 caller who cannot list the changed paths with confidence passes none. An

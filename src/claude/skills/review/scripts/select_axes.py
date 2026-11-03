@@ -620,8 +620,8 @@ def _blanket_reason(
 ) -> str:
     """Return the reason recorded on every axis a deep or fail-closed run selects.
 
-    Fail-closed wins over deep: a deep run that fails closed keeps all four
-    local axes, and the reason must say why the narrowing did not run.
+    Fail-closed wins over deep: a deep run that fails closed says so on every
+    axis it selects, so the reader sees why the run did not narrow by category.
     """
     if unclassified or unknown_effects or not usable_paths:
         return _FAIL_CLOSED_REASON
@@ -762,15 +762,18 @@ def select_axes(
         blanket = _blanket_reason(unclassified, unknown_effects, usable_paths, unresolved_axes)
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
-        if not fail_closed:
-            # Deep trusts its path list (SKILL.md tells a caller unsure of the
-            # paths to pass none, which fails closed), so a local scanner that
-            # reads none of it is skipped with a reason rather than run over
-            # zero files. That run reports UNKNOWN, which no language-specific
-            # review can clear, so a valid PowerShell-only change could never
-            # reach PASS (issue #7004). Every canonical axis still runs, which
-            # keeps deep the superset of CI: CI runs no local axis.
-            # Fail-closed keeps all four, because it has no path list to trust.
+        if usable_paths:
+            # The caller passes only verified diff paths (SKILL.md tells a
+            # caller unsure of them to pass none), so a local scanner that
+            # reads none of them is skipped with a reason rather than run over
+            # zero files. That run reports UNKNOWN, which no fix round can
+            # clear, so the change could never reach PASS: issue #7004 for
+            # deep, issue #7031 for fail-closed. Failing closed on an
+            # unclassified path, an unknown effect, or an unresolved axis
+            # leaves the path list itself trustworthy, and no effect routes a
+            # local axis. Every canonical axis still runs, which keeps this the
+            # superset of CI: CI runs no local axis. With no usable path there
+            # is nothing to narrow against, so all four local axes run.
             local_selected = readable_local_axes(usable_paths)
             skip_overrides.update(
                 dict.fromkeys(set(LOCAL_AXES) - local_selected, _UNREADABLE_REASON)
@@ -790,8 +793,8 @@ def select_axes(
         # never inventories. Selecting those anyway yields a scan over zero
         # files, which reports UNKNOWN, and an UNKNOWN axis blocks a PASS just
         # as a skipped one does without saying why. Skipping names the reason.
-        # Deep narrows by scanner reads alone (readable_local_axes), since it
-        # routes no axis by category. Fail-closed does not narrow at all.
+        # Deep and fail-closed narrow by scanner reads alone
+        # (readable_local_axes), since neither routes an axis by category.
         routed_local = set(local_sources) & set(LOCAL_AXES)
         local_selected = routed_local & scannable_local_axes(usable_paths)
         unreadable_local = routed_local - local_selected

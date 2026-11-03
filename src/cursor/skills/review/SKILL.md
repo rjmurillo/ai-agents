@@ -87,9 +87,9 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 4. **Select the Stage-2 axes with `select_axes.py`, then run the canonical ones.** Pass every path from step 1 and every effect from the diff hunks. Pass each path as one argument. Never shell-expand Git-controlled paths. The selector is deterministic, so do not re-derive routing from prose. The co-located `resources/axis-selection.md` defines effects, risks, and output fields.
 
-   Pass `--deep` when the caller asks for a deep or full review, or when the invocation is a pre-merge gate that must be a strict superset of CI. Deep skips a local axis whose scanner reads no changed file. Unsure of the paths? Pass none; that fails closed.
+   Pass `--deep` when the caller asks for a deep or full review, or when the invocation is a pre-merge gate that must be a strict superset of CI. Deep and fail-closed skip a local axis whose scanner reads no changed file. Unsure of the paths? Pass none; that fails closed.
 
-   Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every candidate was selected; that is intended, not an error. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
+   Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every canonical candidate was selected; that is intended, not an error. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
 
    For each selected axis load `references/{role}.md`, then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `Task(subagent_type="general-purpose")`; the prompt drives the review, not the subagent identity.
 
@@ -182,7 +182,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs before Stage 2 (Process step 2)
 - [ ] Every non-spec `references/*.md` file is either selected by change risk or reported as SKIPPED with a reason, and deep review still runs the full set (11 with the current set: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality)
-- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; the 4 local axes stayed in `local_selected`; an unclassifiable path, a blank-only path list, or an unknown `--effect` gave `fail_closed: true` and the full set
+- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; the 4 local axes stayed in `local_selected`; an unclassifiable path, a blank-only path list, or an unknown `--effect` gave `fail_closed: true`
 - [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
 - [ ] The verdict library resolves under one of the two documented candidate paths
 - [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7
