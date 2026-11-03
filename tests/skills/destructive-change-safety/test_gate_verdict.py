@@ -9,8 +9,8 @@ from typing import Any
 import gate_verdict
 import pytest
 
-# A dedicated snapshot file, so a fixture never passes by naming the test itself.
-SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "users-snapshot.sql"
+# A dedicated snapshot manifest, so a fixture never passes by naming the test itself.
+SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "users-snapshot.json"
 
 
 def good_evidence() -> dict[str, Any]:
@@ -18,7 +18,12 @@ def good_evidence() -> dict[str, Any]:
         "sinks": [{"location": "store.py:10", "trace": ["main", "purge"]}],
         "preflight": {"command": "preview-sql ...", "exit_code": 0, "measured": 3},
         "expected": 3,
-        "rollback": {"kind": "snapshot", "ref": "snap-2026-10-11", "snapshot_path": str(SNAPSHOT)},
+        "rollback": {
+            "kind": "snapshot",
+            "ref": "snap-2026-10-11",
+            "snapshot_path": str(SNAPSHOT),
+            "snapshot_target": "sqlite:users",
+        },
         "checks": [{"command": "pytest -q", "exit_code": 0}],
     }
 
@@ -288,12 +293,34 @@ def test_snapshot_path_that_does_not_exist_blocks(tmp_path: Path) -> None:
     assert "snapshot_path does not exist or is empty" in reasons(evidence)
 
 
-def test_snapshot_empty_directory_blocks_and_populated_directory_passes(tmp_path: Path) -> None:
+def test_snapshot_empty_directory_blocks_and_populated_directory_needs_a_manifest(
+    tmp_path: Path,
+) -> None:
     evidence = good_evidence()
     evidence["rollback"]["snapshot_path"] = str(tmp_path)
     assert "does not exist or is empty" in reasons(evidence)
     (tmp_path / "dump.sql").write_text("x", encoding="utf-8")
-    assert verdict(evidence)["verdict"] == "PASS"
+    assert "has no snapshot.json manifest" in reasons(evidence)
+
+
+def test_snapshot_unrelated_existing_file_blocks(tmp_path: Path) -> None:
+    unrelated = tmp_path / "notes.txt"
+    unrelated.write_text("not a snapshot", encoding="utf-8")
+    evidence = good_evidence()
+    evidence["rollback"]["snapshot_path"] = str(unrelated)
+    assert "does not name a valid snapshot manifest" in reasons(evidence)
+
+
+def test_snapshot_without_a_target_blocks() -> None:
+    evidence = good_evidence()
+    del evidence["rollback"]["snapshot_target"]
+    assert "needs a snapshot_target" in reasons(evidence)
+
+
+def test_snapshot_without_a_ref_reports_one_reason() -> None:
+    evidence = good_evidence()
+    del evidence["rollback"]["ref"]
+    assert verdict(evidence)["reasons"] == ["rollback kind snapshot needs a ref to be verified"]
 
 
 @pytest.mark.parametrize("ref", ["v1", "main", "abc123", "--all", "G" * 40])
