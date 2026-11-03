@@ -574,9 +574,10 @@ pre-push:
 
           # The import-linter contracts in pyproject.toml [tool.importlinter].
           # No glob: a pyproject.toml or uv.lock change can break a contract in
-          # a push that carries no Python file. Standalone it reads 2217 files
-          # in about 0.5s; 90s matches the siblings, and the group's declared
-          # worst case stays at branch-context-policy's 2m.
+          # a push that carries no Python file. Measured standalone on
+          # 2026-11-03 at af9a4d392: about 0.5s. No loaded-push measurement
+          # yet. 90s matches the siblings, and the group's declared worst case
+          # stays at branch-context-policy's 2m.
           - name: import-boundaries
             timeout: 90s
             run: uv run --frozen --extra dev lint-imports --no-cache

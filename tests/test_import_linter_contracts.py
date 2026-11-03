@@ -4,7 +4,9 @@ The contracts protect boundaries other files define, so these tests tie each
 module list to its source and pin the ignore list. The fixture tests copy the
 real `[tool.importlinter]` table into a small tree and prove each contract
 fails on the import it forbids. The tree check runs `lint-imports` against
-this repository and asserts its exit code.
+this repository and asserts its exit code. A grimp scan checks that the
+shipped lib packages import only the standard library, and a parity test keeps
+the pre-push job and the workflow step on one command.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from typing import Any
 
 import pytest
 import tomllib
+import yaml
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
@@ -166,27 +169,100 @@ def test_runtime_dependency_contract_names_every_project_dependency() -> None:
     assert sorted(forbidden - owned) == []
 
 
-def test_ignore_imports_stay_within_the_baseline() -> None:
+def _ignore_entries() -> list[str]:
     contracts = _importlinter()["contracts"]
-    entries = [entry for contract in contracts for entry in contract.get("ignore_imports", [])]
-    assert len(entries) == IGNORE_IMPORTS_BASELINE
+    return [entry for contract in contracts for entry in contract.get("ignore_imports", [])]
+
+
+def test_ignore_imports_stay_within_the_baseline() -> None:
+    entries = _ignore_entries()
+    assert len(entries) == IGNORE_IMPORTS_BASELINE, entries
 
 
 def test_every_ignore_entry_carries_a_comment() -> None:
     lines = _PYPROJECT.read_text(encoding="utf-8").splitlines()
     inside = False
     previous = ""
+    commented = 0
     uncommented: list[str] = []
     for line in lines:
         stripped = line.strip()
         if stripped.startswith("ignore_imports = ["):
-            inside = True
+            # A one-line array has no room for a comment per entry.
+            if stripped != "ignore_imports = [":
+                uncommented.append(stripped)
+            else:
+                inside = True
         elif inside and stripped == "]":
             inside = False
-        elif inside and stripped.startswith('"') and not previous.startswith("#"):
-            uncommented.append(stripped)
+        elif inside and stripped.startswith('"'):
+            if previous.startswith("#"):
+                commented += 1
+            else:
+                uncommented.append(stripped)
         previous = stripped
     assert uncommented == []
+    assert commented == len(_ignore_entries())
+
+
+def test_shipped_lib_imports_only_the_standard_library() -> None:
+    # The forbidden contract names only the [project] dependencies. This closes
+    # the rest of plugin-self-containment.md MUST 4: any other third-party
+    # import, such as a dev tool, also fails under bare python3.
+    import grimp
+
+    graph = grimp.build_graph("scripts", include_external_packages=True, cache_dir=None)
+    shipped = {f"scripts.{package}" for package in lib_mirror.PACKAGES}
+    ignored = {tuple(part.strip() for part in entry.split("->")) for entry in _ignore_entries()}
+    found: set[tuple[str, str]] = set()
+    for package in shipped:
+        for importer in graph.find_descendants(package) | {package}:
+            for imported in graph.find_modules_directly_imported_by(importer):
+                root = imported.split(".")[0]
+                if root in sys.stdlib_module_names or root == "__future__":
+                    continue
+                if any(imported == own or imported.startswith(f"{own}.") for own in shipped):
+                    continue
+                found.add((importer, imported))
+    assert sorted(found - ignored) == []
+
+
+def _lefthook_job(name: str) -> dict[str, Any]:
+    config = yaml.safe_load((_REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+
+    def walk(jobs: list[dict[str, Any]]) -> dict[str, Any] | None:
+        for job in jobs:
+            if job.get("name") == name:
+                return job
+            nested = walk(job.get("group", {}).get("jobs", []))
+            if nested is not None:
+                return nested
+        return None
+
+    job = walk(config["pre-push"]["jobs"])
+    assert job is not None, f"pre-push job {name!r} is missing"
+    return job
+
+
+def _workflow_step(name: str) -> dict[str, Any]:
+    workflow = yaml.safe_load(
+        (_REPO_ROOT / ".github" / "workflows" / "pytest.yml").read_text(encoding="utf-8")
+    )
+    steps = [
+        step
+        for job in workflow["jobs"].values()
+        for step in job.get("steps", [])
+        if step.get("name") == name
+    ]
+    assert len(steps) == 1, f"expected one pytest.yml step named {name!r}"
+    return steps[0]
+
+
+def test_hook_and_workflow_run_the_same_command() -> None:
+    hook = _lefthook_job("import-boundaries")
+    step = _workflow_step("Check import boundaries (lint-imports)")
+    assert hook["run"] == step["run"] == "uv run --frozen --extra dev lint-imports --no-cache"
+    assert "glob" not in hook
 
 
 def test_fixture_tree_keeps_every_contract(fixture_tree: Path) -> None:

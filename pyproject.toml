@@ -728,9 +728,10 @@ modules = [
     "scripts.failure_classifier",
 ]
 
-# plugin-self-containment.md MUST 1: a shipped file may not depend on a path
-# that exists only in this repository. The rest of scripts/, memory_enhancement/,
-# and tests/ never ship, so a shipped lib package may not import them.
+# lib_mirror.py copies only these four packages (ADR-109 B5). The rest of
+# scripts/, memory_enhancement/, and tests/ never ship, so an import of them
+# would dangle in every plugin install. plugin-self-containment.md MUST 1
+# states the same boundary for shipped files.
 [[tool.importlinter.contracts]]
 id = "shipped-lib-self-contained"
 name = "Shipped lib packages import nothing else from the repository"
@@ -745,7 +746,9 @@ forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
 
 # plugin-self-containment.md MUST 4: a plugin-root script runs under bare
 # `python3` and must be stdlib-only at import time, and its closure includes
-# the shipped lib. The list is the import name of each [project] dependency.
+# the shipped lib. This contract covers the import name of each [project]
+# dependency. tests/test_import_linter_contracts.py covers every other
+# non-stdlib import with a grimp scan that honors the same ignores.
 # The ignores are existing debt. They may only shrink: delete an entry in the
 # change that removes its import, and lint-imports fails on an entry that no
 # longer matches an import.
@@ -764,9 +767,11 @@ ignore_imports = [
     # Guarded by `except ImportError`, so the module still loads without
     # PyYAML. import-linter cannot see the guard.
     "scripts.github_core.bot_config -> yaml",
-    # Unguarded top-level import: loading this module needs PyYAML.
+    # Unguarded top-level import: under bare python3 without PyYAML, importing
+    # this module raises ModuleNotFoundError.
     "scripts.github_core.workflow_event_subscriptions -> yaml",
-    # Unguarded top-level import: loading this module needs PyYAML.
+    # Unguarded top-level import: under bare python3 without PyYAML, importing
+    # this module raises ModuleNotFoundError.
     "scripts.github_core.workflow_provenance -> yaml",
 ]
 
