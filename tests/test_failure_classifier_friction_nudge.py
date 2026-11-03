@@ -158,3 +158,26 @@ class TestMarkerAndMessage:
     def test_message_carries_no_agent_instruction(self) -> None:
         text = fc.build_friction_message(fc.Friction(11, 1, 4, 2, 3), "pfx")
         assert not re.search(r"\b(you must|do not|don't|claude|assistant|agent)\b", text, re.I)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["0", "off", "OFF", " off ", "\t0\n", "00", "+0", "-0", "5", "-3", "junk", "", "0.0", "o ff"],
+)
+def test_hook_off_check_agrees_with_parse_threshold(
+    raw: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The hook's lib-free off check and the classifier's parser share one off grammar."""
+    import sys
+
+    monkeypatch.setattr(sys, "dont_write_bytecode", True)  # keep templates/ clean
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "templates/hooks/Stop/_reflect_nudge_state.py"
+    spec = importlib.util.spec_from_file_location("_reflect_nudge_state_probe", path)
+    assert spec is not None and spec.loader is not None
+    state = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(state)
+    env = {state.THRESHOLD_ENV: raw}
+    assert state.is_off(env) is (module.parse_threshold(env) is None)
