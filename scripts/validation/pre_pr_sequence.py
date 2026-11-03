@@ -48,6 +48,7 @@ from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
+from check_dead_code import validate_dead_code
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_equivalence_predicates import validate_equivalence_predicates
@@ -318,6 +319,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
         _root_only(validate_unreachable_code),
         already_run_by="python-unreachable-statements",
     ),
+    # Same check as the pre-push python-dead-code job. No already_run_by, so
+    # the gate runs again inside pre-pr-validation, about 7s.
+    _Gate("Dead Code Detection", _root_only(validate_dead_code)),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),

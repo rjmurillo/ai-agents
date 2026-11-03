@@ -424,6 +424,7 @@ a security gate.
 | pre-push | `placeholder-identity` | push range (stdin) | Placeholder author identity in pushed commits | - | no | CI, not required: placeholder-identity-check.yml |
 | pre-push | `count-ratchets` | unscoped | Ten count ratchets from one registry (checks_ratchet.py RATCHETS) | - | no | Required: Run Python Tests (steps Run ruff ratchet (changed Python files), Run ruff count ratchet (whole tree), Run subprocess encoding count ratchet (whole tree)) and Validate PR (steps Run taste-lint error-count ratchet, Run type-ignore count ratchet, Run unindexed-memory count ratchet, Run memory-index token ratchet, Run CLI exit contract ratchet, Run canonical citations count ratchet, Run merge-tree ratchet) |
 | pre-push | `python-unreachable-statements` | unscoped | No statement after return, raise, continue, break | - | no | None found |
+| pre-push | `python-dead-code` | unscoped | vulture findings equal the shrink-only dead-code baseline | - | no | Required: Run Python Tests, step Run vulture dead-code gate (whole tree) |
 | pre-push | `path-normalization` | unscoped | Documentation path normalization | - | no | Required: Validate Path Normalization, step Validate documentation paths (same script) |
 | pre-push | `planning-artifacts` | unscoped | Planning artifact validation | - | no | CI, not required: validate-planning-artifacts.yml |
 | pre-push | `branch-context-policy` | unscoped | Blocks when the branch contradicts today's session log | pre-commit | no | None found |

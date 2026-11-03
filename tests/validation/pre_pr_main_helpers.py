@@ -25,6 +25,7 @@ def sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         "Duplicate Test Helper Detection",
         "Subprocess Encoding Convention",
         "Unreachable Code Detection",
+        "Dead Code Detection",
         # Reads the real .git directory via `git rev-parse --git-path hooks`.
         # healthy_git_run's rev-parse branch answers every rev-parse call with
         # "0" * 40 (a plausible commit SHA for HEAD-style queries), which this

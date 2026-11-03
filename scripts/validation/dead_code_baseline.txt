@@ -1,0 +1,20 @@
+# Shrink-only baseline for scripts/validation/check_dead_code.py.
+# One vulture finding per line, keyed as <path>: <message>.
+# Delete a line when you fix its finding. Never add one; fix the code instead.
+# Keep the lines sorted. tests/validation/test_check_dead_code.py pins the count.
+#
+# Recorded when the gate landed. The four 100 percent entries are parameters
+# that an interface fixes (urllib's OpenerDirector.open and
+# HTTPRedirectHandler.redirect_request, a public keyword, a caller-facing
+# signature), so they are not removable. Four of the five 90 percent imports
+# are names tests read through the importing module. MessageParam is a
+# TYPE_CHECKING import no annotation uses yet.
+.claude/lib/hook_dispatch.py: unused import 'observe_output_policy'
+scripts/ci/adr101_publisher_github.py: unused variable 'fullurl'
+scripts/ci/adr101_publisher_github.py: unused variable 'newurl'
+scripts/eval/_http_providers.py: unused import 'MessageParam'
+scripts/validation/check_canonical_citations.py: unused import 'clear_test_caches'
+scripts/validation/memory_index.py: unused variable 'all_indices'
+scripts/validation/pre_pr.py: unused import '_find_latest_session_log'
+scripts/validation/pre_pr_headroom.py: unused variable 'on_error'
+src/claude/skills/github/scripts/pr/audit_closing_claims.py: unused import '_CLOSING_KEYWORDS_RE'

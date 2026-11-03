@@ -806,6 +806,20 @@ When you fix a listed module or file, delete its entry in the same change.
 baseline size from a constant in `tests/strict_baseline_helpers.py`, so adding an entry fails until you raise the
 matching constant in the same diff, which is the edit a reviewer sees.
 
+### Dead-Code Baseline
+
+vulture checks for dead code with the `[tool.vulture]` settings in `pyproject.toml`.
+`scripts/validation/check_dead_code.py` runs it over the whole tree.
+It runs in the pre-push hook (`python-dead-code`) and in the `pytest` workflow.
+
+Findings that existed when the gate landed sit in `scripts/validation/dead_code_baseline.txt`.
+Each line is `<path>: <message>`, with no line number.
+
+The baseline may only shrink. Do not add a line for new code; remove the dead code.
+When you fix a listed finding, delete its line in the same change.
+The gate fails on a new finding and on a stale line.
+`tests/validation/test_check_dead_code.py` pins the line count, so a reviewer sees any growth.
+
 ### Manual Testing (Optional)
 
 For local debugging or development iteration:

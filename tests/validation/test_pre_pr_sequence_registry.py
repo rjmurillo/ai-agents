@@ -55,6 +55,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Nested Test Detection",
     "Duplicate Test Helper Detection",
     "Unreachable Code Detection",
+    "Dead Code Detection",
     "Subprocess Encoding Convention",
     "Test Working Tree Writes",
     "Push Lock Path Agreement",
