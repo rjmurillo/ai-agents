@@ -325,3 +325,29 @@ def test_lone_surrogate_in_input_does_not_crash_the_write(tmp_path: Path) -> Non
     raw = (out / "sess-1.jsonl").read_bytes()
     assert raw.isascii()
     assert b"ud800" in raw
+
+
+def test_main_expands_tilde_out_dir_before_guard_and_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(work)
+    src = tmp_path / "src"
+    _write_session(src, "sess-1", _session_events())
+    code = cc.main(
+        [
+            "--src-glob",
+            str(src / "*" / "events.jsonl"),
+            "--out-dir",
+            "~/out",
+            "--since",
+            "2026-10-03",
+        ]
+    )
+    assert code == cc.EXIT_OK
+    assert any((home / "out").glob("*.jsonl"))
+    assert not (work / "~").exists()

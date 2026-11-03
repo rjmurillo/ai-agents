@@ -60,6 +60,7 @@ from scripts.metrics.friction_calibration_text import (
     matching_line,
     user_text,
 )
+from scripts.metrics.source_module import load_source_module
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK_PATH = _REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py"
@@ -78,18 +79,7 @@ _HEAD_PREFIX = re.compile(r"(?:cd\s+\S+\s*&&\s*|[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+"
 @functools.cache
 def hook() -> ModuleType:
     """The live Stop hook module, loaded by path (it is not a package)."""
-    spec = util.spec_from_file_location("invoke_reflect_nudge", HOOK_PATH)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {HOOK_PATH}")
-    module = util.module_from_spec(spec)
-    sys.modules.setdefault("invoke_reflect_nudge", module)
-    # Write no __pycache__ into templates/: the lossless-templates test reads it.
-    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = saved
-    return module
+    return load_source_module("invoke_reflect_nudge", HOOK_PATH)
 
 
 @functools.cache

@@ -242,3 +242,26 @@ def test_cli_exits_2_with_one_stderr_line_on_malformed_sessions_row(
     err = capsys.readouterr().err
     assert err.startswith("error:")
     assert len(err.splitlines()) == 1
+
+
+def test_cli_exits_2_with_one_stderr_line_on_non_utf8_sessions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = _write_inputs(tmp_path)
+    (tmp_path / "sessions.jsonl").write_bytes(b"\xff\xfe\x00bad\n")
+    assert ff.main(argv) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert len(err.splitlines()) == 1
+
+
+@pytest.mark.parametrize("tune", [[[1]], [1], [None]])
+def test_cli_exits_2_when_tune_entry_is_not_a_string(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], tune: list[object]
+) -> None:
+    argv = _write_inputs(tmp_path)
+    (tmp_path / "split.json").write_text(json.dumps({"tune": tune}), encoding="utf-8")
+    assert ff.main(argv) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert len(err.splitlines()) == 1

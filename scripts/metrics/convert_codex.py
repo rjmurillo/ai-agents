@@ -161,7 +161,7 @@ def _function_input(arguments: object) -> object:
     if isinstance(arguments, str):
         try:
             return json.loads(arguments)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
             return {"arguments": arguments}
     return arguments if arguments is not None else {}
 
@@ -307,7 +307,7 @@ def convert_lines(lines: Iterable[str]) -> tuple[str | None, str, list[dict[str,
     for idx, line in enumerate(lines):
         try:
             record = json.loads(line)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
             continue
         if not isinstance(record, Mapping):
             continue
@@ -369,7 +369,7 @@ def convert_files(paths: Iterable[str], out_dir: Path, since: date) -> Counter[s
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--src-glob", required=True)
-    parser.add_argument("--out-dir", required=True, type=Path)
+    parser.add_argument("--out-dir", required=True, type=lambda v: Path(v).expanduser())
     parser.add_argument("--since", required=True, help="YYYY-MM-DD")
     args = parser.parse_args(argv)
     try:

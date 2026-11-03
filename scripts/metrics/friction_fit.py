@@ -187,6 +187,8 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except OSError as error:
         raise InputError(f"cannot read {path}: {error.strerror or error}") from error
+    except UnicodeDecodeError as error:
+        raise InputError(f"cannot read {path}: not valid UTF-8: {error.reason}") from error
 
 
 def _is_int(value: object) -> bool:
@@ -237,7 +239,10 @@ def load_pre(path: Path, keys: Iterable[str]) -> Pre:
 
 def load_tune_keys(path: Path) -> list[str]:
     try:
-        return sorted(json.loads(_read_text(path))["tune"])
+        keys = json.loads(_read_text(path))["tune"]
+        if not all(isinstance(key, str) for key in keys):
+            raise TypeError("every tune entry must be a string")
+        return sorted(keys)
     except (ValueError, KeyError, TypeError) as error:
         raise InputError(f"{path}: no 'tune' list: {error}") from error
 

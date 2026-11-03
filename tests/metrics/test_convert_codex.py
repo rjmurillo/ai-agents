@@ -471,3 +471,39 @@ def test_missing_session_id_falls_back_to_the_file_stem(tmp_path: Path) -> None:
     totals = cc.convert_files([str(rollout)], out, date(2026, 10, 1))
     assert totals.get("skipped_unsafe_id", 0) == 0
     assert (out / f"{rollout.stem}.jsonl").exists()
+
+
+def test_deeply_nested_line_is_skipped_not_fatal() -> None:
+    deep = "[" * 1_000_000 + "]" * 1_000_000
+    _, _, recs = _convert(deep, _meta(), _cmd("c", "x", 1, "e"))
+    assert recs
+
+
+def test_deeply_nested_function_arguments_fall_back_to_raw_text() -> None:
+    deep = "[" * 1_000_000 + "]" * 1_000_000
+    assert cc._function_input(deep) == {"arguments": deep}
+
+
+def test_main_expands_tilde_out_dir_before_guard_and_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(work)
+    _write_src(tmp_path / "rollout-a.jsonl", _meta(), _cmd("c", "x", 1, "e"))
+    code = cc.main(
+        [
+            "--src-glob",
+            str(tmp_path / "rollout-*.jsonl"),
+            "--out-dir",
+            "~/out",
+            "--since",
+            "2026-10-01",
+        ]
+    )
+    assert code == 0
+    assert any((home / "out").glob("*.jsonl"))
+    assert not (work / "~").exists()

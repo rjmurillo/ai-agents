@@ -296,7 +296,12 @@ def run(src_glob: str, out_dir: Path, since: date) -> Counts:
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--src-glob", required=True, help="glob of Copilot events.jsonl files")
-    parser.add_argument("--out-dir", required=True, type=Path, help="private output directory")
+    parser.add_argument(
+        "--out-dir",
+        required=True,
+        type=lambda v: Path(v).expanduser(),
+        help="private output directory",
+    )
     parser.add_argument("--since", required=True, type=date.fromisoformat, help="YYYY-MM-DD")
     return parser.parse_args(argv)
 
