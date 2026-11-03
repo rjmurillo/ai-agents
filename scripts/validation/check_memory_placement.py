@@ -337,8 +337,9 @@ def evaluate_file(relpath: str, text: str, read_base: Callable[[], str] | None) 
     ``read_base`` returns the content at the base, or is None for a file absent
     there. A file present at the base fails when it rose to normative or, if it
     was already normative, when it gained normative terms. A grandfathered
-    normative memory that is moved or edited without adding terms passes. The base is read lazily:
-    only a normative file needs it.
+    normative memory that is moved or edited without adding terms passes. The rule compares
+    term totals, so a rule swapped for another rule of equal count passes. The base is read
+    lazily: only a normative file needs it.
     """
     classification = classify(text)
     reported = _reported_label(classification)

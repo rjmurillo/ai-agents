@@ -97,7 +97,7 @@ from relocation_evidence import (
 from relocation_evidence import (
     relocation_scope_defects as _relocation_scope_defects,
 )
-from trigger_recheck import recomputed_trigger_defects
+from trigger_recheck import TriggerRecheckError, recomputed_trigger_defects
 
 CATEGORIES = ("LOCAL", "GENERATED", "VENDOR", "UPSTREAM", "UNKNOWN")
 DIAGNOSES = (
@@ -469,7 +469,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     collector: Collector = partial(collect_tests, repo_root=args.repo_root or Path.cwd())
     try:
         defects = validate(record, args.changed_path, args.repo_root, trigger_module, collector)
-    except PytestUnavailableError as exc:
+    except (PytestUnavailableError, TriggerRecheckError) as exc:
         print(f"validation_record: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(_summary(record, defects, args.record), sort_keys=True))

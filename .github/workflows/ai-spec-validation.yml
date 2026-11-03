@@ -89,6 +89,9 @@ jobs:
       # workflow edits. The merge checkout above stays the working directory,
       # so git diff and the spec files are still the PR's. The 'main' fallback
       # covers act runs, whose event has no base SHA or default branch.
+      # Rollout: a PR runs its own workflow against the base branch scripts.
+      # Land a script interface change (env names, outputs, a new script) in
+      # one PR first, then the workflow change that uses it in a later PR.
       - name: Checkout trusted base scripts
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1-3-g0c366fd (untagged, one commit before v6.0.2)
         with:

@@ -14,7 +14,10 @@ from typing import Any
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_HERE = Path(__file__).resolve().parent
+_SCRIPTS = _HERE.parents[2] / ".claude" / "skills" / "validation-authority" / "scripts"
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_SCRIPTS))
 import relocation_collector as collector_mod
 from relocation_cli_fixtures import (
     PROJECT_ROOT,
@@ -29,6 +32,9 @@ from validation_record_fixtures import (
     mod,
     record_errors,
 )
+
+# Real collection reads this module itself, so a rename elsewhere cannot break it.
+SELF_MODULE = Path(__file__).resolve().relative_to(PROJECT_ROOT).as_posix()
 
 
 def _evidence(target: dict[str, Any]) -> dict[str, Any]:
@@ -243,9 +249,7 @@ def test_recomputed_trigger_refusal_is_reported(tmp_path: Path) -> None:
 
 def test_collect_tests_yields_ids_from_the_real_repo_root_despite_addopts() -> None:
     """review-gates-03: repo addopts (-v) must not turn the id list into a tree."""
-    ids = collector_mod.collect_tests(
-        ["tests/validation/test_check_memory_placement_growth.py"], PROJECT_ROOT
-    )
+    ids = collector_mod.collect_tests([SELF_MODULE], PROJECT_ROOT)
     assert ids
     assert all("::" in item for item in ids)
 
@@ -255,16 +259,14 @@ def test_collect_tests_ignores_an_inherited_pytest_addopts(
 ) -> None:
     """PYTEST_ADDOPTS=-v must not cancel -q and drop the node ids."""
     monkeypatch.setenv("PYTEST_ADDOPTS", "-v")
-    ids = collector_mod.collect_tests(
-        ["tests/validation/test_check_memory_placement_growth.py"], PROJECT_ROOT
-    )
+    ids = collector_mod.collect_tests([SELF_MODULE], PROJECT_ROOT)
     assert ids
     assert all("::" in item for item in ids)
 
 
 def test_cli_passes_a_pure_move_from_the_real_repo_root(tmp_path: Path) -> None:
     """review-gates-03: end to end with --repo-root set to the real repository."""
-    module = "tests/validation/test_check_memory_placement_growth.py"
+    module = SELF_MODULE
     ids = collector_mod.collect_tests([module], PROJECT_ROOT)
     target = make_relocation_target(
         target=module,

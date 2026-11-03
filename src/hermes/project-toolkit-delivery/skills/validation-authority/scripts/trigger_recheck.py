@@ -15,6 +15,10 @@ from types import ModuleType
 from relocation_evidence import is_text_list
 
 
+class TriggerRecheckError(Exception):
+    """The trigger could not run, so the CLI must report a config error, not a defect."""
+
+
 def recomputed_trigger_defects(
     trigger: object,
     changed_paths: Sequence[str],
@@ -30,6 +34,8 @@ def recomputed_trigger_defects(
         fresh = trigger_module.decide(list(changed_paths), declared, repo_root or Path.cwd())
     except ValueError as exc:
         return [f"trigger recomputed from the changed paths was refused: {exc}"]
+    except OSError as exc:
+        raise TriggerRecheckError(f"trigger could not read its inputs: {exc}") from exc
     if fresh.get("decision") == "activate" and trigger.get("decision") != "activate":
         return [
             "trigger.decision is `skip` but the trigger recomputed from the changed paths "

@@ -37,13 +37,98 @@ def test_version_commit_unknown_to_git_blocks() -> None:
     assert reasons == ["rollback version ref is not a commit in this repository"]
 
 
-def test_version_blocks_when_git_cannot_run(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    [
+        (FileNotFoundError("git"), "rollback version ref could not be checked: git did not run"),
+        (
+            subprocess.TimeoutExpired(["git"], 30),
+            "rollback version ref could not be checked: git did not finish within 30s",
+        ),
+    ],
+)
+def test_version_blocks_when_git_cannot_run(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, reason: str
+) -> None:
     def boom(*args: Any, **kwargs: Any) -> Any:
-        raise FileNotFoundError("git")
+        raise error
 
     monkeypatch.setattr(rollback_checks.subprocess, "run", boom)
     reasons = rollback_checks.version_reasons({"kind": "version", "ref": "a" * 40})
-    assert reasons == ["rollback version ref could not be checked: git did not run"]
+    assert reasons == [reason]
+
+
+def test_backup_with_matching_content_passes(tmp_path: Path) -> None:
+    backup, source = tmp_path / "backup.bin", tmp_path / "source.bin"
+    backup.write_bytes(b"same bytes")
+    source.write_bytes(b"same bytes")
+    rollback = {"kind": "backup", "backup_path": str(backup), "source_path": str(source)}
+    assert rollback_checks.backup_reasons(rollback) == []
+
+
+def test_backup_with_a_different_size_blocks_without_hashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backup, source = tmp_path / "backup.bin", tmp_path / "source.bin"
+    backup.write_bytes(b"short")
+    source.write_bytes(b"much longer content")
+
+    def no_hash(path: Path) -> str:
+        raise AssertionError(f"hashed {path} despite a size mismatch")
+
+    monkeypatch.setattr(rollback_checks, "sha256", no_hash)
+    rollback = {"kind": "backup", "backup_path": str(backup), "source_path": str(source)}
+    assert rollback_checks.backup_reasons(rollback) == [
+        "rollback backup does not match the source file"
+    ]
+
+
+def test_backup_with_same_size_but_different_bytes_blocks(tmp_path: Path) -> None:
+    backup, source = tmp_path / "backup.bin", tmp_path / "source.bin"
+    backup.write_bytes(b"aaaa")
+    source.write_bytes(b"bbbb")
+    rollback = {"kind": "backup", "backup_path": str(backup), "source_path": str(source)}
+    assert rollback_checks.backup_reasons(rollback) == [
+        "rollback backup does not match the source file"
+    ]
+
+
+def test_backup_that_cannot_be_read_blocks_with_a_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backup, source = tmp_path / "backup.bin", tmp_path / "source.bin"
+    backup.write_bytes(b"data")
+    source.write_bytes(b"data")
+
+    def denied(path: Path) -> str:
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(rollback_checks, "sha256", denied)
+    rollback = {"kind": "backup", "backup_path": str(backup), "source_path": str(source)}
+    reasons = rollback_checks.backup_reasons(rollback)
+    assert len(reasons) == 1
+    assert reasons[0].startswith("rollback backup or source file could not be read:")
+
+
+def test_sha256_matches_hashlib_on_the_whole_file(tmp_path: Path) -> None:
+    import hashlib
+
+    data = b"x" * (1 << 20) + b"tail"
+    path = tmp_path / "big.bin"
+    path.write_bytes(data)
+    assert rollback_checks.sha256(path) == hashlib.sha256(data).hexdigest()
+
+
+def test_snapshot_directory_that_cannot_be_listed_blocks_with_a_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def denied(self: Path) -> Any:
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr(rollback_checks.Path, "iterdir", denied)
+    reasons = rollback_checks.snapshot_reasons({"kind": "snapshot", "snapshot_path": str(tmp_path)})
+    assert len(reasons) == 1
+    assert reasons[0].startswith("rollback snapshot_path could not be read:")
 
 
 def test_every_referenced_kind_has_a_check() -> None:

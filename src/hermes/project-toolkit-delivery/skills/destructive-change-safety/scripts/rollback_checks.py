@@ -3,7 +3,7 @@
 Each check takes the evidence ``rollback`` object and returns the reasons it
 cannot be trusted. An empty list means the named recovery path is real:
 
-- backup: both files exist and their SHA-256 hashes match.
+- backup: both files exist, their sizes match, and their SHA-256 hashes match.
 - snapshot: ``snapshot_path`` is an existing file or a non-empty directory.
 - version: ``ref`` is a 40-hex commit id that ``git cat-file`` resolves.
 
@@ -25,7 +25,16 @@ _GIT_TIMEOUT_SECONDS = 30
 
 
 def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    """Hash the file in chunks, so a large backup is never held in memory."""
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def _same_content(backup_file: Path, source_file: Path) -> bool:
+    """Compare sizes first, then hashes; a size mismatch skips both reads."""
+    if backup_file.stat().st_size != source_file.stat().st_size:
+        return False
+    return sha256(backup_file) == sha256(source_file)
 
 
 def backup_reasons(rollback: dict[str, object]) -> list[str]:
@@ -36,7 +45,11 @@ def backup_reasons(rollback: dict[str, object]) -> list[str]:
     backup_file, source_file = Path(str(backup)), Path(str(source))
     if not backup_file.is_file() or not source_file.is_file():
         return ["rollback backup or source file does not exist"]
-    if sha256(backup_file) != sha256(source_file):
+    try:
+        same = _same_content(backup_file, source_file)
+    except OSError as exc:
+        return [f"rollback backup or source file could not be read: {exc}"]
+    if not same:
         return ["rollback backup does not match the source file"]
     return []
 
@@ -49,13 +62,20 @@ def snapshot_reasons(rollback: dict[str, object]) -> list[str]:
     path = Path(str(raw))
     if path.is_file():
         return []
-    if path.is_dir() and any(path.iterdir()):
-        return []
+    try:
+        if path.is_dir() and any(path.iterdir()):
+            return []
+    except OSError as exc:
+        return [f"rollback snapshot_path could not be read: {exc}"]
     return ["rollback snapshot_path does not exist or is empty"]
 
 
 def version_reasons(rollback: dict[str, object]) -> list[str]:
-    """A version ref must be a full commit id that git resolves in the current repository."""
+    """A version ref must be a full commit id that git resolves in the current repository.
+
+    git runs in the current working directory, so run the gate from the
+    repository root. Outside a repository every ref blocks, which fails closed.
+    """
     ref = str(rollback.get("ref") or "")
     if not _COMMIT_ID.fullmatch(ref):
         return ["rollback kind version needs ref to be a 40-hex commit id"]
@@ -66,7 +86,12 @@ def version_reasons(rollback: dict[str, object]) -> list[str]:
             timeout=_GIT_TIMEOUT_SECONDS,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
+        return [
+            "rollback version ref could not be checked: "
+            f"git did not finish within {_GIT_TIMEOUT_SECONDS}s"
+        ]
+    except OSError:
         return ["rollback version ref could not be checked: git did not run"]
     return (
         []

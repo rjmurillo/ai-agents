@@ -93,3 +93,12 @@ def test_term_growth_is_reported_in_json(repo, capsys):
     assert finding["grew"] is True
     assert finding["rose"] is False
     assert finding["base_terms"] == 0
+
+
+def test_swapping_one_rule_for_another_passes_because_totals_are_compared(repo):
+    """Known limit: the rule counts terms, so an equal-count swap is not growth."""
+    write(repo, OLD, NORMATIVE_HEADING + MUST_LINE)
+    commit_all(repo, "grandfathered")
+    write(repo, OLD, NORMATIVE_HEADING + "The agent MUST do that instead.\n")
+
+    assert checker.main(["--ci", OLD]) == 0
