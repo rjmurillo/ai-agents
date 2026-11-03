@@ -1,0 +1,14 @@
+{
+  "frozen_at": "2026-11-03",
+  "basis": "tuning split only (seed 48001, 6289 sessions); labels at the exact Stop where each config fires; best Wilson 95 percent lower bound among configs with at least 20 tuning nudges",
+  "signals": {
+    "denial_v2": "errored results matching was denied, permission to use, user doesn't want to proceed, hook error, <tool_use_error>blocked, or requires approval (case-insensitive); rejected removed",
+    "stop_feedback": "user records starting with 'Stop hook feedback:'",
+    "error_streak_max": "longest run of consecutive errored tool results",
+    "tool_error": "errored tool results (weight 0)"
+  },
+  "weights": {"tool_error": 0, "denial_v2": 2, "stop_feedback": 2, "error_streak_max": 1},
+  "tier1_threshold": 10,
+  "tuning_result": {"nudged": 20, "worth_it": 15, "precision": 0.75, "wilson_lower_95": 0.531},
+  "cv_result": {"folds": 5, "seed": 48002, "out_of_fold_nudges": 16, "worth_it": 12, "precision": 0.75, "wilson_lower_95": 0.505}
+}

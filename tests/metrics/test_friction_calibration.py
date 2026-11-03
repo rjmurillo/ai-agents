@@ -65,7 +65,9 @@ class TestStops:
         assert result_row["records"] == 0
         assert result_row["stops"] == [
             {"index": 0, "event_count": 0, "tool_error": 0, "permission_denial": 0,
-             "failed_retry": 0, "edit_churn": 0}
+             "failed_retry": 0, "edit_churn": 0, "denial_v2": 0, "fp_repeat_max": 0,
+             "fp_repeat_max_old": 0, "error_streak_max": 0, "reply_repeat": 0,
+             "stop_feedback": 0}
         ]  # fmt: skip
 
     def test_malformed_lines_are_skipped_and_counted(self, row) -> None:
@@ -96,7 +98,7 @@ class TestStops:
         assert result_row["events"] == 0
 
     def test_permission_denial_counts_separately(self, row) -> None:
-        records = [human("a"), *call(1, err="Permission denied: /etc/x")]
+        records = [human("a"), *call(1, err="Tool use was denied: /etc/x")]
         final = row(records)["stops"][-1]
         assert (final["tool_error"], final["permission_denial"]) == (0, 1)
 
@@ -201,13 +203,13 @@ class TestTallies:
     def test_denial_hits_per_marker(self, row) -> None:
         records = [
             human("a"),
-            *call(1, err="Permission denied"),
+            *call(1, err="Tool use was denied"),
             *call(2, cmd="p", err="push rejected"),
         ]
         hits = row(records)["denial_hits"]
-        assert hits["permission denied"] == 1
-        assert hits["rejected"] == 1
-        assert hits["was denied"] == 0
+        assert hits["was denied"] == 1
+        assert "rejected" not in hits
+        assert hits["requires approval"] == 0
 
     def test_shell_success_split_by_check(self, row) -> None:
         records = [
@@ -221,13 +223,13 @@ class TestTallies:
     def test_candidates_collect_denial_and_unmatched_words(self, tmp_path: Path) -> None:
         records = [
             human("a"),
-            *call(1, err="Permission denied here"),
+            *call(1, err="Tool use was denied here"),
             *call(2, cmd="q", err="request was blocked upstream"),
             *call(3, cmd="ls /tmp"),
         ]
         outcome = scan.scan_session(write(tmp_path / "s.jsonl", records), seed=1)
         assert outcome.cands is not None
-        assert [i[1] for _, i in outcome.cands.denial.keyed()] == ["permission denied"]
+        assert [i[1] for _, i in outcome.cands.denial.keyed()] == ["was denied"]
         assert [i[1] for _, i in outcome.cands.word.keyed()] == ["blocked"]
         assert [i[1] for _, i in outcome.cands.shell.keyed()] == ["ls /tmp"]
 

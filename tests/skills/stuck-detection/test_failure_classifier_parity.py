@@ -35,7 +35,7 @@ FIXTURE: list[tuple[str, dict[str, Any] | None, bool, str]] = [
     ("Edit", {"file_path": "src/b.py", "old_string": "q"}, True, "old_string not found"),
     ("Bash", {"command": "make build"}, True, "make: *** [all] Error 2"),
     ("Bash", {"command": "make build"}, False, "built"),
-    ("Bash", {"command": "rm -rf build"}, True, "Permission denied by policy"),
+    ("Bash", {"command": "rm -rf build"}, True, "Tool use was denied by policy"),
     ("Bash", {"command": "true"}, True, ""),
     ("Write", {"file_path": "src\\c.py", "content": "z"}, False, "ok"),
     ("Bash", {"command": "npm test"}, True, "Error at 0xDEADBEEF1"),

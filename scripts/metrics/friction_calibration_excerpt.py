@@ -8,7 +8,6 @@ for the CLI to print.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -21,9 +20,12 @@ from scripts.metrics.friction_calibration_scan import (
     hook,
     iter_records,
     stop_counts,
+)
+from scripts.metrics.friction_calibration_text import (
+    first_error_line,
+    is_injected,
     user_text,
 )
-from scripts.metrics.friction_calibration_text import first_error_line
 
 FIRST_PROMPT_CHARS = 300
 LATER_TURN_CHARS = 200
@@ -44,18 +46,10 @@ def _byte_len(text: str) -> int:
 # Only these record types carry the conversation; others, such as
 # ``api-request-blob``, embed copies of earlier messages (as in the adapter).
 _CONVERSATION_TYPES = frozenset({"assistant", "user"})
-# Injected harness text in user or assistant text blocks, not agent prose.
-_INJECTED_PREFIXES = ("<system-reminder>", "<local-command", "<command-", "<total_tokens>")
-_HOOK_OUTPUT = re.compile(r"^[A-Za-z]+(?::[A-Za-z|*]+)? hook (?:success|additional context|error)")
 
 
 def _conversation(record: Mapping[str, Any]) -> bool:
     return record.get("isSidechain") is not True and record.get("type") in _CONVERSATION_TYPES
-
-
-def _injected(text: str) -> bool:
-    stripped = text.lstrip()
-    return stripped.startswith(_INJECTED_PREFIXES) or bool(_HOOK_OUTPUT.match(stripped))
 
 
 def _tool_lines(records: list[dict[str, Any]]) -> dict[str, int]:
@@ -90,7 +84,7 @@ def render_lines(records: list[dict[str, Any]]) -> list[str]:
             # Headless runs have no typed turn; their first real user text is
             # the task prompt the judge needs.
             text = user_text(record)
-            if text.strip() and not _injected(text):
+            if text.strip() and not is_injected(text):
                 lines.append(f"TASK PROMPT: {clip(text, FIRST_PROMPT_CHARS)}")
                 first_prompt_done = True
                 continue
@@ -110,7 +104,7 @@ def _render_block(
     if kind == "text" and isinstance(block.get("text"), str):
         # Assistant prose only; user-record text that is not a human turn is
         # harness injection, and injected text inside either role is skipped.
-        if record_type == "assistant" and not _injected(block["text"]):
+        if record_type == "assistant" and not is_injected(block["text"]):
             lines.append(f"ASSISTANT: {clip(block['text'], ASSISTANT_TEXT_CHARS)}")
     elif (
         kind == "tool_use"
