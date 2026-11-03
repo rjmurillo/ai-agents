@@ -45,6 +45,9 @@ _TARGET_FIELDS: tuple[str, ...] = ("file_path", "notebook_path", "path")
 # keys the string ``"null"`` (AC-39).
 _NO_INPUT = object()
 
+# The text a blocking Stop hook adds as a user record to continue the turn.
+STOP_FEEDBACK_PREFIX = "Stop hook feedback:"
+
 # The record types that carry the conversation's own tool calls.
 _CONVERSATION_TYPES: frozenset[str] = frozenset({"assistant", "user"})
 
@@ -133,3 +136,42 @@ def events_from_records(records: Iterable[object]) -> list[FailureEvent]:
                     )
                 )
     return events
+
+
+def _user_text(record: Mapping[str, Any]) -> str:
+    """A user record's text: the string itself, or its text blocks joined by a space."""
+    message = record.get("message")
+    content = message.get("content") if isinstance(message, Mapping) else None
+    if isinstance(content, str):
+        return content
+    return " ".join(
+        block["text"]
+        for block in _blocks(record)
+        if block.get("type") == "text" and isinstance(block.get("text"), str)
+    )
+
+
+def is_stop_feedback(record: Mapping[str, Any]) -> bool:
+    """True for a user record whose text, once left-trimmed, opens with the Stop hook text.
+
+    Records carrying a ``toolUseResult`` are tool results, never feedback.
+    Sidechain handling belongs to the caller; ``stop_feedback_count`` skips them.
+    """
+    if record.get("type") != "user" or "toolUseResult" in record:
+        return False
+    return _user_text(record).lstrip().startswith(STOP_FEEDBACK_PREFIX)
+
+
+def stop_feedback_count(records: Iterable[object]) -> int:
+    """Count non-sidechain user records opening with ``Stop hook feedback:``.
+
+    That is the continuation Claude Code adds after a blocking Stop hook.
+    Records that are not objects are skipped.
+    """
+    return sum(
+        1
+        for record in records
+        if isinstance(record, Mapping)
+        and record.get("isSidechain") is not True
+        and is_stop_feedback(record)
+    )
