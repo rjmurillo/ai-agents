@@ -1931,9 +1931,13 @@ def test_get_file_at_revision_returns_bytes_it_did_not_decode(
 @pytest.mark.parametrize(
     "relative",
     [
-        "src/claude/skills/build/scripts/validation_trigger.py",
         "src/copilot-cli/skills/build/scripts/validation_trigger.py",
+        "src/codex/skills/build/scripts/validation_trigger.py",
+        "src/cursor/skills/build/scripts/validation_trigger.py",
+        "src/hermes/project-toolkit-delivery/skills/build/scripts/validation_trigger.py",
+        "src/muse/skills/build/scripts/validation_trigger.py",
         "src/vs-code-agents/agent.py",
+        "src/claude/hooks/SessionStart/invoke_context_loader.py",
         ".claude/hooks/SessionStart/invoke_context_loader.py",
     ],
 )
@@ -1952,6 +1956,9 @@ def test_render_mirror_paths_are_generated(
 @pytest.mark.parametrize(
     "relative",
     [
+        # Issue #7037: under ADR-119 these src/claude paths are the source.
+        "src/claude/skills/build/scripts/validation_trigger.py",
+        "src/claude/lib/github_core/api.py",
         ".claude/skills/build/scripts/validation_trigger.py",
         ".claude/lib/paths.py",
         "scripts/validation/pre_pr.py",
@@ -1967,6 +1974,53 @@ def test_authored_source_paths_stay_authored(
     monkeypatch.chdir(tmp_path)
 
     assert classify_file_category(Path(relative)) == "authored"
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _platform_output_roots() -> list[str]:
+    """Collect every output path the build manifests declare (issue #7037)."""
+    import yaml
+
+    # Path-valued keys only; outputSuffix and outputFormat are not paths.
+    path_keys = {"outputDir", "outputDirs", "outputScripts", "outputConfig"}
+    roots: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in path_keys and isinstance(value, str):
+                    roots.add(value)
+                elif key in path_keys and isinstance(value, list):
+                    roots.update(v for v in value if isinstance(v, str))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    for manifest in sorted((_REPO_ROOT / "templates" / "platforms").glob("*.yaml")):
+        walk(yaml.safe_load(manifest.read_text(encoding="utf-8")))
+    return sorted(roots)
+
+
+def test_platform_manifests_declare_output_roots() -> None:
+    roots = _platform_output_roots()
+
+    # Guard against a walker that silently finds nothing.
+    for expected in ("src/codex/skills", "src/cursor/skills", "src/hermes", "src/muse/skills"):
+        assert expected in roots
+
+
+@pytest.mark.parametrize("root", _platform_output_roots())
+def test_every_platform_output_root_is_generated(root: str) -> None:
+    # A new mirror tree in templates/platforms/*.yaml must be added to
+    # _GENERATED_PATH_SEGMENTS, or CQA scores its copies as authored code.
+    root_path = Path(root)
+    probe = root_path if root_path.suffix else root_path / "pkg" / "module.py"
+
+    assert classify_file_category(probe, content="x = 1\n") == "generated"
 
 
 def _large_module(tmp_path: Path) -> Path:

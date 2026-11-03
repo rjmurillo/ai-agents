@@ -69,9 +69,20 @@ _LINE_COMMENT_PREFIXES = {
     "go": ("//",),
 }
 
+# Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
+# ADR-119, src/claude/skills/<name>/ scripts and src/claude/lib/ are the
+# hand-maintained source, so only the rendered parts of src/claude are listed.
+# Every outputDir in templates/platforms/*.yaml falls under one of these
+# prefixes; tests/skills/code-qualities-assessment/test_assess.py pins that.
 _GENERATED_PATH_SEGMENTS = (
-    ("src", "claude"),
+    ("src", "claude", "agents"),
+    ("src", "claude", "hooks"),
+    ("src", "claude", "rules"),
+    ("src", "codex"),
     ("src", "copilot-cli"),
+    ("src", "cursor"),
+    ("src", "hermes"),
+    ("src", "muse"),
     ("src", "vs-code-agents"),
     (".claude", "hooks"),
     (".github", "instructions"),
