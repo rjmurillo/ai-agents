@@ -192,10 +192,11 @@ class TestCaseSensitivityFollowsEachScanner:
 
 
 class TestOverrideModesAndLocalAxes:
-    """Deep narrows local axes to scanner reads; fail-closed keeps all four.
+    """Deep and fail-closed narrow local axes to scanner reads.
 
     Issue #7004: deep ran every local scanner, and one that read no changed
-    file reported UNKNOWN that nothing could clear.
+    file reported UNKNOWN that nothing could clear. Issue #7031: fail-closed
+    hit the same deadlock. Only a run with no usable path keeps all four.
     """
 
     # One launcher, its Pester tests, and a README: the reported change shape.
@@ -251,31 +252,44 @@ class TestOverrideModesAndLocalAxes:
         assert "golden-principles" in result["local_selected"]
         assert "golden-principles" not in result["skipped"]
 
-    def test_deep_and_fail_closed_keeps_every_local_axis(self):
-        """An unclassified path leaves no path list to trust, even in deep."""
+    def test_deep_and_fail_closed_skips_scanners_that_read_no_changed_file(self):
+        """An unclassified path does not make the verified path list untrustworthy."""
         result = select(["some/unclassifiable/blob.bin"], deep=True)
-        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
-        assert result["skipped"] == {}
+        assert result["local_selected"] == []
+        for axis in mod.LOCAL_AXES:
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
+        assert set(result["canonical_selected"]) == set(CANDIDATES)
 
-    def test_deep_and_unknown_effect_keeps_every_local_axis(self):
+    def test_deep_and_unknown_effect_narrows_local_axes(self):
+        """No effect routes a local axis, so an unknown one cannot need a scanner."""
         result = mod.select_axes(
             changed_paths=self.POWERSHELL_CHANGE,
             effects=["not-a-real-effect"],
             canonical_candidates=CANDIDATES,
             deep=True,
         )
-        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
-        assert result["skipped"] == {}
+        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
+        for axis in ("code-qualities-assessment", "golden-principles"):
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
 
-    @pytest.mark.parametrize("paths", [[], ["some/unclassifiable/blob.bin"]])
-    def test_deep_fail_closed_reason_says_why_narrowing_did_not_run(self, paths):
+    @pytest.mark.parametrize(
+        ("paths", "expected_local"),
+        [
+            ([], set(mod.LOCAL_AXES)),
+            (["some/unclassifiable/blob.bin", "README.md"], {"doc-accuracy", "taste-lints"}),
+        ],
+    )
+    def test_deep_fail_closed_reason_says_why_category_routing_did_not_run(
+        self, paths, expected_local
+    ):
         """The output forces fail_closed to False under deep, so the reason must."""
         result = select(paths, deep=True)
-        for axis in mod.LOCAL_AXES:
+        assert set(result["local_selected"]) == expected_local
+        for axis in result["local_selected"]:
             assert result["selection_reasons"][axis] == mod._FAIL_CLOSED_REASON
 
-    def test_deep_with_an_unresolved_axis_says_why_narrowing_did_not_run(self):
-        """A demanded axis with no prompt fails closed, so deep must not narrow."""
+    def test_deep_with_an_unresolved_axis_says_why_and_still_narrows(self):
+        """A demanded axis with no prompt fails closed; the path list stays trusted."""
         candidates = [axis for axis in CANDIDATES if axis != "analyst"]
         result = mod.select_axes(
             changed_paths=self.POWERSHELL_CHANGE,
@@ -283,20 +297,17 @@ class TestOverrideModesAndLocalAxes:
             deep=True,
         )
         assert result["unresolved_axes"] == ["analyst"]
-        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
-        for axis in mod.LOCAL_AXES:
+        assert set(result["local_selected"]) == {"doc-accuracy", "taste-lints"}
+        for axis in result["local_selected"]:
             assert result["selection_reasons"][axis] == mod._UNRESOLVED_REASON
+        for axis in ("code-qualities-assessment", "golden-principles"):
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
 
     def test_deep_narrowing_keeps_the_deep_reason(self):
         """Negative control: a classified deep run still says deep review."""
         result = select(self.POWERSHELL_CHANGE, deep=True)
         for axis in result["local_selected"]:
             assert result["selection_reasons"][axis] == mod._DEEP_REASON
-
-    def test_fail_closed_keeps_every_local_axis(self):
-        result = select(["some/unclassifiable/blob.bin"])
-        assert result["fail_closed"] is True
-        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
 
     def test_pin_overrides_the_scanner_narrowing(self):
         """A caller who names the axis gets it, scanner support or not."""

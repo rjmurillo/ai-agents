@@ -174,6 +174,9 @@ Check in this order:
    `FAIL_JUDGE_ERRORS`. `total_judge_failures` may exceed it, counting `full`
    on a routed target and `baseline` on the negative pool, neither of which
    gates anything. The table names the excluded cells when the counts differ.
+   It also counts a gating cell that lost some judge samples but graded the
+   rest. That cell is reduced over its graded samples and reported as an
+   incomplete measurement in `partial_judge_failure_cells`, not as a failure.
 2. **The negative case should be high on every mechanism the target can reach.**
    Checked before coverage: an observed harm outranks an unproven benefit. A
    drop means the rule fires on work it should ignore, whatever the positive

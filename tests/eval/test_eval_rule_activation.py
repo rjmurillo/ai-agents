@@ -3521,6 +3521,16 @@ class TestArchivedSummariesStillAggregate:
             "delta_rounding_disagrees",
         }
     )
+    # Published verdicts a later rule change moved on purpose, keyed by
+    # (artifact, rule) with (published, recomputed, issue). Every entry is
+    # checked both ways, so neither side can drift silently. Each #7061 run
+    # graded every cell but lost some judge samples. #7061 stopped failing a
+    # run on those partial losses, so the verdict now comes from the scores.
+    # None of them moves to PASS.
+    VERDICT_CHANGES = {
+        (tag, "unified-software-engineering"): ("FAIL_JUDGE_ERRORS", "FAIL_NO_DELTA", "#7061")
+        for tag in ("fx-opus5", "var-opus-1", "var-opus-2", "var-opus-3")
+    }
 
     @staticmethod
     def _runs():
@@ -3539,13 +3549,34 @@ class TestArchivedSummariesStillAggregate:
         assert cells == self.EXPECTED_CELLS
 
     def test_every_archived_summary_reproduces_field_for_field(self):
+        changed = set()
         for tag, rule_id, rule in self._runs():
             published = rule["summary"]
             recomputed = eval_mod.aggregate(rule["scenarios"])
             for field in self.PUBLISHED_FIELDS:
                 assert field in published, f"{tag}/{rule_id}: {field} left the record"
                 assert field in recomputed, f"{tag}/{rule_id}: {field} left the summary"
-                assert published[field] == recomputed[field], f"{tag}/{rule_id}.{field}"
+                expected = published[field]
+                if field == "verdict" and (tag, rule_id) in self.VERDICT_CHANGES:
+                    was, now, _issue = self.VERDICT_CHANGES[(tag, rule_id)]
+                    assert published[field] == was, f"{tag}/{rule_id}: record moved"
+                    expected = now
+                    changed.add((tag, rule_id))
+                assert expected == recomputed[field], f"{tag}/{rule_id}.{field}"
+
+        # A stale entry naming a run that no longer exists would pass the loop.
+        assert changed == set(self.VERDICT_CHANGES)
+
+    def test_partial_judge_loss_alone_moved_the_changed_verdict(self):
+        """Pins why fx-opus5 moved: every cell graded, some samples failed."""
+        for tag, rule_id, rule in self._runs():
+            if (tag, rule_id) not in self.VERDICT_CHANGES:
+                continue
+            recomputed = eval_mod.aggregate(rule["scenarios"])
+
+            assert recomputed["total_judge_failures"] > 0
+            assert recomputed["gating_judge_failures"] == 0
+            assert recomputed["partial_judge_failure_cells"] == recomputed["total_judge_failures"]
 
     def test_every_archived_mechanism_summary_reproduces_key_for_key(self):
         for tag, rule_id, rule in self._runs():
@@ -3615,7 +3646,9 @@ class TestArchivedSummariesStillAggregate:
 
     def test_the_comparison_can_fail(self):
         """Negative control. A guard nobody has seen fail has not been run."""
-        _tag, _rule_id, rule = next(iter(self._runs()))
+        _tag, _rule_id, rule = next(
+            run for run in self._runs() if run[:2] not in self.VERDICT_CHANGES
+        )
         recomputed = eval_mod.aggregate(rule["scenarios"])
         corrupted = dict(rule["summary"], baseline_avg=-999.0)
 
