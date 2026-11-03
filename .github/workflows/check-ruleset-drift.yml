@@ -11,12 +11,18 @@ permissions:
 jobs:
   drift-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       # GITHUB_TOKEN cannot read `bypass_actors` (admin only). The script logs
       # that as "NOT OBSERVABLE" and does not fail on it; everything else is
       # still compared. Run the script with an admin token to check bypass_actors.
       - name: Run drift check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/validation/check_ruleset_params_drift.py
+        run: python3 scripts/validation/check_ruleset_params_drift.py --alert
