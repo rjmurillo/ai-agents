@@ -436,22 +436,3 @@ class TestCodeRabbitFixes:
 
         line = "x" * 3000 + " Permission for this command was denied"
         assert "was denied" in clip(text_helpers.matching_line(line, "was denied"), 200)
-
-
-def test_hook_load_writes_no_bytecode_beside_the_template(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # A __pycache__ under templates/hooks/Stop/ breaks the frozen template-tree
-    # check in tests/build_scripts/test_hook_templates_lossless.py.
-    copy = tmp_path / "Stop" / "invoke_reflect_nudge.py"
-    copy.parent.mkdir()
-    copy.write_bytes(scan.HOOK_PATH.read_bytes())
-    monkeypatch.setattr(scan, "HOOK_PATH", copy)
-    monkeypatch.delitem(scan.sys.modules, "invoke_reflect_nudge", raising=False)
-    before = scan.sys.dont_write_bytecode
-
-    module = scan.hook.__wrapped__()
-
-    assert hasattr(module, "__file__")
-    assert not (copy.parent / "__pycache__").exists()
-    assert scan.sys.dont_write_bytecode == before

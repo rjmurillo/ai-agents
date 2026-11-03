@@ -78,13 +78,7 @@ def hook() -> ModuleType:
         raise ImportError(f"cannot load {HOOK_PATH}")
     module = util.module_from_spec(spec)
     sys.modules.setdefault("invoke_reflect_nudge", module)
-    # Loading by path writes templates/hooks/Stop/__pycache__ otherwise, and
-    # test_hook_templates_lossless.py fails on that extra file in the tree.
-    previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
+    spec.loader.exec_module(module)
     return module
 
 
