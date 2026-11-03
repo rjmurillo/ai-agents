@@ -12,7 +12,7 @@ Compares ruleset_params_baseline.json against the live ruleset fetched via
     live outside any rule's `parameters` block and were previously never
     fetched at all
 
-Exits non-zero when any of the above drifts.
+Exits non-zero when any of the above drifts; --alert also files an issue.
 
 `bypass_actors` is only returned to callers with admin access to the
 repository. The Actions GITHUB_TOKEN cannot see it: the key is absent from
@@ -22,7 +22,7 @@ whenever the key is present (including an empty list) it is compared as
 before, so a token that can see it still catches an added or removed actor.
 
 Usage (local):
-    python scripts/validation/check_ruleset_params_drift.py
+    python scripts/validation/check_ruleset_params_drift.py [--alert]
 
 Usage (CI, offline / no token):
     python scripts/validation/check_ruleset_params_drift.py --offline
@@ -30,14 +30,12 @@ Usage (CI, offline / no token):
 EXIT CODES (ADR-035):
     0 - all observable state matches (bypass_actors is skipped when the
         token cannot see it) or --offline skipped the live check
-    1 - drift detected
+    1 - drift detected (and alert published when --alert is set)
     2 - configuration error (missing baseline, bad JSON, missing/malformed
         'parameters' or 'ruleset' section)
-    3 - external error (gh CLI unavailable, API failure)
+    3 - external error (gh CLI unavailable, API failure, alert publish failure)
     4 - authentication error (gh CLI not authenticated)
 """
-
-from __future__ import annotations
 
 import json
 import subprocess
@@ -53,6 +51,8 @@ EXIT_AUTH = 4
 
 BASELINE_PATH = Path(__file__).parent / "ruleset_params_baseline.json"
 REPO = "rjmurillo/ai-agents"
+
+ALERT_MARKER = "RULESET-PARAMS-DRIFT"
 
 # `required_status_checks` is both a rule TYPE and, within that rule's
 # `parameters` block, a parameter KEY holding the list of required status
@@ -252,6 +252,33 @@ def check_ruleset_drift(baseline: dict[str, Any], live_ruleset: dict[str, Any]) 
     return drifts
 
 
+def publish_drift_alert(ruleset_id: int, drifts: list[str]) -> int:
+    """Create or update the tracking issue; the signal omits live values (hedge gate)."""
+    # Lazy import keeps the default run stdlib-only under bare python3. CI runs
+    # this file as a script, so the repo root must be on sys.path first.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.ci.ruleset_context_drift import ALERT_LABELS, publish_issue_alert, run_url
+
+    drift_lines = "\n".join(drifts)
+    return publish_issue_alert(
+        title="Ruleset Parameter Drift Detected",
+        marker=ALERT_MARKER,
+        labels=ALERT_LABELS,
+        body=(
+            f"<!-- {ALERT_MARKER} -->\n## Ruleset Parameter Drift\n\n"
+            f"**Ruleset**: `{ruleset_id}`\n**Workflow run**: {run_url()}\n\n"
+            f"```text\n{drift_lines}\n```\n\n"
+            f"Update `{BASELINE_PATH.name}` after confirming the change is intentional.\n"
+        ),
+        body_filename="ruleset-params-drift.md",
+        blocked_by=(
+            f"Maintainers merging to main in {REPO}: they rely on ruleset "
+            f"{ruleset_id} settings, which no longer match the recorded baseline."
+        ),
+        signal=f"Run {run_url()} compared ruleset {ruleset_id}: {len(drifts)} drifted item(s).",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     args = argv if argv is not None else sys.argv[1:]
@@ -281,6 +308,12 @@ def main(argv: list[str] | None = None) -> int:
         print("DRIFT DETECTED between baseline and live ruleset:")
         print("\n".join(drifts))
         print(f"\nUpdate {BASELINE_PATH.name} after confirming the change is intentional.")
+        if "--alert" not in args:
+            return EXIT_DRIFT
+        publish_rc = publish_drift_alert(ruleset_id, drifts)
+        if publish_rc != EXIT_OK:
+            return publish_rc
+        print("ALERT: tracking issue created or updated.")
         return EXIT_DRIFT
 
     if observable:
