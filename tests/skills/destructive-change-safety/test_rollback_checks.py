@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -145,6 +147,114 @@ def test_sha256_matches_hashlib_on_the_whole_file(tmp_path: Path) -> None:
     path = tmp_path / "big.bin"
     path.write_bytes(data)
     assert rollback_checks.sha256(path) == hashlib.sha256(data).hexdigest()
+
+
+def _write_snapshot(
+    root: Path,
+    *,
+    ref: str = "snap-1",
+    target: str = "sqlite:users",
+    payload_bytes: bytes = b"recovery data",
+) -> dict[str, Any]:
+    payload = root / "payload.dump"
+    payload.write_bytes(payload_bytes)
+    manifest = {
+        "format": "destructive-change-snapshot",
+        "version": 1,
+        "ref": ref,
+        "target": target,
+        "payload": payload.name,
+        "sha256": hashlib.sha256(payload_bytes).hexdigest(),
+    }
+    (root / "snapshot.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest
+
+
+def _snapshot_rollback(path: Path) -> dict[str, object]:
+    return {
+        "kind": "snapshot",
+        "ref": "snap-1",
+        "snapshot_target": "sqlite:users",
+        "snapshot_path": str(path),
+    }
+
+
+def test_snapshot_directory_with_a_valid_manifest_passes(tmp_path: Path) -> None:
+    _write_snapshot(tmp_path)
+    assert rollback_checks.snapshot_reasons(_snapshot_rollback(tmp_path)) == []
+
+
+def test_snapshot_manifest_file_with_a_valid_payload_passes(tmp_path: Path) -> None:
+    _write_snapshot(tmp_path)
+    manifest = tmp_path / "snapshot.json"
+    assert rollback_checks.snapshot_reasons(_snapshot_rollback(manifest)) == []
+
+
+def test_snapshot_unrelated_existing_file_blocks(tmp_path: Path) -> None:
+    unrelated = tmp_path / "unrelated.txt"
+    unrelated.write_text("not a snapshot", encoding="utf-8")
+    assert rollback_checks.snapshot_reasons(_snapshot_rollback(unrelated)) == [
+        "rollback snapshot_path does not name a valid snapshot manifest"
+    ]
+
+
+def test_snapshot_missing_path_and_empty_directory_block(tmp_path: Path) -> None:
+    missing = tmp_path / "gone"
+    assert rollback_checks.snapshot_reasons(_snapshot_rollback(missing)) == [
+        "rollback snapshot_path does not exist or is empty"
+    ]
+    assert rollback_checks.snapshot_reasons(_snapshot_rollback(tmp_path)) == [
+        "rollback snapshot_path does not exist or is empty"
+    ]
+
+
+def test_snapshot_directory_without_a_manifest_blocks(tmp_path: Path) -> None:
+    (tmp_path / "payload.dump").write_bytes(b"recovery data")
+    assert rollback_checks.snapshot_reasons(_snapshot_rollback(tmp_path)) == [
+        "rollback snapshot directory has no snapshot.json manifest"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("manifest_changes", "reason"),
+    [
+        ({"ref": "snap-2"}, "manifest ref does not match ref"),
+        ({"target": "sqlite:orders"}, "manifest target does not match snapshot_target"),
+        ({"format": "other-format"}, "manifest format must be destructive-change-snapshot"),
+        ({"version": 2}, "manifest version must be 1"),
+        ({"sha256": "0" * 64}, "payload does not match the manifest sha256"),
+    ],
+)
+def test_snapshot_manifest_mismatch_blocks(
+    tmp_path: Path, manifest_changes: dict[str, object], reason: str
+) -> None:
+    manifest = _write_snapshot(tmp_path)
+    manifest.update(manifest_changes)
+    (tmp_path / "snapshot.json").write_text(json.dumps(manifest), encoding="utf-8")
+    reasons = rollback_checks.snapshot_reasons(_snapshot_rollback(tmp_path))
+    assert len(reasons) == 1
+    assert reason in reasons[0]
+
+
+def test_snapshot_without_a_target_blocks(tmp_path: Path) -> None:
+    _write_snapshot(tmp_path)
+    rollback = _snapshot_rollback(tmp_path)
+    del rollback["snapshot_target"]
+    assert rollback_checks.snapshot_reasons(rollback) == [
+        "rollback kind snapshot needs a snapshot_target to be verified"
+    ]
+
+
+def test_snapshot_payload_outside_the_snapshot_blocks(tmp_path: Path) -> None:
+    manifest = _write_snapshot(tmp_path)
+    outside = tmp_path.parent / "outside.dump"
+    outside.write_bytes(b"outside")
+    manifest["payload"] = "../outside.dump"
+    manifest["sha256"] = hashlib.sha256(b"outside").hexdigest()
+    (tmp_path / "snapshot.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert rollback_checks.snapshot_reasons(_snapshot_rollback(tmp_path)) == [
+        "rollback snapshot payload must be a relative path inside the snapshot"
+    ]
 
 
 def test_snapshot_directory_that_cannot_be_listed_blocks_with_a_reason(
