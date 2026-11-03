@@ -1277,3 +1277,30 @@ def test_every_plugin_skill_md_is_generated() -> None:
         assert (_REPO_ROOT / "templates" / "skills" / f"{name}.SKILL.md.tmpl").is_file(), name
         relative = skill_md.relative_to(_REPO_ROOT).as_posix()
         assert classify_file_category(relative, []) == "generated", relative
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/Bad_Skill/scripts/run.py",
+        ".claude/skills/Bad_Skill/scripts/run.py",
+    ],
+)
+def test_skill_dir_naming_checks_source_and_install_trees(relative: str) -> None:
+    rules = [v.message for v in check_naming(relative, ["x = 1\n"])]
+
+    assert "Skill directory 'Bad_Skill' is not kebab-case" in rules
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/good-skill/scripts/run.py",
+        "vendor/src/claude/skills/Bad_Skill/run.py",
+        "src/codex/skills/Bad_Skill/run.py",
+    ],
+)
+def test_skill_dir_naming_ignores_kebab_and_other_trees(relative: str) -> None:
+    messages = [v.message for v in check_naming(relative, ["x = 1\n"])]
+
+    assert not any(m.startswith("Skill directory") for m in messages)

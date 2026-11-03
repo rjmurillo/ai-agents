@@ -765,6 +765,17 @@ def _check_skill_dir_naming(filepath: str) -> Violation | None:
     )
 
 
+def _is_skill_tree_path(filepath: str) -> bool:
+    """True for a path in a skill tree: .claude/skills/ or its ADR-119 source.
+
+    Git names skill sources by their src/claude/skills/ path, because
+    .claude/skills/<name> is a link to that directory (ADR-119).
+    """
+    if ".claude/skills/" in filepath:
+        return True
+    return _repo_relative_parts(Path(filepath))[:3] == ("src", "claude", "skills")
+
+
 def check_naming(filepath: str, _lines: list[str]) -> list[Violation]:
     """Check file naming conventions."""
     if has_suppression(_lines, "naming"):
@@ -781,7 +792,7 @@ def check_naming(filepath: str, _lines: list[str]) -> list[Violation]:
             ".claude/hooks/" in filepath and suffix == ".py",
             lambda: _check_hook_naming(filepath, name, suffix),
         ),
-        (".claude/skills/" in filepath, lambda: _check_skill_dir_naming(filepath)),
+        (_is_skill_tree_path(filepath), lambda: _check_skill_dir_naming(filepath)),
     ]
     for condition, checker in checkers:
         if condition:
