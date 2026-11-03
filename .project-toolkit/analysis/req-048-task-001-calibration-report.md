@@ -81,6 +81,8 @@ The FrictionScore depends on two live signals only.
 
 Under Q5's broad rule, `failed_retry` would total 72 instead of 0.
 
+The grid and the freeze used the first, final-Stop labels, because the relabel came after the freeze. The figures in this section are those labels. The relabel section gives the corrected numbers.
+
 The grid tried every `permission_denial` weight from 0 to 5 and thresholds from 1 to 30. On the tuning split, 19 of 144 candidates were `worth_it`, a 13 percent base rate.
 
 | Config (tool_error weight 1) | Tuning nudges | Precision | Wilson lower bound |
@@ -92,7 +94,7 @@ The grid tried every `permission_denial` weight from 0 to 5 and thresholds from 
 
 No config with at least 5 tuning nudges reached 40 percent.
 
-The frozen config is all weights 1 with a tier 1 threshold of 3. It was committed at `f9bbc5871` (2026-11-02) before any held-out label. It has the best Wilson lower bound among configs with at least 20 tuning nudges.
+The frozen config is all weights 1 with a tier 1 threshold of 3. It was committed at `f9bbc5871` (2026-11-02) before any held-out label. It has the best Wilson lower bound among configs with at least 20 tuning nudges. `req-048-task-001-frozen-config.json` records the freeze-time result, 16 of 53. With the corrected labels the same config scores 20 of 53. Another threshold might now rank higher. The freeze is kept, as AC-19 requires, so nothing is refit.
 
 `failed_retry` and `edit_churn` never fired, so the data cannot set their weights.
 
@@ -176,7 +178,7 @@ The parent session's own tokens are not measured here. No dollar figure is given
 
 These change REQ-048 or its ADR, so they are the owner's call.
 
-1. **Consumer B.** The friction default does not ship under AC-19. Signals as defined reach about 30 percent precision. Options:
+1. **Consumer B.** The friction default does not ship under AC-19. Signals as defined reach 17.4 percent held-out precision and 37.7 percent on tuning. Options:
    - redefine the signals;
    - ship TASK-003 with the friction branch off by default;
    - drop the friction branch.
