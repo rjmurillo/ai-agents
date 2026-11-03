@@ -122,6 +122,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".coderabbit.yaml",
         ".config",
         ".cursor-plugin",
+        ".devcontainer",
         ".env.example",
         ".factory",
         ".gemini",
@@ -850,6 +851,16 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     # anything.
     ("src/codex/lib/", ".claude/lib/", None),
     ("src/codex/skills/", ".claude/skills/", None),
+    # The Muse tree renders the same skill files and lib packages
+    # (templates/platforms/muse.yaml). SKILL.md keeps only name and
+    # description, which carry no suppression comment; every script is
+    # a byte copy. Its rows name the real source trees rather than the
+    # .claude/ links the rows above use: `git show <ref>:<path>` cannot
+    # traverse a symlinked directory at a ref, so a .claude/ source
+    # reads as absent and the verbatim comparison can never succeed
+    # for a tree added after those rows were written.
+    ("src/muse/lib/", "src/claude/lib/", None),
+    ("src/muse/skills/", "src/claude/skills/", None),
 )
 # Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
@@ -3755,6 +3766,25 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
+# The ruff ANN waiver covers "tests/**/*.py" and "**/tests/**/*.py", so test
+# functions carry no annotations. pyproject's tests.* override turns the strict
+# annotation checks off, but a tests/ subdirectory with no __init__.py
+# (tests/context-optimizer/, tests/eval/, tests/maintenance/ and the
+# tests/skills/<name>/ trees that lack one, while tests/ and tests/skills/ both
+# have one) gives its files top-level module names that no override pattern can
+# match. These flags apply the same annotation relaxation by path instead.
+MYPY_TEST_PATH_FLAGS = (
+    "--allow-untyped-defs",
+    "--allow-incomplete-defs",
+    "--allow-untyped-calls",
+    "--no-check-untyped-defs",
+)
+
+
+def _is_mypy_test_path(path: str) -> bool:
+    return "tests" in Path(path).parts[:-1]
+
+
 def _mypy_invocations(paths: Sequence[str]) -> list[tuple[list[str], bool]]:
     validation_paths: list[str] = []
     by_basename: dict[str, list[str]] = {}
@@ -3771,8 +3801,14 @@ def _mypy_invocations(paths: Sequence[str]) -> list[tuple[list[str], bool]]:
         else:
             colliding.extend(basename_group)
     invocations: list[tuple[list[str], bool]] = []
-    if unique:
-        invocations.append((unique, False))
+    # Test and non-test files never share a batch: _invoke_mypy relaxes the
+    # annotation checks for a batch made only of test paths.
+    unique_tests = [path for path in unique if _is_mypy_test_path(path)]
+    unique_sources = [path for path in unique if not _is_mypy_test_path(path)]
+    if unique_sources:
+        invocations.append((unique_sources, False))
+    if unique_tests:
+        invocations.append((unique_tests, False))
     invocations.extend(([path], False) for path in colliding)
     invocations.extend(([path], True) for path in validation_paths)
     return invocations
@@ -3789,11 +3825,12 @@ def _invoke_mypy(
         inherited = os.environ.get("MYPYPATH")
         value = f"{validation_path}{os.pathsep}{inherited}" if inherited else validation_path
         extra_env = {"MYPYPATH": value}
+    test_flags = list(MYPY_TEST_PATH_FLAGS) if paths and all(map(_is_mypy_test_path, paths)) else []
     # FORCE_COLOR and MYPY_FORCE_COLOR make mypy color a pipe. A colored error
     # line misses MYPY_ERROR_RE, and the ratchet then fails closed on every
     # push (issue #6212). --no-color-output wins over both variables.
     return _run_command(
-        [sys.executable, "-m", "mypy", "--no-color-output", "--", *paths],
+        [sys.executable, "-m", "mypy", "--no-color-output", *test_flags, "--", *paths],
         repo_root,
         extra_env=extra_env,
         timeout_seconds=MYPY_TIMEOUT_SECONDS,

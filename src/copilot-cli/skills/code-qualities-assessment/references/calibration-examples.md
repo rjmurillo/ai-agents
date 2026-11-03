@@ -150,6 +150,15 @@ class OrderProcessor:
 
 **Why 1**: Hard-coded connections. Impossible to test without real Stripe, SMTP, DB.
 
+### How assess.py scores coupling
+
+`assess.py` scores coupling as `10 - scored imports`, floored at 1, at confidence 0.6.
+Go standard-library imports appear in the report but are not scored.
+A Go path is standard when its first element has no dot.
+Packages of the module named in the nearest `go.mod` always count.
+The cgo pseudo-package `"C"` also counts.
+Ten imports such as `fmt`, `os`, and `time` therefore score 10, not 1.
+
 ---
 
 ## Encapsulation Examples
