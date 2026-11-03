@@ -76,8 +76,10 @@ from typing import IO, TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from failure_classifier import Friction
 
+# Hooks run from repo and plugin trees: write no __pycache__ beside them.
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling state module
-from _reflect_nudge_state import (
+from _reflect_nudge_state import (  # noqa: E402
     claim,
     default_state_root,
     is_off,
