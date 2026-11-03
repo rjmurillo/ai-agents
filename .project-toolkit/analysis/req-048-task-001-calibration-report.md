@@ -6,7 +6,7 @@ Run date: 2026-11-02. Corpus: Richard Murillo's local Claude Code transcripts.
 
 The AC-19 gate fails. Consumer B's friction nudge should not ship a default.
 
-- Held-out precision is 30.4 percent (7 of 23). The Wilson 95 percent interval is 15.6 to 50.9 percent.
+- Held-out precision is 17.4 percent (4 of 23). The Wilson 95 percent interval is 7.0 to 37.1 percent.
 - AC-19 needs at least 70 percent, with a lower bound of at least 50 percent.
 - The held-out split has 23 labeled nudges. That passes the 20-nudge minimum, so the gate result is valid.
 
@@ -36,13 +36,26 @@ Consumer A's `failure-repeat` also fails SLI 6. The judge called 0 of 24 first f
 Owner decision D17 (2026-11-02) replaced owner labeling with a separate judge model.
 
 - The judge was Claude Sonnet. The weights were picked in an Opus session.
-- The rubric, `req-048-task-001-label-rubric.md`, was committed at `181433b19` before any label.
+- The rubric, `req-048-task-001-label-rubric.md`, was committed at `181433b19` (2026-11-02) before any label.
 - Each judge saw a redacted excerpt and the rubric. It saw no score or threshold.
 - `unclear` counts as not worth it.
 - `req-048-task-001-labels.csv` holds 191 labels: session id, split, and label only.
 - Reasons stay outside the repository, because they quote transcripts.
 
-One deviation: each excerpt ends at the session's final Stop, not at the Stop where the nudge would fire. Most sessions have one Stop, so the two usually match.
+### Relabel at the nudge Stop
+
+The first labels used excerpts that ended at each session's final Stop. Review found this wrong for 46 of the 76 nudged sessions, where the threshold is crossed before the final Stop. For those, the judge had seen events after the nudge.
+
+The 46 were relabeled from excerpts that end at the crossing Stop, as the rubric says. 15 labels changed. The config stayed frozen, with no refit.
+
+| Split | Nudges | Final-Stop labels | Nudge-Stop labels |
+|---|---|---|---|
+| Tuning | 53 | 16 (30.2 percent) | 20 (37.7 percent, CI 25.9 to 51.2) |
+| Held-out | 23 | 7 (30.4 percent) | 4 (17.4 percent, CI 7.0 to 37.1) |
+
+The nudge-Stop labels are the result of record. The labels CSV holds them.
+
+Consumer A excerpts end at the Stop that holds the first fire, not at the fired call itself. So the judge may have seen later calls in that turn.
 
 ## Finding: the adapter double counted
 
@@ -79,13 +92,13 @@ The grid tried every `permission_denial` weight from 0 to 5 and thresholds from 
 
 No config with at least 5 tuning nudges reached 40 percent.
 
-The frozen config is all weights 1 with a tier 1 threshold of 3. It was committed at `f9bbc5871` before any held-out label. It has the best Wilson lower bound among configs with at least 20 tuning nudges.
+The frozen config is all weights 1 with a tier 1 threshold of 3. It was committed at `f9bbc5871` (2026-11-02) before any held-out label. It has the best Wilson lower bound among configs with at least 20 tuning nudges.
 
 `failed_retry` and `edit_churn` never fired, so the data cannot set their weights.
 
 ## SLI 3: volume
 
-The frozen config fires 0.84 nudges per 100 sessions. That is under the limit of 15.
+The frozen config fires 0.84 nudges per 100 tuning sessions (53 of 6,289), and 0.85 over the whole corpus (76 of 8,984). That is under the limit of 15.
 
 Of the 76 sessions that would nudge, 60 are interactive. The corpus holds 88 interactive sessions in total.
 
@@ -102,6 +115,8 @@ All 8,984 sessions finished inside the budget: 64 MiB and 2.0 seconds.
 
 The baseline is under 20 percent, so the spec's rule for a higher kill floor does not apply.
 
+Deviation: SLI 5 names the 11 Q5 sessions as its corpus. This report uses the full 30-day window instead, which holds those sessions and more.
+
 ## SLI 6: consumer A precision
 
 `check-failures` was replayed with the defaults 3, 3, and 20, called after every event.
@@ -110,6 +125,8 @@ The baseline is under 20 percent, so the spec's rule for a higher kill floor doe
 - `edit-churn` never fired.
 
 There are at least 20 labeled `failure-repeat` nudges and precision is under 50 percent. Under the SLI 6 kill rule, TASK-008 raises that signal's default.
+
+Deviation: SLI 6 names the Q5 corpus. This report uses the full 30-day window, so the sample is larger than Q5 alone would give.
 
 The SLO cannot be set from this measurement, since the spec puts the floor at 50 percent.
 
@@ -125,6 +142,8 @@ The judge labeled 21 marker matches and a sample of 104 unmatched denial-like wo
 | `permission denied` (marker) | no hits | no hits | |
 | unmatched `denied` | 30 | 1 | `Permission to use Bash with ... denied` |
 | unmatched `blocked` | 57 | 13 | `PreToolUse:Bash hook error`, `<tool_use_error>Blocked: sleep` |
+| unmatched `forbidden` | 0 | 2 | `Exit code N` |
+| unmatched `refused` | 0 | 1 | `Exit code N` |
 
 So `rejected` matches no real denial in this corpus. The markers also miss three common denial forms.
 
@@ -134,8 +153,8 @@ The judge labeled 400 sampled successful shell commands that AC-40 does not call
 
 Across the window there were 556 recognized checks and 19,065 other successful shell commands.
 
-- About 1,811 verification runs went unrecognized. The interval is 1,335 to 2,440.
-- The miss rate is about 77 percent (interval 71 to 81 percent). This is INFERRED by scaling the sample.
+- About 1,811 verification runs went unrecognized. The interval is 1,335 to 2,435. This is INFERRED by scaling the sample.
+- The miss rate is about 77 percent (interval 71 to 81 percent), also INFERRED.
 
 Causes seen in the sample:
 
@@ -145,10 +164,11 @@ Causes seen in the sample:
 
 ## Billed cost
 
-Subagent tokens for this task totaled 1,295,078:
+Subagent tokens for this task totaled 1,664,735:
 
 - 167,729 for the replay script.
-- 1,127,349 for nine judge runs.
+- 1,384,292 for eleven judge runs, including the two relabel runs.
+- 112,714 for the review of this branch.
 
 The parent session's own tokens are not measured here. No dollar figure is given, because the per-token price was not checked.
 

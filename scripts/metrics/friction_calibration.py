@@ -135,6 +135,8 @@ def cmd_replay(args: argparse.Namespace) -> int:
         print("error: --since is after --until", file=sys.stderr)
         return EXIT_CONFIG
     out = Path(args.out)
+    if _refuse_in_repo(out, "--out"):
+        return EXIT_CONFIG
     out.mkdir(parents=True, exist_ok=True)
     jobs = [(path, args.since, args.until, args.seed) for path in files]
     counts: Counter[str] = Counter()
@@ -152,6 +154,32 @@ def cmd_replay(args: argparse.Namespace) -> int:
     print(summarize(rows, counts, subagents))
     print(f"samples            : {sizes}")
     return EXIT_OK
+
+
+def inside_repository(path: Path) -> bool:
+    """True when ``path`` or any ancestor holds a ``.git`` entry (file or directory).
+
+    Replay samples and excerpts carry redacted transcript text, which must
+    never land in a working tree where it could be committed.
+    """
+    resolved = path.expanduser().resolve()
+    return any((parent / ".git").exists() for parent in (resolved, *resolved.parents))
+
+
+def _refuse_in_repo(path: Path, what: str) -> bool:
+    if inside_repository(path):
+        message = f"error: {what} {path} is inside a git repository; use a private path"
+        print(message, file=sys.stderr)
+        return True
+    return False
+
+
+def _write_private(path: Path, text: str) -> None:
+    """Write ``text`` with mode 0o600, replacing any existing file."""
+    path.unlink(missing_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
 
 
 def cmd_split(args: argparse.Namespace) -> int:
@@ -175,6 +203,9 @@ def cmd_split(args: argparse.Namespace) -> int:
 
 
 def cmd_excerpt(args: argparse.Namespace) -> int:
+    out = Path(args.out)
+    if _refuse_in_repo(out.parent, "--out"):
+        return EXIT_CONFIG
     files, _ = corpus_files(args.corpus_glob)
     path = next((p for p in files if p.stem == args.session), None)
     if path is None:
@@ -185,7 +216,7 @@ def cmd_excerpt(args: argparse.Namespace) -> int:
     except StopOutOfRangeError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_CONFIG
-    Path(args.out).write_text(text + "\n", encoding="utf-8")
+    _write_private(out, text + "\n")
     print(f"stop {args.stop}: " + " ".join(f"{k}={v}" for k, v in counts.items()))
     return EXIT_OK
 

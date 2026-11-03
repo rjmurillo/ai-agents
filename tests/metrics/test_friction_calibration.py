@@ -15,7 +15,7 @@ import pytest
 
 from scripts.metrics import friction_calibration as cal
 from scripts.metrics import friction_calibration_scan as scan
-from tests.metrics.friction_calibration_helpers import (  # noqa: F401
+from tests.metrics.friction_calibration_helpers import (
     FAKE_TOKEN,
     SINCE,
     TS,
@@ -304,3 +304,26 @@ class TestWindow:
         files, dropped = cal.corpus_files(str(tmp_path / "p" / "*") + "")
         assert [f.name for f in files] == ["a.jsonl"]
         assert dropped == 1
+
+
+class TestRepeatedRecords:
+    def test_blob_and_resumed_copies_count_once(self, row) -> None:
+        records = [human("go"), *call(1, err="boom")]
+        blob = {
+            "type": "api-request-blob",
+            "message": {"content": [b for r in records[1:] for b in r["message"]["content"]]},
+        }
+        result_row = row([*records, blob, *records[1:]])
+        assert result_row["events"] == 1
+        assert result_row["event_count_mismatch"] is False
+        assert result_row["stops"][-1]["tool_error"] == 1
+
+
+class TestClipBoundary:
+    def test_a_token_cut_by_the_limit_leaks_no_prefix(self) -> None:
+        from scripts.metrics.friction_calibration_samples import clip
+
+        for lead in range(150, 200, 7):
+            out = clip("x" * lead + " " + FAKE_TOKEN, 200)
+            assert "A1b2C3d4" not in out
+            assert len(out) <= 200

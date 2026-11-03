@@ -114,6 +114,20 @@ class TestCli:
         jobs = [(p, SINCE, UNTIL, 1) for p in files]
         inline = [r.status for r in cal.run_scans(jobs, 1)]
         assert inline.count("scanned") == 2 and inline.count("skipped_window") == 1
+        pooled = cal.run_scans(jobs, 2)
+
+        def by_path(found: Any) -> list[tuple[str, str]]:
+            results = list(found)
+            # scan_seconds is wall time, so it differs between runs.
+            rows = [
+                {k: v for k, v in (r.row or {}).items() if k != "scan_seconds"} for r in results
+            ]
+            return sorted(
+                (r.status, json.dumps(row, sort_keys=True))
+                for r, row in zip(results, rows, strict=True)
+            )
+
+        assert by_path(pooled) == by_path(cal.run_scans(jobs, 1))
 
 
 class TestSplit:
@@ -385,3 +399,75 @@ class TestExcerptConversationOnly:
 
         lines = render_lines([plain("<system-reminder> x"), plain("Review PR 7"), plain("more")])
         assert lines == ["TASK PROMPT: Review PR 7"]
+
+
+class TestPrivateOutput:
+    """Excerpts and samples carry redacted transcript text; keep it out of repos."""
+
+    def test_replay_refuses_an_out_dir_inside_a_repository(self, tmp_path: Path, capsys) -> None:
+        pattern = make_corpus(tmp_path / "corpus", count=1)
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        code = cal.main(
+            [
+                "replay",
+                "--corpus-glob",
+                pattern,
+                "--since",
+                "2026-10-03",
+                "--until",
+                "2026-11-02",
+                "--out",
+                str(repo / "out"),
+            ]
+        )
+        assert code == 2
+        assert "inside a git repository" in capsys.readouterr().err
+        assert not (repo / "out").exists()
+
+    def test_excerpt_refuses_a_linked_worktree_path(self, tmp_path: Path) -> None:
+        pattern = make_corpus(tmp_path / "corpus", count=1)
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        (worktree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        session = Path(cal.corpus_files(pattern)[0][0]).stem
+        code = cal.main(
+            [
+                "excerpt",
+                "--corpus-glob",
+                pattern,
+                "--session",
+                session,
+                "--stop",
+                "0",
+                "--out",
+                str(worktree / "x.txt"),
+            ]
+        )
+        assert code == 2
+        assert not (worktree / "x.txt").exists()
+
+    def test_excerpt_file_is_owner_only(self, tmp_path: Path) -> None:
+        pattern = make_corpus(tmp_path / "corpus", count=1)
+        session = Path(cal.corpus_files(pattern)[0][0]).stem
+        out = tmp_path / "private" / "x.txt"
+        out.parent.mkdir()
+        out.write_text("old", encoding="utf-8")
+        assert (
+            cal.main(
+                [
+                    "excerpt",
+                    "--corpus-glob",
+                    pattern,
+                    "--session",
+                    session,
+                    "--stop",
+                    "0",
+                    "--out",
+                    str(out),
+                ]
+            )
+            == 0
+        )
+        assert out.stat().st_mode & 0o777 == 0o600
+        assert out.read_text(encoding="utf-8") != "old"
