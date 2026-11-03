@@ -14,16 +14,25 @@ from scripts.failure_classifier import (
     FailureEvent,
     canonical_input,
     canonicalize_input_text,
+    check_command,
     classify,
     failure_fingerprint,
     fingerprint_tool,
+    is_check_command,
 )
 
 TEST = "pytest tests/a.py"
 
 
-def ev(tool: str, ok: bool, error: str = "", cmd: str | None = None, target: str | None = None):
-    return FailureEvent.build(tool=tool, ok=ok, error=error, input=cmd, target=target)
+def ev(
+    tool: str,
+    ok: bool,
+    error: str = "",
+    cmd: str | None = None,
+    target: str | None = None,
+    check: bool | None = None,
+):
+    return FailureEvent.build(tool=tool, ok=ok, error=error, input=cmd, target=target, check=check)
 
 
 class TestAC29Fingerprint:
@@ -154,9 +163,75 @@ class TestAC32ChurnCycles:
         ]
         assert classify(cycle * 3).churn_totals() == {}
 
-    def test_keyless_success_ends_the_cycle(self) -> None:
-        cycle = [ev("Edit", True, target="a.py"), ev("Read", True), ev("Bash", False, "x", TEST)]
+    def test_keyless_successful_check_ends_the_cycle(self) -> None:
+        cycle = [
+            ev("Edit", True, target="a.py"),
+            ev("Bash", True, check=True),
+            ev("Bash", False, "x", TEST),
+        ]
         assert classify(cycle * 3).churn_totals() == {}
+
+    def test_keyless_successful_read_leaves_the_cycle_open(self) -> None:
+        cycle = [ev("Edit", True, target="a.py"), ev("Read", True), ev("Bash", False, "x", TEST)]
+        assert classify(cycle * 3).churn_totals() == {"a.py": {"bash|x": 3}}
+
+    def test_ls_and_git_status_leave_the_cycle_open(self) -> None:
+        cycle = [
+            ev("Edit", True, target="a.py"),
+            ev("Bash", True, cmd="ls"),
+            ev("Bash", True, cmd="git status"),
+            ev("Bash", False, "x", TEST),
+        ]
+        signals = classify(cycle * 3)
+        assert signals.churn_totals() == {"a.py": {"bash|x": 3}}
+        assert signals.churned_targets(3) == {"a.py": ("bash|x", 3)}
+
+    def test_failed_cat_leaves_the_cycle_open_and_a_passing_check_ends_it(self) -> None:
+        events = [
+            ev("Edit", True, target="a.py"),
+            ev("Bash", False, "cat: missing.txt: No such file", "cat missing.txt"),
+            ev("Bash", True, cmd="pytest tests/a.py"),
+        ]
+        assert classify(events).churn_totals() == {}
+
+    def test_failed_cat_does_not_become_the_outcome(self) -> None:
+        events = [
+            ev("Edit", True, target="a.py"),
+            ev("Bash", False, "cat: missing.txt: No such file", "cat missing.txt"),
+            ev("Bash", False, "x", TEST),
+        ]
+        assert classify(events).churn_totals() == {"a.py": {"bash|x": 1}}
+
+    def test_edit_twice_then_failing_check_is_one_cycle(self) -> None:
+        events = [
+            ev("Edit", True, target="a.py"),
+            ev("Write", True, target="./a.py"),
+            ev("Edit", True, target="a.py"),
+            ev("Bash", False, "x", TEST),
+        ]
+        assert classify(events).churn_totals() == {"a.py": {"bash|x": 1}}
+
+    def test_check_false_failure_closes_nothing(self) -> None:
+        events = [
+            ev("Edit", True, target="a.py"),
+            ev("Bash", False, "x", TEST, check=False),
+        ]
+        assert classify(events).churn_totals() == {}
+
+    def test_check_false_success_ends_nothing(self) -> None:
+        events = [
+            ev("Edit", True, target="a.py"),
+            ev("Bash", True, cmd=TEST, check=False),
+            ev("Bash", False, "x", TEST),
+        ]
+        assert classify(events).churn_totals() == {"a.py": {"bash|x": 1}}
+
+    def test_non_shell_check_true_failure_closes_the_cycle(self) -> None:
+        events = [
+            ev("Edit", True, target="a.py"),
+            ev("Task", False, "verifier failed", check=True),
+        ]
+        assert classify(events).churn_totals() == {"a.py": {"task|verifier failed": 1}}
 
     def test_failed_edit_closes_no_cycle(self) -> None:
         events = [ev("Edit", True, target="a.py"), ev("Edit", False, "nope", target="b.py")]
@@ -210,12 +285,197 @@ class TestAC39InputCanonicalization:
     def test_other_text_is_used_as_given_after_trimming(self, text: str, expected: str) -> None:
         assert canonicalize_input_text(text) == expected
 
-    def test_json_null_has_no_progress_key(self) -> None:
-        # The transcript adapter gives a null tool input no key; match it.
-        assert canonicalize_input_text(" null ") is None
+    def test_json_null_text_canonicalizes_to_the_string_null(self) -> None:
+        # Parsed JSON null is a key, not keyless: the text "null" is present.
+        assert canonicalize_input_text(" null ") == "null"
+        assert FailureEvent.build(tool="Bash", ok=False, input="null").progress_key == (
+            "bash",
+            "null",
+        )
+
+    @pytest.mark.parametrize("text", ["NaN", "Infinity", "-Infinity", '{"a": NaN}', "[Infinity]"])
+    def test_nan_and_infinity_are_plain_text(self, text: str) -> None:
+        assert canonicalize_input_text(f"  {text} ") == text
+
+    def test_keys_out_of_order_and_extra_whitespace_give_one_form(self) -> None:
+        a = canonicalize_input_text('{"b":1,\n  "a": [1, 2]}')
+        b = canonicalize_input_text('\t{ "a" : [1,2], "b" : 1 }  ')
+        assert a == b == '{"a":[1,2],"b":1}'
+
+    def test_non_ascii_is_escaped(self) -> None:
+        assert canonicalize_input_text('{"a": "\u00e9é"}') == '{"a":"\\u00e9\\u00e9"}'
+        assert canonical_input({"a": "é"}) == '{"a":"\\u00e9"}'
+
+    def test_repeated_key_last_wins(self) -> None:
+        assert canonicalize_input_text('{"a": 1, "a": 2}') == '{"a":2}'
+
+    def test_non_json_command_string_is_trimmed_only(self) -> None:
+        assert canonicalize_input_text("  pytest -k 'a b'  ") == "pytest -k 'a b'"
 
     def test_scalar_json_round_trips(self) -> None:
         assert canonicalize_input_text('"ls"') == '"ls"'
+
+
+WRAPPERS = [
+    "cd src &&",
+    "FOO=bar",
+    "A_1=",
+    "uv run",
+    "npx",
+    "python -m",
+    "python3 -m",
+    "timeout 30",
+]
+CHECK_COMMANDS = [
+    *("pytest", "py.test", "unittest", "tox", "nox", "jest", "vitest", "mocha"),
+    *("make", "mvn", "gradle", "make build"),
+    *(
+        f"{pm} {run}{verb}"
+        for pm in ("npm", "yarn", "pnpm")
+        for run in ("", "run ")
+        for verb in ("test", "build", "lint", "typecheck")
+    ),
+    *("cargo test", "cargo build", "cargo check", "cargo clippy"),
+    *("go test ./...", "go build", "go vet ./..."),
+    *("dotnet test", "dotnet build"),
+    *("tsc", "eslint .", "ruff check", "mypy src", "pyright", "shellcheck a.sh"),
+    *("markdownlint docs", "markdownlint-cli2 docs", "markdownlint-cli2-fix"),
+    *("python tests/test_a.py", "python3 scripts/check_x.py --flag"),
+    *("python scripts/validate_y.py", "python3 pre_pr.py", "python scripts/pre_pr.py"),
+    *("python3 C:\\repo\\scripts\\validate_z.py",),
+    *("lefthook run pre-commit", "pre-commit run --all-files"),
+]
+NOT_CHECK_COMMANDS = [
+    "pytester",
+    "pytest-fixture",
+    "makefile",
+    "npm install",
+    "npm run start",
+    "npm testing",
+    "yarn add x",
+    "cargo run",
+    "go run main.go",
+    "go get x",
+    "dotnet run",
+    "dotnet publish",
+    "markdown",
+    "python3 foo.py",
+    "python scripts/pre_pr.sh",
+    "python scripts/precheck_x.py",
+    "lefthook install",
+    "pre-commit install",
+    "ls",
+    "git status",
+    "cat missing.txt",
+    "echo pytest",
+    "",
+]
+
+
+class TestAC40Heads:
+    @pytest.mark.parametrize("command", CHECK_COMMANDS)
+    def test_check_heads_match(self, command: str) -> None:
+        assert is_check_command(command) is True
+
+    @pytest.mark.parametrize("command", NOT_CHECK_COMMANDS)
+    def test_other_commands_do_not_match(self, command: str) -> None:
+        assert is_check_command(command) is False
+
+    @pytest.mark.parametrize("wrapper", WRAPPERS)
+    def test_each_wrapper_is_stripped(self, wrapper: str) -> None:
+        assert is_check_command(f"{wrapper} pytest tests/a.py") is True
+
+    def test_wrappers_stack(self) -> None:
+        assert is_check_command("cd src && FOO=1 timeout 5 uv run python -m pytest -q") is True
+
+    def test_wrapper_alone_is_not_a_check(self) -> None:
+        assert is_check_command("uv run ls") is False
+        assert is_check_command("cd src && ls") is False
+
+    def test_matching_is_case_insensitive(self) -> None:
+        assert is_check_command("NPX ESLINT .") is True
+        assert is_check_command("Uv Run PyTest") is True
+        assert is_check_command("MARKDOWNLINT-CLI2 x") is True
+
+    def test_leading_and_trailing_space_is_ignored(self) -> None:
+        assert is_check_command("   pytest   ") is True
+
+    def test_only_markdownlint_may_be_followed_by_a_dash(self) -> None:
+        assert is_check_command("pytest-cov") is False
+        assert is_check_command("ruff-fmt") is False
+
+
+class TestAC40CommandExtraction:
+    def test_json_object_string_command(self) -> None:
+        assert check_command('{"command":"pytest tests/a.py","timeout":5}') == "pytest tests/a.py"
+
+    def test_json_command_is_trimmed(self) -> None:
+        assert check_command('{"command": "  ls  "}') == "ls"
+
+    @pytest.mark.parametrize(
+        "text",
+        ['{"timeout":5}', '{"command":5}', '{"command":null}', '{"command":["pytest"]}'],
+    )
+    def test_missing_or_non_string_command_is_none(self, text: str) -> None:
+        assert check_command(text) is None
+
+    @pytest.mark.parametrize("text", ['"pytest"', "42", "[1]", "true", "null", '["pytest"]'])
+    def test_non_object_parse_is_none(self, text: str) -> None:
+        assert check_command(text) is None
+
+    def test_plain_text_is_the_command(self) -> None:
+        assert check_command("  pytest tests/a.py ") == "pytest tests/a.py"
+
+    def test_nan_text_is_plain_text(self) -> None:
+        assert check_command("NaN") == "NaN"
+
+    def test_no_input_is_none(self) -> None:
+        assert check_command(None) is None
+
+    def test_extraction_does_not_change_the_progress_key(self) -> None:
+        raw = '{"timeout": 5, "command": "pytest tests/a.py"}'
+        event = FailureEvent.build(tool="Bash", ok=False, input=raw)
+        assert event.is_check is True
+        assert event.input == raw  # the classifier keeps the full input as given
+
+
+class TestAC40IsCheck:
+    @pytest.mark.parametrize("tool", ["bash", "Bash", " SHELL ", "PowerShell"])
+    def test_shell_tool_with_check_head(self, tool: str) -> None:
+        assert ev(tool, True, cmd="pytest").is_check is True
+
+    @pytest.mark.parametrize("tool", ["Read", "Task", "grep", "WebFetch"])
+    def test_non_shell_tool_is_not_a_derived_check(self, tool: str) -> None:
+        assert ev(tool, True, cmd="pytest").is_check is False
+
+    def test_shell_tool_without_input_is_not_a_check(self) -> None:
+        assert ev("Bash", True).is_check is False
+
+    def test_json_command_event_is_a_check(self) -> None:
+        assert ev("Bash", True, cmd='{"command":"pytest tests/a.py"}').is_check is True
+
+    def test_json_without_command_is_not_a_check(self) -> None:
+        assert ev("Bash", True, cmd='{"description":"pytest"}').is_check is False
+        assert ev("Bash", True, cmd='"pytest"').is_check is False
+        assert ev("Bash", True, cmd="42").is_check is False
+
+    def test_check_true_marks_a_non_shell_tool(self) -> None:
+        assert ev("Task", True, check=True).is_check is True
+
+    def test_check_false_beats_a_check_head(self) -> None:
+        assert ev("Bash", True, cmd="pytest", check=False).is_check is False
+
+    def test_check_true_beats_a_plain_command(self) -> None:
+        assert ev("Bash", True, cmd="ls", check=True).is_check is True
+
+    @pytest.mark.parametrize("tool", ["Edit", "write", "MultiEdit", "str_replace", "create"])
+    def test_check_is_ignored_on_an_edit(self, tool: str) -> None:
+        assert ev(tool, True, target="a.py", check=True).is_check is False
+        assert ev(tool, True, target="a.py", cmd="pytest").is_check is False
+
+    def test_marked_check_edit_still_opens_a_cycle(self) -> None:
+        events = [ev("Edit", True, target="a.py", check=True), ev("Bash", False, "x", TEST)]
+        assert classify(events).churn_totals() == {"a.py": {"bash|x": 1}}
 
 
 def test_fingerprint_tool_reads_the_tool_part() -> None:

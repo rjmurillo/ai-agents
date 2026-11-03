@@ -84,19 +84,38 @@ def _optional_string(item: dict[str, Any], key: str, index: int) -> str | None:
 
 
 def _canonical_input(item: dict[str, Any], index: int) -> str | None:
-    """AC-39: a JSON ``input`` gets AC-38's canonical form; other text stays as given."""
-    value = _optional_string(item, "input", index)
-    return None if value is None else canonicalize_input_text(value)
+    """AC-39: a JSON ``input`` gets AC-38's canonical form; other text is trimmed.
+
+    A present ``input`` must be a string. JSON ``null`` and every other
+    non-string value are a wrong event shape (AC-35, decision D14).
+    """
+    if "input" not in item:
+        return None
+    value = item["input"]
+    if not isinstance(value, str):
+        raise EventError(f"event {index}: 'input' must be a string")
+    return canonicalize_input_text(value)
+
+
+def _check_mark(item: dict[str, Any], index: int) -> bool | None:
+    """AC-40: the caller's ``check`` mark, or None to derive it. Non-bool is an error."""
+    if "check" not in item:
+        return None
+    value = item["check"]
+    if not isinstance(value, bool):
+        raise EventError(f"event {index}: 'check' must be true or false")
+    return value
 
 
 def parse_events(raw: Any) -> list[FailureEvent]:
     """Validate decoded JSON and return FailureEvents.
 
     Accepts a list of objects. Each needs ``tool`` (non-empty string) and
-    ``ok`` (boolean). ``error``, ``input`` and ``target`` are optional
-    strings on every event and are type-checked whenever present. Unknown
-    keys are ignored. Anything else raises ``EventError`` naming the bad
-    index. An ``input`` that is a JSON document is canonicalized (AC-39).
+    ``ok`` (boolean). ``error`` and ``target`` are optional strings, and
+    null counts as absent. ``input`` is an optional string; null is an error
+    (D14). ``check`` is an optional boolean (AC-40). Unknown keys are
+    ignored. Anything else raises ``EventError`` naming the bad index. An
+    ``input`` that is a JSON document is canonicalized (AC-39).
     Other normalization (trimming, target paths) is the classifier's.
     """
     if not isinstance(raw, list):
@@ -120,6 +139,7 @@ def parse_events(raw: Any) -> list[FailureEvent]:
                 error=_optional_string(item, "error", index),
                 input=_canonical_input(item, index),
                 target=_optional_string(item, "target", index),
+                check=_check_mark(item, index),
             )
         )
     return events

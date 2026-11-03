@@ -17,7 +17,7 @@ HERE = str(Path(__file__).resolve().parent)
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
-from stuck_failure_events import entry, fail, kinds, mod, ok
+from stuck_failure_events import TEST_CMD, entry, fail, kinds, mod, ok
 
 main = mod.main
 
@@ -66,7 +66,7 @@ class TestCli:
             (["--repeat", "2"], [fail("Bash", "x")] * 2, ["failure-repeat"]),
             (
                 ["--churn", "2", "--repeat", "9"],
-                [ok("Edit", "a.py"), fail("Bash", "x")] * 2,
+                [ok("Edit", "a.py"), fail("Bash", "x", TEST_CMD)] * 2,
                 ["edit-churn"],
             ),
         ],
@@ -112,6 +112,40 @@ class TestCli:
         assert captured.out == ""
         assert captured.err.startswith("stuck-detection: ")
         assert message in captured.err
+
+    @pytest.mark.parametrize(
+        ("event", "message"),
+        [
+            ({"tool": "Bash", "ok": True, "input": None}, "event 0: 'input' must be a string"),
+            ({"tool": "Bash", "ok": True, "input": 5}, "event 0: 'input' must be a string"),
+            (
+                {"tool": "Bash", "ok": True, "check": "yes"},
+                "event 0: 'check' must be true or false",
+            ),
+            ({"tool": "Bash", "ok": True, "check": None}, "event 0: 'check' must be true or false"),
+            ({"tool": "Bash", "ok": True, "check": 1}, "event 0: 'check' must be true or false"),
+        ],
+    )
+    def test_wrong_input_or_check_shape_exits_two(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        event: dict[str, Any],
+        message: str,
+    ) -> None:
+        path = write(tmp_path, json.dumps([event]))
+        assert main(["--events", str(path)]) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == f"stuck-detection: {message}\n"
+
+    def test_valid_check_and_input_exit_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        event = {"tool": "Bash", "ok": True, "input": "pytest", "check": False}
+        path = write(tmp_path, json.dumps([event]))
+        assert main(["--events", str(path)]) == 0
+        assert json.loads(capsys.readouterr().out)["stuck"] is False
 
     def test_recursion_error_exits_two(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

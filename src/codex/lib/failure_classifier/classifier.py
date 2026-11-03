@@ -44,6 +44,27 @@ _HEX_RUN = re.compile(r"\b0x[0-9a-f]{7,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0
 _DIGIT_RUN = re.compile(r"\d+")
 _WHITESPACE_RUN = re.compile(r"\s+")
 
+# AC-40: the shell tools whose commands the derived check rule reads.
+SHELL_TOOLS: frozenset[str] = frozenset({"bash", "shell", "powershell"})
+
+# AC-40 wrappers, stripped from the front of a command before the head match.
+_CHECK_WRAPPER = re.compile(
+    r"^(?:cd\s+\S+\s*&&|[A-Za-z_][A-Za-z0-9_]*=\S*|uv\s+run|npx|python3?\s+-m|timeout\s+\S+)\s+",
+    re.IGNORECASE,
+)
+# AC-40 heads. Each must be followed by whitespace or the end of the command;
+# only the markdownlint prefix may also be followed by `-`.
+_CHECK_HEAD = re.compile(
+    r"^(?:pytest|py\.test|unittest|tox|nox|jest|vitest|mocha"
+    r"|make|mvn|gradle"
+    r"|(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:test|build|lint|typecheck)"
+    r"|cargo\s+(?:test|build|check|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)"
+    r"|tsc|eslint|ruff|mypy|pyright|shellcheck|markdownlint(?:-\S*)?"
+    r"|python3?\s+(?:\S*[/\\])?(?:(?:test_|check_|validate_)\S*|pre_pr\.py)"
+    r"|lefthook\s+run|pre-commit\s+run)(?:\s|$)",
+    re.IGNORECASE,
+)
+
 ProgressKey = tuple[str, str] | None
 
 
@@ -58,22 +79,62 @@ def normalize_target(target: str) -> str:
 
 
 def canonical_input(value: object) -> str:
-    """AC-38: the canonical JSON form of a tool input: sorted keys, no spaces."""
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    """AC-38: sorted keys, `,` and `:` separators, non-ASCII escaped as `\\uXXXX`."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
-def canonicalize_input_text(text: str) -> str | None:
-    """AC-39: a JSON document gets AC-38's form, JSON ``null`` none; other text is trimmed.
+def _reject_constant(name: str) -> object:
+    raise ValueError(f"{name} is not RFC 8259 JSON")
+
+
+def _parse_json(text: str) -> tuple[bool, object]:
+    """RFC 8259 parse: ``(True, value)``, or ``(False, None)`` for any other text.
+
+    ``NaN`` and ``Infinity`` are rejected, and a repeated key keeps its last value.
+    """
+    try:
+        return True, json.loads(text, parse_constant=_reject_constant)
+    except (ValueError, RecursionError):
+        return False, None
+
+
+def canonicalize_input_text(text: str) -> str:
+    """AC-39: a JSON document gets AC-38's form; any other text is trimmed.
 
     So a caller passing the tool input as JSON gets the transcript adapter's
     ProgressKey, whatever its key order or spacing.
     """
     trimmed = text.strip()
-    try:
-        value = json.loads(trimmed)
-        return None if value is None else canonical_input(value)
-    except (ValueError, RecursionError):
+    parsed, value = _parse_json(trimmed)
+    return canonical_input(value) if parsed else trimmed
+
+
+def check_command(input_text: str | None) -> str | None:
+    """AC-40: the command a derived check reads, or None when there is none.
+
+    A JSON object's string ``command`` field, or the input text itself when it
+    is not JSON. A non-object document, or a missing or non-string
+    ``command``, gives None. The ProgressKey keeps the full input either way.
+    """
+    if input_text is None:
+        return None
+    trimmed = input_text.strip()
+    parsed, value = _parse_json(trimmed)
+    if not parsed:
         return trimmed
+    if isinstance(value, dict):
+        command = value.get("command")
+        if isinstance(command, str):
+            return command.strip()
+    return None
+
+
+def is_check_command(command: str) -> bool:
+    """AC-40: the command starts with a check head once wrappers are stripped."""
+    rest = command.strip()
+    while (match := _CHECK_WRAPPER.match(rest)) is not None:
+        rest = rest[match.end() :]
+    return _CHECK_HEAD.match(rest) is not None
 
 
 def fingerprint_tool(fingerprint: str) -> str:
@@ -116,6 +177,7 @@ class FailureEvent:
     error: str = ""
     input: str | None = None
     target: str | None = None
+    check: bool | None = None
 
     @classmethod
     def build(
@@ -125,8 +187,12 @@ class FailureEvent:
         error: str | None = None,
         input: str | None = None,  # the REQ-048 field name
         target: str | None = None,
+        check: bool | None = None,
     ) -> FailureEvent:
-        """Normalize raw fields: trim strings, drop blanks, normalize the target."""
+        """Normalize raw fields: trim strings, drop blanks, normalize the target.
+
+        ``check`` is the caller's AC-40 mark; None means derive it.
+        """
         command = input.strip() if input else ""
         path = target.strip() if target else ""
         return cls(
@@ -135,11 +201,27 @@ class FailureEvent:
             error=error or "",
             input=command or None,
             target=normalize_target(path) if path else None,
+            check=check,
         )
 
     @property
     def edit_tool(self) -> bool:
         return self.tool in EDIT_TOOLS
+
+    @property
+    def is_check(self) -> bool:
+        """AC-40: a verification step, caller-marked or derived from the command.
+
+        An edit is never a check, whatever its ``check`` field says.
+        """
+        if self.edit_tool:
+            return False
+        if self.check is not None:
+            return self.check
+        if self.tool not in SHELL_TOOLS:
+            return False
+        command = check_command(self.input)
+        return command is not None and is_check_command(command)
 
     @property
     def cycle_target(self) -> str | None:
@@ -232,9 +314,10 @@ def _record_success(
         if signals.tally.pop(key, None) is not None:
             for per_key in signals.churn.values():
                 per_key.pop(key, None)
-    # Closing on success: any successful non-edit event ends every pending
-    # cycle with no outcome, keyed or not (Devin's case).
-    if not event.edit_tool:
+    # Closing on success: a successful check (AC-40) ends every pending cycle
+    # with no outcome, keyed or not (Devin's case). Any other success, such as
+    # `ls` or a read, leaves them open.
+    if event.is_check:
         pending.clear()
     # Opening: a successful edit with a target. Other targets' pending cycles
     # stay in place.
@@ -264,10 +347,11 @@ def _record_failure(
             signals.failed_retry += 1
         seen.add(fingerprint)
     _bump(signals.tally, key, fingerprint)
-    # A failed edit closes no cycle.
-    if event.edit_tool:
+    # Only a check closes a cycle (AC-40). A failed edit is never a check, and
+    # a non-check failure, such as a failed `cat`, leaves cycles open.
+    if not event.is_check:
         return
-    # Closing on failure: the first fingerprinted non-edit failure records its
+    # Closing on failure: the first fingerprinted check failure records its
     # fingerprint as the outcome of every pending cycle.
     for target in pending:
         _bump(signals.churn.setdefault(target, {}), key, fingerprint)
@@ -288,7 +372,8 @@ def classify(events: Iterable[FailureEvent]) -> FailureSignals:
       key between them. A keyless or unfingerprinted event never matches.
     - FailureTally (AC-30, AC-33): fingerprinted errors by key; a success for
       a key removes only that key's entries, here and in the churn tallies.
-    - ChurnCycles (AC-32): see the comments in the two handlers.
+    - ChurnCycles (AC-32, AC-40): only a check event ends or closes a
+      cycle; see the comments in the two handlers.
     """
     signals = FailureSignals()
     retry_seen: dict[tuple[str, str], set[str]] = {}

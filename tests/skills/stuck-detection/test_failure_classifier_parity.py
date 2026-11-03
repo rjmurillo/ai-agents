@@ -80,6 +80,29 @@ def test_fixture_is_within_the_ac36_bound() -> None:
     assert len(FIXTURE) <= 20
 
 
+def test_fixture_events_carry_no_check_field() -> None:
+    assert all("check" not in event for event in check_failures_input())
+    assert all(event.check is None for event in fc.events_from_records(transcript_records()))
+
+
+def test_the_pytest_command_event_is_a_check_through_both_adapters() -> None:
+    # Consumer B holds the object; consumer A holds the same JSON as a string.
+    assert FIXTURE[0][1] == {"command": "pytest tests/a.py"}
+    via_b = fc.events_from_records(transcript_records())[0]
+    via_a = mod.parse_events(check_failures_input())[0]
+    assert via_b.input == via_a.input == '{"command":"pytest tests/a.py"}'
+    assert via_b.is_check is True
+    assert via_a.is_check is True
+
+
+def test_non_check_events_agree_across_adapters() -> None:
+    via_b = [e.is_check for e in fc.events_from_records(transcript_records())]
+    via_a = [e.is_check for e in mod.parse_events(check_failures_input())]
+    assert via_a == via_b
+    assert via_b[1] is False  # an Edit is never a check
+    assert via_b[-1] is False  # a keyless Bash event is not a check
+
+
 def test_both_adapters_emit_the_same_events() -> None:
     assert fc.events_from_records(transcript_records()) == mod.parse_events(check_failures_input())
 

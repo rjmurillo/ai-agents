@@ -94,11 +94,13 @@ chooses which events to report.
 2. **failure-repeat.** A fingerprint seen `--repeat` times (default 3) in the
    last `--window` events (default 20) trips the signal. Failed edits count
    too, so an `Edit` that keeps failing with "old_string not found" trips it.
-3. **edit-churn.** The first fingerprinted failure of a non-edit tool after
-   successful edits is the outcome of every file edited since the previous
-   outcome. A file whose `--churn` cycles (default 3) share one outcome trips
-   the signal. Several edits of one file before one failure count as one
-   cycle. A failed edit, with or without `target`, closes no cycle.
+3. **edit-churn.** The first fingerprinted failure of a check (see
+   "Checks" below) after successful edits is the outcome of every file edited
+   since the previous outcome. A file whose `--churn` cycles (default 3) share
+   one outcome trips the signal. Several edits of one file before one failure
+   count as one cycle. Only a check closes a cycle: a failed edit, with or
+   without `target`, and a failed non-check such as `cat missing.txt` close
+   none.
 4. **Progress.** A success whose `tool` and `input` both match an earlier
    failure (the check that failed now passes, or a retried edit that now
    applies) removes the failure and churn counts recorded under that pair,
@@ -107,24 +109,41 @@ chooses which events to report.
    line. A success with a different `input` (a `Bash` `ls` between test runs)
    removes no counts. Events without `input` never match, so pass `input` to
    let a fix clear the signals.
-5. **Cycle end on success.** Any successful non-edit event ends every
-   pending edit cycle with no outcome, whatever its `input`: a passing
-   `pytest`, a `Read`, or an `ls` all do. So edit, a passing test, then a
-   different failing test is not churn. A successful edit leaves other
-   files' pending cycles in place.
+5. **Cycle end on success.** Only a successful check ends every pending edit
+   cycle with no outcome, whatever its `input`: a passing `pytest` does. So
+   edit, a passing test, then a different failing test is not churn. A
+   successful `ls`, `git status`, or `Read` is not a check and leaves the
+   cycles open. A successful edit leaves other files' pending cycles in place.
 6. **Counts.** `counts` reports every failure in the window: `tool_error`,
    `permission_denial` (error text holding "permission denied", "user doesn't
    want to proceed", "was denied", or "rejected"), `failed_retry` (a failure
    whose `tool`, `input`, and fingerprint match an earlier failure with no
    success for that `tool` and `input` between), and `unfingerprinted`.
    Events without `input` are never retries.
+7. **Checks.** A check is a non-edit event that verifies the edit. Set
+   `"check": true` or `false` on the event to say so; the mark wins. Without
+   `check`, a `Bash`, `shell`, or `PowerShell` event is a check when its
+   command starts with a check head after wrappers (`cd <dir> &&`, `VAR=value`,
+   `uv run`, `npx`, `python -m`, `timeout <n>`) are stripped. The command is the
+   `command` field when `input` is a JSON object, else the trimmed `input`.
+   Heads, case-insensitive: test runners (`pytest`, `tox`, `nox`, `jest`,
+   `vitest`, `mocha`, `unittest`), build tools (`make`, `mvn`, `gradle`,
+   `npm`/`yarn`/`pnpm` `test`, `build`, `lint`, or `typecheck`, `cargo`, `go`,
+   and `dotnet` test or build forms), linters and type checkers (`tsc`,
+   `eslint`, `ruff`, `mypy`, `pyright`, `shellcheck`, `markdownlint`), a
+   `python` script named `test_*`, `check_*`, `validate_*`, or `pre_pr.py`,
+   `lefthook run`, and `pre-commit run`. Anything else is not a check. An edit
+   is never a check; `check` on an edit is ignored.
 
 Event input is a JSON array of at most 10,000 events and 8 MiB. Each event
 needs `tool` (string) and `ok` (boolean). Optional strings, type-checked on
 every event when present and trimmed of surrounding whitespace: `error` (used
 for failures), `input` (the command or arguments, used to match progress; a
-JSON document is compared after sorting keys and dropping spaces),
-and `target` (the file an edit tool changed). Edit tools are `Edit`,
+JSON document is compared after sorting keys, dropping spaces, and escaping
+non-ASCII text), and `target` (the file an edit tool changed). `input` must be
+a string when present: `null` or any other type exits 2. An optional boolean
+`check` marks the event as a check or not (item 7); a `check` that is not a
+boolean, `null` included, also exits 2. Edit tools are `Edit`,
 `Write`, `MultiEdit`, `str_replace`, `create`, `apply_patch`, and
 `NotebookEdit`; a successful edit without `target` starts no churn cycle,
 and a failed one still counts toward `failure-repeat`. Targets are

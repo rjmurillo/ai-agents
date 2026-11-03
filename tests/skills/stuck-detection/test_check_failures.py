@@ -115,8 +115,7 @@ class TestFailureRepeat:
 
 class TestEditChurn:
     def cycle(self, error: str = "test_x failed", target: str = "src/a.py") -> list[dict[str, Any]]:
-        # AC-32: any successful non-edit event between the edit and the
-        # failure would end the cycle, so a cycle is the edit then the failure.
+        # AC-32: the edit, then the failing check that closes its cycle.
         return [ok("Edit", target), fail("Bash", error, TEST_CMD)]
 
     def test_three_cycles_same_failure_trip(self) -> None:
@@ -131,14 +130,51 @@ class TestEditChurn:
         ]
 
     @pytest.mark.parametrize("between", ["Bash", "Read"])
-    def test_successful_non_edit_between_edit_and_failure_ends_the_cycle(
+    def test_successful_non_check_between_edit_and_failure_leaves_the_cycle_open(
         self, between: str
     ) -> None:
-        # AC-32 "Closing on success": an `ls` or a read between the edit and
-        # the failing test ends the cycle, so churn does not fire (REQ-048 Q-3
-        # records this as fewer nudges, never a false one).
+        # AC-32 "Closing on success": only a check ends a cycle. An `ls` or a
+        # read between the edit and the failing test leaves it open, so churn fires.
         events = [ok("Edit", "src/a.py"), ok(between, command="ls"), fail("Bash", "x", TEST_CMD)]
+        assert run(events * 3, repeat_threshold=10)["signals"] == [
+            {"signal": "edit-churn", "target": "src/a.py", "fingerprint": "bash|x", "count": 3}
+        ]
+
+    def test_devins_case_reports_no_churn(self) -> None:
+        cycle = [
+            ok("Edit", "a.py"),
+            ok("Bash", command="pytest tests/a.py"),
+            fail("Bash", "FAILED test_b", "pytest tests/b.py"),
+        ]
+        assert run(cycle * 3, repeat_threshold=10)["signals"] == []
+
+    def test_keyless_successful_check_ends_the_cycle(self) -> None:
+        check = {"tool": "Bash", "ok": True, "check": True}
+        events = [ok("Edit", "a.py"), check, fail("Bash", "x", TEST_CMD)]
         assert run(events * 3, repeat_threshold=10)["signals"] == []
+
+    def test_ls_and_git_status_leave_the_cycle_open(self) -> None:
+        events = [
+            ok("Edit", "a.py"),
+            ok("Bash", command="ls"),
+            ok("Bash", command="git status"),
+            fail("Bash", "x", "pytest tests/a.py"),
+        ]
+        signals = run(events * 3, repeat_threshold=10)["signals"]
+        assert [(s["target"], s["count"]) for s in signals] == [("a.py", 3)]
+
+    def test_failed_cat_then_passing_check_records_no_outcome(self) -> None:
+        events = [
+            ok("Edit", "a.py"),
+            fail("Bash", "cat: missing.txt: No such file", "cat missing.txt"),
+            ok("Bash", command="pytest tests/a.py"),
+        ]
+        assert run(events * 3, repeat_threshold=10)["signals"] == []
+
+    def test_edit_twice_then_failing_check_is_one_cycle(self) -> None:
+        events = [ok("Edit", "a.py"), ok("Edit", "./a.py"), fail("Bash", "x", TEST_CMD)] * 3
+        signals = run(events, repeat_threshold=10)["signals"]
+        assert [(s["target"], s["count"]) for s in signals] == [("a.py", 3)]
 
     def test_changing_failure_is_progress(self) -> None:
         events = self.cycle("first") + self.cycle("second") + self.cycle("third")
@@ -150,18 +186,21 @@ class TestEditChurn:
         assert run(events, repeat_threshold=10)["stuck"] is False
 
     def test_several_edits_before_one_failure_count_once(self) -> None:
-        events = [ok("Edit", "a.py"), ok("Edit", "a.py"), fail("Bash", "same")] * 2
+        events = [ok("Edit", "a.py"), ok("Edit", "a.py"), fail("Bash", "same", TEST_CMD)] * 2
         assert run(events, repeat_threshold=10)["stuck"] is False
+        signals = run(events * 2, churn_threshold=4, repeat_threshold=10)["signals"]
+        assert [(s["target"], s["count"]) for s in signals] == [("a.py", 4)]
 
     def test_target_spellings_are_normalized(self) -> None:
         events = []
         for target in ("./src/a.py", "src//a.py", "src\\a.py"):
-            events += [ok("Edit", target), fail("Bash", "same")]
+            events += [ok("Edit", target), fail("Bash", "same", TEST_CMD)]
         signals = run(events, repeat_threshold=10)["signals"]
         assert [s["target"] for s in signals] == ["src/a.py"]
 
     def test_edit_without_target_is_not_an_edit(self) -> None:
-        assert run([ok("Edit"), fail("Bash", "boom")] * 3, repeat_threshold=10)["stuck"] is False
+        events = [ok("Edit"), fail("Bash", "boom", TEST_CMD)] * 3
+        assert run(events, repeat_threshold=10)["stuck"] is False
 
     def test_failed_edits_below_threshold_are_not_stuck(self) -> None:
         bad_edit = {"tool": "Edit", "ok": False, "error": "old_string not found", "target": "a"}
@@ -173,11 +212,11 @@ class TestEditChurn:
     def test_other_edit_tools_count(self) -> None:
         events = []
         for tool in ("Write", "MultiEdit", "apply_patch"):
-            events += [ok(tool, "b.py"), fail("Bash", "same")]
+            events += [ok(tool, "b.py"), fail("Bash", "same", TEST_CMD)]
         assert [s["target"] for s in run(events, repeat_threshold=10)["signals"]] == ["b.py"]
 
     def test_one_failure_after_two_files(self) -> None:
-        events = [ok("Edit", "a.py"), ok("Edit", "b.py"), fail("Bash", "same")] * 3
+        events = [ok("Edit", "a.py"), ok("Edit", "b.py"), fail("Bash", "same", TEST_CMD)] * 3
         targets = [s["target"] for s in run(events, repeat_threshold=10)["signals"]]
         assert targets == ["a.py", "b.py"]
 
@@ -197,6 +236,13 @@ class TestParseEvents:
             ([{"tool": "Bash", "ok": False, "error": 3}], "'error' must be a string"),
             ([{"tool": "Bash", "ok": True, "error": 3}], "'error' must be a string"),
             ([{"tool": "Bash", "ok": True, "input": []}], "'input' must be a string"),
+            ([{"tool": "Bash", "ok": True, "input": None}], "'input' must be a string"),
+            ([{"tool": "Bash", "ok": True, "input": 5}], "'input' must be a string"),
+            ([{"tool": "Edit", "ok": True, "input": None}], "'input' must be a string"),
+            ([{"tool": "Bash", "ok": True, "check": "yes"}], "'check' must be true or false"),
+            ([{"tool": "Bash", "ok": True, "check": None}], "'check' must be true or false"),
+            ([{"tool": "Bash", "ok": True, "check": 0}], "'check' must be true or false"),
+            ([{"tool": "Bash", "ok": True, "check": []}], "'check' must be true or false"),
             ([{"tool": "Edit", "ok": True, "target": 1}], "'target' must be a string"),
         ],
     )
@@ -228,6 +274,76 @@ class TestParseEvents:
             "signals": [],
             "untrusted": ["signals[].fingerprint", "signals[].target"],
         }
+
+
+class TestCheckField:
+    """AC-40 consumer A: the caller's `check` wins; absent means derive."""
+
+    def test_absent_check_is_derived_from_the_command(self) -> None:
+        [check, other] = parse_events([ok("Bash", command=TEST_CMD), ok("Bash", command="ls")])
+        assert (check.check, check.is_check) == (None, True)
+        assert (other.check, other.is_check) == (None, False)
+
+    def test_json_string_command_is_derived(self) -> None:
+        [event] = parse_events([ok("Bash", command='{"command":"pytest tests/a.py"}')])
+        assert event.is_check is True
+
+    def test_check_true_on_a_non_shell_tool_is_a_check(self) -> None:
+        [event] = parse_events([{"tool": "Task", "ok": True, "check": True}])
+        assert event.check is True and event.is_check is True
+
+    def test_check_false_on_a_pytest_command_is_not_a_check(self) -> None:
+        [event] = parse_events([{"tool": "Bash", "ok": True, "input": TEST_CMD, "check": False}])
+        assert event.check is False and event.is_check is False
+
+    def test_check_is_ignored_on_an_edit(self) -> None:
+        [event] = parse_events([{"tool": "Edit", "ok": True, "target": "a.py", "check": True}])
+        assert event.is_check is False
+        assert event.cycle_target == "a.py"
+
+    def test_check_false_success_leaves_the_cycle_open(self) -> None:
+        # A different command, so the success's ProgressKey (AC-30) resets nothing here.
+        marked = {"tool": "Bash", "ok": True, "input": "pytest tests/other.py", "check": False}
+        events = [ok("Edit", "a.py"), marked, fail("Bash", "x", TEST_CMD)] * 3
+        signals = run(events, repeat_threshold=10)["signals"]
+        assert [(s["target"], s["count"]) for s in signals] == [("a.py", 3)]
+
+    def test_check_true_failure_closes_the_cycle(self) -> None:
+        marked = {"tool": "Task", "ok": False, "error": "verify failed", "check": True}
+        events = [ok("Edit", "a.py"), marked] * 3
+        signals = run(events, repeat_threshold=10)["signals"]
+        assert [(s["target"], s["count"]) for s in signals] == [("a.py", 3)]
+
+
+class TestAC39Canonicalization:
+    @staticmethod
+    def key(text: str) -> str:
+        [event] = parse_events([fail("Bash", "boom", text)])
+        assert event.input is not None
+        return event.input
+
+    def test_keys_out_of_order_and_whitespace_give_one_key(self) -> None:
+        assert self.key('{"b": 1,   "a": 2}') == self.key(' {"a":2,\n"b":1} ') == '{"a":2,"b":1}'
+
+    def test_non_ascii_is_escaped(self) -> None:
+        assert self.key('{"a": "é"}') == '{"a":"\\u00e9"}'
+
+    def test_repeated_key_last_wins(self) -> None:
+        assert self.key('{"a": 1, "a": 2}') == '{"a":2}'
+
+    @pytest.mark.parametrize("text", ["NaN", "Infinity", '{"a": NaN}'])
+    def test_nan_text_is_plain_text(self, text: str) -> None:
+        assert self.key(f"  {text} ") == text
+
+    def test_non_json_command_is_trimmed_only(self) -> None:
+        assert self.key("  pytest -k 'a b'  ") == "pytest -k 'a b'"
+
+    def test_reordered_non_ascii_json_failures_are_retries(self) -> None:
+        events = [
+            fail("Bash", "boom", '{"b": "é", "a": 1}'),
+            fail("Bash", "boom", '{"a":1,"b":"\\u00e9"}'),
+        ]
+        assert run(events)["counts"]["failed_retry"] == 1
 
 
 class TestThresholdValidation:

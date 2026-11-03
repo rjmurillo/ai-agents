@@ -84,8 +84,42 @@ class TestAC38TranscriptAdapter:
         assert (
             canonical_input({"b": 1, "a": "é"})
             == canonical_input({"a": "é", "b": 1})
-            == '{"a":"é","b":1}'
+            == '{"a":"\\u00e9","b":1}'
         )
+
+    def test_canonical_input_escapes_non_ascii_outside_the_bmp(self) -> None:
+        assert canonical_input({"k": "\U0001f600"}) == '{"k":"\\ud83d\\ude00"}'
+
+    def test_transcript_input_with_non_ascii_is_escaped_in_the_event(self) -> None:
+        events = events_from_records([use("t1", "Bash", {"command": "echo é"}), result("t1", "x")])
+        assert events[0].input == '{"command":"echo \\u00e9"}'
+
+    def test_bash_command_input_is_a_derived_check(self) -> None:
+        records = [
+            use("t1", "Bash", {"command": "pytest tests/a.py"}),
+            result("t1", "boom", True),
+            use("t2", "Bash", {"command": "ls"}),
+            result("t2", "ok"),
+            use("t3", "Read", {"file_path": "a.py"}),
+            result("t3", "text"),
+        ]
+        events = events_from_records(records)
+        assert [e.check for e in events] == [None, None, None]
+        assert [e.is_check for e in events] == [True, False, False]
+
+    def test_edit_then_non_check_then_failing_check_reports_churn(self) -> None:
+        records: list[dict[str, Any]] = []
+        for n in range(3):
+            records += [
+                use(f"e{n}", "Edit", {"file_path": "a.py", "old_string": "x"}),
+                result(f"e{n}", "ok"),
+                use(f"l{n}", "Bash", {"command": "ls"}),
+                result(f"l{n}", "a.py"),
+                use(f"t{n}", "Bash", {"command": "pytest tests/a.py"}),
+                result(f"t{n}", "FAILED test_a", True),
+            ]
+        signals = classify(events_from_records(records))
+        assert signals.churn_totals() == {"a.py": {"bash|failed test_a": 3}}
 
 
 class TestAC38MalformedRecords:
