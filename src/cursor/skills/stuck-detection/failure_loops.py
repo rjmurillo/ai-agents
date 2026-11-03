@@ -94,7 +94,8 @@ def _canonical_input(item: dict[str, Any], index: int) -> str | None:
     value = item["input"]
     if not isinstance(value, str):
         raise EventError(f"event {index}: 'input' must be a string")
-    return canonicalize_input_text(value)
+    canonical: str = canonicalize_input_text(value)
+    return canonical
 
 
 def _check_mark(item: dict[str, Any], index: int) -> bool | None:

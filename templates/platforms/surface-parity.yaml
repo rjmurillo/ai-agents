@@ -442,6 +442,13 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-muse-plugin
+    path: src/muse/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
   - id: lib-bootstrap-muse-plugin
     path: src/muse/lib/bootstrap.py
     relation: translated

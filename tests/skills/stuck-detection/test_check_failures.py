@@ -319,8 +319,9 @@ class TestAC39Canonicalization:
     @staticmethod
     def key(text: str) -> str:
         [event] = parse_events([fail("Bash", "boom", text)])
-        assert event.input is not None
-        return event.input
+        key: str | None = event.input
+        assert key is not None
+        return key
 
     def test_keys_out_of_order_and_whitespace_give_one_key(self) -> None:
         assert self.key('{"b": 1,   "a": 2}') == self.key(' {"a":2,\n"b":1} ') == '{"a":2,"b":1}'
