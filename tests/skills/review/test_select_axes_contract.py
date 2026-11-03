@@ -71,7 +71,7 @@ class TestDeepReviewRunsTheWholeSet:
         assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
 
     def test_every_scanner_reads_input_does_not_fail_closed(self) -> None:
-        """A fail-closed run keeps all four local axes without narrowing.
+        """The full local set above comes from narrowing, not a fail-closed bypass.
 
         Deep output forces ``fail_closed`` to False, so check the input in
         risk mode, where the field is real. This proves the full set above

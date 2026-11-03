@@ -24,9 +24,11 @@ every matched category contributes its axes.
 Fail-closed rule: when a changed path matches no known risk category, when the
 path list is empty or holds nothing but blanks, when a declared diff effect is
 not in the known vocabulary, or when a demanded axis has no
-``references/{stem}.md`` prompt to load, every candidate axis is selected.  An
-unclassified change gets the full review, never an empty one, and an incomplete
-prompt set widens the review instead of narrowing it.  A demanded axis with no
+``references/{stem}.md`` prompt to load, every canonical candidate is selected,
+plus each local axis whose scanner reads a changed path (all four when no
+usable path was passed; issue #7031).  An unclassified change gets every
+canonical axis, never an empty review, and an incomplete prompt set widens the
+review instead of narrowing it.  A demanded axis with no
 prompt is reported in ``unresolved_axes`` so it never vanishes from both
 ``canonical_selected`` and ``skipped``.
 
@@ -652,8 +654,8 @@ def unreviewable_paths(paths: Sequence[str]) -> list[str]:
     `.doc-accuracy/notes.md` or a `README.MD` would be classified, skipped by every
     axis that claimed it, and reviewed by no axis at all. Those paths are
     reported so the caller fails the run closed, which selects every canonical
-    axis. doc-accuracy still cannot read them, so the fail-closed narrowing
-    skips it with a reason rather than scanning zero files into an UNKNOWN that
+    axis. The local scanner that claimed them still cannot read them, so the
+    fail-closed narrowing skips it with a reason rather than scanning zero files into an UNKNOWN that
     blocks PASS forever (issue #7031). The canonical axes are their review.
     """
     stranded: list[str] = []

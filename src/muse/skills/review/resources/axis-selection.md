@@ -50,7 +50,7 @@ reds when they drift.
 `artifact-or-rollback`.
 
 An effect outside this list fails closed rather than being ignored, so a typo
-costs a full review instead of silently selecting nothing.
+costs every canonical axis instead of silently selecting nothing.
 
 ## Output
 
@@ -71,7 +71,8 @@ axis name, or the references directory is missing or empty).
 
 An incomplete prompt set widens the review rather than narrowing it: a demanded
 axis with no prompt cannot be dispatched, so the selector reports it and runs
-every candidate instead of quietly reviewing less than the change warrants.
+every canonical candidate instead of quietly reviewing less than the change
+warrants.
 
 ## Risk categories
 

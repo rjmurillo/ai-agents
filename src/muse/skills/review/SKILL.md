@@ -78,7 +78,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
    Pass `--deep` when the caller asks for a deep or full review, or when the invocation is a pre-merge gate that must be a strict superset of CI. Deep and fail-closed skip a local axis whose scanner reads no changed file. Unsure of the paths? Pass none; that fails closed.
 
-   Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every canonical axis ran; that is intended, not an error. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
+   Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every canonical axis is selected; that is intended. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
 
    For each selected axis load `references/{role}.md`, then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `Task(subagent_type="general-purpose")`; the prompt drives the review, not the subagent identity.
 
