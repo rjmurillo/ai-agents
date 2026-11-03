@@ -142,6 +142,8 @@ Exit `2` means unverified, never pass. It covers:
 
 A stop with `--evidence` writes the file either way. The verdict is `UNVERIFIED` when nothing had failed.
 
+The evidence file is owner-only (mode `0o600`), since it records request URLs. The write never replaces a file that changed after the check. `--evidence` needs no-follow, `dir_fd` file calls, so Windows refuses it. There, run without it and save the report printed to stdout.
+
 A stop that already has a failed example or lint finding exits `1`. Its evidence file lists the examples that never ran under `deadline_exceeded`. Under `request_failed` it names the example that could not finish and the examples after it. A request that missed its 30 s deadline may still reach the server, so check a mutating example by hand.
 
 ## Anti-Patterns
