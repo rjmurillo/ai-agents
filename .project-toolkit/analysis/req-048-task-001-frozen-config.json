@@ -1,0 +1,8 @@
+{
+  "frozen_at": "2026-11-02",
+  "basis": "tuning split only (seed 48001, 6289 sessions, 144 judge-labeled candidates); chosen by highest Wilson 95 percent lower bound among configs with at least 20 tuning nudges",
+  "weights": {"tool_error": 1, "permission_denial": 1, "failed_retry": 1, "edit_churn": 1},
+  "weights_note": "failed_retry and edit_churn were 0 in every session, so their weights are not identified by the data and stay at 1",
+  "tier1_threshold": 3,
+  "tuning_result": {"nudged": 53, "worth_it": 16, "precision": 0.30, "wilson_lower_95": 0.20, "nudges_per_100_sessions": 0.84}
+}
