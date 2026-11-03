@@ -41,7 +41,8 @@ class TestParseThreshold:
         assert fc.parse_threshold({ENV: "-1"}, 4) == 4
 
     def test_huge_digit_string_does_not_crash(self) -> None:
-        assert fc.parse_threshold({ENV: "9" * 5000}) == fc.FRICTION_TIER1_DEFAULT
+        # Clamps high (practically never nudges); it must not fall back to 10.
+        assert fc.parse_threshold({ENV: "9" * 5000}) == module.MAX_THRESHOLD
 
     def test_reads_no_other_key(self) -> None:
         assert fc.parse_threshold({"OTHER": "off"}) == fc.FRICTION_TIER1_DEFAULT
@@ -181,3 +182,14 @@ def test_hook_off_check_agrees_with_parse_threshold(
     spec.loader.exec_module(state)
     env = {state.THRESHOLD_ENV: raw}
     assert state.is_off(env) is (module.parse_threshold(env) is None)
+
+
+@pytest.mark.parametrize("raw", ["1" + "0" * 18, "9" * 19, "+" + "7" * 40, "8" * 5000])
+def test_huge_positive_threshold_clamps_high_not_to_default(raw: str) -> None:
+    value = module.parse_threshold({module.THRESHOLD_ENV: raw})
+    assert value == module.MAX_THRESHOLD
+    assert value is not None and value > 10**17
+
+
+def test_eighteen_digit_threshold_is_exact() -> None:
+    assert module.parse_threshold({module.THRESHOLD_ENV: "9" * 18}) == int("9" * 18)

@@ -468,11 +468,12 @@ def _nudge_once(
     if has_signal(result) and claim_marker(directory, session_id, result):
         messages.append(build_message(result))
     if friction is not None and friction.tier >= 1:
-        try:
+        try:  # fail-open: a broken lib skips friction only, never the correction
             text = failure_classifier.build_friction_message(friction, HOOK_NAME)
-        except Exception:  # fail-open: a broken lib skips friction only
-            text = ""
-        if text and claim_friction_marker(directory, session_id, friction):
+            claimed = claim_friction_marker(directory, session_id, friction)
+        except Exception:
+            text, claimed, note = "", False, ", friction skipped: classifier error"
+        if text and claimed:
             messages.append(text)
     if not messages:
         print(status_line(result, "already nudged", note), file=stderr)

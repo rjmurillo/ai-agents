@@ -143,7 +143,17 @@ class TestFailOpen:
         assert code == 0 and "/reflect" in out and "/retrospective" not in out
         assert "classifier unavailable" in err
 
-    @pytest.mark.parametrize("broken", ["compute_friction", "collect_record", "partial_budget"])
+    @pytest.mark.parametrize(
+        "broken",
+        [
+            "compute_friction",
+            "collect_record",
+            "partial_budget",
+            "friction_marker_name",
+            "friction_marker_body",
+            "build_friction_message",
+        ],
+    )
     def test_classifier_error_keeps_correction(
         self, broken: str, both: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

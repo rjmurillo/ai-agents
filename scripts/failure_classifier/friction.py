@@ -25,7 +25,9 @@ THRESHOLD_ENV = "AI_AGENTS_RETRO_NUDGE_THRESHOLD"
 OFF_VALUES = frozenset({"0", "off"})
 MAX_TIER = 32
 CONVERSATION_TYPES = frozenset({"assistant", "user"})
-_INTEGER = re.compile(r"[+-]?[0-9]{1,18}")
+_INTEGER = re.compile(r"[+-]?[0-9]+")
+# A positive threshold too long to parse safely means "practically never".
+MAX_THRESHOLD = 10**18
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,8 +56,10 @@ def parse_threshold(env: Mapping[str, str], default: int = FRICTION_TIER1_DEFAUL
         return None
     if not _INTEGER.fullmatch(text):
         return default
-    value = int(text)
-    return value if value > 0 else default
+    digits = text.lstrip("+-").lstrip("0")
+    if text.startswith("-") or not digits:
+        return default
+    return MAX_THRESHOLD if len(digits) > 18 else int(digits)
 
 
 def friction_tier(score: int, threshold: int) -> int:
