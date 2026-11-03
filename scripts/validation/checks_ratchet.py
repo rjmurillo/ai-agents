@@ -55,7 +55,6 @@ from __future__ import annotations
 import concurrent.futures
 import shutil
 import sys
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -335,9 +334,7 @@ def _run_ratchets(
 def validate_count_ratchets(repo_root: Path, deadline_seconds: float | None = None) -> bool:
     """Run every ratchet in :data:`RATCHETS`; return True when all pass.
 
-    ``deadline_seconds`` bounds the whole registry. None means
-    :data:`_AGGREGATE_TIMEOUT_SECONDS`, read at call time so a test can patch it.
-    The container-clamped pre-push job passes a smaller value.
+    ``deadline_seconds`` bounds the whole run; None reads the module default.
 
     Raises:
         MissingScriptSkip: when ``uv`` is absent. Every ratchet job in
@@ -385,11 +382,7 @@ def validate_count_ratchets(repo_root: Path, deadline_seconds: float | None = No
 
 
 def _report(results: dict[str, tuple[int, str, str]], deadline_seconds: float) -> bool:
-    """Print each failing ratchet and one cause line per class; True when clean.
-
-    Two classes, because they need different fixes: a deadline hit measured no
-    count, and a non-zero exit is a count over its ceiling.
-    """
+    """Report failures as two classes, deadline hit or count over ceiling; True when clean."""
     violations: list[str] = []
     timed_out: list[str] = []
     # Reported in registry order, not completion order, so the output is stable
@@ -398,7 +391,10 @@ def _report(results: dict[str, tuple[int, str, str]], deadline_seconds: float) -
         exit_code, stdout, stderr = results[ratchet.job_name]
         if exit_code == 0:
             continue
-        if _ran_out_of_time(exit_code, stderr):
+        # -1 plus the runner's timeout marker, or an entry that never started.
+        if exit_code == -1 and (
+            "Command timed out after" in stderr or _DEADLINE_EXHAUSTED in stderr
+        ):
             timed_out.append(ratchet.job_name)
         else:
             violations.append(ratchet.job_name)
@@ -412,8 +408,8 @@ def _report(results: dict[str, tuple[int, str, str]], deadline_seconds: float) -
             f"[ERROR] count ratchet(s) did not finish inside the "
             f"{deadline_seconds:.0f}s deadline: {', '.join(timed_out)}. No count "
             f"was measured for them. Most entries materialize the merge-base "
-            f"tree under {tempfile.gettempdir()}, so slow temp storage is the "
-            f"usual cause; point TMPDIR at faster storage and push again.",
+            f"tree in the temp directory, so slow temp storage is the usual "
+            f"cause; point TMPDIR at faster storage and push again.",
             file=sys.stderr,
         )
     if violations:
@@ -427,23 +423,8 @@ def _report(results: dict[str, tuple[int, str, str]], deadline_seconds: float) -
     return not (timed_out or violations)
 
 
-def _ran_out_of_time(exit_code: int, stderr: str) -> bool:
-    """True when the entry hit the deadline rather than reporting a count.
-
-    The two strings are the runner's timeout marker and the message
-    :func:`_run_ratchets` writes for an entry that never started.
-    """
-    return exit_code == -1 and (
-        "Command timed out after" in stderr or _DEADLINE_EXHAUSTED in stderr
-    )
-
-
 def main(repo_root: Path | None = None, deadline_seconds: float | None = None) -> int:
-    """Run all registered ratchets; the one owner of the gate's exit codes.
-
-    0 when every ratchet passes, 1 on a failure, 2 when ``uv`` is absent.
-    ``git_hook_policy.py count-ratchets`` calls this with a clamped deadline.
-    """
+    """Exit 0 when every ratchet passes, 1 on a failure, 2 when ``uv`` is absent."""
     try:
         passed = validate_count_ratchets(repo_root or Path.cwd(), deadline_seconds)
     except MissingScriptSkip as exc:
