@@ -272,7 +272,12 @@ class _Session:
         self.add_pair(idx, _tool_pair(ts, str(call_id), name, _function_input(raw), text, False))
 
     def _inner_errored(self, start: int) -> bool:
-        """True when an item completed inside a wrapper's span was itself an error."""
+        """True when an item completed inside a wrapper's span was itself an error.
+
+        Codex records no parent id from an inner call to its wrapper, so the
+        span is every tool result since the wrapper's call. A failing sibling
+        call can hide a real wrapper failure (a possible undercount).
+        """
         for _, rec in self.tools[start:]:
             content = rec.get("message", {}).get("content")
             first = content[0] if isinstance(content, list) and content else {}

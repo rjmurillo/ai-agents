@@ -22,7 +22,7 @@ The owner chose to gate on cross-validated tuning precision instead (D19). The 1
 
 ## What the signals catch
 
-The judge's `worth_it` reasons on the tuning split named three patterns. The patterns occur in any harness, but the detection below reads Claude Code text (see Cross-harness check):
+The judge's `worth_it` reasons on the tuning split named three patterns. The patterns occur in any harness. Detection was tuned on Claude Code text, and it carries over only partly (see Cross-harness check):
 
 - **Repeated denials the agent kept working around.** Permission prompts, hook blocks, and harness blocks.
 - **Stop-hook loops.** A Stop hook kept blocking the stop, and the agent kept replying.
@@ -112,8 +112,10 @@ The config does not carry over.
 ### What this means
 
 - These counts include the Copilot and Codex denial wordings added to `DENIAL_MARKERS` after review. Before them, the nudge counts were 0 for Codex and 1 for Copilot.
+- Copilot shows 366 sessions, not 367. One session's first record is dated 2026-11-03, after the `--until 2026-11-02` window. The first replay counted it by mistake.
+- The Codex converter drops a failed `exec` wrapper when any tool result recorded since that wrapper's call failed. Codex records no parent id that ties an inner call to its wrapper. So a failing sibling call can hide a real wrapper failure, and Codex `tool_error` and `error_streak` may be undercounted. The effect is INFERRED, not measured. In the raw rollouts, 2 failed wrappers held a failing inner item, and neither fell in the converted window.
 
-- Two of the three weighted signals read Claude Code text: `DENIAL_MARKERS` and the `Stop hook feedback:` prefix.
+- `stop_feedback` reads Claude Code's `Stop hook feedback:` text. `DENIAL_MARKERS` now holds each harness's own denial wording, but only Copilot denies often enough here to matter.
 - Copilot marks a denial structurally, with `error.code` set to `denied`.
 - Codex records stop-hook blocks, but none fell in this window. Droid records hook runs, and none of its Stop results showed a block.
 - No other harness has enough real sessions in this window to reach the 15-nudge floor.
