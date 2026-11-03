@@ -381,3 +381,58 @@ class TestExcerptAtEvent:
         assert cal.main([*args, "--event", "0", "--out", str(out)]) == 0
         text = out.read_text(encoding="utf-8")
         assert "first" in text and "second" not in text
+
+
+class TestCodeRabbitFixes:
+    def test_event_cut_hides_a_parallel_result_in_the_same_record(self, tmp_path: Path) -> None:
+        from scripts.metrics.friction_calibration_excerpt import excerpt_session
+
+        uses = {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "tool_use", "id": "a", "name": "Bash", "input": {"command": "x"}},
+                    {"type": "tool_use", "id": "b", "name": "Bash", "input": {"command": "y"}},
+                ]
+            },
+        }
+        results = {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "a",
+                        "content": "first",
+                        "is_error": True,
+                    },
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "b",
+                        "content": "second",
+                        "is_error": True,
+                    },
+                ]
+            },
+        }
+        path = write(tmp_path / "s.jsonl", [human("go"), uses, results])
+        text, _ = excerpt_session(path, 0, event=0)
+        assert "first" in text and "second" not in text
+
+    def test_copied_skill_call_is_not_a_retrospective(self) -> None:
+        call_block = {
+            "type": "tool_use",
+            "id": "r",
+            "name": "Skill",
+            "input": {"skill": "retrospective"},
+        }
+        blob = {"type": "api-request-blob", "message": {"content": [call_block]}}
+        real = {"type": "assistant", "message": {"content": [call_block]}}
+        assert scan.is_retro_invocation(blob) is False
+        assert scan.is_retro_invocation(real) is True
+
+    def test_late_term_survives_the_sample_clip(self) -> None:
+        from scripts.metrics.friction_calibration_samples import clip
+
+        line = "x" * 3000 + " Permission for this command was denied"
+        assert "was denied" in clip(text_helpers.matching_line(line, "was denied"), 200)

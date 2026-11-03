@@ -13,8 +13,16 @@ def first_error_line(text: str) -> str:
     return ""
 
 
+# Context kept before a matched term, so a later 200-character clip keeps it.
+MATCH_LEAD_CHARS = 80
+
+
 def matching_line(text: str, term: str) -> str:
-    """The first line holding ``term`` (any case), so a judge sees what matched."""
+    """The first line holding ``term`` (any case), so a judge sees what matched.
+
+    A long line is windowed to start shortly before the term.
+    """
     needle = term.lower()
     line = next((line.strip() for line in text.splitlines() if needle in line.lower()), "")
-    return line[:SNIPPET_CHARS]
+    start = max(0, line.lower().find(needle) - MATCH_LEAD_CHARS)
+    return line[start : start + SNIPPET_CHARS]

@@ -127,7 +127,7 @@ def user_text(record: Mapping[str, Any]) -> str:
 
 def is_retro_invocation(record: Mapping[str, Any]) -> bool:
     """A Skill tool_use naming retrospective, or a slash-command user turn."""
-    for block in _blocks(record):
+    for block in _blocks(record) if record.get("type") == "assistant" else []:
         if block.get("type") != "tool_use" or str(block.get("name", "")).lower() != "skill":
             continue
         tool_input = block.get("input")
@@ -164,8 +164,8 @@ class Tracker:
     retro_seen: bool = False
     # Every Stop index after which a retrospective ran, in order, no repeats.
     retro_stops: list[int] = field(default_factory=list)
-    # Record index of each event's tool_result, for an excerpt cut at an event.
-    event_records: list[int] = field(default_factory=list)
+    # (record index, tool_use id) of each event's result, to cut an excerpt.
+    event_records: list[tuple[int, str]] = field(default_factory=list)
     pending: set[str] = field(default_factory=set)
     paired: set[str] = field(default_factory=set)
 
@@ -212,7 +212,7 @@ class Tracker:
                     self.pending.discard(use_id)
                     self.paired.add(use_id)
                     self.event_count += 1
-                    self.event_records.append(self.records - 1)
+                    self.event_records.append((self.records - 1, use_id))
 
 
 def iter_records(handle: IO[str], tracker: Tracker) -> Iterator[dict[str, Any]]:
