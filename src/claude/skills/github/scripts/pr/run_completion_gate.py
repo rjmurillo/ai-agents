@@ -1744,17 +1744,28 @@ def _launcher_script_token(command: str) -> str | None:
     return _expand_plugin_root(f"{_LAUNCHER_ROOT_FORM}/{script_rel}")
 
 
-def _literal_argv_path(token: str) -> Path:
-    """The absolute, unresolved path ``token`` names, as the dispatch cwd reads it.
+def _absolute_argv_path(token: str) -> Path:
+    """``token`` as an absolute path against the dispatch cwd, ".." kept.
 
-    normpath collapses ".." lexically without following symlinks.
-    Path.relative_to is purely lexical, so it would otherwise accept
-    "<toplevel>/../etc/passwd" as living inside the work tree.
+    This is the path the kernel opens: it follows each link before the
+    ".." after it. Resolve this one, never :func:`_literal_argv_path`.
     """
     candidate = Path(token)
     if not candidate.is_absolute():
         candidate = Path.cwd() / candidate
-    return Path(os.path.normpath(candidate))
+    return candidate
+
+
+def _literal_argv_path(token: str) -> Path:
+    """The lexical path ``token`` names, with ".." collapsed by normpath.
+
+    Use it only for containment checks and the in-tree link scan.
+    Path.relative_to is purely lexical, so without normpath it would
+    accept "<toplevel>/../etc/passwd" as living inside the work tree.
+    It is never the executed file: normpath drops "link/.." without
+    following the link, so the two can differ (CWE-59).
+    """
+    return Path(os.path.normpath(_absolute_argv_path(token)))
 
 
 def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
@@ -1806,9 +1817,7 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     # normalized path can name a different file than the one that runs
     # (CWE-59).
     literal = _literal_argv_path(token)
-    candidate = Path(token)
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
+    candidate = _absolute_argv_path(token)
 
     if _first_symlinked_component(literal, toplevel) is not None:
         return _ARGV_ESCAPES, token
@@ -1874,10 +1883,11 @@ def _collect_command_spellings(
     """:func:`_collect_command_paths` plus each external file's unresolved spellings.
 
     An external value is a resolved path, so the links on the way to it
-    are gone. The fourth item maps each external value to the literal
-    paths the commands spelled it with, so :func:`_partition_external_files`
-    can refuse a link in another work tree of this repository the way the
-    in-tree check refuses one (D10, CWE-59).
+    are gone. The fourth item maps each external value to the paths the
+    commands spelled it with, so :func:`_partition_external_files` can
+    refuse a link in another work tree of this repository the way the
+    in-tree check refuses one (D10, CWE-59). A spelling keeps its ".."
+    components: normpath would drop the link before each one.
     """
     spellings: dict[str, list[Path]] = {}
     to_verify: list[str] = []
@@ -1912,10 +1922,10 @@ def _collect_command_spellings(
                 if bucket is not None and value not in bucket:
                     bucket.append(value)
                 if kind == _ARGV_EXTERNAL:
-                    literal = _literal_argv_path(candidate)
+                    spelled = _absolute_argv_path(candidate)
                     known = spellings.setdefault(value, [])
-                    if literal not in known:
-                        known.append(literal)
+                    if spelled not in known:
+                        known.append(spelled)
 
     return to_verify, external, escaping, spellings
 
@@ -3429,9 +3439,12 @@ def _classify_external(
     """``(owner, refused)`` for one external file.
 
     ``refused`` is an unresolved spelling that enters a work tree of this
-    repository through a link the trusted ref does not pin (CWE-59).
-    Otherwise ``owner`` is the root of the work tree of this repository
-    holding the file, or ``None`` for a true install.
+    repository through a link the trusted ref does not pin, or that holds
+    a ".." component there (CWE-59). The kernel follows a link before the
+    ".." after it, so a lexical scan cannot prove which file such a
+    spelling opens; it fails closed. Otherwise ``owner`` is the root of
+    the work tree of this repository holding the file, or ``None`` for a
+    true install.
     """
     path = Path(value)
     owner: Path | None = None
@@ -3440,7 +3453,7 @@ def _classify_external(
         root = _spelling_root(spelling, aliased, identity)
         if root is None:
             continue
-        if aliased and _unpinned_link_in(spelling, root) is not None:
+        if aliased and (".." in spelling.parts or _unpinned_link_in(spelling, root) is not None):
             return None, str(spelling)
         if owner is None and _is_within(path, root):
             owner = root

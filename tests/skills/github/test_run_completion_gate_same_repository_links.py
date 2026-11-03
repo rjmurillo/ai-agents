@@ -79,6 +79,47 @@ class TestSiblingLinks:
         assert rc == 2
         assert str(link) in err
 
+    def test_dotdot_after_an_unpinned_link_blocks(
+        self, repo, tmp_path, monkeypatch, capsys
+    ) -> None:
+        """normpath drops "lnk/..", so the link scan must see the spelling as written (CWE-59)."""
+        trusted_repo(repo, plain("skills/demo/scripts/lnk/../run.py"))
+        sibling = linked_worktree(repo, tmp_path, monkeypatch)
+        write(tmp_path / "outside", "run.py", "print('pr code')\n")
+        (tmp_path / "outside" / "sub").mkdir()
+        os.symlink(tmp_path / "outside" / "sub", sibling / ".claude/skills/demo/scripts/lnk")
+
+        rc, payload, err = verify(repo, capsys, "--harness", "copilot")
+
+        assert rc == 2, err
+        assert payload == {}
+        assert "lnk/../run.py" in err
+
+    def test_dotdot_inside_a_sibling_fails_closed(
+        self, repo, tmp_path, monkeypatch, capsys
+    ) -> None:
+        """No link at all: a lexical scan still cannot prove which file a ".." spelling opens."""
+        trusted_repo(repo, plain("skills/demo/../demo/scripts/run.py"))
+        linked_worktree(repo, tmp_path, monkeypatch)
+
+        rc, payload, err = verify(repo, capsys, "--harness", "copilot")
+
+        assert rc == 2, err
+        assert "demo/../demo/scripts/run.py" in err
+
+    def test_dotdot_in_a_true_install_keeps_install_trust(
+        self, repo, tmp_path, monkeypatch, capsys
+    ) -> None:
+        trusted_repo(repo, plain("skills/demo/../demo/scripts/run.py"))
+        installed = tmp_path / "installed"
+        real = write(installed, "skills/demo/scripts/run.py", "print('installed')\n")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(installed))
+
+        rc, payload, err = verify(repo, capsys, "--harness", "copilot")
+
+        assert rc == 0, err
+        assert str(real.resolve()) in payload["skipped_external_files"]
+
     def test_a_true_install_keeps_its_own_links(self, repo, tmp_path, monkeypatch, capsys) -> None:
         """A link inside a true install is the operator's, not a PR's."""
         trusted_repo(repo, plain())
