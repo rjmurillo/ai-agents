@@ -30,7 +30,7 @@ EDIT_TOOLS: frozenset[str] = frozenset(
 
 # An errored result holding one of these (any case) is a permission_denial,
 # not a tool_error. The set was checked against a labeled corpus on 2026-11-03
-# (REQ-048 TASK-001, PR #7058 and the friction v2 branch). `permission denied`
+# (REQ-048 TASK-001). These are Claude Code wordings. `permission denied`
 # is dropped: a Unix EACCES error is a tool error, not a policy denial. So is
 # `rejected`, which matched only git push and ripgrep errors.
 DENIAL_MARKERS: tuple[str, ...] = (

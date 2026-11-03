@@ -333,3 +333,28 @@ def test_main_prints_counts(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     assert code == 0
     assert "sessions=1" in printed
     assert "errored=1" in printed
+
+
+@pytest.mark.parametrize("hostile", ["../x", "a/b", "", ".hidden"])
+def test_hostile_session_id_is_skipped_and_counted(tmp_path: Path, hostile: str) -> None:
+    src = _write_src(tmp_path / "rollout-a.jsonl", _meta(id=hostile), _cmd("c", "x", 0, ""))
+    out = tmp_path / "out"
+    out.mkdir()
+    totals = cc.convert_files([src], out, date(2026, 1, 1))
+    assert (totals["sessions"], totals["skipped"], totals["skipped_unsafe_id"]) == (0, 1, 1)
+    assert list(out.iterdir()) == []
+    assert not (tmp_path / "x.jsonl").exists()
+
+
+def test_planted_symlink_at_output_is_not_written_through(tmp_path: Path) -> None:
+    src = _write_src(tmp_path / "rollout-a.jsonl", _meta(), _cmd("c", "x", 0, ""))
+    out = tmp_path / "out"
+    out.mkdir()
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep", encoding="utf-8")
+    (out / "sess-1.jsonl").symlink_to(victim)
+    cc.convert_files([src], out, date(2026, 1, 1))
+    assert victim.read_text(encoding="utf-8") == "keep"
+    target = out / "sess-1.jsonl"
+    assert not target.is_symlink()
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600

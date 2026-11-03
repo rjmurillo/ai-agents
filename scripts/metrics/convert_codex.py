@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
 import shlex
 import sys
 from collections import Counter
@@ -51,6 +50,7 @@ if (_PROJECT_ROOT / "scripts" / "validation" / "models.py").is_file() and str(
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.failure_classifier.transcript import STOP_FEEDBACK_PREFIX  # noqa: E402
+from scripts.metrics.convert_common import safe_session_id, write_private  # noqa: E402
 from scripts.metrics.friction_calibration import inside_repository  # noqa: E402
 
 _SHELL_FLAGS = frozenset({"-c", "-lc", "-ic", "-ilc"})
@@ -315,11 +315,7 @@ def _count(records: list[dict[str, Any]]) -> Counter[str]:
 
 
 def _write(path: Path, records: list[dict[str, Any]]) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        os.fchmod(handle.fileno(), 0o600)
-        for rec in records:
-            handle.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    write_private(path, "".join(json.dumps(rec, ensure_ascii=False) + "\n" for rec in records))
 
 
 def convert_files(paths: Iterable[str], out_dir: Path, since: date) -> Counter[str]:
@@ -333,7 +329,11 @@ def convert_files(paths: Iterable[str], out_dir: Path, since: date) -> Counter[s
             totals["skipped"] += 1
             totals[f"skipped_{reason or 'empty_or_before_since'}"] += 1
             continue
-        stem = (session_id or Path(path).stem).replace("/", "_")
+        stem = safe_session_id(session_id)
+        if stem is None:
+            totals["skipped"] += 1
+            totals["skipped_unsafe_id"] += 1
+            continue
         name, n = stem, 1
         while name in used:
             n += 1

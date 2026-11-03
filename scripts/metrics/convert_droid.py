@@ -52,6 +52,7 @@ if (_PROJECT_ROOT / "scripts" / "validation" / "models.py").is_file() and str(
 ) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.metrics import convert_common  # noqa: E402
 from scripts.metrics.friction_calibration import inside_repository  # noqa: E402
 
 EXIT_OK = 0
@@ -248,11 +249,9 @@ def first_day(records: Iterable[dict[str, Any]]) -> date | None:
 
 
 def write_private(path: Path, records: list[dict[str, Any]]) -> None:
-    text = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, FILE_MODE)
-    os.chmod(path, FILE_MODE)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(text)
+    convert_common.write_private(
+        path, "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
+    )
 
 
 def convert_file(
@@ -260,6 +259,9 @@ def convert_file(
 ) -> Stats:
     """Convert one Droid session file; the returned Stats holds its own totals."""
     stats = Stats()
+    if convert_common.safe_session_id(path.stem) is None:
+        stats.skipped["unsafe_id"] += 1
+        return stats
     records = list(read_records(path, stats))
     day = first_day(records)
     if day is None or day < since:

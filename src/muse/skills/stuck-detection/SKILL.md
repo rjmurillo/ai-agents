@@ -109,8 +109,9 @@ chooses which events to report.
    successful `ls`, `git status`, or `Read` is not a check and leaves the
    cycles open. A successful edit leaves other files' pending cycles in place.
 6. **Counts.** `counts` reports every failure in the window: `tool_error`,
-   `permission_denial` (error text holding "permission denied", "user doesn't
-   want to proceed", "was denied", or "rejected"), `failed_retry` (a failure
+   `permission_denial` (error text holding "was denied", "permission to use",
+   "user doesn't want to proceed", "hook error", "<tool_use_error>blocked", or
+   "requires approval"; these are Claude Code wordings), `failed_retry` (a failure
    whose `tool`, `input`, and fingerprint match an earlier failure with no
    success for that `tool` and `input` between), and `unfingerprinted`.
    Events without `input` are never retries.

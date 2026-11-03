@@ -37,7 +37,6 @@ import argparse
 import glob
 import json
 import os
-import re
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -50,12 +49,12 @@ _SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
 if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.failure_classifier.transcript import STOP_FEEDBACK_PREFIX  # noqa: E402
+from scripts.metrics.convert_common import safe_session_id, write_private  # noqa: E402
 from scripts.metrics.friction_calibration import inside_repository  # noqa: E402
 
 SHELL_TOOLS: frozenset[str] = frozenset({"bash", "powershell", "shell"})
 STOP_HOOK_TYPES: frozenset[str] = frozenset({"agentStop"})
-STOP_FEEDBACK_PREFIX = "Stop hook feedback:"
-_SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -245,7 +244,7 @@ def _iter_events(path: Path, counts: Counts) -> Iterator[object]:
 def _session_id(path: Path) -> str | None:
     """The parent directory name, which Copilot sets to the session id."""
     name = path.parent.name
-    return name if _SAFE_ID.fullmatch(name) else None
+    return safe_session_id(name)
 
 
 def _first_date(records: list[dict[str, Any]]) -> date | None:
@@ -255,14 +254,6 @@ def _first_date(records: list[dict[str, Any]]) -> date | None:
         except (ValueError, KeyError):
             continue
     return None
-
-
-def _write_private(path: Path, text: str) -> None:
-    """Write ``text`` with mode 0o600, replacing any existing file."""
-    path.unlink(missing_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(text)
 
 
 def convert_file(path: Path, out_dir: Path, since: date) -> Counts:
@@ -283,7 +274,7 @@ def convert_file(path: Path, out_dir: Path, since: date) -> Counts:
         total.skipped += counts.skipped + 1
         return total
     body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
-    _write_private(out_dir / f"{session_id}.jsonl", body)
+    write_private(out_dir / f"{session_id}.jsonl", body)
     counts.files, counts.sessions = 1, 1
     return counts
 

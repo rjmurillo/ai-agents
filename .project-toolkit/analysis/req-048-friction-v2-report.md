@@ -22,7 +22,7 @@ The owner chose to gate on cross-validated tuning precision instead (D19). The 1
 
 ## What the signals catch
 
-The judge's `worth_it` reasons on the tuning split named three generic patterns:
+The judge's `worth_it` reasons on the tuning split named three patterns. The patterns occur in any harness, but the detection below reads Claude Code text (see Cross-harness check):
 
 - **Repeated denials the agent kept working around.** Permission prompts, hook blocks, and harness blocks.
 - **Stop-hook loops.** A Stop hook kept blocking the stop, and the agent kept replying.
@@ -59,6 +59,7 @@ Every signal comes from Claude Code transcript formats, not from this repository
 - The grid covered integer weights (`tool_error` 0 to 1, `permission_denial` 0 to 3, `stop_feedback` 0 to 3, `error_streak` 0 to 1) and thresholds 6 to 25.
 - Each CV fold chose its config on the other four folds, by best Wilson lower bound with at least 14 training nudges. It was then scored on the held-back fold (fold seed 48002).
 - The frozen config is the full-tuning best with at least 20 nudges: 15 of 20, 75.0 percent, lower bound 53.1 percent.
+- `scripts/metrics/friction_fit.py` reproduces the fold choices, the pooled 12 of 16, and the final config from the committed labels CSV and the replay output. Its search scores with the shipped `FRICTION_WEIGHTS` signal names, and a test pins its weighted sum to `friction_score`.
 
 ### Held-out
 
@@ -95,7 +96,7 @@ Owner request, 2026-11-03: does the frozen config hold on other harnesses' histo
 ### Method
 
 - Each harness's 30-day history was converted to the Claude Code record shape. The converters live in `scripts/metrics`: `convert_codex.py`, `convert_copilot.py`, and `convert_droid.py`.
-- The converters translate structure only. Error and denial text stay exactly as each harness wrote them.
+- The converters translate structure only. Error and denial text stay exactly as each harness wrote them. The one rewrite: an explicit stop-hook block in Codex or Copilot gets the `Stop hook feedback:` prefix, so it reaches `stop_feedback`.
 - The frozen config ran unchanged, with no refit.
 
 ### Result
@@ -106,13 +107,13 @@ The config does not carry over.
 |---|---|---|---|---|
 | Codex | 792 | 0 | 3 | Denials read "rejected by user approval settings" or "blocked by read-only sandbox". No stop-hook blocks fell in the window. |
 | Copilot | 367 | 1 | 153 | Mostly synthetic probe sessions (246 tool calls). Its 35 real denials read "Permission denied because no interactive user response was available". |
-| Droid | 20 | 0 | 6 | 149 of 170 recent sessions are subagent sessions. Droid records no stop-hook blocks. |
+| Droid | 20 | 0 | 6 | 149 of 170 recent sessions are subagent sessions. All 591 Stop hook results had exit code 0, so no block was seen; whether Droid records a block at all is INFERRED, not observed. |
 
 ### What this means
 
 - Two of the three weighted signals read Claude Code text: `DENIAL_MARKERS` and the `Stop hook feedback:` prefix.
 - Copilot marks a denial structurally, with `error.code` set to `denied`.
-- Codex and Droid record hook runs, but no Stop blocks fell in this window.
+- Codex records stop-hook blocks, but none fell in this window. Droid records hook runs, and none of its Stop results showed a block.
 - No other harness has enough real sessions in this window to reach the 15-nudge floor.
 
 By spec, consumer B ships on Claude Code only. AC-21 excludes Copilot, and REQ-048 does not target Codex or Droid. So the v2 config is valid for consumer B as specified. Taking the friction nudge to another harness needs two things first:

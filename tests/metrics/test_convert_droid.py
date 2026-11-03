@@ -359,3 +359,27 @@ def test_bad_since_date_exits_with_usage_error() -> None:
     with pytest.raises(SystemExit) as info:
         cd.build_parser().parse_args(["--src-glob", "x", "--out-dir", "y", "--since", "10/03"])
     assert info.value.code == 2
+
+
+@pytest.mark.parametrize("hostile", [".hidden", "..", "-lead", "a b"])
+def test_hostile_session_stem_is_skipped_and_counted(tmp_path: Path, hostile: str) -> None:
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    src = _write(tmp_path / f"{hostile}.jsonl", [_use("a", "Read", {})])
+    stats = cd.convert_file(src, out_dir, SINCE, False, set())
+    assert (stats.sessions, stats.skipped["unsafe_id"]) == (0, 1)
+    assert list(out_dir.iterdir()) == []
+
+
+def test_planted_symlink_at_output_is_not_written_through(tmp_path: Path) -> None:
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep", encoding="utf-8")
+    (out_dir / "s.jsonl").symlink_to(victim)
+    src = _write(tmp_path / "s.jsonl", [_use("a", "Read", {})])
+    assert cd.convert_file(src, out_dir, SINCE, False, set()).sessions == 1
+    assert victim.read_text(encoding="utf-8") == "keep"
+    target = out_dir / "s.jsonl"
+    assert not target.is_symlink()
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
