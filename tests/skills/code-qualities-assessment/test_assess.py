@@ -19,6 +19,7 @@ import builtins
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -1958,7 +1959,8 @@ def test_render_mirror_paths_are_generated(
     [
         # Issue #7037: under ADR-119 these src/claude paths are the source.
         "src/claude/skills/build/scripts/validation_trigger.py",
-        "src/claude/lib/github_core/api.py",
+        "src/claude/lib/paths.py",
+        "src/claude/skills/review/scripts/review_gate.py",
         ".claude/skills/build/scripts/validation_trigger.py",
         ".claude/lib/paths.py",
         "scripts/validation/pre_pr.py",
@@ -2021,6 +2023,32 @@ def test_every_platform_output_root_is_generated(root: str) -> None:
     probe = root_path if root_path.suffix else root_path / "pkg" / "module.py"
 
     assert classify_file_category(probe, content="x = 1\n") == "generated"
+
+
+def _lib_mirror_destinations() -> list[str]:
+    """Collect every path build/scripts/lib_mirror.py renders from scripts/."""
+    spec = importlib.util.spec_from_file_location(
+        "lib_mirror", _REPO_ROOT / "build" / "scripts" / "lib_mirror.py"
+    )
+    assert spec is not None and spec.loader is not None
+    lib_mirror = importlib.util.module_from_spec(spec)
+    # Its dataclasses resolve their module through sys.modules at class build.
+    with patch.dict(sys.modules, {"lib_mirror": lib_mirror}):
+        spec.loader.exec_module(lib_mirror)
+
+    destinations: list[str] = []
+    for root in lib_mirror.PLUGIN_ROOTS:
+        destinations.extend(f"{root}/{pkg}/module.py" for pkg in lib_mirror.PACKAGES)
+        destinations.extend(f"{root}/{name}" for _, name in lib_mirror.SYNC_FILE_NAMES)
+    destinations.extend(lib_mirror.SKILLS_SIDECAR_PLUGIN_TREES)
+    return sorted(destinations)
+
+
+@pytest.mark.parametrize("destination", _lib_mirror_destinations())
+def test_every_lib_mirror_destination_is_generated(destination: str) -> None:
+    # src/claude/lib/<pkg>/ and the review sidecar render from scripts/, so
+    # CQA must skip them even though the rest of src/claude is source.
+    assert classify_file_category(Path(destination), content="x = 1\n") == "generated"
 
 
 def _large_module(tmp_path: Path) -> Path:

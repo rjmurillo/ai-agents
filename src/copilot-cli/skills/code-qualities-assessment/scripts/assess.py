@@ -70,14 +70,21 @@ _LINE_COMMENT_PREFIXES = {
 }
 
 # Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
-# ADR-119, src/claude/skills/<name>/ scripts and src/claude/lib/ are the
-# hand-maintained source, so only the rendered parts of src/claude are listed.
-# Every outputDir in templates/platforms/*.yaml falls under one of these
-# prefixes; tests/skills/code-qualities-assessment/test_assess.py pins that.
+# ADR-119, src/claude/skills/<name>/ scripts and the top-level src/claude/lib
+# modules are hand-maintained source, so only the rendered parts of src/claude
+# are listed. build/scripts/lib_mirror.py renders the three lib packages,
+# bootstrap.py, and the review skill's validator sidecar from scripts/.
+# Every outputDir in templates/platforms/*.yaml and every lib_mirror.py
+# destination falls under one of these prefixes; test_assess.py pins that.
 _GENERATED_PATH_SEGMENTS = (
     ("src", "claude", "agents"),
     ("src", "claude", "hooks"),
+    ("src", "claude", "lib", "ai_review_common"),
+    ("src", "claude", "lib", "bootstrap.py"),
+    ("src", "claude", "lib", "github_core"),
+    ("src", "claude", "lib", "hook_utilities"),
     ("src", "claude", "rules"),
+    ("src", "claude", "skills", "review", "scripts", "validate_review_marker.py"),
     ("src", "codex"),
     ("src", "copilot-cli"),
     ("src", "cursor"),
