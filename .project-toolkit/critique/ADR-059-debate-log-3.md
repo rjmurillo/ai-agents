@@ -426,7 +426,7 @@ P2:
 ### Verification
 
 - Sibling-served Step 0 run, 2026-11-02, from
-  `/home/richard/src/GitHub/rjmurillo/ai-agents3` with
+  `<main clone>` with
   `CLAUDE_PLUGIN_ROOT=<work tree>/.claude`, `COPILOT_PLUGIN_ROOT` empty:
   `run_completion_gate.py --config <work tree>/.claude/skills/pr-review/pr-review-config.yaml --pull-request 7014 --verify-config-only --harness claude_code --json`.
   Exit 2, "config ... is not trusted (diverged) against origin/main".
