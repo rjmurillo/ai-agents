@@ -36,6 +36,18 @@ events cannot both nudge: the loser sees the file exists and stays silent.
 The name carries a hash of the counts. The body holds counts, never
 transcript text.
 
+Friction branch (REQ-048 TASK-003): the same scan also keeps the decoded
+conversation records, bounded by MAX_FRICTION_RECORDS. After the scan the
+shared ``failure_classifier`` (``lib/failure_classifier``, one definition for
+every consumer) turns them into a FrictionScore. Tier n needs a score of
+``threshold * 2**(n-1)``. Each (session, tier) gets its own friction marker,
+separate from the correction marker, so a tier fires once. The tier 1
+threshold is ``AI_AGENTS_RETRO_NUDGE_THRESHOLD`` (a positive integer), else
+``FRICTION_TIER1_DEFAULT``. The literal ``0`` or ``off`` turns both branches
+off before any state or transcript is touched. When the scan stops on the
+time, byte, or event budget, the friction branch stays silent and the status
+line names the budget; the correction branch keeps working.
+
 Calibration status (issue #5820, AC-9): the patterns are anchored at the
 start of a turn or are fixed phrases, except one bounded "use ... instead"
 window. The original set was tuned on one operator's 191 human turns.
@@ -68,6 +80,7 @@ References:
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -75,18 +88,26 @@ import stat
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import ModuleType
 from typing import IO, Any
 
 HOOK_NAME = "reflect-trigger"
 MARKER_VERSION = 1
+THRESHOLD_ENV = "AI_AGENTS_RETRO_NUDGE_THRESHOLD"
+OFF_VALUES = frozenset({"0", "off"})
+_INTEGER = re.compile(r"[+-]?[0-9]{1,18}")
+FRICTION_FALLBACK_TIER1 = 10
+MAX_TIER = 32
 SESSION_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,128}")
 STATE_SUBDIR = "ai-agents-reflect-nudge"
 
 MAX_STDIN_BYTES = 1_000_000
 MAX_TRANSCRIPT_BYTES = 64 * 1024 * 1024
 MAX_LINE_CHARS = 1024 * 1024
+MAX_FRICTION_RECORDS = 200_000
+CONVERSATION_TYPES = frozenset({"assistant", "user"})
 SCAN_BUDGET_SECONDS = 2.0
 MAX_TURN_CHARS = 1000
 MARKER_MAX_AGE_SECONDS = 30 * 24 * 3600
@@ -142,9 +163,37 @@ MED_PATTERNS = tuple(
 )
 
 
+def _load_classifier() -> ModuleType | None:
+    """Import the shared classifier from the sibling ``lib`` directory, or None.
+
+    Installed layout: ``<root>/hooks/Stop/<this file>`` beside ``<root>/lib``,
+    for both ``.claude/`` and the plugin. The path comes from this file's own
+    location, never from an environment variable (AC-22). A missing or broken
+    library returns None, and the friction branch reports it and stays silent.
+    """
+    lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+    if os.path.isdir(lib_dir) and lib_dir not in sys.path:
+        sys.path.insert(0, lib_dir)
+    try:
+        return importlib.import_module("failure_classifier")
+    except Exception:  # fail-open: a broken lib must not break the correction branch
+        return None
+
+
+failure_classifier = _load_classifier()
+
+
 @dataclass(frozen=True, slots=True)
 class ScanResult:
-    """Counts from one transcript scan. Never holds transcript text."""
+    """Counts from one transcript scan. Never holds transcript text.
+
+    ``records`` carries the decoded conversation records for the friction
+    branch. It stays out of equality and repr, and the hook discards it after
+    scoring. ``stopped_on`` names the budget that ended the scan early
+    (``time`` or ``bytes``). ``dropped_records`` counts records past the event
+    cap: the scan still counts corrections for them, but the friction score
+    would be partial.
+    """
 
     user_records: int = 0
     human_turns: int = 0
@@ -152,6 +201,28 @@ class ScanResult:
     med: int = 0
     skipped_lines: int = 0
     truncated: bool = False
+    stopped_on: str = ""
+    dropped_records: int = 0
+    lines_scanned: int = 0
+    records: tuple[Mapping[str, Any], ...] = field(default=(), compare=False, repr=False)
+
+    @property
+    def friction_budget(self) -> str:
+        """Name of the budget that makes a friction score partial, or empty."""
+        if self.stopped_on:
+            return self.stopped_on
+        return "events" if self.dropped_records else ""
+
+
+@dataclass(frozen=True, slots=True)
+class Friction:
+    """The four counts of a FrictionScore, plus its tier. Integers only."""
+
+    score: int
+    tier: int
+    denials: int
+    stop_feedback: int
+    streak: int
 
 
 def read_payload(stream: IO[str]) -> dict[str, Any] | None:
@@ -244,27 +315,45 @@ def scan_transcript(
     *,
     clock: Callable[[], float] = time.monotonic,
     budget: float = SCAN_BUDGET_SECONDS,
+    collect: bool = False,
 ) -> ScanResult:
-    """Stream the transcript once, stopping at the wall-clock budget."""
+    """Stream the transcript once, stopping at the time or byte budget.
+
+    With ``collect`` the decoded conversation records are kept, up to
+    MAX_FRICTION_RECORDS, for the friction branch.
+    """
     deadline = clock() + budget
-    counts = {"user": 0, "human": 0, "high": 0, "med": 0, "skipped": 0}
-    truncated = False
+    counts = {"user": 0, "human": 0, "high": 0, "med": 0, "skipped": 0, "dropped": 0, "lines": 0}
+    kept: list[Mapping[str, Any]] | None = [] if collect else None
+    stopped_on = ""
+    seen_bytes = 0
     for line in _bounded_lines(handle):
         if clock() > deadline:
-            truncated = True
+            stopped_on = "time"
             break
-        _scan_line(line, counts)
+        seen_bytes += len(line.encode("utf-8", errors="replace"))
+        if seen_bytes > MAX_TRANSCRIPT_BYTES:
+            stopped_on = "bytes"
+            break
+        counts["lines"] += 1
+        _scan_line(line, counts, kept)
     return ScanResult(
         user_records=counts["user"],
         human_turns=counts["human"],
         high=counts["high"],
         med=counts["med"],
         skipped_lines=counts["skipped"],
-        truncated=truncated,
+        truncated=bool(stopped_on),
+        stopped_on=stopped_on,
+        dropped_records=counts["dropped"],
+        lines_scanned=counts["lines"],
+        records=tuple(kept) if kept is not None else (),
     )
 
 
-def _scan_line(line: str, counts: dict[str, int]) -> None:
+def _scan_line(
+    line: str, counts: dict[str, int], kept: list[Mapping[str, Any]] | None = None
+) -> None:
     if not line.strip():
         return
     try:
@@ -275,6 +364,8 @@ def _scan_line(line: str, counts: dict[str, int]) -> None:
     if not isinstance(record, dict):
         counts["skipped"] += 1
         return
+    if kept is not None:
+        _keep(record, counts, kept)
     if record.get("type") == "user":
         counts["user"] += 1
     if not is_human_turn(record):
@@ -283,6 +374,16 @@ def _scan_line(line: str, counts: dict[str, int]) -> None:
     correction, praise = classify(human_text(record))
     counts["high"] += int(correction)
     counts["med"] += int(praise and not correction)
+
+
+def _keep(record: Mapping[str, Any], counts: dict[str, int], kept: list[Mapping[str, Any]]) -> None:
+    """Keep a non-sidechain conversation record, or count it as over the cap."""
+    if record.get("type") not in CONVERSATION_TYPES or record.get("isSidechain") is True:
+        return
+    if len(kept) >= MAX_FRICTION_RECORDS:
+        counts["dropped"] += 1
+        return
+    kept.append(record)
 
 
 def has_signal(result: ScanResult) -> bool:
@@ -341,23 +442,45 @@ def _is_private(info: os.stat_result) -> bool:
     return os.name == "nt" or (info.st_mode & 0o077) == 0
 
 
-def claim_marker(directory: Path, session_id: str, result: ScanResult) -> bool:
-    """Atomically claim the (session, signal set) marker.
+def _claim(directory: Path, name: str, body: Mapping[str, Any]) -> bool:
+    """Create ``directory/name`` exclusively; False when it already exists.
 
-    Returns True for the one caller that created it and False when it already
-    exists. O_EXCL makes the create atomic across overlapping Stop events and
+    O_EXCL makes the create atomic across overlapping Stop events and
     refuses to follow a symlink planted at the leaf.
     """
-    marker = directory / f"{session_id}.{signal_hash(result)}.json"
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(marker, flags, 0o600)
+        fd = os.open(directory / name, flags, 0o600)
     except FileExistsError:
         return False
-    body = {"v": MARKER_VERSION, "high": result.high, "med": result.med}
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         json.dump(body, handle)
     return True
+
+
+def claim_marker(directory: Path, session_id: str, result: ScanResult) -> bool:
+    """Atomically claim the (session, signal set) correction marker."""
+    body = {"v": MARKER_VERSION, "high": result.high, "med": result.med}
+    return _claim(directory, f"{session_id}.{signal_hash(result)}.json", body)
+
+
+def friction_marker_name(session_id: str, tier: int) -> str:
+    """Marker file name keyed on (session, marker version, "friction", tier)."""
+    key = f"{session_id}:{MARKER_VERSION}:friction:{tier}"
+    return f"{session_id}.friction-{hashlib.sha256(key.encode()).hexdigest()[:16]}.json"
+
+
+def claim_friction_marker(directory: Path, session_id: str, friction: Friction) -> bool:
+    """Atomically claim the (session, tier) friction marker. Body: counts only."""
+    body = {
+        "v": MARKER_VERSION,
+        "tier": friction.tier,
+        "score": friction.score,
+        "denials": friction.denials,
+        "stop_feedback": friction.stop_feedback,
+        "streak": friction.streak,
+    }
+    return _claim(directory, friction_marker_name(session_id, friction.tier), body)
 
 
 def prune_markers(directory: Path, now: float) -> None:
@@ -372,22 +495,86 @@ def prune_markers(directory: Path, now: float) -> None:
             continue
 
 
-def build_message(result: ScanResult) -> str:
-    """Counts and the skill name only. Never quotes transcript text."""
-    return (
-        f"{HOOK_NAME}: detected {result.high} correction and "
-        f"{result.med} praise or preference signal(s) in this session. "
-        "Run the reflect skill to review and approve what to keep."
+def parse_threshold(env: Mapping[str, str], default: int) -> int | None:
+    """Return the tier 1 threshold, or None when the hook is off (AC-11 to AC-13).
+
+    Off is the literal ``0`` or ``off`` (case-insensitive, whitespace ignored).
+    ``00``, ``+0``, and ``-0`` are not off, and like a negative or non-integer
+    value they select ``default``. Only ASCII digits parse as an integer.
+    """
+    raw = env.get(THRESHOLD_ENV)
+    if raw is None:
+        return default
+    text = raw.strip()
+    if text in OFF_VALUES or text.lower() in OFF_VALUES:
+        return None
+    if not _INTEGER.fullmatch(text):
+        return default
+    value = int(text)
+    return value if value > 0 else default
+
+
+def friction_tier(score: int, threshold: int) -> int:
+    """Highest n with ``score >= threshold * 2**(n-1)``; 0 below the threshold."""
+    tier = 0
+    while tier < MAX_TIER and score >= threshold << tier:
+        tier += 1
+    return tier
+
+
+def compute_friction(result: ScanResult, threshold: int) -> Friction | None:
+    """Score the collected records, or None when the classifier is unavailable.
+
+    The weights, the score, and the denial markers all live in
+    ``failure_classifier`` (AC-43). This function holds no copy of them.
+    """
+    fc = failure_classifier
+    if fc is None:
+        return None
+    signals = fc.classify(fc.events_from_records(result.records))
+    feedback = fc.stop_feedback_count(result.records)
+    score = fc.friction_score(signals, feedback)
+    return Friction(
+        score=score,
+        tier=friction_tier(score, threshold),
+        denials=signals.permission_denial,
+        stop_feedback=feedback,
+        streak=signals.error_streak,
     )
 
 
-def status_line(result: ScanResult, outcome: str) -> str:
-    """Examined counts beside findings (ci-scripts MUST-12)."""
-    tail = ", scan truncated at budget" if result.truncated else ""
+def build_message(result: ScanResult) -> str:
+    """Counts and the skill name only. Never quotes transcript text."""
     return (
-        f"{HOOK_NAME}: {result.user_records} user records, "
+        f"{HOOK_NAME}: this session holds {result.high} correction and "
+        f"{result.med} praise or preference signal(s). "
+        "You can run /reflect to review and approve what to keep."
+    )
+
+
+def build_friction_message(friction: Friction) -> str:
+    """Fixed template: integers and the skill name only (AC-07)."""
+    return (
+        f"{HOOK_NAME}: this session shows friction (score {friction.score}, tier "
+        f"{friction.tier}): {friction.denials} permission denial(s), "
+        f"{friction.stop_feedback} Stop hook feedback message(s), and a longest "
+        f"error streak of {friction.streak}. "
+        "You can run /retrospective to review what went wrong."
+    )
+
+
+def status_line(result: ScanResult, outcome: str, friction_note: str = "") -> str:
+    """Examined counts beside findings (ci-scripts MUST-12)."""
+    budget = result.friction_budget
+    tail = f", scan truncated at {result.stopped_on} budget" if result.stopped_on else ""
+    if budget:
+        tail += f", friction skipped: {budget} budget"
+    tail += friction_note
+    return (
+        f"{HOOK_NAME}: {result.lines_scanned} lines scanned, {result.user_records} user records, "
         f"{result.human_turns} human turns, {result.high} HIGH, "
-        f"{result.med} MED, {result.skipped_lines} skipped lines "
+        f"{result.med} MED, {result.skipped_lines} skipped lines, "
+        f"{result.dropped_records} records over event cap "
         f"({outcome}{tail})"
     )
 
@@ -408,6 +595,10 @@ def run(
     now: Callable[[], float] = time.time,
 ) -> int:
     """Run one Stop event. Always returns 0."""
+    default = getattr(failure_classifier, "FRICTION_TIER1_DEFAULT", FRICTION_FALLBACK_TIER1)
+    threshold = parse_threshold(env, default)
+    if threshold is None:
+        return 0
     payload = read_payload(stdin)
     if payload is None:
         return _fail_open(stderr, "stop payload missing or malformed")
@@ -419,30 +610,43 @@ def run(
     if handle is None:
         return _fail_open(stderr, "transcript_path missing, unreadable, or too large")
     with handle:
-        result = scan_transcript(handle, clock=clock)
-    if not has_signal(result):
-        print(status_line(result, "silent"), file=stderr)
+        result = scan_transcript(handle, clock=clock, collect=failure_classifier is not None)
+    friction = None if result.friction_budget else compute_friction(result, threshold)
+    note = "" if failure_classifier is not None else ", friction skipped: classifier unavailable"
+    if friction is not None:
+        note = f", friction score {friction.score} tier {friction.tier}"
+    wants_friction = friction is not None and friction.tier >= 1
+    if not (has_signal(result) or wants_friction):
+        print(status_line(result, "silent", note), file=stderr)
         return 0
     root = state_root or default_state_root(env)
-    return _nudge_once(result, session_id, stdout, stderr, root, now)
+    return _nudge_once(result, friction, session_id, (stdout, stderr), root, now, note)
 
 
 def _nudge_once(
     result: ScanResult,
+    friction: Friction | None,
     session_id: str,
-    stdout: IO[str],
-    stderr: IO[str],
+    streams: tuple[IO[str], IO[str]],
     state_root: Path,
     now: Callable[[], float],
+    note: str,
 ) -> int:
+    stdout, stderr = streams
     directory = _safe_marker_dir(state_root)
     if directory is None:
         return _fail_open(stderr, "marker directory unsafe")
-    if not claim_marker(directory, session_id, result):
-        print(status_line(result, "already nudged"), file=stderr)
+    messages: list[str] = []
+    if has_signal(result) and claim_marker(directory, session_id, result):
+        messages.append(build_message(result))
+    if friction is not None and friction.tier >= 1:
+        if claim_friction_marker(directory, session_id, friction):
+            messages.append(build_friction_message(friction))
+    if not messages:
+        print(status_line(result, "already nudged", note), file=stderr)
         return 0
-    print(json.dumps({"systemMessage": build_message(result)}), file=stdout, flush=True)
-    print(status_line(result, "nudged"), file=stderr)
+    print(json.dumps({"systemMessage": "\n".join(messages)}), file=stdout, flush=True)
+    print(status_line(result, "nudged", note), file=stderr)
     try:
         prune_markers(directory, now())
     except OSError:

@@ -18,9 +18,14 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK_PATH = REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py"
+# The template tree has no sibling lib/. The installed hook finds the shared
+# classifier at <root>/lib; tests mirror that layout with the plugin source lib.
+PLUGIN_LIB = REPO_ROOT / "src" / "claude" / "lib"
 
 
 def _load() -> ModuleType:
+    if str(PLUGIN_LIB) not in sys.path:
+        sys.path.insert(0, str(PLUGIN_LIB))
     spec = importlib.util.spec_from_file_location("invoke_reflect_nudge", HOOK_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
