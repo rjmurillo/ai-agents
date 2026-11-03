@@ -64,7 +64,7 @@ class TestValidateSpecIsDeterministic:
     ) -> None:
         step = _verdict_step(validate_job)
 
-        assert step["run"].strip() == "python3 scripts/ci/spec_coverage_verdict.py"
+        assert step["run"].strip() == "python3 trusted-base/scripts/ci/spec_coverage_verdict.py"
         assert "continue-on-error" not in step
 
     def test_verdict_step_passes_the_body_through_env_only(

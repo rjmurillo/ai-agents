@@ -13,8 +13,6 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_extract_refs import (
     EXIT_EXTERNAL,
-    EXIT_OK,
-    _extract_incremental_scope,
     _extract_issue_refs,
     _extract_spec_refs,
     main,
@@ -243,18 +241,6 @@ class TestExtractIssueRefs:
     def test_collects_every_reference_in_a_multi_ref_body(self) -> None:
         body = "Refs #5574\nRefs #5624\nCloses #5610"
         assert sorted(_extract_issue_refs(body).split()) == ["5574", "5610", "5624"]
-
-
-class TestExtractIncrementalScope:
-    def test_returns_stdout_on_success(self) -> None:
-        mock = MagicMock(returncode=0, stdout="phase-1\n")
-        with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock):
-            assert _extract_incremental_scope("feat: phase-1 impl") == (EXIT_OK, "phase-1")
-
-    def test_returns_external_error_on_failure(self) -> None:
-        mock = MagicMock(returncode=1, stdout="", stderr="parser failed")
-        with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock):
-            assert _extract_incremental_scope("feat: unknown") == (EXIT_EXTERNAL, "")
 
 
 class TestRun:
@@ -489,5 +475,7 @@ class TestBothWorkflowsRunTheExtraction:
         extract = [s for s in steps if s.get("id") == "spec-ref"]
 
         assert len(extract) == 1
-        assert extract[0]["run"].strip() == "python3 scripts/ci/spec_extract_refs.py"
+        # The validation workflow grades from the trusted base checkout (issue #6506).
+        root = "trusted-base/" if filename == "ai-spec-validation.yml" else ""
+        assert extract[0]["run"].strip() == f"python3 {root}scripts/ci/spec_extract_refs.py"
         assert "PR_BODY_INPUT" in extract[0]["env"]

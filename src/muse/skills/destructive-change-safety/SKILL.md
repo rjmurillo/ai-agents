@@ -70,8 +70,17 @@ safe preview, say so and treat scope as unknown. Do not estimate.
 
 Choose one: `backup`, `snapshot`, `version`, or `irreversible`.
 
-- `backup`, `snapshot`, `version`: name the `ref` that restores it. For a file
-  overwrite, also give `backup_path` and `source_path`; the gate hashes both.
+- `backup`, `snapshot`, `version`: name the `ref` that restores it. The gate
+  checks what it can for each kind, and blocks when that check fails:
+  - `backup`: give `backup_path` and `source_path`; the gate hashes both and
+    requires a match. This is the only kind tied to the data at risk.
+  - `snapshot`: give `snapshot_path`. The gate checks only that it is an
+    existing file or a non-empty directory, not that it holds this data.
+  - `version`: `ref` must be a 40-hex commit id that `git cat-file` finds in
+    the repository. Any reachable commit passes.
+
+  A `snapshot` or `version` PASS means the path or commit exists. You still
+  own the claim that it restores the data the operation destroys.
 - `irreversible`: record the human approval. Per the AGENTS.md Autonomy
   Guardrail (irreversible goes to a human), an agent never invents a rollback
   or approves its own irreversible step. Law 2 in the
@@ -87,7 +96,7 @@ code from this run, not a prediction. Write the evidence file:
   "sinks": [{"location": "<file>:<line>", "trace": ["main", "apply_removals", "remove_worktree"]}],
   "preflight": {"command": "preview-sql ...", "exit_code": 0, "measured": 3},
   "expected": 3,
-  "rollback": {"kind": "snapshot", "ref": "snap-id"},
+  "rollback": {"kind": "snapshot", "ref": "snap-id", "snapshot_path": "backups/snap-id"},
   "approval": {"human": "required only when irreversible"},
   "checks": [{"command": "pytest -q", "exit_code": 0}]
 }
