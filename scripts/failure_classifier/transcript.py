@@ -12,7 +12,9 @@ Record shapes, observed in Claude Code transcripts (2026-11-01):
   ``{"type": "tool_result", "tool_use_id", "content", "is_error"?}`` blocks,
   where ``content`` is a string or a list of blocks and ``is_error`` is
   present only when true;
-- an ``isSidechain`` flag on every record.
+- an ``isSidechain`` flag on every record;
+- other record types, such as ``api-request-blob``, that embed copies of
+  earlier messages and are ignored.
 
 Each non-sidechain ``tool_use`` and its ``tool_result`` become exactly one
 FailureEvent, in result order. A use with no result yet emits nothing. A use
@@ -42,6 +44,9 @@ _TARGET_FIELDS: tuple[str, ...] = ("file_path", "notebook_path", "path")
 # explicit JSON null is input and serializes as ``null`` (AC-38), as consumer A
 # keys the string ``"null"`` (AC-39).
 _NO_INPUT = object()
+
+# The record types that carry the conversation's own tool calls.
+_CONVERSATION_TYPES: frozenset[str] = frozenset({"assistant", "user"})
 
 
 def _result_text(content: object) -> str:
@@ -84,23 +89,39 @@ def events_from_records(records: Iterable[object]) -> list[FailureEvent]:
     """Pair each non-sidechain tool_use with its tool_result (AC-38).
 
     Records that are not objects, or lack the expected shape, are skipped.
+    A resumed or compacted session can repeat earlier records, so a
+    ``tool_use`` id already paired emits nothing a second time.
     """
     uses: dict[str, tuple[str, object]] = {}
+    paired: set[str] = set()
     events: list[FailureEvent] = []
     for record in records:
         if not isinstance(record, Mapping) or record.get("isSidechain") is True:
             continue
+        # Only conversation records count. Other record types, such as
+        # ``api-request-blob``, embed copies of earlier messages.
+        record_type = record.get("type")
+        if record_type not in _CONVERSATION_TYPES:
+            continue
         for block in _blocks(record):
             kind = block.get("type")
-            if kind == "tool_use":
+            if kind == "tool_use" and record_type == "assistant":
                 use_id, name = block.get("id"), block.get("name")
-                if isinstance(use_id, str) and isinstance(name, str) and name.strip():
+                if (
+                    isinstance(use_id, str)
+                    and use_id not in paired
+                    and isinstance(name, str)
+                    and name.strip()
+                ):
                     uses[use_id] = (name, block["input"] if "input" in block else _NO_INPUT)
-            elif kind == "tool_result":
-                use_id = block.get("tool_use_id")
-                use = uses.pop(use_id, None) if isinstance(use_id, str) else None
+            elif kind == "tool_result" and record_type == "user":
+                result_id = block.get("tool_use_id")
+                if not isinstance(result_id, str):
+                    continue
+                use = uses.pop(result_id, None)
                 if use is None:
                     continue
+                paired.add(result_id)
                 name, tool_input = use
                 events.append(
                     FailureEvent.build(

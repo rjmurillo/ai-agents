@@ -122,6 +122,55 @@ class TestAC38TranscriptAdapter:
         assert signals.churn_totals() == {"a.py": {"bash|failed test_a": 3}}
 
 
+class TestAC38RepeatedRecords:
+    def test_repeated_use_and_result_emit_one_event(self) -> None:
+        # A resumed session repeats earlier records verbatim.
+        pair = [use("t1", "Bash", {"command": "pytest"}), result("t1", "boom", True)]
+        events = events_from_records(pair + pair + [result("t1", "boom", True)])
+        assert len(events) == 1
+        assert classify(events).failed_retry == 0
+
+    def test_request_blob_copies_are_ignored(self) -> None:
+        pair = [use("t1", "Bash", {"command": "pytest"}), result("t1", "boom", True)]
+        blob = {
+            "type": "api-request-blob",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "t2",
+                        "name": "Bash",
+                        "input": {"command": "pytest"},
+                    },
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "t2",
+                        "content": "boom",
+                        "is_error": True,
+                    },
+                ]
+            },
+        }
+        assert len(events_from_records([blob, *pair, blob])) == 1
+
+    def test_use_in_user_record_or_result_in_assistant_record_is_ignored(self) -> None:
+        wrong_use = use("t1", "Bash", {"command": "ls"})
+        wrong_use["type"] = "user"
+        wrong_result = result("t2", "boom", True)
+        wrong_result["type"] = "assistant"
+        records = [wrong_use, result("t1", "boom", True), use("t2", "Bash", {}), wrong_result]
+        assert events_from_records(records) == []
+
+    def test_distinct_ids_still_pair(self) -> None:
+        records = [
+            use("t1", "Bash", {"command": "pytest"}),
+            result("t1", "boom", True),
+            use("t2", "Bash", {"command": "pytest"}),
+            result("t2", "boom", True),
+        ]
+        assert classify(events_from_records(records)).failed_retry == 1
+
+
 class TestAC38MalformedRecords:
     @pytest.mark.parametrize(
         "record",
