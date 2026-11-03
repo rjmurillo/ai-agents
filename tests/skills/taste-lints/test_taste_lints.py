@@ -1156,3 +1156,124 @@ class TestSuppressionSurvivesFrontmatter:
         lines = ["# Title\n", "body\n"]
 
         assert _suppression_window(lines) == lines
+
+
+# --------------------------------------------------------------------------- #
+# ADR-119: src/claude/skills/<name>/ support files are source; SKILL.md renders
+# --------------------------------------------------------------------------- #
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/taste-lints/scripts/taste_lints.py",
+        "src/claude/skills/taste-lints/references/rules.md",
+        "src/claude/skills/build/scripts/validation_trigger.py",
+        "src/claude/skills/review/scripts/review_gate.py",
+        "src/claude/skills/review/SKILL.md.bak",
+        "src/claude/skills/review/references/SKILL.md",
+        "src/claude/lib/paths.py",
+    ],
+)
+def test_src_claude_skill_and_lib_sources_are_authored(relative: str) -> None:
+    assert classify_file_category(relative, ["x = 1\n"]) == "authored"
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/taste-lints/SKILL.md",
+        "src/claude/skills/review/SKILL.md",
+        "src/claude/skills/review/scripts/validate_review_marker.py",
+        "src/claude/hooks/SessionStart/invoke_context_loader.py",
+        "src/claude/lib/bootstrap.py",
+        "src/claude/lib/github_core/api.py",
+        "src/claude/agents/analyst.md",
+        "src/claude/rules/universal.md",
+    ],
+)
+def test_src_claude_rendered_files_are_generated(relative: str) -> None:
+    assert classify_file_category(relative, ["x = 1\n"]) == "generated"
+
+
+def _platform_output_roots() -> list[str]:
+    """Collect every output path templates/platforms/*.yaml declares."""
+    import yaml
+
+    path_keys = {"outputDir", "outputDirs", "outputScripts", "outputConfig"}
+    roots: set[str] = set()
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in path_keys and isinstance(value, str):
+                    roots.add(value)
+                elif key in path_keys and isinstance(value, list):
+                    roots.update(v for v in value if isinstance(v, str))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    for manifest in sorted((_REPO_ROOT / "templates" / "platforms").glob("*.yaml")):
+        walk(yaml.safe_load(manifest.read_text(encoding="utf-8")))
+    return sorted(roots)
+
+
+def test_platform_manifests_declare_output_roots() -> None:
+    roots = _platform_output_roots()
+
+    # Guard against a walker that silently finds nothing.
+    for expected in ("src/codex/skills", "src/cursor/skills", "src/hermes", "src/muse/skills"):
+        assert expected in roots
+
+
+@pytest.mark.parametrize("root", _platform_output_roots())
+def test_every_platform_output_root_is_generated(root: str) -> None:
+    # A new render tree in templates/platforms/*.yaml must be added to
+    # _GENERATED_PATH_SEGMENTS, or taste-lints flags its copies as authored.
+    root_path = Path(root)
+    probe = root_path if root_path.suffix else root_path / "pkg" / "module.py"
+
+    assert classify_file_category(str(probe), ["x = 1\n"]) == "generated"
+
+
+def _lib_mirror_destinations() -> list[str]:
+    """Collect every path build/scripts/lib_mirror.py renders from scripts/."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "lib_mirror", _REPO_ROOT / "build" / "scripts" / "lib_mirror.py"
+    )
+    assert spec is not None and spec.loader is not None
+    lib_mirror = importlib.util.module_from_spec(spec)
+    # Its dataclasses resolve their module through sys.modules at class build.
+    with patch.dict(sys.modules, {"lib_mirror": lib_mirror}):
+        spec.loader.exec_module(lib_mirror)
+
+    destinations: list[str] = []
+    for root in lib_mirror.PLUGIN_ROOTS:
+        destinations.extend(f"{root}/{pkg}/module.py" for pkg in lib_mirror.PACKAGES)
+        destinations.extend(f"{root}/{name}" for _, name in lib_mirror.SYNC_FILE_NAMES)
+    destinations.extend(lib_mirror.SKILLS_SIDECAR_PLUGIN_TREES)
+    return sorted(destinations)
+
+
+@pytest.mark.parametrize("destination", _lib_mirror_destinations())
+def test_every_lib_mirror_destination_is_generated(destination: str) -> None:
+    assert classify_file_category(destination, ["x = 1\n"]) == "generated"
+
+
+def test_every_plugin_skill_md_is_generated() -> None:
+    # Every shipped SKILL.md renders from templates/skills/<name>.SKILL.md.tmpl.
+    skill_mds = sorted((_REPO_ROOT / "src" / "claude" / "skills").glob("*/SKILL.md"))
+    assert skill_mds
+
+    for skill_md in skill_mds:
+        name = skill_md.parent.name
+        assert (_REPO_ROOT / "templates" / "skills" / f"{name}.SKILL.md.tmpl").is_file(), name
+        relative = skill_md.relative_to(_REPO_ROOT).as_posix()
+        assert classify_file_category(relative, []) == "generated", relative

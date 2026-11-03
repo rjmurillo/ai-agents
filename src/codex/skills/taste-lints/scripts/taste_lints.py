@@ -107,15 +107,20 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # testing.md included (see .agents/governance/GENERATOR-FILES.md).
     ("src", "claude", "rules"),
     (".claude", "rules"),
-    # ADR-109 B3: src/claude/skills/ is the skills class's plugin tree.
-    # Narrower than the agents/rules pattern above on purpose: only
-    # src/claude/skills/ is listed, not .claude/skills/, because
-    # skill_templates.compile_all renders ONLY SKILL.md into the plugin
-    # tree, so every file under src/claude/skills/ is generated, but
-    # .claude/skills/<name>/ also holds hand-maintained scripts,
-    # references, and tests, so that tree stays classified authored (the
-    # same reason it is absent from FILE_SIZE_EXEMPT_SEGMENTS above).
-    ("src", "claude", "skills"),
+    # ADR-109 B4: hook scripts render from templates/hooks/.
+    ("src", "claude", "hooks"),
+    # build/scripts/lib_mirror.py renders these from scripts/. The other
+    # top-level src/claude/lib modules, such as paths.py, are hand-maintained.
+    ("src", "claude", "lib", "ai_review_common"),
+    ("src", "claude", "lib", "bootstrap.py"),
+    ("src", "claude", "lib", "failure_classifier"),
+    ("src", "claude", "lib", "github_core"),
+    ("src", "claude", "lib", "hook_utilities"),
+    ("src", "claude", "skills", "review", "scripts", "validate_review_marker.py"),
+    # src/claude/skills/ is not listed. Under ADR-119 decision 3, a shipped
+    # skill's scripts, references, and tests are hand-maintained there, and
+    # .claude/skills/<name> links to them. Only <name>/SKILL.md renders, from
+    # templates/skills/; _generated_by_path matches that one file.
     # ADR-115 Decision 7: src/codex/skills/ and src/codex/lib/ are the same
     # copies again, minus the dropped model keys in SKILL.md. The
     # hand-written src/codex/plugin.json stays classified authored.
@@ -128,6 +133,9 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "muse", "skills"),
     ("src", "muse", "lib"),
 )
+# src/claude/skills/<name>/SKILL.md, rendered from templates/skills/. None
+# matches any skill name.
+_PLUGIN_SKILL_MD: tuple[str | None, ...] = ("src", "claude", "skills", None, "SKILL.md")
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",
     "GENERATED -- DO NOT EDIT",
@@ -179,6 +187,10 @@ def _generated_by_path(path: Path) -> bool:
     """True when the path alone marks a file generated (no body read needed)."""
     parts = _repo_relative_parts(path)
     if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
+        return True
+    if len(parts) == len(_PLUGIN_SKILL_MD) and all(
+        want is None or got == want for got, want in zip(parts, _PLUGIN_SKILL_MD, strict=True)
+    ):
         return True
     return path.name.startswith("pr-quality-gate-") and ".github" in parts
 
