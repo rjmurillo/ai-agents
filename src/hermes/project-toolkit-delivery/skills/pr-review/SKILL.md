@@ -32,7 +32,7 @@ install-trusted: the operator installed it and
 PR content cannot write there, so
 the gate skips the byte-identity check
 it would otherwise run against the trusted
-ref (#5112).
+ref.
 
 **Disjoint, not merely "outside."** Neither tree may be at or under the other,
 and the difference is not pedantic. A root of `$HOME` with the repository at

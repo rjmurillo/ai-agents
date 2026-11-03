@@ -153,7 +153,7 @@ path sits inside a quoted payload, so every Copilot run stopped.
   names a true install, which makes the target external and verified
   (`gate.py:1624-1629`, `1845-1852`, `4495-4496`). The shipped Codex,
   Cursor, and Hermes configs all carry a Copilot map at line 30, so the
-  first route never holds as shipped (`src/codex/.../pr-review-config.yaml:30`).
+  first route never holds as shipped (`src/codex/skills/pr-review/pr-review-config.yaml:30`).
 - An `--harness` value with no `scripts` map exits 2 before any verdict
   prints (`gate.py:4758-4768`).
 - `--harness` without `--verify-config-only` exits 2 (`gate.py:4694-4698`).
