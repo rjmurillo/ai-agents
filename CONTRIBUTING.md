@@ -34,6 +34,15 @@ Thank you for your interest in contributing to this project. This guide explains
 
 ### Setup Steps
 
+**One command.** From a fresh clone, this installs the locked environment and
+Git hooks, then runs a quick test to prove the setup works:
+
+```bash
+uv sync --frozen --extra dev && uv run --frozen lefthook install --reset-hooks-path && uv run --frozen lefthook check-install && git config blame.ignoreRevsFile .git-blame-ignore-revs && uv run --frozen pytest tests/test_workspace_limits.py -q
+```
+
+It covers steps 4, 6, and 7 below. Step 5 (Git configuration) stays manual.
+
 1. Fork the repository
 2. Clone your fork locally
 3. **Install Python 3.14.x** (see Prerequisites above)
@@ -43,6 +52,8 @@ Thank you for your interest in contributing to this project. This guide explains
 7. Hide the bulk format commit from blame: `git config blame.ignoreRevsFile .git-blame-ignore-revs`
 8. Make your changes following the guidelines below
 9. Submit a pull request
+
+**Open in dev container:** `.devcontainer/devcontainer.json` covers steps 3, 4, and 6; steps 5 and 7 stay manual. It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, then runs the `uv sync` and Lefthook commands above. It does not run the `tests/test_workspace_limits.py` check from the one command, so run that once to prove the environment. Use VS Code "Reopen in Container" or `devcontainer up --workspace-folder .`. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128. Each feature reference carries a sha256 digest, so integrity is verified on every client without an extra flag. Add `--frozen-lockfile` to also check the committed `devcontainer-lock.json` against the config. If you change a feature, run `devcontainer upgrade --workspace-folder .` and commit both files.
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 
@@ -780,6 +791,21 @@ The repository enforces quality automatically at multiple stages:
 
 **No manual test runs required for routine development.** Quality gates run automatically.
 
+### Type and Complexity Baselines
+
+mypy runs in strict mode. ruff enforces C901 with a max complexity of 15.
+Code that failed either check when it landed sits in a baseline in `pyproject.toml`:
+
+- The "Strict-mode baseline" `[[tool.mypy.overrides]]` entries. Each turns off only the strict checks its listed modules failed, which is one to three checks, so the rest of strict still applies. The baseline covers the code the mypy gate checks. The gate skips `src/claude/skills/`, because `.claude/skills/*` are symlinks into it, so that tree is not type-checked yet.
+- The `[tool.ruff.lint.extend-per-file-ignores]` table. Each entry waives C901 for one file.
+
+The baselines may only shrink. Do not add an entry for new code; fix the code.
+When you fix a listed module or file, delete its entry in the same change.
+`tests/test_strict_baselines.py` fails on a stale C901 entry and
+`tests/test_mypy_strict_baseline.py` on a stale mypy entry. Both read their
+baseline size from a constant in `tests/strict_baseline_helpers.py`, so adding an entry fails until you raise the
+matching constant in the same diff, which is the edit a reviewer sees.
+
 ### Manual Testing (Optional)
 
 For local debugging or development iteration:
@@ -801,6 +827,22 @@ uv run bandit -r .claude/ scripts/          # Static analysis
 # Run generation tests
 uv run pytest tests/build_scripts/test_generate_agents.py
 ```
+
+### Reading the Flaky Test Report
+
+When a CI pytest leg fails, `pytest.yml` reruns only the failed tests once.
+The rerun is serial and capped at 25 tests. `scripts/ci/flaky_test_report.py` then classifies each failure.
+
+- **flaky**: the test failed, then passed on rerun.
+- **consistent**: the test failed both times. Treat it as a real failure.
+- **unclassified**: no verdict. The rerun was skipped above the cap, did not finish, or gave an unusable result.
+
+The table appears in the leg's job summary, under "Flaky test report".
+Each flaky test also raises a warning annotation.
+The `flaky-tests-<partition>` artifact holds the same result as JSON.
+
+Detection never masks a failure. The leg stays red even when every failure was flaky.
+Fix the flaky test, then push again or re-run the job.
 
 ## Copilot CLI Version Management
 

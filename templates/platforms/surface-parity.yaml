@@ -272,6 +272,13 @@ surfaces:
     generator: build/scripts/generate_skills.py
     owner: build_all.py --check
     reason: Frontmatter keys model and model-rationale drop; the body ships verbatim (ADR-115 Decision 2).
+  - id: skills-muse
+    path: src/muse/skills
+    relation: translated
+    authority: src/claude/skills
+    generator: build/scripts/generate_skills.py
+    owner: build_all.py --check
+    reason: Frontmatter keeps only name and description (frontmatterKeep in templates/platforms/muse.yaml); the body ships verbatim.
 
   # ---- Lib packages -------------------------------------------------------
   - id: lib-hook-utilities-claude-plugin
@@ -386,6 +393,34 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-hook-utilities-muse-plugin
+    path: src/muse/lib/hook_utilities
+    relation: translated
+    authority: scripts/hook_utilities
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-github-core-muse-plugin
+    path: src/muse/lib/github_core
+    relation: translated
+    authority: scripts/github_core
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-ai-review-common-muse-plugin
+    path: src/muse/lib/ai_review_common
+    relation: translated
+    authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-bootstrap-muse-plugin
+    path: src/muse/lib/bootstrap.py
+    relation: translated
+    authority: scripts/hook_utilities/bootstrap.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
   - id: lib-paths-claude-plugin
     path: src/claude/lib/paths.py
     relation: independent
@@ -483,6 +518,11 @@ surfaces:
     relation: independent
     include: ["plugin.json"]
     reason: Plugin manifest is authored in place (ADR-115 Decision 1).
+  - id: src-muse-authored
+    path: src/muse
+    relation: independent
+    include: ["README.md"]
+    reason: Tree guide and Muse install instructions are authored in place; Muse has no plugin manifest.
   - id: claude-guides
     path: .claude
     relation: independent
@@ -503,6 +543,7 @@ surfaces:
       - copilot-instructions.md
       - dependabot.yml
       - labeler.yml
+      - release.yml
     reason: Repository configuration authored in place.
   - id: github-workflows
     path: .github/workflows

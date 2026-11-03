@@ -36,7 +36,14 @@ class TestMergeFeedsTheSave:
             for s in steps_using("test", "actions/upload-artifact")
             if str(s["with"]["name"]).startswith("pytest-results-")
         ]
-        assert [s["with"]["path"] for s in uploads] == [f"{runner.LEG_DURATIONS_DIR}/"]
+        # The include comes first and the only negation is the flaky rerun
+        # output, so the leg's durations file still ships. Assert the whole
+        # pattern list: comparing only the first token would hide a later
+        # exclusion that removes the durations file or the results report.
+        patterns = [str(s["with"]["path"]).split() for s in uploads]
+        assert patterns == [
+            [f"{runner.LEG_DURATIONS_DIR}/", "!artifacts/flaky/"],
+        ]
 
     def test_the_merge_job_downloads_the_leg_artifacts(self) -> None:
         downloads = steps_using("test-durations", "actions/download-artifact")
