@@ -409,8 +409,10 @@ def validate(
     return defects
 
 
-def _summary(record: object, defects: list[str], record_path: Path) -> dict[str, Any]:
-    """Build the stdout summary for a validated record."""
+def _summary(
+    record: object, defects: list[str], record_path: Path, checks: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Build the stdout summary; ``checks`` says which optional checks ran."""
     data = record if isinstance(record, dict) else {}
     targets = data.get("targets")
     targets = targets if isinstance(targets, list) else []
@@ -425,6 +427,7 @@ def _summary(record: object, defects: list[str], record_path: Path) -> dict[str,
         "targets": len(targets),
         "categories": dict(sorted(categories.items())),
         "defects": defects,
+        "checks": checks or {},
     }
 
 
@@ -466,13 +469,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ImportError) as exc:
             print(f"validation_record: cannot load sibling trigger: {exc}", file=sys.stderr)
             return 2
-    collector: Collector = partial(collect_tests, repo_root=args.repo_root or Path.cwd())
+    collect = partial(collect_tests, repo_root=args.repo_root or Path.cwd())
+    collected: list[Sequence[str]] = []
+
+    def collector(paths: Sequence[str]) -> list[str]:
+        collected.append(paths)
+        return collect(paths)
+
     try:
         defects = validate(record, args.changed_path, args.repo_root, trigger_module, collector)
     except (PytestUnavailableError, TriggerRecheckError) as exc:
         print(f"validation_record: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps(_summary(record, defects, args.record), sort_keys=True))
+    # An ok record with no recheck and no collection passed fewer checks; say so.
+    checks = {"trigger_recheck": trigger_module is not None, "collected_targets": len(collected)}
+    print(json.dumps(_summary(record, defects, args.record, checks), sort_keys=True))
     return 1 if defects else 0
 
 

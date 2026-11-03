@@ -32,15 +32,43 @@ def test_version_with_an_uppercase_commit_id_passes() -> None:
     assert rollback_checks.version_reasons(rollback) == []
 
 
-def test_version_commit_unknown_to_git_blocks() -> None:
+def test_version_commit_unknown_to_git_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(Path(__file__).resolve().parent)
     reasons = rollback_checks.version_reasons({"kind": "version", "ref": "0" * 40})
-    assert reasons == ["rollback version ref is not a commit in this repository"]
+    assert len(reasons) == 1
+    assert reasons[0].startswith("rollback version ref did not resolve to a commit (git exit 128)")
+    assert "Not a valid object name" in reasons[0]
+
+
+def test_version_outside_a_repository_names_the_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Outside a repo git also exits 128; the reason must say why, not blame the ref."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    reasons = rollback_checks.version_reasons({"kind": "version", "ref": "a" * 40})
+    assert len(reasons) == 1
+    assert "not a git repository" in reasons[0]
+
+
+def test_version_failure_with_no_stderr_still_gives_a_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def silent(*args: Any, **kwargs: Any) -> Any:
+        return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(rollback_checks.subprocess, "run", silent)
+    reasons = rollback_checks.version_reasons({"kind": "version", "ref": "a" * 40})
+    assert reasons == ["rollback version ref did not resolve to a commit (git exit 1): no stderr"]
 
 
 @pytest.mark.parametrize(
     ("error", "reason"),
     [
-        (FileNotFoundError("git"), "rollback version ref could not be checked: git did not run"),
+        (
+            FileNotFoundError("git"),
+            "rollback version ref could not be checked: git did not run: git",
+        ),
         (
             subprocess.TimeoutExpired(["git"], 30),
             "rollback version ref could not be checked: git did not finish within 30s",

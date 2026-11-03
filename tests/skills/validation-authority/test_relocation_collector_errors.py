@@ -100,3 +100,34 @@ def test_collect_tests_ignores_warning_text_that_holds_a_double_colon(tmp_path: 
 
     assert len(ids) == 1
     assert ids[0].endswith("test_w.py::test_a")
+
+
+def test_collection_error_names_the_import_failure(tmp_path: Path) -> None:
+    """The cause line survives, not only pytest's "no tests collected" tally."""
+    module = tmp_path / "tests" / "v" / "test_bad.py"
+    module.parent.mkdir(parents=True)
+    module.write_text("import missing_pkg_for_6506\n\n\ndef test_a():\n    assert True\n")
+
+    with pytest.raises(collector_mod.CollectionError) as caught:
+        collector_mod.collect_tests(["tests/v/test_bad.py"], tmp_path)
+
+    message = str(caught.value)
+    assert message.startswith("pytest collection exited 2: ERROR tests/v/test_bad.py")
+    assert "ModuleNotFoundError: No module named 'missing_pkg_for_6506'" in message
+    assert "no tests collected" in message
+
+
+@pytest.mark.parametrize(
+    ("stdout", "detail"),
+    [
+        ("", "no output"),
+        ("only a tally line\n", "only a tally line"),
+        (
+            "".join(f"ERROR tests/t{i}.py\n" for i in range(5)) + "1 error\n",
+            "ERROR tests/t0.py | ERROR tests/t1.py | ERROR tests/t2.py | 1 error",
+        ),
+    ],
+)
+def test_failure_detail_caps_error_lines(stdout: str, detail: str) -> None:
+    result = subprocess.CompletedProcess(["pytest"], 2, stdout=stdout, stderr="")
+    assert collector_mod._failure_detail(result) == detail

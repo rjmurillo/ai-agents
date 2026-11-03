@@ -91,9 +91,29 @@ def collect_tests(paths: Sequence[str], repo_root: Path) -> list[str]:
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise CollectionError(f"pytest collection could not run: {exc}") from exc
     if result.returncode != 0:
-        tail = (result.stdout + result.stderr).strip().splitlines()[-1:] or ["no output"]
-        raise CollectionError(f"pytest collection exited {result.returncode}: {tail[0]}")
+        raise CollectionError(
+            f"pytest collection exited {result.returncode}: {_failure_detail(result)}"
+        )
     return [line.strip() for line in result.stdout.splitlines() if "::" in line]
+
+
+_DETAIL_LINES = 3
+
+
+def _failure_detail(result: subprocess.CompletedProcess[str]) -> str:
+    """Name the cause of a failed collection in a few lines.
+
+    pytest's last line is only the tally ("no tests collected, 1 error"). The
+    cause sits in the ``ERROR <path>`` summary lines and the first ``E   ``
+    traceback line, so keep those, capped, and end with the tally.
+    """
+    lines = (result.stdout + result.stderr).strip().splitlines()
+    if not lines:
+        return "no output"
+    errors = [line.strip() for line in lines if line.startswith("ERROR ")]
+    first_e = next((line.strip() for line in lines if line.startswith("E   ")), None)
+    cause = errors[:_DETAIL_LINES] + ([first_e] if first_e else [])
+    return " | ".join([*cause, lines[-1].strip()])
 
 
 def collected_defects(where: str, target: dict[str, Any], collector: Collector) -> list[str]:

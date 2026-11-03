@@ -92,6 +92,9 @@ jobs:
       # Rollout: a PR runs its own workflow against the base branch scripts.
       # Land a script interface change (env names, outputs, a new script) in
       # one PR first, then the workflow change that uses it in a later PR.
+      # Isolation starts with the first PR after this lands: until then the
+      # base branch spec_extract_refs.py still starts its scope helper from
+      # the PR tree, so this PR and older ones still run that helper.
       - name: Checkout trusted base scripts
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1-3-g0c366fd (untagged, one commit before v6.0.2)
         with:

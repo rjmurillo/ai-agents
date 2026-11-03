@@ -320,6 +320,7 @@ class Finding:
     rose: bool = False
     grew: bool = False
     base_terms: int | None = None
+    terms: int = 0
 
 
 def _reported_label(classification: Classification) -> str | None:
@@ -365,6 +366,7 @@ def evaluate_file(relpath: str, text: str, read_base: Callable[[], str] | None) 
         and base_terms is not None
         and classification.term_count > base_terms,
         base_terms=base_terms,
+        terms=classification.term_count,
     )
 
 
@@ -385,7 +387,7 @@ def format_finding_line(finding: Finding) -> str:
     if finding.rose:
         line += f" [rose from {finding.base_label}]"
     if finding.grew:
-        line += f" [normative terms grew from {finding.base_terms}]"
+        line += f" [normative terms grew from {finding.base_terms} to {finding.terms}]"
     return line
 
 

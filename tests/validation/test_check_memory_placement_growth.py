@@ -42,7 +42,7 @@ def test_normative_file_that_gains_must_lines_fails(repo, capsys):
     git(repo, "add", OLD)
 
     assert checker.main(["--ci", "--staged", "--base", "HEAD", OLD]) == 1
-    assert "[normative terms grew from 0]" in capsys.readouterr().out
+    assert "[normative terms grew from 0 to 3]" in capsys.readouterr().out
 
 
 def test_normative_file_that_gains_a_single_term_fails(repo):
@@ -93,6 +93,7 @@ def test_term_growth_is_reported_in_json(repo, capsys):
     assert finding["grew"] is True
     assert finding["rose"] is False
     assert finding["base_terms"] == 0
+    assert finding["terms"] == 1
 
 
 def test_swapping_one_rule_for_another_passes_because_totals_are_compared(repo):

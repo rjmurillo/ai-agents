@@ -91,7 +91,7 @@ upstream validator.
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `validation_record.py` (this skill's script directory) | Checks the Phase 2b decision record: field shape, provenance/authority rules, and changed-path coverage. Emits a JSON summary of target count, counts by category, and defects. | `0` record passed, `1` the record has defects, `2` config error (unreadable file, invalid JSON, the sibling `build` trigger could not be loaded or could not read its inputs when `--changed-path` needed it, or pytest is not installed) |
+| `validation_record.py` (this skill's script directory) | Checks the Phase 2b decision record: field shape, provenance/authority rules, and changed-path coverage. Emits a JSON summary of target count, counts by category, defects, and `checks` (whether the trigger recheck ran, and how many targets real collection checked). | `0` record passed, `1` the record has defects, `2` config error (unreadable file, invalid JSON, the sibling `build` trigger could not be loaded or could not read its inputs when `--changed-path` needed it, or pytest is not installed) |
 
 ## Validation Change Record
 

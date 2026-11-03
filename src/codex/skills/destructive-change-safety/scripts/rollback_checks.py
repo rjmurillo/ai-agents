@@ -5,7 +5,10 @@ cannot be trusted. An empty list means the named recovery path is real:
 
 - backup: both files exist, their sizes match, and their SHA-256 hashes match.
 - snapshot: ``snapshot_path`` is an existing file or a non-empty directory.
-- version: ``ref`` is a 40-hex commit id that ``git cat-file`` resolves.
+  This proves the path exists. It does not prove the path holds a valid
+  snapshot of the data at risk; the evidence author owns that claim.
+- version: ``ref`` is a 40-hex commit id that ``git cat-file`` resolves. Any
+  reachable commit passes; the check does not tie it to the destroyed data.
 
 Split out of ``gate_verdict.py`` so the verdict rules stay free of file and
 subprocess access. The version check is the only subprocess: a fixed
@@ -83,6 +86,9 @@ def version_reasons(rollback: dict[str, object]) -> list[str]:
         result = subprocess.run(
             ["git", "cat-file", "-e", f"{ref}^{{commit}}"],
             capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_GIT_TIMEOUT_SECONDS,
             check=False,
         )
@@ -91,13 +97,17 @@ def version_reasons(rollback: dict[str, object]) -> list[str]:
             "rollback version ref could not be checked: "
             f"git did not finish within {_GIT_TIMEOUT_SECONDS}s"
         ]
-    except OSError:
-        return ["rollback version ref could not be checked: git did not run"]
-    return (
-        []
-        if result.returncode == 0
-        else ["rollback version ref is not a commit in this repository"]
-    )
+    except OSError as exc:
+        return [f"rollback version ref could not be checked: git did not run: {exc}"]
+    if result.returncode == 0:
+        return []
+    # git exits 128 both for an unknown object and for "not a git repository",
+    # so the exit code cannot name the cause. Its first stderr line can.
+    detail = (result.stderr or "").strip().splitlines()[:1] or ["no stderr"]
+    return [
+        f"rollback version ref did not resolve to a commit (git exit {result.returncode}): "
+        f"{detail[0]}"
+    ]
 
 
 KIND_CHECKS: dict[str, Callable[[dict[str, object]], list[str]]] = {

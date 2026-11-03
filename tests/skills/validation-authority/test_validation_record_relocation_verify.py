@@ -295,6 +295,8 @@ def test_cli_passes_a_pure_move_from_the_real_repo_root(tmp_path: Path) -> None:
         str(PROJECT_ROOT),
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    checks = json.loads(result.stdout)["checks"]
+    assert checks == {"trigger_recheck": True, "collected_targets": 1}
 
 
 def test_collector_is_not_called_when_a_moved_to_path_fails_the_scope_rule() -> None:

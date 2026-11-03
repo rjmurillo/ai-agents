@@ -12,6 +12,9 @@ from typing import Any
 import destructive_gate
 import pytest
 
+# A dedicated snapshot file, so a fixture never passes by naming the test itself.
+SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "users-snapshot.sql"
+
 SCRIPT = Path(destructive_gate.__file__)
 
 
@@ -46,7 +49,7 @@ def evidence_for(measured: int, expected: int, location: str) -> dict[str, Any]:
         "sinks": [{"location": location, "trace": ["main", "purge"]}],
         "preflight": {"command": "preview-sql", "exit_code": 0, "measured": measured},
         "expected": expected,
-        "rollback": {"kind": "snapshot", "ref": "snap-1", "snapshot_path": __file__},
+        "rollback": {"kind": "snapshot", "ref": "snap-1", "snapshot_path": str(SNAPSHOT)},
         "checks": [{"command": "pytest -q", "exit_code": 0}],
     }
 

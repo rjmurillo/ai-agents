@@ -9,13 +9,16 @@ from typing import Any
 import gate_verdict
 import pytest
 
+# A dedicated snapshot file, so a fixture never passes by naming the test itself.
+SNAPSHOT = Path(__file__).resolve().parent / "fixtures" / "users-snapshot.sql"
+
 
 def good_evidence() -> dict[str, Any]:
     return {
         "sinks": [{"location": "store.py:10", "trace": ["main", "purge"]}],
         "preflight": {"command": "preview-sql ...", "exit_code": 0, "measured": 3},
         "expected": 3,
-        "rollback": {"kind": "snapshot", "ref": "snap-2026-10-11", "snapshot_path": __file__},
+        "rollback": {"kind": "snapshot", "ref": "snap-2026-10-11", "snapshot_path": str(SNAPSHOT)},
         "checks": [{"command": "pytest -q", "exit_code": 0}],
     }
 
