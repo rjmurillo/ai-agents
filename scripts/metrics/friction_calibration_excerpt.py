@@ -160,9 +160,14 @@ def fit_to_budget(lines: list[str], max_bytes: int) -> str:
 
 
 def excerpt_session(
-    path: Path, stop: int, max_bytes: int = DEFAULT_MAX_BYTES
+    path: Path, stop: int, max_bytes: int = DEFAULT_MAX_BYTES, event: int | None = None
 ) -> tuple[str, dict[str, int]]:
-    """Excerpt of ``path`` up to Stop ``stop``, plus that Stop's four counts."""
+    """Excerpt of ``path`` up to Stop ``stop``, plus that Stop's four counts.
+
+    With ``event``, the excerpt instead ends at that event's tool_result, so a
+    judge sees nothing after a consumer A first fire. The counts stay the
+    Stop's.
+    """
     tracker = Tracker()
     with path.open(encoding="utf-8", errors="replace") as handle:
         records = list(iter_records(handle, tracker))
@@ -173,4 +178,8 @@ def excerpt_session(
     prefix = records[: record_bounds[stop]]
     events = events_from_records(prefix)
     counts = stop_counts(classify(events[: event_bounds[stop]]))
+    if event is not None:
+        if not 0 <= event < len(tracker.event_records):
+            raise StopOutOfRangeError(f"event {event} not in 0..{len(tracker.event_records) - 1}")
+        prefix = records[: tracker.event_records[event] + 1]
     return fit_to_budget(render_lines(prefix), max_bytes), counts

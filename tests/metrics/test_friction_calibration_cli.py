@@ -471,3 +471,26 @@ class TestPrivateOutput:
         )
         assert out.stat().st_mode & 0o777 == 0o600
         assert out.read_text(encoding="utf-8") != "old"
+
+
+class TestReplayOutput:
+    def test_sessions_jsonl_is_owner_only(self, tmp_path: Path) -> None:
+        pattern = make_corpus(tmp_path / "corpus", count=1)
+        out = tmp_path / "out"
+        assert (
+            cal.main(
+                [
+                    "replay",
+                    "--corpus-glob",
+                    pattern,
+                    "--since",
+                    "2026-10-03",
+                    "--until",
+                    "2026-11-02",
+                    "--out",
+                    str(out),
+                ]
+            )
+            == 0
+        )
+        assert (out / "sessions.jsonl").stat().st_mode & 0o777 == 0o600

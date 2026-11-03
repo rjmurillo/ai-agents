@@ -147,9 +147,9 @@ def cmd_replay(args: argparse.Namespace) -> int:
         if result.row is not None and result.cands is not None:
             rows.append(result.row)
             cands.append(result.cands)
-    with (out / "sessions.jsonl").open("w", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, sort_keys=True) + "\n")
+    _write_private(
+        out / "sessions.jsonl", "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
+    )
     sizes = write_samples(out / "samples", cands)
     print(summarize(rows, counts, subagents))
     print(f"samples            : {sizes}")
@@ -212,7 +212,7 @@ def cmd_excerpt(args: argparse.Namespace) -> int:
         print(f"error: session {args.session!r} not found", file=sys.stderr)
         return EXIT_CONFIG
     try:
-        text, counts = excerpt_session(path, args.stop, args.max_bytes)
+        text, counts = excerpt_session(path, args.stop, args.max_bytes, args.event)
     except StopOutOfRangeError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_CONFIG
@@ -246,6 +246,9 @@ def build_parser() -> argparse.ArgumentParser:
     excerpt.add_argument("--stop", type=int, required=True)
     excerpt.add_argument("--out", required=True)
     excerpt.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)
+    excerpt.add_argument(
+        "--event", type=int, default=None, help="end the excerpt at this 0-based event instead"
+    )
     excerpt.set_defaults(func=cmd_excerpt)
     return parser
 

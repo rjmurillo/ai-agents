@@ -327,3 +327,46 @@ class TestClipBoundary:
             out = clip("x" * lead + " " + FAKE_TOKEN, 200)
             assert "A1b2C3d4" not in out
             assert len(out) <= 200
+
+
+class TestReviewFixes:
+    def test_every_later_retrospective_is_kept(self, row) -> None:
+        records = [
+            human("go"),
+            human("/retrospective"),
+            human("next"),
+            human("/retrospective"),
+        ]
+        result_row = row(records)
+        assert result_row["retro_after_stop"] == 0
+        assert result_row["retro_stops"] == [0, 2]
+
+    def test_denial_sample_carries_the_matching_line(self) -> None:
+        assert scan.matching_line(
+            "Exit code 1\nPermission for this command was denied", "was denied"
+        ) == ("Permission for this command was denied")
+        assert scan.matching_line("no match here", "denied") == ""
+
+
+class TestExcerptAtEvent:
+    def test_event_cut_hides_later_calls(self, tmp_path: Path) -> None:
+        from scripts.metrics.friction_calibration_excerpt import excerpt_session
+
+        path = write(
+            tmp_path / "s.jsonl",
+            [human("go"), *call(1, err="first"), *call(2, err="second"), human("next")],
+        )
+        text, _ = excerpt_session(path, 0, event=0)
+        assert "first" in text and "second" not in text
+        full, _ = excerpt_session(path, 0)
+        assert "second" in full
+
+    def test_event_out_of_range_is_rejected(self, tmp_path: Path) -> None:
+        from scripts.metrics.friction_calibration_excerpt import (
+            StopOutOfRangeError,
+            excerpt_session,
+        )
+
+        path = write(tmp_path / "s.jsonl", [human("go"), *call(1, err="first")])
+        with pytest.raises(StopOutOfRangeError):
+            excerpt_session(path, 0, event=5)

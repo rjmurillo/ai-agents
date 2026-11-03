@@ -55,7 +55,7 @@ The 46 were relabeled from excerpts that end at the crossing Stop, as the rubric
 
 The nudge-Stop labels are the result of record. The labels CSV holds them.
 
-Consumer A excerpts end at the Stop that holds the first fire, not at the fired call itself. So the judge may have seen later calls in that turn.
+Consumer A was relabeled the same way. Its excerpts now end at the fired call itself, not at the Stop that holds it.
 
 ## Finding: the adapter double counted
 
@@ -113,7 +113,7 @@ All 8,984 sessions finished inside the budget: 64 MiB and 2.0 seconds.
 
 ## SLI 5: conversion baseline
 
-3 of the 76 sessions that would nudge later ran `/retrospective` in the same session, which is 3.9 percent. Over the whole corpus, 4 sessions ran it.
+3 of the 76 sessions that would nudge later ran `/retrospective` in the same session, which is 3.9 percent. Over the whole corpus, 4 sessions ran it. The replay records every invocation, not just the first, so a retrospective that comes after an earlier one still counts.
 
 The baseline is under 20 percent, so the spec's rule for a higher kill floor does not apply.
 
@@ -123,7 +123,7 @@ Deviation: SLI 5 names the 11 Q5 sessions as its corpus. This report uses the fu
 
 `check-failures` was replayed with the defaults 3, 3, and 20, called after every event.
 
-- `failure-repeat` first fired 24 times. The judge called 0 looping, 23 not looping, and 1 unclear. Precision is 0 percent, with a Wilson upper bound of 13.8 percent.
+- `failure-repeat` first fired 24 times. With excerpts that end at the fired call, the judge called 0 looping, 21 not looping, and 3 unclear. Precision is 0 percent, with a Wilson upper bound of 13.8 percent. A first pass, with excerpts that ran to the end of the turn, also found 0 looping.
 - `edit-churn` never fired.
 
 There are at least 20 labeled `failure-repeat` nudges and precision is under 50 percent. Under the SLI 6 kill rule, TASK-008 raises that signal's default.
@@ -134,7 +134,7 @@ The SLO cannot be set from this measurement, since the spec puts the floor at 50
 
 ## DENIAL_MARKERS check
 
-The judge labeled 21 marker matches and a sample of 104 unmatched denial-like words.
+The judge labeled 21 marker matches and a sample of 104 unmatched denial-like words. Each sample shows the error line that holds the term, not only the first line. A first pass on first lines gave the same counts.
 
 | Term | Denial | Not denial | Typical line |
 |---|---|---|---|
@@ -166,11 +166,11 @@ Causes seen in the sample:
 
 ## Billed cost
 
-Subagent tokens for this task totaled 1,664,735:
+Subagent tokens for this task totaled 2,146,541:
 
 - 167,729 for the replay script.
-- 1,384,292 for eleven judge runs, including the two relabel runs.
-- 112,714 for the review of this branch.
+- 1,604,984 for thirteen judge runs, including four relabel runs.
+- 373,828 for three review rounds.
 
 The parent session's own tokens are not measured here. No dollar figure is given, because the per-token price was not checked.
 

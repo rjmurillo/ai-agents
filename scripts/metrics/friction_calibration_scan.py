@@ -159,6 +159,10 @@ class Tracker:
     stop_records: list[int] = field(default_factory=list)
     retro_after_stop: int | None = None
     retro_seen: bool = False
+    # Every Stop index after which a retrospective ran, in order, no repeats.
+    retro_stops: list[int] = field(default_factory=list)
+    # Record index of each event's tool_result, for an excerpt cut at an event.
+    event_records: list[int] = field(default_factory=list)
     pending: set[str] = field(default_factory=set)
     paired: set[str] = field(default_factory=set)
 
@@ -176,9 +180,13 @@ class Tracker:
             if self.human_turns > 1:
                 self.stop_events.append(self.event_count)
                 self.stop_records.append(self.records - 1)
-        if not self.retro_seen and is_retro_invocation(record):
-            self.retro_seen = True
-            self.retro_after_stop = len(self.stop_events) - 1 if self.stop_events else None
+        if is_retro_invocation(record):
+            after = len(self.stop_events) - 1 if self.stop_events else None
+            if not self.retro_seen:
+                self.retro_seen = True
+                self.retro_after_stop = after
+            if after is not None and after not in self.retro_stops:
+                self.retro_stops.append(after)
 
     def _pair(self, record: Mapping[str, Any]) -> None:
         # Mirrors events_from_records: conversation records only, and an id
@@ -201,6 +209,7 @@ class Tracker:
                     self.pending.discard(use_id)
                     self.paired.add(use_id)
                     self.event_count += 1
+                    self.event_records.append(self.records - 1)
 
 
 def iter_records(handle: IO[str], tracker: Tracker) -> Iterator[dict[str, Any]]:
@@ -377,6 +386,12 @@ def tally_events(
     return hits, shell
 
 
+def matching_line(text: str, term: str) -> str:
+    """The first line holding ``term`` (any case), so a judge sees what matched."""
+    needle = term.lower()
+    return next((line.strip() for line in text.splitlines() if needle in line.lower()), "")
+
+
 def _tally_error(
     event: FailureEvent, session_id: str, hits: dict[str, int], cands: Candidates
 ) -> None:
@@ -384,13 +399,12 @@ def _tally_error(
     matched = [marker for marker in DENIAL_MARKERS if marker in lowered]
     for marker in matched:
         hits[marker] += 1
-    line = first_error_line(event.error)
     if matched:
-        cands.denial.offer((session_id, matched[0], line))
+        cands.denial.offer((session_id, matched[0], matching_line(event.error, matched[0])))
         return
     word = next((w for w in DENIAL_LIKE_WORDS if w in lowered), None)
     if word is not None and not is_denial(event.error):
-        cands.word.offer((session_id, word, line))
+        cands.word.offer((session_id, word, matching_line(event.error, word)))
 
 
 def _tally_shell(
@@ -465,6 +479,7 @@ def scan_session(path: Path, seed: int) -> SessionScan:
         "stops": prefix_stops(events, stop_events, final),
         "failed_retry_broad": broad_failed_retry(events),
         "retro_after_stop": tracker.retro_after_stop,
+        "retro_stops": tracker.retro_stops,
         "scan_seconds": round(scan_seconds, 4),
         "within_budget": size <= budgets.MAX_TRANSCRIPT_BYTES
         and scan_seconds <= budgets.SCAN_BUDGET_SECONDS,
