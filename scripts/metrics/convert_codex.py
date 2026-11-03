@@ -14,7 +14,8 @@ in the 31 days before 2026-11-03:
 - ``response_item`` ``function_call`` / ``function_call_output`` pair by
   ``call_id`` and carry no error flag. ``custom_tool_call`` is the ``exec``
   JavaScript wrapper around the items above; it is emitted only when its
-  output opens with ``Script failed``, so inner calls are not counted twice.
+  output opens with ``Script failed`` and no item completed inside its span
+  was itself an error, so a failed inner call is not counted twice.
 - Human prompts are ``UserMessage`` items. Legacy sessions use ``event_msg``
   ``user_message``; sessions with neither fall back to ``response_item``
   user messages. Injected context (AGENTS.md, ``<environment_context>``) is
@@ -50,7 +51,12 @@ if (_PROJECT_ROOT / "scripts" / "validation" / "models.py").is_file() and str(
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.failure_classifier.transcript import STOP_FEEDBACK_PREFIX  # noqa: E402
-from scripts.metrics.convert_common import safe_session_id, write_private  # noqa: E402
+from scripts.metrics.convert_common import (  # noqa: E402
+    dump_jsonl,
+    ensure_private_dir,
+    safe_session_id,
+    write_private,
+)
 from scripts.metrics.friction_calibration import inside_repository  # noqa: E402
 
 _SHELL_FLAGS = frozenset({"-c", "-lc", "-ic", "-ilc"})
@@ -188,8 +194,7 @@ class _Session:
         }
         self.agents: dict[str, list[tuple[int, dict[str, Any]]]] = {"item": [], "resp": []}
         self.hooks: list[tuple[int, dict[str, Any]]] = []
-        self.calls: dict[str, tuple[str, str, object]] = {}
-        self.errored = 0
+        self.calls: dict[str, tuple[str, str, object, int]] = {}
 
     def add_pair(self, idx: int, pair: list[dict[str, Any]]) -> None:
         self.tools.extend((idx, rec) for rec in pair)
@@ -246,7 +251,7 @@ class _Session:
             call_id, name = payload.get("call_id"), payload.get("name")
             raw = payload.get("arguments" if kind == "function_call" else "input")
             if isinstance(call_id, str) and isinstance(name, str):
-                self.calls[call_id] = (kind, name, raw)
+                self.calls[call_id] = (kind, name, raw, len(self.tools))
         elif kind in ("function_call_output", "custom_tool_call_output"):
             self._output(idx, ts, kind, payload)
 
@@ -255,14 +260,25 @@ class _Session:
         call = self.calls.pop(call_id, None) if isinstance(call_id, str) else None
         if call is None:
             return
-        _, name, raw = call
+        _, name, raw, start = call
         text = _text_blocks(payload.get("output"))
         if kind == "custom_tool_call_output":
             if name != _EXEC_WRAPPER or not text.startswith(_WRAPPER_FAILURE):
                 return
+            if self._inner_errored(start):
+                return
             self.add_pair(idx, _tool_pair(ts, str(call_id), name, {"code": raw}, text, True))
             return
         self.add_pair(idx, _tool_pair(ts, str(call_id), name, _function_input(raw), text, False))
+
+    def _inner_errored(self, start: int) -> bool:
+        """True when an item completed inside a wrapper's span was itself an error."""
+        for _, rec in self.tools[start:]:
+            content = rec.get("message", {}).get("content")
+            first = content[0] if isinstance(content, list) and content else {}
+            if first.get("is_error") is True:
+                return True
+        return False
 
     def _human(self, source: str, idx: int, ts: str, text: str) -> None:
         if _human_ok(text):
@@ -314,7 +330,7 @@ def _count(records: list[dict[str, Any]]) -> Counter[str]:
 
 
 def _write(path: Path, records: list[dict[str, Any]]) -> None:
-    write_private(path, "".join(json.dumps(rec, ensure_ascii=False) + "\n" for rec in records))
+    write_private(path, dump_jsonl(records))
 
 
 def convert_files(paths: Iterable[str], out_dir: Path, since: date) -> Counter[str]:
@@ -359,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
     if inside_repository(args.out_dir):
         print(f"error: out dir {args.out_dir} is inside a git repository", file=sys.stderr)
         return 2
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(args.out_dir)
     totals = convert_files(sorted(glob.glob(args.src_glob, recursive=True)), args.out_dir, since)
     for key in ("files", "sessions", *COUNTER_KEYS, "skipped"):
         print(f"{key}={totals[key]}")

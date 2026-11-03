@@ -295,7 +295,7 @@ def test_run_writes_private_files_and_totals(tmp_path: Path) -> None:
     assert (stats.errored_results, stats.human_turns, stats.hook_blocks) == (1, 1, 0)
     target = out_dir / "s1.jsonl"
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
-    lines = [json.loads(line) for line in target.read_text().splitlines()]
+    lines = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()]
     assert [r["type"] for r in lines] == ["user", "assistant", "user"]
     assert all(r["timestamp"] == TS for r in lines)
 
@@ -306,7 +306,7 @@ def test_write_private_tightens_existing_file_mode(tmp_path: Path) -> None:
     os.chmod(path, 0o644)
     cd.write_private(path, [{"a": "é"}])
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
-    assert json.loads(path.read_text()) == {"a": "é"}
+    assert json.loads(path.read_text(encoding="utf-8")) == {"a": "é"}
 
 
 def test_summary_formats_skips() -> None:
@@ -383,3 +383,21 @@ def test_planted_symlink_at_output_is_not_written_through(tmp_path: Path) -> Non
     target = out_dir / "s.jsonl"
     assert not target.is_symlink()
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_run_creates_out_dir_0700_and_tightens_existing(tmp_path: Path) -> None:
+    pattern = str(tmp_path / "none" / "*" / "*.jsonl")
+    fresh = tmp_path / "fresh"
+    cd.run(pattern, fresh, SINCE)
+    assert stat.S_IMODE(fresh.stat().st_mode) == 0o700
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    loose.chmod(0o755)
+    cd.run(pattern, loose, SINCE)
+    assert stat.S_IMODE(loose.stat().st_mode) == 0o700
+
+
+def test_lone_surrogate_in_record_is_escaped_not_a_write_crash(tmp_path: Path) -> None:
+    path = tmp_path / "x.jsonl"
+    cd.write_private(path, [{"a": "x\ud800y"}])
+    assert path.read_bytes().isascii()

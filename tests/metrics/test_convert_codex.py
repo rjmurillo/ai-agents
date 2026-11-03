@@ -165,6 +165,88 @@ def test_exec_wrapper_only_emitted_on_failure() -> None:
     assert blocks[1]["is_error"] is True
 
 
+def _wrapper_span(call_id: str, text: str, inner: list[str]) -> list[str]:
+    call = {"type": "custom_tool_call", "name": "exec", "call_id": call_id, "input": "tools.x()"}
+    out = {
+        "type": "custom_tool_call_output",
+        "call_id": call_id,
+        "output": [{"type": "input_text", "text": text}],
+    }
+    return [_line("response_item", call), *inner, _line("response_item", out)]
+
+
+def _error_ids(recs: list[dict[str, Any]]) -> list[str]:
+    return [b["tool_use_id"] for b in _blocks(recs) if b.get("is_error") is True]
+
+
+def test_failed_wrapper_is_dropped_when_an_inner_item_errored() -> None:
+    span = _wrapper_span("w1", "Script failed\nboom", [_cmd("c1", "false", 1, "bad")])
+    _, _, recs = _convert(_meta(), *span)
+    assert _error_ids(recs) == ["c1"]
+
+
+def test_failed_wrapper_is_kept_when_inner_items_succeeded() -> None:
+    span = _wrapper_span("w1", "Script failed\nTypeError", [_cmd("c1", "true", 0, "ok")])
+    _, _, recs = _convert(_meta(), *span)
+    assert _error_ids(recs) == ["w1"]
+
+
+def test_failed_wrapper_is_kept_when_no_inner_items() -> None:
+    _, _, recs = _convert(_meta(), *_wrapper_span("w1", "Script failed\nSyntaxError", []))
+    assert _error_ids(recs) == ["w1"]
+
+
+def test_inner_error_outside_the_wrapper_span_does_not_hide_it() -> None:
+    before = _cmd("c0", "false", 1, "bad")
+    span = _wrapper_span("w1", "Script failed\nboom", [])
+    _, _, recs = _convert(_meta(), before, *span)
+    assert _error_ids(recs) == ["c0", "w1"]
+
+
+def test_failed_wrapper_is_dropped_when_an_inner_mcp_call_errored() -> None:
+    mcp = _item(
+        {
+            "type": "McpToolCall",
+            "id": "m1",
+            "server": "s",
+            "tool": "t",
+            "error": {"message": "nope"},
+            "status": "failed",
+        }
+    )
+    _, _, recs = _convert(_meta(), *_wrapper_span("w1", "Script failed\nx", [mcp]))
+    assert _error_ids(recs) == ["m1"]
+
+
+def test_lone_surrogate_in_input_is_escaped_not_a_write_crash(tmp_path: Path) -> None:
+    src = _write_src(tmp_path / "rollout-a.jsonl", _meta(), _cmd("c", "x", 1, "bad \ud800 text"))
+    out = tmp_path / "out"
+    out.mkdir()
+    totals = cc.convert_files([src], out, date(2026, 1, 1))
+    assert totals["sessions"] == 1
+    raw = (out / "sess-1.jsonl").read_bytes()
+    assert raw.isascii()
+    assert b"ud800" in raw
+
+
+def test_main_creates_out_dir_0700_and_tightens_existing(tmp_path: Path) -> None:
+    out = tmp_path / "fresh"
+    assert (
+        cc.main(
+            ["--src-glob", str(tmp_path / "none"), "--out-dir", str(out), "--since", "2026-10-01"]
+        )
+        == 0
+    )
+    assert stat.S_IMODE(out.stat().st_mode) == 0o700
+    existing = tmp_path / "loose"
+    existing.mkdir()
+    existing.chmod(0o755)
+    cc.main(
+        ["--src-glob", str(tmp_path / "none"), "--out-dir", str(existing), "--since", "2026-10-01"]
+    )
+    assert stat.S_IMODE(existing.stat().st_mode) == 0o700
+
+
 def test_human_prompt_versus_injected_context() -> None:
     def user(text: str) -> str:
         return _item(
@@ -290,7 +372,7 @@ def test_convert_files_counts_modes_and_since(tmp_path: Path) -> None:
     assert (totals["tool_calls"], totals["errored"]) == (1, 1)
     target = out / "sess-1.jsonl"
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
-    assert len(target.read_text().splitlines()) == 2
+    assert len(target.read_text(encoding="utf-8").splitlines()) == 2
 
 
 def test_duplicate_session_ids_get_distinct_files(tmp_path: Path) -> None:

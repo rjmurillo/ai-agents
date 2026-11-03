@@ -117,7 +117,9 @@ chooses which events to report.
 6. **Counts.** `counts` reports every failure in the window: `tool_error`,
    `permission_denial` (error text holding "was denied", "permission to use",
    "user doesn't want to proceed", "hook error", "<tool_use_error>blocked", or
-   "requires approval"; these are Claude Code wordings), `failed_retry` (a failure
+   "requires approval" from Claude Code, "permission denied because no
+   interactive user response" from Copilot CLI, or "rejected by user approval
+   settings" from Codex CLI), `failed_retry` (a failure
    whose `tool`, `input`, and fingerprint match an earlier failure with no
    success for that `tool` and `input` between), and `unfingerprinted`.
    Events without `input` are never retries.

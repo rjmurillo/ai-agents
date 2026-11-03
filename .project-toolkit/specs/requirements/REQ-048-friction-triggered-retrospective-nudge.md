@@ -188,10 +188,11 @@ The correction marker key (`invoke_reflect_nudge.py:293-295,351`) stays unchange
 Definitions:
 
 - `tool_error`: a `tool_result` block with `is_error: true` that is not a `permission_denial`.
-- `permission_denial`: an errored `tool_result` whose text contains, case-insensitive, any entry of `DENIAL_MARKERS`. The set is `was denied`, `permission to use`, `user doesn't want to proceed`, `hook error`, `<tool_use_error>blocked`, and `requires approval`. TASK-001 checked it against a labeled corpus on 2026-11-03:
+- `permission_denial`: an errored `tool_result` whose text contains, case-insensitive, any entry of `DENIAL_MARKERS`. The set is `was denied`, `permission to use`, `user doesn't want to proceed`, `hook error`, `<tool_use_error>blocked`, and `requires approval` (Claude Code), plus `permission denied because no interactive user response` (Copilot CLI) and `rejected by user approval settings` (Codex CLI). TASK-001 checked it against a labeled corpus on 2026-11-03:
   - `rejected` matched 0 real denials in 15 samples (git push and ripgrep errors), so it was removed.
   - `permission denied` was removed because it is also the Unix file-access error.
   - The three middle entries cover the Claude Code permission, hook, and harness blocks that the initial set missed.
+  - The Copilot and Codex entries are those harnesses' exact wordings, so `check-failures` counts stay right there. Adding them changed no Claude Code count (0 per-Stop mismatches on the 30-day corpus).
 - `error_streak`: the longest run of consecutive errored `tool_result` blocks in the scan, unfingerprinted ones included.
 - `stop_feedback`: the count of non-sidechain user records whose text starts with `Stop hook feedback:`. Claude Code adds that text when a Stop hook blocks the stop. A high count means the session kept trying to stop and could not.
 - `failed_retry`: an errored call whose ProgressKey and Fingerprint match an earlier errored call in the window, with no success for that key between the two calls. Each match after the first counts once. A repeat after a success (polling) does not count, and neither does a retry that fails with a different fingerprint. This amends the 2026-10-31 definition, which counted the repeat of the previous call whatever its outcome.

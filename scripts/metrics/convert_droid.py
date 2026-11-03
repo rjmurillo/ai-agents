@@ -58,7 +58,6 @@ from scripts.metrics.friction_calibration import inside_repository  # noqa: E402
 EXIT_OK = 0
 EXIT_CONFIG = 2
 FILE_MODE = 0o600
-DIR_MODE = 0o700
 HUMAN_SOURCE = "cli_tui"
 SHELL_TOOL = "Execute"
 TOOL_RENAMES = {SHELL_TOOL: "Bash", "ApplyPatch": "apply_patch"}
@@ -249,9 +248,7 @@ def first_day(records: Iterable[dict[str, Any]]) -> date | None:
 
 
 def write_private(path: Path, records: list[dict[str, Any]]) -> None:
-    convert_common.write_private(
-        path, "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
-    )
+    convert_common.write_private(path, convert_common.dump_jsonl(records))
 
 
 def convert_file(
@@ -282,7 +279,7 @@ def convert_file(
 
 
 def run(src_glob: str, out_dir: Path, since: date, include_subagents: bool = False) -> Stats:
-    out_dir.mkdir(parents=True, exist_ok=True, mode=DIR_MODE)
+    convert_common.ensure_private_dir(out_dir)
     total = Stats()
     written: set[str] = set()
     for name in sorted(glob.glob(os.path.expanduser(src_glob))):

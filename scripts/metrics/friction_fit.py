@@ -150,11 +150,14 @@ def weight_grid() -> tuple[Weights, ...]:
 def best_config(
     pre: Pre, labels: Mapping[Unit, str], keys: Sequence[str], min_units: int
 ) -> tuple[tuple[float, float, int, int, int], Weights, int] | None:
-    """The eligible config with the best selection key, or None."""
+    """The eligible config with the best selection key, or None.
+
+    A config with no firing units is never eligible, whatever ``min_units`` is.
+    """
     best: tuple[tuple[float, float, int, int, int], Weights, int] | None = None
     for weights, threshold in itertools.product(weight_grid(), THRESHOLDS):
         n, worth, unlabeled = tally(pre, labels, keys, weights, threshold)
-        if n < min_units or unlabeled:
+        if n == 0 or n < min_units or unlabeled:
             continue
         rank = (wilson_lower(worth, n), worth / n, n, -sum(weights), -threshold)
         if best is None or rank > best[0]:
@@ -186,20 +189,50 @@ def _read_text(path: Path) -> str:
         raise InputError(f"cannot read {path}: {error.strerror or error}") from error
 
 
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _stop_row(path: Path, key: str, stop: object) -> tuple[int, tuple[int, ...]]:
+    where = f"{path}: session {key}"
+    if not isinstance(stop, dict):
+        raise InputError(f"{where}: stop is not an object")
+    if not _is_int(stop.get("index")):
+        raise InputError(f"{where}: stop 'index' missing or not an int")
+    counts: list[int] = []
+    for _, field, _ in SIGNALS:
+        if not _is_int(stop.get(field)):
+            raise InputError(f"{where}: stop field {field!r} missing or not an int")
+        counts.append(stop[field])
+    return stop["index"], tuple(counts)
+
+
+def _session_rows(path: Path) -> dict[str, dict[str, Any]]:
+    sessions: dict[str, dict[str, Any]] = {}
+    for number, row in enumerate(_load_jsonl(path), start=1):
+        if not isinstance(row, dict):
+            raise InputError(f"{path}: row {number} is not an object")
+        session_id = row.get("session_id")
+        if not isinstance(session_id, str):
+            raise InputError(f"{path}: row {number} has no string 'session_id'")
+        sessions[session_id] = row
+    return sessions
+
+
 def load_pre(path: Path, keys: Iterable[str]) -> Pre:
     """Per-session (stop index, signal counts) rows for the tuning sessions."""
-    sessions = {row["session_id"]: row for row in _load_jsonl(path)}
+    sessions = _session_rows(path)
     wanted = list(keys)
     missing = [key for key in wanted if key not in sessions]
     if missing:
         raise InputError(f"{path}: {len(missing)} tuning sessions absent, e.g. {missing[0]}")
-    return {
-        key: [
-            (stop["index"], tuple(int(stop[field]) for _, field, _ in SIGNALS))
-            for stop in sessions[key]["stops"]
-        ]
-        for key in wanted
-    }
+    pre: Pre = {}
+    for key in wanted:
+        stops = sessions[key].get("stops")
+        if not isinstance(stops, list):
+            raise InputError(f"{path}: session {key} has no 'stops' list")
+        pre[key] = [_stop_row(path, key, stop) for stop in stops]
+    return pre
 
 
 def load_tune_keys(path: Path) -> list[str]:

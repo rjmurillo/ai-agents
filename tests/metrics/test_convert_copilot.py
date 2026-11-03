@@ -227,7 +227,7 @@ def test_run_writes_private_file_and_counts(tmp_path: Path) -> None:
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
     assert (counts.files, counts.sessions, counts.tool_calls) == (1, 1, 2)
     assert (counts.errored, counts.human_turns, counts.skipped) == (1, 1, 1)
-    records = [json.loads(line) for line in target.read_text().splitlines()]
+    records = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()]
     assert [e.ok for e in events_from_records(records)] == [True, False]
 
 
@@ -254,7 +254,7 @@ def test_run_replaces_existing_output(tmp_path: Path) -> None:
     pattern = str(src / "*" / "events.jsonl")
     cc.run(pattern, out, date(2026, 10, 3))
     cc.run(pattern, out, date(2026, 10, 3))
-    assert len((out / "sess-1.jsonl").read_text().splitlines()) == 5
+    assert len((out / "sess-1.jsonl").read_text(encoding="utf-8").splitlines()) == 5
 
 
 def test_main_refuses_out_dir_inside_repo(
@@ -301,3 +301,27 @@ def test_run_skips_file_older_than_since_without_reading(tmp_path: Path) -> None
     os.utime(old, (1_600_000_000, 1_600_000_000))
     counts = cc.run(str(src / "*" / "events.jsonl"), out, date(2026, 10, 3))
     assert (counts.files, counts.sessions, counts.skipped) == (1, 0, 1)
+
+
+def test_run_creates_out_dir_0700_and_tightens_existing(tmp_path: Path) -> None:
+    pattern = str(tmp_path / "none" / "*" / "events.jsonl")
+    fresh = tmp_path / "fresh"
+    cc.run(pattern, fresh, date(2026, 10, 3))
+    assert stat.S_IMODE(fresh.stat().st_mode) == 0o700
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    loose.chmod(0o755)
+    cc.run(pattern, loose, date(2026, 10, 3))
+    assert stat.S_IMODE(loose.stat().st_mode) == 0o700
+
+
+def test_lone_surrogate_in_input_does_not_crash_the_write(tmp_path: Path) -> None:
+    src, out = tmp_path / "src", tmp_path / "out"
+    events = _session_events()
+    events.append(_ev("user.message", content="bad \ud800 text"))
+    _write_session(src, "sess-1", events)
+    counts = cc.run(str(src / "*" / "events.jsonl"), out, date(2026, 10, 3))
+    assert counts.sessions == 1
+    raw = (out / "sess-1.jsonl").read_bytes()
+    assert raw.isascii()
+    assert b"ud800" in raw

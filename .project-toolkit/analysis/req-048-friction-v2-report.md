@@ -105,11 +105,13 @@ The config does not carry over.
 
 | Harness | Sessions | Nudges | Top score | Cause |
 |---|---|---|---|---|
-| Codex | 792 | 0 | 3 | Denials read "rejected by user approval settings" or "blocked by read-only sandbox". No stop-hook blocks fell in the window. |
-| Copilot | 367 | 1 | 153 | Mostly synthetic probe sessions (246 tool calls). Its 35 real denials read "Permission denied because no interactive user response was available". |
+| Codex | 792 | 0 | 3 | Only 1 session carries a denial, even with the Codex wording added. "Blocked by read-only sandbox" is a sandbox error, not a policy denial. No stop-hook blocks fell in the window. |
+| Copilot | 366 | 2 | 153 | Mostly synthetic probe sessions (246 tool calls). With the Copilot wording added, 18 sessions carry a denial. |
 | Droid | 20 | 0 | 6 | 149 of 170 recent sessions are subagent sessions. All 591 Stop hook results had exit code 0, so no block was seen; whether Droid records a block at all is INFERRED, not observed. |
 
 ### What this means
+
+- These counts include the Copilot and Codex denial wordings added to `DENIAL_MARKERS` after review. Before them, the nudge counts were 0 for Codex and 1 for Copilot.
 
 - Two of the three weighted signals read Claude Code text: `DENIAL_MARKERS` and the `Stop hook feedback:` prefix.
 - Copilot marks a denial structurally, with `error.code` set to `denied`.

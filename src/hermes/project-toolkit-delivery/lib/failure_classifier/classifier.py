@@ -30,9 +30,12 @@ EDIT_TOOLS: frozenset[str] = frozenset(
 
 # An errored result holding one of these (any case) is a permission_denial,
 # not a tool_error. The set was checked against a labeled corpus on 2026-11-03
-# (REQ-048 TASK-001). These are Claude Code wordings. `permission denied`
-# is dropped: a Unix EACCES error is a tool error, not a policy denial. So is
-# `rejected`, which matched only git push and ripgrep errors.
+# (REQ-048 TASK-001). Each entry is a harness's own wording, Claude Code
+# first, then Copilot CLI, then Codex CLI. A bare `permission denied` is
+# dropped: a Unix EACCES error is a tool error, not a policy denial, so the
+# Copilot entry keeps its full phrase. A bare `rejected` is dropped too: it
+# matched only git push and ripgrep errors, so the Codex entry is the full
+# phrase.
 DENIAL_MARKERS: tuple[str, ...] = (
     "was denied",
     "permission to use",
@@ -40,6 +43,8 @@ DENIAL_MARKERS: tuple[str, ...] = (
     "hook error",
     "<tool_use_error>blocked",
     "requires approval",
+    "permission denied because no interactive user response",
+    "rejected by user approval settings",
 )
 
 # REQ-048 TASK-001 friction v2: consumer B's score is the weighted sum of its

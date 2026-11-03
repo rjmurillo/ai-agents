@@ -83,7 +83,12 @@ def hook() -> ModuleType:
         raise ImportError(f"cannot load {HOOK_PATH}")
     module = util.module_from_spec(spec)
     sys.modules.setdefault("invoke_reflect_nudge", module)
-    spec.loader.exec_module(module)
+    # Write no __pycache__ into templates/: the lossless-templates test reads it.
+    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = saved
     return module
 
 

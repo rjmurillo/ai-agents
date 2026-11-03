@@ -50,7 +50,12 @@ if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.failure_classifier.transcript import STOP_FEEDBACK_PREFIX  # noqa: E402
-from scripts.metrics.convert_common import safe_session_id, write_private  # noqa: E402
+from scripts.metrics.convert_common import (  # noqa: E402
+    dump_jsonl,
+    ensure_private_dir,
+    safe_session_id,
+    write_private,
+)
 from scripts.metrics.friction_calibration import inside_repository  # noqa: E402
 
 SHELL_TOOLS: frozenset[str] = frozenset({"bash", "powershell", "shell"})
@@ -273,14 +278,13 @@ def convert_file(path: Path, out_dir: Path, since: date) -> Counts:
     if session_id is None or started is None or started < since or not records:
         total.skipped += counts.skipped + 1
         return total
-    body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
-    write_private(out_dir / f"{session_id}.jsonl", body)
+    write_private(out_dir / f"{session_id}.jsonl", dump_jsonl(records))
     counts.files, counts.sessions = 1, 1
     return counts
 
 
 def run(src_glob: str, out_dir: Path, since: date) -> Counts:
-    out_dir.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(out_dir)
     total = Counts()
     for name in sorted(glob.glob(os.path.expanduser(src_glob))):
         path = Path(name)

@@ -166,3 +166,79 @@ def test_cli_exits_2_when_tuning_session_absent(tmp_path: Path) -> None:
     argv = _write_inputs(tmp_path)
     (tmp_path / "split.json").write_text(json.dumps({"tune": ["ghost"]}), encoding="utf-8")
     assert ff.main(argv) == 2
+
+
+def test_config_with_zero_firing_units_is_ineligible_at_min_units_zero() -> None:
+    pre: ff.Pre = {"a": [(0, QUIET)], "b": [(0, QUIET)]}
+    assert ff.best_config(pre, {}, ["a", "b"], 0) is None
+
+
+def test_best_config_at_min_units_zero_still_picks_a_firing_config() -> None:
+    best = ff.best_config(_pre(), {("a", 0): "worth_it", ("b", 2): "worth_it"}, ["a", "b"], 0)
+    assert best is not None
+    assert best[0][2] > 0
+
+
+def test_cli_min_train_zero_exits_2_not_a_traceback_when_nothing_fires(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = _write_inputs(tmp_path)
+    quiet = {"index": 0, "tool_error": 0, "denial_v2": 0, "stop_feedback": 0, "error_streak_max": 0}
+    rows = [{"session_id": f"s{i}", "stops": [quiet]} for i in range(6)]
+    (tmp_path / "sessions.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8"
+    )
+    argv[argv.index("--min-train") + 1] = "0"
+    argv[argv.index("--min-final") + 1] = "0"
+    assert ff.main(argv) == 2
+    assert "no eligible" in capsys.readouterr().err
+
+
+_GOOD_STOP = {
+    "index": 0,
+    "tool_error": 0,
+    "denial_v2": 2,
+    "stop_feedback": 3,
+    "error_streak_max": 1,
+}
+
+
+def _bad_stop(**changes: object) -> dict[str, object]:
+    stop: dict[str, object] = dict(_GOOD_STOP)
+    for key, value in changes.items():
+        if value is None:
+            stop.pop(key)
+        else:
+            stop[key] = value
+    return stop
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "[1, 2]",
+        '"text"',
+        "7",
+        json.dumps({"stops": [_GOOD_STOP]}),
+        json.dumps({"session_id": 5, "stops": [_GOOD_STOP]}),
+        json.dumps({"session_id": "s0"}),
+        json.dumps({"session_id": "s0", "stops": "nope"}),
+        json.dumps({"session_id": "s0", "stops": [7]}),
+        json.dumps({"session_id": "s0", "stops": [_bad_stop(index=None)]}),
+        json.dumps({"session_id": "s0", "stops": [_bad_stop(denial_v2=None)]}),
+        json.dumps({"session_id": "s0", "stops": [_bad_stop(index="0")]}),
+        json.dumps({"session_id": "s0", "stops": [_bad_stop(stop_feedback=1.5)]}),
+        json.dumps({"session_id": "s0", "stops": [_bad_stop(error_streak_max=True)]}),
+        json.dumps({"session_id": "s0", "stops": [_bad_stop(tool_error=None)]}),
+    ],
+)
+def test_cli_exits_2_with_one_stderr_line_on_malformed_sessions_row(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], line: str
+) -> None:
+    argv = _write_inputs(tmp_path)
+    (tmp_path / "sessions.jsonl").write_text(line + "\n", encoding="utf-8")
+    (tmp_path / "split.json").write_text(json.dumps({"tune": ["s0"]}), encoding="utf-8")
+    assert ff.main(argv) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert len(err.splitlines()) == 1

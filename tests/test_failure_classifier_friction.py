@@ -36,6 +36,8 @@ class TestDenialMarkers:
             "hook error",
             "<tool_use_error>blocked",
             "requires approval",
+            "permission denied because no interactive user response",
+            "rejected by user approval settings",
         )
 
     @pytest.mark.parametrize("marker", DENIAL_MARKERS)
@@ -47,6 +49,32 @@ class TestDenialMarkers:
         "error", ["Permission denied", "! [rejected] main -> main", "rejected"]
     )
     def test_removed_markers_are_tool_errors(self, error: str) -> None:
+        signals = classify([ev("Bash", False, error)])
+        assert (signals.permission_denial, signals.tool_error) == (0, 1)
+
+
+class TestHarnessDenialWordings:
+    @pytest.mark.parametrize(
+        "error",
+        [
+            "Permission denied because no interactive user response was available",
+            "command rejected by user approval settings",
+        ],
+    )
+    def test_copilot_and_codex_wordings_are_denials(self, error: str) -> None:
+        signals = classify([ev("Bash", False, error)])
+        assert (signals.permission_denial, signals.tool_error) == (1, 0)
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            "bash: ./run.sh: Permission denied",
+            "Permission denied because the file is read-only",
+            "rejected by the remote",
+            "rejected by user",
+        ],
+    )
+    def test_unix_eacces_and_partial_wordings_stay_tool_errors(self, error: str) -> None:
         signals = classify([ev("Bash", False, error)])
         assert (signals.permission_denial, signals.tool_error) == (0, 1)
 
