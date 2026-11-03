@@ -1369,8 +1369,10 @@ class CommandTrustCheck(NamedTuple):
 
     ``checked_files`` and ``untrusted_files`` hold work-tree-relative
     POSIX paths (``untrusted_files`` also carries the raw token of any
-    repo-local path that escapes the work tree). ``skipped_external_files``
-    holds absolute paths outside the work tree and
+    repo-local path that escapes the work tree). Files in another work
+    tree of this repository (D10) appear in both, and in
+    ``skipped_untracked_files``, as absolute paths. ``skipped_external_files``
+    holds absolute install paths outside every such work tree and
     ``skipped_untracked_files`` work-tree paths git does not track;
     both are recorded but never compared. ``detail`` carries the error
     description when ``status`` is :data:`COMMAND_TRUST_GIT_ERROR`.
@@ -1415,6 +1417,13 @@ def _are_disjoint(first: Path, second: Path) -> bool:
 # behavior with no source and when the table cannot be read.
 _PINNED_LINK_SOURCE: tuple[str, Path] | None = None
 _PINNED_LINKS: tuple[Path, dict[str, str]] | None = None
+
+# Resolved roots of other work trees of THIS repository (D10, #6506) that the
+# command trust check is verifying right now. The pinned-link table is keyed
+# by repo-relative path, so a link in such a tree is looked up relative to that
+# tree's own root. Only :func:`_verify_same_repository_files` adds a root, and
+# only after :func:`_same_repository_root` proved it is this repository.
+_SAME_REPOSITORY_TREES: set[Path] = set()
 
 # A pinned link may point at another pinned link. Bounded so a cycle of pinned
 # links halts instead of spinning.
@@ -1490,10 +1499,13 @@ def _pinned_link_text(link: Path, root: Path) -> str | None:
     if pinned is None or not _is_within(link, root):
         return None
     toplevel, table = pinned
+    # A link in another work tree of this repository is keyed against that
+    # tree's root, which is ``root`` there. Any other root keeps the table's.
+    base = root.resolve() if root.resolve() in _SAME_REPOSITORY_TREES else toplevel.resolve()
     try:
         # The parents were scanned as real directories, so resolving them
         # only normalizes spelling (a symlinked /tmp, say); the link stays.
-        rel = (link.parent.resolve() / link.name).relative_to(toplevel.resolve()).as_posix()
+        rel = (link.parent.resolve() / link.name).relative_to(base).as_posix()
         text = os.readlink(link)
     except (ValueError, OSError):
         return None
@@ -1732,8 +1744,9 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
         subprocess.
       * ``_ARGV_EXTERNAL`` -- an existing file outside the work tree (an
         absolute interpreter path, an installed-plugin script). The
-        value is its absolute path. PR content cannot rewrite it through
-        the consumer repository, so it is recorded and not compared.
+        value is its absolute path. :func:`_partition_external_files`
+        then compares one that sits in another work tree of this
+        repository (D10) and records the rest, uncompared, as installs.
       * ``_ARGV_ESCAPES`` -- a repo-local path that reaches its target
         through a symlink, or that cannot be resolved at all. Fail
         closed. ANY symlinked component at or below the work tree is
@@ -2927,12 +2940,19 @@ def _verify_worktree_file_trust(
     rel_path: str,
     toplevel: Path,
     trust_anchor_ref: str,
+    *,
+    source_root: Path | None = None,
 ) -> tuple[bool, str]:
     """Compare one work-tree file byte for byte against the trusted ref.
 
     Returns ``(is_trusted, error)``. A non-empty ``error`` means
     verification itself was impossible and ``is_trusted`` carries no
     meaning; the caller halts with exit 3.
+
+    ``source_root`` is the work tree the file is read from when it is not
+    ``toplevel``: another work tree of this repository (D10, #6506). The
+    trusted bytes still come from ``toplevel``'s git, so the ref is the one
+    this gate run names, not whatever that tree's own ref points at.
 
     Mirrors :func:`_verify_config_trust`: existence is probed with
     ``git ls-tree`` (whose nonzero exit is structurally an error, unlike
@@ -2968,10 +2988,11 @@ def _verify_worktree_file_trust(
         )
     anchor_bytes = proc.stdout
 
+    work_tree = toplevel if source_root is None else source_root
     try:
-        current_bytes = (toplevel / rel_path).read_bytes()
+        current_bytes = (work_tree / rel_path).read_bytes()
     except OSError as exc:
-        return False, f"cannot read work-tree file {rel_path}: {exc}"
+        return False, f"cannot read work-tree file {work_tree / rel_path}: {exc}"
 
     return anchor_bytes == current_bytes, ""
 
@@ -3002,6 +3023,245 @@ def _is_in_nested_repository(rel_path: str, toplevel: Path) -> bool:
         return nested.resolve() != toplevel
     except OSError:
         return True
+
+
+class _RepositoryIdentity(NamedTuple):
+    """Where a work tree lives and which repository it belongs to.
+
+    ``common_dir`` is the resolved ``git rev-parse --git-common-dir``,
+    shared by every linked worktree of one clone. ``origin`` is the
+    normalized ``remote.origin.url`` (:func:`_normalized_remote`), or the
+    empty string when the work tree has no origin.
+    """
+
+    toplevel: Path
+    common_dir: Path
+    origin: str
+
+
+def _normalized_remote(url: str) -> str:
+    """Comparable form of a remote URL: ``host/path``, lowercased.
+
+    Drops the scheme, any user info, a trailing slash, and a trailing
+    ``.git``, and turns the scp form ``git@host:owner/repo`` into
+    ``host/owner/repo``. So the HTTPS and SSH spellings of one GitHub
+    repository compare equal. Over-matching is the safe direction here: a
+    false match makes a file verified rather than install-trusted.
+    """
+    text = url.strip().lower()
+    scheme, separator, rest = text.partition("://")
+    if separator:
+        text = rest
+    elif ":" in text.split("/", 1)[0]:
+        text = text.replace(":", "/", 1)
+    head, slash, tail = text.partition("/")
+    text = head.rpartition("@")[2] + slash + tail
+    text = text.rstrip("/")
+    return text.removesuffix(".git").rstrip("/")
+
+
+def _repository_identity(work_tree: Path) -> tuple[_RepositoryIdentity | None, str]:
+    """Identify the git work tree containing ``work_tree``; ``(identity, error)``.
+
+    A non-empty ``error`` means git could not answer, and the caller
+    fails closed. ``git config --get`` exits 1 when the key is unset,
+    which is a work tree with no origin, not an error.
+    """
+    proc = _run_git(
+        ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+        work_tree,
+    )
+    if proc.returncode != 0:
+        return None, (f"git rev-parse in {work_tree} failed: {_git_text(proc.stderr).strip()}")
+    lines = _git_text(proc.stdout).splitlines()
+    if len(lines) != 2:
+        return None, f"git rev-parse in {work_tree} returned {len(lines)} lines, expected 2"
+    origin = _run_git(["config", "--get", "remote.origin.url"], work_tree)
+    if origin.returncode not in (0, 1):
+        return None, (
+            f"git config --get remote.origin.url in {work_tree} failed: "
+            f"{_git_text(origin.stderr).strip()}"
+        )
+    url = _normalized_remote(_git_text(origin.stdout)) if origin.returncode == 0 else ""
+    return _RepositoryIdentity(Path(lines[0]).resolve(), Path(lines[1]).resolve(), url), ""
+
+
+def _inside_git_work_tree(path: Path) -> tuple[bool, str]:
+    """True when an ancestor of ``path`` holds a ``.git`` entry; ``(found, error)``.
+
+    Mirrors git's own discovery walk, so a path with no such ancestor is
+    not a work tree and needs no git call at all. A ``.git`` that cannot
+    be probed is an error, not an absence.
+    """
+    for ancestor in path.parents:
+        try:
+            os.lstat(ancestor / ".git")
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError as exc:
+            return False, f"cannot probe {ancestor / '.git'}: {exc}"
+        return True, ""
+    return False, ""
+
+
+def _same_repository_root(
+    path: Path,
+    ours: _RepositoryIdentity,
+) -> tuple[Path | None, str]:
+    """The root of the work tree of THIS repository holding ``path``, or ``None``.
+
+    D10 (#6506): a file outside this work tree that sits in another work
+    tree of the same repository is PR-reachable. A PR branch can be
+    checked out there, so install trust (#5112, D6) does not cover it.
+    "Same repository" means the same git common dir (a linked worktree of
+    this clone) or the same normalized origin URL (a separate clone).
+
+    The caller has already found a ``.git`` above ``path``
+    (:func:`_inside_git_work_tree`). ``(None, "")`` is a work tree of
+    another repository, which keeps install trust. ``(None, error)``
+    means git could not decide, and the caller fails closed.
+    """
+    theirs, error = _repository_identity(path.parent)
+    if theirs is None:
+        return None, error
+    if theirs.common_dir == ours.common_dir or (ours.origin and theirs.origin == ours.origin):
+        return theirs.toplevel, ""
+    return None, ""
+
+
+class _SameRepositoryCheck(NamedTuple):
+    """Outcome of verifying files that live in another work tree of this repository.
+
+    Paths are absolute, so they cannot be mistaken for this work tree's
+    relative paths in the report. ``untracked`` holds the import-closure
+    files skipped as the operator's own, as in-tree. A non-empty ``error``
+    halts with exit 3.
+    """
+
+    checked: list[str]
+    untrusted: list[str]
+    untracked: list[str]
+    error: str
+
+
+def _verify_same_repository_files(
+    paths: list[Path],
+    root: Path,
+    toplevel: Path,
+    trust_anchor_ref: str,
+) -> _SameRepositoryCheck:
+    """Verify files under ``root``, another work tree of this repository, like in-tree ones.
+
+    The same steps the in-tree branch of :func:`_verify_command_trust`
+    runs: import closure, tracked probe, unresolvable and symlinked
+    import sites, compiled shadows, then a byte compare against
+    ``trust_anchor_ref`` read from ``toplevel``'s git. One difference, on
+    purpose (D10): a named file in ``paths`` must be tracked, or it
+    blocks. An untracked plain token in this work tree is skipped, but D10
+    admits a same-repository file only when it is tracked and compared.
+    Untracked closure files are skipped as in-tree: a module spelled
+    through a pinned link (``.claude/lib/github_core``) is untracked under
+    that spelling, and its target is compared under its own.
+    """
+    resolved_root = root.resolve()
+    _SAME_REPOSITORY_TREES.add(resolved_root)
+    try:
+        rels = [path.relative_to(root).as_posix() for path in paths]
+        candidates = _expand_import_closure(rels, root)
+        tracked, probe_error = _tracked_subset(candidates, root)
+        if probe_error:
+            return _SameRepositoryCheck([], [], [], probe_error)
+        checked = [path for path in candidates if path in tracked]
+        absent = [path for path in candidates if path not in tracked]
+        untrusted = [
+            path for path in absent if path in rels or _is_in_nested_repository(path, root)
+        ]
+        untracked = [path for path in absent if path not in untrusted]
+        untrusted.extend(_unresolvable_dynamic_sites(checked, root))
+        untrusted.extend(_symlinked_import_sites(checked, root))
+        found_shadows = [
+            path for path in _shadowing_import_files(checked, root) if path not in checked
+        ]
+        tracked_shadows, shadow_error = _tracked_subset(found_shadows, root)
+        if shadow_error:
+            return _SameRepositoryCheck([], [], [], shadow_error)
+        shadows = [path for path in found_shadows if path in tracked_shadows]
+        untrusted.extend(
+            path
+            for path in found_shadows
+            if path not in tracked_shadows and _is_in_nested_repository(path, root)
+        )
+        errors: list[str] = []
+        for rel_path in [*checked, *shadows]:
+            is_trusted, error = _verify_worktree_file_trust(
+                rel_path,
+                toplevel,
+                trust_anchor_ref,
+                source_root=root,
+            )
+            if error:
+                errors.append(error)
+            elif not is_trusted:
+                untrusted.append(rel_path)
+    finally:
+        _SAME_REPOSITORY_TREES.discard(resolved_root)
+    # Spelled as _classify_argv_token spells an external file, so the
+    # launcher check's membership test matches on every platform.
+    return _SameRepositoryCheck(
+        [str(resolved_root / path) for path in [*checked, *shadows]],
+        [str(resolved_root / entry) for entry in untrusted],
+        [str(resolved_root / path) for path in untracked],
+        "\n".join(errors),
+    )
+
+
+def _partition_external_files(
+    external: list[str],
+    toplevel: Path,
+    trust_anchor_ref: str,
+) -> tuple[list[str], _SameRepositoryCheck]:
+    """Split external files into true installs and same-repository files.
+
+    Returns ``(installed, same_repository)``. ``installed`` keeps the
+    #5112 install trust: recorded, not compared. Every file in another
+    work tree of this repository is verified by
+    :func:`_verify_same_repository_files` instead. Any git failure while
+    deciding is returned as the check's ``error`` (fail closed).
+    """
+    installed: list[str] = []
+    groups: dict[Path, list[Path]] = {}
+    ours: _RepositoryIdentity | None = None
+    for value in external:
+        path = Path(value)
+        found, error = _inside_git_work_tree(path)
+        if error:
+            return installed, _SameRepositoryCheck([], [], [], error)
+        if not found:
+            installed.append(value)
+            continue
+        if ours is None:
+            ours, error = _repository_identity(toplevel)
+            if ours is None:
+                return installed, _SameRepositoryCheck([], [], [], error)
+        root, error = _same_repository_root(path, ours)
+        if error:
+            return installed, _SameRepositoryCheck([], [], [], error)
+        if root is None:
+            installed.append(value)
+        else:
+            groups.setdefault(root, []).append(path)
+    checked: list[str] = []
+    untrusted: list[str] = []
+    untracked: list[str] = []
+    errors: list[str] = []
+    for root, paths in groups.items():
+        result = _verify_same_repository_files(paths, root, toplevel, trust_anchor_ref)
+        checked.extend(path for path in result.checked if path not in checked)
+        untrusted.extend(entry for entry in result.untrusted if entry not in untrusted)
+        untracked.extend(path for path in result.untracked if path not in untracked)
+        if result.error:
+            errors.append(result.error)
+    return installed, _SameRepositoryCheck(checked, untrusted, untracked, "\n".join(errors))
 
 
 def _verify_command_trust(
@@ -3053,6 +3313,23 @@ def _verify_command_trust(
             pr_number,
             toplevel,
         )
+        # D10 (#6506): an external file in another work tree of this
+        # repository is verified like an in-tree one; only a true install
+        # keeps the #5112 install trust.
+        external, same_repository = _partition_external_files(
+            external,
+            toplevel,
+            trust_anchor_ref,
+        )
+        if same_repository.error:
+            return CommandTrustCheck(
+                COMMAND_TRUST_GIT_ERROR,
+                same_repository.checked,
+                same_repository.untrusted,
+                external,
+                same_repository.untracked,
+                same_repository.error,
+            )
         candidates = _expand_import_closure(named, toplevel)
         tracked, probe_error = _tracked_subset(candidates, toplevel)
         if probe_error:
@@ -3075,7 +3352,7 @@ def _verify_command_trust(
         ]
         nested = [path for path in candidates if path not in tracked and path not in untracked]
 
-        untrusted = list(escaping) + nested
+        untrusted = list(escaping) + nested + same_repository.untrusted
         untrusted.extend(_unresolvable_dynamic_sites(checked, toplevel))
         untrusted.extend(_symlinked_import_sites(checked, toplevel))
         errors: list[str] = []
@@ -3126,28 +3403,28 @@ def _verify_command_trust(
     if errors:
         return CommandTrustCheck(
             COMMAND_TRUST_GIT_ERROR,
-            [*checked, *shadows],
+            [*checked, *shadows, *same_repository.checked],
             untrusted,
             external,
-            untracked,
+            [*untracked, *same_repository.untracked],
             "\n".join(errors),
         )
     if untrusted:
         return CommandTrustCheck(
             COMMAND_TRUST_UNTRUSTED,
-            [*checked, *shadows],
+            [*checked, *shadows, *same_repository.checked],
             untrusted,
             external,
-            untracked,
+            [*untracked, *same_repository.untracked],
             "",
         )
     return CommandTrustCheck(
         COMMAND_TRUST_TRUSTED,
         # The report lists every file compared, shadow binaries included.
-        [*checked, *shadows],
+        [*checked, *shadows, *same_repository.checked],
         [],
         external,
-        untracked,
+        [*untracked, *same_repository.untracked],
         "",
     )
 
@@ -3985,15 +4262,18 @@ def _launcher_target_verified(
     """True when the trust check compared ``token``'s file and it matched.
 
     The file must be a tracked work-tree file the check compared and did
-    not flag, or an external file it recorded, which is how a plain token
-    naming it is treated. A missing, untracked, or escaping path is not
-    verified, so the launcher that names it stays unverifiable.
+    not flag, or an external file. An external file in another work tree
+    of this repository (D10) must likewise be compared and unflagged; one
+    under a true install must be recorded as skipped, which is how a
+    plain token naming it is treated (#5112). A missing, untracked, or
+    escaping path is not verified, so the launcher that names it stays
+    unverifiable.
     """
     kind, value = _classify_argv_token(token, toplevel)
-    if kind == _ARGV_VERIFY:
+    if kind == _ARGV_EXTERNAL and value in command_trust.skipped_external_files:
+        return True
+    if kind in (_ARGV_VERIFY, _ARGV_EXTERNAL):
         return value in command_trust.checked_files and value not in command_trust.untrusted_files
-    if kind == _ARGV_EXTERNAL:
-        return value in command_trust.skipped_external_files
     return False
 
 
