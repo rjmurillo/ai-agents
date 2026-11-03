@@ -131,12 +131,20 @@ The treatment changes. The decision rule above is unchanged.
   two User Sovereignty anti-pattern bullets restating the paragraphs above
   them.
 
-Arms: **pre** is `86298335f`; **post** is the commit carrying this treatment.
+Arms: **pre** is the rule bodies at `86298335f`; **post** is the rule bodies
+at the commit carrying this treatment. Both arms run from the post checkout
+against the **same scenario files** (the post versions of `builder-ethos.json`
+and `voice.json`); only `.claude/rules/builder-ethos.md` and
+`.claude/rules/voice.md` are swapped to the pre bodies for the pre arm. Each
+run's per-scenario results are kept, and a pair votes only when both arms
+report the same scenario IDs. Running pre from its own checkout would drop
+R6 to R9 from the pre average and compare different populations.
 
 - builder-ethos is graded as an **addition** under the decision rule above.
   Its scenario file gains R6 to R9, copies of voice V1 to V4, because those
-  behaviors now live in builder-ethos. The harm guard moves from voice V3 to
-  builder-ethos R8 with the same 2-of-6 bound.
+  behaviors now live in builder-ethos. Guard 3 of the decision rule above now reads
+  builder-ethos R8 in place of voice V3, with the same 2-of-6 bound. Voice V3
+  no longer gates; it is context only.
 - voice is graded as a **cut**: it fails when pre wins the sign count at
   alpha 0.05, and passes otherwise (rule-audit procedure, cut threshold).
   voice V1 to V4 stay in `voice.json` as context.
