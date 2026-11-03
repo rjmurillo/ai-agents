@@ -81,6 +81,7 @@ _GENERATED_PATH_SEGMENTS = (
     ("src", "claude", "hooks"),
     ("src", "claude", "lib", "ai_review_common"),
     ("src", "claude", "lib", "bootstrap.py"),
+    ("src", "claude", "lib", "failure_classifier"),
     ("src", "claude", "lib", "github_core"),
     ("src", "claude", "lib", "hook_utilities"),
     ("src", "claude", "rules"),
