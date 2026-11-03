@@ -313,6 +313,49 @@ class TestMcpGrantsAreEnumerated:
         exits = {e["exit_code"] for e in preflight["verify_config_only_exits"]}
         assert exits == {0, 2, 3}, f"every documented outcome needs a meaning; got {sorted(exits)}"
 
+    @pytest.mark.parametrize(
+        "clause",
+        ["install-trusted, not compared", "skipped_untracked_files, not compared"],
+    )
+    def test_exit_0_text_names_what_is_not_compared(self, clause):
+        """Step 0 and the config table both say which files exit 0 left uncompared (D11).
+
+        Exit 0 does not mean every named file matched: an installed plugin
+        is install-trusted (#5112) and an untracked in-tree script is
+        skipped. The template governs; the table summarizes it, so both
+        must carry each clause or they disagree.
+        """
+        body = REVIEW.read_text(encoding="utf-8")
+        step_0 = body[body.index("### Step 0") : body.index("### Step 1")]
+        exit_0 = step_0[step_0.index("Exit 0:") : step_0.index("Exit 2:")].replace("`", "")
+        config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+        meaning = next(
+            e["meaning"]
+            for e in config["transport_preflight"]["verify_config_only_exits"]
+            if e["exit_code"] == 0
+        )
+        assert clause in exit_0
+        assert clause in meaning
+
+    def test_exit_3_causes_match_between_step_0_and_config(self):
+        """Step 0 and the config table list the same exit-3 causes (R4-EXIT3-PARITY).
+
+        The template governs; the table summarizes it. A cause listed in one
+        and dropped from the other lets an operator misread a halt.
+        """
+        causes = "no work tree, current directory outside it, trusted ref missing, git failure"
+        body = REVIEW.read_text(encoding="utf-8")
+        step_0 = body[body.index("### Step 0") : body.index("### Step 1")]
+        exit_3 = step_0[step_0.index("Exit 3:") : step_0.index("Never pass")]
+        config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+        meaning = next(
+            e["meaning"]
+            for e in config["transport_preflight"]["verify_config_only_exits"]
+            if e["exit_code"] == 3
+        )
+        assert causes in exit_3
+        assert causes in meaning
+
     @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
     def test_skill_step_0_names_the_verifier_literally(self, path):
         """Step 0 carries the --verify-config-only command, not a config lookup."""

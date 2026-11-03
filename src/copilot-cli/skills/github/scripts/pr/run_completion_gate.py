@@ -301,7 +301,9 @@ from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
 import difflib
+import functools
 import json
 import os
 import re
@@ -311,7 +313,7 @@ import sys
 import unicodedata
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeVar
 
 
 # Resolve the project root by walking up to find the ``scripts/``
@@ -1369,8 +1371,10 @@ class CommandTrustCheck(NamedTuple):
 
     ``checked_files`` and ``untrusted_files`` hold work-tree-relative
     POSIX paths (``untrusted_files`` also carries the raw token of any
-    repo-local path that escapes the work tree). ``skipped_external_files``
-    holds absolute paths outside the work tree and
+    repo-local path that escapes the work tree). Files in another work
+    tree of this repository (D10) appear in both, and in
+    ``skipped_untracked_files``, as absolute paths. ``skipped_external_files``
+    holds absolute install paths outside every such work tree and
     ``skipped_untracked_files`` work-tree paths git does not track;
     both are recorded but never compared. ``detail`` carries the error
     description when ``status`` is :data:`COMMAND_TRUST_GIT_ERROR`.
@@ -1415,6 +1419,31 @@ def _are_disjoint(first: Path, second: Path) -> bool:
 # behavior with no source and when the table cannot be read.
 _PINNED_LINK_SOURCE: tuple[str, Path] | None = None
 _PINNED_LINKS: tuple[Path, dict[str, str]] | None = None
+
+# Resolved roots of other work trees of THIS repository (D10, #6506) that the
+# command trust check is verifying right now. The pinned-link table is keyed
+# by repo-relative path, so a link in such a tree is looked up relative to that
+# tree's own root. Roots enter only through :func:`_keyed_to_tree`, and only
+# after :func:`_same_repository_root` proved them this repository.
+_SAME_REPOSITORY_TREES: set[Path] = set()
+
+
+@contextlib.contextmanager
+def _keyed_to_tree(root: Path) -> Iterator[None]:
+    """Key pinned-link lookups under ``root`` to ``root`` while the block runs (D10).
+
+    Re-entrant: a nested use on the same root leaves the outer entry in
+    place, so the inner exit cannot clear it.
+    """
+    if root in _SAME_REPOSITORY_TREES:
+        yield
+        return
+    _SAME_REPOSITORY_TREES.add(root)
+    try:
+        yield
+    finally:
+        _SAME_REPOSITORY_TREES.discard(root)
+
 
 # A pinned link may point at another pinned link. Bounded so a cycle of pinned
 # links halts instead of spinning.
@@ -1490,10 +1519,13 @@ def _pinned_link_text(link: Path, root: Path) -> str | None:
     if pinned is None or not _is_within(link, root):
         return None
     toplevel, table = pinned
+    # A link in another work tree of this repository is keyed against that
+    # tree's root, which is ``root`` there. Any other root keeps the table's.
+    base = root.resolve() if root.resolve() in _SAME_REPOSITORY_TREES else toplevel.resolve()
     try:
         # The parents were scanned as real directories, so resolving them
         # only normalizes spelling (a symlinked /tmp, say); the link stays.
-        rel = (link.parent.resolve() / link.name).relative_to(toplevel.resolve()).as_posix()
+        rel = (link.parent.resolve() / link.name).relative_to(base).as_posix()
         text = os.readlink(link)
     except (ValueError, OSError):
         return None
@@ -1621,6 +1653,121 @@ def _unverifiable_argv(argv: list[str]) -> list[str]:
     return found
 
 
+# The Copilot launcher (issue #5521), ported from
+# build/scripts/copilot_launcher.py because build/ does not ship with this
+# skill. tests/build_scripts/test_copilot_launcher.py pins the port equal to
+# that module for every scripts.copilot entry, so the two cannot drift.
+_LAUNCHER_PREFIX = "pwsh -NoProfile -CommandWithArgs "
+# The argv words the prefix splits into. The payload is the next element.
+_LAUNCHER_PREFIX_ARGV: tuple[str, ...] = tuple(shlex.split(_LAUNCHER_PREFIX))
+_LAUNCHER_ROOT_ENV_VARS: tuple[str, str] = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
+_LAUNCHER_FALLBACK_ROOT = ".claude"
+# The plain plugin-root form that names the same root the payload resolves:
+# COPILOT_PLUGIN_ROOT, then CLAUDE_PLUGIN_ROOT, then .claude.
+_LAUNCHER_ROOT_FORM = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+_LAUNCHER_SCRIPT_REL_RE = re.compile(r"skills/[A-Za-z0-9_.\-/]+\.py")
+_LAUNCHER_PAYLOAD_RE = re.compile(
+    r"'[^']*?\(Join-Path \$root \"(?P<rel>[^\"]+)\"\) @args; exit \(\$LASTEXITCODE \?\? 1\)'"
+    r"(?: (?P<tail>.*))?$"
+)
+# The words after the payload may hold only these characters. A shell
+# operator, quote, `$`, or newline there would run outside the payload, so a
+# tail with any of them leaves the launcher unrecognized (fail closed). Each
+# shipped tail is flags and {placeholder} words only.
+_LAUNCHER_TAIL_RE = re.compile(r"[A-Za-z0-9_.\-{}= ]*")
+
+
+def _render_launcher_payload(script_rel: str) -> str:
+    """Return the payload ``copilot_launcher.render_payload`` builds."""
+    first, second = _LAUNCHER_ROOT_ENV_VARS
+    root = (
+        f"$root = if ($env:{first}) {{ $env:{first} }} "
+        f"elseif ($env:{second}) {{ $env:{second} }} "
+        f'else {{ "{_LAUNCHER_FALLBACK_ROOT}" }}'
+    )
+    interpreter = (
+        "$exe, $pre = if (Get-Command python3 -EA SilentlyContinue) "
+        '{ "python3", @() } '
+        "elseif (Get-Command py -EA SilentlyContinue) "
+        '{ "py", @("-3") } '
+        'else { "python", @() }'
+    )
+    return (
+        f"{root}; {interpreter}; "
+        f'& $exe @pre (Join-Path $root "{script_rel}") @args; exit ($LASTEXITCODE ?? 1)'
+    )
+
+
+def _render_launcher(script_rel: str) -> str:
+    """Return the launcher command, without arguments, for ``script_rel``."""
+    return f"{_LAUNCHER_PREFIX}'{_render_launcher_payload(script_rel)}'"
+
+
+def _launcher_script(command: str) -> str | None:
+    """The plugin-root-relative script a canonical launcher runs, else ``None``.
+
+    Strict on purpose. The command must start with the launcher prefix,
+    the payload pattern must name a plugin-root script path, and
+    re-rendering the launcher for that path must reproduce the command's
+    launcher portion byte for byte. The words after it must be plain
+    flags and placeholders. Any other command, including a launcher with
+    an extra statement, another root chain, or a shell operator in its
+    arguments, returns ``None`` and its tokens stay unverifiable.
+    """
+    if not command.startswith(_LAUNCHER_PREFIX):
+        return None
+    match = _LAUNCHER_PAYLOAD_RE.search(command[len(_LAUNCHER_PREFIX) :])
+    if match is None:
+        return None
+    script_rel = match.group("rel")
+    if not _LAUNCHER_SCRIPT_REL_RE.fullmatch(script_rel) or ".." in script_rel.split("/"):
+        return None
+    launcher = _render_launcher(script_rel)
+    if command == launcher:
+        return script_rel
+    if not command.startswith(f"{launcher} "):
+        return None
+    if not _LAUNCHER_TAIL_RE.fullmatch(command[len(launcher) + 1 :]):
+        return None
+    return script_rel
+
+
+def _launcher_script_token(command: str) -> str | None:
+    """The expanded plain token naming the script a launcher runs, else ``None``.
+
+    The token is the one a POSIX command for the same script would carry,
+    so it is classified and compared exactly as that command's is.
+    """
+    script_rel = _launcher_script(command)
+    if script_rel is None:
+        return None
+    return _expand_plugin_root(f"{_LAUNCHER_ROOT_FORM}/{script_rel}")
+
+
+def _absolute_argv_path(token: str) -> Path:
+    """``token`` as an absolute path against the dispatch cwd, ".." kept.
+
+    This is the path the kernel opens: it follows each link before the
+    ".." after it. Resolve this one, never :func:`_literal_argv_path`.
+    """
+    candidate = Path(token)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    return candidate
+
+
+def _literal_argv_path(token: str) -> Path:
+    """The lexical path ``token`` names, with ".." collapsed by normpath.
+
+    Use it only for containment checks and the in-tree link scan.
+    Path.relative_to is purely lexical, so without normpath it would
+    accept "<toplevel>/../etc/passwd" as living inside the work tree.
+    It is never the executed file: normpath drops "link/.." without
+    following the link, so the two can differ (CWE-59).
+    """
+    return Path(os.path.normpath(_absolute_argv_path(token)))
+
+
 def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     """Classify one argv element for trust verification.
 
@@ -1641,8 +1788,9 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
         subprocess.
       * ``_ARGV_EXTERNAL`` -- an existing file outside the work tree (an
         absolute interpreter path, an installed-plugin script). The
-        value is its absolute path. PR content cannot rewrite it through
-        the consumer repository, so it is recorded and not compared.
+        value is its absolute path. :func:`_partition_external_files`
+        then compares one that sits in another work tree of this
+        repository (D10) and records the rest, uncompared, as installs.
       * ``_ARGV_ESCAPES`` -- a repo-local path that reaches its target
         through a symlink, or that cannot be resolved at all. Fail
         closed. ANY symlinked component at or below the work tree is
@@ -1662,13 +1810,14 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     if not token or token.startswith("-"):
         return _ARGV_SKIP, ""
 
-    candidate = Path(token)
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
-    # normpath collapses ".." lexically without following symlinks.
-    # Path.relative_to is purely lexical, so it would otherwise accept
-    # "<toplevel>/../etc/passwd" as living inside the work tree.
-    literal = Path(os.path.normpath(candidate))
+    # Lexical (``literal``) and resolved paths answer different questions:
+    # the first finds a link on the way, the second names the executed file.
+    # Resolve the token as written, never its normpath: normpath drops
+    # "link/.." lexically, while the kernel follows the link first, so the
+    # normalized path can name a different file than the one that runs
+    # (CWE-59).
+    literal = _literal_argv_path(token)
+    candidate = _absolute_argv_path(token)
 
     if _first_symlinked_component(literal, toplevel) is not None:
         return _ARGV_ESCAPES, token
@@ -1722,6 +1871,25 @@ def _collect_command_paths(
     Raises :class:`ConfigError` on a schema violation or an unparseable
     command line; the caller exits 2 per ADR-035.
     """
+    to_verify, external, escaping, _ = _collect_command_spellings(criteria, pr_number, toplevel)
+    return to_verify, external, escaping
+
+
+def _collect_command_spellings(
+    criteria: list[Any],
+    pr_number: int,
+    toplevel: Path,
+) -> tuple[list[str], list[str], list[str], dict[str, list[Path]]]:
+    """:func:`_collect_command_paths` plus each external file's unresolved spellings.
+
+    An external value is a resolved path, so the links on the way to it
+    are gone. The fourth item maps each external value to the paths the
+    commands spelled it with, so :func:`_partition_external_files` can
+    refuse a link in another work tree of this repository the way the
+    in-tree check refuses one (D10, CWE-59). A spelling keeps its ".."
+    components: normpath would drop the link before each one.
+    """
+    spellings: dict[str, list[Path]] = {}
     to_verify: list[str] = []
     external: list[str] = []
     escaping: list[str] = []
@@ -1739,6 +1907,12 @@ def _collect_command_paths(
             raise ConfigError(
                 f"command is not a parseable command line: {exc}",
             ) from exc
+        # A Copilot launcher names its script inside a PowerShell payload.
+        # Classify that script as the plain token it would be in a POSIX
+        # command, so it is compared against the trusted ref like one.
+        launched = _launcher_script_token(cmd_template)
+        if launched is not None:
+            argv = [*argv, launched]
         for token in argv:
             embedded = _split_long_option_value(token)
             candidates = (token, embedded) if embedded is not None else (token,)
@@ -1747,8 +1921,13 @@ def _collect_command_paths(
                 bucket = buckets.get(kind)
                 if bucket is not None and value not in bucket:
                     bucket.append(value)
+                if kind == _ARGV_EXTERNAL:
+                    spelled = _absolute_argv_path(candidate)
+                    known = spellings.setdefault(value, [])
+                    if spelled not in known:
+                        known.append(spelled)
 
-    return to_verify, external, escaping
+    return to_verify, external, escaping, spellings
 
 
 def _import_roots(script: Path, toplevel: Path) -> list[Path]:
@@ -2830,12 +3009,19 @@ def _verify_worktree_file_trust(
     rel_path: str,
     toplevel: Path,
     trust_anchor_ref: str,
+    *,
+    source_root: Path | None = None,
 ) -> tuple[bool, str]:
     """Compare one work-tree file byte for byte against the trusted ref.
 
     Returns ``(is_trusted, error)``. A non-empty ``error`` means
     verification itself was impossible and ``is_trusted`` carries no
     meaning; the caller halts with exit 3.
+
+    ``source_root`` is the work tree the file is read from when it is not
+    ``toplevel``: another work tree of this repository (D10, #6506). The
+    trusted bytes still come from ``toplevel``'s git, so the ref is the one
+    this gate run names, not whatever that tree's own ref points at.
 
     Mirrors :func:`_verify_config_trust`: existence is probed with
     ``git ls-tree`` (whose nonzero exit is structurally an error, unlike
@@ -2871,10 +3057,11 @@ def _verify_worktree_file_trust(
         )
     anchor_bytes = proc.stdout
 
+    work_tree = toplevel if source_root is None else source_root
     try:
-        current_bytes = (toplevel / rel_path).read_bytes()
+        current_bytes = (work_tree / rel_path).read_bytes()
     except OSError as exc:
-        return False, f"cannot read work-tree file {rel_path}: {exc}"
+        return False, f"cannot read work-tree file {work_tree / rel_path}: {exc}"
 
     return anchor_bytes == current_bytes, ""
 
@@ -2905,6 +3092,422 @@ def _is_in_nested_repository(rel_path: str, toplevel: Path) -> bool:
         return nested.resolve() != toplevel
     except OSError:
         return True
+
+
+class _RepositoryIdentity(NamedTuple):
+    """Where a work tree lives and which repository it belongs to.
+
+    ``common_dir`` is the resolved ``git rev-parse --git-common-dir``,
+    shared by every linked worktree of one clone. ``origin`` is the
+    normalized ``remote.origin.url`` (:func:`_normalized_remote`), or the
+    empty string when the work tree has no origin.
+    """
+
+    toplevel: Path
+    common_dir: Path
+    origin: str
+
+
+def _normalized_remote(url: str) -> str:
+    """Comparable form of a remote URL: ``host/path``, lowercased.
+
+    Drops the scheme, any user info, a trailing slash, and a trailing
+    ``.git``, and turns the scp form ``git@host:owner/repo`` into
+    ``host/owner/repo``. So the HTTPS and SSH spellings of one GitHub
+    repository compare equal. Over-matching is the safe direction here: a
+    false match makes a file verified rather than install-trusted.
+    """
+    text = url.strip().lower()
+    _, separator, rest = text.partition("://")
+    if separator:
+        text = rest
+    elif ":" in text.split("/", 1)[0]:
+        text = text.replace(":", "/", 1)
+    head, slash, tail = text.partition("/")
+    text = head.rpartition("@")[2] + slash + tail
+    text = text.rstrip("/")
+    return text.removesuffix(".git").rstrip("/")
+
+
+def _repository_identity(work_tree: Path) -> tuple[_RepositoryIdentity | None, str]:
+    """Identify the git work tree containing ``work_tree``; ``(identity, error)``.
+
+    A non-empty ``error`` means git could not answer, and the caller
+    fails closed. ``git config --get`` exits 1 when the key is unset,
+    which is a work tree with no origin, not an error.
+    """
+    proc = _run_git(
+        ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+        work_tree,
+    )
+    if proc.returncode != 0:
+        return None, (f"git rev-parse in {work_tree} failed: {_git_text(proc.stderr).strip()}")
+    lines = _git_text(proc.stdout).splitlines()
+    if len(lines) != 2:
+        return None, f"git rev-parse in {work_tree} returned {len(lines)} lines, expected 2"
+    origin = _run_git(["config", "--get", "remote.origin.url"], work_tree)
+    if origin.returncode not in (0, 1):
+        return None, (
+            f"git config --get remote.origin.url in {work_tree} failed: "
+            f"{_git_text(origin.stderr).strip()}"
+        )
+    url = _normalized_remote(_git_text(origin.stdout)) if origin.returncode == 0 else ""
+    return _RepositoryIdentity(Path(lines[0]).resolve(), Path(lines[1]).resolve(), url), ""
+
+
+def _inside_git_work_tree(path: Path) -> tuple[bool, str]:
+    """True when an ancestor of ``path`` holds a ``.git`` entry; ``(found, error)``.
+
+    Mirrors git's own discovery walk, so a path with no such ancestor is
+    not a work tree and needs no git call at all. A ``.git`` that cannot
+    be probed is an error, not an absence.
+    """
+    for ancestor in path.parents:
+        try:
+            os.lstat(ancestor / ".git")
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError as exc:
+            return False, f"cannot probe {ancestor / '.git'}: {exc}"
+        return True, ""
+    return False, ""
+
+
+def _same_repository_root(
+    path: Path,
+    ours: _RepositoryIdentity,
+) -> tuple[Path | None, str]:
+    """The root of the work tree of THIS repository holding ``path``, or ``None``.
+
+    D10 (#6506): a file outside this work tree that sits in another work
+    tree of the same repository is PR-reachable. A PR branch can be
+    checked out there, so install trust (#5112, D6) does not cover it.
+    "Same repository" means the same git common dir (a linked worktree of
+    this clone) or the same normalized origin URL (a separate clone).
+
+    Every ancestor holding a ``.git`` entry is asked, innermost first, so
+    a nested repository or submodule inside a work tree of this
+    repository does not hide that tree. The file then sits under this
+    repository's root, untracked there, and blocks as it would in-tree.
+    ``(None, "")`` means no enclosing work tree is this repository, which
+    keeps install trust. ``(None, error)`` means git could not decide,
+    and the caller fails closed.
+    """
+    for ancestor in (path, *path.parents):
+        try:
+            os.lstat(ancestor / ".git")
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError as exc:
+            return None, f"cannot probe {ancestor / '.git'}: {exc}"
+        theirs, error = _repository_identity(ancestor)
+        if theirs is None:
+            return None, error
+        if theirs.common_dir == ours.common_dir or (ours.origin and theirs.origin == ours.origin):
+            return theirs.toplevel, ""
+    return None, ""
+
+
+def _resolved_parents(literal: Path) -> Iterator[tuple[Path, Path]]:
+    """Each ancestor of ``literal``, innermost first, with its resolved path.
+
+    Raises :exc:`OSError` naming the ancestor when one cannot be resolved,
+    so every caller fails closed the same way (exit 3).
+    """
+    for ancestor in literal.parents:
+        try:
+            yield ancestor, ancestor.resolve()
+        except (OSError, RuntimeError) as exc:
+            raise OSError(f"cannot resolve {ancestor}: {exc}") from exc
+
+
+def _unpinned_link_in(literal: Path, root: Path) -> Path | None:
+    """First link under ``root`` on ``literal``'s way that the trusted ref does not pin.
+
+    ``root`` is a resolved work tree of this repository (D10). The in-tree
+    check refuses such a link (:func:`_classify_argv_token`) because the
+    LINK is the blob a PR controls, while resolving it compares only the
+    target (CWE-59). External values are already resolved, so this
+    re-reads the spelling the command used. Pinned links (ADR-119) are
+    looked up against ``root``. A spelling with no ancestor that resolves
+    to ``root`` cannot be scanned and is returned as is (fail closed). An
+    ancestor that cannot be resolved raises :exc:`OSError`, which the
+    command trust check reports as exit 3.
+    """
+    lexical = next(
+        (ancestor for ancestor, resolved in _resolved_parents(literal) if resolved == root),
+        None,
+    )
+    if lexical is None:
+        return literal
+    with _keyed_to_tree(root):
+        return _first_symlinked_component(literal, lexical)
+
+
+def _aliased_same_repository_root(
+    literal: Path,
+    ours: _RepositoryIdentity,
+) -> tuple[Path | None, str]:
+    """Root of a work tree of this repository that ``literal`` enters only through a link.
+
+    The lexical walk in :func:`_same_repository_root` misses a spelling
+    such as ``<alias>/skills/x.py`` when ``<alias>`` is a host link to a
+    sibling work tree's ``.claude``: no lexical ancestor holds the
+    sibling's ``.git``. Each ancestor is resolved, innermost first, and a
+    resolved ancestor in a work tree of this repository names that root.
+    The caller then scans the spelling with :func:`_unpinned_link_in`,
+    which refuses it: the alias is a link no trusted ref pins (D10,
+    CWE-59). This costs availability, not safety. ``(None, error)`` means
+    an ancestor could not be resolved or probed, and the caller fails
+    closed.
+    """
+    seen: set[Path] = set()
+    try:
+        for ancestor, resolved in _resolved_parents(literal):
+            if resolved == ancestor or resolved in seen:
+                continue
+            seen.add(resolved)
+            root, error = _same_repository_root(resolved, ours)
+            if error or root is not None:
+                return root, error
+    except OSError as exc:
+        return None, str(exc)
+    return None, ""
+
+
+class _TreeTrustCheck(NamedTuple):
+    """Outcome of the command trust pipeline over one work tree's files.
+
+    :func:`_verify_tree_files` returns paths relative to the tree it
+    checked, which serves this work tree. :func:`_verify_same_repository_files`
+    returns absolute paths for another work tree of this repository (D10),
+    so they cannot be mistaken for this work tree's relative paths in the
+    report. ``untracked`` holds the import-closure files skipped as the
+    operator's own. A non-empty ``error`` halts with exit 3.
+    """
+
+    checked: list[str]
+    untrusted: list[str]
+    untracked: list[str]
+    error: str
+
+
+def _verify_tree_files(
+    rels: list[str],
+    root: Path,
+    toplevel: Path,
+    trust_anchor_ref: str,
+    *,
+    named_must_be_tracked: bool,
+) -> _TreeTrustCheck:
+    """The command trust pipeline over ``rels``, relative to work tree ``root``.
+
+    One pipeline for this work tree (``root == toplevel``) and for another
+    work tree of this repository (D10), so a check added here covers both:
+    import closure, tracked probe, unresolvable and symlinked import sites,
+    compiled shadows, then a byte compare against ``trust_anchor_ref`` read
+    from ``toplevel``'s git. A candidate inside a nested repository is
+    untrusted. Any other untracked candidate is the operator's own file and
+    is skipped, except that ``named_must_be_tracked`` makes an untracked
+    file in ``rels`` itself untrusted: D10 admits a same-repository file
+    only when it is tracked and compared. Paths in the result are relative
+    to ``root``. A non-empty ``error`` means verification was impossible.
+    """
+    candidates = _expand_import_closure(rels, root)
+    tracked, probe_error = _tracked_subset(candidates, root)
+    if probe_error:
+        return _TreeTrustCheck([], [], [], probe_error)
+    checked = [path for path in candidates if path in tracked]
+    absent = [path for path in candidates if path not in tracked]
+    untrusted = [
+        path
+        for path in absent
+        if (named_must_be_tracked and path in rels) or _is_in_nested_repository(path, root)
+    ]
+    untracked = [path for path in absent if path not in untrusted]
+    untrusted.extend(_unresolvable_dynamic_sites(checked, root))
+    untrusted.extend(_symlinked_import_sites(checked, root))
+    # A compiled or sourceless module in an import root can shadow a trusted
+    # .py. It joins no closure, so compare it here; one the trusted ref does
+    # not hold byte for byte fails closed.
+    found_shadows = [path for path in _shadowing_import_files(checked, root) if path not in checked]
+    tracked_shadows, shadow_error = _tracked_subset(found_shadows, root)
+    if shadow_error:
+        return _TreeTrustCheck([], [], [], shadow_error)
+    shadows = [path for path in found_shadows if path in tracked_shadows]
+    untrusted.extend(
+        path
+        for path in found_shadows
+        if path not in tracked_shadows and _is_in_nested_repository(path, root)
+    )
+    errors: list[str] = []
+    source_root = None if root == toplevel else root
+    for rel_path in [*checked, *shadows]:
+        is_trusted, error = _verify_worktree_file_trust(
+            rel_path,
+            toplevel,
+            trust_anchor_ref,
+            source_root=source_root,
+        )
+        if error:
+            errors.append(error)
+        elif not is_trusted:
+            untrusted.append(rel_path)
+    return _TreeTrustCheck([*checked, *shadows], untrusted, untracked, "\n".join(errors))
+
+
+def _verify_same_repository_files(
+    paths: list[Path],
+    root: Path,
+    toplevel: Path,
+    trust_anchor_ref: str,
+) -> _TreeTrustCheck:
+    """Verify files under ``root``, another work tree of this repository, like in-tree ones.
+
+    :func:`_verify_tree_files` with ``named_must_be_tracked`` set (D10): an
+    untracked plain token in this work tree is skipped, but a named file in
+    another work tree must be tracked and compared, or it blocks. Untracked
+    closure files are skipped as in-tree: a module spelled through a pinned
+    link (``.claude/lib/github_core``) is untracked under that spelling, and
+    its target is compared under its own. Paths in the result are absolute.
+    """
+    resolved_root = root.resolve()
+    rels = [path.relative_to(root).as_posix() for path in paths]
+    with _keyed_to_tree(resolved_root):
+        result = _verify_tree_files(
+            rels,
+            root,
+            toplevel,
+            trust_anchor_ref,
+            named_must_be_tracked=True,
+        )
+    if result.error:
+        return _TreeTrustCheck([], [], [], result.error)
+    # Spelled as _classify_argv_token spells an external file, so the
+    # launcher check's membership test matches on every platform.
+    return _TreeTrustCheck(
+        [str(resolved_root / path) for path in result.checked],
+        [str(resolved_root / entry) for entry in result.untrusted],
+        [str(resolved_root / path) for path in result.untracked],
+        "",
+    )
+
+
+_ProbeT = TypeVar("_ProbeT")
+
+
+class _SameRepositoryProbeError(Exception):
+    """Git or the filesystem could not decide sameness; the caller fails closed."""
+
+
+def _probed(result: tuple[_ProbeT, str]) -> _ProbeT:
+    """The value of a ``(value, error)`` probe; a non-empty error raises."""
+    value, error = result
+    if error:
+        raise _SameRepositoryProbeError(error)
+    return value
+
+
+def _required_identity(toplevel: Path) -> _RepositoryIdentity:
+    """This repository's identity, or :exc:`_SameRepositoryProbeError`."""
+    ours, error = _repository_identity(toplevel)
+    if ours is None:
+        raise _SameRepositoryProbeError(error)
+    return ours
+
+
+def _spelling_root(
+    spelling: Path,
+    aliased: bool,
+    identity: Callable[[], _RepositoryIdentity],
+) -> Path | None:
+    """Root of the work tree of this repository ``spelling`` enters, or ``None``.
+
+    A spelling with no ``.git`` ancestor is a true install unless it is an
+    alias, which is resolved ancestor by ancestor instead.
+    """
+    found = _probed(_inside_git_work_tree(spelling))
+    if not found and not aliased:
+        return None
+    ours = identity()
+    root = _probed(_same_repository_root(spelling, ours)) if found else None
+    if root is None and aliased:
+        root = _probed(_aliased_same_repository_root(spelling, ours))
+    return root
+
+
+def _classify_external(
+    value: str,
+    spellings: list[Path],
+    identity: Callable[[], _RepositoryIdentity],
+) -> tuple[Path | None, str | None]:
+    """``(owner, refused)`` for one external file.
+
+    ``refused`` is an unresolved spelling that enters a work tree of this
+    repository through a link the trusted ref does not pin, or that holds
+    a ".." component there (CWE-59). The kernel follows a link before the
+    ".." after it, so a lexical scan cannot prove which file such a
+    spelling opens; it fails closed. Otherwise ``owner`` is the root of
+    the work tree of this repository holding the file, or ``None`` for a
+    true install.
+    """
+    path = Path(value)
+    owner: Path | None = None
+    for spelling in [*spellings, path]:
+        aliased = spelling != path
+        root = _spelling_root(spelling, aliased, identity)
+        if root is None:
+            continue
+        if aliased and (".." in spelling.parts or _unpinned_link_in(spelling, root) is not None):
+            return None, str(spelling)
+        if owner is None and _is_within(path, root):
+            owner = root
+    return owner, None
+
+
+def _partition_external_files(
+    external: list[str],
+    toplevel: Path,
+    trust_anchor_ref: str,
+    spellings: dict[str, list[Path]] | None = None,
+) -> tuple[list[str], _TreeTrustCheck]:
+    """Split external files into true installs and same-repository files.
+
+    Returns ``(installed, same_repository)``. ``installed`` keeps the
+    #5112 install trust: recorded, not compared. Every file in another
+    work tree of this repository is verified by
+    :func:`_verify_same_repository_files` instead. Each unresolved
+    spelling in ``spellings`` is checked too: one in such a tree that
+    crosses a link the trusted ref does not pin is untrusted, as in-tree.
+    Any git failure while deciding is returned as the check's ``error``
+    (fail closed).
+    """
+    installed: list[str] = []
+    groups: dict[Path, list[Path]] = {}
+    untrusted: list[str] = []
+    identity = functools.cache(lambda: _required_identity(toplevel))
+    try:
+        for value in external:
+            owner, refused = _classify_external(value, (spellings or {}).get(value, []), identity)
+            if refused is not None:
+                untrusted.append(refused)
+            elif owner is None:
+                installed.append(value)
+            else:
+                groups.setdefault(owner, []).append(Path(value))
+    except _SameRepositoryProbeError as exc:
+        return installed, _TreeTrustCheck([], [], [], str(exc))
+    checked: list[str] = []
+    untracked: list[str] = []
+    errors: list[str] = []
+    for root, paths in groups.items():
+        result = _verify_same_repository_files(paths, root, toplevel, trust_anchor_ref)
+        checked.extend(path for path in result.checked if path not in checked)
+        untrusted.extend(entry for entry in result.untrusted if entry not in untrusted)
+        untracked.extend(path for path in result.untracked if path not in untracked)
+        if result.error:
+            errors.append(result.error)
+    return installed, _TreeTrustCheck(checked, untrusted, untracked, "\n".join(errors))
 
 
 def _verify_command_trust(
@@ -2951,71 +3554,40 @@ def _verify_command_trust(
                 f"relative command paths cannot be classified",
             )
 
-        named, external, escaping = _collect_command_paths(
+        named, external, escaping, spellings = _collect_command_spellings(
             criteria,
             pr_number,
             toplevel,
         )
-        candidates = _expand_import_closure(named, toplevel)
-        tracked, probe_error = _tracked_subset(candidates, toplevel)
-        if probe_error:
-            return CommandTrustCheck(
-                COMMAND_TRUST_GIT_ERROR,
-                [],
-                [],
-                external,
-                [],
-                probe_error,
-            )
-        checked = [path for path in candidates if path in tracked]
-        # An untracked candidate is skipped only when it is genuinely the
-        # operator's own file. One that sits in a nested repository is
-        # untracked for a different reason and fails closed.
-        untracked = [
-            path
-            for path in candidates
-            if path not in tracked and not _is_in_nested_repository(path, toplevel)
-        ]
-        nested = [path for path in candidates if path not in tracked and path not in untracked]
-
-        untrusted = list(escaping) + nested
-        untrusted.extend(_unresolvable_dynamic_sites(checked, toplevel))
-        untrusted.extend(_symlinked_import_sites(checked, toplevel))
-        errors: list[str] = []
-        # A compiled or sourceless module in an import root can shadow a trusted
-        # .py. It joins no closure, so compare it here; one the trusted ref does
-        # not hold byte for byte fails closed.
-        found_shadows = [
-            path for path in _shadowing_import_files(checked, toplevel) if path not in checked
-        ]
-        tracked_shadows, shadow_error = _tracked_subset(found_shadows, toplevel)
-        if shadow_error:
-            return CommandTrustCheck(
-                COMMAND_TRUST_GIT_ERROR,
-                [],
-                [],
-                external,
-                [],
-                shadow_error,
-            )
-        shadows = [path for path in found_shadows if path in tracked_shadows]
-        # An untracked shadow inside a nested repository is not the operator's
-        # own file for the same reason an untracked closure file is not.
-        untrusted.extend(
-            path
-            for path in found_shadows
-            if path not in tracked_shadows and _is_in_nested_repository(path, toplevel)
+        # D10 (#6506): an external file in another work tree of this
+        # repository is verified like an in-tree one; only a true install
+        # keeps the #5112 install trust.
+        external, same_repository = _partition_external_files(
+            external,
+            toplevel,
+            trust_anchor_ref,
+            spellings,
         )
-        for rel_path in [*checked, *shadows]:
-            is_trusted, error = _verify_worktree_file_trust(
-                rel_path,
-                toplevel,
-                trust_anchor_ref,
+        if same_repository.error:
+            return CommandTrustCheck(
+                COMMAND_TRUST_GIT_ERROR,
+                same_repository.checked,
+                same_repository.untrusted,
+                external,
+                same_repository.untracked,
+                same_repository.error,
             )
-            if error:
-                errors.append(error)
-            elif not is_trusted:
-                untrusted.append(rel_path)
+        tree = _verify_tree_files(
+            named,
+            toplevel,
+            toplevel,
+            trust_anchor_ref,
+            named_must_be_tracked=False,
+        )
+        # A probe failure leaves nothing checked; a compare failure keeps
+        # the files it compared, so the report still lists them.
+        if tree.error and not tree.checked:
+            return CommandTrustCheck(COMMAND_TRUST_GIT_ERROR, [], [], external, [], tree.error)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return CommandTrustCheck(
             COMMAND_TRUST_GIT_ERROR,
@@ -3026,33 +3598,19 @@ def _verify_command_trust(
             f"command trust verification failed: {exc}",
         )
 
-    if errors:
+    checked = [*tree.checked, *same_repository.checked]
+    untrusted = [*escaping, *same_repository.untrusted, *tree.untrusted]
+    untracked = [*tree.untracked, *same_repository.untracked]
+    if tree.error:
         return CommandTrustCheck(
-            COMMAND_TRUST_GIT_ERROR,
-            [*checked, *shadows],
-            untrusted,
-            external,
-            untracked,
-            "\n".join(errors),
+            COMMAND_TRUST_GIT_ERROR, checked, untrusted, external, untracked, tree.error
         )
     if untrusted:
         return CommandTrustCheck(
-            COMMAND_TRUST_UNTRUSTED,
-            [*checked, *shadows],
-            untrusted,
-            external,
-            untracked,
-            "",
+            COMMAND_TRUST_UNTRUSTED, checked, untrusted, external, untracked, ""
         )
-    return CommandTrustCheck(
-        COMMAND_TRUST_TRUSTED,
-        # The report lists every file compared, shadow binaries included.
-        [*checked, *shadows],
-        [],
-        external,
-        untracked,
-        "",
-    )
+    # The report lists every file compared, shadow binaries included.
+    return CommandTrustCheck(COMMAND_TRUST_TRUSTED, checked, [], external, untracked, "")
 
 
 def _enforce_command_trust(
@@ -3325,6 +3883,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--harness",
+        default="",
+        help=(
+            "Requires --verify-config-only (exit 2 otherwise): the "
+            "scripts-map key of the harness that is running (claude_code or "
+            "copilot). Unverifiable tokens "
+            "from that map are listed in blocking_unverifiable_command_tokens; "
+            "tokens from other maps are reported but do not block. Omitted, "
+            "every unverifiable token blocks. A name with no scripts map "
+            "exits 2"
+        ),
+    )
+    parser.add_argument(
         "--approve-untrusted-config",
         action="store_true",
         help=(
@@ -3558,6 +4129,33 @@ def _host_declared_roots() -> Iterator[Path]:
             yield root
 
 
+def _in_same_repository_tree(root: Path, work_tree: Path) -> bool:
+    """True when ``root`` lies in a work tree of the repository ``work_tree`` holds.
+
+    Raises :exc:`WorkTreeUnavailableError` when git cannot decide, so the
+    caller exits 3 rather than granting trust. A root with no ``.git``
+    entry at or above it is a true install and costs no git call.
+    """
+    # The parents of root/.git start at root itself.
+    found, error = _inside_git_work_tree(root / ".git")
+    if error:
+        raise WorkTreeUnavailableError(error)
+    if not found:
+        return False
+    # A git that cannot start or hangs is "cannot decide": exit 3, never
+    # a traceback at exit 1 and never trust.
+    try:
+        ours, error = _repository_identity(work_tree)
+        if ours is None:
+            raise WorkTreeUnavailableError(error)
+        same, error = _same_repository_root(root, ours)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise WorkTreeUnavailableError(f"git probe for {root} failed: {exc}") from exc
+    if error:
+        raise WorkTreeUnavailableError(error)
+    return same is not None
+
+
 def _install_trusted_root(config_arg: str) -> InstallTrust | None:
     """The host-declared plugin root that install-trusts ``config_arg``.
 
@@ -3682,6 +4280,17 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
         if not _are_disjoint(root, work_tree):
             continue
         if not _are_disjoint(root, project_root):
+            continue
+        # D10 (#6506): a root inside another work tree of THIS repository
+        # is not an install. A PR branch can be checked out there, so its
+        # config gets no install trust and falls to the containment check,
+        # which refuses it. A git failure here is exit 3, not trust.
+        if _in_same_repository_tree(root, work_tree):
+            print(
+                f"NOTE: plugin root {_escape_terminal_controls(str(root))} is a work "
+                "tree of this repository (D10); its config gets no install trust.",
+                file=sys.stderr,
+            )
             continue
         resolved_config = _resolve_or_none(candidate)
         if resolved_config is None:
@@ -3833,25 +4442,160 @@ def _scripts_map_criteria(config: dict[str, Any]) -> list[Any]:
     schema validator owns, and failing closed here would refuse to
     verify a config whose only fault is an unrelated typo.
     """
+    return [criterion for _, criterion in _scripts_map_entries(config)]
+
+
+def _scripts_map_entries(config: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Pair each synthetic scripts-map criterion with its harness key.
+
+    :func:`_scripts_map_criteria` drops the pairing for the trust check,
+    which verifies the union. The unverifiable-token report keeps it, so
+    a token can be attributed to the harness map that names it.
+    """
     scripts = config.get("scripts")
     if not isinstance(scripts, dict):
         return []
-    criteria: list[Any] = []
+    entries: list[tuple[str, dict[str, Any]]] = []
     for harness, commands in sorted(scripts.items()):
         if not isinstance(commands, dict):
             continue
         for key, command in sorted(commands.items()):
             if not isinstance(command, str) or not command.strip():
                 continue
-            criteria.append(
-                {
-                    "name": f"scripts.{harness}.{key}",
-                    "verification": "command",
-                    "command": command,
-                    "pass_when": "true",
-                },
+            entries.append(
+                (
+                    str(harness),
+                    {
+                        "name": f"scripts.{harness}.{key}",
+                        "verification": "command",
+                        "command": command,
+                        "pass_when": "true",
+                    },
+                ),
             )
-    return criteria
+    return entries
+
+
+def _launcher_target_verified(
+    token: str,
+    command_trust: CommandTrustCheck,
+    toplevel: Path,
+) -> bool:
+    """True when the trust check compared ``token``'s file and it matched.
+
+    The file must be a tracked work-tree file the check compared and did
+    not flag, or an external file. An external file in another work tree
+    of this repository (D10) must likewise be compared and unflagged; one
+    under a true install must be recorded as skipped, which is how a
+    plain token naming it is treated (#5112). A missing, untracked, or
+    escaping path is not verified, so the launcher that names it stays
+    unverifiable.
+    """
+    kind, value = _classify_argv_token(token, toplevel)
+    if kind == _ARGV_EXTERNAL and value in command_trust.skipped_external_files:
+        return True
+    if kind in (_ARGV_VERIFY, _ARGV_EXTERNAL):
+        return value in command_trust.checked_files and value not in command_trust.untrusted_files
+    return False
+
+
+def _launcher_verifier(command_trust: CommandTrustCheck) -> Callable[[str], bool] | None:
+    """Bind :func:`_launcher_target_verified` to this work tree, or ``None``.
+
+    ``None`` when the work tree cannot be located, so every launcher
+    stays unverifiable rather than being judged against a guessed root.
+    A NOTE on stderr names the cause, so an operator can tell this apart
+    from a launcher that is not canonical or a target that is untracked.
+    """
+    try:
+        proc = _run_git(["rev-parse", "--show-toplevel"], _PROJECT_ROOT)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _note_launcher_verification_unavailable(str(exc))
+        return None
+    if proc.returncode != 0:
+        _note_launcher_verification_unavailable(
+            f"git rev-parse --show-toplevel exited {proc.returncode}",
+        )
+        return None
+    toplevel = Path(proc.stdout.decode(errors="replace").strip()).resolve()
+    return lambda token: _launcher_target_verified(token, command_trust, toplevel)
+
+
+def _note_launcher_verification_unavailable(cause: str) -> None:
+    """Tell the operator why every Copilot launcher payload stays blocking."""
+    print(
+        "NOTE: launcher verification unavailable: "
+        f"{_escape_terminal_controls(cause)}; every Copilot payload stays blocking.",
+        file=sys.stderr,
+    )
+
+
+def _unverifiable_by_harness(
+    config: dict[str, Any],
+    pr_number: int,
+    verified: Callable[[str], bool] | None = None,
+) -> list[tuple[str, str]]:
+    """Return ``(harness, token)`` for every token no file comparison covers.
+
+    A token named by two harness maps appears once per map, so the
+    active harness sees it as blocking even when another map names it
+    first. A command line that cannot be split is a config-shape fault
+    the schema validator owns; it executes nothing here, so its
+    criterion name is recorded as unverifiable rather than halting.
+
+    ``verified`` answers whether the trust check compared the file a
+    canonical Copilot launcher names (:func:`_launcher_target_verified`).
+    Only then is that launcher's payload token dropped. With no
+    ``verified`` callable every payload stays unverifiable (fail closed).
+    """
+    found: list[tuple[str, str]] = []
+    for harness, criterion in _scripts_map_entries(config):
+        try:
+            argv = _format_command(criterion["command"], pr_number)
+        except ValueError:
+            pair = (harness, criterion["name"])
+            if pair not in found:
+                found.append(pair)
+            continue
+        launched = _launcher_script_token(criterion["command"])
+        words = len(_LAUNCHER_PREFIX_ARGV)
+        if (
+            launched is not None
+            and verified is not None
+            and tuple(argv[:words]) == _LAUNCHER_PREFIX_ARGV
+            and verified(launched)
+        ):
+            # The payload is the element right after the prefix words. The
+            # tail was checked free of `$`, so nothing else is dropped. A
+            # prefix that splits differently keeps the payload (fail closed).
+            argv = [*argv[:words], *argv[words + 1 :]]
+        # _format_command already expanded the plugin-root form, so a
+        # token it resolved is not reported as unresolvable.
+        for token in _unverifiable_argv(argv):
+            pair = (harness, token)
+            if pair not in found:
+                found.append(pair)
+    return found
+
+
+def _blocking_tokens(
+    found: list[tuple[str, str]],
+    harness: str,
+) -> list[str]:
+    """Select the unverifiable tokens that stop the active harness.
+
+    Only the running harness dispatches its own map, so only its tokens
+    reach shell evaluation in this run. With no harness named, the
+    caller could be running any map, so every token blocks (fail
+    closed). An unknown harness name is rejected before this is called.
+    """
+    blocking: list[str] = []
+    for owner, token in found:
+        if harness and owner != harness:
+            continue
+        if token not in blocking:
+            blocking.append(token)
+    return blocking
 
 
 def _report_verify_only(
@@ -3860,8 +4604,14 @@ def _report_verify_only(
     trust_anchor_ref: str,
     as_json: bool,
     unverifiable: list[str],
+    harness: str,
+    blocking: list[str],
 ) -> None:
     """Print the verify-only verdict. Called only on the trusted path.
+
+    ``blocking`` is the subset of ``unverifiable`` that stops the active
+    harness (:func:`_blocking_tokens`). With no harness named it is every
+    unverifiable token, which is the fail closed reading.
 
     ``unverifiable`` is stated, never omitted. The config comparison
     already covers every command STRING, so a token whose target cannot
@@ -3879,7 +4629,9 @@ def _report_verify_only(
                     "command_trust": command_trust.status,
                     "trusted_ref": trust_anchor_ref,
                     "checked_files": command_trust.checked_files,
+                    "active_harness": harness or None,
                     "unverifiable_command_tokens": unverifiable,
+                    "blocking_unverifiable_command_tokens": blocking,
                     "skipped_external_files": (command_trust.skipped_external_files),
                     "skipped_untracked_files": (command_trust.skipped_untracked_files),
                 },
@@ -3903,6 +4655,11 @@ def _report_verify_only(
             f"was possible for them. Their command strings are covered by "
             f"the config comparison above; the files they name are "
             f"not:\n{listing}",
+            file=sys.stderr,
+        )
+        scope = f"harness {harness!r}" if harness else "any harness (none named)"
+        print(
+            f"NOTE: {len(blocking)} of them block {_escape_terminal_controls(scope)}.",
             file=sys.stderr,
         )
 
@@ -3932,6 +4689,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.pull_request <= 0:
         print("Pull request number must be positive.", file=sys.stderr)
+        return 2
+
+    if args.harness.strip() and not args.verify_config_only:
+        # --harness scopes only the verify-only stop list. Accepting it
+        # elsewhere would let a caller believe it narrowed a full run.
+        print("--harness requires --verify-config-only.", file=sys.stderr)
         return 2
 
     # Before any path is classified: the config path itself may cross a
@@ -3992,27 +4755,34 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if halt_code is not None:
             return halt_code
+        harness = args.harness.strip()
+        harnesses = {owner for owner, _ in _scripts_map_entries(config)}
+        if harness and harness not in harnesses:
+            # Fail closed: a harness with no command map cannot dispatch
+            # Step 1, and guessing a map would vouch for the wrong set.
+            print(
+                f"Harness {_escape_terminal_controls(harness)!r} has no "
+                f"scripts map in the config; known: {sorted(harnesses)}.",
+                file=sys.stderr,
+            )
+            return 2
+        found = _unverifiable_by_harness(
+            config,
+            args.pull_request,
+            _launcher_verifier(command_trust),
+        )
         unverifiable: list[str] = []
-        for criterion in _scripts_map_criteria(config):
-            try:
-                argv = _format_command(criterion["command"], args.pull_request)
-            except ValueError:
-                # A command line this cannot even split is a config-shape
-                # fault the schema validator owns. It executes nothing
-                # here, so record it as unverifiable rather than halting.
-                unverifiable.append(criterion["name"])
-                continue
-            # _format_command already expanded the plugin-root form, so a
-            # token it resolved is not reported as unresolvable.
-            for token in _unverifiable_argv(argv):
-                if token not in unverifiable:
-                    unverifiable.append(token)
+        for _, token in found:
+            if token not in unverifiable:
+                unverifiable.append(token)
         _report_verify_only(
             trust.status,
             command_trust,
             args.trust_anchor_ref,
             args.json,
             unverifiable,
+            harness,
+            _blocking_tokens(found, harness),
         )
         return 0
 

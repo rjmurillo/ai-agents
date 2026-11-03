@@ -78,6 +78,7 @@ from scripts.github_core.workflow_event_subscriptions import (
 )
 from scripts.github_core.workflow_provenance import resolve_run_subscriptions
 from scripts.github_core.workflow_runs import (
+    UnexpectedPayloadError,
     cancel_runs,
     collect_runs_for_targets,
     with_artifact_counts,
@@ -399,7 +400,7 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
     except ValueError as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    except (RuntimeError, OSError) as exc:
+    except (RuntimeError, OSError, UnexpectedPayloadError) as exc:
         print(f"[FAIL] GitHub API read failed: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
 
