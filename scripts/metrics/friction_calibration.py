@@ -31,6 +31,7 @@ from collections.abc import Iterator
 from datetime import date
 from multiprocessing import Pool
 from pathlib import Path
+from typing import Any
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
@@ -102,10 +103,10 @@ def _parse_date(value: str) -> date:
         raise argparse.ArgumentTypeError(f"not a YYYY-MM-DD date: {value!r}") from error
 
 
-def summarize(rows: list[dict[str, object]], counts: Counter[str], subagents: int) -> str:
+def summarize(rows: list[dict[str, Any]], counts: Counter[str], subagents: int) -> str:
     """One-screen replay summary."""
-    seconds = sorted(float(r["scan_seconds"]) for r in rows)  # type: ignore[arg-type]
-    total_bytes = sum(int(r["bytes"]) for r in rows)  # type: ignore[call-overload]
+    seconds = sorted(float(r["scan_seconds"]) for r in rows)
+    total_bytes = sum(int(r["bytes"]) for r in rows)
     within = sum(1 for r in rows if r["within_budget"])
     share = 100 * within / len(rows) if rows else 0.0
     budgets = hook()
