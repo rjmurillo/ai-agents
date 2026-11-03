@@ -386,8 +386,14 @@ def test_gate_fails_tightly_coupled_file(tmp_path: Path) -> None:
 
 def test_go_import_block_not_overcounted(tmp_path: Path) -> None:
     """A Go ``import ( ... )`` block must count only the specs inside it, not
-    the block opener. A 3-import block is 3 imports (coupling 7), not 4."""
-    body = 'package main\n\nimport (\n    "fmt"\n    "os"\n    "strings"\n)\n\nfunc main() {}\n'
+    the block opener. A 3-import block is 3 imports (coupling 7), not 4.
+    Third-party paths are used because standard-library imports are not
+    scored (issue #7047)."""
+    body = (
+        "package main\n\nimport (\n"
+        '    "github.com/a/one"\n    "github.com/b/two"\n    "example.com/three"\n'
+        ")\n\nfunc main() {}\n"
+    )
     path = _write(tmp_path, "main.go", body)
     coupling = assess_file(path, "production", False).coupling
     # 10 - 3 imports == 7; the block opener must not add a fourth.
@@ -402,7 +408,7 @@ def test_go_imports_with_trailing_comments_counted(tmp_path: Path) -> None:
     single = _write(
         tmp_path,
         "single.go",
-        'package main\n\nimport "fmt" // formatting\n\nfunc main() {}\n',
+        'package main\n\nimport "github.com/a/fmtx" // formatting\n\nfunc main() {}\n',
     )
     # One counted import => coupling 9 (10 - 1); a missed import would score 10.
     assert assess_file(single, "production", False).coupling.value == 9
@@ -413,8 +419,8 @@ def test_go_imports_with_trailing_comments_counted(tmp_path: Path) -> None:
         (
             "package main\n\n"
             "import (\n"
-            '    "fmt" // formatting\n'
-            '    "os"  // process env\n'
+            '    "github.com/a/fmtx" // formatting\n'
+            '    "github.com/b/envx"  // process env\n'
             '    _ "github.com/lib/pq" // sql driver, blank import\n'
             ")\n\n"
             "func main() {}\n"
@@ -422,6 +428,183 @@ def test_go_imports_with_trailing_comments_counted(tmp_path: Path) -> None:
     )
     # Three specs, each with a trailing comment => coupling 7 (10 - 3).
     assert assess_file(block, "production", False).coupling.value == 7
+
+
+# Issue #7047 reproduction: a valid Go test using only standard-library imports.
+_GO_STDLIB_ONLY_TEST = """package couplingrepro
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "io"
+    "os"
+    "os/exec"
+    "path/filepath"
+    "strings"
+    "testing"
+    "time"
+)
+
+func TestCommand(t *testing.T) {
+    ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+    defer cancel()
+    cmd := exec.CommandContext(ctx, os.Args[0], "-test.list=^$")
+    cmd.Dir = filepath.Clean(t.TempDir())
+    cmd.Stdout = io.Discard
+    cmd.Stderr = io.Discard
+    if err := cmd.Run(); err != nil {
+        t.Fatal(fmt.Errorf("%s: %w", strings.TrimSpace(cmd.Path), errors.Join(err, ctx.Err())))
+    }
+}
+"""
+
+
+def test_go_stdlib_only_test_passes_absolute_coupling_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #7047: ten standard-library imports used to score coupling 1.0
+    and exit 11. They are reported but not scored, so the gate passes."""
+    path = _write(tmp_path, "checkout_test.go", _GO_STDLIB_ONLY_TEST)
+    monkeypatch.chdir(tmp_path)
+
+    coupling = assess_file(path, "production", False).coupling
+    rc = main(
+        [
+            "--target",
+            ".",
+            "--gate-mode",
+            "absolute",
+            "--format",
+            "json",
+            "--output",
+            str(tmp_path / "quality.json"),
+        ]
+    )
+
+    assert coupling.value == 10
+    assert coupling.confidence == 0.6
+    assert coupling.reasons == [
+        "10 import/dependency statements",
+        "10 Go standard library (not scored), 0 application or third-party (scored)",
+        "Import count is reasonable",
+    ]
+    report = json.loads((tmp_path / "quality.json").read_text())
+    assert report["files"][0]["coupling"]["value"] == 10
+    assert rc == 0
+
+
+def test_go_third_party_imports_still_fail_gate(tmp_path: Path) -> None:
+    """Negative control: the same import count from third-party modules still
+    scores below coupling.min and fails, so the gate stays intact."""
+    specs = "".join(f'    "github.com/org/dep{i}"\n' for i in range(10))
+    body = f"package dep\n\nimport (\n{specs})\n\nfunc F() {{}}\n"
+    path = _write(tmp_path, "dep.go", body)
+
+    assessment = assess_file(path, "production", False)
+
+    assert assessment.coupling.value == 1
+    assert assessment.coupling.reasons[-1] == "High import count suggests high coupling"
+    assert check_thresholds([assessment], _default_config(), "production") == 11
+
+
+def test_go_mixed_imports_score_only_non_standard(tmp_path: Path) -> None:
+    """Standard imports add nothing; each third-party import costs one point."""
+    body = (
+        "package mixed\n\nimport (\n"
+        '    "fmt"\n    "os"\n    "strings"\n'
+        '    "github.com/a/one"\n    "golang.org/x/sync/errgroup"\n'
+        ")\n\nfunc F() {}\n"
+    )
+    path = _write(tmp_path, "mixed.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 8
+    assert coupling.reasons[1] == (
+        "3 Go standard library (not scored), 2 application or third-party (scored)"
+    )
+
+
+def test_go_dotless_module_packages_count_as_application(tmp_path: Path) -> None:
+    """A module path without a dot (``module myapp``) looks like standard
+    library to the first-element rule. The go.mod lookup keeps the module's
+    own packages scored as application coupling."""
+    (tmp_path / "go.mod").write_text("module myapp\n\ngo 1.25\n", encoding="utf-8")
+    pkg = tmp_path / "cmd"
+    pkg.mkdir()
+    body = (
+        "package main\n\nimport (\n"
+        '    "fmt"\n    "myapp/internal/a"\n    "myapp/internal/b"\n    "myapp"\n'
+        ")\n\nfunc main() {}\n"
+    )
+    path = _write(pkg, "main.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 7
+    assert coupling.reasons[1] == (
+        "1 Go standard library (not scored), 3 application or third-party (scored)"
+    )
+
+
+def test_go_module_prefix_match_is_segment_aware(tmp_path: Path) -> None:
+    """``myappx/util`` shares a string prefix with ``module myapp`` but is a
+    different path, so it stays classified by the first-element rule."""
+    (tmp_path / "go.mod").write_text('module "myapp"\n', encoding="utf-8")
+    body = 'package main\n\nimport "myappx/util"\n\nfunc main() {}\n'
+    path = _write(tmp_path, "main.go", body)
+
+    assert assess_file(path, "production", False).coupling.value == 10
+
+
+@pytest.mark.parametrize(
+    "import_line",
+    ['import _ "embed"\n', 'import m "math"\n', 'import . "strings"\n'],
+)
+def test_go_named_standard_imports_are_not_scored(tmp_path: Path, import_line: str) -> None:
+    """The alias, blank, or dot name before the path must not hide that the
+    path itself is standard library."""
+    body = "package main\n\n" + import_line + "\nfunc main() {}\n"
+    path = _write(tmp_path, "main.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 10
+    assert coupling.reasons[0] == "1 import/dependency statements"
+
+
+def test_go_cgo_import_is_scored(tmp_path: Path) -> None:
+    """``import "C"`` binds foreign code, so it is not standard library."""
+    body = 'package main\n\nimport "C"\n\nfunc main() {}\n'
+    path = _write(tmp_path, "cgo.go", body)
+
+    assert assess_file(path, "production", False).coupling.value == 9
+
+
+def test_go_unreadable_go_mod_falls_back_to_first_element_rule(tmp_path: Path) -> None:
+    """An undecodable go.mod must not crash scoring; classification falls back
+    to the first-element rule."""
+    (tmp_path / "go.mod").write_bytes(b"\xff\xfe\x00module")
+    body = 'package main\n\nimport (\n    "fmt"\n    "github.com/a/b"\n)\n\nfunc main() {}\n'
+    path = _write(tmp_path, "main.go", body)
+
+    assert assess_file(path, "production", False).coupling.value == 9
+
+
+def test_coupling_explanation_matches_failing_score(tmp_path: Path) -> None:
+    """Issue #7047: a score below the default minimum must not say the import
+    count is reasonable. Five Python imports score 5 and fail the gate."""
+    body = "".join(f"import mod{i}\n" for i in range(5)) + "def f():\n    return 1\n"
+    path = _write(tmp_path, "five.py", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 5
+    assert coupling.reasons == [
+        "5 import/dependency statements",
+        "High import count suggests high coupling",
+    ]
 
 
 def test_web_indented_local_var_not_counted_as_global(tmp_path: Path) -> None:
@@ -749,10 +932,10 @@ def test_go_aliased_and_dot_imports_counted(tmp_path: Path) -> None:
     body = (
         "package main\n\n"
         "import (\n"
-        '    "fmt"\n'
-        '    _ "database/sql"\n'
-        '    m "math"\n'
-        '    . "strings"\n'
+        '    "github.com/a/fmtx"\n'
+        '    _ "github.com/lib/pq"\n'
+        '    m "github.com/b/mathx"\n'
+        '    . "github.com/c/stringsx"\n'
         ")\n\n"
         "func main() {}\n"
     )
@@ -765,9 +948,9 @@ def test_go_aliased_and_dot_imports_counted(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "import_line",
     [
-        'import _ "fmt"\n',
-        'import myfmt "fmt"\n',
-        'import . "fmt"\n',
+        'import _ "github.com/a/fmtx"\n',
+        'import myfmt "github.com/a/fmtx"\n',
+        'import . "github.com/a/fmtx"\n',
     ],
 )
 def test_go_single_line_named_blank_and_dot_imports_counted(
@@ -785,9 +968,9 @@ def test_go_named_blank_and_dot_imports_counted_inside_block(tmp_path: Path) -> 
     body = (
         "package main\n\n"
         "import (\n"
-        '    myfmt "fmt"\n'
-        '    _ "database/sql"\n'
-        '    . "strings"\n'
+        '    myfmt "github.com/a/fmtx"\n'
+        '    _ "github.com/lib/pq"\n'
+        '    . "github.com/c/stringsx"\n'
         ")\n\n"
         "func main() {}\n"
     )
