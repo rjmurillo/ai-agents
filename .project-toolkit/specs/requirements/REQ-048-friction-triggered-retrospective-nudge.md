@@ -62,7 +62,7 @@ Owner direction, relayed from the stuck-detection session and confirmed by the o
 
 Two branches had each defined "a failing call retried". This spec now holds one definition:
 
-- **One FailureClassifier.** A single shared module owns every tool-failure signal: `tool_error`, `permission_denial`, `failed_retry`, and `edit_churn`.
+- **One FailureClassifier.** A single shared module owns every tool-failure signal: `tool_error`, `permission_denial`, `failed_retry`, `edit_churn`, and `error_streak`. The transcript adapter owns `stop_feedback`.
 - **Consumer A, in-turn check.** The skill script `stuck_detection.py check-failures` sends caller-supplied events to the classifier and prints a short nudge for the agent. PR #7035 holds a first version at `7f3f4d255`, in `src/claude/skills/stuck-detection/failure_loops.py`. TASK-007 moves it onto the shared module.
 - **Consumer B, Stop nudge.** `invoke_reflect_nudge.py` sends transcript events to the classifier and prints the retrospective advisory, as before.
 - **Consumer C, cross-session facts.** This is deferred. It needs its own ADR-084 decision.
@@ -155,11 +155,15 @@ Sessions with heavy tool-side friction end with no prompt to run a retrospective
   - Canonical input: AC-38 gives consumer B's form, and AC-39 gives consumer A's.
   - A missing ProgressKey matches no other key, so it neither counts toward `failed_retry` nor resets anything (AC-30).
   - Keyless failures still enter the FailureTally under one keyless entry, so failure-repeat sees them.
-- **FailureClassifier**: the one shared module. It turns a FailureEvent sequence into FailureSignals: the four FrictionSignal counts, the FailureTally, the per-target ChurnCycle counts, and the `unfingerprinted` count (AC-37). The `unfingerprinted` count is reported and does not feed the FrictionScore. Consumers A and B both call it, so no consumer holds a second definition.
+- **FailureClassifier**: the one shared module. It turns a FailureEvent sequence into FailureSignals: the five tool-failure FrictionSignal counts, the FailureTally, the per-target ChurnCycle counts, and the `unfingerprinted` count (AC-37). The `unfingerprinted` count is reported and does not feed the FrictionScore. Consumers A and B both call it, so no consumer holds a second definition.
 - **FailureSignal**: one classifier output, as listed above.
 - **TranscriptScan**: one bounded pass over a Stop event's transcript. It feeds FailureEvents to the FailureClassifier. Existing aggregate.
-- **FrictionSignal**: a named count. Kinds: `tool_error`, `permission_denial`, `failed_retry`, `edit_churn`.
-- **FrictionScore**: weighted sum of the four FrictionSignals. TASK-001 fixes the weights.
+- **FrictionSignal**: a named count. Kinds: `tool_error`, `permission_denial`, `failed_retry`, `edit_churn`, `error_streak`, and `stop_feedback`.
+- **FrictionScore**: weighted sum of the six FrictionSignals. TASK-001 fixed the weights on 2026-11-03 (friction v2, `req-048-friction-v2-frozen-config.json`):
+  - `permission_denial` and `stop_feedback` weigh 2;
+  - `error_streak` weighs 1;
+  - `tool_error`, `failed_retry`, and `edit_churn` weigh 0.
+  The tier 1 default threshold is 10. Raw `tool_error` weighs 0 because single routine errors, such as a `grep` with no match, were not friction in the labeled corpus.
 - **CheckFailures**: consumer A. It applies `--repeat`, `--churn`, and `--window` to the classifier output and reports two signals: failure-repeat (AC-33) and edit-churn (AC-32).
 - **FailureNudge**: CheckFailures' text for the agent. It holds counts and allowlisted tool names only (AC-34).
 - **FrictionTier**: the highest threshold the score has crossed. Tier 0 means below threshold.
@@ -184,7 +188,12 @@ The correction marker key (`invoke_reflect_nudge.py:293-295,351`) stays unchange
 Definitions:
 
 - `tool_error`: a `tool_result` block with `is_error: true` that is not a `permission_denial`.
-- `permission_denial`: an errored `tool_result` whose text contains, case-insensitive, any entry of `DENIAL_MARKERS`. Initial set: `permission denied`, `user doesn't want to proceed`, `was denied`, `rejected`. TASK-001 checks it against the corpus.
+- `permission_denial`: an errored `tool_result` whose text contains, case-insensitive, any entry of `DENIAL_MARKERS`. The set is `was denied`, `permission to use`, `user doesn't want to proceed`, `hook error`, `<tool_use_error>blocked`, and `requires approval`. TASK-001 checked it against a labeled corpus on 2026-11-03:
+  - `rejected` matched 0 real denials in 15 samples (git push and ripgrep errors), so it was removed.
+  - `permission denied` was removed because it is also the Unix file-access error.
+  - The three middle entries cover the Claude Code permission, hook, and harness blocks that the initial set missed.
+- `error_streak`: the longest run of consecutive errored `tool_result` blocks in the scan, unfingerprinted ones included.
+- `stop_feedback`: the count of non-sidechain user records whose text starts with `Stop hook feedback:`. Claude Code adds that text when a Stop hook blocks the stop. A high count means the session kept trying to stop and could not.
 - `failed_retry`: an errored call whose ProgressKey and Fingerprint match an earlier errored call in the window, with no success for that key between the two calls. Each match after the first counts once. A repeat after a success (polling) does not count, and neither does a retry that fails with a different fingerprint. This amends the 2026-10-31 definition, which counted the repeat of the previous call whatever its outcome.
 - `edit_churn`: one target whose ChurnCycles end in the same fingerprint a set number of times (AC-32). For consumer A the number is `--churn`. For consumer B it is 3 over the whole scan, and TASK-001 may change it. Consumer B's FrictionScore counts the number of targets that reach it.
 - Transcript adapter: each non-sidechain `tool_use` and its `tool_result` become one FailureEvent:
@@ -247,7 +256,7 @@ No network, no model call, no writes inside any repository.
 ## Observability
 
 - SLI 1, latency: hook wall time p99 under 2.5 s on a 64 MiB fixture in the test suite.
-- SLI 2, precision: share of friction nudges a human labels "a retro was worth it" on a held-out corpus. SLO: at least 70 percent. TASK-001 writes the label rubric before any labeling. The owner both labels and produces the conversion count while knowing the thresholds; that reflexivity risk is accepted and stated here.
+- SLI 2, precision: share of friction nudges labeled "a retro was worth it" out of sample: out-of-fold under cross-validation on the tuning split, with the held-out split reported beside it (AC-19). SLO: at least 70 percent. TASK-001 writes the label rubric before any labeling. The owner both labels and produces the conversion count while knowing the thresholds; that reflexivity risk is accepted and stated here.
 - SLI 3, volume: friction nudges per 100 sessions on the owner's corpus. Over 15 means the threshold is too low.
 - SLI 4, coverage: share of target sessions (score at or above threshold) whose scan finished inside the budget. SLO: at least 95 percent. The TASK-001 calibration script computes it offline by replaying the scan, with its budget, over each corpus. Measured 2026-10-31 for bytes only: 11 of 11 under 64 MiB; time not measured.
 - SLI 5, conversion: share of sessions with a friction nudge that run `/retrospective` later in the same session. TASK-001 measures the baseline on the 11 Q5 sessions. If the baseline is at or above 20 percent, the owner sets a higher kill floor before release.
@@ -277,7 +286,16 @@ No network, no model call, no writes inside any repository.
 16. **AC-16** When the plugin from `src/claude/` is installed and the hook runs from a directory that is not the plugin root, the launcher shall find and run the script. A bare relative path in the same harness shall fail (negative control).
 17. **AC-17** When a friction-qualifying Stop runs in the real Claude Code CLI, the `systemMessage` shall reach the user intact through the plugin registration, and the next turn's model context shall not contain the advisory text.
 18. **AC-18** When the hook ships in a `surface: "plugin"` dispatch group, the restored ADR-084 rule 5 presence test shall find one `Customer value:` line in its module docstring that names `AI_AGENTS_RETRO_NUDGE_THRESHOLD` and its off values, and the module docstring shall state the firing bound (at most one friction nudge per session per threshold tier).
-19. **AC-19** When TASK-001 has chosen weights and the default threshold on the tuning split (a seeded random 70 percent of sessions in the measured 30-day window), the held-out split (the other 30 percent, labeled by Richard Murillo) shall show at least 70 percent precision, with a Wilson 95 percent lower bound of at least 50 percent, before the default ships. The TASK-001 report shall record the window dates, the seed, and the split session list, and shall note that both splits share one window (leakage risk accepted under the owner's decision). The gate is valid only when the held-out split holds at least 20 labeled friction nudges. Weights and the default freeze on the tuning split before any held-out session is labeled. Every session snapshotted after that freeze joins the held-out split only. Below 20 labeled nudges, TASK-001 snapshots new transcripts daily into owner storage, since Claude Code keeps about 30 days locally (oldest local transcript 2026-10-02, measured 2026-10-31), and the default does not ship. If the count is still under 20 at 90 days after TASK-001 starts, the owner decides whether to keep collecting or drop the friction branch. At the Q5 rate the count may take longer than 90 days (INFERRED), so that decision point is a likely path.
+19. **AC-19** (amended 2026-11-03, owner decision D19). Before the default ships, nested 5-fold cross-validation on the tuning split shall show these for the friction nudge, counted out of fold:
+    - at least 70 percent precision;
+    - a Wilson 95 percent lower bound of at least 50 percent;
+    - at least 15 out-of-fold nudges.
+
+    Each label sits at the Stop where the nudge would fire. The held-out split shall be scored once with the frozen config, and the report shall give its result, and the pooled out-of-fold plus held-out result, beside the gate. Neither is part of the gate.
+
+    D19 was taken because the 30-day corpus holds too few true friction sessions for a held-out split of at least 20 nudges at 70 percent. The 15-nudge floor was set after the measurement and accepted by the owner.
+
+    The original text follows, kept for the record. When TASK-001 has chosen weights and the default threshold on the tuning split (a seeded random 70 percent of sessions in the measured 30-day window), the held-out split (the other 30 percent, labeled by Richard Murillo) shall show at least 70 percent precision, with a Wilson 95 percent lower bound of at least 50 percent, before the default ships. The TASK-001 report shall record the window dates, the seed, and the split session list, and shall note that both splits share one window (leakage risk accepted under the owner's decision). The gate is valid only when the held-out split holds at least 20 labeled friction nudges. Weights and the default freeze on the tuning split before any held-out session is labeled. Every session snapshotted after that freeze joins the held-out split only. Below 20 labeled nudges, TASK-001 snapshots new transcripts daily into owner storage, since Claude Code keeps about 30 days locally (oldest local transcript 2026-10-02, measured 2026-10-31), and the default does not ship. If the count is still under 20 at 90 days after TASK-001 starts, the owner decides whether to keep collecting or drop the friction branch. At the Q5 rate the count may take longer than 90 days (INFERRED), so that decision point is a likely path.
 20. **AC-20** Where `AI_AGENTS_RETRO_NUDGE_THRESHOLD` is an off value as AC-12 parses it, the hook shall not open the transcript.
 21. **AC-21** When the plugin is generated, `src/copilot-cli/hooks/hooks.json` shall carry no entry for the hook, through `copilotExclude: true` on its dispatch group.
 22. **AC-22** When a test fixture plants a readable file outside the rule 2a condition e inputs and calls the hook module's `run()` directly with both branches active, the hook shall not open it (observed with a `sys.addaudithook` hook on `open`). It shall read no environment variable outside this list: `AI_AGENTS_RETRO_NUDGE_THRESHOLD`, `XDG_STATE_HOME`, `LOCALAPPDATA`, and the variables `Path.home()` consults (`HOME`; on Windows `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`). A recording mapping installed as `os.environ` for the run observes this, so `Path.home()` lookups are seen too. The launcher (`invoke_dispatch_claude.py`) may also read `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PROJECT_DIR`; AC-16 covers it.
@@ -343,6 +361,9 @@ No network, no model call, no writes inside any repository.
     - **Script and hook heads.** `python` or `python3` running a script whose file name starts with `test_`, `check_`, or `validate_`, or is `pre_pr.py`. Also `lefthook run` and `pre-commit run`.
     - **Everything else.** Any other event is not a check: a read tool, a non-shell tool, or a shell command with no check head.
     - **Both consumers.** The transcript adapter applies the derived rule, because transcripts carry no `check` field. CheckFailures uses the caller's field and falls back to the derived rule.
+41. **AC-41** When a FailureEvent sequence holds runs of errored events, the classifier shall report `error_streak` as the longest run, unfingerprinted events included. A success ends a run. An empty sequence gives 0.
+42. **AC-42** When a transcript holds non-sidechain user records whose text starts with `Stop hook feedback:`, the transcript adapter shall count each one once toward `stop_feedback`. Tool-result records and sidechain records never count.
+43. **AC-43** When consumer B computes the FrictionScore, it shall use the TASK-001 weights and the tier 1 default from the classifier's single definition. No consumer may hold its own copy.
     - **Fixtures.** One per listed head, one per wrapper, and these non-checks: `ls`, `git status`, `cat`, `echo pytest`, and `python3 scripts/foo.py`.
 
 ## Out of scope

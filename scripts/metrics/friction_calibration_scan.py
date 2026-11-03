@@ -51,9 +51,14 @@ from scripts.failure_classifier import (
     is_denial,
 )
 from scripts.failure_classifier.transcript import _blocks
+from scripts.metrics.friction_calibration_features import (
+    RecordFeatures,
+    add_stop_features,
+)
 from scripts.metrics.friction_calibration_text import (
     SNIPPET_CHARS,
     matching_line,
+    user_text,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -109,22 +114,6 @@ def parse_timestamp(value: object) -> datetime | None:
     return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
-def user_text(record: Mapping[str, Any]) -> str:
-    """Full text of a user record: a string, or its text blocks joined."""
-    message = record.get("message")
-    content = message.get("content") if isinstance(message, Mapping) else None
-    if isinstance(content, str):
-        return content
-    if not isinstance(content, list):
-        return ""
-    parts = [
-        b["text"]
-        for b in content
-        if isinstance(b, Mapping) and b.get("type") == "text" and isinstance(b.get("text"), str)
-    ]
-    return " ".join(parts)
-
-
 def is_retro_invocation(record: Mapping[str, Any]) -> bool:
     """A Skill tool_use naming retrospective, or a slash-command user turn."""
     for block in _blocks(record) if record.get("type") == "assistant" else []:
@@ -168,6 +157,7 @@ class Tracker:
     event_records: list[tuple[int, str]] = field(default_factory=list)
     pending: set[str] = field(default_factory=set)
     paired: set[str] = field(default_factory=set)
+    features: RecordFeatures = field(default_factory=RecordFeatures)
 
     def observe(self, record: Mapping[str, Any]) -> None:
         self.records += 1
@@ -183,6 +173,8 @@ class Tracker:
             if self.human_turns > 1:
                 self.stop_events.append(self.event_count)
                 self.stop_records.append(self.records - 1)
+                self.features.close_stop()
+        self.features.observe(record)
         if is_retro_invocation(record):
             after = len(self.stop_events) - 1 if self.stop_events else None
             if not self.retro_seen:
@@ -452,12 +444,15 @@ def scan_session(path: Path, seed: int) -> SessionScan:
     with path.open(encoding="utf-8", errors="replace") as handle:
         events = events_from_records(iter_records(handle, tracker))
     final = classify(events)
+    tracker.features.close_stop()
     scan_seconds = time.perf_counter() - started
     size = path.stat().st_size
     stop_events = [*tracker.stop_events, len(events)]
     cands = Candidates.for_session(seed, session_id)
     hits, shell = tally_events(events, session_id, cands)
     budgets = hook()
+    stops = prefix_stops(events, stop_events, final)
+    add_stop_features(stops, events, tracker.features)
     row: dict[str, Any] = {
         "session_id": session_id,
         "project": path.parent.name,
@@ -466,7 +461,7 @@ def scan_session(path: Path, seed: int) -> SessionScan:
         "records": tracker.records,
         "events": len(events),
         "human_turns": tracker.human_turns,
-        "stops": prefix_stops(events, stop_events, final),
+        "stops": stops,
         "failed_retry_broad": broad_failed_retry(events),
         "retro_after_stop": tracker.retro_after_stop,
         "retro_stops": tracker.retro_stops,

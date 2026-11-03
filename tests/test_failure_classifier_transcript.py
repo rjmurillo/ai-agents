@@ -6,7 +6,13 @@ from typing import Any
 
 import pytest
 
-from scripts.failure_classifier import FailureEvent, canonical_input, classify, events_from_records
+from scripts.failure_classifier import (
+    FailureEvent,
+    canonical_input,
+    classify,
+    events_from_records,
+    stop_feedback_count,
+)
 
 
 def use(use_id: str, name: str, tool_input: Any, sidechain: bool = False) -> dict[str, Any]:
@@ -217,3 +223,60 @@ class TestAC38MalformedRecords:
         events = events_from_records(records)
         assert [e.progress_key for e in events] == [("bash", "null"), ("bash", "null")]
         assert classify(events).failed_retry == 1
+
+
+FEEDBACK = "Stop hook feedback: run the retrospective"
+
+
+def user(content: Any, sidechain: bool = False, **extra: Any) -> dict[str, Any]:
+    return {"type": "user", "isSidechain": sidechain, "message": {"content": content}, **extra}
+
+
+def text_block(text: str) -> dict[str, str]:
+    return {"type": "text", "text": text}
+
+
+class TestStopFeedbackCount:
+    def test_empty_input_is_zero(self) -> None:
+        assert stop_feedback_count([]) == 0
+
+    def test_string_content_counts(self) -> None:
+        assert stop_feedback_count([user(FEEDBACK)]) == 1
+
+    def test_text_block_content_counts(self) -> None:
+        assert stop_feedback_count([user([text_block(FEEDBACK)])]) == 1
+
+    def test_leading_whitespace_is_stripped(self) -> None:
+        assert (
+            stop_feedback_count([user("  \n" + FEEDBACK), user([text_block("\t" + FEEDBACK)])]) == 2
+        )
+
+    def test_empty_first_block_still_counts(self) -> None:
+        assert stop_feedback_count([user([text_block(""), text_block(FEEDBACK)])]) == 1
+
+    def test_prefix_must_open_the_text(self) -> None:
+        assert stop_feedback_count([user("note: " + FEEDBACK), user("stop hook feedback: x")]) == 0
+
+    def test_sidechain_is_ignored(self) -> None:
+        assert stop_feedback_count([user(FEEDBACK, sidechain=True)]) == 0
+
+    def test_tool_result_user_records_are_ignored(self) -> None:
+        records = [
+            result("t1", FEEDBACK),
+            user(FEEDBACK, toolUseResult={"stdout": "x"}),
+            user([{"type": "tool_result", "tool_use_id": "t2", "content": FEEDBACK}]),
+        ]
+        assert stop_feedback_count(records) == 0
+
+    def test_assistant_records_are_ignored(self) -> None:
+        record = {"type": "assistant", "message": {"content": [text_block(FEEDBACK)]}}
+        assert stop_feedback_count([record]) == 0
+
+    @pytest.mark.parametrize("record", ["text", 3, None, [], {"type": "user"}, user(None), user(7)])
+    def test_malformed_records_are_skipped(self, record: Any) -> None:
+        assert stop_feedback_count([record]) == 0
+
+    def test_counts_every_match(self) -> None:
+        assert (
+            stop_feedback_count([user(FEEDBACK), user("hello"), user([text_block(FEEDBACK)])]) == 2
+        )
