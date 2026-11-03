@@ -24,11 +24,19 @@ for those.
    "Promotion Gate" job. It lists every finding with its class: remediated,
    accepted, expired, or unresolved. An unresolved finding blocks an enforcing
    run.
-4. Check the published state after any run:
+4. Check the published state after any run. `npm view <package> version`
+   reports only the `latest` dist-tag, so check the candidate version
+   directly and list what the registry holds:
 
    ```bash
-   npm view @rjmurillo/ai-agents version
+   npm view @rjmurillo/ai-agents@X.Y.Z version
+   npm view @rjmurillo/ai-agents versions
    ```
+
+   The first command answers for one exact version. The second lists every
+   published version. If the package has never been published, both fail with
+   E404 and exit 1, which is itself the answer: nothing reached the registry.
+   Verified on 2026-11-03: the package returns E404 today.
 
 ## Recover
 

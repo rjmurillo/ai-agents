@@ -5,8 +5,10 @@
 The weekly [Agent Drift Detection](../../.github/workflows/drift-detection.yml)
 workflow (Monday, 09:00 UTC) opened or updated an issue titled
 "Agent Drift Detected - `<date>`" with the `drift-detected` and `automated`
-labels. The issue follows
-[the drift alert template](../../.github/ISSUE_TEMPLATE/drift-alert.md).
+labels. `scripts/ci/drift_create_alert_issue.py` builds the issue body from
+[.github/prompts/drift-alert-issue.md](../../.github/prompts/drift-alert-issue.md),
+filling in the date, the run link, and the drift details. The commands in that
+body omit `--fail-on-install-drift`; use the Confirm command below instead.
 
 The audit makes two comparisons. It compares the Claude agents in
 `src/claude/agents/` with the VS Code and Copilot agents in
@@ -32,13 +34,33 @@ The default similarity threshold is 80 percent; change it with
 
 1. Decide whether the drift is intended. Most drift comes from a hand edit to a
    generated agent file.
-2. Fix the source, not the output. Edit the shared template under
-   `templates/agents/`, then regenerate and verify the generated files:
+2. Fix the source, not the output. The audit names the comparison on each
+   agent line: `[src-claude vs src-vscode]` for the vendored pair or
+   `[.claude/agents vs .github/agents]` for the install pair. Match the fix to
+   the side that holds the defect:
 
-   ```bash
-   uv run python build/generate_agents.py
-   uv run python build/generate_agents.py --validate
-   ```
+   - Claude side (`src/claude/agents/` or `.claude/agents/`): Claude agents
+     render from their own templates. Edit
+     `templates/agents/<name>.claude.md.tmpl`, then rebuild and check:
+
+     ```bash
+     uv run python build/scripts/build_all.py
+     uv run python build/scripts/build_all.py --check
+     ```
+
+     Editing the shared template and running `generate_agents.py` does not
+     reach the Claude agents, so the drift survives that repair.
+   - VS Code or Copilot side (`src/vs-code-agents/`, `src/copilot-cli/`, or
+     `.github/agents/`): edit `templates/agents/<name>.shared.md`, then
+     regenerate and verify:
+
+     ```bash
+     uv run python build/generate_agents.py
+     uv run python build/generate_agents.py --validate
+     ```
+
+     For Copilot-only content, edit `templates/agents/<name>.copilot.md.tmpl`
+     and use the `build_all.py` command pair above.
 
 3. Rerun the audit until it exits 0.
 4. Open the PR with the `push-pr` skill. Close the alert issue with a link to
