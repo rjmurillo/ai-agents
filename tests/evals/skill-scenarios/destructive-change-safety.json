@@ -35,6 +35,42 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "The change opens a file for reading and reaches no delete, overwrite, drop, or revoke sink. The scan returns skip, so the full workflow must not run."
+    },
+    {
+      "id": "S4",
+      "desc": "Snapshot rollback with a valid version 1 manifest passes the rollback check",
+      "input": "My change deletes expired rows from the users table. The rollback is a snapshot: snapshot_path names a directory holding snapshot.json with format destructive-change-snapshot, version 1, ref snap-2026-10-11, target sqlite:users, a payload file inside the directory, and the payload sha256. The evidence rollback names the same ref and snapshot_target sqlite:users. Does the rollback check pass? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "snapshot.json",
+        "snapshot_target",
+        "sha256",
+        "PASS"
+      ],
+      "expected_gate": "destructive-change-safety-gate",
+      "rationale": "This is the valid branch of the snapshot format contract added for issue 7033. A response that names the manifest, the target tie, and the payload hash check, and passes the rollback, is attributable to the new contract text rather than the old existence check."
+    },
+    {
+      "id": "S5",
+      "desc": "Snapshot rollback naming an existing dump with no manifest blocks",
+      "input": "My change deletes expired rows from the users table. For rollback I kept an exported SQL dump file on disk, and my evidence names it as snapshot_path with kind snapshot. The file exists. Can the gate pass? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "snapshot.json",
+        "snapshot_target",
+        "BLOCK"
+      ],
+      "expected_gate": "destructive-change-safety-gate",
+      "rationale": "Under the old existence check this evidence passed. The version 1 contract requires a manifest and a snapshot_target, so a response that blocks and asks for both is attributable to the new instructions. This is the exact gap issue 7033 reported."
+    },
+    {
+      "id": "S6",
+      "desc": "Snapshot manifest naming a different recovery point blocks",
+      "input": "My change deletes expired rows from the users table. The rollback evidence names ref snap-2026-10-11 and snapshot_target sqlite:users. The snapshot directory holds a snapshot.json, but its ref is snap-2026-09-01 and its target is sqlite:orders. Can the gate pass? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "does not match",
+        "BLOCK"
+      ],
+      "expected_gate": "destructive-change-safety-gate",
+      "rationale": "The contract ties the manifest to the claimed recovery point and target. A response that blocks on the mismatched ref and target is attributable to the identity checks in the new instructions."
     }
   ]
 }
