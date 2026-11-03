@@ -101,3 +101,42 @@ current tree states no number. This audit fixes one here:
 - The judge shares a model family with one evaluated model.
 - 6 pairs can only detect a unanimous direction. A real but inconsistent
   effect will read as unresolved.
+
+## Amendment, 2026-11-03 (before any scored pre/post run)
+
+No pre/post run under this design exists as of this amendment
+(`.project-toolkit/eval-results/` and `evals/reports/` searched for this
+design at `86298335f`, 2026-11-02). The rule edits merged with #6091
+(`f371379fc`, 2026-10-04) without one. The 2026-10-18 voice reporting run
+(`.project-toolkit/eval-results/2026-10-18-issue-5405-voice-reporting-claude-cli.json`)
+used a different design (one run, `baseline` against `full`) and does not vote
+here. It is context only: `full` scored at or below `baseline` on V1, V2, and
+V4.
+
+The treatment changes. The decision rule above is unchanged.
+
+- **builder-ethos (addition).** Section 5 becomes "Thinking and Execution
+  Discipline", five numbered items supplied by the owner: check then act, one
+  viable path, settle checked conclusions (factual pushback only; user
+  decisions still govern), prefer real checks, update and correct briefly. The
+  owner's sixth item, "stop at verified completion", is dropped as a duplicate
+  of the Terminal Predicate and because "no other review pass" reads as
+  permission to skip required review gates.
+- **voice (cut).** The three voice lines from #6091 move into the builder-ethos
+  block. Duplicates are cut to stay under the per-fixture byte ceilings
+  without raising them: two Quick Self-Review bullets (ambiguity, uncleared
+  gate) and its Confusion Protocol pointer.
+- **builder-ethos (cut).** Also cut as duplicates: the Boil the Lake "When the
+  user explicitly says skip" paragraph (restates Precedence Stack item 1) and
+  two User Sovereignty anti-pattern bullets restating the paragraphs above
+  them.
+
+Arms: **pre** is `86298335f`; **post** is the commit carrying this treatment.
+
+- builder-ethos is graded as an **addition** under the decision rule above.
+  Its scenario file gains R6 to R9, copies of voice V1 to V4, because those
+  behaviors now live in builder-ethos. The harm guard moves from voice V3 to
+  builder-ethos R8 with the same 2-of-6 bound.
+- voice is graded as a **cut**: it fails when pre wins the sign count at
+  alpha 0.05, and passes otherwise (rule-audit procedure, cut threshold).
+  voice V1 to V4 stay in `voice.json` as context.
