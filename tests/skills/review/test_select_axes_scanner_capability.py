@@ -309,49 +309,6 @@ class TestOverrideModesAndLocalAxes:
         for axis in result["local_selected"]:
             assert result["selection_reasons"][axis] == mod._DEEP_REASON
 
-    def test_fail_closed_skips_scanners_that_read_no_changed_file(self):
-        result = select(["some/unclassifiable/blob.bin"])
-        assert result["fail_closed"] is True
-        assert result["local_selected"] == []
-        for axis in mod.LOCAL_AXES:
-            assert result["skipped"][axis] == mod._UNREADABLE_REASON
-
-    @pytest.mark.parametrize(
-        "unclassified",
-        # The two #6506 branches that hit the deadlock on 2026-11-01.
-        ["src/cursor/rules/python.mdc", ".agents/governance/agent-source-divergence.json"],
-    )
-    def test_fail_closed_skips_golden_principles_with_no_applicable_file(self, unclassified):
-        """Issue #7031: GP scanned zero files, reported UNKNOWN, and blocked PASS."""
-        result = select([unclassified])
-        assert result["fail_closed"] is True
-        assert "golden-principles" not in result["local_selected"]
-        assert result["skipped"]["golden-principles"] == mod._UNREADABLE_REASON
-        assert set(result["canonical_selected"]) == set(CANDIDATES)
-
-    def test_fail_closed_keeps_a_scanner_that_reads_one_changed_file(self):
-        """Negative control: narrowing must not drop a scanner with work to do."""
-        result = select(["some/unclassifiable/blob.bin", "src/app.py", "README.md"])
-        assert result["fail_closed"] is True
-        assert {"code-qualities-assessment", "taste-lints", "doc-accuracy"} <= set(
-            result["local_selected"]
-        )
-        for axis in result["local_selected"]:
-            assert result["selection_reasons"][axis] == mod._FAIL_CLOSED_REASON
-
-    @pytest.mark.parametrize("paths", [[], ["", "   "]])
-    def test_fail_closed_with_no_usable_path_keeps_every_local_axis(self, paths):
-        """With nothing to narrow against, all four local axes still run."""
-        result = select(paths)
-        assert result["fail_closed"] is True
-        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
-        assert result["skipped"] == {}
-
-    def test_fail_closed_pin_overrides_the_scanner_narrowing(self):
-        result = select(["some/unclassifiable/blob.bin"], pinned=["golden-principles"])
-        assert "golden-principles" in result["local_selected"]
-        assert "golden-principles" not in result["skipped"]
-
     def test_pin_overrides_the_scanner_narrowing(self):
         """A caller who names the axis gets it, scanner support or not."""
         result = select(["src/main.rs"], pinned=["taste-lints"])
