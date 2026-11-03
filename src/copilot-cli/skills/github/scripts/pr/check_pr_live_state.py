@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Per-PR live-state re-triage probe (issue #2455).
 
 The pr-autofix workflow triages all open PRs once at session start

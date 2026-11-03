@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """Post a comment to a GitHub Issue with idempotency support.
 
 If a marker exists in existing comments, behavior depends on --update-if-exists:

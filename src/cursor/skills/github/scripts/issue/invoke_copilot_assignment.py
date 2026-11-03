@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Synthesize context and assign GitHub Copilot to an issue.
 
 Fetches issue comments, extracts context from trusted sources (maintainers, AI agents),

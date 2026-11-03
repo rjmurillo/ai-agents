@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """Extract GitHub context (PR numbers, issue numbers, owner, repo) from text and URLs.
 
 Parses user prompts to extract GitHub context without requiring explicit parameters.

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Check if a PR is ready to merge.
 
 Performs comprehensive merge readiness check:

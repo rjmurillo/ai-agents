@@ -2,6 +2,8 @@
 
 <!-- vendor-portability-exec: example invocations only; scripts referenced here are mostly illustrative; the real scripts are get_unresolved_review_threads.py in the github skill and validate-skill.py in the skillforge skill -->
 
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
+
 Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and independently verifiable.
 
 ---

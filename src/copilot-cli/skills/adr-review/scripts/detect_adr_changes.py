@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 # taste-lint: ignore file-size -- was already at the 500-line cap before issue
 # #5275; the lines added are the verbatim library citation and divergence note
 # that canonical-source-mirror.md requires for the mirrored fence boundary,

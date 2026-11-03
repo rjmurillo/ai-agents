@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 Compress markdown documentation using a pipe-delimited format (Vercel pattern).
 
