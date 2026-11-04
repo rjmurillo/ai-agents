@@ -22,8 +22,8 @@ for those.
    not publish. Run the workflow by dispatch from the default branch instead.
 3. For a gate block, download the `promotion-manifest` artifact from the
    "Promotion Gate" job. It lists every finding with its class: remediated,
-   accepted, expired, or unresolved. An unresolved finding blocks an enforcing
-   run.
+   accepted, expired, or unresolved. An unresolved or expired finding blocks an
+   enforcing run.
 4. Check the published state after any run. `npm view <package> version`
    reports only the `latest` dist-tag, so check the candidate version
    directly and list what the registry holds:
@@ -47,7 +47,7 @@ Match the failure to the troubleshooting table in
 |---|---|
 | `ENEEDAUTH` or `E403 Forbidden` | Check OIDC, the `npm` environment, 2FA, and the scope link, as RELEASING.md describes |
 | Tag and version mismatch | Set `release-tag` to `vX.Y.Z` for the version in `packages/ai-agents-cli/package.json` |
-| Promotion gate `block` | Fix each unresolved finding in the manifest on a branch, merge it, then dispatch the workflow again |
+| Promotion gate `block` | Fix each unresolved or expired finding in the manifest on a branch, merge it, then dispatch the workflow again |
 | "Attach manifest to release" fails | The publish already succeeded. Check npm with step 4 above and do not publish again. Attach the manifest to the release by hand |
 | "Promotion Gate" fails at "Fetch the previous promoted manifest" | No `promotion-manifest` artifact exists. Read that step's log; it fails when GitHub cannot answer or the newest release asset is not a promoted manifest |
 | Pack size warning | Review the `files` allowlist in `packages/ai-agents-cli/package.json` |

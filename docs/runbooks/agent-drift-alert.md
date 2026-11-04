@@ -65,7 +65,8 @@ The default similarity threshold is 80 percent; change it with
 
 If the difference is intended, accept it in code, not only in the issue.
 Closing the issue alone does not stop the alert. The next scheduled run finds
-the same drift and files a new issue. In the same PR, add an entry to
+the same drift and reports it again, as a new issue or as a comment on an open
+`drift-detected` issue. In the same PR, add an entry to
 `build/scripts/detect_agent_drift.py`:
 
 - Low similarity: add `(agent, comparison)` to `KNOWN_BASELINE_DRIFT`, with
