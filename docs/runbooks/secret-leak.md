@@ -29,7 +29,8 @@ GitHub token, an npm token, or a model provider API key.
    removed lines, so this step does not end the exposure. Rotation does.
    For a PR body, issue body, or comment, editing the text is not enough: GitHub
    keeps the earlier revision in the edit history. Delete that revision from the
-   edit history, or delete the comment. To scrub free text before you post it,
+   edit history, or delete the comment. For a workflow log, delete the logs of
+   the affected run from its Actions page, which needs write access. To scrub free text before you post it,
    run the redactor on a file:
 
    ```bash

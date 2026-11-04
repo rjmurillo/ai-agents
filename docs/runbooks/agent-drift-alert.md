@@ -36,31 +36,27 @@ The default similarity threshold is 80 percent; change it with
    generated agent file.
 2. Fix the source, not the output. The audit names the comparison on each
    agent line: `[src-claude vs src-vscode]` for the vendored pair or
-   `[.claude/agents vs .github/agents]` for the install pair. Match the fix to
-   the side that holds the defect:
+   `[.claude/agents vs .github/agents]` for the install pair. Match the
+   template to the side that holds the defect:
 
-   - Claude side (`src/claude/agents/` or `.claude/agents/`): Claude agents
-     render from their own templates. Edit
-     `templates/agents/<name>.claude.md.tmpl`, then rebuild and check:
-
-     ```bash
-     uv run python build/scripts/build_all.py
-     uv run python build/scripts/build_all.py --check
-     ```
-
-     Editing the shared template and running `generate_agents.py` does not
-     reach the Claude agents, so the drift survives that repair.
+   - Claude side (`src/claude/agents/` or `.claude/agents/`): edit
+     `templates/agents/<name>.claude.md.tmpl` or a partial it includes.
    - VS Code or Copilot side (`src/vs-code-agents/`, `src/copilot-cli/`, or
-     `.github/agents/`): edit `templates/agents/<name>.shared.md`, then
-     regenerate and verify:
+     `.github/agents/`): edit `templates/agents/<name>.copilot.md.tmpl` or a
+     partial it includes.
 
-     ```bash
-     uv run python build/generate_agents.py
-     uv run python build/generate_agents.py --validate
-     ```
+   Do not fix drift in `templates/agents/<name>.shared.md`. `build_all.py`
+   renders every agent tree from the two templates above, so an edit to the
+   shared file reaches no agent and the next full build erases a fix made
+   with `generate_agents.py`. Rebuild, commit, then check:
 
-     For Copilot-only content, edit `templates/agents/<name>.copilot.md.tmpl`
-     and use the `build_all.py` command pair above.
+   ```bash
+   uv run python build/scripts/build_all.py
+   uv run python build/scripts/build_all.py --check
+   ```
+
+   Run the check after you commit the template and its outputs. Before the
+   commit, it reports the changed outputs as stale.
 
 3. Rerun the audit until it exits 0.
 4. Open the PR with the `push-pr` skill. Close the alert issue with a link to
