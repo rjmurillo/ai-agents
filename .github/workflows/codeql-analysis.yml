@@ -156,7 +156,7 @@ jobs:
 
       - name: Initialize CodeQL
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           languages: ${{ matrix.language }}
           config-file: .github/codeql/codeql-config.yml
@@ -164,7 +164,7 @@ jobs:
 
       - name: Perform CodeQL Analysis
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           category: '/language:${{ matrix.language }}'
           upload: true
