@@ -16,7 +16,6 @@ gate in ``pre_pr.py``, and a step in the ``pytest`` workflow:
 ``tests/validation/test_check_dead_code.py`` pins the baseline length, so an
 added line fails until a reviewer sees that constant move.
 
-Exit codes (ADR-035):
 The scan reads only files git tracks under the configured paths, so an
 untracked draft cannot fail a push that CI, checking out the same commit,
 passes. A tracked file reads its working-tree content.
