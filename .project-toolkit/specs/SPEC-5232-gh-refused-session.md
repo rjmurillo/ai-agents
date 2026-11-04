@@ -92,11 +92,11 @@ Searched `lefthook.yml`, `scripts/validation/`, `.claude/hooks`, `src/claude/hoo
 
 ## Data model
 
-Each row keeps `passed` and gains `status`. The payload keeps `all_passed` and gains `verdict` and `unknown_criteria`. Only a row with `passed: false` and a non-zero verifier exit can become `unknown`. A `fail_open: true` row that passed stays `passed`, because its author accepted that outcome.
+Each row keeps `passed` and gains `status`. The payload keeps `all_passed` and gains `verdict` and `unknown_criteria`. Only a row with `passed: false` and a verifier exit above 1 can become `unknown`. A `fail_open: true` row that passed stays `passed`, because its author accepted that outcome.
 
 ## Integrations
 
-The gate calls the `gh` on PATH directly, with two fixed queries: `gh api repos/{owner}/{repo}` and a GraphQL viewer query. It reads only a failed call's output and matches `not enabled for this session`. The gate does not read the preflight's verdict. If the skill text is ignored and the gate runs in a refused session, it reports unknown rather than failure.
+The gate calls the `gh` on PATH directly, with two fixed queries: `gh api repos/{owner}/{repo}` and a GraphQL viewer query. It reads only a failed call's output. The REST call matches `GitHub access is not enabled for this session`, and the GraphQL call matches `GraphQL query is not enabled for this session`. The gate does not read the preflight's verdict. If the skill text is ignored and the gate runs in a refused session, it reports unknown rather than failure.
 
 ## Failure modes
 
@@ -106,7 +106,7 @@ The gate calls the `gh` on PATH directly, with two fixed queries: `gh api repos/
 | PR text in verifier output resembles a refusal | Ignored. Verifier output is never matched |
 | Probe cannot run (no `gh`, timeout, no repo) | No evidence, so rows read FAIL, as today |
 | Viewer query served while repository GraphQL is refused | Rows read FAIL, as today |
-| `gh` cannot fill `{owner}/{repo}` from the remote | REST probe gives no evidence. The GraphQL probe still catches a refused viewer query |
+| `gh` cannot fill `{owner}/{repo}` from the remote | REST probe gives no evidence. The GraphQL probe still catches a refused viewer query. If the viewer query is served, rows read FAIL, the safe direction |
 | Verifier exits 1 with a real finding in a refused session | Stays `failed`. Exit 1 is an answer under ADR-035 |
 | GraphQL-only refusal beside a retryable exit 3 | Stays `failed`. The narrow body refuses one query shape |
 | A definite failure beside a refusal | Verdict `fail`, exit 1 |
@@ -133,7 +133,7 @@ Row `status`, payload `verdict`, and the evidence file written by `--evidence-pa
 9. `_print_table` shall mark an unknown row `UNKN` and keep its evidence lines. The gate shall print a stderr line starting `UNKNOWN:` that names the hand check, in table and JSON modes.
 10. `_TRANSPORT_BLOCKED_MESSAGE` shall stop presenting the App connection as the expected fix and shall name MCP as the supported path.
 11. `transport-routing.md` shall state that a blocking local gate must not depend on `gh` for its verdict, and that a gate unable to verify reports unknown.
-12. `pr-review` and `pr-autofix` shall document exit 3 with verdict `unknown`, route it to the hand check, and say not to retry it. Exit 3 with no payload stays the trust halt.
+12. `pr-review` and `pr-autofix` shall document exit 3 with verdict `unknown`, route it to the hand check, and say not to retry it. Exit 3 with no payload stays the trust halt. `gh_unusable` also covers a missing `gh`, where the gate exits 1, so the `pr-review` hand-check rule applies to any non-pass result.
 13. All harness mirrors shall be regenerated with `build_all.py`.
 14. ADR-120 shall record the unknown verdict and its exit code, and ADR-059 Decision 1 shall point to it. ADR-059 is at the 500-line cap, so it cannot hold an amendment.
 15. Every shipped criterion's verifier shall call `assert_gh_authenticated` before reading PR data, pinned by a test.

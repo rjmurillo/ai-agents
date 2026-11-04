@@ -3846,7 +3846,8 @@ def _refusal_explained_exits() -> frozenset[int]:
             proc = subprocess.run(
                 list(probe.argv),
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=_SESSION_REFUSAL_TIMEOUT_SECONDS,
                 check=False,
             )

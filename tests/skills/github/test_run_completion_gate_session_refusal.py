@@ -1,147 +1,45 @@
 """A refused session is an unknown verdict, never a failed PR (issue #5232).
 
 The gate measures the refusal itself, with fixed ``gh`` calls, after a verifier
-exits non-zero. Verifier output is never matched, because it can carry text a
-PR author controls. These tests fake ``subprocess.run`` by argv so each verifier
-and each ``gh`` probe answers independently.
+exits above 1. Verifier output is never matched, because it can carry text a PR
+author controls.
 """
 
 from __future__ import annotations
 
-import ast
-import importlib.util
 import json
-import re
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
-import yaml
 
-from scripts.github_core.api import _GRAPHQL_BLOCKED_MESSAGE, _TRANSPORT_BLOCKED_MESSAGE
+from scripts.github_core.api import _TRANSPORT_BLOCKED_MESSAGE
 from tests.gh_auth_refusal_fixtures import PROXY_GRAPHQL_403, PROXY_REST_403
-
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_SCRIPT_PATH = _REPO_ROOT / "src/claude/skills/github/scripts/pr/run_completion_gate.py"
-_MODULE_NAME = "run_completion_gate_session_refusal"
-
-
-def _import_dispatcher():
-    spec = importlib.util.spec_from_file_location(_MODULE_NAME, _SCRIPT_PATH)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_MODULE_NAME] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_dispatcher = _import_dispatcher()
-
-
-def _proc(stdout: str = "", stderr: str = "", returncode: int = 0):
-    return subprocess.CompletedProcess([], returncode, stdout, stderr)
-
-
-_SERVED = _proc(stdout="{}")
-_REST_REFUSED = _proc(stderr=PROXY_REST_403, returncode=1)
-_GRAPHQL_REFUSED = _proc(stderr=PROXY_GRAPHQL_403, returncode=1)
-_VERIFIER_REFUSED = _proc(stderr=_TRANSPORT_BLOCKED_MESSAGE, returncode=2)
-_VERIFIER_EXTERNAL_ERROR = _proc(stderr="HTTP 503", returncode=3)
-_VERIFIER_NOT_READY = _proc(stdout=json.dumps({"CanMerge": False}), returncode=1)
-_PASSING = _proc(stdout=json.dumps({"count": 0}))
-_FAILING = _proc(stdout=json.dumps({"count": 3}))
-
-
-class _Session:
-    """Answers verifiers by name and ``gh`` probes by endpoint."""
-
-    def __init__(self, verifiers: dict, rest=_SERVED, graphql=_SERVED) -> None:
-        self.verifiers = verifiers
-        self.rest = rest
-        self.graphql = graphql
-        self.gh_calls: list[list[str]] = []
-
-    def __call__(self, argv, **_kwargs):
-        if argv[0] != "gh":
-            return self.verifiers[argv[0]]
-        self.gh_calls.append(list(argv))
-        answer = self.graphql if "graphql" in argv else self.rest
-        if isinstance(answer, BaseException):
-            raise answer
-        return answer
-
-
-class _GateRunner:
-    """Runs ``main`` against a fake session and keeps the last stderr."""
-
-    def __init__(self, tmp_path: Path, monkeypatch, capsys) -> None:
-        self.tmp_path = tmp_path
-        self.monkeypatch = monkeypatch
-        self.capsys = capsys
-        self.stderr = ""
-
-    def __call__(
-        self,
-        session: _Session,
-        *,
-        fail_open: bool = False,
-        as_json: bool = True,
-        extra_args: tuple | list = (),
-    ):
-        criteria = [
-            {
-                "name": name,
-                "verification": "command",
-                "command": name,
-                "pass_when": "stdout-json.count == 0",
-                "fail_open": fail_open,
-            }
-            for name in session.verifiers
-        ]
-        config = self.tmp_path / "pr-review-config.yaml"
-        config.write_text(json.dumps({"completion_criteria": criteria}), encoding="utf-8")
-        self.monkeypatch.setattr(_dispatcher.subprocess, "run", session)
-        argv = ["--config", str(config), "--pull-request", "7", *extra_args]
-        rc = _dispatcher.main([*argv, "--json"] if as_json else argv)
-        captured = self.capsys.readouterr()
-        self.stderr = captured.err
-        return rc, json.loads(captured.out) if as_json else captured.out
-
-
-@pytest.fixture
-def run_gate(tmp_path, monkeypatch, capsys) -> _GateRunner:
-    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
-    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
-    monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(
-        _dispatcher,
-        "_verify_config_trust",
-        lambda *_a, **_k: _dispatcher.TrustCheck(_dispatcher.TRUST_TRUSTED, ""),
-    )
-    monkeypatch.setattr(
-        _dispatcher,
-        "_verify_command_trust",
-        lambda *_a, **_k: _dispatcher.CommandTrustCheck(
-            _dispatcher.COMMAND_TRUST_TRUSTED, [], [], [], [], ""
-        ),
-    )
-
-    return _GateRunner(tmp_path, monkeypatch, capsys)
+from tests.skills.github.session_refusal_helpers import (
+    FAILING,
+    GRAPHQL_REFUSED,
+    PASSING,
+    REST_REFUSED,
+    SERVED,
+    VERIFIER_EXTERNAL_ERROR,
+    VERIFIER_NOT_READY,
+    VERIFIER_REFUSED,
+    Session,
+    dispatcher,
+    proc,
+)
 
 
 class TestRefusedSession:
     @pytest.mark.parametrize(
         ("rest", "graphql"),
         [
-            pytest.param(_REST_REFUSED, _SERVED, id="rest-refused"),
-            pytest.param(_SERVED, _GRAPHQL_REFUSED, id="graphql-refused"),
-            pytest.param(_REST_REFUSED, _GRAPHQL_REFUSED, id="both-refused"),
+            pytest.param(REST_REFUSED, SERVED, id="rest-refused"),
+            pytest.param(SERVED, GRAPHQL_REFUSED, id="graphql-refused"),
+            pytest.param(REST_REFUSED, GRAPHQL_REFUSED, id="both-refused"),
         ],
     )
     def test_verifier_exit_becomes_unknown(self, run_gate, rest, graphql):
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=rest, graphql=graphql)
+        session = Session({"a": VERIFIER_REFUSED}, rest=rest, graphql=graphql)
 
         rc, result = run_gate(session)
 
@@ -153,7 +51,7 @@ class TestRefusedSession:
         assert result["criteria"][0]["passed"] is False
 
     def test_rest_verifier_still_passes_beside_a_graphql_refusal(self, run_gate):
-        session = _Session({"a": _PASSING, "b": _VERIFIER_REFUSED}, graphql=_GRAPHQL_REFUSED)
+        session = Session({"a": PASSING, "b": VERIFIER_REFUSED}, graphql=GRAPHQL_REFUSED)
 
         rc, result = run_gate(session)
 
@@ -162,7 +60,7 @@ class TestRefusedSession:
         assert result["unknown_criteria"] == ["b"]
 
     def test_definite_failure_outranks_unknown(self, run_gate):
-        session = _Session({"a": _FAILING, "b": _VERIFIER_REFUSED}, rest=_REST_REFUSED)
+        session = Session({"a": FAILING, "b": VERIFIER_REFUSED}, rest=REST_REFUSED)
 
         rc, result = run_gate(session)
 
@@ -171,9 +69,7 @@ class TestRefusedSession:
         assert [row["status"] for row in result["criteria"]] == ["failed", "unknown"]
 
     def test_bad_json_at_exit_zero_stays_failed(self, run_gate):
-        session = _Session(
-            {"a": _proc(stdout="not json"), "b": _VERIFIER_REFUSED}, rest=_REST_REFUSED
-        )
+        session = Session({"a": proc(stdout="not json"), "b": VERIFIER_REFUSED}, rest=REST_REFUSED)
 
         rc, result = run_gate(session)
 
@@ -184,11 +80,11 @@ class TestRefusedSession:
         """A verifier that timed out has no exit code, so it stays failed."""
         row = {"name": "a", "passed": False, "exit_code": None, "reason": "timed out"}
 
-        assert _dispatcher._settle_verdict([row]) == "fail"
+        assert dispatcher._settle_verdict([row]) == "fail"
         assert row["status"] == "failed"
 
     def test_fail_open_row_stays_passed_and_gate_exits_zero(self, run_gate):
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=_REST_REFUSED)
+        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
 
         rc, result = run_gate(session, fail_open=True)
 
@@ -198,9 +94,9 @@ class TestRefusedSession:
         assert session.gh_calls == []
 
     def test_probe_runs_once_for_many_failed_rows(self, run_gate):
-        session = _Session(
-            {"a": _VERIFIER_REFUSED, "b": _VERIFIER_REFUSED, "c": _VERIFIER_REFUSED},
-            rest=_REST_REFUSED,
+        session = Session(
+            {"a": VERIFIER_REFUSED, "b": VERIFIER_REFUSED, "c": VERIFIER_REFUSED},
+            rest=REST_REFUSED,
         )
 
         run_gate(session)
@@ -208,7 +104,7 @@ class TestRefusedSession:
         assert len(session.gh_calls) == 1
 
     def test_reason_says_the_criterion_was_not_verified(self, run_gate):
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=_REST_REFUSED)
+        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
 
         _, result = run_gate(session)
 
@@ -216,7 +112,7 @@ class TestRefusedSession:
 
     def test_evidence_file_records_the_verdict(self, run_gate, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=_REST_REFUSED)
+        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
         evidence = tmp_path / "gate-evidence.json"
 
         rc, _ = run_gate(session, extra_args=["--evidence-path", str(evidence)])
@@ -227,7 +123,7 @@ class TestRefusedSession:
         assert recorded["unknown_criteria"] == ["a"]
 
     def test_table_marks_unknown_and_names_the_hand_check(self, run_gate):
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=_REST_REFUSED)
+        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
 
         rc, out = run_gate(session, as_json=False)
 
@@ -238,7 +134,7 @@ class TestRefusedSession:
         assert "transport-routing.md" in run_gate.stderr
 
     def test_json_mode_also_prints_the_stderr_line(self, run_gate):
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=_REST_REFUSED)
+        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
 
         run_gate(session)
 
@@ -247,13 +143,13 @@ class TestRefusedSession:
     @pytest.mark.parametrize(
         ("rest", "graphql"),
         [
-            pytest.param(_REST_REFUSED, _SERVED, id="rest-refused"),
-            pytest.param(_SERVED, _GRAPHQL_REFUSED, id="graphql-refused"),
+            pytest.param(REST_REFUSED, SERVED, id="rest-refused"),
+            pytest.param(SERVED, GRAPHQL_REFUSED, id="graphql-refused"),
         ],
     )
     def test_exit_one_is_an_answer_and_stays_failed(self, run_gate, rest, graphql):
         """``test_pr_merge_ready.py`` exits 1 with JSON for a PR that is not ready."""
-        session = _Session({"a": _VERIFIER_NOT_READY}, rest=rest, graphql=graphql)
+        session = Session({"a": VERIFIER_NOT_READY}, rest=rest, graphql=graphql)
 
         rc, result = run_gate(session)
 
@@ -263,7 +159,7 @@ class TestRefusedSession:
         assert session.gh_calls == []
 
     def test_session_refusal_explains_an_external_error(self, run_gate):
-        session = _Session({"a": _VERIFIER_EXTERNAL_ERROR}, rest=_REST_REFUSED)
+        session = Session({"a": VERIFIER_EXTERNAL_ERROR}, rest=REST_REFUSED)
 
         rc, result = run_gate(session)
 
@@ -272,8 +168,8 @@ class TestRefusedSession:
 
     def test_graphql_refusal_leaves_a_retryable_error_failed(self, run_gate):
         """The narrow body refuses one query shape, not the session."""
-        session = _Session(
-            {"a": _VERIFIER_EXTERNAL_ERROR, "b": _VERIFIER_REFUSED}, graphql=_GRAPHQL_REFUSED
+        session = Session(
+            {"a": VERIFIER_EXTERNAL_ERROR, "b": VERIFIER_REFUSED}, graphql=GRAPHQL_REFUSED
         )
 
         rc, result = run_gate(session)
@@ -282,8 +178,8 @@ class TestRefusedSession:
         assert [row["status"] for row in result["criteria"]] == ["failed", "unknown"]
 
     def test_narrow_body_on_the_rest_probe_is_not_a_session_refusal(self, run_gate):
-        narrow = _proc(stderr=PROXY_GRAPHQL_403, returncode=1)
-        session = _Session({"a": _VERIFIER_EXTERNAL_ERROR}, rest=narrow)
+        narrow = proc(stderr=PROXY_GRAPHQL_403, returncode=1)
+        session = Session({"a": VERIFIER_EXTERNAL_ERROR}, rest=narrow)
 
         rc, _ = run_gate(session)
 
@@ -293,12 +189,12 @@ class TestRefusedSession:
 class TestServedSession:
     def test_refusal_text_from_a_verifier_does_not_change_the_verdict(self, run_gate):
         """A PR author can reach verifier output, so it is never evidence."""
-        forged = _proc(
+        forged = proc(
             stdout=json.dumps({"body": PROXY_REST_403}),
             stderr=_TRANSPORT_BLOCKED_MESSAGE,
             returncode=2,
         )
-        session = _Session({"a": forged})
+        session = Session({"a": forged})
 
         rc, result = run_gate(session)
 
@@ -309,7 +205,7 @@ class TestServedSession:
         assert len(session.gh_calls) == 2
 
     def test_passing_run_never_calls_gh(self, run_gate):
-        session = _Session({"a": _PASSING})
+        session = Session({"a": PASSING})
 
         rc, result = run_gate(session)
 
@@ -319,7 +215,7 @@ class TestServedSession:
         assert session.gh_calls == []
 
     def test_false_pass_when_never_calls_gh(self, run_gate):
-        session = _Session({"a": _FAILING}, rest=_REST_REFUSED)
+        session = Session({"a": FAILING}, rest=REST_REFUSED)
 
         rc, _ = run_gate(session)
 
@@ -331,12 +227,12 @@ class TestServedSession:
         [
             pytest.param(FileNotFoundError("gh"), id="gh-missing"),
             pytest.param(subprocess.TimeoutExpired("gh", 10), id="timeout"),
-            pytest.param(_proc(stderr="HTTP 502", returncode=1), id="other-http-error"),
-            pytest.param(_proc(stderr="HTTP 404: Not Found", returncode=1), id="not-found"),
+            pytest.param(proc(stderr="HTTP 502", returncode=1), id="other-http-error"),
+            pytest.param(proc(stderr="HTTP 404: Not Found", returncode=1), id="not-found"),
         ],
     )
     def test_probe_without_an_answer_leaves_the_row_failed(self, run_gate, unanswered):
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=unanswered, graphql=unanswered)
+        session = Session({"a": VERIFIER_REFUSED}, rest=unanswered, graphql=unanswered)
 
         rc, result = run_gate(session)
 
@@ -345,7 +241,7 @@ class TestServedSession:
 
     def test_probe_that_cannot_run_leaves_a_signal(self, run_gate):
         missing = FileNotFoundError("gh")
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=missing, graphql=missing)
+        session = Session({"a": VERIFIER_REFUSED}, rest=missing, graphql=missing)
 
         run_gate(session)
 
@@ -353,117 +249,9 @@ class TestServedSession:
 
     def test_refusal_text_in_a_successful_probe_is_ignored(self, run_gate):
         """A served repository description can hold any text."""
-        served = _proc(stdout=json.dumps({"description": "not enabled for this session"}))
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=served, graphql=served)
+        served = proc(stdout=json.dumps({"description": "not enabled for this session"}))
+        session = Session({"a": VERIFIER_REFUSED}, rest=served, graphql=served)
 
         rc, _ = run_gate(session)
 
         assert rc == 1
-
-
-class TestProbeContract:
-    def test_probe_argv_holds_no_runtime_value(self):
-        """Fixed argv keeps PR-controlled input out of the probe."""
-        probes = _dispatcher._SESSION_REFUSAL_PROBES
-        assert all(isinstance(probe.argv, tuple) for probe in probes)
-        assert all(probe.argv[:2] == ("gh", "api") for probe in probes)
-
-    def test_patterns_match_the_captured_proxy_bodies(self):
-        rest, graphql = _dispatcher._SESSION_REFUSAL_PROBES
-        assert rest.refusal.search(PROXY_REST_403)
-        assert not rest.refusal.search(PROXY_GRAPHQL_403)
-        assert graphql.refusal.search(PROXY_GRAPHQL_403)
-        assert not graphql.refusal.search(PROXY_REST_403)
-
-    def test_graphql_probe_sends_the_query_check_gh_auth_sends(self):
-        """Different text could be answered differently by a query allowlist."""
-        _, graphql = _dispatcher._SESSION_REFUSAL_PROBES
-        api_source = (_REPO_ROOT / "scripts/github_core/api.py").read_text(encoding="utf-8")
-        assert f'"{graphql.argv[-1]}"' in api_source
-
-
-_ALLOWED_BEFORE_PREFLIGHT = {"build_parser", "parse_args", "error_and_exit", "print"}
-
-
-def _calls_before_preflight(script: Path) -> set[str]:
-    """Names called in ``main`` before ``assert_gh_authenticated``, in source order."""
-    tree = ast.parse(script.read_text(encoding="utf-8"))
-    main = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "main"
-    )
-    calls = sorted(
-        (node for node in ast.walk(main) if isinstance(node, ast.Call)),
-        key=lambda node: (node.lineno, node.col_offset),
-    )
-    names = [
-        call.func.id if isinstance(call.func, ast.Name) else getattr(call.func, "attr", "?")
-        for call in calls
-    ]
-    return set(names[: names.index("assert_gh_authenticated")])
-
-
-class TestDecisionEightInvariant:
-    """ADR-120 Decision 8: a refusal is session-wide, so no verifier may read PR
-    data before the ``gh`` preflight. A verifier that did could steer its own exit."""
-
-    def test_every_shipped_verifier_calls_the_preflight_first(self):
-        config_path = _REPO_ROOT / "src/claude/skills/pr-review/pr-review-config.yaml"
-        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-        scripts = [
-            re.search(r"/skills/github/scripts/pr/(\w+\.py)", criterion["command"]).group(1)
-            for criterion in config["completion_criteria"]
-        ]
-
-        assert len(scripts) == 5
-        for script in scripts:
-            before = _calls_before_preflight(_SCRIPT_PATH.parent / script)
-            assert before <= _ALLOWED_BEFORE_PREFLIGHT, script
-
-    def test_a_broken_verifier_reads_unknown_in_a_refused_session(self, run_gate):
-        """Accepted trade-off: it never passes, and the hand check still runs."""
-        broken = _proc(stderr="Plugin lib directory not found", returncode=2)
-        session = _Session({"a": broken}, rest=_REST_REFUSED)
-
-        rc, result = run_gate(session)
-
-        assert rc == 3
-        assert result["criteria"][0]["passed"] is False
-
-    def test_reworded_proxy_body_leaves_the_row_failed(self, run_gate):
-        reworded = _proc(stderr="gh: Access denied by session policy. (HTTP 403)", returncode=1)
-        session = _Session({"a": _VERIFIER_REFUSED}, rest=reworded, graphql=reworded)
-
-        rc, result = run_gate(session)
-
-        assert rc == 1
-        assert result["criteria"][0]["status"] == "failed"
-
-
-class TestTrustHaltStaysDistinct:
-    def test_trust_halt_exit_three_prints_no_payload(self, run_gate, monkeypatch):
-        """Payload presence is how a caller tells the two exit 3 results apart."""
-        monkeypatch.setattr(
-            _dispatcher,
-            "_verify_command_trust",
-            lambda *_a, **_k: _dispatcher.CommandTrustCheck(
-                _dispatcher.COMMAND_TRUST_GIT_ERROR, [], [], [], [], "git failed"
-            ),
-        )
-        session = _Session({"a": _PASSING})
-
-        rc, out = run_gate(session, as_json=False)
-
-        assert rc == 3
-        assert out == ""
-        assert "HALT:" in run_gate.stderr
-        assert "UNKNOWN:" not in run_gate.stderr
-        assert session.gh_calls == []
-
-
-class TestRefusalMessage:
-    def test_app_connection_is_not_the_expected_fix(self):
-        assert "that is the environment fix" not in _TRANSPORT_BLOCKED_MESSAGE
-        assert "supported path" in _TRANSPORT_BLOCKED_MESSAGE
-
-    def test_graphql_message_stays_distinct(self):
-        assert "repository REST call was served" in _GRAPHQL_BLOCKED_MESSAGE

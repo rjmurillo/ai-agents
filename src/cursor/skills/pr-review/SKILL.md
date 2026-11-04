@@ -228,7 +228,7 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` (`{head_sha}` 
 
 ## Completion Gate
 
-In `gh_unusable`, `run_completion_gate.py` exits 3 with `verdict: unknown`. Never arm a merge. Check each criterion by hand against `pull_request_read` data, mark a criterion `unknown` when its data is unavailable, and never report a pass from a failed call. Record the verdict as derived (`mcp_mode_constraints` in config).
+In `gh_unusable`, treat any non-pass from `run_completion_gate.py` as unverified. Do not retry or arm a merge. Check each criterion by hand against `pull_request_read` data, mark a criterion `unknown` when its data is unavailable, and never report a pass from a failed call. Record the verdict as derived (`mcp_mode_constraints` in config).
 
 The completion gate is dispatchable: each criterion in `completion_criteria` runs an external verification command, and the command's stdout JSON is the source of truth for the verdict. Run the dispatcher exactly once per PR:
 
