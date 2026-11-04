@@ -354,6 +354,7 @@ _NEW_GATES: dict[str, str] = {
     "Memory Placement": "check_memory_placement.py",
     "Review Axis Drift": "generate_pr_quality_prompts.py",
     "Skill Description Budget": "skill_description_budget.py",
+    "Import Boundaries": "lint_imports_command",
 }
 
 
@@ -436,3 +437,50 @@ def test_the_discriminator_scores_changed_files_including_untracked_ones(
     monkeypatch.setattr(checks_ci_parity, "_changed_paths_since_base", lambda _root, _label: None)
     assert checks_ci_parity.validate_agent_skill_discriminator(REPO_ROOT) is True
     assert "--all" in argv[0]
+
+
+def test_import_boundaries_gate_runs_lint_imports_with_no_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import checks_ci_parity
+
+    argvs: list[list[str]] = []
+
+    def fake(argv: list[str], **_kwargs: object) -> tuple[int, str, str]:
+        argvs.append(argv)
+        return 0, "", ""
+
+    monkeypatch.setattr(checks_ci_parity, "_run_subprocess", fake)
+    assert checks_ci_parity.validate_import_boundaries(REPO_ROOT) is True
+    assert "lint_imports_command" in argvs[0][2]
+    assert argvs[0][3:] == ["--no-cache"]
+
+
+def test_import_boundaries_gate_fails_on_a_broken_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import checks_ci_parity
+
+    monkeypatch.setattr(
+        checks_ci_parity, "_run_subprocess", lambda *_a, **_k: (1, "Contracts: 1 broken", "")
+    )
+    with redirect_stdout(io.StringIO()) as captured:
+        assert checks_ci_parity.validate_import_boundaries(REPO_ROOT) is False
+    assert "1 broken" in captured.getvalue()
+
+
+def test_import_boundaries_gate_skips_without_contracts(tmp_path: Path) -> None:
+    import checks_ci_parity
+    from checks_common import MissingScriptSkip
+
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    with pytest.raises(MissingScriptSkip):
+        checks_ci_parity.validate_import_boundaries(tmp_path)
+
+
+def test_import_boundaries_gate_passes_on_the_real_tree() -> None:
+    """Run the real command, not a fake, against this tree's contracts."""
+    import checks_ci_parity
+
+    with redirect_stdout(io.StringIO()):
+        assert checks_ci_parity.validate_import_boundaries(REPO_ROOT) is True

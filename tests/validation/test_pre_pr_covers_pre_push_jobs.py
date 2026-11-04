@@ -53,6 +53,7 @@ GATED: dict[str, str] = {
     "planning-artifacts": "Planning Artifacts",
     "dash-prohibition": "Em/en-dash Prohibition",
     "review-axis-drift": "Review Axis Drift",
+    "import-boundaries": "Import Boundaries",
     "security-suppression-policy": "Security Suppressions Diff",
     "placeholder-identity": "Placeholder Identity",
     "python-type-check": "Mypy Changed Files (ratchet)",
@@ -113,11 +114,6 @@ EXEMPT: dict[str, str] = {
     "zero-collection-tests": (
         "One pytest collection over testpaths, about 38 seconds measured. "
         "pre-pr-validation has a four minute run budget against a 192 second baseline."
-    ),
-    "import-boundaries": (
-        "Runs lint-imports over the whole tree in about half a second. The job sits "
-        "in the fast stage, so it has already passed before pre-pr-validation "
-        "starts, and the pytest workflow runs the same command."
     ),
     "python-lint-advisory": (
         "Advisory ruff report over pushed files. Findings do not block the push. "

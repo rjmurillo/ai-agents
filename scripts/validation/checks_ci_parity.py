@@ -355,3 +355,34 @@ def validate_skill_description_budget(repo_root: Path) -> bool:
         "--budget-file",
         "scripts/skill_description_budget.json",
     )
+
+
+# import-linter ships a console script and no ``__main__``, so the gate calls the
+# click command through the interpreter running pre_pr. ``--no-cache`` matches the
+# pytest.yml step and the pre-push ``import-boundaries`` job.
+_LINT_IMPORTS_PROGRAM = (
+    "import sys; from importlinter.cli import lint_imports_command; "
+    "sys.exit(lint_imports_command())"
+)
+
+
+def validate_import_boundaries(repo_root: Path) -> bool:
+    """Fail when a module boundary in ``pyproject.toml`` [tool.importlinter] breaks.
+
+    Runs the command the ``Check import boundaries (lint-imports)`` step of
+    ``pytest.yml`` and the pre-push ``import-boundaries`` job run. A repository
+    with no ``[tool.importlinter]`` table has no contracts to enforce, so it
+    raises :class:`MissingScriptSkip` instead of failing.
+    """
+    pyproject = repo_root / "pyproject.toml"
+    if not pyproject.is_file() or "[tool.importlinter]" not in pyproject.read_text(
+        encoding="utf-8"
+    ):
+        raise MissingScriptSkip("no [tool.importlinter] table in pyproject.toml")
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, "-c", _LINT_IMPORTS_PROGRAM, "--no-cache"], cwd=repo_root
+    )
+    output = ((stdout or "") + (stderr or "")).strip()
+    for line in output.splitlines()[:_REPORT_LINES]:
+        print(line)
+    return bool(exit_code == 0)

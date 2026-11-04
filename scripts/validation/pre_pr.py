@@ -71,6 +71,7 @@ from checks_ci_parity import (
     validate_agent_registry,
     validate_agent_skill_discriminator,
     validate_hook_contracts,
+    validate_import_boundaries,
     validate_passive_context_budget,
     validate_placeholder_identity,
     validate_plugin_frontmatter_self_containment,
