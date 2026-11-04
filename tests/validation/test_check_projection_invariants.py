@@ -265,7 +265,7 @@ class TestRealTree:
         """A pilot whose extractor returns nothing would pass vacuously."""
         assert cpi.parse_allowed_tools(_read_real(SOURCE, "push-pr"))
         codes = cpi.parse_exit_codes(_read_real(SOURCE, "security-scan"))
-        assert set(codes) == {"0", "1", "10"}
+        assert set(codes) == {"0", "1", "2", "3", "10"}
 
 
 class TestNegativeControls:
