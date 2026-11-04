@@ -244,6 +244,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return _BLOCK_EXIT_CODE
 
+    if advisory and args.group != _ADVISORY_GROUP_ID:
+        # Reserved to one group (ADR-071). Exit 2 would block the Stop, so
+        # drop the flag and run the group with plain-group semantics.
+        print(
+            f"claude-hook-dispatch: --advisory is reserved to {_ADVISORY_GROUP_ID!r}, "
+            f"ignoring it for group {args.group!r}",
+            file=sys.stderr,
+        )
+        advisory = False
+
     if advisory or mode not in {"gate", "gate_all"}:
         try:
             if _project_self_hosts_plugin():

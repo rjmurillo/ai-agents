@@ -240,8 +240,8 @@ def _is_capture_temp_file(path: str) -> bool:
 
     It opens the temp directory itself (O_TMPFILE) or an anonymous
     ``tempfile.TemporaryFile`` one level below it. These hold the hook's own
-    output, never another file's content. AC-28's list omits them; the owner
-    should add them to the AC. Any deeper path under the temp directory is
+    output, never another file's content. AC-28 lists them since owner
+    decision D29 (2026-11-04). Any deeper path under the temp directory is
     still reported.
     """
     tmp = os.path.realpath(tempfile.gettempdir())

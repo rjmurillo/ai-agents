@@ -191,7 +191,7 @@ def _main_as(capsys, group: str, *flags: str):
 
 
 def _main(capsys, *flags: str):
-    return _main_as(capsys, "g", *flags)
+    return _main_as(capsys, RESERVED_GROUP, *flags)
 
 
 def test_manifest_load_failure(monkeypatch, capsys):
@@ -241,6 +241,28 @@ def test_control_a_plain_non_stop_group_is_not_refused(monkeypatch, capsys):
     monkeypatch.setattr(entry, "run_group", lambda *a, **k: ran.append(a) or 0)
     code, _ = _main(capsys)
     assert code == 0 and len(ran) == 1
+
+
+def test_advisory_on_an_unreserved_stop_group_is_dropped_not_honored(monkeypatch, capsys):
+    """ADR-071 reserves --advisory to one group. Exit 2 would block the Stop, so
+    the launcher ignores the flag and the group keeps plain-group semantics."""
+    _group(monkeypatch, event="Stop", mode="gate_all")
+    _stdin(monkeypatch, b"{}")
+    seen = []
+    monkeypatch.setattr(entry, "run_group", lambda *a, **k: seen.append(k["advisory"]) or 3)
+    code, err = _main_as(capsys, "plugin-stop-2-other", "--advisory")
+    assert seen == [False], "the flag is dropped before the group runs"
+    assert code == 3, "plain-group semantics: the hook's own code is returned"
+    assert "reserved" in err and len(_status_lines(err)) == 1
+
+
+def test_control_the_reserved_stop_group_keeps_advisory(monkeypatch, capsys):
+    _group(monkeypatch, event="Stop", mode="gate_all")
+    _stdin(monkeypatch, b"{}")
+    seen = []
+    monkeypatch.setattr(entry, "run_group", lambda *a, **k: seen.append(k["advisory"]) or 0)
+    code, _ = _main_as(capsys, RESERVED_GROUP, "--advisory")
+    assert seen == [True] and code == 0
 
 
 def test_real_manifest_that_is_unreadable_fails_open(monkeypatch, tmp_path, capsys):
@@ -305,7 +327,7 @@ def test_launcher_passes_the_system_message_through(monkeypatch, tmp_path, capsy
     monkeypatch.setattr(entry, "_HOOKS_DIR", tmp_path)
     monkeypatch.setattr(entry, "_load_group", lambda _g: ("Stop", "gate_all", shims))
     monkeypatch.setattr(entry, "_project_self_hosts_plugin", lambda: False)
-    code = entry.main(["--group", "g", "--advisory"])
+    code = entry.main(["--group", RESERVED_GROUP, "--advisory"])
     assert code == 0
     assert json.loads(capsys.readouterr().out) == {"systemMessage": MESSAGE}
 
