@@ -9,12 +9,14 @@ $DRIFT_DETAILS
 
 ## Recommended Actions
 
+Follow the runbook:
+$SERVER_URL/$REPOSITORY/blob/main/docs/runbooks/agent-drift-alert.md
+
 1. Review the differences listed above
 2. Determine if drift is intentional or accidental
 3. Either:
-   - Update Claude agents to match shared content
-   - Update shared templates to include Claude improvements
-   - Document the intentional difference
+   - Fix the agent template for the side that drifted
+   - Record intended drift in `build/scripts/detect_agent_drift.py`
 
 ## Related Files
 
@@ -25,9 +27,9 @@ $DRIFT_DETAILS
 ## Commands
 
 ```bash
-# Run drift detection locally
-python3 build/scripts/detect_agent_drift.py
+# Run drift detection locally, with the flags the workflow uses
+uv run --frozen python build/scripts/detect_agent_drift.py --output-format text --fail-on-install-drift
 
 # See detailed JSON output
-python3 build/scripts/detect_agent_drift.py --output-format json
+uv run --frozen python build/scripts/detect_agent_drift.py --output-format json --fail-on-install-drift
 ```

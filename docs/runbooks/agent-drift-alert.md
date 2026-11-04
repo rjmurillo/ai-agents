@@ -2,13 +2,13 @@
 
 ## Symptom
 
-The weekly [Agent Drift Detection](../../.github/workflows/drift-detection.yml)
-workflow (Monday, 09:00 UTC) opened or updated an issue titled
+The scheduled [Agent Drift Detection](../../.github/workflows/drift-detection.yml)
+workflow opened or updated an issue titled
 "Agent Drift Detected - `<date>`" with the `drift-detected` and `automated`
 labels. `scripts/ci/drift_create_alert_issue.py` builds the issue body from
 [.github/prompts/drift-alert-issue.md](../../.github/prompts/drift-alert-issue.md),
-filling in the date, the run link, and the drift details. The commands in that
-body omit `--fail-on-install-drift`; use the Confirm command below instead.
+filling in the date, the run link, and the drift details. The body links back
+to this runbook.
 
 The audit makes two comparisons. It compares the Claude agents in
 `src/claude/agents/` with the VS Code and Copilot agents in
@@ -33,7 +33,8 @@ The default similarity threshold is 80 percent; change it with
 ## Recover
 
 1. Decide whether the drift is intended. Most drift comes from a hand edit to a
-   generated agent file.
+   generated agent file. For intended drift, skip to the last part of this
+   section.
 2. Fix the source, not the output. The audit names the comparison on each
    agent line: `[src-claude vs src-vscode]` for the vendored pair or
    `[.claude/agents vs .github/agents]` for the install pair. Match the
@@ -62,8 +63,22 @@ The default similarity threshold is 80 percent; change it with
 4. Open the PR with the `push-pr` skill. Close the alert issue with a link to
    the merged PR.
 
-If the difference is intended, record why in the issue and in the template,
-then close the issue.
+If the difference is intended, accept it in code, not only in the issue.
+Closing the issue alone does not stop the alert. The next scheduled run finds
+the same drift and files a new issue. In the same PR, add an entry to
+`build/scripts/detect_agent_drift.py`:
+
+- Low similarity: add `(agent, comparison)` to `KNOWN_BASELINE_DRIFT`, with
+  the measured score as the floor. The audit then reports `OK (baselined)`
+  while the score stays at or above that floor.
+- Missing section: add `(agent, section, comparison)` to
+  `KNOWN_MISSING_SECTIONS`. The audit then reports `MISSING (baselined)`.
+
+Use the comparison label from the audit line, such as `src-claude vs src-vscode`
+or `.claude/agents vs .github/agents`. Put the reason in a comment above the
+entry. Neither table covers drift in a required section; fix that in the
+template. Rerun the audit until it exits 0, then close the issue with a link to
+the merged PR.
 
 ## Escalate
 
@@ -72,5 +87,12 @@ then close the issue.
 
 ## Links
 
-- [CONTRIBUTING.md: CI Drift Detection](../../CONTRIBUTING.md#ci-drift-detection)
-- [CONTRIBUTING.md: Do Not Edit Generated Files](../../CONTRIBUTING.md#important-do-not-edit-generated-files)
+- [Template render map](../../templates/AGENTS.md): which template renders
+  which agent tree.
+- [Build pipeline notes](../../build/AGENTS.md): `build_all.py` and
+  `detect_agent_drift.py`.
+
+The CONTRIBUTING.md sections "CI Drift Detection" and "Do Not Edit Generated
+Files" still describe the older flow: edit `<name>.shared.md`, then run
+`generate_agents.py`. They also cover the PR-time `agent-drift-detection.yml`
+check, not the scheduled alert. Follow this runbook instead.

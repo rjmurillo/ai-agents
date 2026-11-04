@@ -53,7 +53,6 @@ uv run --frozen python .claude/skills/github/scripts/pr/get_pr_check_logs.py --p
    git revert <sha>
    ```
 
-   Open the PR with the `push-pr` skill. Never push to `main` directly.
 4. Reproduce the check locally before you push the fix. The full local gate is:
 
    ```bash
@@ -62,6 +61,7 @@ uv run --frozen python .claude/skills/github/scripts/pr/get_pr_check_logs.py --p
 
    A green local run does not prove a remote check is fixed unless it runs the
    same checker with the same flags and version. Say which one you ran.
+   Then open the PR with the `push-pr` skill. Never push to `main` directly.
 5. Close the "Python Tests failed on main" issue once the check is green on
    `main`, and cite the green run.
 

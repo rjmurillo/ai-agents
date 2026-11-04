@@ -22,10 +22,12 @@ different ways.
    git log --oneline -20 origin/main -- src/claude src/copilot-cli .claude-plugin .github/plugin
    ```
 
-2. For the npm package, check what is published:
+2. For the npm package, check what is published. `version` reports only the
+   `latest` dist-tag, and `versions` lists every published version:
 
    ```bash
    npm view @rjmurillo/ai-agents version
+   npm view @rjmurillo/ai-agents versions
    ```
 
 ## Recover the plugin
@@ -47,7 +49,8 @@ update:
 
 A user who cannot wait for the fix can pin the marketplace to a release tag.
 Tags are cut rarely, so a tag can be far behind `main`. List them with
-`git tag --sort=-creatordate`. Both CLIs accept `owner/repo#ref` for a
+`git tag --sort=-creatordate`. Pin to `v0.4.0` or later. Earlier tags carry no
+`project-toolkit` entry in either marketplace, so the install step fails. Both CLIs accept `owner/repo#ref` for a
 marketplace source. Remove the plugin and marketplace first, then add the
 pinned marketplace and reinstall. Claude Code:
 

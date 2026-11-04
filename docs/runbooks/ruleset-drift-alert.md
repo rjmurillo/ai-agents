@@ -3,10 +3,12 @@
 Two scheduled checks compare the live branch ruleset with the state this
 repository records. Each one opens an issue when they disagree.
 
-| Workflow | Schedule | Program | Issue title |
-|---|---|---|---|
-| [Check Ruleset Drift](../../.github/workflows/check-ruleset-drift.yml) | Daily, 06:00 UTC | `scripts/validation/check_ruleset_params_drift.py --alert` | Ruleset Parameter Drift Detected |
-| [Ruleset Required Context Drift](../../.github/workflows/ruleset-context-drift.yml) | Tuesday and Friday, 07:00 UTC | `scripts/ci/ruleset_context_drift.py --alert` | Ruleset Required Context Drift Detected |
+| Workflow | Program | Issue title |
+|---|---|---|
+| [Check Ruleset Drift](../../.github/workflows/check-ruleset-drift.yml) | `scripts/validation/check_ruleset_params_drift.py --alert` | Ruleset Parameter Drift Detected |
+| [Ruleset Required Context Drift](../../.github/workflows/ruleset-context-drift.yml) | `scripts/ci/ruleset_context_drift.py --alert` | Ruleset Required Context Drift Detected |
+
+Each workflow file sets its own schedule.
 
 ## Symptom
 
