@@ -33,6 +33,15 @@ from tests.hooks.reflect_nudge_support import nudge, nudge_state
 pytestmark = pytest.mark.usefixtures("isolated_home")
 
 POSIX_ONLY = pytest.mark.skipif(os.name != "posix", reason="HOME rule and symlinks are POSIX")
+
+
+@pytest.fixture(autouse=True)
+def _tmp_outside_any_repository(tmp_path: Path) -> None:
+    """Every test here plants its own repository; a tmp dir already inside one is unusable."""
+    if nudge_state._repository_block(tmp_path.resolve()):
+        pytest.skip("pytest tmp_path lies inside a git repository; set --basetemp elsewhere")
+
+
 REPO_REFUSAL = "state root inside a repository, refused"
 LSTAT_REFUSAL = "state root check failed (lstat error), refused"
 
@@ -250,6 +259,7 @@ def test_hook_module_exposes_the_refusal_entry_point() -> None:
     assert nudge.resolve_state_root is nudge_state.resolve_state_root
 
 
+@POSIX_ONLY
 def test_marker_dir_refused_when_the_root_becomes_a_symlink_into_a_repo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

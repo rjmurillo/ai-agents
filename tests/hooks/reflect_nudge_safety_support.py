@@ -51,6 +51,8 @@ def git(repo: Path, *args: str) -> str:
         ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env={**os.environ, **GIT_ENV},
         timeout=30,
         check=True,
@@ -112,13 +114,22 @@ def run_subprocess(
 
 
 def child_env(home: Path, state_home: Path) -> dict[str, str]:
-    """Minimal child environment: PATH for git, HOME and XDG_STATE_HOME pinned to temp dirs."""
-    return {
+    """Minimal child environment with every state-root input pinned to temp dirs.
+
+    POSIX reads HOME and XDG_STATE_HOME; Windows reads LOCALAPPDATA and the
+    Path.home() variables, so those are pinned too.
+    """
+    env = {
         "PATH": os.environ.get("PATH", ""),
         "HOME": str(home),
         "XDG_STATE_HOME": str(state_home),
+        "LOCALAPPDATA": str(state_home),
+        "USERPROFILE": str(home),
         **GIT_ENV,
     }
+    if os.name == "nt" and "SYSTEMROOT" in os.environ:
+        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]  # the interpreter needs it to start
+    return env
 
 
 def stop_payload(transcript: Path, cwd: Path, session_id: str = "sess-1") -> str:
