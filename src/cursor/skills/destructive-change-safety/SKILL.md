@@ -92,18 +92,42 @@ Choose one: `backup`, `snapshot`, `version`, or `irreversible`.
 - `backup`, `snapshot`, `version`: name the `ref` that restores it. The gate
   checks what it can for each kind, and blocks when that check fails:
   - `backup`: give `backup_path` and `source_path`; the gate hashes both and
-    requires a match. This is the only kind tied to the data at risk.
-  - `snapshot`: give `snapshot_path`. The gate checks only that it is an
-    existing file or a non-empty directory, not that it holds this data.
+    requires a match.
+  - `snapshot`: give `snapshot_path` and `snapshot_target`. The gate checks
+    the snapshot format contract below.
   - `version`: `ref` must be a 40-hex commit id that `git cat-file` finds in
     the repository. Any reachable commit passes.
 
-  A `snapshot` or `version` PASS means the path or commit exists. You still
-  own the claim that it restores the data the operation destroys.
+  A `version` PASS means the commit exists. You still own the claim that it
+  restores the data the operation destroys.
 - `irreversible`: record the human approval. Per the AGENTS.md Autonomy
   Guardrail (irreversible goes to a human), an agent never invents a rollback
   or approves its own irreversible step. Law 2 in the
   `security-scan` skill's `agent-guardrails-template.md` is the same boundary.
+
+#### Snapshot format contract (version 1)
+
+`snapshot_path` names either a snapshot manifest file or a directory that
+contains `snapshot.json`. The manifest is a JSON object:
+
+```json
+{
+  "format": "destructive-change-snapshot",
+  "version": 1,
+  "ref": "snap-2026-10-11",
+  "target": "sqlite:users",
+  "payload": "users.dump",
+  "sha256": "<SHA-256 of users.dump, 64 hex characters>"
+}
+```
+
+The gate checks every field: `format` is `destructive-change-snapshot`,
+`version` is `1`, `ref` equals the rollback `ref`, `target` equals the
+rollback `snapshot_target`, `payload` is a relative path to a file inside the
+snapshot (and is not the manifest itself), and `sha256` equals the payload
+hash. The payload holds the recovery data: a dump, archive, or exported state.
+A missing manifest, a mismatched recovery point or target, or a changed
+payload blocks.
 
 ### Phase 4: Run the checks, then the gate
 
@@ -115,7 +139,7 @@ code from this run, not a prediction. Write the evidence file:
   "sinks": [{"location": "<file>:<line>", "trace": ["main", "apply_removals", "remove_worktree"]}],
   "preflight": {"command": "preview-sql ...", "exit_code": 0, "measured": 3},
   "expected": 3,
-  "rollback": {"kind": "snapshot", "ref": "snap-id", "snapshot_path": "backups/snap-id"},
+  "rollback": {"kind": "snapshot", "ref": "snap-id", "snapshot_path": "backups/snap-id", "snapshot_target": "sqlite:users"},
   "approval": {"human": "required only when irreversible"},
   "checks": [{"command": "pytest -q", "exit_code": 0}]
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 # mypy: disable-error-code="arg-type,assignment,no-any-return,type-arg,type-var", follow-imports=skip
 """Get CI check status for a GitHub Pull Request.
 

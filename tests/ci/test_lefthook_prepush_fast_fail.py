@@ -45,7 +45,6 @@ FAST_STDIN_GATES = (
 )
 FAST_PARALLEL_GATES = frozenset(
     {
-        "count-ratchets",
         "python-unreachable-statements",
         "path-normalization",
         "planning-artifacts",
@@ -79,6 +78,7 @@ EXPENSIVE_JOBS = frozenset(
 EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
     {
         "zero-collection-tests",
+        "count-ratchets",
         "worktree-gc-report",
         "branch-config-prune-report",
         "plugin-scanner",

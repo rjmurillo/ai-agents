@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Rerun the failed GitHub Actions jobs of a pull request, without raw gh.
 
 Targets, one of:

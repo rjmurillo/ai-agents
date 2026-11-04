@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore naming -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 Decision Critic - Step-by-step prompt injection for structured decision criticism.
 

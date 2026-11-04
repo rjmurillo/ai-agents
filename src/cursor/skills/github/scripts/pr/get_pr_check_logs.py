@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Fetch logs from failing GitHub Actions checks on a Pull Request.
 
 Retrieves failure logs from GitHub Actions workflow runs associated with

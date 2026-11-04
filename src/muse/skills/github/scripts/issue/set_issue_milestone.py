@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """Assign a milestone to a GitHub Issue.
 
 Validates milestone exists before assigning, and optionally clears existing milestone.

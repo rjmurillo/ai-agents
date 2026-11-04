@@ -575,6 +575,7 @@ This project uses a **template-based generation system**. To modify agents:
 | [docs/ideation-workflow.md](docs/ideation-workflow.md) | Ideation workflow documentation |
 | [docs/markdown-linting.md](docs/markdown-linting.md) | Markdown standards |
 | [docs/runbooks/README.md](docs/runbooks/README.md) | Operational runbooks: red CI on main, publish failures, drift alerts, rollback, leaked secrets, hook failures |
+| [docs/agent-readiness.md](docs/agent-readiness.md) | Agent Readiness signals: which pass, which are out of scope, and why |
 
 ---
 

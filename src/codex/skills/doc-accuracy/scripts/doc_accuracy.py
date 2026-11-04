@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Documentation Accuracy Scanner - Phases 1-3.
 
 Treats code as the source of truth and documentation as the subject under test.

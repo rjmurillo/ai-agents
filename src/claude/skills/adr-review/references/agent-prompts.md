@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification -->
 <!-- markdownlint-disable MD024 MD040 MD051 -->
 <!-- Disabled: MD024 (duplicate headings in code examples), MD040 (nested code blocks), MD051 (fragments in nested content) -->
 
