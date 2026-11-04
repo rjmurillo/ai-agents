@@ -6,9 +6,10 @@ source scan completes with a normalized score of 75 or more (its
 SCANNER_GUIDE.md, lowered from 80 on 2026-10-27). That scan clones the default
 branch and scores the whole tree, so one new file anywhere can drop the listing
 below the bar. This gate holds 80 on purpose, 5 points above the catalog, so a
-red run warns before the listing is at risk. It runs the same scanner version
-locally, before a push, and
-``.github/workflows/plugin-scanner.yml`` runs the pinned action in CI.
+red run warns before the listing is at risk. It runs the scanner version the
+CI action pins, locally, before a push, and
+``.github/workflows/plugin-scanner.yml`` runs the pinned action in CI. That pin
+may run ahead of the catalog's, as the workflow header records.
 
 What is scanned: the tree of a named ref (``HEAD`` by default), read into a
 throwaway index and written out with ``git checkout-index``, which produces the
@@ -31,9 +32,10 @@ run ends with exit 3 and a reason instead of a lefthook kill. The scanner runs
 in its own process group, and a timeout kills the whole group.
 
 Review trigger: when awesome-ai-plugins changes its pinned action commit,
-scanner version, or threshold, update the action pin in
-``.github/workflows/plugin-scanner.yml``, the version in
-``build/plugin-scanner/pyproject.toml`` (then ``uv lock``), and re-measure.
+scanner version, or threshold, re-measure and refresh the catalog pin recorded
+in ``.github/workflows/plugin-scanner.yml``. If the catalog is ahead of this
+repository, also update the action pin there and the version in
+``build/plugin-scanner/pyproject.toml`` (then ``uv lock``).
 
 CLI::
 
