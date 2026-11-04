@@ -37,7 +37,7 @@ class FakeGit:
             return (self.ancestor, "") if "--is-ancestor" in args else self.base
         if args[0] == "log":
             return self.log
-        return self.show
+        return (0, "") if args[0] == "cat-file" else self.show
 
 
 class TestParseLog:
@@ -220,7 +220,7 @@ class TestScanUnpushed:
     def test_well_formed_sha_reaches_git(self, value):
         git = FakeGit()
         oc.scan_unpushed_commits(value, git)
-        assert git.calls[0][:2] == ["merge-base", "--is-ancestor"]
+        assert ["merge-base", "--is-ancestor"] in [call[:2] for call in git.calls]
 
 
 class TestScanIfEscalated:

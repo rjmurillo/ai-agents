@@ -28,9 +28,6 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .git_env import GIT_ENV_KEYS as _GIT_ENV_KEYS
-from .git_env import GIT_ENV_PREFIXES as _GIT_ENV_PREFIXES
-
 #: Runs ``git <args>`` and returns ``(exit code, stdout)``.
 GitRunner = Callable[[list[str]], tuple[int, str]]
 
@@ -43,6 +40,32 @@ _SHA = re.compile(r"[0-9a-fA-F]{7,64}")
 _LAUNCH_FAILURE = 127
 #: Exit code the worktree runner reports for a path it refused to use.
 _INVALID_WORKTREE = 126
+#: Every repo-local variable ``git rev-parse --local-env-vars`` reports. Each
+#: one redirects, rewrites, or hides history for a child that ``-C`` should
+#: have pointed at one repository (``GIT_GRAFT_FILE`` and ``GIT_SHALLOW_FILE``
+#: hide commits, ``GIT_REPLACE_REF_BASE`` and ``GIT_NO_REPLACE_OBJECTS`` swap them).
+_GIT_ENV_KEYS = (
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+    # Not in the rev-parse list, but each one still steers git away from ``-C``.
+    "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES",
+)
+#: Numbered config injection variables (``GIT_CONFIG_KEY_0``, ``GIT_CONFIG_VALUE_0``).
+_GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _RECORD_SEP = "\x1e"
 #: ``%s`` holds no newline but can hold the separator, so a record starts only at a line start.
@@ -301,6 +324,21 @@ def _diverged_report(live_head: str, runner: GitRunner) -> dict[str, object]:
     )
 
 
+def _fetch_missing_head(live_head: str, runner: GitRunner) -> str:
+    """Fetch an absent live head, and return a failure reason or ``""``.
+
+    By SHA: a branch fetch would advance the ref a bare ``--force-with-lease`` reads.
+    """
+    code, _ = runner(["cat-file", "-e", f"{live_head}^{{commit}}"])
+    if code in (0, _INVALID_WORKTREE, _LAUNCH_FAILURE):
+        return ""
+    code, _ = runner([*_FETCH, live_head])
+    if code == 0:
+        return ""
+    detail = "timed out or could not start" if code == _LAUNCH_FAILURE else f"exited {code}"
+    return f"could not fetch the live head from origin: git fetch {detail}. Fetch it by hand first"
+
+
 def scan_unpushed_commits(
     live_head: str, runner: GitRunner = default_runner, *, pr_checkout: bool = True
 ) -> dict[str, object]:
@@ -310,12 +348,15 @@ def scan_unpushed_commits(
     worktree was named. ``HEAD`` may then be another branch, so a diverged live head
     proves nothing about a force-push and its commits are not listed.
 
-    Read-only. Never raises: a git failure yields an ``unverified`` report.
+    Moves no ref. A named worktree fetches an absent live head first; the current
+    directory may be another repository. Never raises: a git failure is ``unverified``.
     The SHA comes from the GitHub API, so its shape is checked before it
     reaches a git argument vector (CWE-88).
     """
     if not _SHA.fullmatch(live_head):
         return _unverified(live_head, "live head is not a commit SHA")
+    if pr_checkout and (failure := _fetch_missing_head(live_head, runner)):
+        return _unverified(live_head, failure)
     code, _ = runner(["merge-base", "--is-ancestor", live_head, "HEAD"])
     if code == 1:
         if not pr_checkout:
@@ -358,21 +399,6 @@ def scan_unpushed_commits(
     )
 
 
-def _fetch_missing_head(live_head: str, runner: GitRunner) -> str:
-    """Fetch an absent live head, and return a failure reason or ``""``.
-
-    By SHA: a branch fetch would advance the ref a bare ``--force-with-lease`` reads.
-    """
-    code, _ = runner(["cat-file", "-e", f"{live_head}^{{commit}}"])
-    if code in (0, _INVALID_WORKTREE, _LAUNCH_FAILURE):
-        return ""
-    code, _ = runner([*_FETCH, live_head])
-    if code == 0:
-        return ""
-    detail = "timed out or could not start" if code == _LAUNCH_FAILURE else f"exited {code}"
-    return f"could not fetch the live head from origin: git fetch {detail}. Fetch it by hand first"
-
-
 def scan_if_escalated(
     escalated: bool,
     live_head: str | None,
@@ -382,14 +408,10 @@ def scan_if_escalated(
 ) -> dict[str, object]:
     """Scan only when the round-cap record is escalated; otherwise ``not_checked``.
 
-    A missing live head SHA yields ``unverified``, never a silent pass. Only a named
-    PR worktree fetches an absent head: the current directory may be another repository.
+    A missing live head SHA yields ``unverified``, never a silent pass.
     """
     if not escalated:
         return _report("not_checked", live_head or "")
     if not live_head:
         return _unverified("", "live PR head SHA unavailable")
-    if pr_checkout and _SHA.fullmatch(live_head):
-        if failure := _fetch_missing_head(live_head, runner):
-            return _unverified(live_head, failure)
     return scan_unpushed_commits(live_head, runner, pr_checkout=pr_checkout)
