@@ -447,14 +447,15 @@ pre-commit:
 #   1. Singleton guards (repo-health, repair-packed-refs, mutation-safety,
 #      push-ref-staleness).
 #   2. Fast stage, stdin half: the piped group of cheap ref-payload policies.
-#   3. Fast stage, parallel half: ratchets and policy gates that each finish
+#   3. Fast stage, parallel half: policy gates that each finish
 #      in seconds (measured 0.1s-17s standalone on 2026-08-15).
 #   4. security-scan (semgrep): expensive stdin consumer. Kept serial as a
 #      top-level job because `.claude/rules/ci-scripts.md` MUST-21 forbids
 #      `use_stdin: true` inside a `parallel: true` group; the top level of a
 #      piped hook delivers the same serialized stdin a piped group does.
 #   5. Expensive stage: python-tests, mypy, workflow-local-run,
-#      build-all-check, the e2e smokes, pre-pr-validation, plus the advisory
+#      build-all-check, the e2e smokes, pre-pr-validation, count-ratchets
+#      (issue #7070), plus the advisory
 #      reporters that were already scheduled alongside them.
 # Only ordering changed; every job body is identical to the pre-#5066 config.
 pre-push:
@@ -542,10 +543,6 @@ pre-push:
     - group:
         parallel: true
         jobs:
-          - name: count-ratchets
-            timeout: 90s
-            run: uv run --frozen python scripts/validation/checks_ratchet.py
-
           - name: python-unreachable-statements
             timeout: 90s
             run: uv run --frozen python scripts/validation/check_unreachable_code.py .
@@ -647,8 +644,10 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py --compact
             env:
               SKIP_AUTOFIX: "1"
-              # The five deferral targets are unconditional fast-stage jobs.
-              # Because the hook is piped, this job starts only after they pass.
+              # The five deferral targets are unconditional jobs. Four are in
+              # the fast stage, so this job starts only after they pass;
+              # count-ratchets runs beside it in this group (issue #7070). The
+              # hook is piped, so any of them failing blocks the push.
               # Direct pre_pr.py and CI calls leave this unset and run all gates.
               AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
               # This job's run budget in seconds: its timeout (above) less
@@ -656,6 +655,21 @@ pre-push:
               # deadline to the run's remaining share, and the wait restarts
               # that clock; a test pins the values.
               PRE_PR_OUTER_CAP_SECONDS: "240"
+
+          # Issue #7070: moved here from the fast stage. Most ratchets
+          # materialize the merge-base tree into temp storage, so the wall
+          # clock follows disk speed: about 48s with temp on tmpfs, and past
+          # the old 85s deadline on an overlay disk. The registry deadline is
+          # 600s (checks_ratchet._AGGREGATE_TIMEOUT_SECONDS) and this cap stays
+          # above it so the deadline fires first and names the ratchet; a test
+          # pins both. Routed through git_hook_policy so a managed container
+          # clamps it to the container ceiling. Cost: a count violation now
+          # surfaces when this stage finishes, not in the first minute of a
+          # push. The group is parallel and workflow-local-run holds it at
+          # 30m, so the pre-push declared total does not move.
+          - name: count-ratchets
+            timeout: 660s
+            run: uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets
 
           - name: worktree-gc-report
             timeout: 2m

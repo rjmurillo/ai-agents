@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """Benchmark Serena memory search performance.
 
 Implements M-008 from Phase 2A: Create memory search benchmarks. Times the

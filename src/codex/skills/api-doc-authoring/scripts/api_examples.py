@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Run the executable HTTP examples in API documentation and record evidence.
 
 The documentation is the thing under test. An executable example is a fenced

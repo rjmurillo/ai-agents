@@ -1403,6 +1403,78 @@ def test_cli_exit_success_when_only_unsupported_files(tmp_path: Path) -> None:
     assert "No supported files found" in result.stdout
 
 
+def test_cli_json_unsupported_only_emits_zero_coverage_envelope(tmp_path: Path) -> None:
+    # Issue #7074: a .cue file has no scanner language, so nothing is assessed.
+    name = _write(tmp_path, "sample.cue", "package fixture\n\nvalue: 42\n")
+    result = _run_cli("--format", "json", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    payload = json.loads(result.stdout)
+    assert payload["files_scanned"] == 0
+    assert payload["vulnerabilities"] == []
+    assert payload["errors"] == []
+    assert payload["summary"]["total"] == 0
+
+
+def test_cli_json_zero_coverage_matches_clean_scan_schema(tmp_path: Path) -> None:
+    unsupported = _write(tmp_path, "sample.cue", "value: 42\n")
+    supported = _write(tmp_path, "clean.py", "x = 1\n")
+
+    skipped = json.loads(_run_cli("--format", "json", unsupported, cwd=tmp_path).stdout)
+    scanned = json.loads(_run_cli("--format", "json", supported, cwd=tmp_path).stdout)
+
+    assert skipped.keys() == scanned.keys()
+    assert skipped["summary"].keys() == scanned["summary"].keys()
+    assert skipped["schema_version"] == scanned["schema_version"]
+    assert skipped["summary"]["delegated_cwes"] == scanned["summary"]["delegated_cwes"]
+
+
+def test_cli_json_unsupported_only_honors_output_file(tmp_path: Path) -> None:
+    name = _write(tmp_path, "sample.cue", "value: 42\n")
+    result = _run_cli("--format", "json", "--output", "out.json", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert "Results written to out.json" in result.stdout
+    payload = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    assert payload["files_scanned"] == 0
+
+
+def test_cli_console_unsupported_only_writes_no_output_file(tmp_path: Path) -> None:
+    name = _write(tmp_path, "sample.cue", "value: 42\n")
+    result = _run_cli("--output", "out.txt", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert "No supported files found" in result.stdout
+    assert not (tmp_path / "out.txt").exists()
+
+
+def test_cli_json_mixed_input_counts_only_supported_files(tmp_path: Path) -> None:
+    unsupported = _write(tmp_path, "sample.cue", "value: 42\n")
+    supported = _write(tmp_path, "clean.py", "x = 1\n")
+    result = _run_cli("--format", "json", unsupported, supported, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert json.loads(result.stdout)["files_scanned"] == 1
+
+
+def test_cli_json_no_target_keeps_usage_error(tmp_path: Path) -> None:
+    # The envelope covers successful calls only. A missing target stays an error.
+    result = _run_cli("--format", "json", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    assert "No files to scan" in result.stdout
+
+
+def test_cli_json_directory_without_supported_files_keeps_usage_error(tmp_path: Path) -> None:
+    # An empty --directory walk is a mis-specified root, so it is not zero coverage.
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "notes.txt").write_text("text\n", encoding="utf-8")
+    result = _run_cli("--format", "json", "--directory", "docs", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    assert "No files to scan" in result.stdout
+
+
 def test_cli_exit_error_when_supported_file_cannot_be_read(tmp_path: Path) -> None:
     result = _run_cli("missing.py", cwd=tmp_path)
 
@@ -1577,13 +1649,25 @@ def test_main_git_staged_scans_staged_files(
 def test_main_git_staged_no_files_exits_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # A successful staged-file enumeration that yields zero files is a clean pass,
-    # not an error. Only a git enumeration *failure* fails closed (see below).
+    # A successful staged-file enumeration that yields zero files exits success with
+    # zero coverage. Only a git enumeration *failure* fails closed (see below).
     monkeypatch.setattr(scanner, "get_staged_files", lambda: [])
     code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
     captured = capsys.readouterr()
     assert code == scanner.EXIT_SUCCESS
     assert "No files to scan" in captured.out
+
+
+def test_main_git_staged_no_files_json_emits_zero_coverage_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(scanner, "get_staged_files", lambda: [])
+    code = _run_main_in_process(monkeypatch, "--git-staged", "--format", "json", cwd=tmp_path)
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == scanner.EXIT_SUCCESS
+    assert payload["files_scanned"] == 0
+    assert payload["vulnerabilities"] == []
 
 
 def test_main_directory_missing_exits_error(

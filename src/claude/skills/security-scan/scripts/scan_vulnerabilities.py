@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 Security vulnerability scanner for CWE-78 (command injection).
 
@@ -15,7 +16,7 @@ security, not a competitive differentiator) and CodeQL is the authoritative
 detector already in the repo's CI pipeline.
 
 Exit codes:
-    0  - No vulnerabilities found
+    0  - No vulnerabilities found, or nothing assessed (files_scanned is 0)
     1  - Scan error (file not found, invalid arguments)
     10 - Vulnerabilities detected
 
@@ -456,6 +457,19 @@ def _validate_input_paths(args: argparse.Namespace) -> None:
         sys.exit(EXIT_ERROR)
 
 
+def _exit_zero_coverage(args: argparse.Namespace, console_message: str) -> None:
+    """Exit successfully for a request that assessed no files.
+
+    JSON callers get the standard envelope with `files_scanned: 0`, which means
+    nothing was assessed. It is not evidence that a file is free of findings.
+    """
+    if args.format == "json":
+        _write_or_print_output(format_json_output(ScanResult()), args.output)
+    else:
+        print(console_message)
+    sys.exit(EXIT_SUCCESS)
+
+
 def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
     """Collect explicit, staged, and directory files from CLI arguments."""
     files_to_scan = []
@@ -487,26 +501,26 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
         files_to_scan.extend(args.files)
 
     if not files_to_scan:
-        # A successful --git-staged enumeration with nothing staged is a clean
-        # pass. Restrict that to the staged-only case: an explicit --directory or
-        # --files target that yielded nothing is a mis-specified request, not a
-        # clean scan, so it keeps the usage-error exit (EXIT_ERROR).
+        # A successful --git-staged enumeration with nothing staged exits success
+        # with zero coverage. Restrict that to the staged-only case: an explicit
+        # --directory or --files target that yielded nothing is a mis-specified
+        # request, not a clean scan, so it keeps the usage-error exit (EXIT_ERROR).
         if args.git_staged and not args.directory and not args.files:
-            print("No files to scan (nothing staged, or only deletions staged).")
-            sys.exit(EXIT_SUCCESS)
+            _exit_zero_coverage(
+                args, "No files to scan (nothing staged, or only deletions staged)."
+            )
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
 
     return list(set(files_to_scan))
 
 
-def _filter_supported_files(files_to_scan: list[str]) -> list[str]:
+def _filter_supported_files(files_to_scan: list[str], args: argparse.Namespace) -> list[str]:
     """Keep files whose extension or shebang maps to a scanner language."""
     supported_files = [f for f in files_to_scan if get_language(f) is not None]
 
     if not supported_files:
-        print("No supported files found (Python, PowerShell, Bash, C#).")
-        sys.exit(EXIT_SUCCESS)
+        _exit_zero_coverage(args, "No supported files found (Python, PowerShell, Bash, C#).")
     return supported_files
 
 
@@ -557,7 +571,7 @@ def main() -> None:
     _validate_cwe_filter(args.cwe)
     _validate_input_paths(args)
     files_to_scan = _collect_files_to_scan(args)
-    supported_files = _filter_supported_files(files_to_scan)
+    supported_files = _filter_supported_files(files_to_scan, args)
     result = _scan_supported_files(supported_files, args.cwe)
     output = _format_output(result, args.cwe, args.format)
     _write_or_print_output(output, args.output)

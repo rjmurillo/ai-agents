@@ -291,5 +291,5 @@ class TestRegisteredInBothGates:
         job = _count_ratchets_job()
         assert job is not None
         assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/checks_ratchet.py"
+            "uv run --frozen python scripts/validation/git_hook_policy.py count-ratchets"
         )

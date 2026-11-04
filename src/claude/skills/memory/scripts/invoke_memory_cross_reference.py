@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """Orchestrate memory cross-reference scripts for pre-commit hook integration.
 
 Unified entry point that executes all three memory cross-reference scripts

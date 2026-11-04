@@ -11,7 +11,13 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 RULE = REPO_ROOT / "templates" / "rules" / "lossless-queue-reads.md"
 CLUSTER = (
-    REPO_ROOT / ".claude" / "skills" / "pr-comment-responder" / "scripts" / "cluster_threads.py"
+    REPO_ROOT
+    / "src"
+    / "claude"
+    / "skills"
+    / "pr-comment-responder"
+    / "scripts"
+    / "cluster_threads.py"
 )
 MAX_BYTES = 2200
 REASONS = (

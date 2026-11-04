@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Select Stage-2 review axes from verified changed paths and diff effects.
 
 ``/review`` runs a Stage-1 ``spec-compliance`` gate, then a set of Stage-2
@@ -24,9 +25,11 @@ every matched category contributes its axes.
 Fail-closed rule: when a changed path matches no known risk category, when the
 path list is empty or holds nothing but blanks, when a declared diff effect is
 not in the known vocabulary, or when a demanded axis has no
-``references/{stem}.md`` prompt to load, every candidate axis is selected.  An
-unclassified change gets the full review, never an empty one, and an incomplete
-prompt set widens the review instead of narrowing it.  A demanded axis with no
+``references/{stem}.md`` prompt to load, every canonical candidate is selected,
+plus each local axis whose scanner reads a changed path (all four when no
+usable path was passed; issue #7031).  An unclassified change gets every
+canonical axis, never an empty review, and an incomplete prompt set widens the
+review instead of narrowing it.  A demanded axis with no
 prompt is reported in ``unresolved_axes`` so it never vanishes from both
 ``canonical_selected`` and ``skipped``.
 
@@ -548,11 +551,11 @@ def scannable_local_axes(paths: Sequence[str]) -> set[str]:
 def readable_local_axes(paths: Sequence[str]) -> set[str]:
     """Local axes whose scanner reads at least one of *paths*.
 
-    Deep review uses this whole-list question on purpose. It routes no axis by
-    category, so every changed path is in scope for every axis, and the only
-    question left is whether the scanner can read any of them. A path the
-    scanner cannot read stays covered by the canonical axes, which deep always
-    runs in full.
+    Deep and fail-closed runs use this whole-list question on purpose. Neither
+    routes an axis by category, so every changed path is in scope for every
+    axis, and the only question left is whether the scanner can read any of
+    them. A path the scanner cannot read stays covered by the canonical axes,
+    which both modes always run in full.
     """
     return {
         axis
@@ -620,8 +623,8 @@ def _blanket_reason(
 ) -> str:
     """Return the reason recorded on every axis a deep or fail-closed run selects.
 
-    Fail-closed wins over deep: a deep run that fails closed keeps all four
-    local axes, and the reason must say why the narrowing did not run.
+    Fail-closed wins over deep: a deep run that fails closed says so on every
+    axis it selects, so the reader sees why the run did not narrow by category.
     """
     if unclassified or unknown_effects or not usable_paths:
         return _FAIL_CLOSED_REASON
@@ -650,9 +653,11 @@ def unreviewable_paths(paths: Sequence[str]) -> list[str]:
     still leaves it reviewed. `docs-and-instructions` and `toolkit-governance`
     contribute local axes alone, so dropping theirs leaves nobody: a
     `.doc-accuracy/notes.md` or a `README.MD` would be classified, skipped by every
-    axis that claimed it, and the run could still finish PASS with no
-    documentation evidence at all. Those paths are reported so the caller fails
-    the run closed instead.
+    axis that claimed it, and reviewed by no axis at all. Those paths are
+    reported so the caller fails the run closed, which selects every canonical
+    axis. The local scanner that claimed them still cannot read them, so the
+    fail-closed narrowing skips it with a reason rather than scanning zero files into an UNKNOWN that
+    blocks PASS forever (issue #7031). The canonical axes are their review.
     """
     stranded: list[str] = []
     for raw in paths:
@@ -762,15 +767,18 @@ def select_axes(
         blanket = _blanket_reason(unclassified, unknown_effects, usable_paths, unresolved_axes)
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
-        if not fail_closed:
-            # Deep trusts its path list (SKILL.md tells a caller unsure of the
-            # paths to pass none, which fails closed), so a local scanner that
-            # reads none of it is skipped with a reason rather than run over
-            # zero files. That run reports UNKNOWN, which no language-specific
-            # review can clear, so a valid PowerShell-only change could never
-            # reach PASS (issue #7004). Every canonical axis still runs, which
-            # keeps deep the superset of CI: CI runs no local axis.
-            # Fail-closed keeps all four, because it has no path list to trust.
+        if usable_paths:
+            # The caller passes only verified diff paths (SKILL.md tells a
+            # caller unsure of them to pass none), so a local scanner that
+            # reads none of them is skipped with a reason rather than run over
+            # zero files. That run reports UNKNOWN, which no fix round can
+            # clear, so the change could never reach PASS: issue #7004 for
+            # deep, issue #7031 for fail-closed. Failing closed on an
+            # unclassified path, an unknown effect, or an unresolved axis
+            # leaves the path list itself trustworthy, and no effect routes a
+            # local axis. Every canonical axis still runs, which keeps this the
+            # superset of CI: CI runs no local axis. With no usable path there
+            # is nothing to narrow against, so all four local axes run.
             local_selected = readable_local_axes(usable_paths)
             skip_overrides.update(
                 dict.fromkeys(set(LOCAL_AXES) - local_selected, _UNREADABLE_REASON)
@@ -790,8 +798,8 @@ def select_axes(
         # never inventories. Selecting those anyway yields a scan over zero
         # files, which reports UNKNOWN, and an UNKNOWN axis blocks a PASS just
         # as a skipped one does without saying why. Skipping names the reason.
-        # Deep narrows by scanner reads alone (readable_local_axes), since it
-        # routes no axis by category. Fail-closed does not narrow at all.
+        # Deep and fail-closed narrow by scanner reads alone
+        # (readable_local_axes), since neither routes an axis by category.
         routed_local = set(local_sources) & set(LOCAL_AXES)
         local_selected = routed_local & scannable_local_axes(usable_paths)
         unreadable_local = routed_local - local_selected

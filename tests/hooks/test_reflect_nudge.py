@@ -265,7 +265,7 @@ class TestScanTranscript:
 
     def test_non_user_records_are_not_counted(self, tmp_path: Path) -> None:
         path = write_transcript(tmp_path / "t.jsonl", [{"type": "assistant", "message": "no"}])
-        assert scan(path) == nudge.ScanResult()
+        assert scan(path) == nudge.ScanResult(lines_scanned=1)
 
     def test_over_long_line_is_skipped_and_scan_continues(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

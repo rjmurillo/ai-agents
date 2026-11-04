@@ -9,7 +9,8 @@ Evidence is a JSON object the agent assembles from real command output:
       "expected": 3,                       # or {"max": 10}
       "rollback": {"kind": "backup", "ref": "...",
                    "backup_path": "...", "source_path": "..."},
-      # snapshot needs "snapshot_path" (an existing file or non-empty directory).
+      # snapshot needs "snapshot_path" and "snapshot_target"; its manifest must
+      # name the same ref and target and a payload whose SHA-256 matches.
       # version needs "ref" to be a 40-hex commit id that git can resolve.
       "approval": {"human": "who or ticket"},   # required when irreversible
       "checks": [{"command": "pytest ...", "exit_code": 0}]
@@ -130,8 +131,9 @@ def rule_rollback(evidence: Evidence, scanned: list[str]) -> list[str]:
     if kind == "irreversible":
         approved = as_dict(evidence.get("approval")).get("human")
         return [] if approved else ["irreversible operation needs human approval"]
-    # A version kind reports its own ref defect, so skip the generic one there.
-    has_ref = rollback.get("ref") or kind == "version"
+    # Snapshot and version checks report their own ref defects, so skip the
+    # generic one for those kinds.
+    has_ref = rollback.get("ref") or kind in {"snapshot", "version"}
     reasons = [] if has_ref else [f"rollback kind {kind} names no ref"]
     return reasons + KIND_CHECKS[str(kind)](rollback)
 

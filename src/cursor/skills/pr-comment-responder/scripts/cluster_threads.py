@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Cluster unresolved PR review threads by shared gist before the fix loop.
 
 Phase 0 of the pr-comment-responder workflow. When a bot rescan surfaces many

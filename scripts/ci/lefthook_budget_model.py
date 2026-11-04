@@ -64,7 +64,6 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "mutation-safety",
         "push-ref-staleness",
         "pre-pr-validation",
-        "count-ratchets",
         "python-unreachable-statements",
         "python-dead-code",
         "path-normalization",
