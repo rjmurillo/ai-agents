@@ -9,10 +9,13 @@ Exit codes:
     0  - No vulnerabilities found, or nothing assessed (files_scanned is 0)
     1  - Scan error (file not found, invalid arguments)
     3  - External dependency failure (e.g. git enumeration failed)
+    2  - Invalid command-line arguments
+    3  - Git could not enumerate staged files
     10 - Vulnerabilities detected
 """
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
+EXIT_USAGE = 2
 EXIT_EXTERNAL = 3
 EXIT_VULNERABILITIES = 10

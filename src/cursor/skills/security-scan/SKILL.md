@@ -78,7 +78,7 @@ Use **threat-modeling** instead when:
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/scan_vulnerabilities.py` | CWE-78 (command injection) regex scanner over staged, specified, or `--directory` files; supports `--format json`. CWE-22 is delegated to CodeQL; see Scope. | `0` no vulnerabilities, or nothing assessed (`files_scanned: 0`); `1` scan error (file not found, etc.); `10` vulnerabilities detected. |
+| `scripts/scan_vulnerabilities.py` | CWE-78 (command injection) regex scanner over staged, specified, or `--directory` files; supports `--format json`. CWE-22 is delegated to CodeQL; see Scope. | `0` no vulnerabilities, or nothing assessed (`files_scanned: 0`); `1` scan error (file not found, etc.); `2` invalid arguments; `3` git enumeration failure; `10` vulnerabilities detected. |
 
 `scan_constants.py`, `scan_patterns.py`, `scan_bash_lexer.py`, `scan_bash_heredoc.py`, and `scan_format.py` are helper modules imported by the scanner, not standalone CLIs.
 
@@ -131,7 +131,9 @@ When vulnerabilities are detected, the scanner outputs findings with file locati
 
 Machine-readable JSON format including scan timestamp, files scanned, vulnerability details (CWE, file, line, code, severity, recommendation), and summary statistics.
 
-`files_scanned: 0` means the scanner assessed nothing: nothing was staged, or no staged or named file was a supported language. It is zero coverage, not a clean result, even though the exit code is `0`. A `--directory` scan that finds no supported files stays a usage error: exit `1` with plain text.
+`files_scanned: 0` means the scanner assessed nothing: nothing was staged, or no staged or named file was a supported language. It is zero coverage, not a clean result, even though the exit code is `0`. A `--directory` scan that finds no supported files, or a call with no target, is a usage error: exit `1`, with the message in `errors`.
+
+With `--format json`, stdout carries exactly one JSON envelope on every exit, and stderr stays empty. This covers argument errors, failed path checks, git failures, unexpected exceptions, and `--help`, which adds a `help` field. The envelope's `exit_code` always matches the process exit code. `--output` writes the same envelope to a file and stdout still prints it. A rejected `--output` path is never written.
 
 ---
 
@@ -141,6 +143,8 @@ Machine-readable JSON format including scan timestamp, files scanned, vulnerabil
 |------|---------|-------------|
 | 0 | No vulnerabilities found, or nothing assessed (`files_scanned: 0` in JSON) | Pass; check `files_scanned` to tell the two apart |
 | 1 | Scan error (file not found, etc.) | Fail |
+| 2 | Invalid command-line arguments | Fail |
+| 3 | Git could not enumerate staged files | Fail |
 | 10 | Vulnerabilities detected | Fail |
 
 ---
