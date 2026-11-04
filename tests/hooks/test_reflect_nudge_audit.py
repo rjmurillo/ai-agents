@@ -125,6 +125,10 @@ def _payload(transcript: Path) -> str:
     return json.dumps(body)
 
 
+# POSIX derives the state root from XDG_STATE_HOME and HOME; Windows uses LOCALAPPDATA.
+POSIX_STATE = pytest.mark.skipif(os.name == "nt", reason="POSIX state-root derivation")
+
+
 class TestProbesHaveTeeth:
     """Negative controls: each probe must see a read it is meant to catch."""
 
@@ -166,6 +170,7 @@ class TestOpenAudit:
         assert stray == []
         assert any(Path(p).resolve() == both_branches.resolve() for p in opened)
 
+    @POSIX_STATE
     def test_default_state_root_under_home_is_the_only_other_write_target(
         self, both_branches: Path, tmp_path: Path
     ) -> None:
@@ -190,6 +195,7 @@ class TestEnvironAudit:
         assert "HOME" in env.touched  # Path.home() reached the patched os.environ
         assert "SECRET_TOKEN" not in env.touched
 
+    @POSIX_STATE
     def test_threshold_and_state_variables_are_read_when_set(
         self, both_branches: Path, tmp_path: Path
     ) -> None:
