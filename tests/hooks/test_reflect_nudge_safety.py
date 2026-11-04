@@ -250,10 +250,10 @@ def test_hook_module_exposes_the_refusal_entry_point() -> None:
     assert nudge.resolve_state_root is nudge_state.resolve_state_root
 
 
-def test_marker_dir_refused_when_an_ancestor_becomes_a_symlink_into_a_repo(
+def test_marker_dir_refused_when_the_root_becomes_a_symlink_into_a_repo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A component swapped for a symlink between the walk and mkdir is caught after mkdir."""
+    """The root swapped for a symlink between the walk and mkdir is caught after mkdir."""
     repo = _fake_repo(tmp_path, as_file=False)
     safe = tmp_path / "safe"
     safe.mkdir()
