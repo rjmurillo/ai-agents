@@ -11,12 +11,17 @@ GitHub token, an npm token, or a model provider API key.
 1. Identify the credential and where it appeared. Do not paste the value into a
    new issue, comment, or chat to ask about it.
 2. Map it to its secret and where it lives. Each provider key lives in one
-   `agent-*` environment, with no repository-level copy (ADR-114 decision 1):
+   `agent-*` environment (ADR-114 decision 1). ADR-114 decision 11 item 4 lists
+   two repository-level copies as still open on 2026-10-07:
 
    | Secret | Where it lives |
    |---|---|
    | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` | `agent-claude` environment |
    | `COPILOT_GITHUB_TOKEN` | `agent-copilot` environment |
+
+| `OPENAI_API_KEY` | `agent-codex` environment |
+| `FACTORY_API_KEY` | `agent-droid` environment, plus a repository-level copy |
+| `SMOKE_ANTHROPIC_API_KEY` | Repository level |
    | `ADR101_PUBLISHER_APP_PRIVATE_KEY` | `adr101-publisher` environment |
    | `NPM_TOKEN` | `npm` environment |
    | `BOT_PAT` | Repository level, if set. ADR-114 decision 11 found no copy on 2026-10-07 |
@@ -37,10 +42,11 @@ GitHub token, an npm token, or a model provider API key.
    pick the environment, and update the secret there. Do not add a
    repository-level copy. The environment copy takes precedence over it, so
    jobs in that environment would keep the revoked value. A repository copy
-   also reaches jobs outside the environment's reviewer gate. Only `BOT_PAT`
-   goes in
+   also reaches jobs outside the environment's reviewer gate. If the table
+   lists a repository copy for the secret, or you find one, update or delete it
+   too, in
    [Settings > Secrets and variables > Actions](https://github.com/rjmurillo/ai-agents/settings/secrets/actions).
-   Only a repository admin can change these.
+   Otherwise only `BOT_PAT` goes there. Only a repository admin can change these.
 2. **Remove it from the current tree.** Delete the value on a branch and open a
    PR with the `push-pr` skill. That PR's diff still shows the old value in its
    removed lines, so this step does not end the exposure. Rotation does.
