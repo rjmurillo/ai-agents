@@ -3827,8 +3827,9 @@ _SESSION_REFUSAL_PROBES = (
 _SESSION_REFUSAL_TIMEOUT_SECONDS = 10
 # get_unresolved_review_threads.py reports an API failure at exit 0, so its
 # api_error field stands in for an external error. fetched_pages_complete cannot
-# do this job: a review thread with over 100 comments sets it false, so a PR
-# commenter could turn a real failure into unknown (ADR-120).
+# do this job, because a PR can set it false with no API failure: a thread with
+# over 100 comments in check_review_thread_resolution_shas.py, or the page cap in
+# get_unresolved_review_threads.py. A real failure could then read unknown (ADR-120).
 _API_ERROR_EXIT = 3
 _VERDICT_EXIT_CODES = {"pass": 0, "fail": 1, "unknown": 3}
 _UNKNOWN_VERDICT_NOTE = (

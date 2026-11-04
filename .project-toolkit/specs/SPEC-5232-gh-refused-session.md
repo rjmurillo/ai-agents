@@ -127,7 +127,7 @@ Row `status`, payload `verdict`, and the evidence file written by `--evidence-pa
 2. When the probe observes no refusal, or cannot run, the gate shall leave every row `failed`, as today.
 3. The gate shall run at most one pass over the probes per run, and none when no verifier exited above 1 or reported `api_error: true`.
 4. The gate shall never take refusal evidence from verifier output. A verifier that prints refusal text while exiting non-zero in a served session stays `failed`. The gate reads one verifier field, `api_error`, and only to decide whether a row can read unknown.
-5. A row that exited 1, or failed through `pass_when` or bad JSON at exit 0 without `api_error: true`, shall stay `failed` in a refused session. That includes `fetched_pages_complete: false`, which a PR commenter can cause.
+5. A row that exited 1, or failed through `pass_when` or bad JSON at exit 0 without `api_error: true`, shall stay `failed` in a refused session. That includes `fetched_pages_complete: false`, which a PR can cause through a thread with over 100 comments or the page cap.
 6. When any row is `failed`, the gate shall report verdict `fail` and exit 1.
 7. When no row is `failed` and at least one row is `unknown`, the gate shall report verdict `unknown`, list those rows in `unknown_criteria`, and exit 3.
 8. The gate shall never exit 0 or report `all_passed: true` while a row is `unknown`.

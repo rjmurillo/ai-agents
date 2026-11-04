@@ -13,6 +13,7 @@ Output is a JSON object with:
       "pull_request": <int>,
       "unresolved_count": <int>,
       "fetched_pages_complete": <bool>,
+      "api_error": <bool>,
       "threads": [<thread>, ...]
     }
 
@@ -39,16 +40,15 @@ Exit codes follow ADR-035, with one deliberate deviation noted below:
     4 - Auth error
 
 API/pagination failures do NOT exit 3. They return 0 with
-``success: false`` and ``fetched_pages_complete: false`` so the
-/pr-review completion gate's ``pass_when`` (which requires
-``fetched_pages_complete == true``) remains the single source of
-truth for the verdict. Mixing exit-3 with the JSON-flag contract
-would force every consumer to handle two failure surfaces; one
-surface is enough.
+``success: false``, ``fetched_pages_complete: false``, and, when a ``gh`` call
+raised, ``api_error: true``, so the /pr-review completion gate's ``pass_when``
+(which requires ``fetched_pages_complete == true``) still decides pass or fail.
+The gate reads ``api_error`` only to decide whether a failed row can read
+unknown. Mixing exit-3 with the JSON-flag contract would force every consumer
+to handle two failure surfaces; one surface is enough.
 
-``api_error`` is true only when a ``gh`` call raised. A page cap or a missing
-cursor leaves it false, because a PR can cause those. The completion gate
-reads this field, so nothing a PR author controls may set it (ADR-120).
+A page cap or a missing cursor leaves ``api_error`` false, because no ``gh``
+call raised. Nothing a PR author controls may set it (ADR-120).
 """
 
 from __future__ import annotations

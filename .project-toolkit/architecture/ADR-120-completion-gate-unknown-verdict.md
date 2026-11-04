@@ -44,8 +44,10 @@ is at the 500-line cap, so this decision has its own record.
    only. An exit 3 beside it can be a quota or a 5xx. ADR-100 measured this split in
    its paragraph "Two different 403s". `api_error` counts as exit 3, because
    `get_unresolved_review_threads.py` reports a failed `gh` call at exit 0. It is not
-   `fetched_pages_complete`: a thread with over 100 comments sets that field false, so
-   a PR commenter could use it to turn a real failure into unknown.
+   `fetched_pages_complete`, because a PR can set that field false with no API failure:
+   a thread with over 100 comments in `check_review_thread_resolution_shas.py`, or the
+   50-page cap in `get_unresolved_review_threads.py`. A real failure could then read
+   unknown.
 5. **Exit 1 is an answer.** ADR-035 defines it as a validation failure, and
    `test_pr_merge_ready.py` uses it for a PR that is not ready. That script reports API
    errors as exit 3, so exit 1 is not a wrapped refusal. It stays `failed`.
@@ -123,3 +125,4 @@ a real failure, or if the org connects the Claude GitHub App.
 - `src/claude/skills/github/references/transport-routing.md`
 - `.project-toolkit/critique/ADR-120-debate-log.md`
 - `.project-toolkit/critique/ADR-120-debate-log-2.md`
+- `.project-toolkit/critique/ADR-120-debate-log-3.md`
