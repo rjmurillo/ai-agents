@@ -75,7 +75,7 @@ def expected_score(denials: int, feedback: int) -> int:
 
 def run_env(
     transcript: Path | None,
-    state_root: Path,
+    state_root: Path | None,
     env: Mapping[str, str] | None = None,
     session_id: str = "sess-1",
     **kwargs: Any,

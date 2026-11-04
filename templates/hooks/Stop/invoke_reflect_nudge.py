@@ -9,14 +9,13 @@ it never invokes reflect and never writes memory.
 Hook Type: Stop (non-blocking, fail-open)
 Exit Codes:
     0 = always. The hook never emits ``decision: "block"`` and never exits 2,
-        so it cannot trap a session or loop on re-entry. A nudge is a
-        ``systemMessage`` advisory on stdout. Every internal error exits 0.
-        The registered command ends in ``|| true`` because python itself
-        exits 2 when the script file is missing, and exit 2 on Stop blocks.
+        so it cannot trap a session or loop. A nudge is a ``systemMessage``
+        advisory on stdout. Every internal error exits 0. The registered
+        command ends in ``|| true``: python exits 2 on a missing script,
+        and exit 2 on Stop blocks.
 
-Stop payload (issue #3184 probed the real event): ``session_id``,
-``transcript_path``, and ``cwd``, not ``messages``. A missing
-``transcript_path`` is reported as the fail-open reason.
+Stop payload (issue #3184 probed the real event): ``session_id``, ``transcript_path``,
+and ``cwd``, not ``messages``. A missing ``transcript_path`` is the fail-open reason.
 
 Transcript contract (measured on real sessions, issue #5817): newline-delimited
 JSON. ``type == "user"`` also covers tool results, which carry
@@ -25,11 +24,9 @@ JSON. ``type == "user"`` also covers tool results, which carry
 ``queued``), no ``toolUseResult``, not ``isMeta``, not ``isSidechain``.
 
 Dedupe marker: one file per (session, signal set) under per-user state
-outside any repository, mode 0o600 in an owner-only 0o700 directory. It is
-claimed with an exclusive create (O_CREAT | O_EXCL), so overlapping Stop
-events cannot both nudge: the loser sees the file exists and stays silent.
-The name carries a hash of the counts. The body holds counts, never
-transcript text.
+outside any repository (mode 0o600, in a 0o700 directory), claimed with an
+exclusive create (O_CREAT | O_EXCL) so overlapping Stops cannot both nudge.
+The name hashes the counts; the body holds counts, never transcript text.
 
 Friction branch (REQ-048 TASK-003): the scan keeps conversation records, up
 to MAX_FRICTION_RECORDS, and the shared ``failure_classifier`` (``lib/``, the
@@ -81,9 +78,9 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling state module
 from _reflect_nudge_state import (  # noqa: E402
     claim,
-    default_state_root,
     is_off,
     prune_markers,
+    resolve_state_root,
     safe_marker_dir,
 )
 
@@ -432,7 +429,9 @@ def run(
     if not (has_signal(result) or wants_friction):
         print(status_line(result, "silent", note), file=stderr)
         return 0
-    root = state_root or default_state_root(env)
+    root, refusal = resolve_state_root(env, state_root)
+    if root is None:  # AC-24: no mkdir, no systemMessage, one stderr line
+        return _fail_open(stderr, refusal)
     return _nudge_once(result, friction, session_id, (stdout, stderr), root, now, note)
 
 
