@@ -35,11 +35,23 @@ pytestmark = pytest.mark.usefixtures("isolated_home")
 POSIX_ONLY = pytest.mark.skipif(os.name != "posix", reason="HOME rule and symlinks are POSIX")
 
 
+def _git_entry_above(path: Path) -> bool:
+    """Independent of the code under test: any ``.git`` entry at or above ``path``."""
+    return any(os.path.lexists(d / ".git") for d in (path, *path.parents))
+
+
 @pytest.fixture(autouse=True)
 def _tmp_outside_any_repository(tmp_path: Path) -> None:
-    """Every test here plants its own repository; a tmp dir already inside one is unusable."""
-    if nudge_state._repository_block(tmp_path.resolve()):
-        pytest.skip("pytest tmp_path lies inside a git repository; set --basetemp elsewhere")
+    """Every test here plants its own repository; a tmp dir already inside one is unusable.
+
+    The check does not reuse ``_repository_block``, so a regression there fails
+    the tests instead of skipping them. Under CI an unusable tmp dir fails too.
+    """
+    if _git_entry_above(tmp_path.resolve()):
+        message = "pytest tmp_path lies inside a git repository; set --basetemp elsewhere"
+        if os.environ.get("CI"):
+            pytest.fail(message)
+        pytest.skip(message)
 
 
 REPO_REFUSAL = "state root inside a repository, refused"
