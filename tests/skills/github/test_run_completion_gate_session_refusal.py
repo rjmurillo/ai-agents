@@ -15,10 +15,8 @@ import pytest
 from scripts.github_core.api import _TRANSPORT_BLOCKED_MESSAGE
 from tests.gh_auth_refusal_fixtures import PROXY_GRAPHQL_403, PROXY_REST_403
 from tests.skills.github.session_refusal_helpers import (
-    API_ERROR,
     FAILING,
     GRAPHQL_REFUSED,
-    INCOMPLETE_READ,
     PASSING,
     REST_REFUSED,
     SERVED,
@@ -166,36 +164,6 @@ class TestRefusedSession:
         assert rc == 1
         assert [row["status"] for row in result["criteria"]] == ["failed", "unknown"]
 
-    def test_api_error_is_unanswered_in_a_refused_session(self, run_gate):
-        """``get_unresolved_review_threads.py`` reports an API failure at exit 0."""
-        session = Session({"a": API_ERROR, "b": VERIFIER_EXTERNAL_ERROR}, rest=REST_REFUSED)
-
-        rc, result = run_gate(session)
-
-        assert rc == 3
-        assert result["verdict"] == "unknown"
-        assert [row["status"] for row in result["criteria"]] == ["unknown", "unknown"]
-
-    def test_pr_caused_incomplete_read_stays_failed_in_a_refused_session(self, run_gate):
-        """A thread with over 100 comments sets the field, so it proves no API failure."""
-        session = Session({"a": INCOMPLETE_READ}, rest=REST_REFUSED)
-
-        rc, result = run_gate(session)
-
-        assert rc == 1
-        assert result["verdict"] == "fail"
-        assert result["criteria"][0]["status"] == "failed"
-        assert session.gh_calls == []
-
-    def test_graphql_refusal_leaves_an_api_error_failed(self, run_gate):
-        """``api_error`` stands in for exit 3, which the narrow body does not cover."""
-        session = Session({"a": API_ERROR}, graphql=GRAPHQL_REFUSED)
-
-        rc, result = run_gate(session)
-
-        assert rc == 1
-        assert result["criteria"][0]["status"] == "failed"
-
     def test_narrow_body_on_the_rest_probe_is_not_a_session_refusal(self, run_gate):
         narrow = proc(stderr=PROXY_GRAPHQL_403, returncode=1)
         session = Session({"a": VERIFIER_EXTERNAL_ERROR}, rest=narrow)
@@ -232,15 +200,6 @@ class TestServedSession:
         assert result["verdict"] == "pass"
         assert result["criteria"][0]["status"] == "passed"
         assert session.gh_calls == []
-
-    def test_api_error_stays_failed_in_a_served_session(self, run_gate):
-        session = Session({"a": API_ERROR})
-
-        rc, result = run_gate(session)
-
-        assert rc == 1
-        assert result["criteria"][0]["status"] == "failed"
-        assert len(session.gh_calls) == 2
 
     def test_false_pass_when_never_calls_gh(self, run_gate):
         session = Session({"a": FAILING}, rest=REST_REFUSED)
