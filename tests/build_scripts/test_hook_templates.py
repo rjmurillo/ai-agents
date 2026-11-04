@@ -72,17 +72,17 @@ def test_positive_executable_bit_preserved(tmp_path: Path) -> None:
     assert target.stat().st_mode & 0o777 == 0o755
 
 
-def test_positive_hooks_json_renders_at_plugin_root(tmp_path: Path) -> None:
-    """Positive: hooks.json renders to src/claude/hooks.json, not under hooks/."""
+def test_positive_hooks_json_renders_under_plugin_hooks_dir(tmp_path: Path) -> None:
+    """Positive: hooks.json renders to src/claude/hooks/hooks.json, not the plugin root."""
     root = fake_repo(tmp_path)
     write_template(root, "hooks.json", b'{"hooks": {}, "version": 1}')
 
     result = hook_templates.compile_all(root, validate=False)
 
     assert result.exit_code == 0
-    target = root / "src" / "claude" / "hooks.json"
+    target = root / "src" / "claude" / "hooks" / "hooks.json"
     assert str(target) in result.written
-    assert not (root / "src" / "claude" / "hooks" / "hooks.json").exists()
+    assert not (root / "src" / "claude" / "hooks.json").exists()
 
 
 def test_positive_settings_renders_direct_no_plugin_hop(tmp_path: Path) -> None:
@@ -109,7 +109,7 @@ def test_negative_malformed_json_exits_2(tmp_path: Path) -> None:
 
     assert result.exit_code == 2
     assert result.written == []
-    assert not (root / "src" / "claude" / "hooks.json").exists()
+    assert not (root / "src" / "claude" / "hooks" / "hooks.json").exists()
 
 
 def test_negative_malformed_settings_json_exits_2(tmp_path: Path) -> None:

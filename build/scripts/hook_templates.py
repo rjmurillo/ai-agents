@@ -27,19 +27,16 @@ different destinations for this one template tree:
 1. ``templates/hooks/<name>`` (15 of the 16 hooks-class files: 14
    executables plus ``dispatch_groups.json``) renders to
    ``src/claude/hooks/<name>``, the plugin tree's ``hooks/`` subdirectory.
-2. ``templates/hooks/hooks.json`` renders to ``src/claude/hooks.json``, at
-   the PLUGIN ROOT rather than nested under ``hooks/``: ADR-109 section 2
-   lists ``src/claude/``'s content as "agents/, skills/, rules/, hooks/
-   plus hooks.json", a top-level sibling, and TASK-034's acceptance
-   criteria pin ``test -f src/claude/hooks.json`` at that exact path. This
-   is a deliberate deviation from DESIGN-025's binplace-manifest excerpt,
-   which shows the ``hooks-json`` row with ``plugin_tree: null`` (a direct
-   render straight to ``.claude/hooks/hooks.json``, no plugin-tree hop):
-   that excerpt predates B1-B3 and conflicts with ADR-109 section 2's own
-   text and with TASK-034's machine-checkable acceptance criterion, so this
-   module follows the criterion and gives ``hooks.json`` a real plugin-tree
-   file, ``src/claude/hooks.json``, mirroring every other migrated class
-   instead of being the one class rendered with no plugin stage at all.
+2. ``templates/hooks/hooks.json`` renders to ``src/claude/hooks/hooks.json``,
+   the one path Claude Code auto-discovers for plugin hooks
+   (``<plugin-root>/hooks/hooks.json``). The ADR-109 section 2 amendment of
+   2026-11-04 (REQ-048 TASK-006, owner decision D28) moved it there from the
+   plugin root, ``src/claude/hooks.json``, where a live run registered 22
+   hooks and never ran the Stop hook. It is therefore an ordinary
+   ``hooks/`` entry here. The ``hooks-json`` binplace row links
+   ``.claude/hooks/hooks.json`` to it (ADR-119) and the ``hooks`` row leaves
+   that one name alone. DESIGN-025's ``plugin_tree: null`` excerpt for the
+   ``hooks-json`` row stays superseded.
 3. ``templates/hooks/settings.tmpl`` renders straight to
    ``.claude/settings.json``, with NO plugin-tree hop at all: ADR-109
    section 3 states ``.claude/settings.json`` "is repo-local dogfood
@@ -51,8 +48,8 @@ Stricter/looser/different than canonical (``rule_templates.py``):
 - Different: no mustache grammar, no partials directory, no ``render()``
   delegation. ``check_grammar`` does not exist on this module (DESIGN-025:
   "hooks has no grammar step").
-- Different: three target shapes instead of one (``src/claude/hooks/<rel>``,
-  ``src/claude/hooks.json``, ``.claude/settings.json``), so
+- Different: two target shapes instead of one (``src/claude/hooks/<rel>``,
+  which includes ``hooks.json``, and ``.claude/settings.json``), so
   :func:`discover` returns ``dict[str, Path]`` keyed by a POSIX-style
   relative name under ``templates/hooks/`` (e.g. ``"PreToolUse/_bootstrap.py"``),
   and :func:`_target_for` maps a name to its one target path.
@@ -141,12 +138,10 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
 def _target_for(repo_root: Path, name: str) -> Path:
     """Return the one render target for a discovered hooks-class ``name``.
 
-    ``hooks.json`` is the plugin-root exception (module docstring, item 2);
-    every other name renders under ``src/claude/hooks/`` at the same
-    relative path it holds under ``templates/hooks/``.
+    Every name, ``hooks.json`` included, renders under ``src/claude/hooks/``
+    at the same relative path it holds under ``templates/hooks/`` (module
+    docstring, item 2).
     """
-    if name == "hooks.json":
-        return repo_root / "src" / "claude" / "hooks.json"
     return repo_root / "src" / "claude" / "hooks" / name
 
 

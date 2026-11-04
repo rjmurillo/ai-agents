@@ -5,7 +5,7 @@
 - **Rounds**: 5 of 10
 - **Prior debate logs**: `.project-toolkit/critique/ADR-084-debate-log.md` (original consensus) and `.project-toolkit/critique/ADR-084-rule-6-tool-use-bar-debate-log.md`
 - **Outcome**: Consensus (round 5: 2/2 Accept on the final text, after confirming one P1 edit and one P2 edit). Under ADR-101 (2026-11-01, #7027) the panel counts as one vote; owner acceptance is the binding gate.
-- **Final Status**: proposed (consensus reached; owner acceptance pending)
+- **Final Status**: accepted 2026-11-04 (owner decision D26, REQ-048 TASK-006; source: the owner's decision brief answer in the REQ-048 implementation session)
 - **Subject**: proposed 2026-10-31 amendment to ADR-084 adding rule 2a and correcting rule 5's enforcement record, for REQ-048.
 - **Trigger**: repo-owner @rjmurillo decided on 2026-10-31 to vendor the REQ-048 friction nudge. The decision was relayed from the owner's master session and authorizes TASK-005.
 - **Panel**: reduced (architect, critic), per AGENTS.md. The amendment edits policy prose in rules 2 and 5 and adds rule 2a. It touches no executable enforcement. `git grep ADR-084` over `scripts/`, `build/`, and `tests/` (2026-11-01, branch tip) finds one test that reads ADR-084 text: `tests/build_scripts/test_hook_contract_knowledge.py:1301-1312`. It reads only the security carve-out quote, which is unchanged, and it passes. The rule 5 tests and the Copilot generator test do not exist yet (deleted in `f79e70c01`, or owed by TASK-006).

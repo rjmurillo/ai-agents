@@ -1,7 +1,7 @@
 ---
 id: ADR-071
 status: accepted
-date: 2026-08-19
+date: 2026-11-04
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -17,7 +17,7 @@ Accepted (2026-06-02, six-agent adr-review: 2 Accept, 4 Disagree-and-Commit, 0
 Block). The P0 dissent proposed a committed launcher-level fail-open follow-up;
 that was subsequently rejected in favor of prevention plus loud failure (issue
 #2230 closed addressed-by-prevention), and Decision item 5 records the
-fail-closed position. Debate log: `.project-toolkit/critique/ADR-071-debate-log.md`.
+fail-closed position, except one advisory `Stop` group (2026-11-04 amendment). Debate log: `.project-toolkit/critique/ADR-071-debate-log.md`.
 The 2026-07-19 amendment review reached consensus with 3 Accept,
 3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
 section in the same debate log.
@@ -112,8 +112,8 @@ three-shim contract and metrics.
 
 ## Date
 
-2026-06-02; amended 2026-07-19, 2026-08-11, 2026-08-14, 2026-08-18, and
-2026-08-19
+2026-06-02; amended 2026-07-19, 2026-08-11, 2026-08-14, 2026-08-18,
+2026-08-19, and 2026-11-04
 
 ## Context
 
@@ -643,6 +643,19 @@ Decision 13 holds the gate policy.
   load check. Prompt-based checks that hit an exhausted quota or credit balance
   skip with a marker and do not fail the leg. Auth failures still fail.
 
+### 2026-11-04 amendment: advisory plugin Stop group (REQ-048 TASK-006)
+
+This is the runtime contract for one advisory `Stop` group, the fresh contract the ADR-097 section above asks a new hook to write. No tool-use contract returns.
+
+- Group `plugin-stop-1-reflect_nudge` (`templates/hooks/dispatch_groups.json`) runs `Stop/invoke_reflect_nudge.py` on `Stop` only. Its shim sets `copilotExclude: true`, so the Copilot tree has no entry for it.
+- The command hands `--advisory` to `invoke_dispatch_claude.py`. The flag rides the registration, not the manifest, so the policy holds when the manifest cannot load. The manifest's `advisory: true` must agree with it.
+- The hook's output leaves as one `{"systemMessage": ...}` document. A block decision from the hook is suppressed, with one stderr line.
+- `--advisory` is reserved to the single group `plugin-stop-1-reflect_nudge` on `Stop`. The launcher refuses it on any other event (exit 2, one stderr line), and `run_group` refuses it too. When the manifest cannot load the event is unknown, so only that group id fails open and any other id exits 2. `tests/hooks/test_plugin_stop_registration.py` pins the set: the registrations carrying `--advisory` in `templates/hooks/hooks.json` and `src/claude/hooks/hooks.json` are exactly that group, and all are `Stop`.
+- Every launcher failure path of that group exits 0 with one stderr line: manifest load, the self-host check, oversized stdin, an exception, an invalid contract, a missing shim, and a non-zero hook exit. A block decision never leaves an advisory group, in `gate_all` or `gate` mode. The self-host bail applies too: in the publishing checkout the launcher exits 0 and `.claude/settings.json` runs the hook instead.
+- Groups without the flag are unchanged, and Decision item 5 still binds them. This group exits 0 on failure because ADR-084 rule 2a condition a (proposed 2026-10-31, accepted 2026-11-04 by the REQ-048 TASK-006 owner decision, which ADR-084 calls D26 and which is unrelated to this ADR's D26) asks for exit 0 on every path, launcher included. Decision item 1 still binds the registration.
+- Rollback: remove the group from `dispatch_groups.json` and rebuild, or set `AI_AGENTS_RETRO_NUDGE_THRESHOLD=0` to silence the friction branch. REQ-048 AC-19 (the friction branch precision gate) was amended 2026-11-03 under REQ-048 owner decision D19: cross-validation scored 12 of 16 (75 percent), Wilson lower bound 0.505. `claude_hook_dispatch.py` ships as byte copies in `src/claude/lib/` and `src/copilot-cli/lib/`, pinned by the parity row `lib-claude-dispatch-copies`, not as symlinks. ADR-119 decision 14 links only five `lib` entries and keeps this module a real file, and ADR-119 Alternative D records that some installers do not preserve links (the npm bundler dropped linked skills).
+- Tests: `tests/hooks/test_advisory_stop_launcher.py` (each path, with a plain-group control), `tests/hooks/test_plugin_stop_registration.py`, and `tests/hooks/test_plugin_stop_runtime.py`. The real-CLI smoke `tests/e2e/test_cli_stop_nudge_e2e.py` is opt-in, absent from `plugin-cli-smoke.yml`, and run live 2026-11-04 on Claude Code 2.1.318, 3 passed; the first run failed because the plugin hooks file sat at the plugin root, fixed by owner decision D28 (2026-11-04, REQ-048 TASK-006, see ADR-109 section 2 amendment).
+
 ## Decision
 
 1. **Anchor every plugin hook command to the plugin root.** Bash uses
@@ -683,7 +696,9 @@ Decision 13 holds the gate policy.
    catch artifact defects; an executed real-CLI smoke catches vendor launcher
    drift. Release evidence must distinguish those two coverage levels.
    Launcher-level fail-open was proposed and rejected on this basis; issue #2230
-   is closed addressed-by-prevention.
+   is closed addressed-by-prevention. Carve-out: the advisory `Stop` group
+   `plugin-stop-1-reflect_nudge` (2026-11-04 amendment) fails open, since a
+   failed nudge must never block a Stop; `--advisory` is refused elsewhere.
 
 6. **Authenticated smoke MUST install reviewed top-level CLI versions before
    receiving credentials.** `.github/workflows/nightly-cli-smoke.yml` installs

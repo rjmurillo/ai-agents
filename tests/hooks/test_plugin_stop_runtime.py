@@ -63,7 +63,6 @@ class Harness:
                 self.plugin / name,
                 ignore=shutil.ignore_patterns("__pycache__"),
             )
-        shutil.copy2(PLUGIN_SOURCE / "hooks.json", self.plugin / "hooks.json")
 
     def _install_python_shim(self) -> None:
         """A ``python3`` on PATH that runs the interpreter pytest runs under."""
@@ -73,7 +72,7 @@ class Harness:
 
     @property
     def command(self) -> str:
-        doc = json.loads((self.plugin / "hooks.json").read_text(encoding="utf-8"))
+        doc = json.loads((self.plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         return str(doc["hooks"]["Stop"][0]["hooks"][0]["command"])
 
     @property

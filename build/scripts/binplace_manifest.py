@@ -76,6 +76,7 @@ already do for ``skill_templates.CompileResult``):
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -102,6 +103,8 @@ _SKILLS_COMPILE_DELEGATE = "skill_templates"
 _CODEX_SKILLS_ROOT = ".agents/skills"
 _RULES_CLASS = "rules"
 _LIB_CLASS = "lib"
+_HOOKS_CLASS = "hooks"
+HOOKS_JSON_NAME = "hooks.json"
 
 # Hand-maintained modules that live only in .claude/lib/ (no src/claude/lib
 # counterpart; see .claude/AGENTS.md). The `lib` link row leaves them alone.
@@ -153,7 +156,9 @@ class BinplaceResult:
     exit_code: int = 0
 
 
-def _validate_path_field(repo_root: Path, label: str, value: str) -> Path:
+def _validate_path_field(
+    repo_root: Path, label: str, value: str, *, file_link_row: bool = False
+) -> Path:
     """Validate one manifest path field; return it resolved against ``repo_root``.
 
     Reuses ``yaml_loader.validate_relative_path`` for the relative-path and
@@ -165,6 +170,13 @@ def _validate_path_field(repo_root: Path, label: str, value: str) -> Path:
     MUST NOT be a symlink. Both checks tolerate a path that does not exist
     yet, since ``install_tree`` targets are often created by this module's
     own :func:`binplace` on first run.
+
+    ``file_link_row`` lets a file-shaped ``link: true`` row's ``install_tree``
+    be the link itself: the final component may be a symlink (the containment
+    check above already proved it resolves inside the repository), so a link
+    with a wrong target loads and :func:`binplace_links.link_file` repairs or
+    reports it. A directory-shaped link row never gets this: binplace would
+    write links THROUGH a symlinked install directory.
     """
     errors = validate_relative_path(label, value)
     if errors:
@@ -176,7 +188,7 @@ def _validate_path_field(repo_root: Path, label: str, value: str) -> Path:
         raise BinplaceConfigError(
             f"{label} {value!r} resolves to {resolved}, outside the repository root {resolved_repo}"
         )
-    if candidate.is_symlink():
+    if candidate.is_symlink() and not file_link_row:
         raise BinplaceConfigError(f"{label} {value!r} is a symlink, not a real path")
     return candidate
 
@@ -294,7 +306,12 @@ def _load_one_row(
     if install_tree_raw is not None:
         install_tree_str = str(install_tree_raw)
         install_tree = _validate_path_field(
-            repo_root, f"rows[{class_name}].install_tree", install_tree_str
+            repo_root,
+            f"rows[{class_name}].install_tree",
+            install_tree_str,
+            file_link_row=entry.get("link") is True
+            and plugin_tree is not None
+            and plugin_tree.is_file(),
         )
         _validate_install_tree_prefix(f"rows[{class_name}].install_tree", install_tree_str)
         _raise_if_ancestor_symlinked(repo_root, f"rows[{class_name}].install_tree", install_tree)
@@ -315,9 +332,10 @@ def _load_link_flag(
 ) -> bool:
     """Return the row's ``link`` flag, refusing a value or row shape it cannot serve.
 
-    A link row needs a directory-shaped plugin tree and an install tree: it
-    links each top-level plugin entry by name, so a file-shaped row (such as
-    ``hooks-json``) or a row with no second hop has nothing to link.
+    A link row needs a plugin tree and an install tree; a row with no second
+    hop has nothing to link. A directory-shaped plugin tree links each
+    top-level entry by name. A file-shaped one (``hooks-json``) links the one
+    file, so ``install_tree`` names that file's link path.
     """
     raw = entry.get("link", False)
     if not isinstance(raw, bool):
@@ -327,10 +345,6 @@ def _load_link_flag(
     if plugin_tree is None or install_tree is None:
         raise BinplaceConfigError(
             f"{manifest_path}: row {class_name!r} sets `link` without both trees"
-        )
-    if plugin_tree.is_file():
-        raise BinplaceConfigError(
-            f"{manifest_path}: row {class_name!r} sets `link` on a file-shaped plugin_tree"
         )
     return True
 
@@ -356,7 +370,9 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     for row in load(repo_root):
         if row.install_tree is None or not _is_claude_rooted(row.install_tree, repo_root):
             continue
-        if row.link and row.plugin_tree is not None:
+        if row.link and row.plugin_tree is not None and row.plugin_tree.is_file():
+            allow.add(row.install_tree)
+        elif row.link and row.plugin_tree is not None:
             allow |= binplace_links.install_link_paths(
                 row.plugin_tree, row.install_tree, _repo_local_names(repo_root, row)
             )
@@ -384,6 +400,29 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     # a hand-protected file would silently stop being tracked as a
     # violation candidate instead of staying protected end to end.
     return {path for path in allow if detect_reason(path) is None}
+
+
+def verified_file_links(repo_root: Path) -> frozenset[Path]:
+    """Return install links of file-shaped ``link: true`` rows that are correct.
+
+    A path is returned only when it is a symlink whose text equals the
+    relative target :func:`binplace_links.link_target` computes from the
+    row's plugin file, so the link stays inside the repository. Any other
+    state (a real file, a wrong target) is absent from the result, and
+    ``build_all``'s strict ``--check`` snapshot then refuses it as before.
+    """
+    verified: set[Path] = set()
+    for row in load(repo_root):
+        if not row.link or row.plugin_tree is None or row.install_tree is None:
+            continue
+        if not row.plugin_tree.is_file():
+            continue
+        link = row.install_tree
+        if link.is_symlink() and os.readlink(link) == binplace_links.link_target(
+            row.plugin_tree, link
+        ):
+            verified.add(link)
+    return frozenset(verified)
 
 
 def _is_claude_rooted(install_tree: Path | None, repo_root: Path) -> bool:
@@ -424,7 +463,7 @@ def _plugin_tree_install_paths(plugin_tree: Path, install_tree: Path) -> set[Pat
 
     ``plugin_tree`` is a directory for most rows, but a file-shaped row
     gives it a single FILE instead: ADR-109 B4's ``hooks-json`` row
-    (``src/claude/hooks.json``, module docstring) and ADR-109 B5's
+    (``src/claude/hooks/hooks.json``, a link row) and ADR-109 B5's
     ``lib-bootstrap`` and ``skills-sidecar`` rows (a single registered
     file, not a package directory). When ``plugin_tree`` resolves to a
     file rather than a directory, the row owns exactly ``install_tree``
@@ -462,6 +501,12 @@ def binplace(repo_root: Path, *, check: bool) -> BinplaceResult:
         if row.plugin_tree is None or row.install_tree is None:
             # A row with no install_tree (ADR-109 B5's Copilot-side lib
             # rows) has no second hop: its plugin_tree IS the final output.
+            continue
+        if row.link and row.plugin_tree.is_file():
+            _fold_link_outcome(
+                result,
+                binplace_links.link_file(row.plugin_tree, row.install_tree, check=check),
+            )
             continue
         if row.link:
             _fold_link_outcome(
@@ -505,7 +550,9 @@ def _repo_local_names(repo_root: Path, row: Row) -> frozenset[str]:
     straight to ``.claude/rules/``. The ``lib`` row skips the hand-maintained
     ``.claude/lib`` modules in :data:`REPO_LOCAL_LIB_NAMES` (decision 14).
     Binplace neither links, copies, drift-reports, nor lists those entries as
-    unowned. Every other row returns the empty set.
+    unowned. The ``hooks`` row skips ``hooks.json``, which the ``hooks-json``
+    row links (ADR-109 amendment 2026-11-04). Every other row returns the
+    empty set.
     """
     if row.compile == _SKILLS_COMPILE_DELEGATE:
         return frozenset(repo_local_names(repo_root))
@@ -513,6 +560,8 @@ def _repo_local_names(repo_root: Path, row: Row) -> frozenset[str]:
         return frozenset(f"{name}.md" for name in repo_only_rule_names(repo_root))
     if row.class_name == _LIB_CLASS:
         return REPO_LOCAL_LIB_NAMES
+    if row.class_name == _HOOKS_CLASS:
+        return frozenset({HOOKS_JSON_NAME})
     return frozenset()
 
 

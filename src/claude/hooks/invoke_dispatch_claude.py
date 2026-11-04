@@ -36,8 +36,12 @@ registration, not the manifest, so it is known even when the manifest cannot be
 loaded. It is valid for a ``Stop`` group only. Every failure path (manifest
 load, self-host check, oversized stdin, an execution exception, a hook that
 exits non-zero) writes one stderr status line and exits 0, because a failure of
-an advisory nudge must never block a Stop. The group's ``systemMessage`` prints
-as a ``systemMessage`` document. Groups without the flag keep the policy above.
+an advisory nudge must never block a Stop. Fail-open is allowed only for Stop:
+the flag on any other event exits 2 with one stderr line, and when the manifest
+cannot be loaded the event is unknown, so only the one reserved group id
+(``_ADVISORY_GROUP_ID``) fails open and any other id fails closed. The group's
+``systemMessage`` prints as a ``systemMessage`` document. Groups without the
+flag keep the policy above.
 """
 
 from __future__ import annotations
@@ -54,7 +58,7 @@ try:
     if str(_LIB_DIR) not in sys.path:
         sys.path.insert(0, str(_LIB_DIR))
 
-    from claude_hook_dispatch import BLOCK_EXIT, run_group, validate_group
+    from claude_hook_dispatch import ADVISORY_EVENT, BLOCK_EXIT, run_group, validate_group
 except (Exception, SystemExit) as exc:
     if __name__ == "__main__":
         # Exit 0, not 2. Claude reads a nonzero PreToolUse exit as a denial, so
@@ -78,6 +82,9 @@ except (Exception, SystemExit) as exc:
     raise
 
 _MANIFEST_NAME = "dispatch_groups.json"
+# The single group allowed to carry --advisory (ADR-071). Used only when the
+# manifest cannot be loaded and the event is therefore unknown.
+_ADVISORY_GROUP_ID = "plugin-stop-1-reflect_nudge"
 _BLOCK_EXIT_CODE: int = BLOCK_EXIT
 _HOOK_STDIN_CEILING_MIB = 64
 _MAX_STDIN_BYTES = _HOOK_STDIN_CEILING_MIB * 1024 * 1024
@@ -226,7 +233,16 @@ def main(argv: list[str] | None = None) -> int:
             f"{_HOOKS_DIR / _MANIFEST_NAME}: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        return _failure_exit(advisory)
+        # Event unknown: fail open only for the reserved Stop group.
+        return _failure_exit(advisory and args.group == _ADVISORY_GROUP_ID)
+
+    if advisory and event != ADVISORY_EVENT:
+        print(
+            f"claude-hook-dispatch: --advisory is valid for {ADVISORY_EVENT} only, "
+            f"group {args.group!r} is {event!r}; denying",
+            file=sys.stderr,
+        )
+        return _BLOCK_EXIT_CODE
 
     if advisory or mode not in {"gate", "gate_all"}:
         try:

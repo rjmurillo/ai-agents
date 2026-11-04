@@ -128,7 +128,7 @@ The `changes` job prints which changed paths matched the filter. The result job 
 ## Out of scope
 
 - Adding the smoke result to the branch ruleset. The owner does that in repository settings.
-- Codex hooks and agents. `src/claude/hooks.json` ships no hooks, and Codex exposes no agents key for plugins.
+- Codex hooks and agents. `src/codex/` ships no hooks directory, and Codex exposes no agents key for plugins.
 - `copilot-context-synthesis.yml`. It assigns the Copilot coding agent and is already gated in `agent-copilot`.
 
 ## Deferred

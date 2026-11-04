@@ -66,10 +66,16 @@ ways, and no other group is touched:
 
 - The merged context prints as one ``{"systemMessage": ...}`` document, so the
   host shows it to the user and does not treat plain Stop stdout as context.
-- A blocking decision document from a shim is suppressed with one stderr line.
+- A blocking decision document from a shim is suppressed with one stderr line,
+  and the ``gate`` mode stdout pass-through of a shim's block is skipped, so no
+  block reaches the host from an advisory group in any mode.
 - The group always exits ``ALLOW_EXIT``. Every failure path (invalid contract,
   unsafe or missing shim, a shim that exits non-zero or raises) writes one
   stderr status line and still exits 0.
+
+``advisory=True`` on a non-``Stop`` event is a misbinding: the group is denied
+(``BLOCK_EXIT``) with one stderr line and no shim runs. Fail-open is allowed
+only for ``Stop``.
 """
 
 from __future__ import annotations
@@ -95,7 +101,7 @@ from hook_dispatch import (  # noqa: E402
 from output_capture import run_capturing_process_stdout  # noqa: E402
 
 # BLOCK_EXIT is re-exported for invoke_dispatch_claude.py.
-__all__ = ["ALLOW_EXIT", "BLOCK_EXIT", "run_group", "validate_group"]
+__all__ = ["ADVISORY_EVENT", "ALLOW_EXIT", "BLOCK_EXIT", "run_group", "validate_group"]
 
 ADVISORY_EVENT = "Stop"
 GATE = "gate"
@@ -289,15 +295,16 @@ def run_group(
     """Run every shim in ``shims`` in-process; return the group exit code.
 
     ``advisory`` is the Stop-only fail-open policy described in the module
-    docstring: the result is always ``ALLOW_EXIT``.
+    docstring: the result is always ``ALLOW_EXIT``, except that advisory on a
+    non-Stop event is refused with ``BLOCK_EXIT``.
     """
     if advisory and event != ADVISORY_EVENT:
         print(
             f"claude-hook-dispatch: only a {ADVISORY_EVENT} group may be advisory, "
-            f"got {event!r}; allowing",
+            f"got {event!r}; denying",
             file=sys.stderr,
         )
-        return ALLOW_EXIT
+        return BLOCK_EXIT
     exit_code = _run_group(hooks_dir, event, mode, shims, raw_stdin, advisory)
     return ALLOW_EXIT if advisory else exit_code
 
@@ -378,7 +385,7 @@ def _run_group(
             outcome = _run_one(shim_path, name, raw_stdin, event)
 
             if outcome.exit_code != ALLOW_EXIT:
-                if mode == GATE and outcome.exit_code == BLOCK_EXIT:
+                if mode == GATE and outcome.exit_code == BLOCK_EXIT and not advisory:
                     # Flush this shim's guidance verbatim; it is the only
                     # stdout the host sees for the group (fail-closed,
                     # first block wins, later shims are skipped).

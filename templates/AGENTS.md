@@ -11,7 +11,7 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 | agents | `agents/<stem>.claude.md.tmpl`, `.copilot.md.tmpl`, `agents/partials/` | `agent_templates.py` | `src/claude/agents/` -> `.claude/agents/` |
 | rules | `rules/<name>.md` | `rule_templates.py` | `src/claude/rules/` -> `.claude/rules/` (link; repo-only: real) |
 | skills | `skills/<name>.SKILL.md.tmpl`, `skills/partials/` | `skill_templates.py` | `src/claude/skills/<name>/` -> `.claude/skills/<name>` (link) |
-| hooks | `hooks/` minus `settings.tmpl`: 14 executables plus 2 data files | `hook_templates.py` | `src/claude/hooks/`, `src/claude/hooks.json` -> `.claude/hooks/` |
+| hooks | `hooks/` minus `settings.tmpl`: 14 executables plus 2 data files | `hook_templates.py` | `src/claude/hooks/` (includes `hooks.json`) -> `.claude/hooks/` (`hooks.json` is a symlink, ADR-119) |
 | settings | `hooks/settings.tmpl` | `hook_templates.py` | none -> `.claude/settings.json` |
 | prompts | `.claude/skills/review/references` | `generate_pr_quality_prompts.py` | none -> `.github/prompts/` |
 
@@ -36,7 +36,7 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 
 ## Skip
 
-- Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib` from `scripts/`, and `src/copilot-cli/skills`, `src/codex/skills` non-SKILL.md from `src/claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
+- Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib` from `scripts/`, and `src/copilot-cli/skills`, `src/codex/skills` non-SKILL.md from `src/claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
 - Hand-maintained inside those trees: the seven docs under `.claude/hooks/`, `.github/agents/security/references/`, `.github/agents/pr-comment-responder.prompt.md`, `src/vs-code-agents/copilot-instructions.md`, under `src/claude/skills/<name>/` (repo-local: `.claude/skills/<name>/`), everything but `SKILL.md`.
 
 ## Constraints

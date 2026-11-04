@@ -1,7 +1,7 @@
 ---
 id: ADR-119
 status: proposed
-date: 2026-10-17
+date: 2026-11-04
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -136,7 +136,7 @@ Copilot CLI loading of a linked skill directory in this checkout is unverified a
 - **Edit a repo-only rule at its template.** `rule_templates.py` renders it to `.claude/rules/<name>.md`; `--check` owns that real file, and the lossless fixture compares against it.
 - **Cost.** `code-reviewer` moves from the Haiku tier to each harness's default model on every call. A later owner decision could restore a Claude-only pin, since the Copilot constraint does not reach `src/claude/`.
 - **`.claude/lib` links behave like the skill links.** Git refuses a path beyond a link, so `git add .claude/lib/github_core/api.py` fails; name `src/claude/lib/github_core/api.py`. `Path(__file__).resolve()` in a module loaded through `.claude/lib` lands in `src/claude/lib/`, so `paths.py` reports `src/claude` as its plugin root. Decision 10 also governs these links: until they reach `origin/main`, the completion gate halts a criterion that imports through `.claude/lib`. The remedy is the decision 10 override, owned by the PR author and spent when the merge lands.
-- **Windows without `core.symlinks`.** Git writes the five links as text files, so every hook that imports `github_core` or `hook_utilities` fails at import and `build_all.py --check` reports drift. The two Windows CI jobs already set `core.symlinks`; a contributor checkout needs the same setting and Developer Mode.
+- **Windows without `core.symlinks`.** Git writes the five links as text files, so every hook that imports `github_core` or `hook_utilities` fails at import and `build_all.py --check` reports drift. The two Windows CI jobs already set `core.symlinks`; a contributor checkout needs the same setting and Developer Mode. (2026-11-04: the count is now six; see the Amendment 2026-11-04 section.)
 - **Nested links are unguarded by binplace.** `binplace_links.py` checks only top-level plugin entries, so `test_plugin_lib_tree_holds_no_symlinks` pins that `src/claude/lib` holds none. CODEOWNERS on `/src/claude/lib/` carries the review.
 - **Two tracked file links.** `.claude/lib/bootstrap.py` and `.claude/lib/paths.py` are file links, the first in the tree. Scanners that read every tracked `.py` must skip a link and read its target once (`subprocess_encoding_count_ratchet.py`).
 - **Hand-maintained neighbours.** Eight modules stay real files in `.claude/lib/`. A new top-level module there is real by default; a new `src/claude/lib` entry is linked on the next build, and a real file of the same name is replaced by the link in write mode (a real directory whose bytes differ is refused, exit 2), and `--check` reports it as drift.
@@ -190,6 +190,14 @@ Reversible in one change set, with these steps.
 - ADR-052: superseded by ADR-109; unchanged.
 - ADR-111 and ADR-080 (model pins): amended by decision 11. Copilot agent pins are forbidden; both carry a dated note pointing here.
 - ADR-012 (proposed): reserves `.agents/skills/*.md` for learned-pattern files. Decision 7 gives `.agents/skills/` to Codex skill links instead; the owner should retire or amend ADR-012's use of the name.
+
+## Amendment 2026-11-04
+
+Owner decision D28 (2026-11-04, REQ-048 TASK-006). Append-only; the decisions above stand as written.
+
+- A `link: true` binplace row may now be file-shaped. The `hooks-json` row in `templates/platforms/binplace.yaml` links `.claude/hooks/hooks.json` to `src/claude/hooks/hooks.json`. `link_file()` in `build/scripts/binplace_links.py` handles it.
+- Decision 8's `--check` snapshot refuses symlinks under an owned prefix. It now has one carve-out: links that `binplace_manifest.verified_file_links()` proves point at their computed relative target are skipped (`_iter_strict_owned_files` in `build/scripts/build_all.py`).
+- The Windows `core.symlinks` risk count in Consequences goes from five links to six.
 
 ## Review
 

@@ -145,7 +145,7 @@ surfaces:
     generator: build/scripts/hook_templates.py
     owner: build_all.py --check
   - id: hooks-json-claude-plugin
-    path: src/claude/hooks.json
+    path: src/claude/hooks/hooks.json
     relation: generated
     authority: templates/hooks/hooks.json
     generator: build/scripts/hook_templates.py
@@ -164,7 +164,7 @@ surfaces:
   - id: hooks-json-claude-install
     path: .claude/hooks/hooks.json
     relation: binplaced
-    authority: src/claude/hooks.json
+    authority: src/claude/hooks/hooks.json
     generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
   - id: settings-claude

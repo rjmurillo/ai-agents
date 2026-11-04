@@ -16,9 +16,7 @@ listed in ``plugin-cli-smoke.yml``, so normal CI never runs it. Run locally:
 
     RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_stop_nudge_e2e.py -m "smoke and claude" -v
 
-Status when written: NOT RUN against a live CLI. The stream-json record shapes
-used below are inferred from the CLI's documented output, so the first live run
-may need the extraction helpers adjusted.
+Run live 2026-11-04 on Claude Code 2.1.318: 3 passed.
 """
 
 from __future__ import annotations
@@ -103,7 +101,6 @@ def test_friction_stop_nudge_reaches_the_user_and_not_model_context(tmp_path: Pa
             plugin / name,
             ignore=shutil.ignore_patterns("__pycache__"),
         )
-    shutil.copy2(REPO_ROOT / "src" / "claude" / "hooks.json", plugin / "hooks.json")
     userland = tmp_path / "userland"
     userland.mkdir()
     state = tmp_path / "state"

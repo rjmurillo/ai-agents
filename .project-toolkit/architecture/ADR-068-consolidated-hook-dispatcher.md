@@ -2,7 +2,7 @@
 # taste-lint: ignore file-size, accepted append-only record; splitting breaks audit continuity.
 id: ADR-068
 status: accepted
-date: 2026-07-31
+date: 2026-11-04
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -17,7 +17,9 @@ implemented: true
 Accepted (amended 2026-08-19 by ADR-097; the amendment immediately below
 retires every tool-use registration this record describes. Amended 2026-09-26
 for issue #4727: memory recall reaches Copilot CLI through a direct
-`userPromptTransformed` registration; see the second amendment below).
+`userPromptTransformed` registration; see the second amendment below. Amended
+2026-11-04 for REQ-048 TASK-006: one vendored plugin registration returns, on
+`Stop`; see the third amendment below).
 
 **Amended 2026-08-19 (ADR-097): every tool-use registration this record
 describes is retired, and so is the generated Copilot dispatcher.** ADR-097
@@ -34,6 +36,8 @@ prefix, and this record uses bare gate names):
   PreToolUse-eligible call" is retired. There is no Copilot dispatcher: no
   `_dispatch.py`, `_bootstrap.py`, or `_manifest.json` ships under
   `src/copilot-cli/hooks/`, and both `hooks.json` files carry `"hooks": {}`.
+  (2026-11-04: the Claude Code file, now `src/claude/hooks/hooks.json`,
+  registers one advisory Stop group; see the REQ-048 TASK-006 amendment.)
 - The reduction percentages (50.0, 66.7) and the 30-second/35-second timeout
   sums are retired along with the registrations they measured.
 - Repo-local `.github/hooks/require-subagent-model.json` is deleted, so the
@@ -91,6 +95,16 @@ model-facing prompt.
   that output. The discard policy they describe is unchanged.
 - Review: six roles, recorded in
   `.project-toolkit/critique/ADR-068-4727-copilot-memory-recall-debate-log.md`.
+
+**Amended 2026-11-04 (REQ-048 TASK-006): one vendored plugin registration
+returns, on `Stop`.** `src/claude/hooks/hooks.json` (with `.claude/hooks/hooks.json` a symlink to it) now registers one entry, the
+advisory group `plugin-stop-1-reflect_nudge`. Its one shim is
+`Stop/invoke_reflect_nudge.py`.
+
+- The ADR-097 amendment above still holds for tool-use events. No `PreToolUse` or `PostToolUse` registration returns, and no Copilot dispatcher returns.
+- The shim sets `copilotExclude: true`, so `src/copilot-cli/hooks/hooks.json` still carries `"hooks": {}`. ADR-085 Decision 7 governs the field.
+- The plugin launcher imports the grouped dispatcher from its own `lib/`. So `src/claude/lib` now ships byte copies of seven `.claude/lib` modules (counted at `032a9a163`, 2026-11-04), pinned by the `lib-claude-dispatch-copies` row in `templates/platforms/surface-parity.yaml`.
+- Groups without `--advisory` are unchanged. ADR-071's 2026-11-04 amendment holds the advisory runtime contract. The dependent-components row for `.claude/hooks/hooks.json` now says one registration.
 
 Accepted (2026-07-19). The implementation shipped before the decision record
 completed its lifecycle transition. The mandatory six-agent adr-review reached
@@ -335,7 +349,7 @@ all three added gates.
 ## Date
 
 2026-06-02; amended 2026-07-22, 2026-07-31, 2026-08-11, 2026-08-14,
-2026-08-18, and 2026-08-19
+2026-08-18, 2026-08-19, and 2026-11-04
 
 ## Context
 
@@ -847,7 +861,7 @@ generated surfaces. Sources:
 | `build/scripts/generate_hooks.py` | CLI facade and module-level generation contract | Medium |
 | `src/copilot-cli/hooks/**` | Generated manifests, entrypoints, bootstrap copies, and retained shims | Medium |
 | `.claude/settings.json` | Repository-only Claude registrations; not an input to Copilot plugin generation | Medium |
-| `.claude/hooks/hooks.json` | Zero vendored plugin registrations after ADR-097 retired every tool-call hook (three after merging issues #4917, #5061, and #5154; four before any of the three); must not carry removed or local-only hooks | Medium |
+| `.claude/hooks/hooks.json` | One vendored plugin registration after REQ-048 TASK-006 added the advisory Stop group `plugin-stop-1-reflect_nudge` (zero after ADR-097 retired every tool-call hook; three after merging issues #4917, #5061, and #5154; four before any of the three); must not carry removed or local-only hooks | Medium |
 | `.claude/hooks/dispatch_groups.json` | Grouped hook source; must not carry the removed approval producer | Medium |
 | `.github/hooks/require-subagent-model.json` | Retired by ADR-097; the file is deleted. Was a repo-local direct registration of the same canonical script (matcher `task`, repo-root cwd), with cloud coverage beginning at default-branch merge | Medium |
 | `.claude/rules/lsp-first.md` | Static cross-harness source for Serena symbolic-tool steering | Medium |

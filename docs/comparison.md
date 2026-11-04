@@ -78,7 +78,7 @@ All sources were read on 2026-10-11.
 
 Project sources:
 
-- AI Agents, all in this repository: [README](../README.md), [LICENSE](../LICENSE), the Claude Code [marketplace file](../.claude-plugin/marketplace.json) and [hook registrations](../src/claude/hooks.json), the Copilot CLI [marketplace file](../.github/plugin/marketplace.json) and [hook registrations](../src/copilot-cli/hooks/hooks.json), and a lifecycle skill, [spec](../src/claude/skills/spec/SKILL.md).
+- AI Agents, all in this repository: [README](../README.md), [LICENSE](../LICENSE), the Claude Code [marketplace file](../.claude-plugin/marketplace.json) and [hook registrations](../src/claude/hooks/hooks.json), the Copilot CLI [marketplace file](../.github/plugin/marketplace.json) and [hook registrations](../src/copilot-cli/hooks/hooks.json), and a lifecycle skill, [spec](../src/claude/skills/spec/SKILL.md).
 - wshobson/agents: [README](https://raw.githubusercontent.com/wshobson/agents/main/README.md), [LICENSE](https://raw.githubusercontent.com/wshobson/agents/main/LICENSE), and [capability matrix](https://raw.githubusercontent.com/wshobson/agents/main/docs/harnesses.md).
 - St0nefish/agent-toolkit: [README](https://raw.githubusercontent.com/St0nefish/agent-toolkit/master/README.md) and [LICENSE](https://raw.githubusercontent.com/St0nefish/agent-toolkit/master/LICENSE).
 - dspo/agent-marketplace: [README](https://raw.githubusercontent.com/dspo/agent-marketplace/main/README.md) and [LICENSE](https://raw.githubusercontent.com/dspo/agent-marketplace/main/LICENSE).

@@ -92,6 +92,45 @@ def install_link_paths(
     return {install_tree / entry.name for entry in plugin_entries(plugin_tree, skip_names)}
 
 
+def link_file(plugin_file: Path, install_file: Path, *, check: bool) -> LinkOutcome:
+    """Link one install file to one plugin file (a file-shaped ``link: true`` row).
+
+    The ``hooks-json`` row is the only such row: ``.claude/hooks/hooks.json``
+    links to ``src/claude/hooks/hooks.json``. The same CWE-59 refusal as
+    :func:`link_row` applies: a plugin file that is itself a symlink, or that
+    resolves outside its own directory, is never linked. A missing plugin
+    file links nothing and reports nothing, like :func:`link_row` on an
+    absent plugin tree.
+    """
+    outcome = LinkOutcome()
+    if not plugin_file.is_file() and not plugin_file.is_symlink():
+        return outcome
+    resolved_parent = plugin_file.parent.resolve()
+    if plugin_file.is_symlink() or not plugin_file.resolve().is_relative_to(resolved_parent):
+        print(
+            f"Error: plugin file {plugin_file} is a symlink or resolves outside "
+            f"{plugin_file.parent}; refusing to link it",
+            file=sys.stderr,
+        )
+        outcome.drifted.append(str(plugin_file))
+        outcome.exit_code = 2
+        _withdraw_link(install_file, check)
+        return outcome
+    if not check:
+        install_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _link_one(plugin_file, install_file, check=check, outcome=outcome)
+    except OSError as exc:
+        print(
+            f"Error: cannot create symlink {install_file}: {exc}. On Windows, "
+            "enable Developer Mode and set `git config core.symlinks true`",
+            file=sys.stderr,
+        )
+        outcome.drifted.append(str(install_file))
+        outcome.exit_code = 2
+    return outcome
+
+
 def link_row(
     plugin_tree: Path,
     install_tree: Path,

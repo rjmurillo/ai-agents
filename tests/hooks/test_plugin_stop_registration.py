@@ -18,6 +18,7 @@ ADR-085 Decision 7 item 9 asks for three kinds of test around a
 
 from __future__ import annotations
 
+import ast
 import copy
 import json
 import re
@@ -37,8 +38,8 @@ from generate_hooks_events import _expand_dispatch_groups
 
 GROUP = "plugin-stop-1-reflect_nudge"
 SHIM = "Stop/invoke_reflect_nudge.py"
-CLAUDE_PLUGIN_HOOKS = REPO_ROOT / "src" / "claude" / "hooks.json"
 CLAUDE_PLUGIN_HOOKS_DIR = REPO_ROOT / "src" / "claude" / "hooks"
+CLAUDE_PLUGIN_HOOKS = CLAUDE_PLUGIN_HOOKS_DIR / "hooks.json"
 COPILOT_HOOKS = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
 HOOK_TEMPLATE = REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py"
 THRESHOLD_ENV = "AI_AGENTS_RETRO_NUDGE_THRESHOLD"
@@ -213,3 +214,96 @@ def test_nonempty_surface_guard_fails_on_an_empty_surface(
     parity.test_every_vendored_hook_states_its_customer_value()  # vacuous pass
     with pytest.raises(AssertionError, match="vacuously"):
         parity.test_the_customer_value_check_examines_a_nonempty_surface()
+
+
+# --- guard: the advisory set is exactly one Stop group ------------------------
+
+ADVISORY_REGISTRATIONS = (
+    REPO_ROOT / "templates" / "hooks" / "hooks.json",
+    CLAUDE_PLUGIN_HOOKS,
+)
+_ADVISORY_FLAG = re.compile(r"\s--advisory(?:\s|;|$)")
+_GROUP_ID = re.compile(r"--group\s+([A-Za-z0-9_-]+)")
+
+
+def _advisory_registrations(path: Path) -> list[tuple[str, str]]:
+    """``(event, group id)`` for every registration whose command carries --advisory."""
+    found = []
+    for event, command in _registered_commands(_load(path)):
+        if _ADVISORY_FLAG.search(command):
+            match = _GROUP_ID.search(command)
+            assert match, command
+            found.append((event, match.group(1)))
+    return found
+
+
+@pytest.mark.parametrize("path", ADVISORY_REGISTRATIONS, ids=lambda p: p.parent.parent.name)
+def test_the_advisory_set_is_exactly_the_reflect_nudge_group(path: Path) -> None:
+    flagged = _advisory_registrations(path)
+    assert {group for _event, group in flagged} == {GROUP}, flagged
+    assert len(flagged) == 1, flagged
+
+
+@pytest.mark.parametrize("path", ADVISORY_REGISTRATIONS, ids=lambda p: p.parent.parent.name)
+def test_only_stop_registrations_carry_advisory(path: Path) -> None:
+    assert {event for event, _group in _advisory_registrations(path)} == {"Stop"}
+
+
+def test_the_guard_detects_an_advisory_flag_on_another_group(tmp_path: Path) -> None:
+    """Negative control: the scanner reports a misbound flag instead of passing vacuously."""
+    doc = {
+        "hooks": {
+            "PreToolUse": [
+                {"hooks": [{"command": "python3 x.py --group pretooluse-bash --advisory"}]}
+            ]
+        }
+    }
+    path = tmp_path / "hooks.json"
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    assert _advisory_registrations(path) == [("PreToolUse", "pretooluse-bash")]
+
+
+def _plugin_groups_registered(doc: dict) -> set[str]:
+    registered = set()
+    for _event, command in _registered_commands(doc):
+        match = _GROUP_ID.search(command)
+        assert match, command
+        registered.add(match.group(1))
+    return registered
+
+
+def _manifest_plugin_groups(groups: dict) -> set[str]:
+    return {g for g in groups if g.startswith("plugin-")}
+
+
+def test_plugin_groups_in_the_manifest_match_the_plugin_registrations() -> None:
+    manifest_groups = _manifest_plugin_groups(parity.MANIFEST["groups"])
+    assert manifest_groups, "the manifest declares no plugin-* group"
+    assert _plugin_groups_registered(_load(CLAUDE_PLUGIN_HOOKS)) == manifest_groups
+
+
+def test_a_synthetic_extra_plugin_group_breaks_the_comparison() -> None:
+    """Negative control: the comparison above fails when the manifest gains a group."""
+    groups = dict(parity.MANIFEST["groups"])
+    groups["plugin-stop-2-synthetic"] = {"advisory": True}
+    registered = _plugin_groups_registered(_load(CLAUDE_PLUGIN_HOOKS))
+    assert registered != _manifest_plugin_groups(groups)
+
+
+def _launcher_advisory_group_id() -> str:
+    source = (REPO_ROOT / "templates" / "hooks" / "invoke_dispatch_claude.py").read_text(
+        encoding="utf-8"
+    )
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "_ADVISORY_GROUP_ID" for t in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise AssertionError("_ADVISORY_GROUP_ID is not assigned in invoke_dispatch_claude.py")
+
+
+def test_launcher_advisory_group_id_is_the_single_advisory_manifest_group() -> None:
+    advisory = [
+        name for name, group in parity.MANIFEST["groups"].items() if group.get("advisory") is True
+    ]
+    assert advisory == [_launcher_advisory_group_id()]

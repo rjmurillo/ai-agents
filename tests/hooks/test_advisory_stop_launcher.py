@@ -149,9 +149,25 @@ def test_advisory_is_refused_off_stop_without_running_the_shim(tmp_path, capsys,
     mode = chd.validate_group(event, chd._MODE_BY_EVENT[event], shims)[1]
     code = chd.run_group(tmp_path, event, mode, shims, b"{}", advisory=True)
     err = capsys.readouterr().err
-    assert code == 0
+    assert code == chd.BLOCK_EXIT
     assert not marker.exists()
     assert len(_status_lines(err)) == 1 and "Stop" in err
+
+
+GATE_BLOCK_BODY = 'import sys\nprint(\'{"decision": "block", "reason": "x"}\')\nsys.exit(2)\n'
+
+
+def test_advisory_never_passes_a_gate_mode_block_through(tmp_path, capsys):
+    """Defense in depth: run_group refuses advisory off Stop, so call the inner runner."""
+    shims = _shim(tmp_path, GATE_BLOCK_BODY)
+    chd._run_group(tmp_path, "PreToolUse", chd.GATE, shims, b"{}", True)
+    assert "block" not in capsys.readouterr().out
+
+
+def test_control_a_plain_gate_group_still_passes_a_shim_block_through(tmp_path, capsys):
+    shims = _shim(tmp_path, GATE_BLOCK_BODY)
+    code = chd._run_group(tmp_path, "PreToolUse", chd.GATE, shims, b"{}", False)
+    assert code == chd.BLOCK_EXIT and "block" in capsys.readouterr().out
 
 
 # --- AC-27: launcher failure paths --------------------------------------------
@@ -166,9 +182,16 @@ def _stdin(monkeypatch, data: bytes) -> None:
     monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(data), encoding="utf-8"))
 
 
-def _main(capsys, *flags: str):
-    code = entry.main(["--group", "g", *flags])
+RESERVED_GROUP = entry._ADVISORY_GROUP_ID
+
+
+def _main_as(capsys, group: str, *flags: str):
+    code = entry.main(["--group", group, *flags])
     return code, capsys.readouterr().err
+
+
+def _main(capsys, *flags: str):
+    return _main_as(capsys, "g", *flags)
 
 
 def test_manifest_load_failure(monkeypatch, capsys):
@@ -176,14 +199,53 @@ def test_manifest_load_failure(monkeypatch, capsys):
         raise RuntimeError("manifest loader failed")
 
     monkeypatch.setattr(entry, "_load_group", fail)
-    code, err = _main(capsys, "--advisory")
+    code, err = _main_as(capsys, RESERVED_GROUP, "--advisory")
     assert code == 0 and len(_status_lines(err)) == 1 and "manifest loader failed" in err
     assert _main(capsys)[0] == 2, "control: no --advisory keeps the block exit"
 
 
+def test_manifest_load_failure_fails_closed_for_any_other_group_id(monkeypatch, capsys):
+    """The event is unknown here, so only the reserved Stop group may fail open."""
+
+    def fail(_g):
+        raise RuntimeError("manifest loader failed")
+
+    monkeypatch.setattr(entry, "_load_group", fail)
+    code, err = _main_as(capsys, "pretooluse-bash", "--advisory")
+    assert code == 2 and len(_status_lines(err)) == 1
+
+
+@pytest.mark.parametrize("event", ["PreToolUse", "UserPromptSubmit", "SessionStart"])
+def test_advisory_on_a_non_stop_event_exits_two(monkeypatch, capsys, event):
+    mode = chd._MODE_BY_EVENT[event]
+    _group(monkeypatch, event=event, mode=mode)
+    ran = []
+    monkeypatch.setattr(entry, "run_group", lambda *a, **k: ran.append(a) or 0)
+    code, err = _main(capsys, "--advisory")
+    assert code == 2 and len(_status_lines(err)) == 1 and "Stop" in err
+    assert ran == [], "the refusal precedes any hook execution"
+
+
+def test_advisory_on_a_non_stop_event_exits_two_even_when_the_project_self_hosts(
+    monkeypatch, capsys
+):
+    _group(monkeypatch, event="PreToolUse", mode="gate", self_hosts=True)
+    code, _ = _main(capsys, "--advisory")
+    assert code == 2
+
+
+def test_control_a_plain_non_stop_group_is_not_refused(monkeypatch, capsys):
+    _group(monkeypatch, event="PreToolUse", mode="gate")
+    _stdin(monkeypatch, b"{}")
+    ran = []
+    monkeypatch.setattr(entry, "run_group", lambda *a, **k: ran.append(a) or 0)
+    code, _ = _main(capsys)
+    assert code == 0 and len(ran) == 1
+
+
 def test_real_manifest_that_is_unreadable_fails_open(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(entry, "_HOOKS_DIR", tmp_path)  # no dispatch_groups.json here
-    code, err = _main(capsys, "--advisory")
+    code, err = _main_as(capsys, RESERVED_GROUP, "--advisory")
     assert code == 0 and len(_status_lines(err)) == 1
     assert _main(capsys)[0] == 2
 
@@ -221,6 +283,8 @@ def test_self_host_check_exception(monkeypatch, capsys):
     monkeypatch.setattr(entry, "_project_self_hosts_plugin", fail)
     code, err = _main(capsys, "--advisory")
     assert code == 0 and len(_status_lines(err)) == 1 and "self-host" in err
+    code, err = _main(capsys)
+    assert code == 2, "control: a plain gate_all group denies when the self-host check fails"
 
 
 def test_nonzero_hook_exit_through_the_launcher(monkeypatch, tmp_path, capsys):
