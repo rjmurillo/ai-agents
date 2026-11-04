@@ -69,6 +69,17 @@ class TestFetchMissingHead:
         oc.scan_if_escalated(True, LIVE, git, pr_checkout=False)
         assert git.calls and git.fetches() == []
 
+    def test_a_bare_call_never_fetches(self) -> None:
+        git = _Fetching()
+        oc.scan_unpushed_commits(LIVE, git)
+        oc.scan_if_escalated(True, LIVE, git)
+        assert git.calls and git.fetches() == []
+
+    def test_a_bare_call_treats_divergence_as_unproven(self) -> None:
+        report = oc.scan_unpushed_commits(LIVE, FakeGit(ancestor=1))
+        assert report["status"] == "unverified"
+        assert "no PR worktree was named" in str(report["reason"])
+
     def test_a_value_that_is_not_a_sha_never_reaches_git(self) -> None:
         git = _Fetching()
         refspec = "+refs/heads/f:refs/heads/planted"
@@ -160,7 +171,7 @@ class TestForgedRecords:
         forged = git("commit-tree", tree, "-p", base, stdin=f"x\r\x1e{base}\tfake\n")
         git("reset", "-q", "--hard", forged)
 
-        report = oc.scan_unpushed_commits(base, oc.worktree_runner(str(tmp_path)))
+        report = oc.scan_unpushed_commits(base, oc.worktree_runner(str(tmp_path)), pr_checkout=True)
 
         commits = report["commits"]
         assert isinstance(commits, list)
@@ -191,7 +202,7 @@ class TestForgedRecords:
         git("add", ".")
         git("commit", "-q", "-m", f"x\x1e--output={target}")
 
-        report = oc.scan_unpushed_commits(base, oc.worktree_runner(str(tmp_path)))
+        report = oc.scan_unpushed_commits(base, oc.worktree_runner(str(tmp_path)), pr_checkout=True)
 
         assert not target.exists()
         commits = report["commits"]

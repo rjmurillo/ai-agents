@@ -1,9 +1,8 @@
 """Tests for github_core.orphaned_commits (issue #5447).
 
 A pr-autofix session that escalates at the round cap can leave unpushed local
-commits. PR #5344 carried three; one deleted a lefthook pre-push job and the
-test that guarded it. These tests pin the scan, which moves no ref that names such
-commits for a resuming session.
+commits. PR #5344 carried three; one deleted a lefthook pre-push job and its test.
+These tests pin the scan that names such commits. The scan moves no ref.
 """
 
 from __future__ import annotations
@@ -337,7 +336,8 @@ class TestWorktreeRunner:
         run.assert_not_called()
 
     def test_invalid_worktree_ends_the_scan_unverified_with_a_clear_reason(self, tmp_path):
-        report = oc.scan_unpushed_commits(LIVE, oc.worktree_runner(str(tmp_path / "missing")))
+        missing = oc.worktree_runner(str(tmp_path / "missing"))
+        report = oc.scan_unpushed_commits(LIVE, missing, pr_checkout=True)
         assert report["status"] == "unverified"
         assert "not a git checkout" in str(report["reason"])
         assert report["commits"] == []
@@ -369,7 +369,7 @@ class TestWorktreeRunner:
         git(shared, "add", ".")
         git(shared, "commit", "-q", "-m", "unrelated")
 
-        report = oc.scan_unpushed_commits(live, oc.worktree_runner(str(repo)))
+        report = oc.scan_unpushed_commits(live, oc.worktree_runner(str(repo)), pr_checkout=True)
 
         assert report["status"] == "ahead"
         assert [c["subject"] for c in report["commits"]] == ["orphan"]
@@ -407,7 +407,7 @@ class TestWorktreeRunner:
         monkeypatch.setenv("GIT_DIR", str(shared / ".git"))
         monkeypatch.setenv("GIT_WORK_TREE", str(shared))
 
-        report = oc.scan_unpushed_commits(live, oc.worktree_runner(str(repo)))
+        report = oc.scan_unpushed_commits(live, oc.worktree_runner(str(repo)), pr_checkout=True)
 
         assert report["status"] == "ahead"
         assert [c["subject"] for c in report["commits"]] == ["orphan"]
@@ -450,7 +450,8 @@ class TestWorktreeRunner:
         graft.write_text(f"{shas['c']} {shas['a']}\n", encoding="utf-8")
         monkeypatch.setenv("GIT_GRAFT_FILE", str(graft))
 
-        report = oc.scan_unpushed_commits(shas["a"], oc.worktree_runner(str(repo)))
+        runner = oc.worktree_runner(str(repo))
+        report = oc.scan_unpushed_commits(shas["a"], runner, pr_checkout=True)
 
         assert report["status"] == "ahead"
         assert sorted(c["subject"] for c in report["commits"]) == ["b", "c"]

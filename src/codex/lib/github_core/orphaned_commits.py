@@ -340,13 +340,13 @@ def _fetch_missing_head(live_head: str, runner: GitRunner) -> str:
 
 
 def scan_unpushed_commits(
-    live_head: str, runner: GitRunner = default_runner, *, pr_checkout: bool = True
+    live_head: str, runner: GitRunner = default_runner, *, pr_checkout: bool = False
 ) -> dict[str, object]:
     """Report local commits that the live PR head does not contain.
 
-    ``pr_checkout`` is False when ``runner`` points at the current directory and no
-    worktree was named. ``HEAD`` may then be another branch, so a diverged live head
-    proves nothing about a force-push and its commits are not listed.
+    ``pr_checkout`` stays False unless ``runner`` points at a named PR worktree. In the
+    current directory ``HEAD`` may be another branch, so a diverged live head proves
+    nothing about a force-push and its commits are not listed.
 
     Moves no ref. A named worktree fetches an absent live head first; the current
     directory may be another repository. Never raises: a git failure is ``unverified``.
@@ -404,7 +404,7 @@ def scan_if_escalated(
     live_head: str | None,
     runner: GitRunner = default_runner,
     *,
-    pr_checkout: bool = True,
+    pr_checkout: bool = False,
 ) -> dict[str, object]:
     """Scan only when the round-cap record is escalated; otherwise ``not_checked``.
 
