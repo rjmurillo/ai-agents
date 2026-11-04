@@ -185,6 +185,7 @@ class TestOpenAudit:
 
 
 class TestEnvironAudit:
+    @POSIX_STATE
     def test_only_listed_variables_are_read_through_env_and_path_home(
         self, both_branches: Path, tmp_path: Path
     ) -> None:
