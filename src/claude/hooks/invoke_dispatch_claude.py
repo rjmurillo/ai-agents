@@ -30,6 +30,14 @@ unexpected grouped-runtime exception exits 2 (loud, fail-closed) regardless of m
 ``.claude/rules/generated-artifacts.md`` (never silently disable a hook
 surface). Fail-closed means a broken dispatcher blocks rather than waves
 through.
+
+Advisory groups (``--advisory``, REQ-048 AC-26 and AC-27). The flag rides the
+registration, not the manifest, so it is known even when the manifest cannot be
+loaded. It is valid for a ``Stop`` group only. Every failure path (manifest
+load, self-host check, oversized stdin, an execution exception, a hook that
+exits non-zero) writes one stderr status line and exits 0, because a failure of
+an advisory nudge must never block a Stop. The group's ``systemMessage`` prints
+as a ``systemMessage`` document. Groups without the flag keep the policy above.
 """
 
 from __future__ import annotations
@@ -179,12 +187,17 @@ def _load_group(group_id: str) -> tuple[str, str, list[str]]:
     return validated_group
 
 
-def _read_payload(mode: str) -> tuple[bytes, int | None]:
+def _failure_exit(advisory: bool) -> int:
+    """Exit code for a launcher failure: 0 for an advisory group, else block."""
+    return 0 if advisory else _BLOCK_EXIT_CODE
+
+
+def _read_payload(mode: str, advisory: bool = False) -> tuple[bytes, int | None]:
     """Read one bounded hook payload and return an oversized-input verdict."""
     raw_stdin = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
     if len(raw_stdin) <= _MAX_STDIN_BYTES:
         return raw_stdin, None
-    blocks = mode in {"gate", "gate_all"}
+    blocks = mode in {"gate", "gate_all"} and not advisory
     verdict = "denying" if blocks else "allowing without observer dispatch"
     print(
         f"claude-hook-dispatch: stdin exceeds {_MAX_STDIN_BYTES} bytes; {verdict}",
@@ -197,7 +210,13 @@ def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--group", required=True, help="Group id in dispatch_groups.json")
+    parser.add_argument(
+        "--advisory",
+        action="store_true",
+        help="Stop-only advisory group: every failure path exits 0 with one stderr line",
+    )
     args = parser.parse_args(argv)
+    advisory: bool = args.advisory
 
     try:
         event, mode, shims = _load_group(args.group)
@@ -207,9 +226,9 @@ def main(argv: list[str] | None = None) -> int:
             f"{_HOOKS_DIR / _MANIFEST_NAME}: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        return _BLOCK_EXIT_CODE
+        return _failure_exit(advisory)
 
-    if mode not in {"gate", "gate_all"}:
+    if advisory or mode not in {"gate", "gate_all"}:
         try:
             if _project_self_hosts_plugin():
                 return 0
@@ -219,13 +238,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"{args.group!r}: {type(exc).__name__}: {exc}",
                 file=sys.stderr,
             )
-            return _BLOCK_EXIT_CODE
+            return _failure_exit(advisory)
 
     try:
-        raw_stdin, oversized_exit = _read_payload(mode)
+        raw_stdin, oversized_exit = _read_payload(mode, advisory)
         if oversized_exit is not None:
             return oversized_exit
-        exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin)
+        exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin, advisory=advisory)
         return exit_code
     except Exception as exc:
         print(
@@ -233,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        return _BLOCK_EXIT_CODE
+        return _failure_exit(advisory)
 
 
 if __name__ == "__main__":

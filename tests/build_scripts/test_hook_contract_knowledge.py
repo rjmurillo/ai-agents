@@ -399,7 +399,11 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
     commands = [h["command"] for entry in local_hooks["Stop"] for h in entry["hooks"]]
     assert len(commands) == 1
     assert ".claude/hooks/Stop/invoke_reflect_nudge.py" in commands[0]
-    assert "Stop" not in vendored_hooks
+    # REQ-048 TASK-006 added the vendored registration: one advisory plugin
+    # group, Stop only, absent from the Copilot tree (owner decision D20).
+    (vendored_stop,) = [h["command"] for entry in vendored_hooks["Stop"] for h in entry["hooks"]]
+    assert "--group plugin-stop-1-reflect_nudge --advisory" in vendored_stop
+    assert list(vendored_hooks) == ["Stop"]
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
     assert [group_id for group_id in dispatch_groups if group_id.startswith("stop-")] == []
@@ -407,7 +411,9 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
         group_id
         for group_id, spec in dispatch_groups.items()
         if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
-    ] == []
+    ] == ["plugin-stop-1-reflect_nudge"]
+    stop_spec = dispatch_groups["plugin-stop-1-reflect_nudge"]
+    assert stop_spec["advisory"] is True and stop_spec["surface"] == "plugin"
 
     tree = ast.parse(
         (REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py").read_text(
@@ -1566,7 +1572,10 @@ def test_adr_068_dependent_components_table_matches_the_registration_count() -> 
     # ADR-097 retired every tool-call hook, so the count is now zero. The row
     # keeps its historical chain (three after the three-way merge, four before
     # it) because those are dated records, not live claims.
-    assert registrations == 0
+    # REQ-048 TASK-006 registered one advisory Stop group, so the live count is
+    # one. ADR-068's table below is a dated record that still says zero; it
+    # needs an amendment (an ADR edit needs a debate log, so it is not made here).
+    assert registrations == 1
     assert (
         "Zero vendored plugin registrations after ADR-097 retired every "
         "tool-call hook (three after merging issues #4917, #5061, and #5154; "

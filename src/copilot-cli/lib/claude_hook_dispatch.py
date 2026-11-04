@@ -59,6 +59,17 @@ Merge rules for shim stdout (per run):
    ``Stop``, ``SubagentStop``, ``PreCompact``) the joined text is printed
    as plain text. For ``PreToolUse``/``PostToolUse`` it is wrapped in a
    single ``hookSpecificOutput.additionalContext`` JSON document.
+
+Advisory groups (``advisory=True``, REQ-048 AC-26 and AC-27). Only a ``Stop``
+group may be advisory. It differs from a plain ``gate_all`` group in three
+ways, and no other group is touched:
+
+- The merged context prints as one ``{"systemMessage": ...}`` document, so the
+  host shows it to the user and does not treat plain Stop stdout as context.
+- A blocking decision document from a shim is suppressed with one stderr line.
+- The group always exits ``ALLOW_EXIT``. Every failure path (invalid contract,
+  unsafe or missing shim, a shim that exits non-zero or raises) writes one
+  stderr status line and still exits 0.
 """
 
 from __future__ import annotations
@@ -83,6 +94,10 @@ from hook_dispatch import (  # noqa: E402
 )
 from output_capture import run_capturing_process_stdout  # noqa: E402
 
+# BLOCK_EXIT is re-exported for invoke_dispatch_claude.py.
+__all__ = ["ALLOW_EXIT", "BLOCK_EXIT", "run_group", "validate_group"]
+
+ADVISORY_EVENT = "Stop"
 GATE = "gate"
 GATE_ALL = "gate_all"
 OBSERVE = "observe"
@@ -113,6 +128,7 @@ class _ShimOutcome:
     context: str | None = None
     decision: str | None = None
     recognized: bool = True
+    raised: bool = False
 
 
 @dataclass
@@ -196,6 +212,8 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes, event: str) -> _ShimO
     sys.path = [shim_dir, *saved_sys_path]
     sys.argv = [str(shim_path)]
 
+    raised: list[bool] = []
+
     def run_shim() -> int:
         try:
             runpy.run_path(str(shim_path), run_name="__main__")
@@ -203,6 +221,7 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes, event: str) -> _ShimO
         except SystemExit as exc:
             return _exit_code(exc)
         except Exception as exc:
+            raised.append(True)
             print(
                 f"claude-hook-dispatch: shim {name} raised "
                 f"{type(exc).__name__}: {exc}; treating as blocking failure",
@@ -228,10 +247,11 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes, event: str) -> _ShimO
         context=context,
         decision=decision,
         recognized=recognized,
+        raised=bool(raised),
     )
 
 
-def _emit_merged_output(event: str, state: _RunState) -> None:
+def _emit_merged_output(event: str, state: _RunState, advisory: bool = False) -> None:
     """Print exactly one protocol-valid stdout document for the group."""
     if state.decision is not None:
         print(state.decision)
@@ -239,6 +259,9 @@ def _emit_merged_output(event: str, state: _RunState) -> None:
     if not state.context_parts:
         return
     merged = "\n\n".join(state.context_parts)
+    if advisory:
+        print(json.dumps({"systemMessage": merged}))
+        return
     if event in _PLAIN_CONTEXT_EVENTS:
         print(merged)
         return
@@ -260,8 +283,40 @@ def run_group(
     mode: str,
     shims: list[str],
     raw_stdin: bytes,
+    *,
+    advisory: bool = False,
 ) -> int:
-    """Run every shim in ``shims`` in-process; return the group exit code."""
+    """Run every shim in ``shims`` in-process; return the group exit code.
+
+    ``advisory`` is the Stop-only fail-open policy described in the module
+    docstring: the result is always ``ALLOW_EXIT``.
+    """
+    if advisory and event != ADVISORY_EVENT:
+        print(
+            f"claude-hook-dispatch: only a {ADVISORY_EVENT} group may be advisory, "
+            f"got {event!r}; allowing",
+            file=sys.stderr,
+        )
+        return ALLOW_EXIT
+    exit_code = _run_group(hooks_dir, event, mode, shims, raw_stdin, advisory)
+    return ALLOW_EXIT if advisory else exit_code
+
+
+def _unrecognized_action(mode: str, advisory: bool) -> str:
+    """Name what happens to a shim's invalid structured output."""
+    if advisory:
+        return "suppressing in advisory mode"
+    return "suppressing in observe mode" if mode == OBSERVE else "denying in gate mode"
+
+
+def _run_group(
+    hooks_dir: Path,
+    event: str,
+    mode: str,
+    shims: list[str],
+    raw_stdin: bytes,
+    advisory: bool,
+) -> int:
     try:
         event, mode, shims = validate_group(event, mode, shims)
     except (TypeError, ValueError) as exc:
@@ -331,11 +386,13 @@ def run_group(
                         sys.stdout.write(outcome.raw_stdout)
                         sys.stdout.flush()
                     return outcome.exit_code
-                print(
-                    f"claude-hook-dispatch: shim {name} exited "
-                    f"{outcome.exit_code} ({mode} mode runs all shims)",
-                    file=sys.stderr,
-                )
+                if not (advisory and outcome.raised):
+                    # A raising shim already wrote its own status line.
+                    print(
+                        f"claude-hook-dispatch: shim {name} exited "
+                        f"{outcome.exit_code} ({mode} mode runs all shims)",
+                        file=sys.stderr,
+                    )
                 if mode in {GATE, GATE_ALL}:
                     if outcome.exit_code == BLOCK_EXIT and state.first_block != BLOCK_EXIT:
                         state.first_block = BLOCK_EXIT
@@ -356,9 +413,7 @@ def run_group(
                 continue
 
             if not outcome.recognized and outcome.decision is not None:
-                action = (
-                    "suppressing in observe mode" if mode == OBSERVE else "denying in gate mode"
-                )
+                action = _unrecognized_action(mode, advisory)
                 print(
                     f"claude-hook-dispatch: shim {name} emitted invalid or "
                     f"unsupported structured output; {action}",
@@ -379,10 +434,11 @@ def run_group(
                 )
 
             if outcome.decision is not None:
-                if mode == OBSERVE:
+                if mode == OBSERVE or advisory:
                     print(
                         f"claude-hook-dispatch: shim {name} emitted a valid "
-                        "blocking decision; suppressing decision in observe mode",
+                        "blocking decision; suppressing decision in "
+                        f"{'advisory' if advisory else 'observe'} mode",
                         file=sys.stderr,
                     )
                     continue
@@ -404,7 +460,7 @@ def run_group(
             if outcome.context is not None:
                 state.context_parts.append(outcome.context)
 
-        _emit_merged_output(event, state)
+        _emit_merged_output(event, state, advisory)
         if mode == OBSERVE:
             return ALLOW_EXIT
         if state.first_block == BLOCK_EXIT:

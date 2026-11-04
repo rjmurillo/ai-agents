@@ -162,9 +162,8 @@ What a first re-add owes, beyond MUST 1 through 5:
   and a #5013-style regression pin proving a broad matcher cannot deny unrelated
   work. The generator can rebuild the dispatcher code; these tests do not come
   back with it.
-- Restore ADR-084 rule 5's `Customer value:` presence check. Its two tests were
-  deleted on their own instruction once the vendored surface emptied, so nothing
-  currently enforces that a vendored hook states what it does for a consumer.
+- ADR-084 rule 5's `Customer value:` check binds every vendored hook. Its two
+  tests are restored (REQ-048 TASK-006) in `tests/hooks/test_dispatch_groups_parity.py`.
 - Write a fresh runtime contract in ADR-071. The matcher, fail-open, and
   fail-closed contracts recorded there describe deleted code and are marked
   retired; do not read them as a contract a new hook inherits.

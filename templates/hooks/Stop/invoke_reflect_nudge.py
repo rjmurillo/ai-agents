@@ -32,11 +32,11 @@ The name carries a hash of the counts. The body holds counts, never
 transcript text.
 
 Friction branch (REQ-048 TASK-003): the scan keeps conversation records, up
-to MAX_FRICTION_RECORDS, and the shared ``failure_classifier`` (``lib/``, the
-one home of the weights, tiers, and message) scores them, one marker per
-(session, tier). ``0`` or ``off`` in AI_AGENTS_RETRO_NUDGE_THRESHOLD silences
-both branches before any I/O, even without the lib. A budget stop, a missing
-lib, or a lib error skips friction only and says so on stderr.
+to MAX_FRICTION_RECORDS, and the shared ``failure_classifier`` (``lib/``)
+scores them, one marker per (session, tier). Firing bound: at most one
+friction nudge per session per threshold tier. Off is read before any I/O.
+A budget stop, a missing lib, or a lib error skips friction only; stderr says so.
+Customer value: retro prompt after repeated failures. Off: AI_AGENTS_RETRO_NUDGE_THRESHOLD=0|off.
 
 Calibration status (issue #5820, AC-9): patterns are turn-anchored or fixed
 phrases, except one bounded "use ... instead" window, tuned on one operator's

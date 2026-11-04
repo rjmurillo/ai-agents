@@ -137,7 +137,7 @@ every tool-call hook.
 | Surface | Consumer | Shape re-verified 2026-10-31 (`hook-counts`) |
 |---|---|---|
 | `.claude/settings.json` | Claude Code direct in this repository | run `hook-counts` (5 events, 8 groups on 2026-10-31) |
-| `.claude/hooks/hooks.json` | Binplaced copy of `src/claude/hooks.json` | run `hook-counts` (0 events, 0 groups on 2026-10-31) |
+| `.claude/hooks/hooks.json` | Binplaced copy of `src/claude/hooks.json` | run `hook-counts` (1 events, 1 groups on 2026-11-04) |
 
 Chain: `templates/hooks/hooks.json` (source) renders to `src/claude/hooks.json` (plugin tree, the Copilot generator input, `settingsSource` in `templates/platforms/copilot-cli.yaml`), then binplaces to `.claude/hooks/hooks.json` (copy). The generator reads the plugin tree, not local settings. A
 one-file registration is valid only when its consumer scope is deliberate.

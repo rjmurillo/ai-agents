@@ -23,6 +23,7 @@ if str(_BUILD_SCRIPTS) not in sys.path:
 
 import binplace_links  # noqa: E402
 import binplace_manifest  # noqa: E402
+import lib_render  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
     sys.platform == "win32", reason="symlink creation needs Developer Mode on Windows"
@@ -394,17 +395,23 @@ def test_live_manifest_links_claude_lib_and_compiles_without_installing() -> Non
 
 def test_claude_lib_links_every_plugin_entry_and_keeps_repo_local_modules_real() -> None:
     plugin, install = _REPO_ROOT / "src/claude/lib", _REPO_ROOT / ".claude/lib"
+    # REQ-048 TASK-006: the plugin also ships byte copies of seven repo-local
+    # modules. They stay real files in .claude/lib; surface-parity row
+    # lib-claude-dispatch-copies pins the copies to them.
+    copies = set(lib_render.CLAUDE_ONLY_LIB_FILES)
 
     for entry in plugin.iterdir():
-        if entry.name == "__pycache__":
+        if entry.name == "__pycache__" or entry.name in copies:
             continue
         assert os.readlink(install / entry.name) == f"../../src/claude/lib/{entry.name}", entry.name
         assert (install / entry.name).resolve() == entry.resolve(), entry.name
         assert entry.resolve().is_relative_to(plugin.resolve()), entry.name
     real = {entry.name for entry in install.iterdir() if not entry.is_symlink()}
     assert real - {"__pycache__"} == binplace_manifest.REPO_LOCAL_LIB_NAMES
-    for name in binplace_manifest.REPO_LOCAL_LIB_NAMES:
+    for name in binplace_manifest.REPO_LOCAL_LIB_NAMES - copies:
         assert not (plugin / name).exists(), f"{name} now ships; drop it from REPO_LOCAL_LIB_NAMES"
+    for name in copies:
+        assert (plugin / name).read_bytes() == (install / name).read_bytes(), name
 
 
 def test_a_hand_edited_real_lib_package_is_refused_not_replaced(tmp_path: Path) -> None:
