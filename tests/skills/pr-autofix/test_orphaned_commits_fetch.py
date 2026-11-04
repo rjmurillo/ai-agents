@@ -49,6 +49,7 @@ class TestFetchMissingHead:
                 "--no-tags",
                 "--no-write-fetch-head",
                 "--no-auto-maintenance",
+                "--no-recurse-submodules",
                 "--",
                 "origin",
                 LIVE,
@@ -76,6 +77,7 @@ class TestFetchMissingHead:
         report = oc.scan_if_escalated(True, LIVE, _Fetching(fetch=128), pr_checkout=True)
         assert report["status"] == "unverified"
         assert "git fetch exited 128" in str(report["reason"])
+        assert "Fetch it by hand first" in str(report["warning"])
 
     def test_invalid_worktree_is_left_for_the_scan_to_report(self) -> None:
         git = _Fetching(probe=126)
@@ -113,6 +115,12 @@ class TestForgedRecords:
         assert [c.sha for c in commits] == ["b" * 40]
         assert commits[0].files == (("M", "tests/test_a.py"),)
         assert "\x1e" not in commits[0].subject
+
+    def test_subject_shaped_like_a_record_stays_in_its_commit(self) -> None:
+        forged = f"x\x1e{'c' * 40}\ttidy"
+        commits = oc.parse_log(f"\x1e{'b' * 40}\t{forged}\n\nM\ttests/test_a.py\n")
+        assert [c.sha for c in commits] == ["b" * 40]
+        assert commits[0].files == (("M", "tests/test_a.py"),)
 
     def test_git_show_ends_options_before_the_sha(self) -> None:
         git = FakeGit(show=(0, ""))

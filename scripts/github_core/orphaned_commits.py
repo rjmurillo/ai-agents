@@ -28,6 +28,9 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from scripts.github_core.git_env import GIT_ENV_KEYS as _GIT_ENV_KEYS
+from scripts.github_core.git_env import GIT_ENV_PREFIXES as _GIT_ENV_PREFIXES
+
 #: Runs ``git <args>`` and returns ``(exit code, stdout)``.
 GitRunner = Callable[[list[str]], tuple[int, str]]
 
@@ -40,37 +43,14 @@ _SHA = re.compile(r"[0-9a-fA-F]{7,64}")
 _LAUNCH_FAILURE = 127
 #: Exit code the worktree runner reports for a path it refused to use.
 _INVALID_WORKTREE = 126
-#: Every repo-local variable ``git rev-parse --local-env-vars`` reports. Each
-#: one redirects, rewrites, or hides history for a child that ``-C`` should
-#: have pointed at one repository (``GIT_GRAFT_FILE`` and ``GIT_SHALLOW_FILE``
-#: hide commits, ``GIT_REPLACE_REF_BASE`` and ``GIT_NO_REPLACE_OBJECTS`` swap them).
-_GIT_ENV_KEYS = (
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CONFIG",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_COUNT",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_IMPLICIT_WORK_TREE",
-    "GIT_GRAFT_FILE",
-    "GIT_INDEX_FILE",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_PREFIX",
-    "GIT_SHALLOW_FILE",
-    "GIT_COMMON_DIR",
-    # Not in the rev-parse list, but each one still steers git away from ``-C``.
-    "GIT_NAMESPACE",
-    "GIT_CEILING_DIRECTORIES",
-)
-#: Numbered config injection variables (``GIT_CONFIG_KEY_0``, ``GIT_CONFIG_VALUE_0``).
-_GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _RECORD_SEP = "\x1e"
-#: A commit subject can hold the separator, so a record starts only where a SHA follows.
-_RECORD_START = re.compile(rf"{_RECORD_SEP}(?={_SHA.pattern}\t)")
-_FETCH = "fetch --quiet --no-tags --no-write-fetch-head --no-auto-maintenance -- origin".split()
+#: ``%s`` holds no newline but can hold the separator, so a record starts only at a line start.
+_RECORD_START = re.compile(rf"(?m)^{_RECORD_SEP}(?={_SHA.pattern}\t)")
+_FETCH = (
+    "fetch --quiet --no-tags --no-write-fetch-head --no-auto-maintenance "
+    "--no-recurse-submodules -- origin"
+).split()
 
 _WIRING_PATH = re.compile(
     r"(^|/)lefthook\.ya?ml$"
@@ -187,7 +167,7 @@ def parse_log(text: str) -> list[Commit]:
     """Parse ``git log --name-status --format=%x1e%H%x09%s`` output."""
     commits: list[Commit] = []
     for record in _RECORD_START.split(text):
-        lines = [line for line in record.splitlines() if line.strip()]
+        lines = [line for line in record.split("\n") if line.strip()]
         if not lines:
             continue
         sha, _, subject = lines[0].partition("\t")
@@ -390,7 +370,7 @@ def _fetch_missing_head(live_head: str, runner: GitRunner) -> str:
     if code == 0:
         return ""
     detail = "timed out or could not start" if code == _LAUNCH_FAILURE else f"exited {code}"
-    return f"could not fetch the live head from origin: git fetch {detail}"
+    return f"could not fetch the live head from origin: git fetch {detail}. Fetch it by hand first"
 
 
 def scan_if_escalated(
