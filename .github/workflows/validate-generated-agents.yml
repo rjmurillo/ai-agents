@@ -107,7 +107,7 @@ jobs:
           python-version: '3.15'
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Build-all staleness check (REQ-003-005)
         # Fails (exit 2) if any generator output is stale relative to its
@@ -173,7 +173,7 @@ jobs:
 
       - name: Set up uv
         if: steps.should-run.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'
