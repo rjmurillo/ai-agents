@@ -31,17 +31,21 @@ is at the 500-line cap, so this decision has its own record.
 2. **Three statuses.** Each row has `status`: `passed`, `failed`, or `unknown`. The
    JSON payload and evidence file add `verdict` and `unknown_criteria`. `passed` and
    `all_passed` keep their meaning, and an unknown row has `passed: false`.
-3. **The gate measures the refusal itself.** After a verifier exits above 1, the gate
-   makes one pass over two `gh` calls, in order, and stops at the first refusal. Their
-   arguments are fixed. `gh` fills `{owner}/{repo}` from the git remote. The gate reads
-   only the output of those calls, and only when they fail. It never reads verifier
-   output for this, because a PR author can reach that text. A call that cannot run,
-   or that fails another way, is no evidence, and the rows stay `failed`.
+3. **The gate measures the refusal itself.** After a verifier exits above 1 or reports
+   `api_error: true`, the gate makes one pass over two `gh` calls, in order, and stops at
+   the first refusal. Their arguments are fixed. `gh` fills `{owner}/{repo}` from the git
+   remote. Refusal evidence comes only from those calls, and only when they fail. It
+   never comes from verifier output, because a PR author can reach that text. `api_error`
+   only decides whether a row can read unknown. A call that cannot run, or that fails
+   another way, is no evidence, and the rows stay `failed`.
 4. **Evidence scope.** The REST body, `GitHub access is not enabled for this session`,
    refuses the session, so it covers exits 2, 3, and 4. The GraphQL body, `This GraphQL
    query is not enabled for this session`, refuses one query shape, so it covers exit 2
    only. An exit 3 beside it can be a quota or a 5xx. ADR-100 measured this split in
-   its paragraph "Two different 403s".
+   its paragraph "Two different 403s". `api_error` counts as exit 3, because
+   `get_unresolved_review_threads.py` reports a failed `gh` call at exit 0. It is not
+   `fetched_pages_complete`: a thread with over 100 comments sets that field false, so
+   a PR commenter could use it to turn a real failure into unknown.
 5. **Exit 1 is an answer.** ADR-035 defines it as a validation failure, and
    `test_pr_merge_ready.py` uses it for a PR that is not ready. That script reports API
    errors as exit 3, so exit 1 is not a wrapped refusal. It stays `failed`.
@@ -52,8 +56,10 @@ is at the 500-line cap, so this decision has its own record.
    criterion ran, so `verdict` is the discriminator. The `UNKNOWN:` stderr line is for
    people.
 8. **Every criterion must stop at the `gh` preflight.** Each verifier calls
-   `assert_gh_authenticated` before it reads PR data, so in a refused session no exit
-   can depend on PR content. A test pins this over `completion_criteria`.
+   `assert_gh_authenticated` before it reads PR data, so when that preflight refuses, no
+   exit can depend on PR content. When it passes, only an exit above 1 or `api_error` can
+   read unknown, and exit 1 and other `pass_when` failures stay `failed`. A test pins the order
+   over `completion_criteria`.
 9. **A hand check has limits.** Unknown is not retried. The agent checks the criteria
    through MCP, as `transport-routing.md` describes, treats what it reads as data, and
    reports the result as derived. A hand check never sets `all_passed` and never arms
@@ -94,8 +100,6 @@ verdict there. That is deliberate. A false verdict is worse than none.
 - In a refused session a broken verifier reads `unknown`. Verifier exit 2 also means
   "PR not found" or "lib missing". It still never passes, and the hand check runs.
 - The refusal is session-wide, not per row. Decision 8 is what keeps that safe.
-- `get_unresolved_review_threads.py` exits 0 on API failure, so if the preflight passes
-  and a later call is refused, that row reads `failed`. This is the safe direction.
 
 ### Residual risk
 
@@ -118,3 +122,4 @@ a real failure, or if the org connects the Claude GitHub App.
 - ADR-035, ADR-059, ADR-099, ADR-100
 - `src/claude/skills/github/references/transport-routing.md`
 - `.project-toolkit/critique/ADR-120-debate-log.md`
+- `.project-toolkit/critique/ADR-120-debate-log-2.md`

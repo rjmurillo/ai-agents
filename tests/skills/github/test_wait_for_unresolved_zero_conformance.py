@@ -47,7 +47,7 @@ def _underlying_stdout(nodes: list[dict], *, complete: bool, capsys: pytest.Capt
         patch.object(underlying, "assert_gh_authenticated"),
         patch.object(underlying, "resolve_repo_params", return_value=RepoInfo("o", "r")),
         patch.object(
-            underlying, "fetch_unresolved_threads_paginated", return_value=(nodes, complete)
+            underlying, "fetch_unresolved_threads_paginated", return_value=(nodes, complete, False)
         ),
     ):
         assert underlying.main(["--pull-request", "42"]) == 0

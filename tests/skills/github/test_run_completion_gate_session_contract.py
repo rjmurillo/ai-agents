@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
+import json
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 
@@ -98,6 +101,63 @@ class TestDecisionEightInvariant:
 
         assert rc == 1
         assert result["criteria"][0]["status"] == "failed"
+
+
+class TestApiErrorSource:
+    """ADR-120: only a raised ``gh`` call may set ``api_error``."""
+
+    @staticmethod
+    def _fetch(answers):
+        path = SCRIPT_PATH.parent / "get_unresolved_review_threads.py"
+        spec = importlib.util.spec_from_file_location("unresolved_for_api_error", path)
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with patch.object(module, "gh_graphql", side_effect=answers):
+            return module.fetch_unresolved_threads_paginated("o", "r", 1, 1)
+
+    def test_raised_call_sets_api_error(self):
+        _, complete, api_error = self._fetch(RuntimeError("HTTP 403"))
+
+        assert (complete, api_error) == (False, True)
+
+    def test_missing_cursor_does_not_set_api_error(self):
+        page = {"nodes": [], "pageInfo": {"hasNextPage": True, "endCursor": None}}
+        answer = {"repository": {"pullRequest": {"reviewThreads": page}}}
+
+        _, complete, api_error = self._fetch([answer])
+
+        assert (complete, api_error) == (False, False)
+
+    def test_complete_read_does_not_set_api_error(self):
+        page = {"nodes": [], "pageInfo": {"hasNextPage": False}}
+        answer = {"repository": {"pullRequest": {"reviewThreads": page}}}
+
+        _, complete, api_error = self._fetch([answer])
+
+        assert (complete, api_error) == (True, False)
+
+
+class TestUnknownEvidence:
+    def test_reason_says_the_criterion_was_not_verified(self, run_gate):
+        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
+
+        _, result = run_gate(session)
+
+        assert result["criteria"][0]["reason"].startswith("session refuses GitHub")
+
+    def test_evidence_file_records_the_verdict(self, run_gate, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
+        evidence = tmp_path / "gate-evidence.json"
+
+        rc, _ = run_gate(session, extra_args=["--evidence-path", str(evidence)])
+
+        recorded = json.loads(evidence.read_text(encoding="utf-8"))
+        assert rc == 3
+        assert recorded["verdict"] == "unknown"
+        assert recorded["unknown_criteria"] == ["a"]
 
 
 class TestTrustHaltStaysDistinct:

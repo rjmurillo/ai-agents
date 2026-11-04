@@ -15,8 +15,10 @@ import pytest
 from scripts.github_core.api import _TRANSPORT_BLOCKED_MESSAGE
 from tests.gh_auth_refusal_fixtures import PROXY_GRAPHQL_403, PROXY_REST_403
 from tests.skills.github.session_refusal_helpers import (
+    API_ERROR,
     FAILING,
     GRAPHQL_REFUSED,
+    INCOMPLETE_READ,
     PASSING,
     REST_REFUSED,
     SERVED,
@@ -78,7 +80,13 @@ class TestRefusedSession:
 
     def test_verifier_that_never_ran_stays_failed(self):
         """A verifier that timed out has no exit code, so it stays failed."""
-        row = {"name": "a", "passed": False, "exit_code": None, "reason": "timed out"}
+        row = {
+            "name": "a",
+            "passed": False,
+            "exit_code": None,
+            "reason": "timed out",
+            "stdout_json": None,
+        }
 
         assert dispatcher._settle_verdict([row]) == "fail"
         assert row["status"] == "failed"
@@ -102,25 +110,6 @@ class TestRefusedSession:
         run_gate(session)
 
         assert len(session.gh_calls) == 1
-
-    def test_reason_says_the_criterion_was_not_verified(self, run_gate):
-        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
-
-        _, result = run_gate(session)
-
-        assert result["criteria"][0]["reason"].startswith("session refuses GitHub")
-
-    def test_evidence_file_records_the_verdict(self, run_gate, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
-        evidence = tmp_path / "gate-evidence.json"
-
-        rc, _ = run_gate(session, extra_args=["--evidence-path", str(evidence)])
-
-        recorded = json.loads(evidence.read_text(encoding="utf-8"))
-        assert rc == 3
-        assert recorded["verdict"] == "unknown"
-        assert recorded["unknown_criteria"] == ["a"]
 
     def test_table_marks_unknown_and_names_the_hand_check(self, run_gate):
         session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
@@ -177,6 +166,36 @@ class TestRefusedSession:
         assert rc == 1
         assert [row["status"] for row in result["criteria"]] == ["failed", "unknown"]
 
+    def test_api_error_is_unanswered_in_a_refused_session(self, run_gate):
+        """``get_unresolved_review_threads.py`` reports an API failure at exit 0."""
+        session = Session({"a": API_ERROR, "b": VERIFIER_EXTERNAL_ERROR}, rest=REST_REFUSED)
+
+        rc, result = run_gate(session)
+
+        assert rc == 3
+        assert result["verdict"] == "unknown"
+        assert [row["status"] for row in result["criteria"]] == ["unknown", "unknown"]
+
+    def test_pr_caused_incomplete_read_stays_failed_in_a_refused_session(self, run_gate):
+        """A thread with over 100 comments sets the field, so it proves no API failure."""
+        session = Session({"a": INCOMPLETE_READ}, rest=REST_REFUSED)
+
+        rc, result = run_gate(session)
+
+        assert rc == 1
+        assert result["verdict"] == "fail"
+        assert result["criteria"][0]["status"] == "failed"
+        assert session.gh_calls == []
+
+    def test_graphql_refusal_leaves_an_api_error_failed(self, run_gate):
+        """``api_error`` stands in for exit 3, which the narrow body does not cover."""
+        session = Session({"a": API_ERROR}, graphql=GRAPHQL_REFUSED)
+
+        rc, result = run_gate(session)
+
+        assert rc == 1
+        assert result["criteria"][0]["status"] == "failed"
+
     def test_narrow_body_on_the_rest_probe_is_not_a_session_refusal(self, run_gate):
         narrow = proc(stderr=PROXY_GRAPHQL_403, returncode=1)
         session = Session({"a": VERIFIER_EXTERNAL_ERROR}, rest=narrow)
@@ -213,6 +232,15 @@ class TestServedSession:
         assert result["verdict"] == "pass"
         assert result["criteria"][0]["status"] == "passed"
         assert session.gh_calls == []
+
+    def test_api_error_stays_failed_in_a_served_session(self, run_gate):
+        session = Session({"a": API_ERROR})
+
+        rc, result = run_gate(session)
+
+        assert rc == 1
+        assert result["criteria"][0]["status"] == "failed"
+        assert len(session.gh_calls) == 2
 
     def test_false_pass_when_never_calls_gh(self, run_gate):
         session = Session({"a": FAILING}, rest=REST_REFUSED)

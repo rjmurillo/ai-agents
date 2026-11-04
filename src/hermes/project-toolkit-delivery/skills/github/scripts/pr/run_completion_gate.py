@@ -3825,6 +3825,11 @@ _SESSION_REFUSAL_PROBES = (
     ),
 )
 _SESSION_REFUSAL_TIMEOUT_SECONDS = 10
+# get_unresolved_review_threads.py reports an API failure at exit 0, so its
+# api_error field stands in for an external error. fetched_pages_complete cannot
+# do this job: a review thread with over 100 comments sets it false, so a PR
+# commenter could turn a real failure into unknown (ADR-120).
+_API_ERROR_EXIT = 3
 _VERDICT_EXIT_CODES = {"pass": 0, "fail": 1, "unknown": 3}
 _UNKNOWN_VERDICT_NOTE = (
     "UNKNOWN: this session refuses GitHub, so the gate could not verify the "
@@ -3859,21 +3864,33 @@ def _refusal_explained_exits() -> frozenset[int]:
     return frozenset()
 
 
+def _unanswered_exit(row: dict[str, Any]) -> int:
+    """Return the exit code that says a failed row got no answer, or 0 if it did."""
+    exit_code = row["exit_code"] or 0
+    if exit_code > 1:
+        return exit_code
+    payload = row["stdout_json"]
+    if exit_code == 0 and payload and payload.get("api_error") is True:
+        return _API_ERROR_EXIT
+    return 0
+
+
 def _settle_verdict(rows: list[dict[str, Any]]) -> str:
     """Set each row's ``status`` and return ``pass``, ``fail``, or ``unknown``.
 
-    Only a row whose verifier ran and exited above 1 can become unknown. Exit 1
-    is an answer under ADR-035 (``test_pr_merge_ready.py`` uses it for a PR that
-    is not ready), so it stays failed, as does a row that failed ``pass_when``.
+    Only a row whose verifier ran and got no answer can become unknown: an exit
+    above 1, or ``api_error``. Exit 1 is an answer under ADR-035
+    (``test_pr_merge_ready.py`` uses it for a PR that is not ready), so it stays
+    failed, as does any other row that failed ``pass_when``.
     An unknown row keeps ``passed`` false: it is never a pass, and a definite
     failure elsewhere outranks it.
     """
     for row in rows:
         row["status"] = "passed" if row["passed"] else "failed"
-    unanswered = [row for row in rows if not row["passed"] and (row["exit_code"] or 0) > 1]
+    unanswered = [row for row in rows if not row["passed"] and _unanswered_exit(row)]
     explained = _refusal_explained_exits() if unanswered else frozenset()
     for row in unanswered:
-        if row["exit_code"] in explained:
+        if _unanswered_exit(row) in explained:
             row["status"] = "unknown"
             row["reason"] = f"session refuses GitHub, criterion not verified; {row['reason']}"
     statuses = {row["status"] for row in rows}

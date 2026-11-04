@@ -45,6 +45,10 @@ API/pagination failures do NOT exit 3. They return 0 with
 truth for the verdict. Mixing exit-3 with the JSON-flag contract
 would force every consumer to handle two failure surfaces; one
 surface is enough.
+
+``api_error`` is true only when a ``gh`` call raised. A page cap or a missing
+cursor leaves it false, because a PR can cause those. The completion gate
+reads this field, so nothing a PR author controls may set it (ADR-120).
 """
 
 from __future__ import annotations
@@ -126,10 +130,10 @@ def fetch_unresolved_threads_paginated(
     repo: str,
     pull_request: int,
     comments_limit: int = 1,
-) -> tuple[list[dict], bool]:
+) -> tuple[list[dict], bool, bool]:
     """Fetch unresolved review threads, paginating to exhaustion.
 
-    Returns a tuple ``(threads, fetched_pages_complete)`` of raw GraphQL
+    Returns a tuple ``(threads, fetched_pages_complete, api_error)`` of raw GraphQL
     nodes. ``comments_limit`` is forwarded to the query's
     ``comments(first: ...)`` selection: 1 for the cheap probe, higher when
     the caller wants the full comment list. The flag is True only when the
@@ -165,15 +169,15 @@ def fetch_unresolved_threads_paginated(
                 f"Failed to query review threads (page {page_index}): {exc}",
                 file=sys.stderr,
             )
-            return all_unresolved, False
+            return all_unresolved, False, True
 
         repo_data = data.get("repository") or {}
         pr_data = repo_data.get("pullRequest")
         if pr_data is None:
-            return all_unresolved, False
+            return all_unresolved, False, False
         review_threads = pr_data.get("reviewThreads")
         if review_threads is None:
-            return all_unresolved, False
+            return all_unresolved, False, False
 
         nodes = review_threads.get("nodes", []) or []
         for node in nodes:
@@ -187,9 +191,9 @@ def fetch_unresolved_threads_paginated(
         cursor = page_info.get("endCursor")
         if not cursor:
             # hasNextPage was true but no cursor; treat as incomplete.
-            return all_unresolved, False
+            return all_unresolved, False, False
 
-    return all_unresolved, fetched_pages_complete
+    return all_unresolved, fetched_pages_complete, False
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -232,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     # the caller wants the whole conversation.
     comments_limit = 50 if args.include_comments else 1
 
-    nodes, fetched_pages_complete = fetch_unresolved_threads_paginated(
+    nodes, fetched_pages_complete, api_error = fetch_unresolved_threads_paginated(
         owner,
         repo,
         args.pull_request,
@@ -253,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
         "repo": repo,
         "unresolved_count": len(threads),
         "fetched_pages_complete": fetched_pages_complete,
+        "api_error": api_error,
         "threads": threads,
     }
     print(json.dumps(output, indent=2))

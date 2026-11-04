@@ -92,7 +92,7 @@ Searched `lefthook.yml`, `scripts/validation/`, `.claude/hooks`, `src/claude/hoo
 
 ## Data model
 
-Each row keeps `passed` and gains `status`. The payload keeps `all_passed` and gains `verdict` and `unknown_criteria`. Only a row with `passed: false` and a verifier exit above 1 can become `unknown`. A `fail_open: true` row that passed stays `passed`, because its author accepted that outcome.
+Each row keeps `passed` and gains `status`. The payload keeps `all_passed` and gains `verdict` and `unknown_criteria`. Only a row with `passed: false` and a verifier exit above 1, or `api_error: true`, can become `unknown`. A `fail_open: true` row that passed stays `passed`, because its author accepted that outcome.
 
 ## Integrations
 
@@ -105,12 +105,13 @@ The gate calls the `gh` on PATH directly, with two fixed queries: `gh api repos/
 | Proxy changes its wording | Rows read FAIL, as today. Safe direction |
 | PR text in verifier output resembles a refusal | Ignored. Verifier output is never matched |
 | Probe cannot run (no `gh`, timeout, no repo) | No evidence, so rows read FAIL, as today |
-| Viewer query served while repository GraphQL is refused | Rows read FAIL, as today |
+| Viewer query served, repository GraphQL refused, repository REST served | Rows read FAIL, as today |
+| Viewer query served, repository calls refused | Rows read `unknown` (criterion 17) |
 | `gh` cannot fill `{owner}/{repo}` from the remote | REST probe gives no evidence. The GraphQL probe still catches a refused viewer query. If the viewer query is served, rows read FAIL, the safe direction |
 | Verifier exits 1 with a real finding in a refused session | Stays `failed`. Exit 1 is an answer under ADR-035 |
 | GraphQL-only refusal beside a retryable exit 3 | Stays `failed`. The narrow body refuses one query shape |
 | A definite failure beside a refusal | Verdict `fail`, exit 1 |
-| Verifier exits 0, bad JSON or false `pass_when` | Unchanged, FAIL |
+| Verifier exits 0, bad JSON or false `pass_when`, no `api_error` | Unchanged, FAIL |
 
 ## Security
 
@@ -124,9 +125,9 @@ Row `status`, payload `verdict`, and the evidence file written by `--evidence-pa
 
 1. When the REST probe observes the session body, the gate shall set rows that exited 2, 3, or 4 to `unknown`. When only the GraphQL probe observes a refusal, it shall set only rows that exited 2 to `unknown`. Each keeps `passed: false`.
 2. When the probe observes no refusal, or cannot run, the gate shall leave every row `failed`, as today.
-3. The gate shall run at most one pass over the probes per run, and none when no verifier exited above 1.
-4. The gate shall never match verifier stdout or stderr. A verifier that prints refusal text while exiting non-zero in a served session stays `failed`.
-5. A row that exited 1, or failed through `pass_when` or bad JSON at exit 0, shall stay `failed` in a refused session.
+3. The gate shall run at most one pass over the probes per run, and none when no verifier exited above 1 or reported `api_error: true`.
+4. The gate shall never take refusal evidence from verifier output. A verifier that prints refusal text while exiting non-zero in a served session stays `failed`. The gate reads one verifier field, `api_error`, and only to decide whether a row can read unknown.
+5. A row that exited 1, or failed through `pass_when` or bad JSON at exit 0 without `api_error: true`, shall stay `failed` in a refused session. That includes `fetched_pages_complete: false`, which a PR commenter can cause.
 6. When any row is `failed`, the gate shall report verdict `fail` and exit 1.
 7. When no row is `failed` and at least one row is `unknown`, the gate shall report verdict `unknown`, list those rows in `unknown_criteria`, and exit 3.
 8. The gate shall never exit 0 or report `all_passed: true` while a row is `unknown`.
@@ -138,6 +139,7 @@ Row `status`, payload `verdict`, and the evidence file written by `--evidence-pa
 14. ADR-120 shall record the unknown verdict and its exit code, and ADR-059 Decision 1 shall point to it. ADR-059 is at the 500-line cap, so it cannot hold an amendment.
 15. Every shipped criterion's verifier shall call `assert_gh_authenticated` before reading PR data, pinned by a test.
 16. A hand check shall never set `all_passed` or arm a merge.
+17. A row at exit 0 with `api_error: true` shall count as exit 3 for criterion 1. `get_unresolved_review_threads.py` shall set that field only when a `gh` call raised. A session with the viewer query served and repository calls refused then reads `unknown`, not `fail`.
 
 ## Out of scope
 
