@@ -40,6 +40,19 @@ def _git_entry_above(path: Path) -> bool:
     return any(os.path.lexists(d / ".git") for d in (path, *path.parents))
 
 
+# Read at import: tests/conftest.py clears CI per test before this module's fixtures run.
+_CI_AT_COLLECTION = bool(os.environ.get("CI"))
+
+
+def _guard_tmp(path: Path, ci: bool) -> None:
+    """Skip, or under CI fail, when ``path`` lies inside a git repository."""
+    if _git_entry_above(path.resolve()):
+        message = "pytest tmp_path lies inside a git repository; set --basetemp elsewhere"
+        if ci:
+            pytest.fail(message)
+        pytest.skip(message)
+
+
 @pytest.fixture(autouse=True)
 def _tmp_outside_any_repository(tmp_path: Path) -> None:
     """Every test here plants its own repository; a tmp dir already inside one is unusable.
@@ -47,11 +60,17 @@ def _tmp_outside_any_repository(tmp_path: Path) -> None:
     The check does not reuse ``_repository_block``, so a regression there fails
     the tests instead of skipping them. Under CI an unusable tmp dir fails too.
     """
-    if _git_entry_above(tmp_path.resolve()):
-        message = "pytest tmp_path lies inside a git repository; set --basetemp elsewhere"
-        if os.environ.get("CI"):
-            pytest.fail(message)
-        pytest.skip(message)
+    _guard_tmp(tmp_path, _CI_AT_COLLECTION)
+
+
+def test_tmp_guard_fails_under_ci_and_skips_otherwise(tmp_path: Path) -> None:
+    inside = _fake_repo(tmp_path, as_file=False) / "sub"
+    inside.mkdir()
+    with pytest.raises(pytest.fail.Exception):
+        _guard_tmp(inside, ci=True)
+    with pytest.raises(pytest.skip.Exception):
+        _guard_tmp(inside, ci=False)
+    _guard_tmp(tmp_path / "outside", ci=True)  # no repository above: passes
 
 
 REPO_REFUSAL = "state root inside a repository, refused"
