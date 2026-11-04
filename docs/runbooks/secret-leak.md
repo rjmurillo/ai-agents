@@ -18,10 +18,9 @@ GitHub token, an npm token, or a model provider API key.
    |---|---|
    | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` | `agent-claude` environment |
    | `COPILOT_GITHUB_TOKEN` | `agent-copilot` environment |
-
-| `OPENAI_API_KEY` | `agent-codex` environment |
-| `FACTORY_API_KEY` | `agent-droid` environment, plus a repository-level copy |
-| `SMOKE_ANTHROPIC_API_KEY` | Repository level |
+   | `OPENAI_API_KEY` | `agent-codex` environment |
+   | `FACTORY_API_KEY` | `agent-droid` environment, plus a repository-level copy |
+   | `SMOKE_ANTHROPIC_API_KEY` | Repository level |
    | `ADR101_PUBLISHER_APP_PRIVATE_KEY` | `adr101-publisher` environment |
    | `NPM_TOKEN` | `npm` environment |
    | `BOT_PAT` | Repository level, if set. ADR-114 decision 11 found no copy on 2026-10-07 |
