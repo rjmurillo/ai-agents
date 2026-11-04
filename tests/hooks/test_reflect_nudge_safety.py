@@ -34,6 +34,7 @@ pytestmark = pytest.mark.usefixtures("isolated_home")
 
 POSIX_ONLY = pytest.mark.skipif(os.name != "posix", reason="HOME rule and symlinks are POSIX")
 REPO_REFUSAL = "state root inside a repository, refused"
+LSTAT_REFUSAL = "state root check failed (lstat error), refused"
 
 
 @pytest.fixture
@@ -139,21 +140,23 @@ class TestRepositoryRefusal:
     def test_lstat_failure_other_than_not_found_refuses(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        real_lstat = os.lstat
+
         def deny(path: object, *a: object, **k: object) -> os.stat_result:
-            raise PermissionError("denied")
+            if str(path).endswith(".git"):
+                raise PermissionError("denied")
+            return real_lstat(path, *a, **k)  # type: ignore[arg-type]
 
         monkeypatch.setattr(os, "lstat", deny)
         root, reason = nudge_state.resolve_state_root({}, tmp_path / "s")
-        assert root is None
-        assert reason in {REPO_REFUSAL, "state root unresolvable, refused"}
+        assert (root, reason) == (None, LSTAT_REFUSAL)
 
     @POSIX_ONLY
     def test_symlink_loop_is_refused_not_raised(self, tmp_path: Path) -> None:
         loop = tmp_path / "loop"
         loop.symlink_to(loop)
         root, reason = nudge_state.resolve_state_root({}, loop)
-        assert root is None
-        assert reason in {REPO_REFUSAL, "state root unresolvable, refused"}
+        assert (root, reason) == (None, LSTAT_REFUSAL)
 
     def test_off_is_checked_before_the_walk(self, corrected: Path, tmp_path: Path) -> None:
         repo = _fake_repo(tmp_path, as_file=False)
@@ -214,8 +217,9 @@ class TestCleanGitTree:
 
         assert done.returncode == 0, done.stderr
         assert json.loads(done.stdout)["systemMessage"]
-        assert git(repo, "status", "--porcelain") == ""
+        # Snapshot first: a write by the later git status must not mask the hook's.
         assert tree_snapshot(repo / ".git") == snapshot
+        assert git(repo, "status", "--porcelain") == ""
         markers = list((state_home / STATE_SUBDIR).iterdir())
         assert markers and not any(repo in m.parents for m in markers)
         assert [p.name for p in repo.iterdir()] == [".git"]
@@ -244,3 +248,22 @@ class TestCleanGitTree:
 
 def test_hook_module_exposes_the_refusal_entry_point() -> None:
     assert nudge.resolve_state_root is nudge_state.resolve_state_root
+
+
+def test_marker_dir_refused_when_an_ancestor_becomes_a_symlink_into_a_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A component swapped for a symlink between the walk and mkdir is caught after mkdir."""
+    repo = _fake_repo(tmp_path, as_file=False)
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    real_mkdir = Path.mkdir
+
+    def racing_mkdir(self: Path, *a: object, **k: object) -> None:
+        if self == safe / "late":
+            (safe / "late").symlink_to(repo)  # the race: swap in a link, then mkdir follows it
+            return
+        real_mkdir(self, *a, **k)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "mkdir", racing_mkdir)
+    assert nudge_state.safe_marker_dir(safe / "late") is None

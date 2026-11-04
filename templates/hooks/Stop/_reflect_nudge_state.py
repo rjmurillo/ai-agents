@@ -60,22 +60,30 @@ def resolve_state_root(
         resolved = state_root.resolve()
     except (OSError, RuntimeError):  # symlink loop or unreadable component
         return None, "state root unresolvable, refused"
-    if _repository_entry_at_or_above(resolved):
-        return None, "state root inside a repository, refused"
-    return resolved, ""
+    blocked = _repository_block(resolved)
+    return (None, blocked) if blocked else (resolved, "")
 
 
-def _repository_entry_at_or_above(path: Path) -> bool:
-    """True when ``path`` or an ancestor holds a ``.git`` entry, or the check cannot finish."""
+def _repository_block(path: Path) -> str:
+    """The refusal reason when ``path`` or an ancestor holds ``.git``, else ``""``.
+
+    An ``lstat`` error other than not-found means the walk cannot finish, so
+    it refuses with its own reason rather than claiming a repository.
+    """
     for directory in (path, *path.parents):
         try:
             os.lstat(directory / GIT_ENTRY)
         except (FileNotFoundError, NotADirectoryError):
             continue
         except OSError:
-            return True  # cannot tell, so refuse
-        return True
-    return False
+            return "state root check failed (lstat error), refused"
+        return "state root inside a repository, refused"
+    return ""
+
+
+def _repository_entry_at_or_above(path: Path) -> bool:
+    """True when ``path`` or an ancestor holds a ``.git`` entry, or the check cannot finish."""
+    return bool(_repository_block(path))
 
 
 def safe_marker_dir(state_root: Path) -> Path | None:
@@ -92,6 +100,10 @@ def safe_marker_dir(state_root: Path) -> Path | None:
     if _repository_entry_at_or_above(root):
         return None
     root.mkdir(parents=True, exist_ok=True)
+    # A missing ancestor swapped for a symlink between the walk and mkdir
+    # would land the directory elsewhere: re-resolve and walk again.
+    if root.resolve() != root or _repository_entry_at_or_above(root):
+        return None
     if not _owned_by_current_user(root.lstat()):
         return None
     target = root / STATE_SUBDIR
