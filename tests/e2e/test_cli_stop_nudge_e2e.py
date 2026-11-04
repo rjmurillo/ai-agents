@@ -126,6 +126,7 @@ def test_friction_stop_nudge_reaches_the_user_and_not_model_context(tmp_path: Pa
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             timeout=TIMEOUT_SECONDS,
             check=False,
             env=env,

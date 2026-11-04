@@ -220,7 +220,7 @@ hooks. Concretely, the bar is six rules:
    above is one day late. In UTC (`2c85d2547` is 2026-08-19T01:38Z) it is
    correct.
    Do not count the test as a working control.
-   Measured at `9254b9945` (2026-10-31): `src/claude/hooks.json` registers
+   Measured at `9254b9945` (2026-10-31): the plugin root hooks.json registers
    zero hooks, and no dispatch group carries `surface: "plugin"`. The
    paragraphs above record what held before that date. Accepted with rule
    2a on 2026-11-04: each PR that makes the vendored surface non-empty
