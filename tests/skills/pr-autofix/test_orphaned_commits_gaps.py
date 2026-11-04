@@ -44,7 +44,7 @@ class TestDetectionGaps:
             "c" * 40, "weaken gate", ("M", "lefthook.yml")
         )
         git = FakeGit(ancestor=1, log=(0, log))
-        report = oc.scan_unpushed_commits(LIVE, git)
+        report = oc.scan_unpushed_commits(LIVE, git, pr_checkout=True)
         assert report["status"] == "unverified"
         assert report["force_push_suspected"] is True
         assert [c["sha"] for c in report["commits"]] == ["b" * 40, "c" * 40]
@@ -55,31 +55,43 @@ class TestDetectionGaps:
         assert log_args[-1] == "d" * 40 + "..HEAD"
         assert ["merge-base", LIVE, "HEAD"] in git.calls
 
+    def test_diverged_warning_does_not_claim_the_commits_are_unpushed(self):
+        log = _record("b" * 40, "local", ("M", "src/a.py"))
+        git = FakeGit(ancestor=1, log=(0, log))
+        warning = str(oc.scan_unpushed_commits(LIVE, git, pr_checkout=True)["warning"])
+        assert "not in live PR head" in warning
+        assert "ahead of live PR head" not in warning
+        assert "No record shows" not in warning
+
     def test_diverged_without_common_ancestor_lists_head_history(self):
         log = _record("b" * 40, "root", ("A", "README.md"))
         git = FakeGit(ancestor=1, log=(0, log), base=(1, ""))
-        report = oc.scan_unpushed_commits(LIVE, git)
+        report = oc.scan_unpushed_commits(LIVE, git, pr_checkout=True)
         assert report["status"] == "unverified"
         assert report["force_push_suspected"] is True
         assert "no common ancestor" in str(report["reason"])
         assert next(c for c in git.calls if c[0] == "log")[-1] == "HEAD"
 
     def test_diverged_merge_base_failure_stays_unverified_and_flagged(self):
-        report = oc.scan_unpushed_commits(LIVE, FakeGit(ancestor=1, base=(128, "")))
+        report = oc.scan_unpushed_commits(
+            LIVE, FakeGit(ancestor=1, base=(128, "")), pr_checkout=True
+        )
         assert report["status"] == "unverified"
         assert report["force_push_suspected"] is True
         assert "merge-base exited 128" in str(report["reason"])
         assert report["commits"] == []
 
     def test_diverged_log_failure_stays_unverified_and_flagged(self):
-        report = oc.scan_unpushed_commits(LIVE, FakeGit(ancestor=1, log=(128, "")))
+        report = oc.scan_unpushed_commits(
+            LIVE, FakeGit(ancestor=1, log=(128, "")), pr_checkout=True
+        )
         assert report["status"] == "unverified"
         assert report["force_push_suspected"] is True
         assert "git log exited 128" in str(report["reason"])
 
     def test_diverged_merge_base_garbage_output_is_not_used_as_a_range(self):
         git = FakeGit(ancestor=1, base=(0, "--output=/tmp/x\n"))
-        report = oc.scan_unpushed_commits(LIVE, git)
+        report = oc.scan_unpushed_commits(LIVE, git, pr_checkout=True)
         assert report["status"] == "unverified"
         assert not any(c[0] == "log" for c in git.calls)
 
@@ -98,7 +110,7 @@ class TestDetectionGaps:
         assert "force_push_suspected" not in report
 
     def test_head_behind_the_live_head_is_not_a_force_push(self):
-        report = oc.scan_unpushed_commits(LIVE, FakeGit(ancestor=1, log=(0, "")))
+        report = oc.scan_unpushed_commits(LIVE, FakeGit(ancestor=1, log=(0, "")), pr_checkout=True)
         assert report["status"] == "unverified"
         assert "force_push_suspected" not in report
         assert "behind the live head" in str(report["reason"])
@@ -132,7 +144,7 @@ class TestDetectionGaps:
         git("add", ".")
         git("commit", "-q", "-m", "rewritten tip")
         monkeypatch.chdir(tmp_path)
-        report = oc.scan_unpushed_commits(live)
+        report = oc.scan_unpushed_commits(live, pr_checkout=True)
         assert report["status"] == "unverified"
         assert report["force_push_suspected"] is True
         (commit,) = report["commits"]

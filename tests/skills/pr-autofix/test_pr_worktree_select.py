@@ -5,10 +5,15 @@ Both selection blocks in ``templates/skills/pr-autofix.SKILL.md.tmpl`` sit betwe
 pull each block out of the template and run it under bash against real git
 repositories, so the shipped text is what is exercised.
 
-- pos: ref, head SHA, and origin all match
-- neg: same ref but another origin, or a head that lacks the live SHA
+- pos: ref and origin match, whether the worktree holds the live head or diverged
+- neg: same ref but another origin
 - edge: ssh and ``.git`` URL spellings, case, missing inputs fail closed, and
   the cleanup block demands an exact head (ahead of the merged head is kept)
+
+The dispatch block only feeds a report, so it accepts a diverged worktree (#7032).
+The cleanup block deletes a worktree, so it keeps the exact head match.
+test_pr_worktree_select_force_push.py runs the block and the scan against a real
+rewritten remote.
 """
 
 from __future__ import annotations
@@ -52,8 +57,8 @@ def _git(cwd: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-@pytest.fixture
-def repos(tmp_path: Path) -> dict[str, object]:
+def make_repos(tmp_path: Path) -> dict[str, object]:
+    """Build a repository with the PR branch checked out in a linked worktree."""
     main = tmp_path / "main"
     main.mkdir()
     _git(main, "init", "-q", "-b", "main")
@@ -64,6 +69,11 @@ def repos(tmp_path: Path) -> dict[str, object]:
     wt = tmp_path / "wt"
     _git(main, "worktree", "add", "-q", "-b", BRANCH, str(wt))
     return {"main": main, "wt": wt, "head": _git(wt, "rev-parse", "HEAD"), "tmp": tmp_path}
+
+
+@pytest.fixture
+def repos(tmp_path: Path) -> dict[str, object]:
+    return make_repos(tmp_path)
 
 
 def _run(block: str, cwd: Path, var: str, env: dict[str, str]) -> str:
@@ -132,9 +142,6 @@ class TestDispatchSelection:
             Path(str(repos["wt"])), "remote", "set-url", "origin", "https://github.com/xowner/repo"
         )
         assert _dispatch(repos) == ""
-
-    def test_head_that_lacks_the_live_sha_is_rejected(self, repos) -> None:
-        assert _dispatch(repos, EXPECTED_HEAD_SHA="1" * 40) == ""
 
     @pytest.mark.parametrize(
         "url",
