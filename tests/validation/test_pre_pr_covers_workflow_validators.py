@@ -473,7 +473,12 @@ def test_import_boundaries_gate_skips_without_contracts(tmp_path: Path) -> None:
     import checks_ci_parity
     from checks_common import MissingScriptSkip
 
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        "# [tool.importlinter] only in a comment\n[project]\nname = 'x'\n", encoding="utf-8"
+    )
+    with pytest.raises(MissingScriptSkip):
+        checks_ci_parity.validate_import_boundaries(tmp_path)
+    (tmp_path / "pyproject.toml").unlink()
     with pytest.raises(MissingScriptSkip):
         checks_ci_parity.validate_import_boundaries(tmp_path)
 

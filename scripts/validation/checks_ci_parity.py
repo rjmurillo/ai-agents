@@ -29,6 +29,8 @@ import os
 import sys
 from pathlib import Path
 
+import tomllib
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
@@ -375,9 +377,11 @@ def validate_import_boundaries(repo_root: Path) -> bool:
     raises :class:`MissingScriptSkip` instead of failing.
     """
     pyproject = repo_root / "pyproject.toml"
-    if not pyproject.is_file() or "[tool.importlinter]" not in pyproject.read_text(
-        encoding="utf-8"
-    ):
+    if not pyproject.is_file():
+        raise MissingScriptSkip("no pyproject.toml")
+    with pyproject.open("rb") as handle:
+        tool_table = tomllib.load(handle).get("tool", {})
+    if "importlinter" not in tool_table:
         raise MissingScriptSkip("no [tool.importlinter] table in pyproject.toml")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, "-c", _LINT_IMPORTS_PROGRAM, "--no-cache"], cwd=repo_root
