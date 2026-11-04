@@ -142,10 +142,10 @@ class TestRepositoryRefusal:
     ) -> None:
         real_lstat = os.lstat
 
-        def deny(path: object, *a: object, **k: object) -> os.stat_result:
-            if str(path).endswith(".git"):
+        def deny(path: str | os.PathLike[str]) -> os.stat_result:
+            if os.fspath(path).endswith(".git"):
                 raise PermissionError("denied")
-            return real_lstat(path, *a, **k)  # type: ignore[arg-type]
+            return real_lstat(path)
 
         monkeypatch.setattr(os, "lstat", deny)
         root, reason = nudge_state.resolve_state_root({}, tmp_path / "s")
@@ -259,11 +259,13 @@ def test_marker_dir_refused_when_the_root_becomes_a_symlink_into_a_repo(
     safe.mkdir()
     real_mkdir = Path.mkdir
 
-    def racing_mkdir(self: Path, *a: object, **k: object) -> None:
+    def racing_mkdir(
+        self: Path, mode: int = 0o777, parents: bool = False, exist_ok: bool = False
+    ) -> None:
         if self == safe / "late":
             (safe / "late").symlink_to(repo)  # the race: swap in a link, then mkdir follows it
             return
-        real_mkdir(self, *a, **k)  # type: ignore[arg-type]
+        real_mkdir(self, mode=mode, parents=parents, exist_ok=exist_ok)
 
     monkeypatch.setattr(Path, "mkdir", racing_mkdir)
     assert nudge_state.safe_marker_dir(safe / "late") is None
