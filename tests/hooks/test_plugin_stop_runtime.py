@@ -87,6 +87,9 @@ class Harness:
             "XDG_STATE_HOME": str(self.state),
             "CLAUDE_PLUGIN_ROOT": str(self.plugin),
             "CLAUDE_PROJECT_DIR": str(self.consumer),
+            # CI redirects the temp root (run_pytest_non_tmp.py). Pass it on so
+            # the launcher's capture files land where the AC-28 check looks.
+            "TMPDIR": tempfile.gettempdir(),
         }
 
     def payload(self) -> str:

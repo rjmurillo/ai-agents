@@ -156,7 +156,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against `references/source-of-truth.md` (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count; on 2026-10-31 local settings print `5 8` and vendored source prints `1 1`
+- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count; on 2026-11-04 local settings print `5 8` and vendored source prints `1 1`
 - [ ] Ran the `adr-status` instrument for any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (the `version-gate` instrument exits 0)
 

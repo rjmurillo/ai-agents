@@ -10,9 +10,10 @@ Hook Type: Stop (non-blocking, fail-open)
 Exit Codes:
     0 = always. The hook never emits ``decision: "block"`` and never exits 2,
         so it cannot trap a session or loop. A nudge is a ``systemMessage``
-        advisory on stdout. Every internal error exits 0. The registered
-        command ends in ``|| true``: python exits 2 on a missing script,
-        and exit 2 on Stop blocks.
+        advisory on stdout. Every internal error exits 0. Python exits 2 on
+        a missing script, and exit 2 on Stop blocks, so the registered
+        command checks the dispatcher file first and exits 0 when it is
+        missing. The advisory launcher then exits 0 on every failure path.
 
 Stop payload (issue #3184 probed the real event): ``session_id``, ``transcript_path``,
 and ``cwd``, not ``messages``. A missing ``transcript_path`` is the fail-open reason.
