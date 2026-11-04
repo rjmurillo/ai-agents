@@ -17,7 +17,7 @@ detector already in the repo's CI pipeline.
 
 Exit codes:
     0  - No vulnerabilities found, or nothing assessed (files_scanned is 0)
-    1  - Scan error (file not found, invalid arguments)
+    1  - Scan error (file not found, unsupported --cwe, rejected path)
     2  - Invalid command-line arguments
     3  - Git could not enumerate staged files
     10 - Vulnerabilities detected
@@ -414,7 +414,7 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Exit codes:\n"
             "  0  no vulnerabilities found\n"
-            "  1  scan error (invalid args, file not found, path traversal)\n"
+            "  1  scan error (unsupported --cwe, file not found, path traversal)\n"
             "  2  invalid command-line arguments\n"
             "  3  git could not enumerate staged files\n"
             "  10 vulnerabilities detected (CI-blocking)\n"

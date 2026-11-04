@@ -117,7 +117,7 @@ python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --git-staged
 python .claude/skills/security-scan/scripts/scan_vulnerabilities.py --cwe 78 --git-staged
 ```
 
-`--cwe 22` is accepted for backward compatibility but produces no findings. The scanner emits a stderr warning pointing at CodeQL when invoked with `--cwe 22`. To check for path traversal, rely on the CodeQL workflow at `.github/workflows/codeql-analysis.yml`.
+`--cwe 22` is accepted for backward compatibility but produces no findings. In console mode, the scanner emits a stderr warning pointing at CodeQL when invoked with `--cwe 22`. In JSON mode, `summary.delegated_cwes` carries that fact and stderr stays empty. To check for path traversal, rely on the CodeQL workflow at `.github/workflows/codeql-analysis.yml`.
 
 ---
 
