@@ -124,6 +124,8 @@ When vulnerabilities are detected, the scanner outputs findings with file locati
 
 Machine-readable JSON format including scan timestamp, files scanned, vulnerability details (CWE, file, line, code, severity, recommendation), and summary statistics.
 
+`files_scanned: 0` means the scanner assessed nothing: nothing was staged, or no staged or named file was a supported language. It is zero coverage, not a clean result, even though the exit code is `0`. A `--directory` scan that finds no supported files stays a usage error: exit `1` with plain text.
+
 ---
 
 ## Exit Codes

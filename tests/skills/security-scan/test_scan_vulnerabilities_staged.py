@@ -107,6 +107,31 @@ def test_cli_exits_zero_when_only_a_deletion_is_staged(repo: Path) -> None:
     assert "Error reading" not in proc.stdout + proc.stderr
 
 
+def test_cli_json_envelope_when_only_a_deletion_is_staged(repo: Path) -> None:
+    _git(repo, "rm", "-q", "gone.sh")
+    proc = _run_cli(repo)
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == EXIT_SUCCESS, proc.stdout + proc.stderr
+    assert payload["files_scanned"] == 0
+    assert payload["vulnerabilities"] == []
+
+
+def test_cli_json_envelope_when_nothing_is_staged(repo: Path) -> None:
+    proc = _run_cli(repo)
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == EXIT_SUCCESS, proc.stdout + proc.stderr
+    assert payload["files_scanned"] == 0
+
+
+def test_cli_json_envelope_when_only_unsupported_files_are_staged(repo: Path) -> None:
+    (repo / "sample.cue").write_text("value: 42\n")
+    _git(repo, "add", "sample.cue")
+    proc = _run_cli(repo)
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == EXIT_SUCCESS, proc.stdout + proc.stderr
+    assert payload["files_scanned"] == 0
+
+
 def test_cli_scans_survivor_and_ignores_deletion(repo: Path) -> None:
     _git(repo, "rm", "-q", "gone.sh")
     (repo / "stays.sh").write_text('#!/bin/bash\neval "$1"\n')
