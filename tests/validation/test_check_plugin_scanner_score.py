@@ -406,7 +406,8 @@ def test_scanner_project_lock_pins_the_action_wheel() -> None:
 
     A Renovate bump of the action SHA, or a re-lock of build/plugin-scanner,
     fails here until both sides name the same scanner, so the local score
-    cannot drift from the CI and catalog score unnoticed.
+    cannot drift from the CI score unnoticed. This test reads only local files,
+    so it cannot see the catalog's pin.
     """
     lock = (REPO_ROOT / gate.SCANNER_PROJECT / "uv.lock").read_text(encoding="utf-8")
     assert 'name = "plugin-scanner"\nversion = "3.58.0"' in lock
