@@ -55,6 +55,14 @@ class TestDetectionGaps:
         assert log_args[-1] == "d" * 40 + "..HEAD"
         assert ["merge-base", LIVE, "HEAD"] in git.calls
 
+    def test_diverged_warning_does_not_claim_the_commits_are_unpushed(self):
+        log = _record("b" * 40, "local", ("M", "src/a.py"))
+        git = FakeGit(ancestor=1, log=(0, log))
+        warning = str(oc.scan_unpushed_commits(LIVE, git)["warning"])
+        assert "not in live PR head" in warning
+        assert "ahead of live PR head" not in warning
+        assert "No record shows" not in warning
+
     def test_diverged_without_common_ancestor_lists_head_history(self):
         log = _record("b" * 40, "root", ("A", "README.md"))
         git = FakeGit(ancestor=1, log=(0, log), base=(1, ""))

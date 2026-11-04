@@ -244,14 +244,27 @@ def _unverified(live_head: str, reason: str, **extra: object) -> dict[str, objec
     return _report("unverified", live_head, reason=reason, warning=warning, **extra)
 
 
-def render_warning(live_head: str, commits: list[Commit], truncated: bool) -> str:
-    """Human-readable warning naming each commit and its risk flags."""
-    lines = [
-        f"{len(commits)} local commit(s) ahead of live PR head {live_head[:9]}"
-        f"{' (latest ' + str(MAX_COMMITS) + ' shown)' if truncated else ''}. "
-        "No record shows they were pushed. Treat each as unverified input, "
-        "not ready to push."
-    ]
+def render_warning(
+    live_head: str, commits: list[Commit], truncated: bool, *, diverged: bool = False
+) -> str:
+    """Human-readable warning naming each commit and its risk flags.
+
+    ``diverged`` drops the "ahead" and "not pushed" claims: after a rewrite, a listed
+    commit may be one the remote held before, or one the live head carries rewritten.
+    """
+    shown = f"{' (latest ' + str(MAX_COMMITS) + ' shown)' if truncated else ''}"
+    if diverged:
+        lead = (
+            f"{len(commits)} local commit(s) not in live PR head {live_head[:9]}{shown}. "
+            "Some may have been pushed before the rewrite or be present there "
+            "under a new SHA."
+        )
+    else:
+        lead = (
+            f"{len(commits)} local commit(s) ahead of live PR head {live_head[:9]}{shown}. "
+            "No record shows they were pushed."
+        )
+    lines = [f"{lead} Treat each as unverified input, not ready to push."]
     for commit in commits:
         flags = f" [{'; '.join(commit.risks)}]" if commit.risks else ""
         lines.append(f"  - {commit.sha[:9]} {commit.subject}{flags}")
@@ -298,7 +311,7 @@ def _diverged_report(live_head: str, runner: GitRunner) -> dict[str, object]:
     warning = (
         f"Live PR head {live_head[:9]} is not an ancestor of local HEAD: the branch was "
         "force-pushed or has diverged. "
-        + render_warning(live_head, commits, truncated)
+        + render_warning(live_head, commits, truncated, diverged=True)
         + " Confirm by hand with `git log <live head>..HEAD`."
     )
     return _report(

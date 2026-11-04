@@ -192,16 +192,22 @@ class TestDispatchSelection:
         assert _dispatch(repos) == ""
 
     def test_origin_matched_head_that_lacks_the_live_sha_is_selected(
-        self, repos: dict[str, object]
+        self, repos: dict[str, object], tmp_path: Path
     ) -> None:
-        # The fetch fails here (no such remote), and selection must survive that:
-        # the scan then reports `unverified` and names the fetch as the next step.
+        # The remote does not hold this SHA, so the fetch fails. Selection must
+        # survive that: the scan then reports `unverified` and names the next step.
+        _publish(repos, tmp_path)
         assert _dispatch(repos, EXPECTED_HEAD_SHA="1" * 40) == str(repos["wt"])
 
     def test_other_origin_is_never_fetched(self, repos: dict[str, object], tmp_path: Path) -> None:
+        # The other remote holds the SHA, so a stray fetch would succeed and show here.
         forced = _force_pushed(repos, tmp_path)
+        evil = tmp_path / "remote" / "evil" / "repo.git"
+        evil.parent.mkdir(parents=True)
+        _git(tmp_path, "init", "-q", "--bare", str(evil))
+        _git(tmp_path / "other", "push", "-q", str(evil), f"{BRANCH}:{BRANCH}")
         wt = Path(str(repos["wt"]))
-        _git(wt, "remote", "set-url", "origin", "https://github.com/evil/repo.git")
+        _git(wt, "remote", "set-url", "origin", str(evil))
         assert _dispatch(repos, EXPECTED_HEAD_SHA=forced) == ""
         assert not _has_commit(wt, forced)
 
@@ -274,7 +280,10 @@ class TestForcePushedHeadFromTheLoop:
         assert "behind the live head" in str(report["reason"])
         assert "force_push_suspected" not in report
 
-    def test_failed_fetch_stays_unverified_with_no_commits(self, repos: dict[str, object]) -> None:
+    def test_failed_fetch_stays_unverified_with_no_commits(
+        self, repos: dict[str, object], tmp_path: Path
+    ) -> None:
+        _publish(repos, tmp_path)
         missing = "1" * 40
         selected = _dispatch(repos, EXPECTED_HEAD_SHA=missing)
         report = oc.scan_unpushed_commits(missing, oc.worktree_runner(selected))
