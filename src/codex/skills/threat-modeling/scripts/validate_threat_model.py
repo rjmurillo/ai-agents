@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
 """Validate a threat model document for completeness.
 
 Checks that a threat model has all required sections, valid STRIDE

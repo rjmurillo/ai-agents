@@ -37,9 +37,10 @@ reopen by a maintainer, or an operator reset (`--reset` or a
 Orphaned local commits (issue #5447): when the record is escalated, or this
 call escalates, the output carries ``orphaned_commits``: local commits the live
 PR head does not contain, flagged when they touch CI or pre-push wiring or remove
-tests. Read-only; it never changes the exit code. Run the script from the PR's
-worktree, or pass ``--worktree <path>`` so the comparison uses that worktree's
-``HEAD`` instead of the current directory's.
+tests. It moves no ref and never changes the exit code. Run the script from the
+PR's worktree, or pass ``--worktree <path>`` so the comparison uses that worktree's
+``HEAD`` instead of the current directory's. With ``--worktree``, an escalated scan
+fetches a live head git lacks, by SHA and for at most 30 seconds.
 
 The pure logic (markers, reset detection, ACT/ESCALATE decision) lives in
 `github_core/round_cap.py`; the unpushed-commit scan lives in
@@ -337,8 +338,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help=(
             "Path of the PR's worktree (issue #5447). The orphaned-commit scan "
-            "compares the live PR head with this worktree's HEAD. Default: the "
-            "current directory."
+            "compares the live PR head with this worktree's HEAD, and fetches a "
+            "missing live head by SHA. Default: the current directory, with no fetch."
         ),
     )
     add_output_format_arg(parser)

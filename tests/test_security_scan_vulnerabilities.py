@@ -36,7 +36,7 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -1403,6 +1403,263 @@ def test_cli_exit_success_when_only_unsupported_files(tmp_path: Path) -> None:
     assert "No supported files found" in result.stdout
 
 
+def test_cli_json_unsupported_only_emits_zero_coverage_envelope(tmp_path: Path) -> None:
+    # Issue #7074: a .cue file has no scanner language, so nothing is assessed.
+    name = _write(tmp_path, "sample.cue", "package fixture\n\nvalue: 42\n")
+    result = _run_cli("--format", "json", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    payload = json.loads(result.stdout)
+    assert payload["files_scanned"] == 0
+    assert payload["vulnerabilities"] == []
+    assert payload["errors"] == []
+    assert payload["summary"]["total"] == 0
+
+
+def test_cli_json_zero_coverage_matches_clean_scan_schema(tmp_path: Path) -> None:
+    unsupported = _write(tmp_path, "sample.cue", "value: 42\n")
+    supported = _write(tmp_path, "clean.py", "x = 1\n")
+
+    skipped = json.loads(_run_cli("--format", "json", unsupported, cwd=tmp_path).stdout)
+    scanned = json.loads(_run_cli("--format", "json", supported, cwd=tmp_path).stdout)
+
+    assert skipped.keys() == scanned.keys()
+    assert skipped["summary"].keys() == scanned["summary"].keys()
+    assert skipped["schema_version"] == scanned["schema_version"]
+    assert skipped["summary"]["delegated_cwes"] == scanned["summary"]["delegated_cwes"]
+
+
+def test_cli_json_unsupported_only_honors_output_file(tmp_path: Path) -> None:
+    name = _write(tmp_path, "sample.cue", "value: 42\n")
+    result = _run_cli("--format", "json", "--output", "out.json", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert json.loads(result.stdout)["files_scanned"] == 0
+    payload = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    assert payload["files_scanned"] == 0
+
+
+def test_cli_console_unsupported_only_writes_no_output_file(tmp_path: Path) -> None:
+    name = _write(tmp_path, "sample.cue", "value: 42\n")
+    result = _run_cli("--output", "out.txt", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert "No supported files found" in result.stdout
+    assert not (tmp_path / "out.txt").exists()
+
+
+def test_cli_json_mixed_input_counts_only_supported_files(tmp_path: Path) -> None:
+    unsupported = _write(tmp_path, "sample.cue", "value: 42\n")
+    supported = _write(tmp_path, "clean.py", "x = 1\n")
+    result = _run_cli("--format", "json", unsupported, supported, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert json.loads(result.stdout)["files_scanned"] == 1
+
+
+def test_cli_json_no_target_reports_usage_error_in_envelope(tmp_path: Path) -> None:
+    result = _run_cli("--format", "json", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    payload = json.loads(result.stdout)
+    assert payload["files_scanned"] == 0
+    assert payload["vulnerabilities"] == []
+    assert len(payload["errors"]) == 1
+    assert "No files to scan" in payload["errors"][0]
+
+
+def test_cli_json_usage_error_honors_output_file(tmp_path: Path) -> None:
+    result = _run_cli("--format", "json", "--output", "out.json", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    assert "No files to scan" in json.loads(result.stdout)["errors"][0]
+    payload = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    assert "No files to scan" in payload["errors"][0]
+
+
+def test_cli_console_usage_error_writes_no_output_file(tmp_path: Path) -> None:
+    result = _run_cli("--output", "out.txt", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    assert "No files to scan" in result.stdout
+    assert not (tmp_path / "out.txt").exists()
+
+
+def test_cli_json_directory_without_supported_files_reports_error(tmp_path: Path) -> None:
+    # An empty --directory walk is a mis-specified root, so it is not zero coverage.
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "notes.txt").write_text("text\n", encoding="utf-8")
+    result = _run_cli("--format", "json", "--directory", "docs", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    payload = json.loads(result.stdout)
+    assert payload["files_scanned"] == 0
+    assert "No files to scan" in payload["errors"][0]
+
+
+def _assert_only_json(result: subprocess.CompletedProcess[str]) -> dict[str, Any]:
+    """Assert the JSON-mode contract: one envelope on stdout, nothing on stderr."""
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == scanner._JSON_SCHEMA_VERSION
+    return payload
+
+
+@pytest.mark.parametrize(
+    ("args", "exit_code", "message"),
+    [
+        (["--directory", "missing"], 1, "not found or not a directory"),
+        (["--cwe", "79", "clean.py"], 1, "not supported"),
+        (["--directory", ".."], 1, "Path traversal attempt detected in --directory"),
+        (["../outside.py"], 1, "Path traversal attempt detected in file"),
+        (["--output", "../out.json", "clean.py"], 1, "Path traversal attempt detected in --output"),
+        (["--git-staged"], 3, "git"),
+        (["--bogus"], 2, "unrecognized arguments"),
+        (["--cwe", "abc"], 2, "invalid int value"),
+        (["--output", "no/such/dir/out.json", "clean.py"], 1, "Error writing"),
+    ],
+)
+def test_cli_json_every_failure_emits_only_json(
+    tmp_path: Path, args: list[str], exit_code: int, message: str
+) -> None:
+    _write(tmp_path, "clean.py", "x = 1\n")
+    result = _run_cli("--format", "json", *args, cwd=tmp_path)
+
+    assert result.returncode == exit_code
+    payload = _assert_only_json(result)
+    assert payload["exit_code"] == exit_code
+    assert message in payload["errors"][0]
+
+
+def test_cli_json_rejected_output_path_is_never_written(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    result = _run_cli("--format", "json", "--output", "../escaped.json", cwd=work)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    _assert_only_json(result)
+    assert not (tmp_path / "escaped.json").exists()
+
+
+def test_cli_json_unsupported_cwe_never_writes_unvalidated_output(tmp_path: Path) -> None:
+    # The CWE check runs before path validation, so --output is still untrusted.
+    work = tmp_path / "work"
+    work.mkdir()
+    result = _run_cli("--format", "json", "--cwe", "79", "--output", "../x.json", cwd=work)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    _assert_only_json(result)
+    assert not (tmp_path / "x.json").exists()
+
+
+def test_cli_json_output_file_also_prints_envelope(tmp_path: Path) -> None:
+    name = _write(tmp_path, "clean.py", "x = 1\n")
+    result = _run_cli("--format", "json", "--output", "out.json", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    payload = _assert_only_json(result)
+    assert payload == json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+
+
+def test_cli_json_output_write_failure_still_reports_findings(tmp_path: Path) -> None:
+    name = _write(tmp_path, "bad.py", "subprocess.run(cmd, shell=True)\n")
+    result = _run_cli("--format", "json", "--output", "no/dir/out.json", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    payload = _assert_only_json(result)
+    assert payload["vulnerabilities"]
+    assert "Error writing" in payload["errors"][0]
+
+
+def test_cli_json_cwe_22_keeps_stderr_empty(tmp_path: Path) -> None:
+    name = _write(tmp_path, "clean.py", "x = 1\n")
+    result = _run_cli("--format", "json", "--cwe", "22", name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert "CWE-22" in _assert_only_json(result)["summary"]["delegated_cwes"]
+
+
+def test_cli_json_help_is_json(tmp_path: Path) -> None:
+    result = _run_cli("--format", "json", "--help", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert "--git-staged" in _assert_only_json(result)["help"]
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [["-f", "json"], ["-fjson"], ["--format=json"], ["--form", "json"], ["--f=json"]],
+)
+def test_cli_json_argument_error_honors_every_format_spelling(
+    tmp_path: Path, selector: list[str]
+) -> None:
+    result = _run_cli(*selector, "--bogus", cwd=tmp_path)
+
+    assert result.returncode == 2
+    assert "unrecognized arguments" in _assert_only_json(result)["errors"][0]
+
+
+def test_cli_json_last_format_wins_for_argument_errors(tmp_path: Path) -> None:
+    result = _run_cli("--format", "json", "--format", "console", "--bogus", cwd=tmp_path)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "unrecognized arguments" in result.stderr
+
+
+def test_cli_json_invalid_later_format_still_reports_json(tmp_path: Path) -> None:
+    result = _run_cli("--format", "json", "--format", "xml", cwd=tmp_path)
+
+    assert result.returncode == 2
+    assert "invalid choice" in _assert_only_json(result)["errors"][0]
+
+
+def test_cli_invalid_format_value_keeps_console_error(tmp_path: Path) -> None:
+    result = _run_cli("--format", "xml", cwd=tmp_path)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "invalid choice" in result.stderr
+
+
+def test_cli_console_argument_error_and_help_stay_text(tmp_path: Path) -> None:
+    bad = _run_cli("--bogus", cwd=tmp_path)
+    assert bad.returncode == 2
+    assert "unrecognized arguments" in bad.stderr
+
+    shown = _run_cli("--help", cwd=tmp_path)
+    assert shown.returncode == scanner.EXIT_SUCCESS
+    assert shown.stdout.startswith("usage:")
+
+
+def test_main_json_unexpected_exception_emits_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def explode(*_args: object) -> None:
+        raise RuntimeError("boom")
+
+    name = _write(tmp_path, "clean.py", "x = 1\n")
+    monkeypatch.setattr(scanner, "scan_file", explode)
+    code = _run_main_in_process(monkeypatch, "--format", "json", name, cwd=tmp_path)
+    captured = capsys.readouterr()
+
+    assert code == scanner.EXIT_ERROR
+    assert captured.err == ""
+    assert "boom" in json.loads(captured.out)["errors"][0]
+
+
+def test_main_console_unexpected_exception_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def explode(*_args: object) -> None:
+        raise RuntimeError("boom")
+
+    name = _write(tmp_path, "clean.py", "x = 1\n")
+    monkeypatch.setattr(scanner, "scan_file", explode)
+    with pytest.raises(RuntimeError, match="boom"):
+        _run_main_in_process(monkeypatch, name, cwd=tmp_path)
+
+
 def test_cli_exit_error_when_supported_file_cannot_be_read(tmp_path: Path) -> None:
     result = _run_cli("missing.py", cwd=tmp_path)
 
@@ -1577,13 +1834,25 @@ def test_main_git_staged_scans_staged_files(
 def test_main_git_staged_no_files_exits_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # A successful staged-file enumeration that yields zero files is a clean pass,
-    # not an error. Only a git enumeration *failure* fails closed (see below).
+    # A successful staged-file enumeration that yields zero files exits success with
+    # zero coverage. Only a git enumeration *failure* fails closed (see below).
     monkeypatch.setattr(scanner, "get_staged_files", lambda: [])
     code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
     captured = capsys.readouterr()
     assert code == scanner.EXIT_SUCCESS
     assert "No files to scan" in captured.out
+
+
+def test_main_git_staged_no_files_json_emits_zero_coverage_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(scanner, "get_staged_files", lambda: [])
+    code = _run_main_in_process(monkeypatch, "--git-staged", "--format", "json", cwd=tmp_path)
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == scanner.EXIT_SUCCESS
+    assert payload["files_scanned"] == 0
+    assert payload["vulnerabilities"] == []
 
 
 def test_main_directory_missing_exits_error(

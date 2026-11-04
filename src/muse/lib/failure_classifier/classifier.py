@@ -16,8 +16,9 @@ from __future__ import annotations
 import json
 import posixpath
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 FINGERPRINT_MAX_CHARS = 200
 TARGET_MAX_CHARS = 512
@@ -28,14 +29,37 @@ EDIT_TOOLS: frozenset[str] = frozenset(
 )
 
 # An errored result holding one of these (any case) is a permission_denial,
-# not a tool_error. Provisional: not checked against a labeled corpus, and the
-# bare words also match ordinary errors such as a rejected git push.
+# not a tool_error. The set was checked against a labeled corpus on 2026-11-03
+# (REQ-048 TASK-001). Each entry is a harness's own wording, Claude Code
+# first, then Copilot CLI, then Codex CLI. A bare `permission denied` is
+# dropped: a Unix EACCES error is a tool error, not a policy denial, so the
+# Copilot entry keeps its full phrase. A bare `rejected` is dropped too: it
+# matched only git push and ripgrep errors, so the Codex entry is the full
+# phrase.
 DENIAL_MARKERS: tuple[str, ...] = (
-    "permission denied",
-    "user doesn't want to proceed",
     "was denied",
-    "rejected",
+    "permission to use",
+    "user doesn't want to proceed",
+    "hook error",
+    "<tool_use_error>blocked",
+    "requires approval",
+    "permission denied because no interactive user response",
+    "rejected by user approval settings",
 )
+
+# REQ-048 TASK-001 friction v2: consumer B's score is the weighted sum of its
+# FrictionSignal counts. A weight of 0 keeps a signal reported but unscored.
+FRICTION_WEIGHTS: Mapping[str, int] = MappingProxyType(
+    {
+        "tool_error": 0,
+        "permission_denial": 2,
+        "failed_retry": 0,
+        "edit_churn": 0,
+        "stop_feedback": 2,
+        "error_streak": 1,
+    }
+)
+FRICTION_TIER1_DEFAULT = 10
 
 # AC-29 step 3: `0x` plus 7 or more hex digits, or a bare run of 7 or more that
 # holds a digit and a letter, so plain numbers fall to step 4 and a word such
@@ -258,12 +282,16 @@ class FailureSignals:
     Read the tallies through ``repeat_totals``, ``churn_totals``, and
     ``churned_targets``. ``tally`` and ``churn`` are the raw state behind them,
     and their shape may change.
+
+    ``error_streak`` is the longest run of consecutive errored events,
+    unfingerprinted ones included.
     """
 
     tool_error: int = 0
     permission_denial: int = 0
     failed_retry: int = 0
     unfingerprinted: int = 0
+    error_streak: int = 0
     tally: Tally = field(default_factory=dict)
     churn: dict[str, Tally] = field(default_factory=dict)
 
@@ -379,11 +407,34 @@ def classify(events: Iterable[FailureEvent]) -> FailureSignals:
       a key removes only that key's entries, here and in the churn tallies.
     - ChurnCycles (AC-32, AC-40): only a check event ends or closes a
       cycle; see the comments in the two handlers.
+    - error_streak: the longest run of consecutive errored events.
     """
     signals = FailureSignals()
     retry_seen: dict[tuple[str, str], set[str]] = {}
     pending: set[str] = set()
+    streak = 0
     for event in events:
+        streak = 0 if event.ok else streak + 1
+        signals.error_streak = max(signals.error_streak, streak)
         record = _record_success if event.ok else _record_failure
         record(signals, retry_seen, pending, event)
     return signals
+
+
+def friction_score(signals: FailureSignals, stop_feedback: int, churn_threshold: int = 3) -> int:
+    """REQ-048 TASK-001 friction v2: the weighted sum consumer B tiers on.
+
+    ``edit_churn`` is the number of churned targets at ``churn_threshold``.
+    ``stop_feedback`` comes from ``transcript.stop_feedback_count``. Weights
+    are ``FRICTION_WEIGHTS``; tier 1 starts at ``FRICTION_TIER1_DEFAULT``. No
+    hook uses this yet; TASK-003 will.
+    """
+    counts = {
+        "tool_error": signals.tool_error,
+        "permission_denial": signals.permission_denial,
+        "failed_retry": signals.failed_retry,
+        "edit_churn": len(signals.churned_targets(churn_threshold)),
+        "stop_feedback": stop_feedback,
+        "error_streak": signals.error_streak,
+    }
+    return sum(FRICTION_WEIGHTS[name] * count for name, count in counts.items())

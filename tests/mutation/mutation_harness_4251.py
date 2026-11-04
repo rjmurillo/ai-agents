@@ -120,8 +120,8 @@ def _run_mutants(repo_root: Path) -> int:
         (
             "M7 ignore a nonzero ratchet exit",
             ratchet,
-            "        if exit_code != 0:",
-            "        if False:",
+            "        if exit_code == 0:",
+            "        if True:",
             f"{TEST}::TestValidatorBehaviour::test_fails_when_one_ratchet_exits_nonzero",
         ),
         (

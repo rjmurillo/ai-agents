@@ -191,7 +191,7 @@ uv run python .claude/skills/github/scripts/pr/run_completion_gate.py \
     --json
 ```
 
-Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error (including a config that diverges from or is absent at the trusted ref); exit 3 = trust verification impossible (no git work tree, trusted ref missing). On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
+Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error (including a config that diverges from or is absent at the trusted ref); exit 3 = trust verification impossible (no git work tree, trusted ref missing), with no payload; exit 3 with `verdict: unknown` = this session refuses GitHub, so check `unknown_criteria` by hand and do not retry. On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
 
 ### Trust boundary on the PR branch
 

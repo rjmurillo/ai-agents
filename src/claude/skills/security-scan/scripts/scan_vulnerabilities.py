@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 Security vulnerability scanner for CWE-78 (command injection).
 
@@ -15,9 +16,14 @@ security, not a competitive differentiator) and CodeQL is the authoritative
 detector already in the repo's CI pipeline.
 
 Exit codes:
-    0  - No vulnerabilities found
-    1  - Scan error (file not found, invalid arguments)
+    0  - No vulnerabilities found, or nothing assessed (files_scanned is 0)
+    1  - Scan error (file not found, unsupported --cwe, rejected path)
+    2  - Invalid command-line arguments
+    3  - Git could not enumerate staged files
     10 - Vulnerabilities detected
+
+With --format json, stdout carries exactly one JSON envelope on every exit and
+stderr stays empty. Errors are reported in the envelope's `errors` list.
 
 Usage:
     python scan_vulnerabilities.py --git-staged
@@ -36,7 +42,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import IO, Any, NoReturn, cast
 
 # Sibling helpers must import when this file is loaded by path in tests.
 # Keep any sys.path change scoped to this import block.
@@ -51,6 +57,7 @@ try:
         EXIT_ERROR,
         EXIT_EXTERNAL,
         EXIT_SUCCESS,
+        EXIT_USAGE,
         EXIT_VULNERABILITIES,
     )
     from scan_format import format_console_output
@@ -109,6 +116,8 @@ class ScanResult:
     vulnerabilities: list[Any] = field(default_factory=list)
     suppressed: list[Any] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    # Set when a failure has its own exit code, such as a git failure.
+    exit_code: int | None = None
 
 
 class GitEnumerationError(RuntimeError):
@@ -343,6 +352,8 @@ def format_json_output(result: ScanResult) -> str:
 
 def _exit_code_for_result(result: ScanResult) -> int:
     """Return the public CLI exit code for the aggregate scan result."""
+    if result.exit_code is not None:
+        return result.exit_code
     if result.errors:
         return EXIT_ERROR
     if result.vulnerabilities:
@@ -350,15 +361,62 @@ def _exit_code_for_result(result: ScanResult) -> int:
     return EXIT_SUCCESS
 
 
+def _json_requested(argv: list[str]) -> bool:
+    """Return True when argv selects JSON, even if full parsing would fail.
+
+    Argument errors stop argparse before a namespace exists, so this reads the
+    format directly. It accepts every spelling argparse does. The last valid
+    value wins, so an invalid value after json still reports as JSON.
+    """
+    selected = None
+    for index, arg in enumerate(argv):
+        if arg == "--":
+            break
+        name, has_value, value = arg.partition("=")
+        if len(name) > 2 and "--format".startswith(name):
+            pass
+        elif arg.startswith("-f"):
+            has_value, value = len(arg) > 2, arg[2:].removeprefix("=")
+        else:
+            continue
+        if not has_value:
+            value = argv[index + 1] if index + 1 < len(argv) else None
+        if value in ("console", "json"):
+            selected = value
+    return selected == "json"
+
+
+class _JsonAwareParser(argparse.ArgumentParser):
+    """Argument parser that keeps its own output JSON when JSON is requested."""
+
+    def error(self, message: str) -> NoReturn:
+        """Report an argument error, as an envelope in JSON mode."""
+        if _json_requested(sys.argv[1:]):
+            print(format_json_output(ScanResult(errors=[message], exit_code=EXIT_USAGE)))
+            self.exit(EXIT_USAGE)
+        super().error(message)
+
+    def print_help(self, file: IO[str] | None = None) -> None:
+        """Print help, inside the envelope in JSON mode."""
+        if _json_requested(sys.argv[1:]):
+            payload = json.loads(format_json_output(ScanResult()))
+            payload["help"] = self.format_help()
+            print(json.dumps(payload, indent=2))
+            return
+        super().print_help(file)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser."""
-    parser = argparse.ArgumentParser(
+    parser = _JsonAwareParser(
         description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
         "detection is delegated to CodeQL in CI; see module docstring.",
         epilog=(
             "Exit codes:\n"
             "  0  no vulnerabilities found\n"
-            "  1  scan error (invalid args, file not found, path traversal)\n"
+            "  1  scan error (unsupported --cwe, file not found, path traversal)\n"
+            "  2  invalid command-line arguments\n"
+            "  3  git could not enumerate staged files\n"
             "  10 vulnerabilities detected (CI-blocking)\n"
             "\n"
             "See .project-toolkit/architecture/ADR-054-local-security-scanning.md."
@@ -396,7 +454,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "-f",
         choices=["console", "json"],
         default="console",
-        help="Output format",
+        help="Output format. With json, stdout is always one JSON envelope.",
     )
     parser.add_argument(
         "--output",
@@ -406,21 +464,51 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _validate_cwe_filter(cwe_filter: list[int] | None) -> None:
+def _emit_json(result: ScanResult, output_path: str | None = None) -> None:
+    """Print the one JSON envelope for this run, and write it to a file if asked.
+
+    Pass `output_path` only after path validation. A write failure is reported
+    in the printed envelope.
+    """
+    if output_path:
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(format_json_output(result))
+        except OSError as exc:
+            result.errors.append(f"Error writing {output_path}: {exc}")
+    print(format_json_output(result))
+
+
+def _exit_with_error(
+    args: argparse.Namespace,
+    message: str,
+    exit_code: int = EXIT_ERROR,
+    output_path: str | None = None,
+) -> NoReturn:
+    """Report a failure on the channel the format requires, then exit."""
+    if args.format == "json":
+        _emit_json(ScanResult(errors=[message], exit_code=exit_code), output_path)
+    else:
+        print(f"ERROR: {message}", file=sys.stderr)
+    sys.exit(exit_code)
+
+
+def _validate_cwe_filter(args: argparse.Namespace) -> None:
     """Validate requested CWE filters and warn for delegated coverage."""
+    cwe_filter = args.cwe
     supported_cwes = {78}
     delegated_cwes = {22}
     if cwe_filter:
         unsupported = set(cwe_filter) - supported_cwes - delegated_cwes
         if unsupported:
-            print(
-                f"ERROR: --cwe {sorted(unsupported)} not supported by this "
+            _exit_with_error(
+                args,
+                f"--cwe {sorted(unsupported)} not supported by this "
                 f"scanner. Supported: {sorted(supported_cwes)} "
                 f"(delegated to other tools: {sorted(delegated_cwes)}).",
-                file=sys.stderr,
             )
-            sys.exit(EXIT_ERROR)
-        if 22 in cwe_filter:
+        # JSON callers read this from `summary.delegated_cwes` instead.
+        if 22 in cwe_filter and args.format != "json":
             print(
                 "WARNING: --cwe 22 selected but CWE-22 detection is delegated to "
                 "CodeQL (see python-security-extended.qls in "
@@ -452,8 +540,24 @@ def _validate_input_paths(args: argparse.Namespace) -> None:
             for file in args.files:
                 _validate_path(file, "file", allowed_base)
     except ValueError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(EXIT_ERROR)
+        _exit_with_error(args, str(e))
+
+
+def _exit_without_scan(
+    args: argparse.Namespace, console_message: str, *, is_error: bool = False
+) -> NoReturn:
+    """Exit for a request that assessed no files.
+
+    JSON callers get the standard envelope with `files_scanned: 0`, which means
+    nothing was assessed. It is not evidence that a file is free of findings.
+    A usage error also carries the message in `errors` and exits EXIT_ERROR.
+    """
+    result = ScanResult(errors=[console_message] if is_error else [])
+    if args.format == "json":
+        _emit_json(result, args.output)
+    else:
+        print(console_message)
+    sys.exit(_exit_code_for_result(result))
 
 
 def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
@@ -467,8 +571,7 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
             # Git failed to enumerate staged files. Fail closed with an external
             # dependency exit code (ADR-035: 3) so callers do not mistake a git
             # failure for a clean scan.
-            print(f"ERROR: {exc}", file=sys.stderr)
-            sys.exit(EXIT_EXTERNAL)
+            _exit_with_error(args, str(exc), EXIT_EXTERNAL, args.output)
 
     if args.directory:
         if not Path(args.directory).is_dir():
@@ -476,37 +579,38 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
             # not an empty result. Fail closed (EXIT_ERROR) so a typo is never
             # silently treated as a clean scan (os.walk on a missing path yields
             # nothing, which would otherwise look like "no files, all clean").
-            print(
-                f"ERROR: --directory not found or not a directory: {args.directory}",
-                file=sys.stderr,
+            _exit_with_error(
+                args,
+                f"--directory not found or not a directory: {args.directory}",
+                output_path=args.output,
             )
-            sys.exit(EXIT_ERROR)
         files_to_scan.extend(get_directory_files(args.directory))
 
     if args.files:
         files_to_scan.extend(args.files)
 
     if not files_to_scan:
-        # A successful --git-staged enumeration with nothing staged is a clean
-        # pass. Restrict that to the staged-only case: an explicit --directory or
-        # --files target that yielded nothing is a mis-specified request, not a
-        # clean scan, so it keeps the usage-error exit (EXIT_ERROR).
+        # A successful --git-staged enumeration with nothing staged exits success
+        # with zero coverage. Restrict that to the staged-only case: an explicit
+        # --directory or --files target that yielded nothing is a mis-specified
+        # request, not a clean scan, so it keeps the usage-error exit (EXIT_ERROR).
         if args.git_staged and not args.directory and not args.files:
-            print("No files to scan (nothing staged, or only deletions staged).")
-            sys.exit(EXIT_SUCCESS)
-        print("No files to scan. Use --git-staged, --directory, or specify files.")
-        sys.exit(EXIT_ERROR)
+            _exit_without_scan(args, "No files to scan (nothing staged, or only deletions staged).")
+        _exit_without_scan(
+            args,
+            "No files to scan. Use --git-staged, --directory, or specify files.",
+            is_error=True,
+        )
 
     return list(set(files_to_scan))
 
 
-def _filter_supported_files(files_to_scan: list[str]) -> list[str]:
+def _filter_supported_files(files_to_scan: list[str], args: argparse.Namespace) -> list[str]:
     """Keep files whose extension or shebang maps to a scanner language."""
     supported_files = [f for f in files_to_scan if get_language(f) is not None]
 
     if not supported_files:
-        print("No supported files found (Python, PowerShell, Bash, C#).")
-        sys.exit(EXIT_SUCCESS)
+        _exit_without_scan(args, "No supported files found (Python, PowerShell, Bash, C#).")
     return supported_files
 
 
@@ -526,17 +630,14 @@ def _scan_supported_files(supported_files: list[str], cwe_filter: list[int] | No
     return result
 
 
-def _format_output(result: ScanResult, cwe_filter: list[int] | None, output_format: str) -> str:
-    """Format scan results for stdout or file output."""
-    if output_format == "json":
-        output = format_json_output(result)
-    else:
-        output = format_console_output(result)
-        # Surface CWE-22 delegation in console output too. The JSON envelope
-        # carries `summary.delegated_cwes`, but a console caller running
-        # `--cwe 22` should see the delegation in stdout, not just stderr.
-        if cwe_filter and 22 in cwe_filter:
-            output += "\n\nCWE-22: delegated to CodeQL (see .github/workflows/codeql-analysis.yml)"
+def _format_console(result: ScanResult, cwe_filter: list[int] | None) -> str:
+    """Format scan results for console or text file output."""
+    output = format_console_output(result)
+    # Surface CWE-22 delegation in console output too. The JSON envelope
+    # carries `summary.delegated_cwes`, but a console caller running
+    # `--cwe 22` should see the delegation in stdout, not just stderr.
+    if cwe_filter and 22 in cwe_filter:
+        output += "\n\nCWE-22: delegated to CodeQL (see .github/workflows/codeql-analysis.yml)"
     return output
 
 
@@ -550,18 +651,31 @@ def _write_or_print_output(output: str, output_path: str | None) -> None:
         print(output)
 
 
+def _run(args: argparse.Namespace) -> NoReturn:
+    """Validate the request, scan, report, and exit."""
+    _validate_cwe_filter(args)
+    _validate_input_paths(args)
+    files_to_scan = _collect_files_to_scan(args)
+    supported_files = _filter_supported_files(files_to_scan, args)
+    result = _scan_supported_files(supported_files, args.cwe)
+    if args.format == "json":
+        _emit_json(result, args.output)
+    else:
+        _write_or_print_output(_format_console(result, args.cwe), args.output)
+    sys.exit(_exit_code_for_result(result))
+
+
 def main() -> None:
     """Main entry point."""
     parser = _build_parser()
     args = parser.parse_args()
-    _validate_cwe_filter(args.cwe)
-    _validate_input_paths(args)
-    files_to_scan = _collect_files_to_scan(args)
-    supported_files = _filter_supported_files(files_to_scan)
-    result = _scan_supported_files(supported_files, args.cwe)
-    output = _format_output(result, args.cwe, args.format)
-    _write_or_print_output(output, args.output)
-    sys.exit(_exit_code_for_result(result))
+    try:
+        _run(args)
+    except Exception as exc:
+        # JSON callers parse stdout, so a crash must not become a traceback.
+        if args.format != "json":
+            raise
+        _exit_with_error(args, f"Unexpected scanner error: {exc}")
 
 
 if __name__ == "__main__":

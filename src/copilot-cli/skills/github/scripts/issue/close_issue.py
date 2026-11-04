@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Close a GitHub Issue with an optional closing comment.
 
 Closes the issue via ``gh issue close --reason`` and posts an optional comment

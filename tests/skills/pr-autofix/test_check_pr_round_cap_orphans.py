@@ -1,6 +1,6 @@
 """check_pr_round_cap.py reports unpushed local commits when escalated (issue #5447).
 
-The scan is read-only: it adds an ``orphaned_commits`` object to the envelope
+The scan moves no ref: it adds an ``orphaned_commits`` object to the envelope
 and a warning to the human summary, and never changes the exit code. The git
 logic has its own tests in test_orphaned_commits.py; these cover the wiring.
 """

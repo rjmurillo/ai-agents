@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- pre-existing debt, unlinted before the ADR-119 source classification
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Extract episode data from session logs for the reflexion memory system.
 
 Parses session logs and extracts structured episode data per ADR-038.

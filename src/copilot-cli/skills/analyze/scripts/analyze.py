@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 Analyze Skill - Step-by-step codebase analysis with exploration and deep investigation.
 
