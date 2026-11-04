@@ -233,7 +233,7 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` (`{head_sha}` 
 
 ## Completion Gate
 
-In `gh_unusable`, `run_completion_gate.py` cannot verify any criterion: its verifiers are `gh`-backed and every one fails. Check each criterion by hand against `pull_request_read` data, mark a criterion `unknown` when its data is unavailable, and never report a pass from a failed call. Record the verdict as derived (`mcp_mode_constraints` in config).
+In `gh_unusable`, `run_completion_gate.py` cannot verify any criterion: its verifiers are `gh`-backed, so it exits 3 with `verdict: unknown`. Do not retry. Check each criterion by hand against `pull_request_read` data, mark a criterion `unknown` when its data is unavailable, and never report a pass from a failed call. Record the verdict as derived (`mcp_mode_constraints` in config).
 
 The completion gate is dispatchable: each criterion in `completion_criteria` runs an external verification command, and the command's stdout JSON is the source of truth for the verdict. Run the dispatcher exactly once per PR:
 

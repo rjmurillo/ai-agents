@@ -6,7 +6,8 @@
 Reads completion_criteria from a config YAML, dispatches each criterion's
 verification command, parses the resulting JSON, and evaluates the
 ``pass_when`` expression. Prints a per-criterion result table. Exits 0 if
-every criterion passes, 1 if any criterion fails.
+every criterion passes, 1 if any criterion fails, and 3 with verdict
+``unknown`` when a refused session left criteria unverified and none failed.
 
 This replaces the prior narrative completion gate where the agent claimed
 verdicts like "0 unresolved threads". Each verdict is now produced by an
@@ -3786,6 +3787,74 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Session refusal
+# ---------------------------------------------------------------------------
+
+# A session that refuses gh leaves every gh-backed verifier failing, and that
+# says nothing about the PR (issue #5232). The refusal is measured here rather
+# than read from verifier output, because that output can carry text a PR
+# author controls. These calls run the system gh binary with fixed argv, so
+# they add no work-tree file to the verified closure. gh expands the
+# placeholders itself. The REST call sees the session-wide denial and the
+# GraphQL call sees the query allowlist (ADR-100, "Two different 403s").
+_SESSION_REFUSAL_PROBES = (
+    ("gh", "api", "repos/{owner}/{repo}"),
+    ("gh", "api", "graphql", "-f", "query={viewer{login}}"),
+)
+_SESSION_REFUSAL = re.compile(r"not enabled for this session", re.IGNORECASE)
+_SESSION_REFUSAL_TIMEOUT_SECONDS = 10
+_VERDICT_EXIT_CODES = {"pass": 0, "fail": 1, "unknown": 3}
+_UNKNOWN_VERDICT_NOTE = (
+    "UNKN: this session refuses GitHub, so the gate could not verify these "
+    "criteria. Retrying cannot help. Check each one by hand through the "
+    "GitHub MCP operations, per the github skill's transport-routing.md."
+)
+
+
+def _session_refuses_github() -> bool:
+    """Return True when the environment refuses a fixed gh call.
+
+    A probe that cannot run, or that fails for any other reason, is no
+    evidence of a refusal, so the caller keeps the failed verdict.
+    """
+    for probe in _SESSION_REFUSAL_PROBES:
+        try:
+            proc = subprocess.run(
+                list(probe),
+                capture_output=True,
+                text=True,
+                timeout=_SESSION_REFUSAL_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if proc.returncode != 0 and _SESSION_REFUSAL.search(f"{proc.stdout}\n{proc.stderr}"):
+            return True
+    return False
+
+
+def _settle_verdict(rows: list[dict]) -> str:
+    """Set each row's ``status`` and return ``pass``, ``fail``, or ``unknown``.
+
+    Only a row whose verifier ran and exited non-zero can become unknown. A
+    row that failed its ``pass_when`` was answered, so it stays failed. An
+    unknown row keeps ``passed`` false: it is never a pass, and a definite
+    failure elsewhere outranks it.
+    """
+    for row in rows:
+        row["status"] = "passed" if row["passed"] else "failed"
+    unanswered = [row for row in rows if not row["passed"] and row["exit_code"]]
+    if unanswered and _session_refuses_github():
+        for row in unanswered:
+            row["status"] = "unknown"
+            row["reason"] = f"session refuses GitHub, criterion not verified; {row['reason']}"
+    statuses = {row["status"] for row in rows}
+    if "failed" in statuses:
+        return "fail"
+    return "unknown" if "unknown" in statuses else "pass"
+
+
+# ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
 
@@ -3804,7 +3873,7 @@ def _print_table(rows: list[dict]) -> None:
     print(f"{'PASS':<6} {'CRITERION':<48}")
     print("-" * 60)
     for row in rows:
-        marker = "PASS" if row["passed"] else "FAIL"
+        marker = {"unknown": "UNKN"}.get(row.get("status", ""), "PASS" if row["passed"] else "FAIL")
         print(f"{marker:<6} {row['name']:<48}")
         if not row["passed"]:
             if row.get("reason"):
@@ -4821,9 +4890,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Config error in completion_criteria: {exc}", file=sys.stderr)
         return 2
 
+    verdict = _settle_verdict(rows)
     payload = {
         "pull_request": args.pull_request,
         "all_passed": all(r["passed"] for r in rows),
+        "verdict": verdict,
+        "unknown_criteria": [r["name"] for r in rows if r["status"] == "unknown"],
         "config_trust": {
             "status": trust.status,
             "trusted_ref": args.trust_anchor_ref,
@@ -4848,8 +4920,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, indent=2))
     else:
         _print_table(rows)
+        if verdict == "unknown":
+            print(_UNKNOWN_VERDICT_NOTE)
 
-    return 0 if all(r["passed"] for r in rows) else 1
+    return _VERDICT_EXIT_CODES[verdict]
 
 
 if __name__ == "__main__":

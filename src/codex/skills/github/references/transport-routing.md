@@ -20,7 +20,7 @@ you are on rather than transcribing a second copy here, which would drift.
 | Verdict | Meaning | What to do |
 |---------|---------|------------|
 | `Transport: gh` | `gh` holds a working credential | Use the scripts in this skill. Nothing changes. |
-| `Transport: gh_unusable` | `gh` cannot reach GitHub for this whole session | Use the GitHub MCP operations below, after checking they are exposed. |
+| `Transport: gh_unusable` | `gh` cannot reach GitHub for this whole session | Use the GitHub MCP operations below, after checking they are exposed. This is a supported mode, not a fault to escalate. |
 | exit 3 | Quota refusal or transport wobble | Not a transport problem. Wait and retry on `gh`. |
 | exit 4 | Credential fault the operator can fix | Not a transport problem. Fix the token. |
 
@@ -54,6 +54,10 @@ the Claude GitHub App for this organization. (HTTP 403)
 credential is not what is being refused. The preflight reports this condition
 as the auth status `transport_blocked`.
 
+The body asks for a Claude GitHub App connection, and an organization may
+decline that. Treat the refusal as a lasting property of the session, not as a
+pending admin action, and work through MCP.
+
 A narrower refusal exists and does not mean the same thing. A body that says
 one GraphQL query is not served, while REST still is, refuses an operation
 rather than the session, and it names REST as the way through.
@@ -86,6 +90,26 @@ all keeps `gh` too, since absence of an answer is not an answer.
 
 `gh` stays the default everywhere it works, notably CI, where Actions supplies
 a working token. Nothing here removes `gh` from those environments.
+
+## What a local gate may do with gh
+
+A git hook or a verifier runs as a subprocess, so it cannot reach MCP tools.
+That sets the policy for any local gate that shells to `gh`:
+
+- An advisory gate may use `gh`. When the call fails, it warns or falls back.
+- A blocking gate must not depend on `gh` for its verdict. ADR-099 removed one
+  that did, because a refused session could never satisfy it.
+- A gate that cannot verify reports unknown. It never reports a pass, and it
+  never reports a failure the PR did not cause.
+
+`run_completion_gate.py` follows the third rule. After a verifier exits
+non-zero, it runs two fixed `gh` calls of its own. If either answers with a
+session refusal, the rows that exited non-zero read `unknown` and, when no row
+failed outright, the gate exits 3 with `verdict: unknown` and lists them in
+`unknown_criteria`. It never matches verifier output, because a PR author can
+reach that text. Exit 3 here does not mean retry: a refused session has no
+reset. Check those criteria by hand. A trust halt also exits 3, but it prints
+no payload, so `verdict` tells the two apart.
 
 ## Script to MCP operation
 

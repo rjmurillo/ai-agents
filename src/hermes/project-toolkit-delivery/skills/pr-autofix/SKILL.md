@@ -701,6 +701,8 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
 
 ```
 
+Dispatcher exit 3 with `verdict: unknown` in its JSON means this session refuses GitHub and the rows in `unknown_criteria` were not verified. Do not retry, do not arm auto-merge, and do not report a PR failure. A trust halt also exits 3 but prints no payload.
+
 Dispatcher exit contract (CWE-829 trust boundary): exit 0 all criteria passed; exit 1 a criterion failed; exit 2 config error INCLUDING a `pr-review-config.yaml` that diverges from or is absent at the trusted ref (`origin/main`); exit 3 trust verification impossible (no git work tree, trusted ref missing or not remote-tracking). A trust halt (stderr starts with `HALT: completion-gate config`, statuses diverged/missing-base, and every exit 3) occurs before any dispatch, so NO criterion command was executed. Other exit-2 config errors (a malformed later criterion, an evidence-write failure) can fire mid- or post-dispatch, so earlier criterion commands may already have run; treat exit 2 as "verdict unusable", not "nothing happened". Neither exit is transient: do NOT retry, do NOT treat exit 3 as a passing external outage, and do NOT pass `--approve-untrusted-config` autonomously. The flag only applies to a trust-halt exit 2 (diverged or missing-at-base); an exit-3 halt cannot be overridden at all. Surface the stderr diff to a human and skip the PR.
 
 ## Workflow
