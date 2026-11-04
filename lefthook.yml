@@ -572,8 +572,14 @@ pre-push:
           # The import-linter contracts in pyproject.toml [tool.importlinter].
           # No glob: a pyproject.toml or uv.lock change can break a contract in
           # a push that carries no Python file. Measured standalone on
-          # 2026-11-03 at af9a4d392: about 0.5s. No loaded-push measurement
-          # yet. 90s matches the siblings, and the group's declared worst case
+          # 2026-11-03 at af9a4d392: about 0.5s. Measured again on 2026-11-04
+          # with the six sibling commands of this group started at the same
+          # time (a replica of the parallel stage, not a lefthook summary,
+          # which prints no per-job time on success), on a 48-core host at load
+          # average 7.8 to 13.6: 0.40 to 0.46s over five runs, while the
+          # slowest sibling took 19.6s. ci-scripts.md MUST 16 asks for a
+          # loaded measurement; this is one, and the margin is about 200x.
+          # 90s matches the siblings, and the group's declared worst case
           # stays at branch-context-policy's 2m.
           - name: import-boundaries
             timeout: 90s
