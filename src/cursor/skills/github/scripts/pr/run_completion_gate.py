@@ -6,7 +6,8 @@
 Reads completion_criteria from a config YAML, dispatches each criterion's
 verification command, parses the resulting JSON, and evaluates the
 ``pass_when`` expression. Prints a per-criterion result table. Exits 0 if
-every criterion passes, 1 if any criterion fails.
+every criterion passes, 1 if any criterion fails, and 3 with verdict
+``unknown`` when a refused session left criteria unverified and none failed.
 
 This replaces the prior narrative completion gate where the agent claimed
 verdicts like "0 unresolved threads". Each verdict is now produced by an
@@ -296,7 +297,9 @@ Exit codes follow ADR-035:
     1 - At least one criterion failed (or had an evaluation error)
     2 - Config/usage error (config missing, malformed, no criteria, or
         untrusted: diverged from / absent at the trusted ref)
-    3 - External error (trust verification impossible: git failed)
+    3 - External error. With no payload: trust verification impossible, git
+        failed, and no criterion ran. With ``verdict: unknown``: criteria ran
+        and a refused session left some unverified, and none failed.
 """
 
 from __future__ import annotations
@@ -3786,6 +3789,100 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Session refusal
+# ---------------------------------------------------------------------------
+
+
+# A session that refuses gh leaves gh-backed verifiers unable to answer, and that
+# says nothing about the PR (issue #5232). The refusal is measured here rather
+# than read from verifier output, because that output can carry text a PR
+# author controls. These calls run the gh binary on PATH with fixed argv, so no
+# PR value reaches them. gh fills the placeholders from the git remote.
+#
+# The two bodies carry different evidence (ADR-100, "Two different 403s"; the
+# same split is in github_core/api.py, which this file cannot import without
+# widening its trust closure). The REST body refuses the session, so it explains
+# any verifier that could not answer. The GraphQL body refuses one query shape,
+# so it explains only exit 2, the code assert_gh_authenticated uses for a
+# refusal. An exit 3 beside it can still be a quota or a 5xx worth retrying.
+# The GraphQL query text matches check_gh_auth so both see the same answer.
+class _SessionProbe(NamedTuple):
+    argv: tuple[str, ...]
+    refusal: re.Pattern[str]
+    explained_exits: frozenset[int]
+
+
+_SESSION_REFUSAL_PROBES = (
+    _SessionProbe(
+        ("gh", "api", "repos/{owner}/{repo}"),
+        re.compile(r"github access is not enabled for this session", re.IGNORECASE),
+        frozenset({2, 3, 4}),
+    ),
+    _SessionProbe(
+        ("gh", "api", "graphql", "-f", "query=query { viewer { login } }"),
+        re.compile(r"graphql query is not enabled for this session", re.IGNORECASE),
+        frozenset({2}),
+    ),
+)
+_SESSION_REFUSAL_TIMEOUT_SECONDS = 10
+_VERDICT_EXIT_CODES = {"pass": 0, "fail": 1, "unknown": 3}
+_UNKNOWN_VERDICT_NOTE = (
+    "UNKNOWN: this session refuses GitHub, so the gate could not verify the "
+    "criteria marked unknown. Retrying cannot help. Check each one by hand "
+    "through the GitHub MCP operations, per the github skill's "
+    "transport-routing.md."
+)
+
+
+def _refusal_explained_exits() -> frozenset[int]:
+    """Return the verifier exit codes a measured refusal explains.
+
+    Empty when no probe observed a refusal. A probe that cannot run, or that
+    fails for any other reason, is no evidence, so the caller keeps the failed
+    verdict.
+    """
+    for probe in _SESSION_REFUSAL_PROBES:
+        try:
+            proc = subprocess.run(
+                list(probe.argv),
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=_SESSION_REFUSAL_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            print(f"Session refusal probe inconclusive: {exc}", file=sys.stderr)
+            continue
+        if proc.returncode != 0 and probe.refusal.search(f"{proc.stdout}\n{proc.stderr}"):
+            return probe.explained_exits
+    return frozenset()
+
+
+def _settle_verdict(rows: list[dict[str, Any]]) -> str:
+    """Set each row's ``status`` and return ``pass``, ``fail``, or ``unknown``.
+
+    Only a row whose verifier ran and exited above 1 can become unknown. Exit 1
+    is an answer under ADR-035 (``test_pr_merge_ready.py`` uses it for a PR that
+    is not ready), so it stays failed, as does a row that failed ``pass_when``.
+    An unknown row keeps ``passed`` false: it is never a pass, and a definite
+    failure elsewhere outranks it.
+    """
+    for row in rows:
+        row["status"] = "passed" if row["passed"] else "failed"
+    unanswered = [row for row in rows if not row["passed"] and (row["exit_code"] or 0) > 1]
+    explained = _refusal_explained_exits() if unanswered else frozenset()
+    for row in unanswered:
+        if row["exit_code"] in explained:
+            row["status"] = "unknown"
+            row["reason"] = f"session refuses GitHub, criterion not verified; {row['reason']}"
+    statuses = {row["status"] for row in rows}
+    if "failed" in statuses:
+        return "fail"
+    return "unknown" if "unknown" in statuses else "pass"
+
+
+# ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
 
@@ -3805,6 +3902,8 @@ def _print_table(rows: list[dict]) -> None:
     print("-" * 60)
     for row in rows:
         marker = "PASS" if row["passed"] else "FAIL"
+        if row["status"] == "unknown":
+            marker = "UNKN"
         print(f"{marker:<6} {row['name']:<48}")
         if not row["passed"]:
             if row.get("reason"):
@@ -4821,9 +4920,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Config error in completion_criteria: {exc}", file=sys.stderr)
         return 2
 
+    verdict = _settle_verdict(rows)
     payload = {
         "pull_request": args.pull_request,
         "all_passed": all(r["passed"] for r in rows),
+        "verdict": verdict,
+        "unknown_criteria": [r["name"] for r in rows if r["status"] == "unknown"],
         "config_trust": {
             "status": trust.status,
             "trusted_ref": args.trust_anchor_ref,
@@ -4849,7 +4951,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         _print_table(rows)
 
-    return 0 if all(r["passed"] for r in rows) else 1
+    if verdict == "unknown":
+        print(_UNKNOWN_VERDICT_NOTE, file=sys.stderr)
+    return _VERDICT_EXIT_CODES[verdict]
 
 
 if __name__ == "__main__":

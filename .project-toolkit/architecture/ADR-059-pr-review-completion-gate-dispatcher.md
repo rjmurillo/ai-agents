@@ -32,7 +32,7 @@ it produces the same wrong answer on retry.
    `.claude/skills/github/scripts/pr/run_completion_gate.py` reads
    `pr-review-config.yaml`, runs each criterion's command, parses its
    stdout as JSON, evaluates `pass_when`, and prints a per-criterion table.
-   Exit 0 if all pass, 1 if any fail, 2 on usage.
+   Exit 0 if all pass, 1 if any fail, 2 on usage (exit 3: ADR-120).
 
 2. Define a small `pass_when` DSL: dotted-path resolution, literals
    (integers, `true`, `false`, `null`, double-quoted strings), `==`/`!=`

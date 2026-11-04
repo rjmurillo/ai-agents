@@ -161,6 +161,7 @@ These bind today.
 | [ADR-113](ADR-113-promotion-gate-evidence-and-exceptions.md) | Promotion Gate Evidence, Artifact Binding, and Governed Exceptions | 2026-09-30 | One aggregator, one manifest. |
 | [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. |
 | [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. |
+| [ADR-120](ADR-120-completion-gate-unknown-verdict.md) | The Completion Gate Reports a Refused Session as Unknown | 2026-11-04 | `fail_open` stays false. |
 
 ## Proposed
 
