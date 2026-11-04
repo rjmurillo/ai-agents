@@ -3,7 +3,8 @@
 # Delete a line when you fix its finding. Never add one; fix the code instead.
 # Keep the lines sorted. tests/validation/test_check_dead_code.py pins the count.
 #
-# Recorded when the gate landed. The four 100 percent entries are parameters
+# Recorded when the gate landed. vulture reports an unused parameter as
+# "unused variable". The four 100 percent entries are parameters
 # that an interface fixes (urllib's OpenerDirector.open and
 # HTTPRedirectHandler.redirect_request, a public keyword, a caller-facing
 # signature), so they are not removable. Four of the five 90 percent imports

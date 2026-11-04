@@ -549,7 +549,10 @@ pre-push:
 
           # Whole tree, not {push_files}: deleting the last caller of a
           # function makes the function dead in a file the push never touched.
-          # Measured: about 7s over 985 files.
+          # Measured over 991 tracked files on a 48-core machine: 6.8s to 7.2s
+          # alone, 6.8s to 7.4s with this group's other six jobs started at
+          # once, and 7.2s to 7.4s with pre_pr.py --quick also running. Not
+          # timed inside a real push. The 90s cap matches the group's siblings.
           - name: python-dead-code
             timeout: 90s
             run: uv run --frozen --extra dev python scripts/validation/check_dead_code.py

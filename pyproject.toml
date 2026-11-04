@@ -154,8 +154,9 @@ paths = ["scripts", "src/claude", "templates/hooks", ".claude/lib"]
 min_confidence = 80
 # Generated copies, linked files, and tests. vulture matches each pattern
 # against the absolute path, and a pattern with no glob character matches as a
-# substring of it. The mirror trees are outside `paths`;
-# listing them keeps an ad hoc `vulture .` from reporting each finding twice.
+# substring of it. The src/claude and .claude/lib entries sit under scan roots
+# and keep the gate from scanning a copy twice. The src/<harness>/ mirror trees
+# are outside `paths`; listing them keeps an ad hoc `vulture .` from scanning them.
 exclude = [
     "*/tests/*",
     "src/claude/hooks/",

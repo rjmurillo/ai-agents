@@ -9,6 +9,7 @@ holds exactly the pinned number of lines.
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -41,7 +42,12 @@ SCRIPT = "scripts/validation/check_dead_code.py"
 DEAD_KEY = "src/mod.py: unused function 'dead'"
 
 
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+
 def _repo(tmp_path: Path, *, paths: str = '["src"]', source: str | None = None) -> Path:
+    """Build a fixture git repo. Its files are staged; the gate reads the index."""
     (tmp_path / "pyproject.toml").write_text(
         textwrap.dedent(
             f"""\
@@ -57,6 +63,8 @@ def _repo(tmp_path: Path, *, paths: str = '["src"]', source: str | None = None) 
     src.mkdir()
     body = source if source is not None else "def dead():\n    return 1\n"
     (src / "mod.py").write_text(body, encoding="utf-8")
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "add", "-A")
     return tmp_path
 
 
@@ -134,14 +142,87 @@ def test_main_honors_exclude_patterns(tmp_path: Path) -> None:
     tests_dir = repo / "src" / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_mod.py").write_text("def also_dead():\n    pass\n", encoding="utf-8")
+    _git(repo, "add", "-A")
 
     assert _run(repo, _baseline(tmp_path, DEAD_KEY)) == 0
+
+
+def test_main_ignores_untracked_python_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo(tmp_path)
+    (repo / "src" / "draft.py").write_text("import json\n", encoding="utf-8")
+
+    assert _run(repo, _baseline(tmp_path, DEAD_KEY)) == 0
+    assert "Scanned 1 Python file(s); 1 finding(s)" in capsys.readouterr().out
+
+
+def test_main_reports_the_same_file_once_it_is_tracked(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo(tmp_path)
+    (repo / "src" / "draft.py").write_text("import json\n", encoding="utf-8")
+    _git(repo, "add", "src/draft.py")
+
+    assert _run(repo, _baseline(tmp_path, DEAD_KEY)) == 1
+    assert "new dead code: src/draft.py: unused import 'json'" in capsys.readouterr().err
+
+
+def test_main_skips_a_tracked_file_deleted_from_the_work_tree(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "src" / "gone.py").write_text("import json\n", encoding="utf-8")
+    _git(repo, "add", "src/gone.py")
+    (repo / "src" / "gone.py").unlink()
+
+    assert _run(repo, _baseline(tmp_path, DEAD_KEY)) == 0
+
+
+def test_main_skips_tracked_symlinks(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "src" / "link.py").symlink_to("mod.py")
+    _git(repo, "add", "src/link.py")
+
+    assert _run(repo, _baseline(tmp_path, DEAD_KEY)) == 0
+
+
+def test_main_config_error_outside_a_git_work_tree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo(tmp_path)
+    (repo / ".git").rename(repo / "not-git")
+
+    assert _run(repo, _baseline(tmp_path, DEAD_KEY)) == 2
+    assert "git ls-files failed" in capsys.readouterr().err
+
+
+def test_main_external_error_when_git_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _repo(tmp_path)
+
+    def no_git(*_args: object, **_kwargs: object) -> None:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(check_dead_code.subprocess, "run", no_git)
+
+    assert _run(repo, _baseline(tmp_path, DEAD_KEY)) == 3
 
 
 def test_main_config_error_when_baseline_missing(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
 
     assert _run(repo, tmp_path / "absent.txt") == 2
+
+
+def test_main_config_error_when_baseline_is_not_utf8(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _repo(tmp_path)
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_bytes(b"src/mod.py: unused function '\xff'\n")
+
+    assert _run(repo, baseline) == 2
+    assert "cannot read baseline" in capsys.readouterr().err
 
 
 def test_main_config_error_when_baseline_malformed(tmp_path: Path) -> None:

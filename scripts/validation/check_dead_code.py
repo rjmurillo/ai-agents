@@ -17,16 +17,23 @@ gate in ``pre_pr.py``, and a step in the ``pytest`` workflow:
 added line fails until a reviewer sees that constant move.
 
 Exit codes (ADR-035):
+The scan reads only files git tracks under the configured paths, so an
+untracked draft cannot fail a push that CI, checking out the same commit,
+passes. A tracked file reads its working-tree content.
+
+Exit codes (ADR-035):
     0 - Success (findings equal the baseline)
     1 - Logic error (new finding or stale baseline entry)
-    2 - Config error (bad baseline or config, unreadable source, nothing scanned)
-    3 - External error (vulture is not installed)
+    2 - Config error (bad baseline or config, unreadable source, nothing
+        scanned, repo root not a git work tree)
+    3 - External error (vulture or git is not installed)
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib
+import subprocess
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -43,7 +50,11 @@ class GateConfigError(RuntimeError):
     """Raised when the gate cannot trust its inputs."""
 
 
-class VultureMissingError(RuntimeError):
+class ExternalToolError(RuntimeError):
+    """Raised when a tool the gate runs is not installed."""
+
+
+class VultureMissingError(ExternalToolError):
     """Raised when the vulture package cannot be imported."""
 
 
@@ -80,7 +91,7 @@ def parse_baseline(text: str) -> list[str]:
 def load_baseline(path: Path) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         raise GateConfigError(f"cannot read baseline {path}: {exc}") from exc
     return parse_baseline(text)
 
@@ -102,6 +113,39 @@ def _load_vulture() -> ModuleType:
     except ImportError as exc:
         raise VultureMissingError("vulture is not installed; run `uv sync --extra dev`") from exc
     return sys.modules["vulture"]
+
+
+def tracked_python_files(repo_root: Path, roots: Sequence[str]) -> list[Path]:
+    """Return the tracked regular ``.py`` files under ``roots``, as absolute paths."""
+    try:
+        listing = subprocess.run(
+            ["git", "ls-files", "-z", "--stage", "--", *roots],
+            cwd=repo_root,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        raise ExternalToolError(f"cannot run git: {exc}") from exc
+    if listing.returncode != 0:
+        raise GateConfigError(
+            f"git ls-files failed under {repo_root}: {listing.stderr.strip() or 'no output'}"
+        )
+    files: list[Path] = []
+    for entry in listing.stdout.split("\0"):
+        meta, sep, relpath = entry.partition("\t")
+        if not sep or not relpath.endswith(".py"):
+            continue
+        # A symlink resolves to its target inside vulture, which would key the
+        # finding under another path. A target inside the roots is scanned at
+        # its own path. A deletion not yet committed has no file to read.
+        if meta.startswith("120000 "):
+            continue
+        path = repo_root / relpath
+        if path.is_file():
+            files.append(path)
+    return files
 
 
 def scan(repo_root: Path) -> ScanResult:
@@ -138,7 +182,8 @@ def scan(repo_root: Path) -> ScanResult:
         vulture_scan(code, filename=filename)
 
     checker.scan = counting_scan
-    checker.scavenge([str(path) for path in scan_roots], exclude=config["exclude"])
+    modules = tracked_python_files(repo_root, config["paths"])
+    checker.scavenge([str(path) for path in modules], exclude=config["exclude"])
     if checker.exit_code != vulture.core.ExitCode.NoDeadCode:
         raise GateConfigError("vulture could not parse or read a source file; see the error above")
     if not scanned:
@@ -180,7 +225,7 @@ def validate_dead_code(repo_root: Path) -> bool:
     """pre_pr gate entry point. Fails closed when the scan cannot run."""
     try:
         return validate(repo_root, repo_root / BASELINE_RELPATH)
-    except (GateConfigError, VultureMissingError) as exc:
+    except (GateConfigError, ExternalToolError) as exc:
         print(f"error: dead-code gate did not run: {exc}", file=sys.stderr)
         return False
 
@@ -199,7 +244,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except GateConfigError as exc:
         print(f"error: dead-code gate did not run: {exc}", file=sys.stderr)
         return 2
-    except VultureMissingError as exc:
+    except ExternalToolError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 

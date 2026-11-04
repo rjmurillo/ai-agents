@@ -809,7 +809,8 @@ matching constant in the same diff, which is the edit a reviewer sees.
 ### Dead-Code Baseline
 
 vulture checks for dead code with the `[tool.vulture]` settings in `pyproject.toml`.
-`scripts/validation/check_dead_code.py` runs it over the whole tree.
+`scripts/validation/check_dead_code.py` runs it over every tracked Python file under those paths.
+Untracked drafts are not scanned, so a local file cannot fail a push that CI passes.
 It runs in the pre-push hook (`python-dead-code`) and in the `pytest` workflow.
 
 Findings that existed when the gate landed sit in `scripts/validation/dead_code_baseline.txt`.
