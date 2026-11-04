@@ -19,7 +19,7 @@
 # literals. It cannot read upstream, so checking scanner-version.txt and
 # scanner-sha256.txt at the new commit is a manual step.
 #
-# Margin: the local twin scored 82 under scanner 3.57.0 on 2026-10-31. Refresh
+# Margin: the local twin scored 82 under scanner 3.58.0 on 2026-11-04. Refresh
 # this line on each bump. The twin prints the current score and every check
 # that lost points, on a pass too.
 #
