@@ -70,9 +70,10 @@ _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _RECORD_SEP = "\x1e"
 #: ``%s`` holds no newline but can hold the separator, so a record starts only at a line start.
 _RECORD_START = re.compile(rf"(?m)^{_RECORD_SEP}(?={_SHA.pattern}\t)")
+#: Hooks off: a fetch fires ``reference-transaction``, and this scan must run no repo code.
 _FETCH = (
-    "fetch --quiet --no-tags --no-write-fetch-head --no-auto-maintenance "
-    "--no-recurse-submodules -- origin"
+    f"-c core.hooksPath={os.devnull} fetch --quiet --no-tags --no-write-fetch-head "
+    "--no-auto-maintenance --no-recurse-submodules -- origin"
 ).split()
 
 _WIRING_PATH = re.compile(
@@ -116,15 +117,14 @@ def _run_git(args: list[str], env: dict[str, str] | None = None) -> tuple[int, s
         result = subprocess.run(
             ["git", *args],
             capture_output=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=30,
             check=False,
             env=env,
         )
     except (subprocess.SubprocessError, OSError):
         return _LAUNCH_FAILURE, ""
-    return result.returncode, result.stdout or ""
+    # Bytes, not text mode: universal newlines would turn a ``\r`` in a subject into ``\n``.
+    return result.returncode, (result.stdout or b"").decode("utf-8", "replace")
 
 
 def default_runner(args: list[str]) -> tuple[int, str]:

@@ -2,7 +2,7 @@
 
 A pr-autofix session that escalates at the round cap can leave unpushed local
 commits. PR #5344 carried three; one deleted a lefthook pre-push job and the
-test that guarded it. These tests pin the read-only scan that names such
+test that guarded it. These tests pin the scan, which moves no ref that names such
 commits for a resuming session.
 """
 
@@ -256,7 +256,7 @@ def _checkout(path):
 class TestWorktreeRunner:
     def test_runs_git_inside_the_given_worktree(self, tmp_path):
         worktree = _checkout(tmp_path / "pr-7")
-        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="out", stderr="")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout=b"out", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done) as run:
             assert oc.worktree_runner(worktree)(["status"]) == (0, "out")
         assert run.call_args.args[0] == ["git", "-C", worktree, "status"]
@@ -273,7 +273,7 @@ class TestWorktreeRunner:
         for key in oc._GIT_ENV_KEYS:
             monkeypatch.setenv(key, "/shared/checkout")
         monkeypatch.setenv("HOME", "/home/keep")
-        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout=b"", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done) as run:
             oc.worktree_runner(worktree)(["status"])
         env = run.call_args.kwargs["env"]
@@ -295,7 +295,7 @@ class TestWorktreeRunner:
             monkeypatch.setenv(key, value)
         monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/home/keep/.gitconfig")
         monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/etc/keep-gitconfig")
-        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout=b"", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done) as run:
             oc.worktree_runner(worktree)(["status"])
         env = run.call_args.kwargs["env"]
@@ -304,7 +304,7 @@ class TestWorktreeRunner:
         assert env["GIT_CONFIG_SYSTEM"] == "/etc/keep-gitconfig"
 
     def test_default_runner_keeps_the_inherited_environment(self):
-        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout=b"", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done) as run:
             oc.default_runner(["status"])
         assert run.call_args.kwargs["env"] is None
@@ -313,7 +313,7 @@ class TestWorktreeRunner:
         worktree = tmp_path / "linked"
         worktree.mkdir()
         (worktree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
-        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr="")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout=b"ok", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done):
             assert oc.worktree_runner(str(worktree))(["status"]) == (0, "ok")
 
@@ -458,7 +458,7 @@ class TestWorktreeRunner:
 
 class TestDefaultRunner:
     def test_returns_exit_code_and_stdout(self):
-        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="out", stderr="")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout=b"out", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done) as run:
             assert oc.default_runner(["status"]) == (0, "out")
         assert run.call_args.args[0] == ["git", "status"]

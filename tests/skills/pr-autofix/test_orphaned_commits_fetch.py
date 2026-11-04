@@ -6,6 +6,7 @@ lacks the live head. A commit subject is author text, so it must not start a rec
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -30,12 +31,12 @@ class _Fetching:
         self.calls.append(args)
         if args[0] == "cat-file":
             return self.probe, ""
-        if args[0] == "fetch":
+        if "fetch" in args:
             return self.fetch, ""
         return 0, ""
 
     def fetches(self) -> list[list[str]]:
-        return [call for call in self.calls if call[0] == "fetch"]
+        return [call for call in self.calls if "fetch" in call]
 
 
 class TestFetchMissingHead:
@@ -44,6 +45,8 @@ class TestFetchMissingHead:
         oc.scan_if_escalated(True, LIVE, git, pr_checkout=True)
         assert git.fetches() == [
             [
+                "-c",
+                f"core.hooksPath={os.devnull}",
                 "fetch",
                 "--quiet",
                 "--no-tags",
@@ -87,11 +90,11 @@ class TestFetchMissingHead:
     def test_stalled_fetch_ends_at_the_timeout(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
 
-        def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
             assert kwargs["timeout"] == 30
             if "fetch" in cmd:
                 raise subprocess.TimeoutExpired(cmd, 30)
-            return subprocess.CompletedProcess(cmd, 1, "", "")
+            return subprocess.CompletedProcess(cmd, 1, b"", b"")
 
         with patch("subprocess.run", side_effect=run):
             runner = oc.worktree_runner(str(tmp_path))
@@ -100,7 +103,7 @@ class TestFetchMissingHead:
 
     def test_worktree_runner_refuses_credential_prompts(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
-        done = subprocess.CompletedProcess(["git"], 0, "", "")
+        done = subprocess.CompletedProcess(["git"], 0, b"", b"")
         with patch("subprocess.run", return_value=done) as run:
             oc.worktree_runner(str(tmp_path))(["status"])
         assert run.call_args.kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
@@ -127,6 +130,42 @@ class TestForgedRecords:
         oc.classify(_commit(("M", "tests/test_a.py")), git)
         show = next(call for call in git.calls if call[0] == "show")
         assert show.index("--end-of-options") == show.index("b" * 40) - 1
+
+    def test_carriage_return_subject_keeps_the_risk_flag_on_a_real_repo(
+        self, tmp_path: Path
+    ) -> None:
+        # ``git commit`` cleans a message, so ``commit-tree`` is the path to prove here.
+        def git(*args: str, stdin: str | None = None) -> str:
+            ident = ["-c", "user.name=t", "-c", "user.email=t@t"]
+            done = subprocess.run(
+                ["git", "-C", str(tmp_path), *ident, *args],
+                check=True,
+                capture_output=True,
+                input=stdin,
+                encoding="utf-8",
+                errors="replace",
+            )
+            return done.stdout.strip()
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        git("init", "-q", "-b", "main")
+        (tests / "test_x.py").write_text("def test_a():\n    pass\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-q", "-m", "base")
+        base = git("rev-parse", "HEAD")
+        (tests / "test_x.py").write_text("# none\n", encoding="utf-8")
+        git("add", ".")
+        tree = git("write-tree")
+        forged = git("commit-tree", tree, "-p", base, stdin=f"x\r\x1e{base}\tfake\n")
+        git("reset", "-q", "--hard", forged)
+
+        report = oc.scan_unpushed_commits(base, oc.worktree_runner(str(tmp_path)))
+
+        commits = report["commits"]
+        assert isinstance(commits, list)
+        assert [c["sha"] for c in commits] == [forged]
+        assert commits[0]["risks"] == [oc.RISK_TEST_DEFS_REMOVED]
 
     def test_forged_subject_writes_no_file_on_a_real_repo(self, tmp_path: Path) -> None:
         def git(*args: str) -> str:

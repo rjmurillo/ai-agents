@@ -129,6 +129,22 @@ class TestForcePushedHeadFromTheLoop:
         assert _has_commit(wt, forced)
         assert _git(wt, "rev-parse", ref) == before
 
+    def test_fetch_runs_no_repository_hook(self, repos: dict[str, object], tmp_path: Path) -> None:
+        forced = _force_pushed(repos, tmp_path)
+        wt = Path(str(repos["wt"]))
+        marker = tmp_path / "hook-ran"
+        hooks = tmp_path / "hooks"
+        hooks.mkdir()
+        hook = hooks / "reference-transaction"
+        hook.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+        hook.chmod(0o755)
+        _git(wt, "config", "core.hooksPath", str(hooks))
+
+        _scan(forced, str(wt))
+
+        assert _has_commit(wt, forced)
+        assert not marker.exists()
+
     def test_a_record_that_is_not_escalated_fetches_nothing(
         self, repos: dict[str, object], tmp_path: Path
     ) -> None:
