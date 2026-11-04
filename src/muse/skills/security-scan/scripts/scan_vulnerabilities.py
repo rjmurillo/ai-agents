@@ -16,7 +16,7 @@ security, not a competitive differentiator) and CodeQL is the authoritative
 detector already in the repo's CI pipeline.
 
 Exit codes:
-    0  - No vulnerabilities found
+    0  - No vulnerabilities found, or nothing assessed (files_scanned is 0)
     1  - Scan error (file not found, invalid arguments)
     10 - Vulnerabilities detected
 

@@ -124,7 +124,7 @@ def test_cli_json_envelope_when_nothing_is_staged(repo: Path) -> None:
 
 
 def test_cli_json_envelope_when_only_unsupported_files_are_staged(repo: Path) -> None:
-    (repo / "sample.cue").write_text("value: 42\n")
+    (repo / "sample.cue").write_text("value: 42\n", encoding="utf-8")
     _git(repo, "add", "sample.cue")
     proc = _run_cli(repo)
     payload = json.loads(proc.stdout)
