@@ -621,22 +621,33 @@ if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
     PR_HEAD_REPO=$(printf '%s' "${LIVE:-}" | jq -r '.Data.head_repo // empty' 2>/dev/null)
     PR_WORKTREE=""
     # A branch name is chosen by the PR author, so the ref alone does not identify
-    # the worktree. Also require that it holds the live head (equal, or ahead with
-    # the unpushed commits this scan exists to list) and that its origin is the PR
-    # head repository. A missing input matches nothing: no --worktree is passed.
+    # the worktree. Also require that its origin is the PR head repository. HEAD
+    # need not hold the live head: a force-pushed PR leaves the worktree diverged,
+    # and that is the case this scan lists. The result feeds a read-only report, so
+    # this is looser than the exact head match cleanup demands before it deletes.
+    # This loop fetches only main, so a rewritten head is usually absent here and
+    # the scan could not compare it. Fetch it by SHA: a branch fetch would advance
+    # refs/remotes/origin/<branch>, the value a bare --force-with-lease reads. A
+    # failed fetch still selects the worktree, and the scan reports `unverified`.
+    # A missing input matches nothing: no --worktree is passed.
     # pr-worktree-select:begin
     if [ -n "$PR_HEAD_REF" ] && [ -n "$PR_HEAD_REPO" ] && [ -n "$EXPECTED_HEAD_SHA" ]; then
         WANT_REPO=$(printf '%s' "$PR_HEAD_REPO" | tr 'A-Z' 'a-z')
         # awk fields are written $(N), not $N: the skill loader rewrites a bare $<digit> as an argument.
         while IFS= read -r CANDIDATE; do
             [ -n "$CANDIDATE" ] || continue
-            git -C "$CANDIDATE" merge-base --is-ancestor "$EXPECTED_HEAD_SHA" HEAD 2>/dev/null || continue
             ORIGIN_URL=$(git -C "$CANDIDATE" remote get-url origin 2>/dev/null | tr 'A-Z' 'a-z')
             ORIGIN_URL=${ORIGIN_URL%/}
             ORIGIN_URL=${ORIGIN_URL%.git}
             case "$ORIGIN_URL" in
-                *"/$WANT_REPO" | *":$WANT_REPO") PR_WORKTREE="$CANDIDATE"; break ;;
+                *"/$WANT_REPO" | *":$WANT_REPO") ;;
+                *) continue ;;
             esac
+            git -C "$CANDIDATE" cat-file -e "$EXPECTED_HEAD_SHA^{commit}" 2>/dev/null ||
+                GIT_TERMINAL_PROMPT=0 git -C "$CANDIDATE" fetch --quiet --no-tags \
+                    --no-write-fetch-head -- origin "$EXPECTED_HEAD_SHA" 2>/dev/null || true
+            PR_WORKTREE="$CANDIDATE"
+            break
         done < <(git worktree list --porcelain 2>/dev/null | awk -v ref="refs/heads/$PR_HEAD_REF" \
             '/^worktree /{path=substr($(0), 10)} $(1) == "branch" && $(2) == ref {print path}')
     fi
@@ -713,7 +724,7 @@ Dispatcher exit contract (CWE-829 trust boundary): exit 0 all criteria passed; e
    pin `--force-with-lease` to that observed SHA so a competing session's commit
    rejects the push instead of being overwritten.
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE`. It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; one PR ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to. The wall-clock budget restarts when the PR head SHA advances or a maintainer with write access reopens the PR, so calendar idle time does not retire a PR; the round cap still bounds a loop that keeps pushing. A maintainer restarts both the clock and the round counter with a `/pr-autofix continue` comment (OWNER or COLLABORATOR) or by running the script with `--reset`. A repeat blocked call posts no further comments.
-   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`, and the object may also carry `reason`, `force_push_suspected`, and `truncated`. `ahead` and `unverified` can fill `.commits`: `unverified` does so for a diverged branch (with `force_push_suspected`) and when `git show` cannot be read; `clean` and `not_checked` leave it empty. The dispatch block passes `--worktree` only for a worktree that holds the live head, so a rewritten remote head (the diverged case) lists its commits only when you run the script by hand with `--worktree <path>`. Read `.commits[].risks` on every status, including `test diff unreadable (git show failed)`. The dispatch block passes `--worktree <path>` only for a worktree on the PR branch whose `HEAD` contains the live head and whose `origin` is the PR head repository, so the scan compares the live head with the PR's `HEAD` and not the shared checkout's; run the script by hand the same way. The block prints `Data.orphaned_warning` (a flat copy of `.warning`) on every arm, escalated or not, so the commit names reach the log. A session that hit the cap can leave unpushed commits behind, and one PR carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not fully answer: read `.reason`, any `.commits` it lists, and `git log <live head>..HEAD` by hand.
+   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`, and the object may also carry `reason`, `force_push_suspected`, and `truncated`. `ahead` and `unverified` can fill `.commits`: `unverified` does so for a diverged branch (with `force_push_suspected`) and when `git show` cannot be read; `clean` and `not_checked` leave it empty. Read `.commits[].risks` on every status, including `test diff unreadable (git show failed)`. The dispatch block passes `--worktree <path>` for a worktree on the PR branch whose `origin` is the PR head repository, whether or not its `HEAD` contains the live head, so the scan compares the live head with the PR's `HEAD` and not the shared checkout's; run the script by hand the same way. It fetches a missing live head by SHA first, so a rewritten remote head (the diverged case) lists its commits from the loop. A `reason` of `fetch the PR head first` means that fetch failed and nothing was compared. The block prints `Data.orphaned_warning` (a flat copy of `.warning`) on every arm, escalated or not, so the commit names reach the log. A session that hit the cap can leave unpushed commits behind, and one PR carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not fully answer: read `.reason`, any `.commits` it lists, and `git log <live head>..HEAD` by hand.
 6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
