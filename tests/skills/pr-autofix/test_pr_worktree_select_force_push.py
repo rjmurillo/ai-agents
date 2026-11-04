@@ -1,9 +1,9 @@
-"""The pr-autofix dispatch block against a real rewritten remote (#7032).
+"""The pr-autofix dispatch block and scan against a real rewritten remote (#7032).
 
 A force-pushed PR leaves its worktree diverged and without the live head. The
-dispatch block must still select that worktree and fetch the live head by SHA, so
-the scan can list the commits. These tests run the shipped block, then the scan,
-as the unattended loop does.
+dispatch block must still select that worktree, and the scan must fetch the live
+head by SHA and list the commits. These tests run the shipped block, then the
+scan, as the unattended loop does.
 """
 
 from __future__ import annotations
@@ -33,8 +33,8 @@ def _has_commit(worktree: Path, sha: str) -> bool:
     return probe.returncode == 0
 
 
-def _publish(repos: dict[str, object], tmp_path: Path) -> tuple[Path, Path]:
-    """Point origin at a bare repo holding the branch, and return it with a second clone.
+def _publish(repos: dict[str, object], tmp_path: Path) -> Path:
+    """Point origin at a bare repo holding the branch, and return a second clone of it.
 
     The bare path ends in ``owner/repo.git``, so the selector's origin check matches it.
     """
@@ -47,7 +47,7 @@ def _publish(repos: dict[str, object], tmp_path: Path) -> tuple[Path, Path]:
     _git(wt, "fetch", "-q", "origin")
     other = tmp_path / "other"
     _git(tmp_path, "clone", "-q", "-b", BRANCH, str(bare), str(other))
-    return bare, other
+    return other
 
 
 def _commit_file(checkout: Path, name: str, subject: str) -> str:
@@ -61,7 +61,7 @@ def _force_pushed(repos: dict[str, object], tmp_path: Path) -> str:
     """Amend a pushed commit from another clone and force-push it over the branch."""
     wt = Path(str(repos["wt"]))
     _commit_file(wt, "pushed.txt", "pushed")
-    _, other = _publish(repos, tmp_path)
+    other = _publish(repos, tmp_path)
     _commit_file(wt, "local.txt", "local only")
     _git(other, "commit", "-q", "--amend", "-m", "rewritten")
     _git(other, "push", "-q", "--force", "origin", f"{BRANCH}:{BRANCH}")
@@ -70,31 +70,28 @@ def _force_pushed(repos: dict[str, object], tmp_path: Path) -> str:
 
 def _advanced(repos: dict[str, object], tmp_path: Path) -> str:
     """Add a commit on the remote from another clone; the worktree is only behind."""
-    _, other = _publish(repos, tmp_path)
+    other = _publish(repos, tmp_path)
     live = _commit_file(other, "newer.txt", "newer")
     _git(other, "push", "-q", "origin", f"{BRANCH}:{BRANCH}")
     return live
 
 
+def _scan(live: str, selected: str, *, escalated: bool = True) -> dict[str, object]:
+    return oc.scan_if_escalated(escalated, live, oc.worktree_runner(selected), pr_checkout=True)
+
+
 class TestSelection:
     def test_origin_matched_head_that_lacks_the_live_sha_is_selected(
-        self, repos: dict[str, object], tmp_path: Path
+        self, repos: dict[str, object]
     ) -> None:
-        # The remote does not hold this SHA, so the fetch fails. Selection must
-        # survive that: the scan then reports `unverified` and names the next step.
-        _publish(repos, tmp_path)
         assert _dispatch(repos, EXPECTED_HEAD_SHA="1" * 40) == str(repos["wt"])
 
-    def test_other_origin_is_never_fetched(self, repos: dict[str, object], tmp_path: Path) -> None:
-        # The other remote holds the SHA, so a stray fetch would succeed and show here.
+    def test_the_selector_itself_never_fetches(
+        self, repos: dict[str, object], tmp_path: Path
+    ) -> None:
         forced = _force_pushed(repos, tmp_path)
-        evil = tmp_path / "remote" / "evil" / "repo.git"
-        evil.parent.mkdir(parents=True)
-        _git(tmp_path, "init", "-q", "--bare", str(evil))
-        _git(tmp_path / "other", "push", "-q", str(evil), f"{BRANCH}:{BRANCH}")
         wt = Path(str(repos["wt"]))
-        _git(wt, "remote", "set-url", "origin", str(evil))
-        assert _dispatch(repos, EXPECTED_HEAD_SHA=forced) == ""
+        assert _dispatch(repos, EXPECTED_HEAD_SHA=forced) == str(wt)
         assert not _has_commit(wt, forced)
 
 
@@ -109,7 +106,7 @@ class TestForcePushedHeadFromTheLoop:
         assert not _has_commit(wt, forced)
 
         selected = _dispatch(repos, EXPECTED_HEAD_SHA=forced)
-        report = oc.scan_unpushed_commits(forced, oc.worktree_runner(selected))
+        report = _scan(forced, selected)
 
         assert selected == str(wt)
         assert report["status"] == "unverified"
@@ -121,36 +118,47 @@ class TestForcePushedHeadFromTheLoop:
     def test_fetch_leaves_the_remote_tracking_ref_alone(
         self, repos: dict[str, object], tmp_path: Path
     ) -> None:
-        # A bare --force-with-lease reads this ref, so a selector must not advance it.
+        # A bare --force-with-lease reads this ref, so the scan must not advance it.
         forced = _force_pushed(repos, tmp_path)
         wt = Path(str(repos["wt"]))
         ref = f"refs/remotes/origin/{BRANCH}"
         before = _git(wt, "rev-parse", ref)
 
-        _dispatch(repos, EXPECTED_HEAD_SHA=forced)
+        _scan(forced, _dispatch(repos, EXPECTED_HEAD_SHA=forced))
 
+        assert _has_commit(wt, forced)
         assert _git(wt, "rev-parse", ref) == before
+
+    def test_a_record_that_is_not_escalated_fetches_nothing(
+        self, repos: dict[str, object], tmp_path: Path
+    ) -> None:
+        forced = _force_pushed(repos, tmp_path)
+        wt = Path(str(repos["wt"]))
+
+        report = _scan(forced, str(wt), escalated=False)
+
+        assert report["status"] == "not_checked"
+        assert not _has_commit(wt, forced)
 
     def test_worktree_behind_the_live_head_is_not_called_a_force_push(
         self, repos: dict[str, object], tmp_path: Path
     ) -> None:
         live = _advanced(repos, tmp_path)
         selected = _dispatch(repos, EXPECTED_HEAD_SHA=live)
-        report = oc.scan_unpushed_commits(live, oc.worktree_runner(selected))
+        report = _scan(live, selected)
 
         assert selected == str(repos["wt"])
         assert report["status"] == "unverified"
         assert "behind the live head" in str(report["reason"])
         assert "force_push_suspected" not in report
 
-    def test_failed_fetch_stays_unverified_with_no_commits(
+    def test_failed_fetch_names_the_fetch_and_lists_no_commits(
         self, repos: dict[str, object], tmp_path: Path
     ) -> None:
         _publish(repos, tmp_path)
         missing = "1" * 40
-        selected = _dispatch(repos, EXPECTED_HEAD_SHA=missing)
-        report = oc.scan_unpushed_commits(missing, oc.worktree_runner(selected))
+        report = _scan(missing, _dispatch(repos, EXPECTED_HEAD_SHA=missing))
 
         assert report["status"] == "unverified"
-        assert "fetch the PR head first" in str(report["reason"])
+        assert "could not fetch the live head" in str(report["reason"])
         assert report["commits"] == []

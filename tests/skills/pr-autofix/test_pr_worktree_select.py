@@ -10,10 +10,10 @@ repositories, so the shipped text is what is exercised.
 - edge: ssh and ``.git`` URL spellings, case, missing inputs fail closed, and
   the cleanup block demands an exact head (ahead of the merged head is kept)
 
-The dispatch block only feeds a read-only scan, so it accepts a diverged worktree
-and fetches the live head by SHA (#7032). The cleanup block deletes a worktree,
-so it keeps the exact head match. test_pr_worktree_select_force_push.py runs the
-fetch and the scan against a real rewritten remote.
+The dispatch block only feeds a report, so it accepts a diverged worktree (#7032).
+The cleanup block deletes a worktree, so it keeps the exact head match.
+test_pr_worktree_select_force_push.py runs the block and the scan against a real
+rewritten remote.
 """
 
 from __future__ import annotations
