@@ -16,6 +16,7 @@ import pytest
 from tests.hooks.reflect_nudge_support import (
     human,
     nudge,
+    nudge_state,
     payload,
     run_hook,
     scan,
@@ -338,13 +339,13 @@ class TestSignalRules:
         assert a != nudge.signal_hash(nudge.ScanResult(high=1, med=1))
 
     def test_default_state_root(self) -> None:
-        assert nudge.default_state_root({"XDG_STATE_HOME": "/s"}, "posix") == Path("/s")
-        assert nudge.default_state_root({}, "posix").parts[-2:] == (".local", "state")
-        assert nudge.default_state_root({"LOCALAPPDATA": "/l"}, "nt") == Path("/l")
-        relative = nudge.default_state_root({"XDG_STATE_HOME": "rel/state"}, "posix")
+        assert nudge_state.default_state_root({"XDG_STATE_HOME": "/s"}, "posix") == Path("/s")
+        assert nudge_state.default_state_root({}, "posix").parts[-2:] == (".local", "state")
+        assert nudge_state.default_state_root({"LOCALAPPDATA": "/l"}, "nt") == Path("/l")
+        relative = nudge_state.default_state_root({"XDG_STATE_HOME": "rel/state"}, "posix")
         assert relative.is_absolute()
-        assert nudge.default_state_root({}, "nt").parts[-2:] == ("AppData", "Local")
-        assert nudge.default_state_root({"LOCALAPPDATA": "rel"}, "nt").is_absolute()
+        assert nudge_state.default_state_root({}, "nt").parts[-2:] == ("AppData", "Local")
+        assert nudge_state.default_state_root({"LOCALAPPDATA": "rel"}, "nt").is_absolute()
 
 
 class TestRun:
