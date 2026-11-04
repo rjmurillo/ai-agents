@@ -44,7 +44,7 @@ Session protocol requires reading N files at session start. The instruction live
 
 ### Evidence
 
-- `2025-12-20-session-protocol-mass-failure.md`: 95.8% session-start non-compliance across a sample of sessions. Required Serena init and memory search were skipped. Session log creation was part of the historical workflow.
+- `2025-12-20-session-protocol-mass-failure.md`: 95.8% Session End protocol failure (23 of 24 sessions). Required Serena init and memory search were skipped. Session log creation was part of the historical workflow.
 - `2025-12-17-protocol-compliance-failure.md`: Protocol files present and discoverable, yet not referenced in the first 20 turns.
 
 ### Detection
