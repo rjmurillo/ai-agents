@@ -218,7 +218,7 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` (`{head_sha}` 
 
 ## Completion Gate
 
-In `gh_unusable`, `run_completion_gate.py` cannot verify any criterion: its verifiers are `gh`-backed, so it exits 3 with `verdict: unknown`. Do not retry. Check each criterion by hand against `pull_request_read` data, mark a criterion `unknown` when its data is unavailable, and never report a pass from a failed call. Record the verdict as derived (`mcp_mode_constraints` in config).
+In `gh_unusable`, `run_completion_gate.py` exits 3 with `verdict: unknown`. Never arm a merge. Check each criterion by hand against `pull_request_read` data, mark a criterion `unknown` when its data is unavailable, and never report a pass from a failed call. Record the verdict as derived (`mcp_mode_constraints` in config).
 
 The completion gate is dispatchable: each criterion in `completion_criteria` runs an external verification command, and the command's stdout JSON is the source of truth for the verdict. Run the dispatcher exactly once per PR:
 
@@ -264,7 +264,7 @@ uv run python "$SCRIPTS_DIR/run_completion_gate.py" \
     --json
 ```
 
-The dispatcher exits 0 if every criterion passes, 1 if any criterion fails, 2 on a config error (including a config that diverges from or is absent at the trusted ref), and 3 when the trust check itself cannot run (no git work tree, trusted ref missing). On failure, do NOT loop. Looping on a failing verifier produces the same wrong answer; the retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern).
+The dispatcher exits 0 if every criterion passes, 1 if any criterion fails, 2 on a config error (including a config that diverges from or is absent at the trusted ref), and 3 with no payload when the trust check cannot run (no git work tree, trusted ref missing) or with `verdict: unknown`. On failure, do NOT loop. Looping on a failing verifier produces the same wrong answer; the retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern).
 
 When the dispatcher exits 1, surface the failing criterion's `name`, `command`, `reason`, and a stdout/stderr excerpt from the JSON output, then halt. Do not claim completion. Do not re-run the gate hoping for a different answer. Investigate the underlying failure and address it; once addressed, the gate may be re-run. The `--json` mode emits the verifier evidence inline; the table mode (default) prints the same fields below each FAIL row.
 

@@ -76,6 +76,7 @@ Searched `lefthook.yml`, `scripts/validation/`, `.claude/hooks`, `src/claude/hoo
 - Critic: REVISE. Accepted: exit 2 collides with the config contract, match scope was undefined, `fail_open` rows were under-specified, mirrors and tests were unnamed. Declined: splitting the message rewording into its own PR, because the pattern no longer depends on that text. Declined: a `verify_config_only_exits` row, because that mode dispatches nothing.
 - Independent-thinker: replace text matching with an up-front check. Accepted the objection to a second classifier and to PR-influenced text. Declined running the preflight script, because of the trust boundary. Declined dropping per-row results, because a GraphQL-only refusal can leave REST verifiers working.
 - Both preferred exit 3 over exit 2.
+- `/review` round 1 merged WARN. Accepted from security, qa, reliability, and correctness: exit 1 is an answer and stays failed. Accepted: the GraphQL body explains only exit 2, the probe reuses the `check_gh_auth` query, an inconclusive probe prints a note, and the stderr line separates unknown from a trust halt. Accepted from architect: record the decision in an ADR (ADR-120). Declined: passing `cwd=_PROJECT_ROOT` to the probe, because verifiers inherit the same cwd and must agree with it.
 
 ## User stories
 
@@ -95,7 +96,7 @@ Each row keeps `passed` and gains `status`. The payload keeps `all_passed` and g
 
 ## Integrations
 
-The gate calls `gh` directly, as a system binary, with two fixed queries: `gh api repos/{owner}/{repo}` and a GraphQL viewer query. It reads only a failed call's output and matches `not enabled for this session`. The gate does not read the preflight's verdict. If the skill text is ignored and the gate runs in a refused session, it reports unknown rather than failure.
+The gate calls the `gh` on PATH directly, with two fixed queries: `gh api repos/{owner}/{repo}` and a GraphQL viewer query. It reads only a failed call's output and matches `not enabled for this session`. The gate does not read the preflight's verdict. If the skill text is ignored and the gate runs in a refused session, it reports unknown rather than failure.
 
 ## Failure modes
 
@@ -105,12 +106,15 @@ The gate calls `gh` directly, as a system binary, with two fixed queries: `gh ap
 | PR text in verifier output resembles a refusal | Ignored. Verifier output is never matched |
 | Probe cannot run (no `gh`, timeout, no repo) | No evidence, so rows read FAIL, as today |
 | Viewer query served while repository GraphQL is refused | Rows read FAIL, as today |
+| `gh` cannot fill `{owner}/{repo}` from the remote | REST probe gives no evidence. The GraphQL probe still catches a refused viewer query |
+| Verifier exits 1 with a real finding in a refused session | Stays `failed`. Exit 1 is an answer under ADR-035 |
+| GraphQL-only refusal beside a retryable exit 3 | Stays `failed`. The narrow body refuses one query shape |
 | A definite failure beside a refusal | Verdict `fail`, exit 1 |
 | Verifier exits 0, bad JSON or false `pass_when` | Unchanged, FAIL |
 
 ## Security
 
-No PR-controlled value reaches the probe's argv, and no work-tree file runs, so the verified closure does not change. The invariant: a refusal never produces `all_passed: true` or exit 0 for a fail-closed criterion.
+No PR-controlled value reaches the probe's argv, and no work-tree script runs, so the verified closure does not change. On Windows a bare `gh` lookup can search the cwd. `_run_git` already shares that residual. The invariant: a refusal never produces `all_passed: true` or exit 0 for a fail-closed criterion.
 
 ## Observability
 
@@ -118,19 +122,22 @@ Row `status`, payload `verdict`, and the evidence file written by `--evidence-pa
 
 ## Acceptance criteria
 
-1. When a row failed with a non-zero verifier exit and the probe observes a session refusal, the gate shall set that row's `status` to `unknown` and keep `passed: false`.
+1. When the REST probe observes the session body, the gate shall set rows that exited 2, 3, or 4 to `unknown`. When only the GraphQL probe observes a refusal, it shall set only rows that exited 2 to `unknown`. Each keeps `passed: false`.
 2. When the probe observes no refusal, or cannot run, the gate shall leave every row `failed`, as today.
-3. The gate shall run the probe at most once per run, and shall not run it when no verifier exited non-zero.
+3. The gate shall run at most one pass over the probes per run, and none when no verifier exited above 1.
 4. The gate shall never match verifier stdout or stderr. A verifier that prints refusal text while exiting non-zero in a served session stays `failed`.
-5. A row that failed through `pass_when` or bad JSON at exit 0 shall stay `failed` in a refused session.
+5. A row that exited 1, or failed through `pass_when` or bad JSON at exit 0, shall stay `failed` in a refused session.
 6. When any row is `failed`, the gate shall report verdict `fail` and exit 1.
 7. When no row is `failed` and at least one row is `unknown`, the gate shall report verdict `unknown`, list those rows in `unknown_criteria`, and exit 3.
 8. The gate shall never exit 0 or report `all_passed: true` while a row is `unknown`.
-9. `_print_table` shall mark an unknown row `UNKN`, keep its evidence lines, and name the hand check.
+9. `_print_table` shall mark an unknown row `UNKN` and keep its evidence lines. The gate shall print a stderr line starting `UNKNOWN:` that names the hand check, in table and JSON modes.
 10. `_TRANSPORT_BLOCKED_MESSAGE` shall stop presenting the App connection as the expected fix and shall name MCP as the supported path.
 11. `transport-routing.md` shall state that a blocking local gate must not depend on `gh` for its verdict, and that a gate unable to verify reports unknown.
 12. `pr-review` and `pr-autofix` shall document exit 3 with verdict `unknown`, route it to the hand check, and say not to retry it. Exit 3 with no payload stays the trust halt.
 13. All harness mirrors shall be regenerated with `build_all.py`.
+14. ADR-120 shall record the unknown verdict and its exit code, and ADR-059 Decision 1 shall point to it. ADR-059 is at the 500-line cap, so it cannot hold an amendment.
+15. Every shipped criterion's verifier shall call `assert_gh_authenticated` before reading PR data, pinned by a test.
+16. A hand check shall never set `all_passed` or arm a merge.
 
 ## Out of scope
 
@@ -157,4 +164,4 @@ N/A (bug fix / doc / refactor).
 
 ## Complexity classification
 
-Tier 2. Clear domain. Standard lifecycle after this spec.
+Tier 3, because it changes a shared exit contract on a trust boundary. Clear domain. Standard lifecycle after this spec.

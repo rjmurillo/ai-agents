@@ -8,14 +8,16 @@ and each ``gh`` probe answers independently.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
+import re
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.github_core.api import _GRAPHQL_BLOCKED_MESSAGE, _TRANSPORT_BLOCKED_MESSAGE
 from tests.gh_auth_refusal_fixtures import PROXY_GRAPHQL_403, PROXY_REST_403
@@ -46,6 +48,8 @@ _SERVED = _proc(stdout="{}")
 _REST_REFUSED = _proc(stderr=PROXY_REST_403, returncode=1)
 _GRAPHQL_REFUSED = _proc(stderr=PROXY_GRAPHQL_403, returncode=1)
 _VERIFIER_REFUSED = _proc(stderr=_TRANSPORT_BLOCKED_MESSAGE, returncode=2)
+_VERIFIER_EXTERNAL_ERROR = _proc(stderr="HTTP 503", returncode=3)
+_VERIFIER_NOT_READY = _proc(stdout=json.dumps({"CanMerge": False}), returncode=1)
 _PASSING = _proc(stdout=json.dumps({"count": 0}))
 _FAILING = _proc(stdout=json.dumps({"count": 3}))
 
@@ -69,25 +73,17 @@ class _Session:
         return answer
 
 
-@pytest.fixture
-def run_gate(tmp_path, monkeypatch, capsys) -> Callable:
-    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
-    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
-    monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(
-        _dispatcher,
-        "_verify_config_trust",
-        lambda *_a, **_k: _dispatcher.TrustCheck(_dispatcher.TRUST_TRUSTED, ""),
-    )
-    monkeypatch.setattr(
-        _dispatcher,
-        "_verify_command_trust",
-        lambda *_a, **_k: _dispatcher.CommandTrustCheck(
-            _dispatcher.COMMAND_TRUST_TRUSTED, [], [], [], [], ""
-        ),
-    )
+class _GateRunner:
+    """Runs ``main`` against a fake session and keeps the last stderr."""
 
-    def _run(
+    def __init__(self, tmp_path: Path, monkeypatch, capsys) -> None:
+        self.tmp_path = tmp_path
+        self.monkeypatch = monkeypatch
+        self.capsys = capsys
+        self.stderr = ""
+
+    def __call__(
+        self,
         session: _Session,
         *,
         fail_open: bool = False,
@@ -104,15 +100,35 @@ def run_gate(tmp_path, monkeypatch, capsys) -> Callable:
             }
             for name in session.verifiers
         ]
-        config = tmp_path / "pr-review-config.yaml"
+        config = self.tmp_path / "pr-review-config.yaml"
         config.write_text(json.dumps({"completion_criteria": criteria}), encoding="utf-8")
-        monkeypatch.setattr(_dispatcher.subprocess, "run", session)
+        self.monkeypatch.setattr(_dispatcher.subprocess, "run", session)
         argv = ["--config", str(config), "--pull-request", "7", *extra_args]
         rc = _dispatcher.main([*argv, "--json"] if as_json else argv)
-        out = capsys.readouterr().out
-        return rc, json.loads(out) if as_json else out
+        captured = self.capsys.readouterr()
+        self.stderr = captured.err
+        return rc, json.loads(captured.out) if as_json else captured.out
 
-    return _run
+
+@pytest.fixture
+def run_gate(tmp_path, monkeypatch, capsys) -> _GateRunner:
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        _dispatcher,
+        "_verify_config_trust",
+        lambda *_a, **_k: _dispatcher.TrustCheck(_dispatcher.TRUST_TRUSTED, ""),
+    )
+    monkeypatch.setattr(
+        _dispatcher,
+        "_verify_command_trust",
+        lambda *_a, **_k: _dispatcher.CommandTrustCheck(
+            _dispatcher.COMMAND_TRUST_TRUSTED, [], [], [], [], ""
+        ),
+    )
+
+    return _GateRunner(tmp_path, monkeypatch, capsys)
 
 
 class TestRefusedSession:
@@ -218,7 +234,60 @@ class TestRefusedSession:
         assert rc == 3
         assert "UNKN" in out
         assert "FAIL" not in out
-        assert "transport-routing.md" in out
+        assert run_gate.stderr.startswith("UNKNOWN:")
+        assert "transport-routing.md" in run_gate.stderr
+
+    def test_json_mode_also_prints_the_stderr_line(self, run_gate):
+        session = _Session({"a": _VERIFIER_REFUSED}, rest=_REST_REFUSED)
+
+        run_gate(session)
+
+        assert run_gate.stderr.startswith("UNKNOWN:")
+
+    @pytest.mark.parametrize(
+        ("rest", "graphql"),
+        [
+            pytest.param(_REST_REFUSED, _SERVED, id="rest-refused"),
+            pytest.param(_SERVED, _GRAPHQL_REFUSED, id="graphql-refused"),
+        ],
+    )
+    def test_exit_one_is_an_answer_and_stays_failed(self, run_gate, rest, graphql):
+        """``test_pr_merge_ready.py`` exits 1 with JSON for a PR that is not ready."""
+        session = _Session({"a": _VERIFIER_NOT_READY}, rest=rest, graphql=graphql)
+
+        rc, result = run_gate(session)
+
+        assert rc == 1
+        assert result["verdict"] == "fail"
+        assert result["criteria"][0]["status"] == "failed"
+        assert session.gh_calls == []
+
+    def test_session_refusal_explains_an_external_error(self, run_gate):
+        session = _Session({"a": _VERIFIER_EXTERNAL_ERROR}, rest=_REST_REFUSED)
+
+        rc, result = run_gate(session)
+
+        assert rc == 3
+        assert result["criteria"][0]["status"] == "unknown"
+
+    def test_graphql_refusal_leaves_a_retryable_error_failed(self, run_gate):
+        """The narrow body refuses one query shape, not the session."""
+        session = _Session(
+            {"a": _VERIFIER_EXTERNAL_ERROR, "b": _VERIFIER_REFUSED}, graphql=_GRAPHQL_REFUSED
+        )
+
+        rc, result = run_gate(session)
+
+        assert rc == 1
+        assert [row["status"] for row in result["criteria"]] == ["failed", "unknown"]
+
+    def test_narrow_body_on_the_rest_probe_is_not_a_session_refusal(self, run_gate):
+        narrow = _proc(stderr=PROXY_GRAPHQL_403, returncode=1)
+        session = _Session({"a": _VERIFIER_EXTERNAL_ERROR}, rest=narrow)
+
+        rc, _ = run_gate(session)
+
+        assert rc == 1
 
 
 class TestServedSession:
@@ -227,7 +296,7 @@ class TestServedSession:
         forged = _proc(
             stdout=json.dumps({"body": PROXY_REST_403}),
             stderr=_TRANSPORT_BLOCKED_MESSAGE,
-            returncode=1,
+            returncode=2,
         )
         session = _Session({"a": forged})
 
@@ -237,6 +306,7 @@ class TestServedSession:
         assert result["verdict"] == "fail"
         assert result["criteria"][0]["status"] == "failed"
         assert result["unknown_criteria"] == []
+        assert len(session.gh_calls) == 2
 
     def test_passing_run_never_calls_gh(self, run_gate):
         session = _Session({"a": _PASSING})
@@ -273,6 +343,14 @@ class TestServedSession:
         assert rc == 1
         assert result["verdict"] == "fail"
 
+    def test_probe_that_cannot_run_leaves_a_signal(self, run_gate):
+        missing = FileNotFoundError("gh")
+        session = _Session({"a": _VERIFIER_REFUSED}, rest=missing, graphql=missing)
+
+        run_gate(session)
+
+        assert "Session refusal probe inconclusive" in run_gate.stderr
+
     def test_refusal_text_in_a_successful_probe_is_ignored(self, run_gate):
         """A served repository description can hold any text."""
         served = _proc(stdout=json.dumps({"description": "not enabled for this session"}))
@@ -286,12 +364,100 @@ class TestServedSession:
 class TestProbeContract:
     def test_probe_argv_holds_no_runtime_value(self):
         """Fixed argv keeps PR-controlled input out of the probe."""
-        assert all(isinstance(probe, tuple) for probe in _dispatcher._SESSION_REFUSAL_PROBES)
-        assert all(probe[:2] == ("gh", "api") for probe in _dispatcher._SESSION_REFUSAL_PROBES)
+        probes = _dispatcher._SESSION_REFUSAL_PROBES
+        assert all(isinstance(probe.argv, tuple) for probe in probes)
+        assert all(probe.argv[:2] == ("gh", "api") for probe in probes)
 
-    @pytest.mark.parametrize("body", [PROXY_REST_403, PROXY_GRAPHQL_403])
-    def test_pattern_matches_the_captured_proxy_bodies(self, body):
-        assert _dispatcher._SESSION_REFUSAL.search(body)
+    def test_patterns_match_the_captured_proxy_bodies(self):
+        rest, graphql = _dispatcher._SESSION_REFUSAL_PROBES
+        assert rest.refusal.search(PROXY_REST_403)
+        assert not rest.refusal.search(PROXY_GRAPHQL_403)
+        assert graphql.refusal.search(PROXY_GRAPHQL_403)
+        assert not graphql.refusal.search(PROXY_REST_403)
+
+    def test_graphql_probe_sends_the_query_check_gh_auth_sends(self):
+        """Different text could be answered differently by a query allowlist."""
+        _, graphql = _dispatcher._SESSION_REFUSAL_PROBES
+        api_source = (_REPO_ROOT / "scripts/github_core/api.py").read_text(encoding="utf-8")
+        assert f'"{graphql.argv[-1]}"' in api_source
+
+
+_ALLOWED_BEFORE_PREFLIGHT = {"build_parser", "parse_args", "error_and_exit", "print"}
+
+
+def _calls_before_preflight(script: Path) -> set[str]:
+    """Names called in ``main`` before ``assert_gh_authenticated``, in source order."""
+    tree = ast.parse(script.read_text(encoding="utf-8"))
+    main = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "main"
+    )
+    calls = sorted(
+        (node for node in ast.walk(main) if isinstance(node, ast.Call)),
+        key=lambda node: (node.lineno, node.col_offset),
+    )
+    names = [
+        call.func.id if isinstance(call.func, ast.Name) else getattr(call.func, "attr", "?")
+        for call in calls
+    ]
+    return set(names[: names.index("assert_gh_authenticated")])
+
+
+class TestDecisionEightInvariant:
+    """ADR-120 Decision 8: a refusal is session-wide, so no verifier may read PR
+    data before the ``gh`` preflight. A verifier that did could steer its own exit."""
+
+    def test_every_shipped_verifier_calls_the_preflight_first(self):
+        config_path = _REPO_ROOT / "src/claude/skills/pr-review/pr-review-config.yaml"
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        scripts = [
+            re.search(r"/skills/github/scripts/pr/(\w+\.py)", criterion["command"]).group(1)
+            for criterion in config["completion_criteria"]
+        ]
+
+        assert len(scripts) == 5
+        for script in scripts:
+            before = _calls_before_preflight(_SCRIPT_PATH.parent / script)
+            assert before <= _ALLOWED_BEFORE_PREFLIGHT, script
+
+    def test_a_broken_verifier_reads_unknown_in_a_refused_session(self, run_gate):
+        """Accepted trade-off: it never passes, and the hand check still runs."""
+        broken = _proc(stderr="Plugin lib directory not found", returncode=2)
+        session = _Session({"a": broken}, rest=_REST_REFUSED)
+
+        rc, result = run_gate(session)
+
+        assert rc == 3
+        assert result["criteria"][0]["passed"] is False
+
+    def test_reworded_proxy_body_leaves_the_row_failed(self, run_gate):
+        reworded = _proc(stderr="gh: Access denied by session policy. (HTTP 403)", returncode=1)
+        session = _Session({"a": _VERIFIER_REFUSED}, rest=reworded, graphql=reworded)
+
+        rc, result = run_gate(session)
+
+        assert rc == 1
+        assert result["criteria"][0]["status"] == "failed"
+
+
+class TestTrustHaltStaysDistinct:
+    def test_trust_halt_exit_three_prints_no_payload(self, run_gate, monkeypatch):
+        """Payload presence is how a caller tells the two exit 3 results apart."""
+        monkeypatch.setattr(
+            _dispatcher,
+            "_verify_command_trust",
+            lambda *_a, **_k: _dispatcher.CommandTrustCheck(
+                _dispatcher.COMMAND_TRUST_GIT_ERROR, [], [], [], [], "git failed"
+            ),
+        )
+        session = _Session({"a": _PASSING})
+
+        rc, out = run_gate(session, as_json=False)
+
+        assert rc == 3
+        assert out == ""
+        assert "HALT:" in run_gate.stderr
+        assert "UNKNOWN:" not in run_gate.stderr
+        assert session.gh_calls == []
 
 
 class TestRefusalMessage:
