@@ -39,6 +39,10 @@ The owner decided on 2026-11-05 that no critical path may depend on anything AI,
 
 The architect and critic seats moved to Accept after the revision. The independent-thinker seat stayed at Disagree-and-Commit. The security, analyst, and high-level-advisor seats had already accepted in round 1.
 
+## Post-Consensus Edit
+
+Owner review on PR #7098 added the Decision 13 lead sentence to the superseded list. No seat's position depended on that omission.
+
 ## Dissent
 
 The independent-thinker seat prefers to keep a blocking, ungated check for the zero-token load legs. The owner's decision stands, and the split stays open as later work.
