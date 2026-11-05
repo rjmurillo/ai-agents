@@ -1,48 +1,93 @@
 #!/usr/bin/env python3
-"""Blocking gate: vulture may report no dead code outside the baseline.
+"""Blocking gate: ruff's ARG rules may report no unused argument outside the baseline.
 
-vulture runs with the ``[tool.vulture]`` table in ``pyproject.toml``. Each
-finding is keyed as ``<path>: <message>``, with no line number, so an edit
-elsewhere in a file does not churn the key. The findings must equal the
+The gate runs ``ruff check --select ARG`` with JSON output over the tracked
+Python files under ``SCAN_ROOTS``. ruff resolves each name in its own scope, so
+a parameter named ``path`` or ``args`` is reported when that function never
+reads it, even if another function uses the same name. It reports unused
+function, method, class-method, static-method, and lambda arguments
+(``ARG001`` to ``ARG005``).
+
+What it does not catch: unused imports, unused functions, classes, variables,
+or attributes, and unreachable code. ``check_unreachable_code.py`` covers
+unreachable statements; the repo-wide ruff ``F`` rules cover unused imports.
+ARG is not in the repo-wide ruff ``select``: adding it there would turn every
+listed finding red in the other ruff gates.
+
+Each finding is keyed as ``<path>: <code> <argument>``, with no line number, so
+an edit elsewhere in a file does not churn the key. The findings must equal the
 committed baseline in ``dead_code_baseline.txt`` next to this script.
 It runs as the pre-push ``python-dead-code`` job, the ``Dead Code Detection``
 gate in ``pre_pr.py``, and a step in the ``pytest`` workflow:
 
-- A finding the baseline does not list fails the gate. Remove the dead code,
-  or, for a false positive, use the name so vulture sees it.
-- A baseline entry vulture no longer reports also fails the gate, so the
+- A finding the baseline does not list fails the gate. Use the argument, or
+  remove it. A leading underscore marks an argument as intentionally unused.
+- A baseline entry ruff no longer reports also fails the gate, so the
   baseline can only shrink. Delete the line in the same change that fixed it.
+
+Two unused arguments with the same name in one file share a key, so the gate
+sees the count per file and name, not which function holds it.
 
 ``tests/validation/test_check_dead_code.py`` pins the baseline length, so an
 added line fails until a reviewer sees that constant move.
 
-The scan reads only files git tracks under the configured paths, so an
-untracked draft cannot fail a push that CI, checking out the same commit,
-passes. A tracked file reads its working-tree content.
+The scan reads only files git tracks under the scan roots, so an untracked
+draft cannot fail a push that CI, checking out the same commit, passes. A
+tracked file reads its working-tree content.
 
 Exit codes (ADR-035):
     0 - Success (findings equal the baseline)
     1 - Logic error (new finding or stale baseline entry)
-    2 - Config error (bad baseline or config, unreadable source, nothing
-        scanned, repo root not a git work tree)
-    3 - External error (vulture or git is not installed)
+    2 - Config error (bad baseline, unreadable source, nothing scanned, repo
+        root not a git work tree, git or ruff not installed or failing)
+    3 - External error (git or ruff timed out)
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib
+import json
+import os
+import re
+import shutil
 import subprocess
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from pathlib import Path
-from types import ModuleType
+from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_RELPATH = Path("scripts/validation/dead_code_baseline.txt")
 KEY_SEPARATOR = ": "
+
+# Canonical sources of the [tool.coverage.run] roots: .claude/skills links into
+# src/claude/skills, and the .claude/hooks and src/claude/hooks trees render
+# from templates/hooks, so each file is scanned once at its source.
+SCAN_ROOTS = ("scripts", "src/claude", "templates/hooks", ".claude/lib")
+
+# Generated copies and linked files under the scan roots. A path equal to an
+# entry, or under an entry that ends in "/", is skipped. Test trees are skipped
+# by directory name in _is_excluded.
+EXCLUDED_PATHS = (
+    "src/claude/hooks/",
+    "src/claude/lib/ai_review_common/",
+    "src/claude/lib/bootstrap.py",
+    "src/claude/lib/failure_classifier/",
+    "src/claude/lib/github_core/",
+    "src/claude/lib/hook_utilities/",
+    "src/claude/skills/review/scripts/validate_review_marker.py",
+    ".claude/lib/bootstrap.py",
+    ".claude/lib/paths.py",
+)
+
+GIT_TIMEOUT_SECONDS = 30
+RUFF_TIMEOUT_SECONDS = 60
+# Windows caps a command line near 32K characters; batch the file list.
+RUFF_BATCH_SIZE = 200
+
+_ARG_CODE = re.compile(r"ARG\d{3}")
+_ARGUMENT_NAME = re.compile(r"`([^`]+)`")
 
 
 class GateConfigError(RuntimeError):
@@ -50,16 +95,12 @@ class GateConfigError(RuntimeError):
 
 
 class ExternalToolError(RuntimeError):
-    """Raised when a tool the gate runs is not installed."""
-
-
-class VultureMissingError(ExternalToolError):
-    """Raised when the vulture package cannot be imported."""
+    """Raised when a tool the gate runs does not finish in time."""
 
 
 @dataclass(frozen=True)
 class ScanResult:
-    """Finding keys plus the number of first-party modules vulture read."""
+    """Finding keys plus the number of first-party files ruff read."""
 
     keys: list[str]
     scanned_files: int
@@ -105,16 +146,21 @@ def compare(findings: Iterable[str], baseline: Iterable[str]) -> Comparison:
     )
 
 
-def _load_vulture() -> ModuleType:
-    try:
-        for name in ("vulture.config", "vulture.core"):
-            importlib.import_module(name)
-    except ImportError as exc:
-        raise VultureMissingError("vulture is not installed; run `uv sync --extra dev`") from exc
-    return sys.modules["vulture"]
+def _clean_git_env() -> dict[str, str]:
+    """Return the process environment without ambient Git repository pointers."""
+    return {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
 
 
-def tracked_python_files(repo_root: Path, roots: Sequence[str]) -> list[Path]:
+def _is_excluded(relpath: str) -> bool:
+    if "tests" in PurePosixPath(relpath).parts:
+        return True
+    return any(
+        relpath.startswith(entry) if entry.endswith("/") else relpath == entry
+        for entry in EXCLUDED_PATHS
+    )
+
+
+def tracked_python_files(repo_root: Path, roots: Sequence[str] = SCAN_ROOTS) -> list[Path]:
     """Return the tracked regular ``.py`` files under ``roots``, as absolute paths."""
     try:
         listing = subprocess.run(
@@ -124,9 +170,15 @@ def tracked_python_files(repo_root: Path, roots: Sequence[str]) -> list[Path]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            env=_clean_git_env(),
+            timeout=GIT_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise ExternalToolError(
+            f"dead-code gate: git ls-files timed out after {GIT_TIMEOUT_SECONDS}s"
+        ) from exc
     except OSError as exc:
-        raise ExternalToolError(f"cannot run git: {exc}") from exc
+        raise GateConfigError(f"cannot run git: {exc}") from exc
     if listing.returncode != 0:
         raise GateConfigError(
             f"git ls-files failed under {repo_root}: {listing.stderr.strip() or 'no output'}"
@@ -134,11 +186,10 @@ def tracked_python_files(repo_root: Path, roots: Sequence[str]) -> list[Path]:
     files: list[Path] = []
     for entry in listing.stdout.split("\0"):
         meta, sep, relpath = entry.partition("\t")
-        if not sep or not relpath.endswith(".py"):
+        if not sep or not relpath.endswith(".py") or _is_excluded(relpath):
             continue
-        # A symlink resolves to its target inside vulture, which would key the
-        # finding under another path. A target inside the roots is scanned at
-        # its own path. A deletion not yet committed has no file to read.
+        # A symlink's target is scanned at its own path when it is in scope.
+        # A deletion not yet committed has no file to read.
         if meta.startswith("120000 "):
             continue
         path = repo_root / relpath
@@ -147,56 +198,78 @@ def tracked_python_files(repo_root: Path, roots: Sequence[str]) -> list[Path]:
     return files
 
 
-def scan(repo_root: Path) -> ScanResult:
-    """Run vulture with the repository's pyproject config."""
-    vulture = _load_vulture()
-    pyproject = repo_root / "pyproject.toml"
-    if not pyproject.is_file():
-        raise GateConfigError(f"pyproject.toml not found under {repo_root}")
+def _run_ruff(repo_root: Path, ruff: str, batch: Sequence[Path]) -> list[dict[str, object]]:
     try:
-        config = vulture.config.make_config(["--config", str(pyproject)])
-    except vulture.config.InputError as exc:
-        raise GateConfigError(f"invalid [tool.vulture] config: {exc}") from exc
-    if not config["paths"]:
-        raise GateConfigError("[tool.vulture] lists no paths")
-    scan_roots = [repo_root / path for path in config["paths"]]
-    missing = [str(path) for path in scan_roots if not path.exists()]
-    if missing:
-        # vulture answers a missing path with sys.exit, which would escape as
-        # this gate's exit 1 and read as a finding, not a bad config.
-        raise GateConfigError(f"[tool.vulture] paths do not exist: {missing}")
+        completed = subprocess.run(
+            [
+                ruff,
+                "check",
+                "--select",
+                "ARG",
+                "--output-format",
+                "json",
+                "--no-cache",
+                "--force-exclude",
+                "--",
+                *map(str, batch),
+            ],
+            cwd=repo_root,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            env=_clean_git_env(),
+            timeout=RUFF_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ExternalToolError(
+            f"dead-code gate: ruff timed out after {RUFF_TIMEOUT_SECONDS}s"
+        ) from exc
+    except OSError as exc:
+        raise GateConfigError(f"cannot run ruff: {exc}") from exc
+    # ruff exits 0 with no findings and 1 with findings; anything else is a failure.
+    if completed.returncode not in (0, 1):
+        raise GateConfigError(
+            f"ruff exited {completed.returncode}: {completed.stderr.strip() or 'no output'}"
+        )
+    try:
+        parsed = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise GateConfigError(f"ruff did not print JSON: {exc}") from exc
+    return parsed
 
-    scanned: list[Path] = []
-    checker = vulture.core.Vulture(
-        ignore_names=config["ignore_names"],
-        ignore_decorators=config["ignore_decorators"],
-    )
-    vulture_scan = checker.scan
 
-    def counting_scan(code: str, filename: str | Path = "") -> None:
-        # scavenge() also scans vulture's bundled whitelists by relative path;
-        # only the first-party modules count toward the examined total.
-        if Path(filename).is_absolute():
-            scanned.append(Path(filename))
-        vulture_scan(code, filename=filename)
+def _finding_key(item: dict[str, object], resolved_root: Path) -> str:
+    code = item.get("code")
+    filename = str(item.get("filename", ""))
+    if not (isinstance(code, str) and _ARG_CODE.fullmatch(code)):
+        # ruff reports a syntax error as an entry whose code is not an ARG rule.
+        raise GateConfigError(f"ruff could not parse {filename}: {item.get('message')}")
+    match = _ARGUMENT_NAME.search(str(item.get("message", "")))
+    if match is None:
+        raise GateConfigError(f"ruff {code} message names no argument: {item.get('message')!r}")
+    relative = Path(filename).resolve().relative_to(resolved_root)
+    return f"{relative.as_posix()}{KEY_SEPARATOR}{code} {match.group(1)}"
 
-    checker.scan = counting_scan
-    modules = tracked_python_files(repo_root, config["paths"])
-    checker.scavenge([str(path) for path in modules], exclude=config["exclude"])
-    if checker.exit_code != vulture.core.ExitCode.NoDeadCode:
-        raise GateConfigError("vulture could not parse or read a source file; see the error above")
-    if not scanned:
-        raise GateConfigError("vulture scanned zero Python files; check [tool.vulture] paths")
 
-    keys = []
-    for item in checker.get_unused_code(min_confidence=config["min_confidence"]):
-        relative = Path(item.filename).resolve().relative_to(repo_root.resolve())
-        keys.append(f"{relative.as_posix()}{KEY_SEPARATOR}{item.message}")
-    return ScanResult(keys=keys, scanned_files=len(scanned))
+def scan(repo_root: Path) -> ScanResult:
+    """Run ``ruff check --select ARG`` over the tracked files in scope."""
+    ruff = shutil.which("ruff")
+    if ruff is None:
+        raise GateConfigError("ruff is not installed; run `uv sync --extra dev`")
+    files = tracked_python_files(repo_root)
+    if not files:
+        raise GateConfigError(f"no tracked Python files under {list(SCAN_ROOTS)}")
+    resolved_root = repo_root.resolve()
+    keys: list[str] = []
+    for start in range(0, len(files), RUFF_BATCH_SIZE):
+        for item in _run_ruff(repo_root, ruff, files[start : start + RUFF_BATCH_SIZE]):
+            keys.append(_finding_key(item, resolved_root))
+    return ScanResult(keys=sorted(keys), scanned_files=len(files))
 
 
 def validate(repo_root: Path, baseline_path: Path) -> bool:
-    """Return True when vulture's findings equal the baseline."""
+    """Return True when ruff's ARG findings equal the baseline."""
     baseline = load_baseline(baseline_path)
     result = scan(repo_root)
     outcome = compare(result.keys, baseline)
@@ -207,13 +280,13 @@ def validate(repo_root: Path, baseline_path: Path) -> bool:
         )
         return True
     for key in outcome.new:
-        print(f"  new dead code: {key}", file=sys.stderr)
+        print(f"  new unused argument: {key}", file=sys.stderr)
     for key in outcome.stale:
         print(f"  stale baseline entry: {key}", file=sys.stderr)
     print(
         f"\ncheck_dead_code: {len(outcome.new)} new finding(s) and "
         f"{len(outcome.stale)} stale baseline line(s) across "
-        f"{result.scanned_files} scanned file(s). Remove new dead code; never add it "
+        f"{result.scanned_files} scanned file(s). Use or remove each new argument; never add it "
         f"to the baseline. Delete each stale line from {baseline_path.name}.",
         file=sys.stderr,
     )

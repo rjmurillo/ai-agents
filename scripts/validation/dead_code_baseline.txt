@@ -1,21 +1,85 @@
 # Shrink-only baseline for scripts/validation/check_dead_code.py.
-# One vulture finding per line, keyed as <path>: <message>.
+# One ruff ARG finding per line, keyed as <path>: <rule code> <argument>.
 # Delete a line when you fix its finding. Never add one; fix the code instead.
-# Keep the lines sorted. tests/validation/test_check_dead_code.py pins the count.
-#
-# Recorded when the gate landed. vulture reports an unused parameter as
-# "unused variable". The four 100 percent entries are parameters
-# that an interface fixes (urllib's OpenerDirector.open and
-# HTTPRedirectHandler.redirect_request, a public keyword, a caller-facing
-# signature), so they are not removable. Four of the five 90 percent imports
-# are names tests read through the importing module. MessageParam is a
-# TYPE_CHECKING import no annotation uses yet.
-.claude/lib/hook_dispatch.py: unused import 'observe_output_policy'
-scripts/ci/adr101_publisher_github.py: unused variable 'fullurl'
-scripts/ci/adr101_publisher_github.py: unused variable 'newurl'
-scripts/eval/_http_providers.py: unused import 'MessageParam'
-scripts/validation/check_canonical_citations.py: unused import 'clear_test_caches'
-scripts/validation/memory_index.py: unused variable 'all_indices'
-scripts/validation/pre_pr.py: unused import '_find_latest_session_log'
-scripts/validation/pre_pr_headroom.py: unused variable 'on_error'
-src/claude/skills/github/scripts/pr/audit_closing_claims.py: unused import '_CLOSING_KEYWORDS_RE'
+scripts/analyze_pr_failure.py: ARG001 owner
+scripts/analyze_pr_failure.py: ARG001 repo
+scripts/ci/_main_binding.py: ARG001 state
+scripts/ci/adr101_publisher_github.py: ARG002 fp
+scripts/ci/adr101_publisher_github.py: ARG002 headers
+scripts/ci/adr101_publisher_github.py: ARG002 msg
+scripts/ci/adr101_publisher_github.py: ARG002 newurl
+scripts/ci/adr101_publisher_github.py: ARG002 req
+scripts/ci/check_metrics_thresholds.py: ARG001 argv
+scripts/ci/check_plugin_lib_mirrors.py: ARG001 argv
+scripts/ci/codeql_integration_summary.py: ARG001 argv
+scripts/ci/show_drift_failure.py: ARG001 argv
+scripts/ci/write_drift_job_summary.py: ARG001 argv
+scripts/ci/write_metrics_threshold_summary.py: ARG001 argv
+scripts/eval/_copilot_cli_acp.py: ARG001 timeout
+scripts/eval/_http_providers.py: ARG002 seed
+scripts/eval/_routing_live.py: ARG002 round_index
+scripts/eval/_skill_collision.py: ARG001 raw
+scripts/eval/eval-rule-activation.py: ARG001 filed
+scripts/eval/eval_longitudinal_pilot.py: ARG001 checkout
+scripts/eval/eval_longitudinal_pilot.py: ARG001 condition
+scripts/eval/eval_longitudinal_pilot.py: ARG001 model
+scripts/eval/eval_longitudinal_pilot.py: ARG001 prompt
+scripts/eval/eval_longitudinal_pilot.py: ARG001 task
+scripts/generate_third_party_notices.py: ARG001 project_root
+scripts/incoherence.py: ARG001 total_steps
+scripts/invoke_pr_maintenance.py: ARG001 owner
+scripts/invoke_pr_maintenance.py: ARG001 repo
+scripts/memory_enhancement/reflection.py: ARG001 repo_root
+scripts/redact_secrets.py: ARG001 match
+scripts/skillbook.py: ARG001 args
+scripts/testing/slow_test_report.py: ARG002 exitstatus
+scripts/testing/slow_test_report.py: ARG002 location
+scripts/testing/slow_test_report.py: ARG002 location
+scripts/testing/slow_test_report.py: ARG002 nodeid
+scripts/testing/slow_test_report.py: ARG002 session
+scripts/traceability/show_traceability_graph.py: ARG001 specs
+scripts/validate_memory_tier.py: ARG001 memories_dir
+scripts/validate_skill_format.py: ARG001 ci
+scripts/validation/check_copilot_routing_exclusions.py: ARG001 repo_root
+scripts/validation/check_plugin_frontmatter_self_containment.py: ARG001 path
+scripts/validation/check_skill_md_drift.py: ARG001 strip_inline_fn
+scripts/validation/check_skill_md_portability.py: ARG001 current
+scripts/validation/check_skill_md_portability.py: ARG001 marker_current
+scripts/validation/check_subprocess_encoding.py: ARG002 node
+scripts/validation/check_subprocess_encoding.py: ARG002 node
+scripts/validation/memory_index.py: ARG001 all_indices
+scripts/validation/pre_pr_headroom.py: ARG001 on_error
+scripts/validation/promotion_fetch.py: ARG001 ctx
+scripts/validation/testmon_scoped_sync.py: ARG002 session
+src/claude/skills/api-doc-authoring/scripts/api_examples.py: ARG002 args
+src/claude/skills/api-doc-authoring/scripts/api_examples.py: ARG002 kwargs
+src/claude/skills/buy-vs-build-framework/scripts/calculate_tco.py: ARG001 base_result
+src/claude/skills/code-qualities-assessment/scripts/assess.py: ARG001 context
+src/claude/skills/code-qualities-assessment/scripts/assess.py: ARG001 context
+src/claude/skills/code-qualities-assessment/scripts/assess.py: ARG001 use_serena
+src/claude/skills/cynefin-classifier/scripts/classify.py: ARG001 problem
+src/claude/skills/cynefin-classifier/scripts/classify.py: ARG001 text
+src/claude/skills/decision-critic/scripts/decision-critic.py: ARG001 context
+src/claude/skills/decision-critic/scripts/decision-critic.py: ARG001 decision
+src/claude/skills/destructive-change-safety/scripts/gate_verdict.py: ARG001 scanned
+src/claude/skills/destructive-change-safety/scripts/gate_verdict.py: ARG001 scanned
+src/claude/skills/destructive-change-safety/scripts/gate_verdict.py: ARG001 scanned
+src/claude/skills/destructive-change-safety/scripts/gate_verdict.py: ARG001 scanned
+src/claude/skills/doc-accuracy/scripts/doc_accuracy.py: ARG001 doc_path
+src/claude/skills/github/scripts/issue/redact_secrets.py: ARG001 match
+src/claude/skills/github/scripts/pr/get_pr_check_logs.py: ARG001 fmt
+src/claude/skills/github/scripts/pr/set_pr_auto_merge.py: ARG001 owner
+src/claude/skills/github/scripts/pr/set_pr_auto_merge.py: ARG001 owner
+src/claude/skills/github/scripts/pr/set_pr_auto_merge.py: ARG001 repo
+src/claude/skills/github/scripts/pr/set_pr_auto_merge.py: ARG001 repo
+src/claude/skills/memory/memory_core/schema_validation.py: ARG001 depth
+src/claude/skills/memory/memory_core/schema_validation.py: ARG001 field_schema
+src/claude/skills/memory/scripts/migrate_causal_version.py: ARG001 events
+src/claude/skills/memory/scripts/test_memory_size.py: ARG001 verbose
+src/claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py: ARG001 owner
+src/claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py: ARG001 repo
+src/claude/skills/requirements-interview/scripts/audit_check.py: ARG001 answers
+src/claude/skills/retrospective/scripts/run_retrospective.py: ARG001 project_dir
+src/claude/skills/skillforge/assets/templates/script-template.py: ARG001 options
+src/claude/skills/spec/scripts/redact_secrets.py: ARG001 match
+src/claude/skills/taste-lints/scripts/taste_lints.py: ARG001 cwd

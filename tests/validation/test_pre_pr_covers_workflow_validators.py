@@ -398,11 +398,8 @@ _IN_PROCESS_GATES: tuple[str, ...] = ("Dead Code Detection",)
 def _dead_code_fixture(root: Path, *, baseline: str) -> Path:
     import subprocess
 
-    (root / "pyproject.toml").write_text(
-        '[tool.vulture]\npaths = ["src"]\nmin_confidence = 80\n', encoding="utf-8"
-    )
-    (root / "src").mkdir()
-    (root / "src" / "mod.py").write_text("import json\n", encoding="utf-8")
+    (root / "scripts").mkdir()
+    (root / "scripts" / "mod.py").write_text("def f(path):\n    return 1\n", encoding="utf-8")
     baseline_path = root / "scripts" / "validation" / "dead_code_baseline.txt"
     baseline_path.parent.mkdir(parents=True)
     baseline_path.write_text(baseline, encoding="utf-8")
@@ -413,7 +410,7 @@ def _dead_code_fixture(root: Path, *, baseline: str) -> Path:
 
 @pytest.mark.parametrize(
     ("baseline", "expected"),
-    [("", False), ("src/mod.py: unused import 'json'\n", True)],
+    [("", False), ("scripts/mod.py: ARG001 path\n", True)],
     ids=["new-finding-fails", "matching-baseline-passes"],
 )
 def test_the_dead_code_gate_fails_on_a_failing_fixture(

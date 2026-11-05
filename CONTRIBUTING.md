@@ -808,17 +808,24 @@ matching constant in the same diff, which is the edit a reviewer sees.
 
 ### Dead-Code Baseline
 
-vulture checks for dead code with the `[tool.vulture]` settings in `pyproject.toml`.
-`scripts/validation/check_dead_code.py` runs it over every tracked Python file under those paths.
+`scripts/validation/check_dead_code.py` runs `ruff check --select ARG` over the tracked Python files
+under `scripts`, `src/claude`, `templates/hooks`, and `.claude/lib`. It reports unused function,
+method, and lambda arguments (`ARG001` to `ARG005`). ruff resolves names per function, so an unused
+`path` or `args` is reported even when another function reads that name.
+
+The gate does not catch unused imports, functions, classes, variables, or unreachable code. Other
+checks cover some of those: the repo-wide ruff `F` rules for imports, and `check_unreachable_code.py`
+for statements after a terminator. ARG is not in the repo-wide ruff `select`, because that would turn
+every baseline entry red in the other ruff gates.
 Untracked drafts are not scanned, so a local file cannot fail a push that CI passes.
 It runs in the pre-push hook (`python-dead-code`) and in the `pytest` workflow.
 
 Findings that existed when the gate landed sit in `scripts/validation/dead_code_baseline.txt`.
-Each line is `<path>: <message>`, with no line number.
+Each line is `<path>: <rule code> <argument>`, with no line number.
 
-The baseline may only shrink. Do not add a line for new code; remove the dead code.
-When you fix a listed finding, delete its line in the same change.
-The gate fails on a new finding and on a stale line.
+The baseline may only shrink. Do not add a line for new code; use or remove the argument, or prefix
+it with an underscore when a signature must keep it. When you fix a listed finding, delete its line
+in the same change. The gate fails on a new finding and on a stale line.
 `tests/validation/test_check_dead_code.py` pins the line count, so a reviewer sees any growth.
 
 ### Manual Testing (Optional)
