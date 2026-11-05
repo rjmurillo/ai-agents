@@ -46,6 +46,11 @@ def stored_secrets() -> set[str]:
     return found - set(NOT_STORED)
 
 
+def reads_secret(text: str, secret: str) -> bool:
+    """True when ``text`` names ``secret`` in dotted or bracket form."""
+    return re.search(rf"secrets(?:\.{secret}\b|\[\s*['\"]{secret}['\"]\s*\])", text) is not None
+
+
 def jobs_reaching(path: Path, secret: str) -> dict[str, str | None]:
     """Jobs that can read ``secret``, mapped to their declared environment.
 
@@ -57,10 +62,10 @@ def jobs_reaching(path: Path, secret: str) -> dict[str, str | None]:
     data = yaml.safe_load(text) or {}
     jobs = {j: b for j, b in (data.get("jobs") or {}).items() if isinstance(b, dict)}
     preamble = text.split("\njobs:")[0]
-    workflow_level = f"secrets.{secret}" in preamble
+    workflow_level = reads_secret(preamble, secret)
     reaching: dict[str, str | None] = {}
     for job_id, body in jobs.items():
-        if workflow_level or f"secrets.{secret}" in yaml.safe_dump(body):
+        if workflow_level or reads_secret(yaml.safe_dump(body), secret):
             reaching[job_id] = body.get("environment")
     return reaching
 
@@ -131,7 +136,7 @@ def test_a_job_that_does_not_read_the_secret_is_not_reported(tmp_path: Path) -> 
     assert set(jobs_reaching(wf, "EXAMPLE_TOKEN")) == {"a"}
 
 
-AGENT_ENVIRONMENT_PREFIX = "agent-"
+AGENT_ENVIRONMENTS = frozenset({"agent-claude", "agent-codex", "agent-copilot", "agent-droid"})
 RETIRED_ENVIRONMENT = "bot-secrets"
 
 
@@ -148,7 +153,7 @@ def bot_pat_outside_agent_environments(paths: list[Path]) -> list[str]:
     for path in paths:
         for job_id, environment in jobs_reaching(path, "BOT_PAT").items():
             name = _environment_name(environment)
-            if not name.startswith(AGENT_ENVIRONMENT_PREFIX):
+            if name not in AGENT_ENVIRONMENTS:
                 offenders.append(f"{path.name}:{job_id} environment={name!r}")
     return sorted(offenders)
 
@@ -193,6 +198,18 @@ def test_bot_pat_scan_flags_a_non_agent_environment(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert bot_pat_outside_agent_environments([wf]) == ["w.yml:a environment='release'"]
+
+
+def test_bot_pat_scan_flags_bracket_form_and_unknown_agent_name(tmp_path: Path) -> None:
+    """Control: bracket syntax and an unreviewed agent-x name are reported."""
+    wf = tmp_path / "w.yml"
+    wf.write_text(
+        "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n"
+        "    environment: agent-x\n    steps:\n"
+        "      - run: echo\n        env:\n          T: ${{ secrets['BOT_PAT'] }}\n",
+        encoding="utf-8",
+    )
+    assert bot_pat_outside_agent_environments([wf]) == ["w.yml:a environment='agent-x'"]
 
 
 def test_bot_pat_scan_accepts_an_agent_environment(tmp_path: Path) -> None:

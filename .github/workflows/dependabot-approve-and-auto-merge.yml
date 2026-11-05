@@ -5,12 +5,12 @@ name: Auto-Merge Dependabot PRs
 # auto-merge (renovate.json). Required status checks still gate every
 # merge. No AI and no stored secret is on this path.
 #
-# Security: all PR-supplied values (html_url, title) are passed via env and
-# referenced as quoted shell variables, never interpolated into run blocks.
+# Security: the PR URL is passed via env and used as a quoted shell variable,
+# never interpolated into a run block.
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
 
 permissions:
   contents: read
@@ -28,14 +28,6 @@ jobs:
     # confused deputy pattern, CWE-441).
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - name: Fetch metadata
-        id: dependabot-metadata
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-        with:
-          # GITHUB_TOKEN is always available to the workflow, including in
-          # Dependabot PR contexts where repo secrets are not exposed.
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
       - name: Enable auto-merge
         run: gh pr merge --auto --squash "$PR_URL"
         env:
