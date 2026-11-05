@@ -30,7 +30,7 @@ EXPECTED_GATE = (
 
 @pytest.fixture(scope="module")
 def workflow() -> dict:
-    return yaml.safe_load(WORKFLOW.read_text())
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
 def _step_mapping(step: dict, key: str) -> dict:
@@ -39,7 +39,7 @@ def _step_mapping(step: dict, key: str) -> dict:
 
 
 def _text() -> str:
-    return WORKFLOW.read_text()
+    return WORKFLOW.read_text(encoding="utf-8")
 
 
 def test_workflow_text_has_no_bot_pat() -> None:
