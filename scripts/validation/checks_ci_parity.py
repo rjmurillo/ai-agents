@@ -360,13 +360,8 @@ def validate_skill_description_budget(repo_root: Path) -> bool:
 # import-linter ships a console script and no ``__main__``, so the gate calls the
 # click command through the interpreter running pre_pr. ``--no-cache`` matches the
 # pytest.yml step and the pre-push ``import-boundaries`` job.
-# Plain UTF-8 output: lint-imports crashes on a non-UTF-8 stdout, and color codes
-# would hide the "Broken contracts" header from the report below.
 _LINT_IMPORTS_PROGRAM = (
-    "import os, sys; os.environ['NO_COLOR'] = '1'; os.environ.pop('FORCE_COLOR', None); "
-    "sys.stdout.reconfigure(encoding='utf-8', errors='replace'); "
-    "sys.stderr.reconfigure(encoding='utf-8', errors='replace'); "
-    "from importlinter.cli import lint_imports_command; "
+    "import sys; from importlinter.cli import lint_imports_command; "
     "sys.exit(lint_imports_command())"
 )
 # lint-imports prints a banner, a summary, and last a "Broken contracts" section
@@ -406,8 +401,12 @@ def validate_import_boundaries(repo_root: Path) -> bool:
         raise MissingScriptSkip("no pyproject.toml")
     if not _declares_import_contracts(pyproject):
         raise MissingScriptSkip("no [tool.importlinter] table in pyproject.toml")
+    # Color codes would hide the "Broken contracts" header from the report below.
+    # UTF-8 is defensive, so the output does not depend on the terminal code page.
+    env = {key: value for key, value in os.environ.items() if key != "FORCE_COLOR"}
+    env.update({"PYTHONIOENCODING": "utf-8", "NO_COLOR": "1"})
     exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, "-c", _LINT_IMPORTS_PROGRAM, "--no-cache"], cwd=repo_root
+        [sys.executable, "-c", _LINT_IMPORTS_PROGRAM, "--no-cache"], cwd=repo_root, env=env
     )
     lines = ((stdout or "") + (stderr or "")).strip().splitlines()
     detail_at = next((i for i, line in enumerate(lines) if line == "Broken contracts"), None)

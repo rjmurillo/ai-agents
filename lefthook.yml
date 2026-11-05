@@ -585,6 +585,9 @@ pre-push:
           # 2m.
           - name: import-boundaries
             timeout: 90s
+            # Defensive: keep output off the terminal code page.
+            env:
+              PYTHONIOENCODING: utf-8
             run: uv run --frozen --extra dev lint-imports --no-cache
 
           # Issue #5086: the branch-wide dash scan used to run only inside

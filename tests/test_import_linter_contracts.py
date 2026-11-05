@@ -293,6 +293,7 @@ def test_hook_and_workflow_run_the_same_command() -> None:
     hook = _lefthook_job("import-boundaries")
     step = _workflow_step("Check import boundaries (lint-imports)")
     assert hook["run"] == step["run"] == "uv run --frozen --extra dev lint-imports --no-cache"
+    assert hook["env"]["PYTHONIOENCODING"] == step["env"]["PYTHONIOENCODING"] == "utf-8"
     assert "glob" not in hook
 
 
@@ -342,8 +343,13 @@ def test_a_stale_ignore_entry_fails(fixture_tree: Path) -> None:
     assert "scripts.github_core.workflow_provenance -> yaml" in result.stdout + result.stderr
 
 
-def test_pre_pr_gate_prints_the_offending_import_from_real_output(fixture_tree: Path) -> None:
+@pytest.mark.parametrize("force_color", [False, True], ids=["plain", "forced-color"])
+def test_pre_pr_gate_prints_the_offending_import_from_real_output(
+    fixture_tree: Path, force_color: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Drive the gate over real lint-imports output, not a one-line fake."""
+    if force_color:
+        monkeypatch.setenv("FORCE_COLOR", "1")
     _write_module(fixture_tree, "scripts.github_core.cross", "import scripts.hook_utilities.core\n")
     with redirect_stdout(io.StringIO()) as captured:
         passed = checks_ci_parity.validate_import_boundaries(fixture_tree)
@@ -351,6 +357,7 @@ def test_pre_pr_gate_prints_the_offending_import_from_real_output(fixture_tree: 
     assert passed is False
     assert "scripts.github_core.cross -> scripts.hook_utilities.core (l.1)" in shown
     assert "Contracts: 2 kept, 2 broken." in shown
+    assert "\x1b[" not in shown
 
 
 def test_pre_pr_gate_passes_on_the_fixture_tree(fixture_tree: Path) -> None:
