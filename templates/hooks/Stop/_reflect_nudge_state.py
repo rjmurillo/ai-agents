@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 STATE_SUBDIR = "ai-agents-reflect-nudge"
+GIT_ENTRY = ".git"
 THRESHOLD_ENV = "AI_AGENTS_RETRO_NUDGE_THRESHOLD"
 MARKER_MAX_AGE_SECONDS = 30 * 24 * 3600
 MARKER_PRUNE_LIMIT = 500
@@ -33,17 +34,76 @@ def default_state_root(env: Mapping[str, str], os_name: str = os.name) -> Path:
     return Path.home() / ".local" / "state"
 
 
+def resolve_state_root(
+    env: Mapping[str, str], state_root: Path | None = None, os_name: str = os.name
+) -> tuple[Path | None, str]:
+    """AC-24: return ``(resolved_root, "")``, or ``(None, reason)`` when the root is refused.
+
+    Refused: ``HOME`` unset or empty on POSIX, or any directory from the
+    resolved root up to the filesystem root holds a ``.git`` entry (directory,
+    file, or symlink). The walk uses ``lstat`` only and runs before any
+    ``mkdir``, so a refusal creates nothing. It resolves symlinks first, so a
+    symlinked root that lands in a repository is refused, and it climbs past
+    a root that does not exist yet.
+
+    A caller-supplied ``state_root`` is a test seam: it skips the ``HOME``
+    check and still gets the walk. ``main()`` never supplies one.
+
+    Accepted gap: a bare-repository dotfile setup (yadm, for example) leaves
+    no ``.git`` entry, so the walk cannot see it.
+    """
+    if state_root is None:
+        if os_name != "nt" and not env.get("HOME"):
+            return None, "HOME unset, state root refused"
+        state_root = default_state_root(env, os_name)
+    try:
+        resolved = state_root.resolve()
+    except (OSError, RuntimeError):  # symlink loop or unreadable component
+        return None, "state root unresolvable, refused"
+    blocked = _repository_block(resolved)
+    return (None, blocked) if blocked else (resolved, "")
+
+
+def _repository_block(path: Path) -> str:
+    """The refusal reason when ``path`` or an ancestor holds ``.git``, else ``""``.
+
+    An ``lstat`` error other than not-found means the walk cannot finish, so
+    it refuses with its own reason rather than claiming a repository.
+    """
+    for directory in (path, *path.parents):
+        try:
+            os.lstat(directory / GIT_ENTRY)
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError:
+            return "state root check failed (lstat error), refused"
+        return "state root inside a repository, refused"
+    return ""
+
+
+def _repository_entry_at_or_above(path: Path) -> bool:
+    """True when ``path`` or an ancestor holds a ``.git`` entry, or the check cannot finish."""
+    return bool(_repository_block(path))
+
+
 def safe_marker_dir(state_root: Path) -> Path | None:
     """Create or validate the 0o700 marker directory, refusing symlinks.
 
     The state root is resolved first, so a symlinked state root (a dotfile
     manager, for example) works and every later check runs on the real path.
+    The repository walk runs on that real path before any ``mkdir`` (AC-24).
     The root is not mode-checked: a 0o002 umask makes group-writable roots
     normal. A directory another user pre-creates under it fails the owner and
     0o700 checks below, which is what protects the marker.
     """
-    state_root.mkdir(parents=True, exist_ok=True)
     root = state_root.resolve()
+    if _repository_entry_at_or_above(root):
+        return None
+    root.mkdir(parents=True, exist_ok=True)
+    # A missing ancestor swapped for a symlink between the walk and mkdir
+    # would land the directory elsewhere: re-resolve and walk again.
+    if root.resolve() != root or _repository_entry_at_or_above(root):
+        return None
     if not _owned_by_current_user(root.lstat()):
         return None
     target = root / STATE_SUBDIR

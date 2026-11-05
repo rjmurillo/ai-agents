@@ -850,8 +850,9 @@ _TRANSPORT_BLOCKED_MESSAGE = (
     "wrong remedy, whatever else is also wrong. Use the "
     "GitHub MCP operations for this work (spelled mcp__github__* in Claude "
     "Code, github/* in Copilot CLI), or run it where gh has "
-    "direct GitHub access, such as CI. If an org admin must connect the "
-    "Claude GitHub App for this organization, that is the environment fix."
+    "direct GitHub access, such as CI. MCP is the supported path here: the "
+    "proxy's request to connect the Claude GitHub App is optional, and an "
+    "organization may decline it."
 )
 
 
