@@ -15,15 +15,12 @@ push that a hook blocks.
 
 ## Confirm
 
-Check the hook install and the repository state. These commands only read state,
-except `repair_packed_refs.py`, which removes blank lines from `packed-refs` when
-it finds them and verifies refs after the rewrite:
+Check the hook install and the repository state. These commands only read state:
 
 ```bash
 uv run --frozen lefthook check-install
 uv run --frozen python scripts/validation/check_git_hook_health.py
 uv run --frozen python scripts/validation/check_repo_health.py
-uv run --frozen python scripts/maintenance/repair_packed_refs.py
 ```
 
 A healthy checkout prints `4 of 4 found` from the hook health check and
@@ -62,7 +59,17 @@ repair it prints. It names the scope that holds the bad value. The plain
 worktree, global, or system value. See
 [GOTCHAS.md](../../.agents/governance/GOTCHAS.md) for the background.
 
-**`packed-refs` has blank lines.** Run the repair command above. See
+**`packed-refs` has blank lines.** This step writes. `repair_packed_refs.py`
+rewrites `packed-refs` to drop blank lines and has no dry-run flag. Its only
+option is `--path`. Copy the file first, from the repository root:
+
+```bash
+cp "$(git rev-parse --git-common-dir)/packed-refs" "$(git rev-parse --git-common-dir)/packed-refs.manual-backup"
+uv run --frozen python scripts/maintenance/repair_packed_refs.py
+```
+
+The script also writes its own `packed-refs.before-repair` copy beside the file
+and verifies refs after the rewrite. See
 [Git packed-refs blank-line repair](../troubleshooting-packed-refs.md).
 
 **The pre-push gate asks for a review marker.** Follow

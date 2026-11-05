@@ -32,7 +32,9 @@ The default similarity threshold is 80 percent; change it with
 
 ## Recover
 
-1. Decide whether the drift is intended. Most drift comes from a hand edit to a
+1. Decide whether the drift is intended. A human owner (`@rjmurillo`) makes
+   that call, not an agent. An agent must not add a baseline entry until the
+   owner confirms the drift is intended. Most drift comes from a hand edit to a
    generated agent file. For intended drift, skip to the last part of this
    section.
 2. Fix the source, not the output. The audit names the comparison on each
@@ -94,6 +96,7 @@ the merged PR.
   `detect_agent_drift.py`.
 
 The CONTRIBUTING.md sections "CI Drift Detection" and "Do Not Edit Generated
-Files" still describe the older flow: edit `<name>.shared.md`, then run
-`generate_agents.py`. They also cover the PR-time `agent-drift-detection.yml`
-check, not the scheduled alert. Follow this runbook instead.
+Files" cover the PR-time `agent-drift-detection.yml` check, not the scheduled
+alert. They name `generate_agents.py` as the regenerate command. The steps above
+use `build_all.py`, which [build/AGENTS.md](../../build/AGENTS.md) describes as
+the whole render sequence. If the two disagree for your change, ask the owner.

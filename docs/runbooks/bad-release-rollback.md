@@ -48,6 +48,9 @@ update:
 - Copilot CLI: `copilot plugin update project-toolkit@ai-agents`.
 
 A user who cannot wait for the fix can pin the marketplace to a release tag.
+A pinned tag stops security fixes: [SECURITY.md](../../SECURITY.md) supports only
+the latest commit on `main`, so a pinned install gets no patches. Treat a pin as
+a short stopgap and move back to `main` once the fix lands.
 Tags are cut rarely, so a tag can be far behind `main`. List them with
 `git tag --sort=-creatordate`. Pin to `v0.4.0` or later. Earlier tags carry no
 `project-toolkit` entry in either marketplace, so the install step fails. Both CLIs accept `owner/repo#ref` for a

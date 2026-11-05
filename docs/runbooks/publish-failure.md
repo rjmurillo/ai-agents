@@ -36,7 +36,8 @@ for those.
    The first command answers for one exact version. The second lists every
    published version. If the package has never been published, both fail with
    E404 and exit 1, which is itself the answer: nothing reached the registry.
-   Verified on 2026-11-03: the package returns E404 today.
+   On 2026-11-03 the package had never been published and returned E404. Once a
+   first publish succeeds, the first command returns the version instead.
 
 ## Recover
 

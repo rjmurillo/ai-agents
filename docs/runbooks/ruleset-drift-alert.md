@@ -45,7 +45,11 @@ run log before you touch the ruleset.
 
 ## Recover
 
-First decide whether someone changed the ruleset on purpose.
+First decide whether someone changed the ruleset on purpose. A human owner
+makes that call: `@rjmurillo` or another repository admin. An agent must not
+decide it, and must not baseline a change before the owner confirms it was
+intended. Ask the owner, with the diff from the alert, before you edit the
+recorded state.
 
 - **The change was not intended.** Restore the ruleset in
   [Settings > Rules > Rulesets](https://github.com/rjmurillo/ai-agents/settings/rules)
