@@ -58,6 +58,8 @@ Grok Build's documentation states that a skill's `model` and `effort` keys are a
 - **Codex, 2026-10-13.** Codex 0.162.1 installs `src/codex/` without a `version` (it reports 1.0.0) into `plugins/cache/<marketplace>/<plugin>/1.0.0/`. A Codex model turn was not run, so what a Codex skill's shell sees is not measured.
 - **Existing Codex install.** Codex already installs `project-toolkit@ai-agents` from `.claude-plugin/marketplace.json`. `plugin-cli-smoke.yml` runs a `smoke-codex` job against that install (ADR-114 Decision 2).
 
+2026-11-04 note: owner decision D28 (REQ-048 TASK-006) moved that file to `src/claude/hooks/hooks.json`, and it now registers one advisory Stop group, `plugin-stop-1-reflect_nudge`. The "No plugin hooks" bullet above records the 2026-10-12 and 2026-10-13 measurement.
+
 ## Decision Drivers
 
 In priority order:

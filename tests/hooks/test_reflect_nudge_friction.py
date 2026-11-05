@@ -101,6 +101,22 @@ class TestFrictionNudge:
         assert PLANT not in out + err
         assert all(PLANT not in m.read_text(encoding="utf-8") for m in markers(state))
 
+    def test_message_holds_no_text_from_any_transcript_record(self, tmp_path: Path) -> None:
+        """Plant a sentinel in every record that feeds friction; none may reach the nudge."""
+        sentinel = "SENTINEL-c41d8e07-transcript-text"
+        records = json.loads(
+            json.dumps(friction_records(denials=4, feedback=1)).replace(PLANT, sentinel)
+        )
+        records.append(human(f"no, that is wrong {sentinel}"))
+        transcript = write_transcript(tmp_path / "s.jsonl", records)
+        assert transcript.read_text(encoding="utf-8").count(sentinel) >= 10
+        state = tmp_path / "state"
+        code, out, err = run_env(transcript, state)
+        assert code == 0
+        assert "score" in message(out), "the friction nudge must have fired"
+        assert sentinel not in out + err
+        assert all(sentinel not in m.read_text(encoding="utf-8") for m in markers(state))
+
     def test_template_is_fixed_across_inputs(self, tmp_path: Path) -> None:
         a = write_transcript(tmp_path / "a.jsonl", friction_records(denials=5, feedback=0))
         b = write_transcript(tmp_path / "b.jsonl", friction_records(denials=2, feedback=4))

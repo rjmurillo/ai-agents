@@ -31,7 +31,15 @@ BUILD_ALL_CHECK = "build/scripts/build_all.py --check"
 
 # Hand-maintained copies no generator writes. Losing either row would let a stale
 # runtime copy ship while every generator-owned check stays green.
-HAND_MAINTAINED = {"github-agents-security-references", "lib-copilot-modules"}
+HAND_MAINTAINED = {
+    "github-agents-security-references",
+    "lib-copilot-modules",
+    "lib-claude-dispatch-copies",
+}
+# Deleting this row leaves its files under the independent parent row
+# `lib-claude-plugin`, which accepts any file, so the gate cannot go red. The
+# row's presence is pinned by `test_hand_maintained_surfaces_are_declared`.
+ROW_DELETION_CANNOT_GO_RED = {"lib-claude-dispatch-copies"}
 
 
 @pytest.fixture(scope="module")
@@ -86,7 +94,9 @@ def non_independent_ids() -> list[str]:
     return [s.id for s in loaded.surfaces if s.relation != "independent"]
 
 
-@pytest.mark.parametrize("surface_id", non_independent_ids())
+@pytest.mark.parametrize(
+    "surface_id", [i for i in non_independent_ids() if i not in ROW_DELETION_CANNOT_GO_RED]
+)
 def test_deleting_a_surface_row_fails_the_gate(
     manifest: sm.Manifest, files: list[str], surface_id: str
 ) -> None:

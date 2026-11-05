@@ -81,3 +81,7 @@ TASK-031, TASK-032, TASK-033 merged. ADR-109 section 7 places hooks and settings
 ## Note 2026-10-11
 
 PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config from `templates/hooks/PreToolUse/` and from every rendered copy. The hooks-class counts above include it and record the state when this document was written. The hooks class now holds 14 `.py` and `.sh` scripts, `hooks.json`, and `dispatch_groups.json`. The script count grew from 13 to 14 in separate work, not through PR #6260.
+
+## Note 2026-11-04
+
+Owner decision D28 (2026-11-04, REQ-048 TASK-006) moved the plugin hooks file. The criteria above that pin `test -f src/claude/hooks.json` and the `hooks-json` row scoped to `src/claude/hooks.json` described the layout at merge. The file now renders to `src/claude/hooks/hooks.json`, and `.claude/hooks/hooks.json` is a symlink to it. See the ADR-109 section 2 amendment dated 2026-11-04. The criteria above stay as originally written.

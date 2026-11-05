@@ -1,7 +1,7 @@
 ---
 id: ADR-084
 status: accepted
-date: 2026-07-20
+date: 2026-11-04
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -32,17 +32,17 @@ original bar authorizes retiring a genuine security control.
 Amendment proposed 2026-10-31 (requested by repo-owner @rjmurillo for
 REQ-048). It adds rule 2a, which separates retro enforcement from an advisory
 nudge, narrows rule 2's word "retros" to "retro enforcement", and corrects
-rule 5's enforcement record. Rule 2a, the rule 2 wording change, and the
-duties the rule 5 correction adds are not binding until their adr-review
-closes and the owner accepts them. The correction's facts hold now; the frontmatter
-`status: accepted` covers the original ADR and its 2026-08-18 amendment only.
+rule 5's enforcement record. Its adr-review closed by consensus, and the owner
+accepted it under owner decision D26 (2026-11-04, REQ-048 TASK-006), so rule 2a, the rule 2
+wording change, and the rule 5 duties now bind; frontmatter `status: accepted`
+covers them too.
 The debate record is
 `.project-toolkit/critique/ADR-084-debate-log-2.md`. Rules 1, 3, 4, and 6 and
 the security carve-out are unchanged.
 
 ## Date
 
-2026-07-20; amended 2026-08-18; amendment proposed 2026-10-31
+2026-07-20; amended 2026-08-18; amendment proposed 2026-10-31, accepted 2026-11-04
 
 ## Context
 
@@ -98,12 +98,12 @@ hooks. Concretely, the bar is six rules:
    a consumer does not run this project's protocol.
 2. **Internal enforcement is not vendored.** Session logs, ADR debate, retro
    enforcement, install parity, plugin version bumps, generator drift, and
-   PR-description shape are internal concerns. (Proposed 2026-10-31, not
-   yet binding: "retro enforcement" replaces the accepted word "retros".)
+   PR-description shape are internal concerns. (Accepted 2026-11-04:
+   "retro enforcement" replaces the earlier word "retros".)
    They live in Lefthook and CI only, never in a vendored surface.
 
-   **2a. One advisory nudge is not enforcement (proposed 2026-10-31, not
-   yet binding).** Rule 2 bars enforcing this repository's protocol. It does
+   **2a. One advisory nudge is not enforcement (proposed 2026-10-31,
+   accepted 2026-11-04).** Rule 2 bars enforcing this repository's protocol. It does
    not bar telling a consumer, about their own session, that the shipped
    `retrospective` skill may help. Rule 2a covers one hook only: the REQ-048
    friction nudge, an extension of `invoke_reflect_nudge.py`. Any other
@@ -220,14 +220,13 @@ hooks. Concretely, the bar is six rules:
    above is one day late. In UTC (`2c85d2547` is 2026-08-19T01:38Z) it is
    correct.
    Do not count the test as a working control.
-   Measured at `9254b9945` (2026-10-31): `src/claude/hooks.json` registers
+   Measured at `9254b9945` (2026-10-31): the plugin root hooks.json registers
    zero hooks, and no dispatch group carries `surface: "plugin"`. The
-   paragraphs above record what held before that date. Proposed with rule
-   2a, not yet binding: each PR that makes the vendored surface non-empty
+   paragraphs above record what held before that date. Accepted with rule
+   2a on 2026-11-04: each PR that makes the vendored surface non-empty
    MUST restore both tests. That PR MUST
-   NOT merge until they pass. Until a guard test detects a new vendored
-   registration, this MUST binds only through review. The Amendment Record
-   names the open item.
+   NOT merge until they pass. The restored tests now bind this MUST; the
+   Amendment Record names them.
 
    What the test does NOT do is judge whether the stated value is real. That
    stays with human review at ADR and PR time, as it always did.
@@ -404,7 +403,7 @@ What the amendment does not change: rules 1, 2, 4, and 5; the security
 carve-out; and rule 3's original reading for every event other than the two
 tool-use events.
 
-**2026-10-31, rule 2a and the rule 5 correction (proposed).** REQ-048 asks for
+**2026-10-31, rule 2a and the rule 5 correction (accepted 2026-11-04).** REQ-048 asks for
 a Stop hook that suggests `/retrospective` when a session shows heavy tool-side
 friction. Rule 2 as written listed "retros" as internal, so any such hook was
 barred, even one that only advises. The word was meant for this repository's
@@ -429,7 +428,7 @@ repository's own projects (`~/.claude/projects/*ai-agents*`), one operator,
 and many errors come from this repository's validators. The same person labels
 the REQ-048 held-out sample. The figures show the gap exists here. They show no
 consumer demand, and this amendment does not claim any. REQ-048 AC-19 owns
-the ship gate and REQ-048's Observability section owns the kill criterion.
+the ship gate (amended 2026-11-03 under owner decision D19: cross-validation 12 of 16, 75 percent, Wilson lower bound 0.505) and REQ-048's Observability section owns the kill criterion.
 Both are judged on the owner's own transcripts only, because the hook sends
 no telemetry and consumer sessions cannot be seen. The default is calibrated
 on one operator's corpus, and consumers' friction sources are unmeasured.
@@ -460,16 +459,15 @@ the next vendored hook restores them. `tool-use-hook-bar.md` "What a first
 re-add owes" lists that restoration for tool-use hooks. The correction extends
 it to every vendored hook.
 
-Open items this amendment does not close:
+Open items this amendment left, both closed 2026-11-04 by REQ-048 TASK-006:
 
-- No guard test detects a new `surface: "plugin"` group or a non-empty
-  `src/claude/hooks.json` today, so the rule 5 MUST binds through review only.
-  Owner: REQ-048 TASK-006, which this amendment blocks. It restores both rule 5
-  tests and the Copilot exclusion test in the same PR as the first vendored
-  hook.
-- `tool-use-hook-bar.md` "What a first re-add owes" still scopes the rule 5
-  restoration to tool-use hooks. Its wording changes in that same PR, since it
-  is a generated rule with golden fixtures.
+- Rule 5 bound through review only, since no guard test saw a new `surface: "plugin"` group. TASK-006 restores both rule 5 tests in
+  `tests/hooks/test_dispatch_groups_parity.py`: `test_every_vendored_hook_states_its_customer_value` and
+  `test_the_customer_value_check_examines_a_nonempty_surface`. The Copilot exclusion test is
+  `test_copilot_plugin_has_no_entry_for_the_hook` in `tests/hooks/test_plugin_stop_registration.py`.
+- `tool-use-hook-bar.md` "What a first re-add owes" scoped the rule 5 restoration to tool-use hooks. It now says
+  the check binds every vendored hook. Neither closure changes a rule; the owner
+  accepted rule 2a and the rule 5 duties on 2026-11-04.
 
 What this amendment does not change: rules 1, 3, 4, 5's presence
 requirement, and 6;

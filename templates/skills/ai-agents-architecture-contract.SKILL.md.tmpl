@@ -66,7 +66,7 @@ parity twins:
 | Surface | File | Registered (re-verified 2026-10-31) |
 |---|---|---|
 | Claude Code direct | `.claude/settings.json` `hooks` key | 5 events, 8 groups |
-| Vendored plugin source | `.claude/hooks/hooks.json` | 0 events, 0 groups |
+| Vendored plugin source | `.claude/hooks/hooks.json` | 1 events, 1 groups |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 0 events, 0 registrations |
 
 Run the `hook-counts` instrument for the events and registrations in each file. It counts registrations only; it does not say whether a hook is repository-only or vendored.
@@ -132,7 +132,7 @@ belong to `ai-agents-generation-and-release`. Run the `version-gate` instrument 
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: the three sources are not parity twins. Do not force parity; verify repository-only vs vendored before editing either source. ADR-097 retired every tool-call hook, so the vendored surface ships no hooks and the generated Copilot tree carries no dispatcher. Counts on 2026-10-31: 5 events and 8 groups in settings, 0 events and 0 groups in the vendored source. Run the `hook-counts` instrument for current numbers.
+- **Hook sources serve different consumers**: the three sources are not parity twins. Do not force parity; verify repository-only vs vendored before editing either source. ADR-097 retired every tool-call hook, so the vendored surface ships no tool-call hooks and the generated Copilot tree carries no dispatcher. The vendored source registers one advisory Stop group (REQ-048 TASK-006), excluded from Copilot. Counts on 2026-11-04: 5 events and 8 groups in settings, 1 events and 1 groups in the vendored source. Run the `hook-counts` instrument for current numbers.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions; existing debt remains.
 - **Skill tests split by location**: green CI does not prove skill tests ran; run them explicitly (`ai-agents-validation-and-qa`).
@@ -156,7 +156,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against `references/source-of-truth.md` (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count; on 2026-10-31 local settings print `5 8` and vendored source prints `0 0`
+- [ ] Ran the `hook-counts` instrument and used its numbers, not a remembered count; on 2026-11-04 local settings print `5 8` and vendored source prints `1 1`
 - [ ] Ran the `adr-status` instrument for any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (the `version-gate` instrument exits 0)
 

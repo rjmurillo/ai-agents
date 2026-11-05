@@ -163,6 +163,8 @@ _GROUP_FLAG_PATTERN = re.compile(r"--group\s+([A-Za-z0-9_.-]+)")
 # Only the dispatcher fans a registration out to a group. Keying expansion on
 # the bare --group flag would mis-expand any hook that happens to take one.
 DISPATCHER_SCRIPT_NAME = "invoke_dispatch_claude.py"
+# Key part for a shim run by any dispatcher group (see ``_duplicate_key``).
+_DISPATCHED_SHIM_MARKER = "<dispatched shim>"
 
 DISPATCH_GROUPS_PATH = Path(CLAUDE_ROOT) / "hooks" / "dispatch_groups.json"
 PLUGIN_HOOKS_PATH = Path(CLAUDE_ROOT) / "hooks" / "hooks.json"
@@ -723,12 +725,20 @@ def _duplicate_key(entry: HookEntry) -> tuple[str, str, str | None, str | None]:
     share a hook type and matcher are distinct hooks, not duplicates, when
     their groups differ. Include the group in the key for exactly that
     script; every other script keeps the prior three-part identity.
+
+    A shim reached through a dispatcher group carries the dispatcher's
+    command. It is keyed apart from a direct registration of the same file:
+    a plugin group and ``.claude/settings.json`` are two surfaces, and the
+    plugin launcher exits at once inside the repo that publishes it
+    (REQ-048 TASK-006). Two groups naming the same shim still collide.
     """
     group: str | None = None
+    match = _GROUP_FLAG_PATTERN.search(entry.command)
     if Path(entry.script_path).name == DISPATCHER_SCRIPT_NAME:
-        match = _GROUP_FLAG_PATTERN.search(entry.command)
         if match:
             group = match.group(1)
+    elif match and DISPATCHER_SCRIPT_NAME in entry.command:
+        group = _DISPATCHED_SHIM_MARKER
     return (entry.hook_type, entry.script_path, entry.matcher, group)
 
 
