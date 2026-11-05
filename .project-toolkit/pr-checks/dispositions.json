@@ -17,5 +17,14 @@
       6797,
       7067
     ]
+  },
+  "Renovate": {
+    "disposition": "infrastructure",
+    "reason": "The Renovate job fails at its Verify BOT_PAT secret step because BOT_PAT is empty at run time, which no PR diff can change. A repo admin must set or rotate the secret. The owner approved this waiver on 2026-11-04 for these two PRs only, so any other Renovate PR still fails loudly until the secret is fixed.",
+    "expires": "2026-11-19",
+    "pull_requests": [
+      7045,
+      6982
+    ]
   }
 }
