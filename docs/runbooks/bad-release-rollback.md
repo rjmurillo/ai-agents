@@ -40,8 +40,8 @@ git switch -c fix/revert-<short sha> origin/main
 git revert <sha>
 ```
 
-Open the PR with the `push-pr` skill and merge it once checks pass. Then users
-update:
+Open the PR with the `push-pr` skill. Merge it once checks pass and the owner
+has reviewed it. Then users update:
 
 - Claude Code: `claude plugin update project-toolkit@ai-agents`, or
   **Update now** on the **Installed** tab of `/plugin`.

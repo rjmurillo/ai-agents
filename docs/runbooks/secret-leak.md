@@ -48,6 +48,10 @@ GitHub token, an npm token, or a model provider API key.
 
 ## Recover
 
+A human does these steps. ADR-112 keeps secrets and credentials human only, so
+an agent stops here and hands off to `@rjmurillo`. That covers rotation,
+revocation, and every irreversible deletion below.
+
 1. **Revoke or rotate the credential first.** Do it at the issuer: GitHub token
    settings, the GitHub App settings, npm token settings, or the model provider
    console. Then store the new value where the table above says it lives. For
@@ -64,7 +68,11 @@ GitHub token, an npm token, or a model provider API key.
    decision 11 item 4 records `SMOKE_ANTHROPIC_API_KEY` and `FACTORY_API_KEY`
    as open owner actions, so their placement is not an endorsement. Only a
    repository admin can change these.
-2. **Remove it from the current tree.** Delete the value on a branch and open a
+2. **Check for misuse before you delete anything.** Workflow logs and
+   artifacts are evidence, so read them first. Review the issuer's audit log for the exposure window.
+   Check recent workflow runs and package versions for activity you did not
+   start.
+3. **Remove it from the current tree.** Delete the value on a branch and open a
    PR with the `push-pr` skill. That PR's diff still shows the old value in its
    removed lines, so this step does not end the exposure. Rotation does.
    For a PR body, issue body, or comment, editing the text is not enough: GitHub
@@ -82,12 +90,11 @@ GitHub token, an npm token, or a model provider API key.
    The redactor prints the text to stdout with token shapes replaced. It does
    not change the file, and it does not scan the repository. It matches known
    token shapes only. A value in another shape passes through, so clean output
-   does not prove the text is safe to post. Read the output yourself.
-3. **Do not rewrite shared history yourself.** Force-pushing `main` is forbidden.
+   does not prove the text is safe to post. Read the output yourself. An agent
+   must not run it on text that holds the live value, because stdout lands in
+   the agent's transcript.
+4. **Do not rewrite shared history yourself.** Force-pushing `main` is forbidden.
    History cleanup is the owner's decision, and rotation is what protects you.
-4. **Check for misuse.** Review the issuer's audit log for the exposure window.
-   Check recent workflow runs and package versions for activity you did not
-   start.
 
 ## Escalate
 
