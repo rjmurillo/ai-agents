@@ -44,7 +44,7 @@ Yes. The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`
 
 ### What does it require?
 
-Claude Code or GitHub Copilot CLI with plugin marketplace support. The `project-toolkit` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs in your session. Some skills run Python scripts, and those skills need Python 3.10 or later on PATH (`py` on Windows). To contribute to this repository, see [CONTRIBUTING.md](../CONTRIBUTING.md#prerequisites).
+Claude Code or GitHub Copilot CLI with plugin marketplace support. In Claude Code, the `project-toolkit` plugin registers one advisory Stop hook (ADR-084 rule 2a). In Copilot CLI, it registers no hooks. Neither CLI gets tool-use hooks (ADR-097). The Stop hook and some skills run Python scripts, and those need Python 3.10 or later on PATH (`py` on Windows). To contribute to this repository, see [CONTRIBUTING.md](../CONTRIBUTING.md#prerequisites).
 
 ### Is it free?
 

@@ -6,12 +6,15 @@
 # 80 on purpose: a red run here gives 5 points of warning before a listing
 # would be blocked.
 #
-# The action pin matches that catalog's validate-contribution.yml (same commit,
-# fail_on_severity none: severities are advisory, the score is the gate). The
-# action verifies the scanner wheel's SHA-256 and PyPI provenance before
-# installing it. Repository-owned scanner config is not trusted
-# (trust_repository_policy defaults to false), so the score here is the score
-# the catalog computes.
+# The action pin may run ahead of that catalog's validate-contribution.yml.
+# Last checked 2026-11-04: the catalog pins c96833de (v1.2.806, scanner 3.57.0)
+# and this workflow pins v1.2.809 (scanner 3.58.0), by owner decision on #6982.
+# While the pins differ, the score here comes from a newer scanner than the
+# catalog's and can differ from it. fail_on_severity is none, as in the catalog:
+# severities are advisory, the score is the gate. The action verifies the
+# scanner wheel's SHA-256 and PyPI provenance before installing it.
+# Repository-owned scanner config is not trusted (trust_repository_policy
+# defaults to false).
 #
 # Bump the action SHA, build/plugin-scanner (to scanner-version.txt at that
 # commit), and the pins in tests/validation/test_check_plugin_scanner_score.py
@@ -19,7 +22,7 @@
 # literals. It cannot read upstream, so checking scanner-version.txt and
 # scanner-sha256.txt at the new commit is a manual step.
 #
-# Margin: the local twin scored 82 under scanner 3.57.0 on 2026-10-31. Refresh
+# Margin: the local twin scored 82 under scanner 3.58.0 on 2026-11-04. Refresh
 # this line on each bump. The twin prints the current score and every check
 # that lost points, on a pass too.
 #
@@ -66,7 +69,7 @@ jobs:
           persist-credentials: false
 
       - name: Run HOL AI Plugin Scanner
-        uses: hashgraph-online/ai-plugin-scanner-action@c96833de5070fab4e564010b5ab6e3c3d7e07a3e # v1.2.806
+        uses: hashgraph-online/ai-plugin-scanner-action@37a0b7035b989c0bcd1177dd7f6c77b49dab7c2f # v1.2.809
         with:
           plugin_dir: "."
           mode: scan

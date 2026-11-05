@@ -145,7 +145,7 @@ surfaces:
     generator: build/scripts/hook_templates.py
     owner: build_all.py --check
   - id: hooks-json-claude-plugin
-    path: src/claude/hooks.json
+    path: src/claude/hooks/hooks.json
     relation: generated
     authority: templates/hooks/hooks.json
     generator: build/scripts/hook_templates.py
@@ -164,7 +164,7 @@ surfaces:
   - id: hooks-json-claude-install
     path: .claude/hooks/hooks.json
     relation: binplaced
-    authority: src/claude/hooks.json
+    authority: src/claude/hooks/hooks.json
     generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
   - id: settings-claude
@@ -476,6 +476,14 @@ surfaces:
     relation: independent
     include: ["*.py"]
     reason: Top-level modules have no scripts/ source and are edited here.
+  - id: lib-claude-dispatch-copies
+    path: src/claude/lib
+    relation: translated
+    authority: .claude/lib
+    include: [claude_hook_dispatch.py, claude_hook_protocol.py, hook_dispatch.py, hook_dispatch_protocol.py, hook_dispatch_timeout.py, output_capture.py, shim_loader.py]
+    divergent: []
+    owner: build/scripts/check_surface_parity.py
+    reason: The plugin launcher imports the grouped dispatcher from its own lib/ (REQ-048 TASK-006), so the plugin ships byte copies of these seven .claude/lib modules. Edit .claude/lib, then copy.
   - id: lib-copilot-modules
     path: src/copilot-cli/lib
     relation: translated

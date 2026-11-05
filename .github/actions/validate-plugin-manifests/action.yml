@@ -63,9 +63,12 @@ runs:
       shell: bash
       env:
         ROOT: ${{ inputs.root || github.workspace }}
+      # python3 -m pytest, not bare pytest: the module form puts the repo
+      # root on sys.path, so the root conftest.py can load its
+      # scripts.testing.system_temp_git_guard plugin (#6902).
       run: |
         cd "$ROOT"
-        pytest tests/build_scripts/test_validate_plugin_manifests.py -v
+        python3 -m pytest tests/build_scripts/test_validate_plugin_manifests.py -v
 
     - name: Validate every plugin.json in repo
       id: validate

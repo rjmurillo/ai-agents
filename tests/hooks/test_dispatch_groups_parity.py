@@ -210,7 +210,10 @@ AUTHORIZED_HOOKS = {
     "copies that register hooks this checkout does not, read-only, fail-open, "
     "dogfood-only",
     "invoke_reflect_nudge.py": "#5817 KEEP: deterministic transcript scan, "
-    "advisory systemMessage only, never blocks, fail-open, dogfood-only",
+    "advisory systemMessage only, never blocks, fail-open. Dogfood via "
+    ".claude/settings.json and vendored via group plugin-stop-1-reflect_nudge "
+    "(ADR-084 rule 2a, REQ-048 TASK-006, owner decisions D20 and D24): "
+    "Claude Code only, so copilotExclude is true",
 }
 
 
@@ -240,3 +243,61 @@ def test_no_authorization_outlives_the_hook_it_authorizes():
         f"authorized but not running: {sorted(stale)}. Delete these entries; "
         f"the ledger records what runs, not what once did."
     )
+
+
+def _plugin_surface_shim_paths() -> list[Path]:
+    """Resolve every shim belonging to a plugin-surface group.
+
+    "Vendored" is a property of the registration, not of the directory a file
+    sits in. `.claude/hooks/` also holds this repository's own dogfood hooks,
+    which ADR-084 rule 5 never covered, so scoping by directory would demand a
+    consumer-value line from hooks that have no consumer.
+    """
+    return [
+        HOOKS_DIR / shim["file"]
+        for spec in MANIFEST["groups"].values()
+        if spec.get("surface") == "plugin"
+        for shim in spec["shims"]
+    ]
+
+
+def test_every_vendored_hook_states_its_customer_value():
+    """ADR-084 rule 5: a vendored hook must state what it does for a consumer.
+
+    Restored by REQ-048 TASK-006. The first copy was added in `2c85d2547` and
+    deleted in `f79e70c01` when the vendored surface emptied. This is a
+    presence assertion, not a judgement: whether the stated value is REAL is a
+    human review question at ADR and PR time. It catches the cheaper failure,
+    a hook reaching the vendored surface with nobody having written down who
+    it helps.
+    """
+    missing = [
+        path.relative_to(REPO_ROOT)
+        for path in _plugin_surface_shim_paths()
+        if "Customer value:" not in path.read_text(encoding="utf-8")
+    ]
+    assert not missing, (
+        "ADR-084 rule 5: every vendored hook needs a one-line "
+        "'Customer value:' statement in its module docstring, naming what it "
+        f"delivers in a CONSUMER's repo. Missing from: {sorted(map(str, missing))}. "
+        "'Enforces our protocol' is disqualifying under rule 1: a consumer does "
+        "not run this project's protocol. If the hook has no consumer value, it "
+        "belongs in lefthook or CI per rule 2, not in the vendored surface."
+    )
+
+
+def test_the_customer_value_check_examines_a_nonempty_surface():
+    """Guard the guard: a zero-file corpus would pass the check vacuously.
+
+    If a future change drops the last plugin-surface registration, the
+    assertion above starts passing because it examines nothing. This fails
+    instead. If the vendored surface was deliberately emptied, delete both
+    tests in the same PR and say so in ADR-084, as `f79e70c01` did.
+    """
+    paths = _plugin_surface_shim_paths()
+    assert paths, (
+        "no plugin-surface groups in dispatch_groups.json, so the rule 5 check "
+        "above examines nothing and passes vacuously."
+    )
+    for path in paths:
+        assert path.is_file(), f"plugin-surface shim missing on disk: {path}"

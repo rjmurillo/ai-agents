@@ -216,6 +216,9 @@ max-complexity = 15
 # ANN suppression for test files (annotations not required in tests)
 "tests/**/*.py" = ["ANN"]
 "**/tests/**/*.py" = ["ANN"]
+# REQ-048 TASK-006: byte copies of .claude/lib dispatcher modules (surface-parity row
+# lib-claude-dispatch-copies). The authority files carry the C901 baseline entries.
+"src/claude/lib/*hook_dispatch*.py" = ["C90"]
 # ANN suppression for pre-existing code (to be fixed incrementally)
 ".claude/skills/**/*.py" = ["ANN", "E501"]
 ".claude/hooks/**/*.py" = ["ANN"]

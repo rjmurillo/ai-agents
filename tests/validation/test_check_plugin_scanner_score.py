@@ -406,17 +406,17 @@ def test_scanner_project_lock_pins_the_action_wheel() -> None:
 
     A Renovate bump of the action SHA, or a re-lock of build/plugin-scanner,
     fails here until both sides name the same scanner, so the local score
-    cannot drift from the CI and catalog score unnoticed.
+    cannot drift from the CI score unnoticed. This test reads only local files,
+    so it cannot see the catalog's pin.
     """
     lock = (REPO_ROOT / gate.SCANNER_PROJECT / "uv.lock").read_text(encoding="utf-8")
-    assert 'name = "plugin-scanner"\nversion = "3.57.0"' in lock
-    assert "408b302ca427fc8b7bc0b54164f85e9d57d45714d24bafe1a2e6bef7353558fa" in lock
-    # The cooldown waiver is a dated cutoff, never `false`, so later scanner
+    assert 'name = "plugin-scanner"\nversion = "3.58.0"' in lock
+    assert "13bb0e18595f7e64071101dacb0b97c44a7bfa37d7e3925dcf49d83329d9f2b5" in lock
+    # A waiver must stay a dated cutoff, never `false`, so later scanner
     # releases stay under the 7-day exclude-newer cooldown.
-    assert 'plugin-scanner = "2026-10-26T00:00:00Z"' in lock
     assert "plugin-scanner = false" not in lock
     workflow = (REPO_ROOT / ".github" / "workflows" / "plugin-scanner.yml").read_text(
         encoding="utf-8"
     )
-    assert "ai-plugin-scanner-action@c96833de5070fab4e564010b5ab6e3c3d7e07a3e" in workflow
+    assert "ai-plugin-scanner-action@37a0b7035b989c0bcd1177dd7f6c77b49dab7c2f" in workflow
     assert "min_score: 80" in workflow
