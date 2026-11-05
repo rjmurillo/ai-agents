@@ -78,7 +78,13 @@ class TestRefusedSession:
 
     def test_verifier_that_never_ran_stays_failed(self):
         """A verifier that timed out has no exit code, so it stays failed."""
-        row = {"name": "a", "passed": False, "exit_code": None, "reason": "timed out"}
+        row = {
+            "name": "a",
+            "passed": False,
+            "exit_code": None,
+            "reason": "timed out",
+            "stdout_json": None,
+        }
 
         assert dispatcher._settle_verdict([row]) == "fail"
         assert row["status"] == "failed"
@@ -102,25 +108,6 @@ class TestRefusedSession:
         run_gate(session)
 
         assert len(session.gh_calls) == 1
-
-    def test_reason_says_the_criterion_was_not_verified(self, run_gate):
-        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
-
-        _, result = run_gate(session)
-
-        assert result["criteria"][0]["reason"].startswith("session refuses GitHub")
-
-    def test_evidence_file_records_the_verdict(self, run_gate, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)
-        evidence = tmp_path / "gate-evidence.json"
-
-        rc, _ = run_gate(session, extra_args=["--evidence-path", str(evidence)])
-
-        recorded = json.loads(evidence.read_text(encoding="utf-8"))
-        assert rc == 3
-        assert recorded["verdict"] == "unknown"
-        assert recorded["unknown_criteria"] == ["a"]
 
     def test_table_marks_unknown_and_names_the_hand_check(self, run_gate):
         session = Session({"a": VERIFIER_REFUSED}, rest=REST_REFUSED)

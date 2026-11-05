@@ -45,6 +45,12 @@ VERIFIER_EXTERNAL_ERROR = proc(stderr="HTTP 503", returncode=3)
 VERIFIER_NOT_READY = proc(stdout=json.dumps({"CanMerge": False}), returncode=1)
 PASSING = proc(stdout=json.dumps({"count": 0}))
 FAILING = proc(stdout=json.dumps({"count": 3}))
+API_ERROR = proc(
+    stdout=json.dumps({"count": 3, "fetched_pages_complete": False, "api_error": True})
+)
+INCOMPLETE_READ = proc(
+    stdout=json.dumps({"count": 3, "fetched_pages_complete": False, "api_error": False})
+)
 
 
 class Session:
