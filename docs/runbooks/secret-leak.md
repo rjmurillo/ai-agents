@@ -60,8 +60,10 @@ GitHub token, an npm token, or a model provider API key.
    lists a repository copy for the secret, or you find one, update or delete it
    too, in
    [Settings > Secrets and variables > Actions](https://github.com/rjmurillo/ai-agents/settings/secrets/actions).
-   The table lists repository-level secrets, and those are the ones that
-   belong there. Only a repository admin can change these.
+   The table lists the repository-level secrets found on 2026-11-05. ADR-114
+   decision 11 item 4 records `SMOKE_ANTHROPIC_API_KEY` and `FACTORY_API_KEY`
+   as open owner actions, so their placement is not an endorsement. Only a
+   repository admin can change these.
 2. **Remove it from the current tree.** Delete the value on a branch and open a
    PR with the `push-pr` skill. That PR's diff still shows the old value in its
    removed lines, so this step does not end the exposure. Rotation does.

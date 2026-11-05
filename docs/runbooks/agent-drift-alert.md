@@ -8,7 +8,9 @@ workflow opened or updated an issue titled
 labels. `scripts/ci/drift_create_alert_issue.py` builds the issue body from
 [.github/prompts/drift-alert-issue.md](../../.github/prompts/drift-alert-issue.md),
 filling in the date, the run link, and the drift details. The body links back
-to this runbook.
+to this runbook. If a `drift-detected` issue is already open,
+`drift-detection.yml` posts a comment on it instead, with no runbook link, and
+that issue may be a ruleset alert.
 
 The audit makes two comparisons. It compares the Claude agents in
 `src/claude/agents/` with the VS Code and Copilot agents in

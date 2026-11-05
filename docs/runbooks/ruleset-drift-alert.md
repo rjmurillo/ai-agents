@@ -34,7 +34,7 @@ ADR-035:
 | 1 | Drift found |
 | 2 | Local configuration error, such as a missing or malformed baseline |
 | 3 | GitHub API or issue operation failed |
-| 4 | `gh` is not authenticated (parameter check only) |
+| 4 | GitHub authentication failed |
 
 The Actions token cannot see `bypass_actors`, so the scheduled parameter check
 skips that comparison and logs it. Run the parameter check with an admin token to

@@ -13,10 +13,11 @@ Follow the runbook:
 $SERVER_URL/$REPOSITORY/blob/main/docs/runbooks/agent-drift-alert.md
 
 1. Review the differences listed above
-2. Determine if drift is intentional or accidental
+2. A human owner decides if drift is intentional or accidental
 3. Either:
    - Fix the agent template for the side that drifted
-   - Record intended drift in `build/scripts/detect_agent_drift.py`
+   - After the owner confirms it is intended, record the drift in
+     `build/scripts/detect_agent_drift.py`
 
 ## Related Files
 
