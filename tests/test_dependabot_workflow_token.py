@@ -1,23 +1,18 @@
-"""Regression test for #2307.
+"""Regression tests for the Dependabot auto-merge workflow.
 
-Dependabot PRs do NOT receive org/repo secrets by default, so a PAT secret
-resolves to an empty string in the fetch-metadata step's context. The action
-then errors with:
+#2307: Dependabot PRs do not receive repo secrets, so a stored secret resolves
+to an empty string and `dependabot/fetch-metadata` fails with
+"github-token is not set!". The fetch-metadata step must use
+`secrets.GITHUB_TOKEN`.
 
-    github-token is not set! Please add 'github-token:
-    "${{ secrets.GITHUB_TOKEN }}"' to your workflow file.
-
-Evidence: https://github.com/rjmurillo/ai-agents/actions/runs/26853238605/job/79190113142
-
-This test asserts the read-only `dependabot/fetch-metadata` step uses
-`secrets.GITHUB_TOKEN` (always available in the workflow context),
-while the subsequent approval/merge steps use the `BOT_PAT` PAT (the
-canonical write PAT per ADR-026 Decision 5; #2551 repointed this workflow
-off the never-provisioned `GH_ACTIONS_PR_WRITE` secret onto `BOT_PAT`).
+The workflow holds a write token under `pull_request_target`, so it must read
+no stored secret, declare no environment, and gate on the PR author (CWE-441).
+Renovate merges through its own platform auto-merge, so no job here serves it.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -103,20 +98,57 @@ def test_yaml_null_fields_do_not_break_token_checks() -> None:
     assert token == "${{ secrets.GITHUB_TOKEN }}"
 
 
-def test_approve_and_merge_steps_still_use_pat(workflow: dict) -> None:
-    """Edge: write actions still require the PAT for ruleset compliance.
+def _text() -> str:
+    return WORKFLOW.read_text()
 
-    The auto-approve and auto-merge steps must continue to use
-    BOT_PAT so reviews come from a real user identity (the rjmurillo-bot
-    service account, ADR-026 Decision 5) that satisfies branch-protection
-    ruleset requirements.
-    """
-    job = workflow["jobs"]["dependabot"]
-    write_steps = [s for s in job["steps"] if s.get("name") in {"Approve PR", "Enable auto-merge"}]
-    assert len(write_steps) == 2, "expected Approve PR + Enable auto-merge steps"
-    for step in write_steps:
-        gh_token = _step_mapping(step, "env").get("GH_TOKEN", "")
-        assert "BOT_PAT" in gh_token, (
-            f"{step['name']!r} must use BOT_PAT PAT for "
-            f"ruleset-compliant reviews; got: {gh_token!r}"
-        )
+
+def test_workflow_text_has_no_bot_pat() -> None:
+    """Negative: BOT_PAT is unprovisioned and must not appear anywhere."""
+    assert "BOT_PAT" not in _text()
+
+
+def test_no_job_declares_an_environment(workflow: dict) -> None:
+    """Negative: no job pulls in environment-scoped secrets."""
+    with_env = [name for name, job in workflow["jobs"].items() if "environment" in job]
+    assert with_env == []
+
+
+def test_no_renovate_job(workflow: dict) -> None:
+    """Negative: Renovate merges through platform auto-merge, not this file."""
+    assert "renovate" not in workflow["jobs"]
+
+
+def test_no_approve_pr_step(workflow: dict) -> None:
+    """Negative: the approval did nothing (required approvals are 0)."""
+    names = [s.get("name") for job in workflow["jobs"].values() for s in job["steps"]]
+    assert "Approve PR" not in names
+    assert "gh pr review" not in _text()
+
+
+def test_enable_auto_merge_uses_github_token(workflow: dict) -> None:
+    """Positive: the merge step runs on the per-run token."""
+    steps = {s.get("name"): s for s in workflow["jobs"]["dependabot"]["steps"]}
+    token = _step_mapping(steps["Enable auto-merge"], "env").get("GH_TOKEN", "")
+    assert token == "${{ secrets.GITHUB_TOKEN }}"
+
+
+def test_job_if_gates_on_pr_author_and_head_repo(workflow: dict) -> None:
+    """Positive: the gate reads PR author and head repo, never github.actor."""
+    condition = workflow["jobs"]["dependabot"]["if"]
+    assert "github.event.pull_request.user.login" in condition
+    assert "github.event.pull_request.head.repo.full_name" in condition
+    assert "github.actor" not in condition
+
+
+def test_job_permissions_are_the_two_write_scopes(workflow: dict) -> None:
+    """Positive: gh pr merge --auto needs contents and pull-requests write."""
+    assert workflow["jobs"]["dependabot"]["permissions"] == {
+        "contents": "write",
+        "pull-requests": "write",
+    }
+
+
+def test_only_github_token_secret_is_referenced() -> None:
+    """Negative: GITHUB_TOKEN is the only secrets.* name in the file."""
+    names = set(re.findall(r"secrets\.([A-Za-z_][A-Za-z0-9_]*)", _text()))
+    assert names == {"GITHUB_TOKEN"}

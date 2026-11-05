@@ -901,7 +901,6 @@ gh act pull_request \
   -j "validate-spec" \
   -W .github/workflows/ai-spec-validation.yml \
   -s "GITHUB_TOKEN=$TOKEN" \
-  -s "BOT_PAT=$TOKEN" \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest
 ```
 
