@@ -64,7 +64,7 @@ ACTIVATE_CASES = [
     pytest.param(
         ["src/copilot-cli/.claude-plugin/plugin.json"], "harness-interface", id="harness-manifest"
     ),
-    pytest.param(["src/claude/hooks.json"], "harness-interface", id="harness-hooks-json"),
+    pytest.param(["src/claude/hooks/hooks.json"], "harness-interface", id="harness-hooks-json"),
     # The /test skill's own edit source: its "test." prefix is not a test file.
     pytest.param(
         ["templates/skills/test.SKILL.md.tmpl"], "harness-interface", id="harness-test-template"

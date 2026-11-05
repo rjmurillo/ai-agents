@@ -10,9 +10,10 @@ Hook Type: Stop (non-blocking, fail-open)
 Exit Codes:
     0 = always. The hook never emits ``decision: "block"`` and never exits 2,
         so it cannot trap a session or loop. A nudge is a ``systemMessage``
-        advisory on stdout. Every internal error exits 0. The registered
-        command ends in ``|| true``: python exits 2 on a missing script,
-        and exit 2 on Stop blocks.
+        advisory on stdout. Every internal error exits 0. Python exits 2 on
+        a missing script, and exit 2 on Stop blocks, so the registered
+        command checks the dispatcher file first and exits 0 when it is
+        missing. The advisory launcher then exits 0 on every failure path.
 
 Stop payload (issue #3184 probed the real event): ``session_id``, ``transcript_path``,
 and ``cwd``, not ``messages``. A missing ``transcript_path`` is the fail-open reason.
@@ -29,11 +30,11 @@ exclusive create (O_CREAT | O_EXCL) so overlapping Stops cannot both nudge.
 The name hashes the counts; the body holds counts, never transcript text.
 
 Friction branch (REQ-048 TASK-003): the scan keeps conversation records, up
-to MAX_FRICTION_RECORDS, and the shared ``failure_classifier`` (``lib/``, the
-one home of the weights, tiers, and message) scores them, one marker per
-(session, tier). ``0`` or ``off`` in AI_AGENTS_RETRO_NUDGE_THRESHOLD silences
-both branches before any I/O, even without the lib. A budget stop, a missing
-lib, or a lib error skips friction only and says so on stderr.
+to MAX_FRICTION_RECORDS, and the shared ``failure_classifier`` (``lib/``)
+scores them, one marker per (session, tier). Firing bound: at most one
+friction nudge per session per threshold tier. Off is read before any I/O.
+A budget stop, a missing lib, or a lib error skips friction only; stderr says so.
+Customer value: retro prompt after repeated failures. Off: AI_AGENTS_RETRO_NUDGE_THRESHOLD=0|off.
 
 Calibration status (issue #5820, AC-9): patterns are turn-anchored or fixed
 phrases, except one bounded "use ... instead" window, tuned on one operator's

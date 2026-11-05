@@ -196,12 +196,12 @@ def test_copilot_direct_session_start_requires_shell_suppression(tmp_path: Path)
 
 
 def test_claude_real_file_is_anchored() -> None:
-    # ADR-097 retired every tool-call hook, so the real manifest registers zero
-    # command hooks. That is a valid anchored state, not a config error: the
-    # anchoring invariant holds over an empty set.
+    # ADR-097 retired every tool-call hook. REQ-048 TASK-006 then added one
+    # advisory Stop command hook (ADR-084 rule 2a), so the real manifest
+    # registers exactly one command hook, and it must be anchored.
     checked, violations, config = gate._check_claude(REPO_ROOT)
     assert config == 0
-    assert checked == 0
+    assert checked == 1
     assert not violations
 
 

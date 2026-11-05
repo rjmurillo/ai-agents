@@ -4040,7 +4040,7 @@ def test_main_compiles_hook_templates_before_generation(tmp_path: Path) -> None:
     """A standalone run renders ``templates/hooks`` first (ADR-109 B4).
 
     Without the compile step, a direct ``generate_hooks.py`` run reads a
-    stale (or absent) ``src/claude/hooks`` / ``src/claude/hooks.json`` and
+    stale (or absent) ``src/claude/hooks`` / ``src/claude/hooks/hooks.json`` and
     either mirrors unchanged output or fails when those plugin-tree paths
     have never been rendered. Mirrors
     ``test_generate_rules.test_main_compiles_rule_templates_before_generation``'s
@@ -4072,7 +4072,7 @@ def test_main_compiles_hook_templates_before_generation(tmp_path: Path) -> None:
         tmp_path,
         hooks_stanza_overrides={
             "scriptSource": "src/claude/hooks",
-            "settingsSource": "src/claude/hooks.json",
+            "settingsSource": "src/claude/hooks/hooks.json",
         },
     )
 
@@ -4080,7 +4080,7 @@ def test_main_compiles_hook_templates_before_generation(tmp_path: Path) -> None:
 
     assert rc == 0
     assert (tmp_path / "src" / "claude" / "hooks" / "PreToolUse" / "fresh.py").is_file()
-    assert (tmp_path / "src" / "claude" / "hooks.json").is_file()
+    assert (tmp_path / "src" / "claude" / "hooks" / "hooks.json").is_file()
     assert (tmp_path / "out" / "PreToolUse" / "fresh.py").is_file()
 
 

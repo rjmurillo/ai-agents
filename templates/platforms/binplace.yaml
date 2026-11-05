@@ -63,7 +63,8 @@ rows:
     link: true
   - class: hooks
     # ADR-109 B4: the 14 executables and dispatch_groups.json (15 of the
-    # 16 hooks-class files; hooks.json is the hooks-json row below).
+    # 16 hooks-class files; hooks.json is the hooks-json row below, which
+    # links it).
     source: templates/hooks
     plugin_tree: src/claude/hooks
     install_tree: .claude/hooks
@@ -83,15 +84,17 @@ rows:
     # the hand-authored memory-recall.json stays a real file.
     link: true
   - class: hooks-json
-    # hooks.json renders to src/claude/hooks.json (plugin root, ADR-109
-    # section 2: "agents/, skills/, rules/, hooks/ plus hooks.json"), not
-    # under src/claude/hooks/; this row's plugin_tree carries that
-    # file-level path, and binplace_manifest.py's file-mode branch (not
-    # its directory-walk) copies it to .claude/hooks/hooks.json.
+    # hooks.json renders to src/claude/hooks/hooks.json, the only path Claude
+    # Code auto-discovers for plugin hooks (ADR-109 section 2 amendment
+    # 2026-11-04, REQ-048 TASK-006, owner decision D28, 2026-11-04). This row's
+    # plugin_tree is that single file; `link: true` makes
+    # .claude/hooks/hooks.json a relative symlink to it (ADR-119). The
+    # `hooks` row above skips this one name.
     source: templates/hooks/hooks.json
-    plugin_tree: src/claude/hooks.json
+    plugin_tree: src/claude/hooks/hooks.json
     install_tree: .claude/hooks/hooks.json
     compile: hook_templates
+    link: true
   - class: settings
     # No plugin stage (ADR-109 section 3): .claude/settings.json is
     # repo-local dogfood configuration that ships in no plugin, so

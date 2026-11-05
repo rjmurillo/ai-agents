@@ -518,7 +518,7 @@ def _build_hooks(
     """Compile hook templates, then generate Copilot CLI hook config (REQ-003-007, M5-T6).
 
     ADR-109 B4: ``templates/hooks/`` compiles to ``src/claude/hooks/`` and
-    ``src/claude/hooks.json`` first (``hook_templates.compile_all``), the
+    ``src/claude/hooks/hooks.json`` first (``hook_templates.compile_all``), the
     same two-step shape :func:`_build_rules` runs for its own class. The
     compile also renders ``.claude/settings.json`` directly (no plugin-tree
     hop; ADR-109 section 3). The compile is repo-global, not
@@ -529,12 +529,12 @@ def _build_hooks(
     below runs.
 
     The mirror generator (``generate_hooks.generate_hooks``) reads
-    ``src/claude/hooks`` and ``src/claude/hooks.json`` (the stanza's
+    ``src/claude/hooks`` and ``src/claude/hooks/hooks.json`` (the stanza's
     ``scriptSource``/``settingsSource`` since ADR-109 B4), which the
     compile above just wrote, so one run renders template, plugin tree,
     and the Copilot mirror together; the binplace step that follows every
     generator copies ``src/claude/hooks`` to ``.claude/hooks``,
-    ``src/claude/hooks.json`` to ``.claude/hooks/hooks.json``, and
+    ``src/claude/hooks/hooks.json`` linked at ``.claude/hooks/hooks.json``, and
     ``src/copilot-cli/hooks`` to ``.github/hooks``.
 
     Mirror generation is still skipped when the platform has no
@@ -925,11 +925,17 @@ def _paths_unchanged_by_regeneration(
     drifted path that is present in it and byte-identical afterward differs from
     HEAD only because it is uncommitted. A hand edit the generator reverted, a
     file the generator wrote fresh, and a deleted file all differ from the
-    snapshot or are absent from it, so none of them lands here.
+    snapshot or are absent from it, so none of them lands here. A link
+    :func:`binplace_manifest.verified_file_links` proves correct is absent from
+    the snapshot by design, and counts as unchanged: the check just verified it.
     """
     unchanged: list[str] = []
+    verified_links = binplace_manifest.verified_file_links(repo_root)
     for rel in drifted:
         path = repo_root / rel
+        if path in verified_links:
+            unchanged.append(rel)
+            continue
         before = pre_run.get(path)
         if before is None or not path.is_file():
             continue
@@ -1590,8 +1596,15 @@ def _queue_strict_owned_path(pending: list[Path], path: Path) -> Path | None:
     return path
 
 
-def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
+def _iter_strict_owned_files(
+    root: Path, verified_links: frozenset[Path] = frozenset()
+) -> Iterable[Path]:
     """Yield owned files while surfacing strict metadata and scan failures.
+
+    ``verified_links`` are install links :func:`binplace_manifest.verified_file_links`
+    proved point at their in-repository plugin file (``.claude/hooks/hooks.json``,
+    ADR-119). They are skipped, not snapshotted: a write through one lands in
+    ``src/claude/hooks/``, which the ``src/`` prefix snapshots and restores.
 
     Rejects a nested git repository under an owned prefix rather than
     skipping it. Skipping protected restore and nothing else: the checkout
@@ -1635,6 +1648,8 @@ def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     while pending:
         current = pending.pop()
         for child in _strict_owned_children(current):
+            if child in verified_links:
+                continue
             child_file = _queue_strict_owned_path(pending, child)
             if child_file is not None:
                 yield child_file
@@ -1731,6 +1746,7 @@ def _snapshot_owned_prefixes(
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot = OwnedSnapshot()
+    verified_links = binplace_manifest.verified_file_links(repo_root) if strict else frozenset()
     for prefix in prefixes:
         root = repo_root / prefix
         # Every branch below this one runs only when ``strict`` is false: the
@@ -1741,7 +1757,7 @@ def _snapshot_owned_prefixes(
         # rewriting the forward to ``strict=False`` left all 137 tests green).
         if strict:
             _reject_redirecting_ancestors(repo_root, root)
-            for path in _iter_strict_owned_files(root):
+            for path in _iter_strict_owned_files(root, verified_links):
                 if _is_ignored_path(path, ignored) or (
                     exclude_ignored and _is_bytecode_artifact(path.relative_to(repo_root))
                 ):

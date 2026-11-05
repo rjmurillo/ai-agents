@@ -96,6 +96,7 @@ KNOWN_NON_BASELINE_OVERRIDES: tuple[Mapping[str, object], ...] = (
 # pyproject.toml). C901, the one rule the baseline waives per file, never is.
 GENERATED_MIRROR_C90_GLOBS = frozenset(
     {
+        "src/claude/lib/*hook_dispatch*.py",
         "src/codex/skills/**/*.py",
         "src/copilot-cli/hooks/**/*.py",
         "src/copilot-cli/skills/**/*.py",

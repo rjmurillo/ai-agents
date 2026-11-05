@@ -2,7 +2,7 @@
 # taste-lint: ignore file-size, accepted append-only record; splitting breaks audit continuity.
 id: ADR-085
 status: accepted
-date: 2026-07-31
+date: 2026-11-04
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -117,10 +117,14 @@ framework correction or the D-B deletion above. Section 7 stays in place as
 history: it records a real containment incident and the eligibility reasoning
 applied to it at the time. Section 8 carries the current position.
 
+The 2026-11-04 note (REQ-048 TASK-006) adds one dated paragraph at the end of
+section 7. It records a non-security `copilotExclude` whose decision field is
+`ADR-084`, under owner decision D20 (2026-11-03, REQ-048 AC-21). It changes no decision in this ADR.
+
 ## Date
 
-2026-07-20; amended 2026-07-31, 2026-08-11, 2026-08-14, 2026-08-18, and
-2026-08-19
+2026-07-20; amended 2026-07-31, 2026-08-11, 2026-08-14, 2026-08-18,
+2026-08-19, and 2026-11-04
 
 ## Context
 
@@ -534,6 +538,15 @@ same change:
    before it returns to the generated inventory.
 
 Debate log: `.project-toolkit/critique/ADR-068-071-085-5013-debate-log.md`.
+
+**Note, 2026-11-04 (REQ-048 TASK-006): a non-security `copilotExclude`
+exists.** The shim in group `plugin-stop-1-reflect_nudge` sets
+`copilotExclude: true`. Its `copilotExcludeDecision` is `ADR-084`, not this
+ADR, under owner decision D20 (2026-11-03, REQ-048 AC-21). The exclusion is a scope choice for an
+advisory hook, not a security judgment, so ADR-084 rule 2a owns its reason.
+The generic field governance above still applies. The `description` field of
+`templates/hooks/dispatch_groups.json` maps each of the nine items to this
+use. Item 3 reuses issue #5817, the issue that authorizes the hook itself; it is not issue #5013, and no new authorizing issue was opened. This note changes nothing above.
 
 ### 8. `push_pr_script_identity_guard`: deleted from both harnesses (D-D)
 

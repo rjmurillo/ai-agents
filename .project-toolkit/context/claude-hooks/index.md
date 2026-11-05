@@ -13,7 +13,7 @@
 [Dangerous assumptions]
 |`PreToolUse/_bootstrap.py` looks dead. The Copilot dispatcher generator copie... (see: .project-toolkit/context/claude-hooks/details/dangerous-assumptions.md)
 [Dependencies]
-|Copilot mirror `src/copilot-cli/hooks/` renders from `src/claude/hooks.json` ... (see: .project-toolkit/context/claude-hooks/details/dependencies.md)
+|Copilot mirror `src/copilot-cli/hooks/` renders from `src/claude/hooks/hooks.... (see: .project-toolkit/context/claude-hooks/details/dependencies.md)
 [Architecture]
 |One protocol-valid stdout document per group: context parts join on a blank l... (see: .project-toolkit/context/claude-hooks/details/architecture.md)
 [Commands]

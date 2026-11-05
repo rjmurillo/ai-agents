@@ -46,7 +46,10 @@ def test_lib_render_equals_the_committed_claude_lib_tree() -> None:
         if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
     }
 
-    assert rendered == committed
+    claude_only = set(lib_render.CLAUDE_ONLY_LIB_FILES)
+    assert claude_only <= committed.keys(), "a Claude-only lib file is missing from the plugin"
+    assert not claude_only & rendered.keys(), "Claude-only lib files must not be rendered"
+    assert rendered == {k: v for k, v in committed.items() if k not in claude_only}
 
 
 def test_committed_hermes_tree_equals_the_render(real_config: cfg.HermesConfig) -> None:

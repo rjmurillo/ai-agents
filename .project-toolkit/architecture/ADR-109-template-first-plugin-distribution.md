@@ -1,7 +1,7 @@
 ---
 id: ADR-109
 status: accepted
-date: 2026-09-11
+date: 2026-11-04
 decision-makers: [rjmurillo]
 supersedes: [ADR-052]
 superseded-by: null
@@ -64,9 +64,11 @@ Exception: lib's canonical source stays `scripts/`, not `templates/`. The packag
 
 ### 2. The compiler renders two plugin trees
 
-`build/scripts/build_all.py`'s generators render templates into `src/claude/` (Claude Code plugin: `agents/`, `skills/`, `rules/`, `hooks/` plus `hooks.json`, `lib/`, `.claude-plugin/plugin.json`) and `src/copilot-cli/` (Copilot CLI plugin, its existing layout: `agents/`, `skills/`, `instructions/`, `hooks/`, `lib/`, `.claude-plugin/plugin.json`).
+`build/scripts/build_all.py`'s generators render templates into `src/claude/` (Claude Code plugin: `agents/`, `skills/`, `rules/`, `hooks/` plus `hooks.json`, `lib/`, `.claude-plugin/plugin.json`) and `src/copilot-cli/` (Copilot CLI plugin, its existing layout: `agents/`, `skills/`, `instructions/`, `hooks/`, `lib/`, `.claude-plugin/plugin.json`). (2026-11-04: the file now lives at `src/claude/hooks/hooks.json` and registers one advisory Stop group; see the section 2 amendment.)
 
 This changes `src/claude/`'s layout. Today its agent files sit flat at the plugin root, `src/claude/<name>.md`, with no `agents/` subdirectory (`repo-observed`: `ls src/claude`; `build/scripts/validate_install_parity.py:141` matches `^src/claude/(?P<name>[^/]+)\.md$`). B1 moves them to `src/claude/agents/<name>.md`, the layout `.claude/agents/` already uses, rewrites that regex and `detect_agent_drift.py`'s comparison pairs, and lands before the B6 marketplace switch. A consumer of the `claude-agents` plugin sees the path move at their next plugin update; B6 then retires that plugin name. `src/claude/` holds 33 `.md` files today for 31 agent stems (`repo-observed`: `ls src/claude/*.md | wc -l` against `ls templates/agents/*.shared.md | wc -l`); `AGENTS.md` and `claude-instructions.template.md` are not agents and stay at the plugin root after this move, not under `src/claude/agents/`.
+
+2026-11-04 amendment (owner decision D28, 2026-11-04, REQ-048 TASK-006): the plugin hooks file renders to `src/claude/hooks/hooks.json`, not the plugin root beside `agents/`. Claude Code auto-discovers plugin hooks only in the `hooks/` subdirectory of the plugin root. Live evidence (Claude Code 2.1.318, 2026-11-04): with the root file, a `--plugin-dir` run registered 22 hooks and the Stop hook never ran. With the file under `hooks/` and no `plugin.json` key, the hook ran, wrote its marker, and the nudge reached the stream. A `hooks` key in `plugin.json` stays banned (issue #1833: CLI 2.1.122 broke installs). `.claude/hooks/hooks.json` is now a relative symlink to `../../src/claude/hooks/hooks.json` (ADR-119), made by the file-shaped `hooks-json` binplace row with `link: true`; the `hooks` row leaves that one name alone. The original text above stands as written. Path coupling: the hook depends on Claude Code auto-discovering `<plugin-root>/hooks/hooks.json`, proven only on Claude Code 2.1.318. The only guard is the opt-in `tests/e2e/test_cli_stop_nudge_e2e.py` (not in `plugin-cli-smoke.yml`), and because the hook fails open, a CLI change would skip it silently.
 
 ### 3. Binplace: one atomic operation writes the install trees
 
@@ -226,7 +228,7 @@ Change: PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config f
 - ADR-071 (plugin hook runtime contract verification): B4's new runtime-contract test for `.github/hooks/*.json` follows this ADR's verification pattern.
 - ADR-083 (Copilot dogfood surface separation): governs the `.claude/` versus `.github/` split this record's binplace step writes into; not contested here.
 - ADR-092 (no plugin manifest version): unaffected; the marketplace switch in section 4 changes `source` paths, not `version` fields.
-- ADR-097 (zero tool-use hooks): the reason both plugin `hooks.json` files register nothing today; B4's hook template decides what, if anything, a plugin registers again, and this record does not reopen that decision.
+- ADR-097 (zero tool-use hooks): the reason both plugin `hooks.json` files register nothing today; B4's hook template decides what, if anything, a plugin registers again, and this record does not reopen that decision. (2026-11-04: the file now lives at `src/claude/hooks/hooks.json` and registers one advisory Stop group; see the section 2 amendment.)
 - ADR-107 (canonical skill contracts and harness projections, `proposed`, `implemented: false`): settled property 1 amended by this record, generalizing ADR-108's exception from one class to the full binplace allowlist.
 - ADR-108 (template-owned skill files, `accepted`, `implemented: true`): this record generalizes its grammar, drift gate, NO-REGEN handling, and containment checks from one enumerated class (skills) to every class the plugins ship. ADR-108's own text is not amended; its exception is superseded in scope by this record's broader allowlist.
 
@@ -246,7 +248,7 @@ Change: PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config f
 - `.claude/rules/generated-artifacts.md:159-197`, "Generator order: sync before build," the lib ordering hazard and its explicit rejection of the naive fix.
 - `.claude/rules/plugin-self-containment.md`, the plugin-root boundary and the three current plugin roots.
 - `.claude/skills/agent-harness-reference/references/official-hook-contracts.md:48` (Configuration contract table, repository hook files) and `:291-299` (Cloud agent section, loads only `.github/hooks/*.json`, ignores installed plugins).
-- `.project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md:96-98`, why the plugin `hooks.json` is `"hooks": {}`.
+- `.project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md:96-98`, why the plugin `hooks.json` is `"hooks": {}`. (2026-11-04: the file now lives at `src/claude/hooks/hooks.json` and registers one advisory Stop group; see the section 2 amendment.)
 - `scripts/validation/check_adr_lifecycle.py:72`, the `proposed-cannot-supersede` check that fixes when the ADR-052 supersession takes effect.
 - `build/scripts/skill_templates.py:183-244`, the per-skill symlink and containment checks each later class re-implements for its own paths.
 - `.project-toolkit/critique/ADR-108-debate-log.md:378-383`, the ruleset finding that CODEOWNERS does not block a merge today.

@@ -6,9 +6,9 @@ So there is no separate fixtures/ directory to keep in sync with a
 transformation: the committed ``templates/hooks/<rel>`` tree IS the
 fixture, and this test pins the three-way byte-identity chain
 ``templates/hooks/<rel>`` -> ``src/claude/hooks/<rel>`` (or
-``src/claude/hooks.json``) -> ``.claude/hooks/<rel>`` (or
-``.claude/hooks/hooks.json``, ``.claude/settings.json``) the compile step
-plus the binplace step produce end to end, against the real repository
+``src/claude/hooks/hooks.json``) -> ``.claude/hooks/<rel>`` (or
+``.claude/hooks/hooks.json``, a symlink to the plugin file; ``.claude/settings.json``)
+the compile step plus the binplace step produce end to end, against the real repository
 tree, per TASK-034 Acceptance Criteria: "the first render byte-identical
 to today's committed files."
 
@@ -69,10 +69,10 @@ def test_hooks_tree_files_byte_identical_across_the_chain() -> None:
         assert template_bytes == plugin_bytes == install_bytes, rel
 
 
-def test_hooks_json_byte_identical_at_plugin_root_and_install_path() -> None:
-    """templates/hooks/hooks.json == src/claude/hooks.json == .claude/hooks/hooks.json."""
+def test_hooks_json_byte_identical_at_plugin_hooks_dir_and_install_path() -> None:
+    """templates/hooks/hooks.json == src/claude/hooks/hooks.json == .claude/hooks/hooks.json."""
     template_bytes = (_REPO_ROOT / "templates" / "hooks" / "hooks.json").read_bytes()
-    plugin_bytes = (_REPO_ROOT / "src" / "claude" / "hooks.json").read_bytes()
+    plugin_bytes = (_REPO_ROOT / "src" / "claude" / "hooks" / "hooks.json").read_bytes()
     install_bytes = (_REPO_ROOT / ".claude" / "hooks" / "hooks.json").read_bytes()
     assert template_bytes == plugin_bytes == install_bytes
 
