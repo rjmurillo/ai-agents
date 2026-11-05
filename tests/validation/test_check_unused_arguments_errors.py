@@ -6,7 +6,6 @@ import json
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,6 +22,7 @@ from tests.validation.unused_arguments_helpers import (
     git,
     make_repo,
     run_gate,
+    spy_run,
     write_baseline,
 )
 
@@ -108,13 +108,11 @@ def test_every_subprocess_call_sets_a_timeout(
 ) -> None:
     repo = make_repo(tmp_path)
     seen: dict[str, object] = {}
-    real_run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run
 
-    def spy(argv: list[str], *args: object, **kwargs: object) -> object:
+    def record(argv: list[str], kwargs: dict[str, object]) -> None:
         seen["git" if argv[0] == "git" else "ruff"] = kwargs.get("timeout")
-        return real_run(argv, *args, **kwargs)
 
-    monkeypatch.setattr(check_unused_arguments.subprocess, "run", spy)
+    monkeypatch.setattr(check_unused_arguments.subprocess, "run", spy_run(subprocess.run, record))
 
     scan(repo)
 
@@ -146,6 +144,32 @@ def test_main_config_error_when_ruff_prints_no_json(
 
     assert run_gate(repo, write_baseline(tmp_path)) == 2
     assert "did not print JSON" in capsys.readouterr().err
+
+
+def test_main_config_error_when_ruff_json_is_not_a_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path)
+    wrong = subprocess.CompletedProcess(["ruff"], 0, stdout="{}", stderr="")
+    monkeypatch.setattr(
+        check_unused_arguments.subprocess, "run", fake_run(subprocess.run, ruff=wrong)
+    )
+
+    assert run_gate(repo, write_baseline(tmp_path)) == 2
+    assert "ruff JSON is not a list: dict" in capsys.readouterr().err
+
+
+def test_main_config_error_when_ruff_json_holds_a_non_object_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path)
+    wrong = subprocess.CompletedProcess(["ruff"], 1, stdout="[1]", stderr="")
+    monkeypatch.setattr(
+        check_unused_arguments.subprocess, "run", fake_run(subprocess.run, ruff=wrong)
+    )
+
+    assert run_gate(repo, write_baseline(tmp_path)) == 2
+    assert "ruff JSON holds a non-object entry: 1" in capsys.readouterr().err
 
 
 def test_main_config_error_when_a_finding_names_no_argument(
@@ -187,8 +211,8 @@ def test_scan_merges_findings_across_batches(
 
     assert result.scanned_files == 3
     assert result.keys == [
-        "scripts/b.py: ARG001 args",
-        "scripts/c.py: ARG001 data",
+        "scripts/b.py: ARG001 args in g",
+        "scripts/c.py: ARG001 data in h",
         UNUSED_KEY,
     ]
 
@@ -244,20 +268,19 @@ def test_deadline_raises_once_spent() -> None:
 def test_scan_stops_between_batches_when_the_deadline_runs_out(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Five 60s batches plus a 30s git call reached 330s against a 90s lefthook
-    # cap. The shared deadline stops the run between calls instead.
+    # Six 60s batches (1030 files at 200 per batch) plus a 30s git call reached
+    # 390s against a 90s lefthook cap. The shared deadline stops the run between
+    # calls instead.
     repo = make_repo(tmp_path)
     for index in range(3):
         add_file(repo, f"scripts/extra{index}.py", "x = 1\n")
     monkeypatch.setattr(check_unused_arguments, "RUFF_BATCH_SIZE", 1)
     now = [0.0]
-    real_run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run
 
-    def slow(argv: list[str], *args: object, **kwargs: object) -> object:
+    def advance(_argv: list[str], _kwargs: dict[str, object]) -> None:
         now[0] += 40.0
-        return real_run(argv, *args, **kwargs)
 
-    monkeypatch.setattr(check_unused_arguments.subprocess, "run", slow)
+    monkeypatch.setattr(check_unused_arguments.subprocess, "run", spy_run(subprocess.run, advance))
 
     with pytest.raises(ExternalToolError, match="total deadline ran out"):
         scan(repo, Deadline(90.0, clock=lambda: now[0]))
@@ -278,7 +301,7 @@ def test_resolve_ruff_prefers_the_interpreters_copy(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(check_unused_arguments, "importlib", present)
     monkeypatch.setattr(check_unused_arguments.shutil, "which", lambda _name: "/usr/bin/ruff")
 
-    assert check_unused_arguments.resolve_ruff() == [sys.executable, "-m", "ruff"]
+    assert check_unused_arguments.resolve_ruff() == [sys.executable, "-P", "-m", "ruff"]
 
 
 def test_resolve_ruff_falls_back_to_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -296,11 +319,14 @@ def test_ruff_outside_path_is_found_through_the_interpreter(
     repo = make_repo(tmp_path)
     only_git = tmp_path / "only-git"
     only_git.mkdir()
-    (only_git / "git").symlink_to(shutil.which("git") or "git")
+    try:
+        (only_git / "git").symlink_to(shutil.which("git") or "git")
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlinks are not available here: {exc}")
     monkeypatch.setenv("PATH", str(only_git))
     assert shutil.which("ruff") is None
 
-    assert scan(repo).keys == ["scripts/mod.py: ARG001 path"]
+    assert scan(repo).keys == [UNUSED_KEY]
 
 
 def test_main_config_error_when_ruff_reports_a_path_outside_the_repo(

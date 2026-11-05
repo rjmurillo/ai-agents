@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from scripts.ci.count_ratchet import git_environment
+
 KEY_SEPARATOR = ": "
 
 # One deadline for the whole run. lefthook kills the python-unused-arguments
-# job at 90s with no message, so the gate gives up first and says why. The
-# per-call limits only bound a single hung call.
+# job at 90s with no message, so the gate gives up first and says why, once the
+# interpreter is running. The clock starts there: `uv run` environment setup
+# before it counts against the 90s but not against this budget. The per-call
+# limits only bound a single hung call.
 TOTAL_DEADLINE_SECONDS = 75.0
 GIT_TIMEOUT_SECONDS = 30
 
@@ -49,14 +52,6 @@ class Deadline:
         return self._seconds
 
 
-# Same GIT_ filter as the sibling validators (check_unreachable_code.py,
-# check_duplicate_test_helpers.py, check_subprocess_encoding.py, and others).
-# A shared helper is a repo-wide change and is not part of this gate.
-def clean_git_env() -> dict[str, str]:
-    """Return the process environment without ambient Git repository pointers."""
-    return {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
-
-
 def run_git(
     repo_root: Path, args: Sequence[str], deadline: Deadline
 ) -> subprocess.CompletedProcess[str]:
@@ -70,7 +65,7 @@ def run_git(
             encoding="utf-8",
             errors="replace",
             check=False,
-            env=clean_git_env(),
+            env=git_environment(),
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:

@@ -209,7 +209,8 @@ jobs:
   count-ratchet-guard:
     name: Check whole-tree count ratchets (blocking)
     # Issue #5636, decision D13. The ruff and subprocess-encoding count
-    # ratchets score every tracked Python file, so they are whole-tree checks
+    # ratchets and the unused-argument gate score every tracked Python file in
+    # scope, so they are whole-tree checks
     # (`.claude/rules/ci-scripts.md`, "Path filters gate the diff, never the
     # tree"). This job has no `needs:` and no
     # `if:` on purpose, the same shape as zero-collection-guard above.
@@ -222,9 +223,9 @@ jobs:
     # `uv run --frozen` pins ruff to the lockfile; an open-ended `ruff>=` could
     # fail the baseline on an unrelated PR after a rule change. BASE_REF stays
     # in env, so a ref name never reaches the script source, and the ratchet
-    # receives the fixed literal FETCH_HEAD, never the ref name. Both ratchets
-    # compare against a ref: without --base-ref, raising the baseline in the
-    # change that adds the violations would pass as an improvement.
+    # receives the fixed literal FETCH_HEAD, never the ref name. All three gates
+    # compare against a ref: without one, raising the baseline in the change
+    # that adds the violations would pass as an improvement.
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 10
     permissions:
@@ -260,9 +261,10 @@ jobs:
 
       # Blocking. ruff ARG findings must equal the baseline in
       # scripts/validation/unused_arguments_baseline.txt, and the baseline may
-      # not gain a line the merge base lacks. --base-ref FETCH_HEAD is what
-      # enforces shrink-only: without it a branch could add a finding and the
-      # baseline line that hides it in one diff.
+      # not gain a line the merge base lacks. --base-ref FETCH_HEAD names the
+      # base branch tip fetched above, so the ceiling is that tip's baseline
+      # whatever the local ref names are. With no resolvable base ref the gate
+      # exits 2 rather than skip the comparison.
       - name: Run unused-argument gate (whole tree)
         run: uv run --frozen --extra dev python scripts/validation/check_unused_arguments.py --base-ref FETCH_HEAD
 

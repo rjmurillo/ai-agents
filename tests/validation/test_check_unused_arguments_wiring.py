@@ -17,6 +17,8 @@ import yaml
 from check_unused_arguments import (
     BASELINE_RELPATH,
     REPO_ROOT,
+    Comparison,
+    compare,
     load_baseline,
     main,
     scan,
@@ -34,7 +36,9 @@ from tests.validation.unused_arguments_helpers import (
 
 
 def test_repository_findings_equal_the_committed_baseline() -> None:
-    assert main([]) == 0
+    # Findings against the baseline only. Growth against a base ref is covered
+    # by the growth tests, and a checkout may have no remote refs.
+    assert compare(scan(REPO_ROOT).keys, load_baseline(BASELINE)) == Comparison([], [])
 
 
 def test_repository_scan_reads_a_nonzero_number_of_files() -> None:
@@ -118,7 +122,17 @@ def test_baseline_is_sorted_so_removals_diff_cleanly() -> None:
     assert keys == sorted(keys)
 
 
-def test_baseline_entries_are_path_code_argument_with_no_line_number() -> None:
+def test_baseline_has_one_line_per_key_so_parallel_deletions_cannot_leave_a_stale_line() -> None:
+    # Two pull requests that each fix one of two findings under a repeated line
+    # each delete one copy of it. git merges that cleanly into a single stale
+    # line that fails the gate on the base branch. Owner-qualified keys keep
+    # every line distinct, so each pull request deletes a different line.
+    keys = load_baseline(BASELINE)
+
+    assert len(set(keys)) == len(keys)
+
+
+def test_baseline_entries_are_path_code_argument_and_owner_with_no_line_number() -> None:
     bad = [key for key in load_baseline(BASELINE) if not BASELINE_LINE.match(key)]
 
     assert bad == []
@@ -154,12 +168,32 @@ def test_pre_push_hook_runs_the_gate() -> None:
     assert any(SCRIPT in cmd for cmd in _run_commands(lefthook["pre-push"]))
 
 
-def test_pytest_workflow_runs_the_gate() -> None:
+def test_pytest_workflow_runs_the_gate_in_the_ratchet_guard_against_the_fetched_base() -> None:
     workflow = yaml.safe_load(
         (REPO_ROOT / ".github" / "workflows" / "pytest.yml").read_text(encoding="utf-8")
     )
+    commands = [
+        cmd for cmd in _run_commands(workflow["jobs"]["count-ratchet-guard"]) if SCRIPT in cmd
+    ]
 
-    assert any(SCRIPT in cmd for cmd in _run_commands(workflow["jobs"]))
+    assert len(commands) == 1
+    assert "--base-ref FETCH_HEAD" in commands[0]
+    assert not [
+        job
+        for name, job in workflow["jobs"].items()
+        if name != "count-ratchet-guard" and any(SCRIPT in cmd for cmd in _run_commands(job))
+    ]
+
+
+def test_the_ratchet_guard_has_no_condition_that_could_skip_the_gate() -> None:
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "pytest.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["count-ratchet-guard"]
+
+    assert "if" not in job
+    assert "needs" not in job
+    assert "count-ratchet-guard" in workflow["jobs"]["test-result"]["needs"]
 
 
 def test_baseline_sits_next_to_the_script() -> None:

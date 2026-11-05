@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 """Blocking gate: ruff's ARG rules may report no unused argument outside the baseline.
 
-The gate runs ``ruff check --select ARG`` with JSON output over the tracked
-Python files under ``SCAN_ROOTS``. ruff resolves each name in its own scope, so
-a parameter named ``path`` or ``args`` is reported when that function never
-reads it, even if another function uses the same name. It reports unused
+The gate runs ``ruff check --select ARG --isolated`` with JSON output over the
+tracked Python files under ``SCAN_ROOTS``. ruff resolves each name in its own
+scope, so a parameter named ``path`` or ``args`` is reported when that function
+never reads it, even if another function uses the same name. It reports unused
 function, method, class-method, static-method, and lambda arguments
-(``ARG001`` to ``ARG005``).
+(``ARG001`` to ``ARG005``). ``--isolated`` makes ruff read no configuration
+file, so an edit to ``pyproject.toml``, a nested ``ruff.toml``,
+``per-file-ignores``, ``exclude``, or ``dummy-variable-rgx`` cannot hide a
+finding.
 
 What it does not catch: unused imports, unused functions, classes, variables,
 or attributes, and unreachable code. ``check_unreachable_code.py`` covers
 unreachable statements; the repo-wide ruff ``F`` rules cover unused imports.
 ARG is not in the repo-wide ruff ``select``: adding it there would turn every
-listed finding red in the other ruff gates.
+listed finding red in the other ruff gates. ruff also exempts these shapes
+by design, so the gate never sees them: a stub body (``pass``, ``...``, a
+docstring alone, or ``raise NotImplementedError``), a method decorated
+``@override``, ``@abstractmethod``, or ``@overload``, a dunder method such as
+``__eq__``, and a function that calls ``locals()``.
 
-Each finding is keyed as ``<path>: <code> <argument>``, with no line number, so
-an edit elsewhere in a file does not churn the key. The findings must equal the
-committed baseline in ``unused_arguments_baseline.txt`` next to this script.
-It runs as the pre-push ``python-unused-arguments`` job, the ``Unused Argument
-Detection`` gate in ``pre_pr.py``, and a step in the ``pytest`` workflow:
+Each finding is keyed as ``<path>: <code> <argument> in <owner>``, where the
+owner is the dotted scope of the function that holds the argument, with no line
+number, so an edit elsewhere in a file does not churn the key. The findings
+must equal the committed baseline in ``unused_arguments_baseline.txt`` next to
+this script. It runs as the pre-push ``python-unused-arguments`` job, the
+``Unused Argument Detection`` gate in ``pre_pr.py``, and a step in the
+``pytest`` workflow:
 
 - A finding the baseline does not list fails the gate. Use the argument, or
   remove it. A leading underscore marks an argument as intentionally unused.
@@ -26,40 +35,52 @@ Detection`` gate in ``pre_pr.py``, and a step in the ``pytest`` workflow:
 - A baseline entry ruff no longer reports also fails the gate. Delete the line
   in the same change that fixed it.
 - The gate ignores noqa comments (``--ignore-noqa``), so a bare noqa comment
-  on a ``def`` line cannot hide a finding. The only escapes are a leading
-  underscore and a baseline line that already exists.
+  on a ``def`` line cannot hide a finding.
+- The escapes that remain are a leading underscore, the ruff exemptions listed
+  above, and a baseline line that already exists.
 
 The baseline can only shrink, and the gate enforces it against the merge base.
 It reads the baseline as committed at ``git merge-base HEAD <base-ref>``, so
-the branch cannot edit what it is held to (the design of
-``scripts/ci/base_derived_ratchet.py``, issues #5363 and #6108). Any baseline
-line the branch has that the merge base lacks fails, so a swap of one line for
-another fails too. When git reports a file as renamed since the merge base, the
-base lines for it follow the new path, so renaming a file means changing the
-path on its baseline lines and nothing else. ``--base-ref`` names the ref; with
-none, the gate tries ``refs/remotes/origin/HEAD``, ``origin/main``, then
-``main``, and prints that the growth check did not run when none resolves. If
-the merge base has no baseline file, this change introduces the gate and the
-growth check has nothing to compare.
-
-Two unused arguments with the same name in one file share a key, so the gate
-sees the count per file and name, not which function holds it.
+the branch cannot edit what it is held to. This follows the merge-base idea of
+``scripts/ci/base_derived_ratchet.py`` (issues #5363 and #6108) but does not
+call its ``run()``: that function compares a count, and a count lets a swap
+pass (fix one finding, add another). This gate compares the set of keys. Any
+baseline line the branch has that the merge base lacks fails. A swap to a
+different function or argument fails; a swap that gives the same function the
+same argument name cannot occur, because that is the same key. When git reports
+a file as renamed since the merge base, the base lines for it follow the new
+path, so renaming a file means changing the path on its baseline lines and
+nothing else. Renaming a function that holds a baseline line, or moving it to
+another class, changes its key: that reads as a new finding, so use or remove
+the argument in that change. ``--base-ref`` names the ref; with none, the gate
+tries ``refs/remotes/origin/HEAD``, ``origin/main``, then ``main``, and exits 2
+when none resolves, as ``base_derived_ratchet.py`` does. Whether the merge base
+carries ``check_unused_arguments.py`` decides the first run, as ``introduced_at``
+does there: without the script at the merge base this change introduces the
+gate and the growth check has nothing to compare. With the script there and the
+baseline file gone from its path, the gate fails (exit 1), so moving the
+baseline cannot turn the check off.
 
 The scan reads only files git tracks under the scan roots, so an untracked
 draft cannot fail a push that CI, checking out the same commit, passes. A
-tracked file reads its working-tree content.
+tracked file reads its working-tree content, so an uncommitted edit to a
+tracked file can fail a local push that CI would pass.
 
-One total deadline (``TOTAL_DEADLINE_SECONDS``) covers every git and ruff call,
-below the 90s lefthook cap, so exit 3 prints before lefthook kills the job.
+One total deadline (``TOTAL_DEADLINE_SECONDS``) covers every git and ruff call
+from interpreter start, below the 90s lefthook cap, so exit 3 prints before
+lefthook kills the job. Environment setup by ``uv run`` before the interpreter
+starts is outside that budget.
 
-ruff comes from the interpreter running the gate (``python -m ruff``) when that
-environment has it, and from ``PATH`` otherwise.
+ruff comes from the interpreter running the gate (``python -P -m ruff``) when
+that environment has it, and from ``PATH`` otherwise.
 
 Exit codes (ADR-035):
     0 - Success (findings equal the baseline, no baseline growth)
-    1 - Logic error (new finding, stale baseline entry, or baseline growth)
+    1 - Logic error (new finding, stale baseline entry, baseline growth, or the
+        baseline missing at the merge base that carries the gate)
     2 - Config error (bad baseline, unreadable source, nothing scanned, repo
-        root not a git work tree, git or ruff not installed or failing)
+        root not a git work tree, git or ruff not installed or failing, no base
+        ref resolved)
     3 - External error (git or ruff timed out, the deadline ran out, or the
         merge base could not be read)
 """
@@ -80,12 +101,12 @@ from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.ci.count_ratchet import git_environment
 from scripts.validation.unused_arguments_git import (
     KEY_SEPARATOR,
     Deadline,
     ExternalToolError,
     GateConfigError,
-    clean_git_env,
     run_git,
 )
 from scripts.validation.unused_arguments_growth import (
@@ -93,6 +114,7 @@ from scripts.validation.unused_arguments_growth import (
     baseline_growth,
     parse_baseline,
 )
+from scripts.validation.unused_arguments_owner import owning_function
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_RELPATH = Path("scripts/validation/unused_arguments_baseline.txt")
@@ -104,19 +126,30 @@ BASELINE_RELPATH = Path("scripts/validation/unused_arguments_baseline.txt")
 # tracked files are repo-local skills with no other copy, so they are scanned.
 SCAN_ROOTS = ("scripts", "src/claude", "templates/hooks", ".claude/lib", ".claude/skills")
 
-# Generated copies and linked files under the scan roots. A path equal to an
-# entry, or under an entry that ends in "/", is skipped. Test trees are skipped
-# by directory name in _is_excluded.
+# Generated copies under the scan roots, scanned once at their source. A path
+# equal to an entry, or under an entry that ends in "/", is skipped. Test trees
+# are skipped by directory name in _is_excluded. Linked files need no entry:
+# the scan skips every tracked symlink (mode 120000), which covers the
+# .claude/lib links into src/claude/lib. The seven top-level src/claude/lib
+# modules below are byte-identical copies of real files in .claude/lib. The
+# skill-bundled copies of redact_secrets.py and metrics_writer.py are real
+# files in each skill (a skill must be self-contained), so each is scanned and
+# one unused argument in them takes one baseline line per copy.
 EXCLUDED_PATHS = (
     "src/claude/hooks/",
     "src/claude/lib/ai_review_common/",
     "src/claude/lib/bootstrap.py",
+    "src/claude/lib/claude_hook_dispatch.py",
+    "src/claude/lib/claude_hook_protocol.py",
     "src/claude/lib/failure_classifier/",
     "src/claude/lib/github_core/",
+    "src/claude/lib/hook_dispatch.py",
+    "src/claude/lib/hook_dispatch_protocol.py",
+    "src/claude/lib/hook_dispatch_timeout.py",
     "src/claude/lib/hook_utilities/",
+    "src/claude/lib/output_capture.py",
+    "src/claude/lib/shim_loader.py",
     "src/claude/skills/review/scripts/validate_review_marker.py",
-    ".claude/lib/bootstrap.py",
-    ".claude/lib/paths.py",
 )
 
 RUFF_TIMEOUT_SECONDS = 60
@@ -207,7 +240,8 @@ def resolve_ruff() -> list[str]:
     its ``bin`` directory is not on ``PATH``.
     """
     if importlib.util.find_spec("ruff") is not None:
-        return [sys.executable, "-m", "ruff"]
+        # -P keeps a ruff.py in the working directory from shadowing the tool.
+        return [sys.executable, "-P", "-m", "ruff"]
     found = shutil.which("ruff")
     if found is None:
         raise GateConfigError("ruff is not installed; run `uv sync --extra dev`")
@@ -228,7 +262,10 @@ def _run_ruff(
                 "--output-format",
                 "json",
                 "--no-cache",
-                "--force-exclude",
+                # Read no ruff config: per-file-ignores, exclude, extend-exclude,
+                # dummy-variable-rgx, and a nested ruff.toml would otherwise let
+                # a branch edit hide a finding. Explicit paths are always checked.
+                "--isolated",
                 # A bare noqa comment on a def line would otherwise hide a finding.
                 "--ignore-noqa",
                 "--",
@@ -239,7 +276,7 @@ def _run_ruff(
             encoding="utf-8",
             errors="replace",
             check=False,
-            env=clean_git_env(),
+            env=git_environment(),
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
@@ -266,6 +303,7 @@ def _run_ruff(
 
 
 def _finding_key(item: dict[str, object], resolved_root: Path) -> str:
+    """Return ``<path>: <code> <argument> in <owner>`` for one ruff row."""
     code = item.get("code")
     filename = str(item.get("filename", ""))
     if not (isinstance(code, str) and _ARG_CODE.fullmatch(code)):
@@ -278,13 +316,32 @@ def _finding_key(item: dict[str, object], resolved_root: Path) -> str:
         relative = Path(filename).resolve().relative_to(resolved_root)
     except ValueError as exc:
         raise GateConfigError(f"ruff reported {filename}, outside {resolved_root}") from exc
-    return f"{relative.as_posix()}{KEY_SEPARATOR}{code} {match.group(1)}"
+    name = match.group(1)
+    owner = owning_function(
+        _read_source(Path(filename)), filename, _finding_row(item), _finding_column(item), name
+    )
+    return f"{relative.as_posix()}{KEY_SEPARATOR}{code} {name} in {owner}"
+
+
+def _read_source(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise GateConfigError(f"cannot read {path} to name an owner: {exc}") from exc
+
+
+def _location_field(item: dict[str, object], field_name: str) -> int:
+    location = item.get("location")
+    value = location.get(field_name) if isinstance(location, dict) else None
+    return value if isinstance(value, int) else 0
 
 
 def _finding_row(item: dict[str, object]) -> int:
-    location = item.get("location")
-    row = location.get("row") if isinstance(location, dict) else None
-    return row if isinstance(row, int) else 0
+    return _location_field(item, "row")
+
+
+def _finding_column(item: dict[str, object]) -> int:
+    return _location_field(item, "column")
 
 
 def scan(repo_root: Path, deadline: Deadline | None = None) -> ScanResult:
@@ -311,10 +368,8 @@ def scan(repo_root: Path, deadline: Deadline | None = None) -> ScanResult:
 
 def _describe(key: str, result: ScanResult, baseline: Sequence[str]) -> str:
     """Return a new finding as ``path: message`` plus the lines ruff gave."""
-    rows = result.rows.get(key, [])
+    rows = result.rows[key]
     where = ", ".join(str(row) for row in rows)
-    if not rows:
-        return key
     allowed = Counter(baseline)[key]
     if allowed:
         return f"{key} (line {where}; the baseline lists {allowed} of {len(rows)})"
@@ -344,7 +399,7 @@ def validate(
     result = scan(repo_root, deadline)
     outcome = compare(result.keys, baseline)
     growth = baseline_growth(repo_root, baseline_path, baseline, base_ref, deadline)
-    if not outcome.new and not outcome.stale and not growth.added:
+    if not outcome.new and not outcome.stale and not growth.added and not growth.error:
         print(
             f"check_unused_arguments: OK. Scanned {result.scanned_files} Python file(s); "
             f"{len(result.keys)} finding(s), all in the baseline of {len(baseline)}; "
@@ -357,6 +412,8 @@ def validate(
         print(f"  stale baseline entry: {key}", file=sys.stderr)
     for key in growth.added:
         print(f"  baseline line not in the merge base: {key}", file=sys.stderr)
+    if growth.error:
+        print(f"  {growth.error}", file=sys.stderr)
     print(
         f"\ncheck_unused_arguments: {len(outcome.new)} new finding(s), "
         f"{len(outcome.stale)} stale baseline line(s), {len(growth.added)} added baseline "

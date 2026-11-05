@@ -320,8 +320,8 @@ _SEQUENCE: tuple[_Gate, ...] = (
         already_run_by="python-unreachable-statements",
     ),
     # Same check as the pre-push python-unused-arguments job. No already_run_by, so
-    # the gate runs again inside pre-pr-validation. Standalone wall time was 0.30s
-    # to 0.46s over five runs on 2026-11-05 (48 cores, load average 8), so the
+    # the gate runs again inside pre-pr-validation. Standalone wall time was 0.75s
+    # to 0.77s over five runs on 2026-11-05 (48 cores, load average 14), so the
     # repeat costs less than one deferral's scheduling risk (ADR-104 rule 6).
     _Gate("Unused Argument Detection", _root_only(validate_unused_arguments)),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),

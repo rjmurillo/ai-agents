@@ -553,10 +553,14 @@ pre-push:
           # ARG005) in tracked files under the roots in check_unused_arguments.py.
           # It does not catch unused imports, functions, classes, variables, or
           # unreachable code. No --base-ref: the script picks origin/HEAD,
-          # origin/main, or main, and says so when none resolves. The script's
-          # own 75s deadline fires before this 90s cap. Measured standalone on
-          # 2026-11-05 (48 cores, load average 8): 0.30s to 0.46s over five
-          # runs. Not timed inside a real push, and not timed with the group's
+          # origin/main, or main, and exits 2 when none resolves. Its one
+          # "growth not checked" line (the merge base does not carry the script
+          # yet) is hidden on a passing push by this file's output: [failure];
+          # the CI step logs it. The script's own 75s deadline starts when
+          # Python starts, so it fires before this 90s cap unless `uv run`
+          # setup alone takes over 15s. Measured standalone on
+          # 2026-11-05 (48 cores, load average 14): 0.75s to 0.77s over five
+          # runs of `uv run`. Not timed inside a real push, and not timed with the group's
           # other jobs running. The 90s cap matches the group's siblings.
           - name: python-unused-arguments
             timeout: 90s

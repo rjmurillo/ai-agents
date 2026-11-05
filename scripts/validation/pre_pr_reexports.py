@@ -74,11 +74,11 @@ from checks_tooling import (
 )
 
 __all__ = [
-    "validate_adr_exception_markers",
     "validate_agent_content_parity",
-    "validate_agent_delegation",
     "validate_agent_source_parity",
     "validate_agent_template_drift",
+    "validate_adr_exception_markers",
+    "validate_agent_delegation",
     "validate_agent_tree_frontmatter",
     "validate_agents_write_targets",
     "validate_always_on_corpus_claims",
@@ -94,7 +94,6 @@ __all__ = [
     "validate_external_contract_records",
     "validate_generated_staleness",
     "validate_git_hook_health",
-    "validate_host_marketplaces",
     "validate_in_root_worktrees",
     "validate_index_line_endings",
     "validate_instruction_budget",
@@ -118,6 +117,7 @@ __all__ = [
     "validate_skill_routing_roles_declarations",
     "validate_skill_shell_placeholders",
     "validate_skill_skip_clauses",
+    "validate_host_marketplaces",
     "validate_skill_tree_layout",
     "validate_template_repo_refs",
     "validate_tmp_worktrees",
