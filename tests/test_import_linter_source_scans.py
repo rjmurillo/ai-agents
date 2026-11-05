@@ -220,8 +220,8 @@ def test_missing_init_detector_accepts_a_complete_package(tmp_path: Path) -> Non
 
 
 def _ignored_importers() -> set[str]:
-    with (_REPO_ROOT / "pyproject.toml").open("rb") as handle:
-        table = tomllib.load(handle)["tool"]["importlinter"]
+    pyproject = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    table = tomllib.loads(pyproject)["tool"]["importlinter"]
     return {
         entry.split("->")[0].strip()
         for contract in table["contracts"]
