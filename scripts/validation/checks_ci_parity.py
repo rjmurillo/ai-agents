@@ -360,8 +360,13 @@ def validate_skill_description_budget(repo_root: Path) -> bool:
 # import-linter ships a console script and no ``__main__``, so the gate calls the
 # click command through the interpreter running pre_pr. ``--no-cache`` matches the
 # pytest.yml step and the pre-push ``import-boundaries`` job.
+# Plain UTF-8 output: lint-imports crashes on a non-UTF-8 stdout, and color codes
+# would hide the "Broken contracts" header from the report below.
 _LINT_IMPORTS_PROGRAM = (
-    "import sys; from importlinter.cli import lint_imports_command; "
+    "import os, sys; os.environ['NO_COLOR'] = '1'; os.environ.pop('FORCE_COLOR', None); "
+    "sys.stdout.reconfigure(encoding='utf-8', errors='replace'); "
+    "sys.stderr.reconfigure(encoding='utf-8', errors='replace'); "
+    "from importlinter.cli import lint_imports_command; "
     "sys.exit(lint_imports_command())"
 )
 # lint-imports prints a banner, a summary, and last a "Broken contracts" section

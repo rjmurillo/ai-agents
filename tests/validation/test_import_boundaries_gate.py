@@ -132,3 +132,33 @@ def test_import_boundaries_gate_passes_on_the_real_tree() -> None:
 
     with redirect_stdout(io.StringIO()):
         assert checks_ci_parity.validate_import_boundaries(REPO_ROOT) is True
+
+
+@pytest.mark.parametrize(
+    "extra_env",
+    [{"PYTHONIOENCODING": "cp1252"}, {"FORCE_COLOR": "1"}],
+    ids=["non-utf8-stdout", "forced-color"],
+)
+def test_import_boundaries_program_survives_a_hostile_terminal(
+    extra_env: dict[str, str],
+) -> None:
+    import os
+    import subprocess
+    import sys
+
+    import checks_ci_parity
+
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    result = subprocess.run(
+        [sys.executable, "-c", checks_ci_parity._LINT_IMPORTS_PROGRAM, "--no-cache"],
+        cwd=Path(__file__).resolve().parents[2],
+        env={**env, **extra_env},
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "\x1b[" not in result.stdout
+    assert any(line.startswith("Contracts:") for line in result.stdout.splitlines())

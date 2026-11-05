@@ -457,7 +457,7 @@ another clone or worktree, so neither hook can rely on the other having run.
 the commit and the push.
 
 `pre-push` job `pre-pr-validation` runs `pre_pr.py`, which holds 117 gates in
-`_SEQUENCE` (`pre_pr_sequence.py`, 2026-10-23). Five gates carry
+`_SEQUENCE` (`pre_pr_sequence.py`, 2026-11-05). Five gates carry
 `already_run_by` and skip when the matching unconditional pre-push job passed:
 `count-ratchets`, `python-unreachable-statements`, `dash-prohibition`,
 `path-normalization`, and `planning-artifacts`. The `Review Axis Drift` gate

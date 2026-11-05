@@ -823,14 +823,14 @@ A lib module that no invoked script reaches at import time goes unchecked by bot
 `lint-imports` starts from the four packages: it checks every module in them, including imports inside functions, which the module-level walk of those validators skips. It also flags imports inside `try` blocks, which those validators walk but this gate cannot excuse as guarded.
 A guarded import that complies with MUST 4, such as `bot_config -> yaml`, still needs an `ignore_imports` entry.
 
-Two limits apply. `grimp` (the graph library under import-linter) reads only directories that hold an `__init__.py`, so a `tests` import under `scripts/ci` or `scripts/eval` escapes the contracts.
+Three limits apply. `grimp` (the graph library under import-linter) reads only directories that hold an `__init__.py`, so a `tests` import under `scripts/ci` or `scripts/eval` escapes the contracts.
 `tests/test_import_linter_source_scans.py` scans every `scripts/` and `memory_enhancement/` file for that import and checks the four shipped packages have no directory without `__init__.py`.
 `grimp` also collapses an import of an `__init__`-less directory, such as `scripts.ci.tool`, to the bare `scripts` package, so `shipped-lib-self-contained` stays KEPT for it. The `grimp` scan in `tests/test_import_linter_contracts.py` catches that case in pytest, not in the pre-push or pre-PR run.
-An ignored import also hides the modules that import the ignored module. The same file pins the six modules that fail without PyYAML.
+An ignored import also hides the modules that import the ignored module. `tests/test_import_linter_source_scans.py` pins the six modules that fail without PyYAML.
 
-The `ignore_imports` entries are existing debt, one comment each. They may only shrink.
+The `ignore_imports` entries are existing debt, one comment each. They shrink as debt is paid. The one reason to add an entry is a compliant guarded import, as above.
 Delete an entry in the change that removes its import, and lower `IGNORE_IMPORTS_BASELINE` in `tests/test_import_linter_contracts.py` in the same diff. `lint-imports` fails on an entry that no longer matches.
-The test pins the entry count in that constant, so a new entry fails until you raise it in the same diff.
+The test pins the entry count in that constant, so a new entry fails until you raise it in the same diff. It checks the count only: swapping one entry for another passes it, so a reviewer must read that change.
 
 ### Manual Testing (Optional)
 
