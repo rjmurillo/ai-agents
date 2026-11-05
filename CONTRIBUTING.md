@@ -820,11 +820,12 @@ Each contract enforces a rule the repository already states:
 The gate shares the topic with two older validators and does not repeat them.
 `scripts/validation/check_plugin_root_interpreter.py` and `check_doc_interpreter_portability.py` start from an invocation: a documented or plugin-root `python3 <script>` command. They walk that script's module-level imports for anything outside the standard library.
 A lib module that no invoked script reaches at import time goes unchecked by both. Both treat an import of another tracked repository module as allowed, so neither catches a sibling or `scripts/` import.
-`lint-imports` starts from the four packages: it checks every module in them, including imports inside functions and `try` blocks, which the module-level walk of those validators skips, so it is stricter on that point.
+`lint-imports` starts from the four packages: it checks every module in them, including imports inside functions, which the module-level walk of those validators skips. It also flags imports inside `try` blocks, which those validators walk but this gate cannot excuse as guarded.
 A guarded import that complies with MUST 4, such as `bot_config -> yaml`, still needs an `ignore_imports` entry.
 
 Two limits apply. `grimp` (the graph library under import-linter) reads only directories that hold an `__init__.py`, so a `tests` import under `scripts/ci` or `scripts/eval` escapes the contracts.
 `tests/test_import_linter_source_scans.py` scans every `scripts/` and `memory_enhancement/` file for that import and checks the four shipped packages have no directory without `__init__.py`.
+`grimp` also collapses an import of an `__init__`-less directory, such as `scripts.ci.tool`, to the bare `scripts` package, so `shipped-lib-self-contained` stays KEPT for it. The `grimp` scan in `tests/test_import_linter_contracts.py` catches that case in pytest, not in the pre-push or pre-PR run.
 An ignored import also hides the modules that import the ignored module. The same file pins the six modules that fail without PyYAML.
 
 The `ignore_imports` entries are existing debt, one comment each. They may only shrink.

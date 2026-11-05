@@ -373,8 +373,9 @@ _IMPORT_DETAIL_LINES = 200
 def _declares_import_contracts(pyproject: Path) -> bool:
     """True when a line of ``pyproject`` opens a ``[tool.importlinter]`` table.
 
-    A comment or a string that only mentions the table name does not count: the
-    header must be the whole stripped line. This avoids a ``tomllib`` import,
+    A comment that mentions the table name does not count, because the stripped
+    line must start with the header. A multi-line string line that starts with
+    it would count, which only runs the gate. This avoids a ``tomllib`` import,
     which would raise this module's import count past the coupling gate.
     """
     headers = ("[tool.importlinter]", "[tool.importlinter.", "[[tool.importlinter.")

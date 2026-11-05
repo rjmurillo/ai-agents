@@ -207,15 +207,7 @@ def test_every_ignore_entry_carries_a_comment() -> None:
     assert commented == len(_ignore_entries())
 
 
-def test_shipped_lib_imports_only_the_standard_library() -> None:
-    # The forbidden contract names only the [project] dependencies. This closes
-    # the rest of plugin-self-containment.md MUST 4: any other third-party
-    # import, such as a dev tool, also fails under bare python3.
-    import grimp
-
-    graph = grimp.build_graph("scripts", include_external_packages=True, cache_dir=None)
-    shipped = {f"scripts.{package}" for package in lib_mirror.PACKAGES}
-    ignored = {tuple(part.strip() for part in entry.split("->")) for entry in _ignore_entries()}
+def _non_stdlib_imports(graph: Any, shipped: set[str]) -> set[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
     for package in shipped:
         for importer in graph.find_descendants(package) | {package}:
@@ -226,7 +218,44 @@ def test_shipped_lib_imports_only_the_standard_library() -> None:
                 if any(imported == own or imported.startswith(f"{own}.") for own in shipped):
                     continue
                 found.add((importer, imported))
-    assert sorted(found - ignored) == []
+    return found
+
+
+def test_shipped_lib_imports_only_the_standard_library() -> None:
+    # The forbidden contract names only the [project] dependencies. This closes
+    # the rest of plugin-self-containment.md MUST 4: any other third-party
+    # import, such as a dev tool, also fails under bare python3.
+    import grimp
+
+    graph = grimp.build_graph("scripts", include_external_packages=True, cache_dir=None)
+    shipped = {f"scripts.{package}" for package in lib_mirror.PACKAGES}
+    ignored = {tuple(part.strip() for part in entry.split("->")) for entry in _ignore_entries()}
+    assert sorted(_non_stdlib_imports(graph, shipped) - ignored) == []
+
+
+class _FakeGraph:
+    def __init__(self, imports: dict[str, set[str]]) -> None:
+        self._imports = imports
+
+    def find_descendants(self, package: str) -> set[str]:
+        return {name for name in self._imports if name.startswith(f"{package}.")}
+
+    def find_modules_directly_imported_by(self, module: str) -> set[str]:
+        return self._imports.get(module, set())
+
+
+def test_scan_flags_an_edge_grimp_collapsed_to_the_bare_scripts_package() -> None:
+    # Negative control. grimp reports an import of an __init__-less directory,
+    # such as scripts.ci.tool, as the bare `scripts` package, which no contract
+    # forbids. This scan is the only check that sees that edge.
+    graph = _FakeGraph(
+        {
+            "scripts.shiplib": set(),
+            "scripts.shiplib.bad": {"scripts"},
+            "scripts.shiplib.good": {"os", "scripts.shiplib.bad"},
+        }
+    )
+    assert _non_stdlib_imports(graph, {"scripts.shiplib"}) == {("scripts.shiplib.bad", "scripts")}
 
 
 def _lefthook_job(name: str) -> dict[str, Any]:

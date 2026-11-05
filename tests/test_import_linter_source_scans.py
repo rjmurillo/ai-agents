@@ -35,8 +35,9 @@ import lib_mirror  # noqa: E402
 _PRODUCTION_ROOTS = ("scripts", "memory_enhancement")
 
 # Modules that fail to import under bare python3 without PyYAML. Two import it at
-# the top level (the ignored edges in pyproject.toml). The other four import one of
-# those two. bot_config also imports yaml, but behind `except ImportError`.
+# the top level (the ignored edges in pyproject.toml). The other four reach one of
+# those two, directly or through each other. bot_config also imports yaml, but
+# behind `except ImportError`.
 _FAIL_WITHOUT_YAML = {
     "scripts.github_core.workflow_event_subscriptions",
     "scripts.github_core.workflow_provenance",
