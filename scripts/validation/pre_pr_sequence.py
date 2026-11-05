@@ -48,7 +48,6 @@ from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
-from check_dead_code import validate_dead_code
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_equivalence_predicates import validate_equivalence_predicates
@@ -75,6 +74,7 @@ from check_template_repo_refs import validate_template_repo_refs
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
+from check_unused_arguments import validate_unused_arguments
 from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import (
     validate_adr_uniqueness,
@@ -319,9 +319,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
         _root_only(validate_unreachable_code),
         already_run_by="python-unreachable-statements",
     ),
-    # Same check as the pre-push python-dead-code job. No already_run_by, so
-    # the gate runs again inside pre-pr-validation, about 7s.
-    _Gate("Dead Code Detection", _root_only(validate_dead_code)),
+    # Same check as the pre-push python-unused-arguments job. No already_run_by, so
+    # the gate runs again inside pre-pr-validation. Standalone wall time was 0.30s
+    # to 0.46s over five runs on 2026-11-05 (48 cores, load average 8), so the
+    # repeat costs less than one deferral's scheduling risk (ADR-104 rule 6).
+    _Gate("Unused Argument Detection", _root_only(validate_unused_arguments)),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),

@@ -1,6 +1,8 @@
-# Shrink-only baseline for scripts/validation/check_dead_code.py.
+# Baseline for scripts/validation/check_unused_arguments.py. It may only shrink:
+# the gate fails on any line the merge base lacks.
 # One ruff ARG finding per line, keyed as <path>: <rule code> <argument>.
 # Delete a line when you fix its finding. Never add one; fix the code instead.
+# If git renames a file listed here, change the path on its lines and nothing else.
 scripts/analyze_pr_failure.py: ARG001 owner
 scripts/analyze_pr_failure.py: ARG001 repo
 scripts/ci/_main_binding.py: ARG001 state

@@ -169,7 +169,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-# ARG is deliberately absent. scripts/validation/check_dead_code.py runs
+# ARG is deliberately absent. scripts/validation/check_unused_arguments.py runs
 # `ruff check --select ARG` on its own against a shrink-only baseline, because
 # selecting ARG here would turn every existing unused argument red in the other
 # ruff gates.

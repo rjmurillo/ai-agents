@@ -806,27 +806,40 @@ When you fix a listed module or file, delete its entry in the same change.
 baseline size from a constant in `tests/strict_baseline_helpers.py`, so adding an entry fails until you raise the
 matching constant in the same diff, which is the edit a reviewer sees.
 
-### Dead-Code Baseline
+### Unused-Argument Baseline
 
-`scripts/validation/check_dead_code.py` runs `ruff check --select ARG` over the tracked Python files
-under `scripts`, `src/claude`, `templates/hooks`, and `.claude/lib`. It reports unused function,
-method, and lambda arguments (`ARG001` to `ARG005`). ruff resolves names per function, so an unused
-`path` or `args` is reported even when another function reads that name.
+`scripts/validation/check_unused_arguments.py` runs `ruff check --select ARG` over the tracked Python files
+under `scripts`, `src/claude`, `templates/hooks`, `.claude/lib`, and `.claude/skills`. It reports unused
+function, method, and lambda arguments (`ARG001` to `ARG005`). ruff resolves names per function, so an
+unused `path` or `args` is reported even when another function reads that name. The gate ignores `# noqa`
+comments, so a `# noqa` on a `def` line does not hide a finding.
 
 The gate does not catch unused imports, functions, classes, variables, or unreachable code. Other
 checks cover some of those: the repo-wide ruff `F` rules for imports, and `check_unreachable_code.py`
 for statements after a terminator. ARG is not in the repo-wide ruff `select`, because that would turn
 every baseline entry red in the other ruff gates.
 Untracked drafts are not scanned, so a local file cannot fail a push that CI passes.
-It runs in the pre-push hook (`python-dead-code`) and in the `pytest` workflow.
+It runs in the pre-push hook (`python-unused-arguments`), as the `Unused Argument Detection` gate in
+`pre_pr.py`, and in the `pytest` workflow.
 
-Findings that existed when the gate landed sit in `scripts/validation/dead_code_baseline.txt`.
-Each line is `<path>: <rule code> <argument>`, with no line number.
+Findings that existed when the gate landed sit in `scripts/validation/unused_arguments_baseline.txt`.
+Each line is `<path>: <rule code> <argument>`, with no line number. A failure prints the line ruff
+reported for each new finding.
 
-The baseline may only shrink. Do not add a line for new code; use or remove the argument, or prefix
-it with an underscore when a signature must keep it. When you fix a listed finding, delete its line
-in the same change. The gate fails on a new finding and on a stale line.
-`tests/validation/test_check_dead_code.py` pins the line count, so a reviewer sees any growth.
+The baseline may only shrink, and the gate enforces it. It reads the baseline as committed at the merge
+base (`git merge-base HEAD <base-ref>`, the design of the base-derived ratchets in `scripts/ci`) and
+fails on any line your branch added, so swapping one line for another fails too. Do not add a line for
+new code; use or remove the argument, or prefix it with an underscore when a signature must keep it.
+When you fix a listed finding, delete its line in the same change.
+
+When git reports a file as renamed, change the path on that file's baseline lines and nothing else. The
+merge-base comparison follows the rename, so no line counts as added. A path rewrite for a file git does
+not report as renamed counts as growth. `--base-ref` names the ref; with none, the gate tries
+`refs/remotes/origin/HEAD`, `origin/main`, then `main`, and prints that the growth check did not run when
+none resolves. CI passes the fetched base branch.
+
+A ruff upgrade that reports new ARG findings has no baseline path. Fix or underscore-prefix the arguments in
+the upgrade change. This case was read from the design and not probed.
 
 ### Manual Testing (Optional)
 

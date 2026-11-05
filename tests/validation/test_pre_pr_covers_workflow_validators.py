@@ -25,8 +25,8 @@ Negative controls, each verified to fail before shipping:
   workflows: ``test_exemptions_are_not_stale`` fails.
 - Switch the model-pin gate to ``--mode enforce`` without removing its
   ``WARN_ONLY`` row: ``test_warn_only_rows_match_what_runs`` fails.
-- Make ``validate_dead_code`` return True unconditionally:
-  ``test_the_dead_code_gate_fails_on_a_failing_fixture`` fails.
+- Make ``validate_unused_arguments`` return True unconditionally:
+  ``test_the_unused_arguments_gate_fails_on_a_failing_fixture`` fails.
 """
 
 from __future__ import annotations
@@ -392,15 +392,15 @@ def test_each_new_gate_goes_red_for_its_own_validator_only(
 
 # Gates that run their validator in process, so the subprocess recorder above
 # cannot force them red. Each is driven against a fixture repository instead.
-_IN_PROCESS_GATES: tuple[str, ...] = ("Dead Code Detection",)
+_IN_PROCESS_GATES: tuple[str, ...] = ("Unused Argument Detection",)
 
 
-def _dead_code_fixture(root: Path, *, baseline: str) -> Path:
+def _unused_arguments_fixture(root: Path, *, baseline: str) -> Path:
     import subprocess
 
     (root / "scripts").mkdir()
     (root / "scripts" / "mod.py").write_text("def f(path):\n    return 1\n", encoding="utf-8")
-    baseline_path = root / "scripts" / "validation" / "dead_code_baseline.txt"
+    baseline_path = root / "scripts" / "validation" / "unused_arguments_baseline.txt"
     baseline_path.parent.mkdir(parents=True)
     baseline_path.write_text(baseline, encoding="utf-8")
     for argv in (["git", "init", "-q"], ["git", "add", "-A"]):
@@ -413,13 +413,13 @@ def _dead_code_fixture(root: Path, *, baseline: str) -> Path:
     [("", False), ("scripts/mod.py: ARG001 path\n", True)],
     ids=["new-finding-fails", "matching-baseline-passes"],
 )
-def test_the_dead_code_gate_fails_on_a_failing_fixture(
+def test_the_unused_arguments_gate_fails_on_a_failing_fixture(
     tmp_path: Path, baseline: str, expected: bool
 ) -> None:
-    root = _dead_code_fixture(tmp_path, baseline=baseline)
+    root = _unused_arguments_fixture(tmp_path, baseline=baseline)
     gates = {gate.name: gate for gate in pre_pr_sequence._SEQUENCE}
     with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-        assert bool(gates["Dead Code Detection"].run(root, argparse.Namespace())) is expected
+        assert bool(gates["Unused Argument Detection"].run(root, argparse.Namespace())) is expected
 
 
 def test_new_gates_are_never_skipped_in_quick_mode() -> None:

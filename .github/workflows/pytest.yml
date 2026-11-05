@@ -258,6 +258,14 @@ jobs:
       - name: Run subprocess encoding count ratchet (whole tree)
         run: uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
+      # Blocking. ruff ARG findings must equal the baseline in
+      # scripts/validation/unused_arguments_baseline.txt, and the baseline may
+      # not gain a line the merge base lacks. --base-ref FETCH_HEAD is what
+      # enforces shrink-only: without it a branch could add a finding and the
+      # baseline line that hides it in one diff.
+      - name: Run unused-argument gate (whole tree)
+        run: uv run --frozen --extra dev python scripts/validation/check_unused_arguments.py --base-ref FETCH_HEAD
+
       # ADR-113 decision 2: persist this job's typed result for the promotion gate.
       - name: Upload promotion evidence
         if: always()
@@ -416,12 +424,6 @@ jobs:
       - name: Run ruff format check (whole tree)
         if: matrix.primary
         run: uv run --frozen --extra dev ruff format --check .
-
-      # Whole-tree unused-argument gate. Blocking. ruff ARG findings must equal
-      # the shrink-only baseline in scripts/validation/dead_code_baseline.txt.
-      - name: Run unused-argument gate (whole tree)
-        if: matrix.primary
-        run: uv run --frozen --extra dev python scripts/validation/check_dead_code.py
 
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the

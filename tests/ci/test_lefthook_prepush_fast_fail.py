@@ -46,7 +46,7 @@ FAST_STDIN_GATES = (
 FAST_PARALLEL_GATES = frozenset(
     {
         "python-unreachable-statements",
-        "python-dead-code",
+        "python-unused-arguments",
         "path-normalization",
         "planning-artifacts",
         "branch-context-policy",

@@ -550,15 +550,17 @@ pre-push:
           # Whole tree, not {push_files}: a baseline entry goes stale in a
           # file the push never touched when another change fixes it. Catches
           # unused function, method, and lambda arguments (ruff ARG001 to
-          # ARG005) in tracked files under the roots in check_dead_code.py.
+          # ARG005) in tracked files under the roots in check_unused_arguments.py.
           # It does not catch unused imports, functions, classes, variables, or
-          # unreachable code. Measured standalone over 991 tracked files on a
-          # 48-core machine (load average 18 when sampled): 0.31s to 1.31s over
-          # five runs. Not timed inside a real push, and not timed with the
-          # group's other jobs running. The 90s cap matches the group's siblings.
-          - name: python-dead-code
+          # unreachable code. No --base-ref: the script picks origin/HEAD,
+          # origin/main, or main, and says so when none resolves. The script's
+          # own 75s deadline fires before this 90s cap. Measured standalone on
+          # 2026-11-05 (48 cores, load average 8): 0.30s to 0.46s over five
+          # runs. Not timed inside a real push, and not timed with the group's
+          # other jobs running. The 90s cap matches the group's siblings.
+          - name: python-unused-arguments
             timeout: 90s
-            run: uv run --frozen --extra dev python scripts/validation/check_dead_code.py
+            run: uv run --frozen --extra dev python scripts/validation/check_unused_arguments.py
 
           - name: path-normalization
             timeout: 90s
