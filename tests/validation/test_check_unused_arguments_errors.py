@@ -251,7 +251,7 @@ def test_scan_stops_between_batches_when_the_deadline_runs_out(
         add_file(repo, f"scripts/extra{index}.py", "x = 1\n")
     monkeypatch.setattr(check_unused_arguments, "RUFF_BATCH_SIZE", 1)
     now = [0.0]
-    real_run = subprocess.run
+    real_run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run
 
     def slow(argv: list[str], *args: object, **kwargs: object) -> object:
         now[0] += 40.0
