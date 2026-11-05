@@ -172,6 +172,18 @@ Change: issue #6182 and SPEC-6182 removed the model calls from `ai-spec-validati
 - **Decision 9.** `merge_group` stays out of both workflows. `review-spec` needs approval, so it cannot run in a queue. Adding the deterministic check to the queue is out of scope.
 - **Rollback.** Revert the #6182 pull request. That deletes `ai-spec-review.yml`, restores the model steps to `validate-spec`, removes the new `advisory_agent_workflows` entry, and restores the `bypass-allowlist.json` entries. Re-add the `Validate Spec Coverage` disposition only if the restored model check fails again.
 
+## Amendment 2026-11-05: the plugin CLI smoke is advisory
+
+Change: the owner decided on 2026-11-05 that no critical path may depend on anything AI, including provider credentials or an approval click. The decision text above is unchanged. Read it with these facts:
+
+- **Decision 13.** `plugin-cli-smoke.yml` is now listed in `advisory_agent_workflows`. The readiness check no longer blocks on a failed or waiting `CLI Smoke Result`, because `_exempt_advisory_checks` in `test_pr_merge_ready.py` removes a listed check from both non-required buckets. The workflow still runs, and the check still reports its result. Items 1 to 4 and 6 describe how the workflow runs, and they are unchanged.
+- **Superseded text.** Read these as replaced by this amendment: the title's "Except the Plugin CLI Smoke", the Decision 5 sentence that the smoke is not listed, the Decision 13 heading and item 5, and the Consequences lines on the exception and the reviewer click. The list now holds seven entries, six of them gated.
+- **Scope.** `CLI Smoke Result` is one check, so the Codex and Pi legs turn advisory too, although they read no credential. The panel named an alternative: move the zero-token load checks into an ungated job. That work is not part of this amendment.
+- **Decision 11 item 8.** Withdrawn. `CLI Smoke Result` is not added to the branch ruleset, and it was never added (ruleset 11104075, read 2026-11-05). A ruleset context would hold a merge on provider credentials and an approval.
+- **Rollback.** Remove the `plugin-cli-smoke.yml` entry from `advisory_agent_workflows`. The loader reads the list from `origin/main` and fails closed to an empty list, so a pull request cannot list itself, and the change takes effect once it merges. The readiness check then blocks on a failed result again. GitHub auto-merge still ignores the check, because item 8 stays withdrawn. The Reversibility row for Decision 13 no longer applies, since no ruleset context exists to remove.
+- **ADR-071.** Its 2026-10-08 note says `CLI Smoke Result` blocks merge and defers gate policy to Decision 13. Read that note with this amendment.
+- **Accepted risk.** A plugin that fails to load in a CLI can now merge. The failed check stays visible on the pull request. The pre-push hooks `hook-anchoring-e2e` and `plugin-load-e2e` run only when matching paths change, on one operating system, so macOS and Windows load failures have no blocking check.
+
 ## Related Decisions
 
 - ADR-101: Enforcement Planes. Required contexts match by name. Line 269 rejects environment reviewers as a fix, and this ADR overrides that for spend control.
