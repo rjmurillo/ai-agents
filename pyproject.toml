@@ -720,6 +720,10 @@ include_external_packages = true
 # tree (ADR-109 B5). Its IMPORT_CONVERSIONS rewrite turns any
 # `from scripts.<pkg> import` into `from . import`, so an import of a sibling
 # package would resolve inside the importing package in the shipped copy.
+# shipped-lib-self-contained below also forbids every `scripts.*` import, so it
+# breaks on a sibling import too. This contract stays for its message: it names
+# the broken rule as "do not import each other", where the broader one reports
+# a generic repository import.
 [[tool.importlinter.contracts]]
 id = "shipped-lib-independence"
 name = "Shipped lib packages do not import each other"
@@ -731,10 +735,11 @@ modules = [
     "scripts.failure_classifier",
 ]
 
-# lib_mirror.py copies only these four packages (ADR-109 B5). The rest of
-# scripts/, memory_enhancement/, and tests/ never ship, so an import of them
-# would dangle in every plugin install. plugin-self-containment.md MUST 1
-# states the same boundary for shipped files.
+# lib_mirror.py copies these four packages plus one sidecar file,
+# scripts/validation/validate_review_marker.py (ADR-109 B5). No contract covers
+# the sidecar. The rest of scripts/, memory_enhancement/, and tests/ never ship,
+# so an import of them would dangle in every plugin install.
+# plugin-self-containment.md MUST 1 states the same boundary for shipped files.
 [[tool.importlinter.contracts]]
 id = "shipped-lib-self-contained"
 name = "Shipped lib packages import nothing else from the repository"
@@ -755,6 +760,12 @@ forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
 # The ignores are existing debt. They may only shrink: delete an entry in the
 # change that removes its import, and lint-imports fails on an entry that no
 # longer matches an import.
+# An ignore removes one edge, not the modules that import the ignored module.
+# Without PyYAML, six modules fail to import: the two unguarded importers below
+# and four that import workflow_event_subscriptions, directly or through
+# recovery_manifest (recovery_manifest, workflow_runs, runs_file,
+# pull_request_targets). tests/test_import_linter_source_scans.py pins that set
+# and checks it against a real import with yaml blocked.
 [[tool.importlinter.contracts]]
 id = "shipped-lib-no-runtime-dependencies"
 name = "Shipped lib packages do not import the project's third-party dependencies"
@@ -771,7 +782,8 @@ ignore_imports = [
     # PyYAML. import-linter cannot see the guard.
     "scripts.github_core.bot_config -> yaml",
     # Unguarded top-level import: under bare python3 without PyYAML, importing
-    # this module raises ModuleNotFoundError.
+    # this module raises ModuleNotFoundError. So do recovery_manifest,
+    # workflow_runs, runs_file, and pull_request_targets, which reach it.
     "scripts.github_core.workflow_event_subscriptions -> yaml",
     # Unguarded top-level import: under bare python3 without PyYAML, importing
     # this module raises ModuleNotFoundError.
@@ -780,6 +792,9 @@ ignore_imports = [
 
 # [tool.setuptools.packages.find] ships scripts* and memory_enhancement*, never
 # tests, so an installed package that imported tests would fail at import.
+# grimp walks only directories that hold an __init__.py, so this contract does
+# not see scripts/ci, scripts/eval, and five other directories without one.
+# tests/test_import_linter_source_scans.py scans every file for the same import.
 [[tool.importlinter.contracts]]
 id = "production-does-not-import-tests"
 name = "Production code does not import tests"

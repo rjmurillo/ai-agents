@@ -456,17 +456,67 @@ def test_import_boundaries_gate_runs_lint_imports_with_no_cache(
     assert argvs[0][3:] == ["--no-cache"]
 
 
-def test_import_boundaries_gate_fails_on_a_broken_contract(
+_BANNER = "\n".join(f"banner line {n}" for n in range(1, 46))
+
+
+def _lint_imports_output(*detail: str) -> str:
+    """Shape lint-imports output: a long banner, a summary, then the broken section last."""
+    return "\n".join(
+        [
+            _BANNER,
+            "Contracts: 3 kept, 1 broken.",
+            "",
+            "Broken contracts",
+            "----------------",
+            *detail,
+        ]
+    )
+
+
+def test_import_boundaries_gate_names_the_offending_import_past_the_banner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import checks_ci_parity
 
-    monkeypatch.setattr(
-        checks_ci_parity, "_run_subprocess", lambda *_a, **_k: (1, "Contracts: 1 broken", "")
+    output = _lint_imports_output(
+        "scripts is not allowed to import tests:",
+        "-   scripts.ci.tool -> tests.helper (l.1)",
     )
+    # The offending line sits past line 40, where the old head slice stopped.
+    assert output.splitlines().index("-   scripts.ci.tool -> tests.helper (l.1)") > 40
+    monkeypatch.setattr(checks_ci_parity, "_run_subprocess", lambda *_a, **_k: (1, output, ""))
     with redirect_stdout(io.StringIO()) as captured:
         assert checks_ci_parity.validate_import_boundaries(REPO_ROOT) is False
-    assert "1 broken" in captured.getvalue()
+    assert "scripts.ci.tool -> tests.helper (l.1)" in captured.getvalue()
+    assert "Contracts: 3 kept, 1 broken." in captured.getvalue()
+    assert "banner line 1\n" not in captured.getvalue()
+
+
+def test_import_boundaries_gate_says_how_many_detail_lines_it_left_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import checks_ci_parity
+
+    cap = checks_ci_parity._IMPORT_DETAIL_LINES
+    output = _lint_imports_output(*(f"- scripts.m{n} -> tests.x (l.1)" for n in range(cap + 7)))
+    monkeypatch.setattr(checks_ci_parity, "_run_subprocess", lambda *_a, **_k: (1, output, ""))
+    with redirect_stdout(io.StringIO()) as captured:
+        assert checks_ci_parity.validate_import_boundaries(REPO_ROOT) is False
+    assert "... 9 more lines not shown" in captured.getvalue()
+    assert f"scripts.m{cap - 3} -> tests.x" in captured.getvalue()
+
+
+def test_import_boundaries_gate_prints_the_tail_when_no_section_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import checks_ci_parity
+
+    trace = "\n".join(f"trace line {n}" for n in range(100))
+    monkeypatch.setattr(checks_ci_parity, "_run_subprocess", lambda *_a, **_k: (1, "", trace))
+    with redirect_stdout(io.StringIO()) as captured:
+        assert checks_ci_parity.validate_import_boundaries(REPO_ROOT) is False
+    assert "trace line 99" in captured.getvalue()
+    assert "trace line 0\n" not in captured.getvalue()
 
 
 def test_import_boundaries_gate_skips_without_contracts(tmp_path: Path) -> None:
@@ -481,6 +531,21 @@ def test_import_boundaries_gate_skips_without_contracts(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").unlink()
     with pytest.raises(MissingScriptSkip):
         checks_ci_parity.validate_import_boundaries(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "header",
+    ["[tool.importlinter]", "  [tool.importlinter.contracts]", "[[tool.importlinter.contracts]]"],
+)
+def test_import_boundaries_gate_runs_when_a_header_declares_contracts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, header: str
+) -> None:
+    import checks_ci_parity
+
+    (tmp_path / "pyproject.toml").write_text(f"[project]\nname = 'x'\n{header}\n", encoding="utf-8")
+    monkeypatch.setattr(checks_ci_parity, "_run_subprocess", lambda *_a, **_k: (0, "ok", ""))
+    with redirect_stdout(io.StringIO()):
+        assert checks_ci_parity.validate_import_boundaries(tmp_path) is True
 
 
 def test_import_boundaries_gate_passes_on_the_real_tree() -> None:

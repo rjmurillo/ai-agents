@@ -29,8 +29,6 @@ import os
 import sys
 from pathlib import Path
 
-import tomllib
-
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
@@ -366,6 +364,23 @@ _LINT_IMPORTS_PROGRAM = (
     "import sys; from importlinter.cli import lint_imports_command; "
     "sys.exit(lint_imports_command())"
 )
+# lint-imports prints a banner, a summary, and last a "Broken contracts" section
+# that names each offending import. The gate shows that section whole, up to this
+# many lines, and says how many it left out.
+_IMPORT_DETAIL_LINES = 200
+
+
+def _declares_import_contracts(pyproject: Path) -> bool:
+    """True when a line of ``pyproject`` opens a ``[tool.importlinter]`` table.
+
+    A comment or a string that only mentions the table name does not count: the
+    header must be the whole stripped line. This avoids a ``tomllib`` import,
+    which would raise this module's import count past the coupling gate.
+    """
+    headers = ("[tool.importlinter]", "[tool.importlinter.", "[[tool.importlinter.")
+    return any(
+        line.strip().startswith(headers) for line in pyproject.read_text("utf-8").splitlines()
+    )
 
 
 def validate_import_boundaries(repo_root: Path) -> bool:
@@ -375,18 +390,30 @@ def validate_import_boundaries(repo_root: Path) -> bool:
     ``pytest.yml`` and the pre-push ``import-boundaries`` job run. A repository
     with no ``[tool.importlinter]`` table has no contracts to enforce, so it
     raises :class:`MissingScriptSkip` instead of failing.
+
+    On a failure, prints the summary line and the "Broken contracts" section, which
+    names the offending imports. A failure with no such section (a config error or
+    a traceback) prints the last ``_REPORT_LINES`` lines instead.
     """
     pyproject = repo_root / "pyproject.toml"
     if not pyproject.is_file():
         raise MissingScriptSkip("no pyproject.toml")
-    with pyproject.open("rb") as handle:
-        tool_table = tomllib.load(handle).get("tool", {})
-    if "importlinter" not in tool_table:
+    if not _declares_import_contracts(pyproject):
         raise MissingScriptSkip("no [tool.importlinter] table in pyproject.toml")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, "-c", _LINT_IMPORTS_PROGRAM, "--no-cache"], cwd=repo_root
     )
-    output = ((stdout or "") + (stderr or "")).strip()
-    for line in output.splitlines()[:_REPORT_LINES]:
+    lines = ((stdout or "") + (stderr or "")).strip().splitlines()
+    detail_at = next((i for i, line in enumerate(lines) if line == "Broken contracts"), None)
+    if exit_code == 0 or detail_at is None:
+        shown = lines[-_REPORT_LINES:]
+    else:
+        summary = [line for line in lines[:detail_at] if line.startswith("Contracts:")]
+        detail = lines[detail_at:]
+        omitted = len(detail) - _IMPORT_DETAIL_LINES
+        shown = summary + detail[:_IMPORT_DETAIL_LINES]
+        if omitted > 0:
+            shown.append(f"... {omitted} more lines not shown; run lint-imports for the rest")
+    for line in shown:
         print(line)
     return bool(exit_code == 0)

@@ -813,9 +813,19 @@ The pre-push `import-boundaries` job and the pytest workflow both run `uv run --
 Each contract enforces a rule the repository already states:
 
 - The four packages `build/scripts/lib_mirror.py` ships into plugin lib trees (`scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common`, `scripts/failure_classifier`) do not import each other. The mirror rewrites `from scripts.<pkg> import` to `from . import`, so a sibling import would break in the shipped copy.
-- Those packages import nothing else from `scripts/`, `memory_enhancement/`, or `tests/`. The mirror copies only the four packages, so those trees never ship (`.claude/rules/plugin-self-containment.md` MUST 1).
+- Those packages import nothing else from `scripts/`, `memory_enhancement/`, or `tests/`. The mirror copies the four packages and one sidecar file (`scripts/validation/validate_review_marker.py`, which no contract covers), so those trees never ship (`.claude/rules/plugin-self-containment.md` MUST 1).
 - Those packages do not import a `[project]` dependency, because shipped scripts run under bare `python3` (MUST 4 of the same rule). The contract names the six `[project]` packages; a grimp scan in `tests/test_import_linter_contracts.py` fails on any other non-stdlib import.
 - `scripts` and `memory_enhancement` never import `tests`, which is not part of the installed package.
+
+The gate shares the topic with two older validators and does not repeat them.
+`scripts/validation/check_plugin_root_interpreter.py` and `check_doc_interpreter_portability.py` start from an invocation: a documented or plugin-root `python3 <script>` command. They walk that script's module-level imports for anything outside the standard library.
+A lib module that no invoked script reaches at import time goes unchecked by both. Both treat an import of another tracked repository module as allowed, so neither catches a sibling or `scripts/` import.
+`lint-imports` starts from the four packages: it checks every module in them, including imports inside functions and `try` blocks, which the module-level walk of those validators skips, so it is stricter on that point.
+A guarded import that complies with MUST 4, such as `bot_config -> yaml`, still needs an `ignore_imports` entry.
+
+Two limits apply. `grimp` (the graph library under import-linter) reads only directories that hold an `__init__.py`, so a `tests` import under `scripts/ci` or `scripts/eval` escapes the contracts.
+`tests/test_import_linter_source_scans.py` scans every `scripts/` and `memory_enhancement/` file for that import and checks the four shipped packages have no directory without `__init__.py`.
+An ignored import also hides the modules that import the ignored module. The same file pins the six modules that fail without PyYAML.
 
 The `ignore_imports` entries are existing debt, one comment each. They may only shrink.
 Delete an entry in the change that removes its import, and lower `IGNORE_IMPORTS_BASELINE` in `tests/test_import_linter_contracts.py` in the same diff. `lint-imports` fails on an entry that no longer matches.

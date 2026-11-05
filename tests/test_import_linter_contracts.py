@@ -11,9 +11,11 @@ the pre-push job and the workflow step on one command.
 
 from __future__ import annotations
 
+import io
 import os
 import subprocess
 import sys
+from contextlib import redirect_stdout
 from importlib.metadata import packages_distributions
 from pathlib import Path
 from typing import Any
@@ -26,9 +28,12 @@ from packaging.utils import canonicalize_name
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _BUILD_SCRIPTS = _REPO_ROOT / "build" / "scripts"
-if str(_BUILD_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_BUILD_SCRIPTS))
+_VALIDATION_SCRIPTS = _REPO_ROOT / "scripts" / "validation"
+for _path in (_BUILD_SCRIPTS, _VALIDATION_SCRIPTS):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
+import checks_ci_parity  # noqa: E402
 import lib_mirror  # noqa: E402
 
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
@@ -43,10 +48,7 @@ _SHIPPED_LIB_CONTRACTS = (
     "shipped-lib-no-runtime-dependencies",
 )
 
-_LINT_IMPORTS = (
-    "import sys; from importlinter.cli import lint_imports_command; "
-    "sys.exit(lint_imports_command())"
-)
+_LINT_IMPORTS = checks_ci_parity._LINT_IMPORTS_PROGRAM
 
 
 def _load_pyproject() -> dict[str, Any]:
@@ -309,3 +311,20 @@ def test_a_stale_ignore_entry_fails(fixture_tree: Path) -> None:
     result = _run_lint_imports(fixture_tree, fixture_tree / "pyproject.toml")
     assert result.returncode != 0
     assert "scripts.github_core.workflow_provenance -> yaml" in result.stdout + result.stderr
+
+
+def test_pre_pr_gate_prints_the_offending_import_from_real_output(fixture_tree: Path) -> None:
+    """Drive the gate over real lint-imports output, not a one-line fake."""
+    _write_module(fixture_tree, "scripts.github_core.cross", "import scripts.hook_utilities.core\n")
+    with redirect_stdout(io.StringIO()) as captured:
+        passed = checks_ci_parity.validate_import_boundaries(fixture_tree)
+    shown = captured.getvalue()
+    assert passed is False
+    assert "scripts.github_core.cross -> scripts.hook_utilities.core (l.1)" in shown
+    assert "Contracts: 2 kept, 2 broken." in shown
+
+
+def test_pre_pr_gate_passes_on_the_fixture_tree(fixture_tree: Path) -> None:
+    with redirect_stdout(io.StringIO()) as captured:
+        assert checks_ci_parity.validate_import_boundaries(fixture_tree) is True
+    assert "Contracts: 4 kept, 0 broken." in captured.getvalue()
