@@ -587,6 +587,22 @@ def _scoped_pattern_indexes(regions: list[tuple[int, int]]) -> frozenset[int]:
     return _ALL_PATTERN_INDEXES if regions else _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES
 
 
+def scoping_note(description: str) -> str:
+    """Return a note when a change heading limits which path mentions are checked.
+
+    With a change-claim heading present, paths outside it are references, not
+    claims, so a path cited elsewhere is never compared with the diff (#6506).
+    """
+    if not description:
+        return ""
+    if not _change_claim_regions(_strip_informational_sections(description)):
+        return ""
+    return (
+        "Note: the description has a change heading, so only paths under it are "
+        "checked against the diff; paths mentioned elsewhere are not."
+    )
+
+
 def extract_mentioned_files(description: str) -> list[str]:
     """Extract unique file paths mentioned in PR description text.
 
@@ -1326,6 +1342,8 @@ def run_local(body_file: str, base: str) -> int:
     mentioned_files = extract_mentioned_files(description)
     all_mentioned = extract_all_mentioned_files(description)
     print(f"Description mentions {len(mentioned_files)} files")
+    if note := scoping_note(description):
+        print(note)
 
     issues = validate_pr_description(pr_files, mentioned_files, all_mentioned_files=all_mentioned)
     return print_results(issues, ci=True)
@@ -1436,6 +1454,8 @@ def main(argv: list[str] | None = None) -> int:
     mentioned_files = extract_mentioned_files(description)
     all_mentioned = extract_all_mentioned_files(description)
     print(f"Description mentions {len(mentioned_files)} files")
+    if note := scoping_note(description):
+        print(note)
 
     # Validate: file mentions vs diff
     issues = validate_pr_description(pr_files, mentioned_files, all_mentioned_files=all_mentioned)
