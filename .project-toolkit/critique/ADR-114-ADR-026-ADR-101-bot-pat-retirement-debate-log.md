@@ -35,6 +35,18 @@ executable enforcement, so the full six-agent panel ran.
   follows the BOT_PAT paragraph.
 - ADR-114 item 5 "Split it into..." marked as history.
 
+## Round 2 (post-review edits)
+
+The /review security and devops axes returned WARN. Edits made:
+
+- ADR-114 amendment names the pushes `github.token` cannot make, who re-runs
+  checks, the App token alternative not taken, and the new permission.
+- ADR-026 "Rejected Alternative" line labeled original and retired.
+- `artifact-insight-scanner.yml` scopes `GH_TOKEN` to the steps that call `gh`.
+- The #7097 clause is removed from the ADR-101 note; nothing in the tree backs it.
+- `apply_ai_conflict_resolution.py` already limits resolutions to conflicted
+  files (`_require_conflicted`), so no new path filter is added.
+
 ## Dissent
 
 - security: `persist-credentials` on the `process-prs` checkout keeps the write

@@ -35,9 +35,6 @@ concurrency:
   group: artifact-insight-scanner
   cancel-in-progress: true
 
-env:
-  GH_TOKEN: ${{ github.token }}
-
 jobs:
   scan-artifacts:
     name: Scan Artifacts for Insights
@@ -70,6 +67,7 @@ jobs:
         if: steps.collect.outputs.artifact_count > 0
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           ARTIFACT_FILE: ${{ steps.collect.outputs.artifact_file }}
         run: python3 scripts/ci/artifact_build_context.py
 

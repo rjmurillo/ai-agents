@@ -142,7 +142,7 @@ function Test-SafeBranchName {
 
 **Implementation (original, retired)**: Change all `GH_TOKEN: ${{ github.token }}` to `GH_TOKEN: ${{ secrets.BOT_PAT }}`
 
-**Rejected Alternative**: Use github.token
+**Rejected Alternative (original, retired 2026-11-06; this is now the adopted option)**: Use github.token
 - **Why rejected**: Poor attribution; actions appear to come from GitHub Actions runner, not identifiable bot
 
 ## Consequences
