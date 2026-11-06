@@ -58,15 +58,19 @@ A ``vendor-portability`` marker in a generated agent file comes from the
 template that renders it, so a declaration belongs in the template, and a
 platform template's marker reaches only that platform's output.
 ``src/copilot-cli/instructions`` is the generated Copilot instruction mirror of
-``.claude/rules/*.md`` via ``build/scripts/generate_rules.py``. Its per-rule contract docstring
-(lines 20-32) lists the transform steps for emitting
+``.claude/rules/*.md`` via ``build/scripts/generate_rules.py``. Its docstring section
+``Per-rule logic`` lists the transform steps for emitting
 ``.github/instructions/<name>.instructions.md`` (rename ``paths:`` to
 ``applyTo:``, drop ``alwaysApply:``/``priority:``, preserve
 ``description:``, synthesize a universal scope when none is declared,
 skip the rule when its scope is entirely internal-only), with the body
 left untouched (the list ends with the step "body unchanged"). ``outputDirs``
-(documented at that file's lines 8-14) fans the same transformed content out
-to every configured destination, including ``src/copilot-cli/instructions``.
+(documented in that docstring's ``Output targets`` section) fans the same
+transformed content out to every configured destination, including
+``src/copilot-cli/instructions``.
+``test_generate_rules_contract_conformance`` and
+``test_skill_portability_deferral_conformance`` fail when these two quoted
+sources change.
 It is scanned directly because it is itself the shipped artifact, not a source
 that generates one. See issues #3578 (plugin-root widening), #3646
 (templates/agents widening), #5214 (instructions widening), #5294 (rules widening), and #5689
