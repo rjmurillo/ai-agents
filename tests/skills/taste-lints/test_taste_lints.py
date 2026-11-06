@@ -243,6 +243,110 @@ class TestCheckNaming:
         assert skill_violations == []
 
 
+def _naming_messages(filepath: str) -> list[str]:
+    return [v.message for v in check_naming(filepath, []) if v.rule == "naming"]
+
+
+def _only_remediation(filepath: str, message_part: str) -> str:
+    matches = [v for v in check_naming(filepath, []) if message_part in v.message]
+    assert len(matches) == 1, f"{filepath}: {matches}"
+    return str(matches[0].remediation)
+
+
+class TestNamingRepairsClearTheirViolation:
+    """A suggested name must pass the rule that suggested it. Issue #7100."""
+
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "sample.pr.yml",
+            "docker-compose.override.yaml",
+            "values.2024.yml",
+            ".coderabbit.yaml",
+            ".markdownlint-cli2.yaml",
+        ],
+    )
+    def test_dotted_and_dotfile_yaml_stems_are_accepted(self, filename: str) -> None:
+        assert _naming_messages(f"config/{filename}") == []
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("Sample.PR.yml", "sample.pr.yml"),
+            ("my_config.pr.yml", "my-config.pr.yml"),
+            (".Foo_Bar.yaml", ".foo-bar.yaml"),
+            ("foo..bar.yml", "foo.bar.yml"),
+            ("foo bar.yml", "foo-bar.yml"),
+            ("1config.yml", "item-1config.yml"),
+            ("_foo.yml", "foo.yml"),
+            ("-.yml", "item.yml"),
+            ("caf\u00e9.yml", "caf.yml"),
+        ],
+    )
+    def test_yaml_repair_is_suggested_and_clears_the_warning(
+        self, filename: str, expected: str
+    ) -> None:
+        remediation = _only_remediation(f"config/{filename}", "is not kebab-case")
+
+        assert f"Suggested: {expected}\n" in remediation
+        assert expected != filename
+        assert _naming_messages(f"config/{expected}") == []
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("MyModule.py", "my_module.py"),
+            ("a.b.py", "a_b.py"),
+            ("foo-bar.py", "foo_bar.py"),
+            ("foo bar.py", "foo_bar.py"),
+            ("1foo.py", "item_1foo.py"),
+            ("__Foo.py", "_foo.py"),
+            ("_1foo.py", "_item_1foo.py"),
+        ],
+    )
+    def test_python_repair_is_suggested_and_clears_the_error(
+        self, filename: str, expected: str
+    ) -> None:
+        remediation = _only_remediation(f"src/{filename}", "is not snake_case")
+
+        assert f"Suggested: {expected}\n" in remediation
+        assert f"Run: git mv src/{filename} src/{expected}" in remediation
+        assert _naming_messages(f"src/{expected}") == []
+
+    def test_python_entry_point_module_is_exempt(self) -> None:
+        assert _naming_messages("pkg/__main__.py") == []
+
+    @pytest.mark.parametrize(
+        ("directory", "expected"),
+        [
+            ("My_Skill", "my-skill"),
+            ("my.skill", "my-skill"),
+            ("1skill", "item-1skill"),
+            ("_foo", "foo"),
+        ],
+    )
+    def test_skill_directory_repair_clears_the_warning(self, directory: str, expected: str) -> None:
+        remediation = _only_remediation(f".claude/skills/{directory}/notes.md", "Skill directory")
+
+        assert f"Rename: {directory} -> {expected}\n" in remediation
+        assert _naming_messages(f".claude/skills/{expected}/notes.md") == []
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("my_guard.py", "invoke_my_guard.py"),
+            ("my-guard.py", "invoke_my_guard.py"),
+            ("MyGuard.py", "invoke_my_guard.py"),
+        ],
+    )
+    def test_hook_repair_clears_every_naming_violation(self, filename: str, expected: str) -> None:
+        hooks = ".claude/hooks/PreToolUse"
+        remediation = _only_remediation(f"{hooks}/{filename}", "missing 'invoke_'")
+
+        assert f"Rename to: {expected}\n" in remediation
+        assert _naming_messages(f"{hooks}/{expected}") == []
+
+
 class TestCheckComplexity:
     """Tests for function complexity checking."""
 
