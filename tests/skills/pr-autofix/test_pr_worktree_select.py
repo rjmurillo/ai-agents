@@ -1,8 +1,9 @@
 """Worktree selection in pr-autofix must not trust the PR-author-chosen branch name (#6506).
 
-Both selection blocks in ``templates/skills/pr-autofix.SKILL.md.tmpl`` sit between
+The dispatch block in ``templates/skills/pr-autofix.SKILL.md.tmpl`` and the cleanup
+block in ``references/post-merge-cleanup.md`` sit between
 ``pr-worktree-select:begin`` and ``pr-worktree-select:end`` markers. These tests
-pull each block out of the template and run it under bash against real git
+pull each block out of those files and run it under bash against real git
 repositories, so the shipped text is what is exercised.
 
 - pos: ref and origin match, whether the worktree holds the live head or diverged
@@ -28,6 +29,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE = REPO_ROOT / "templates" / "skills" / "pr-autofix.SKILL.md.tmpl"
+CLEANUP_REFERENCE = (
+    REPO_ROOT / "src" / "claude" / "skills" / "pr-autofix" / "references" / "post-merge-cleanup.md"
+)
 BASH = shutil.which("bash")
 BRANCH = "fix/some-branch"
 REPO = "owner/repo"
@@ -35,8 +39,15 @@ REPO = "owner/repo"
 pytestmark = pytest.mark.skipif(BASH is None, reason="bash is required")
 
 
+def _shipped_text() -> str:
+    """Template (dispatch block) followed by the cleanup reference (cleanup block)."""
+    return (
+        TEMPLATE.read_text(encoding="utf-8") + "\n" + CLEANUP_REFERENCE.read_text(encoding="utf-8")
+    )
+
+
 def _blocks() -> list[str]:
-    text = TEMPLATE.read_text(encoding="utf-8")
+    text = _shipped_text()
     found = re.findall(
         r"^[ \t]*# pr-worktree-select:begin\n(.*?)^[ \t]*# pr-worktree-select:end\n",
         text,
@@ -203,7 +214,7 @@ class TestCleanupSelection:
 
 def _guard() -> str:
     """The shipped keep guard: text after the select block up to the removal step."""
-    text = TEMPLATE.read_text(encoding="utf-8")
+    text = _shipped_text()
     tail = text.rsplit("# pr-worktree-select:end\n", 1)[1]
     guard = tail.split("\nCOMMON=", 1)[0]
     assert "keep" in guard
