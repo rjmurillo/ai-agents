@@ -152,14 +152,16 @@ def test_generate_rules_contract_conformance() -> None:
     for section in ("Per-rule logic", "Output targets"):
         assert section in canonical
         assert f"``{section}``" in citing
-    for step in (
-        "rename ``paths:`` to ``applyTo:``",
-        "drop ``alwaysApply:`` and ``priority:``",
-        "preserve ``description:``",
-        "skip the rule",
-        "- body unchanged 3. NO-REGEN",
+    for canonical_step, cited_step in (
+        ("rename ``paths:`` to ``applyTo:``", "rename ``paths:`` to ``applyTo:``"),
+        ("drop ``alwaysApply:`` and ``priority:``", "drop ``alwaysApply:``/``priority:``"),
+        ("preserve ``description:``", "preserve ``description:``"),
+        ('synthesize ``applyTo: "**"``', "synthesize a universal scope"),
+        ("skip the rule", "skip the rule"),
+        ("- body unchanged 3. NO-REGEN", 'the step "body unchanged"'),
     ):
-        assert step in canonical
+        assert canonical_step in canonical
+        assert cited_step in citing
 
 
 def test_skill_portability_deferral_conformance() -> None:
