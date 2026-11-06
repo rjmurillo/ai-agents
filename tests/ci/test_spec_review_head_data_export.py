@@ -213,3 +213,18 @@ def test_an_unfetchable_head_is_an_external_failure(repos: dict[str, Path | str]
 
     assert result.returncode == 3
     assert "could not fetch" in result.stderr
+
+
+@pytest.mark.parametrize("bad_sha", ["--upload-pack=evil", "abc123", "", "g" * 40, "-" + "a" * 39])
+def test_a_head_sha_that_is_not_a_full_object_name_is_refused(
+    repos: dict[str, Path | str], bad_sha: str
+) -> None:
+    result = _run_step(repos, bad_sha)
+
+    assert result.returncode == 2
+
+
+def test_non_ascii_digits_in_the_pr_number_are_refused(repos: dict[str, Path | str]) -> None:
+    result = _run_step(repos, str(repos["head"]), PR_NUMBER="\u00b2")
+
+    assert result.returncode == 2
