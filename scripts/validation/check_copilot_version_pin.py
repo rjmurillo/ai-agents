@@ -62,8 +62,10 @@ _PIN_RE = re.compile(
     re.MULTILINE,
 )
 
-# The package.json pin: "@github/copilot": "x.y.z" under dependencies. A manifest that
-# is not valid JSON, or that lacks the dependency, yields no match and fails the guard.
+# The package.json pin: "@github/copilot": "x.y.z" under dependencies. This is a text
+# match, not a JSON parse: a file without that key yields no match and fails the guard,
+# and a "@github/copilot" key anywhere else in the file (for example devDependencies)
+# also matches, so the exactly-one-pin check below still applies.
 _MANIFEST_PIN_RE = re.compile(r"""\"@github/copilot\"[ \t]*:[ \t]*\"([^\"]+)\"""")
 
 # Accept semver-ish versions: x.y.z with an optional -prerelease suffix
@@ -76,7 +78,7 @@ _DEFAULT_ACTION = (
 
 
 class VersionPinError(ValueError):
-    """Raised when no ``COPILOT_VERSION`` pin is found in the action file."""
+    """Raised when the Copilot CLI pin is missing or ambiguous in the target file."""
 
 
 def is_parseable(version: str) -> bool:
@@ -104,10 +106,10 @@ def extract_pinned_version(action_path: Path) -> str:
     pin_re = _MANIFEST_PIN_RE if action_path.suffix == ".json" else _PIN_RE
     matches = pin_re.findall(text)
     if not matches:
-        raise VersionPinError(f"no Copilot CLI pin (COPILOT_VERSION) found in {action_path}")
+        raise VersionPinError(f"no Copilot CLI pin found in {action_path}")
     if len(matches) > 1:
         raise VersionPinError(
-            f"multiple COPILOT_VERSION pins found in {action_path}: {matches}. "
+            f"multiple Copilot CLI pins found in {action_path}: {matches}. "
             f"Remove duplicates to avoid ambiguity (bash uses the last assignment)."
         )
     # re.Pattern.findall returns list[Any]; the single capture group is a str.
@@ -143,7 +145,7 @@ def check_action(action_path: Path) -> int:
 
     if not is_parseable(version):
         print(
-            f"::error::COPILOT_VERSION '{version}' is not a parseable version "
+            f"::error::Copilot CLI pin '{version}' is not a parseable version "
             f"(expected x.y.z[-prerelease])",
             file=sys.stderr,
         )
@@ -151,13 +153,13 @@ def check_action(action_path: Path) -> int:
 
     if is_known_bad(version):
         print(
-            f"::error::COPILOT_VERSION '{version}' is on the known-bad list "
+            f"::error::Copilot CLI pin '{version}' is on the known-bad list "
             f"(Issue #2630: invalid session id defect). Bump to a fixed release.",
             file=sys.stderr,
         )
         return EXIT_LOGIC
 
-    print(f"COPILOT_VERSION pin OK: {version}")
+    print(f"Copilot CLI pin OK: {version}")
     return EXIT_OK
 
 

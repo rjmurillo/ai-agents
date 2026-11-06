@@ -60,6 +60,17 @@
       "automerge": false
     },
     {
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "matchFileNames": [
+        ".github/cli-smoke/**"
+      ],
+      "description": "The weekly lock file refresh of the CLI smoke lockfiles needs a human approval, like their version bumps. A separate branch keeps the other lock file refreshes (the repo root) on the automerge path, because Renovate automerges a branch only when every update in it allows it.",
+      "branchTopic": "cli-smoke-lock-file-maintenance",
+      "automerge": false
+    },
+    {
       "matchManagers": [
         "devcontainer"
       ],

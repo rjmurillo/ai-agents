@@ -161,7 +161,7 @@ def test_multiple_pins_raises(tmp_path: Path) -> None:
         '        COPILOT_VERSION="0.0.397"\n',
         encoding="utf-8",
     )
-    with pytest.raises(mod.VersionPinError, match="multiple COPILOT_VERSION pins"):
+    with pytest.raises(mod.VersionPinError, match="multiple Copilot CLI pins"):
         mod.extract_pinned_version(action)
 
 

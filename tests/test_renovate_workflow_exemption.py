@@ -65,17 +65,6 @@ def test_workflow_file_updates_require_a_manual_merge(config: dict[str, Any]) ->
     assert not reenabled, f"a rule after the workflow exemption re-enables automerge: {reenabled}"
 
 
-def test_workflow_exemption_does_not_reach_other_paths(config: dict[str, Any]) -> None:
-    """Edge: the exception names the two directories and nothing wider."""
-    for rule in config["packageRules"]:
-        if rule.get("automerge") is False and "matchFileNames" in rule:
-            assert rule["matchFileNames"] == _EXEMPT_FILE_GLOBS
-
-
-def test_repo_default_stays_automerge(config: dict[str, Any]) -> None:
-    assert config["automerge"] is True
-
-
 def test_workflow_exemption_follows_the_rules_that_enable_automerge(
     config: dict[str, Any],
 ) -> None:
@@ -95,9 +84,10 @@ def test_no_regex_custom_manager_remains(config: dict[str, Any]) -> None:
 def test_exemption_globs_cover_workflow_and_lockfile_paths() -> None:
     """Edge: the globs match a workflow, a CLI manifest, and a CLI lockfile.
 
-    Renovate merges ``lockFileMaintenance`` config first and applies ``packageRules``
-    afterwards (flatten.ts), so a ``matchFileNames`` rule reaches the weekly lockfile
-    refresh. This test pins that the lockfile paths fall under the exempt globs.
+    A local Renovate run (``--platform=local --dry-run=full``, renovate 44.221.6) showed the
+    ``matchFileNames`` rule resolving ``automerge: false`` on the lockFileMaintenance
+    update of each ``.github/cli-smoke/*/package.json``. This test pins that the lockfile
+    paths stay under the exempt globs. It cannot show Renovate's behavior itself.
     """
     paths = [
         ".github/workflows/ci.yml",
@@ -108,3 +98,35 @@ def test_exemption_globs_cover_workflow_and_lockfile_paths() -> None:
         assert any(fnmatch(path, glob) for glob in _EXEMPT_FILE_GLOBS), path
     assert not fnmatch("src/app/package-lock.json", _CLI_SMOKE_FILE_GLOB)
     assert not fnmatch("src/ci.yml", _WORKFLOW_FILE_GLOB)
+
+
+def test_every_file_glob_exemption_stays_inside_the_two_directories(
+    config: dict[str, Any],
+) -> None:
+    """Edge: no automerge:false file rule reaches a path outside the two directories."""
+    for rule in config["packageRules"]:
+        if rule.get("automerge") is False and "matchFileNames" in rule:
+            assert set(rule["matchFileNames"]) <= set(_EXEMPT_FILE_GLOBS), rule
+
+
+def test_cli_smoke_lock_maintenance_gets_its_own_branch(config: dict[str, Any]) -> None:
+    """The cli-smoke lock refresh is stated in config, on a branch of its own.
+
+    Renovate puts every lockFileMaintenance update on ``renovate/lock-file-maintenance``
+    and automerges a branch only when every update in it allows it. Without a separate
+    branch topic, the exemption would also stop the repo-root refresh from automerging.
+    """
+    rules = config["packageRules"]
+    matches = [
+        index
+        for index, rule in enumerate(rules)
+        if rule.get("matchUpdateTypes") == ["lockFileMaintenance"]
+    ]
+    assert len(matches) == 1, "expected exactly one lockFileMaintenance packageRules entry"
+    rule = rules[matches[0]]
+    assert rule["matchFileNames"] == [_CLI_SMOKE_FILE_GLOB]
+    assert rule["automerge"] is False
+    assert rule["branchTopic"] not in ("", "lock-file-maintenance")
+    assert not [r for r in rules[matches[0] + 1 :] if r.get("automerge") is True]
+    # The refresh outside the exempt paths keeps automerging.
+    assert config["lockFileMaintenance"]["automerge"] is True
