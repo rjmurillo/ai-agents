@@ -5,10 +5,10 @@ Issue #6506 workflow-ci-04: the review job holds the model key, so it checks
 out the base commit and runs only base code. The pull request head arrives
 here as data. This script fetches the head commit and extracts the spec and
 planning trees into a directory under RUNNER_TEMP. The extraction filter skips
-every symlink and hardlink, and a second pass deletes any link that remains,
+every symlink and hardlink, and a second pass deletes any symlink that remains,
 so a head-controlled link cannot point the spec loader at a runner file.
 The spec loader and the ref extractor refuse any ref that leaves
-.project-toolkit, so a `..` segment cannot reach a runner file either.
+.project-toolkit/specs and planning, so a `..` segment cannot reach a runner file either.
 
 Environment:
   GH_TOKEN      token for the one authenticated fetch (required)

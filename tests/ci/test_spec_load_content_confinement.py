@@ -1,9 +1,9 @@
-"""Spec refs named in a pull request body must stay under .project-toolkit.
+"""Spec refs named in a pull request body must stay under a spec tree.
 
 Issue #6506: ``spec_load_content`` used to open any ``.md`` path a PR body named.
 A ``..`` segment, an absolute path, or a symlink reached runner files and put
 them into the model prompt. The loader now resolves each ref and refuses one
-that leaves ``./.project-toolkit``.
+that leaves ``./.project-toolkit/specs`` and ``./.project-toolkit/planning``.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from scripts.ci.spec_load_content import EXIT_CONFIG, EXIT_OK, run
+from scripts.ci.spec_load_content import EXIT_CONFIG, EXIT_OK, _confined, run
 
 
 def _spec_tree(root: Path) -> Path:
@@ -61,7 +61,7 @@ class TestSpecRefConfinement:
         with patch.dict(os.environ, self._env(tmp_path, refs)):
             assert run() == EXIT_CONFIG
 
-        assert "escapes .project-toolkit" in capsys.readouterr().err
+        assert "escapes the spec trees" in capsys.readouterr().err
         assert not (tmp_path / "spec-content-0.md").exists()
 
     def test_an_absolute_path_outside_the_tree_is_refused(
@@ -111,3 +111,36 @@ class TestSpecRefConfinement:
 
         with patch.dict(os.environ, self._env(tmp_path, "REQ-777")):
             assert run() == EXIT_CONFIG
+
+    def test_a_sibling_tree_inside_project_toolkit_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: .project-toolkit is not itself a spec tree."""
+        monkeypatch.chdir(tmp_path)
+        _spec_tree(tmp_path)
+        arch = tmp_path / ".project-toolkit" / "architecture"
+        arch.mkdir(parents=True)
+        (arch / "ADR-001.md").write_text("# adr body")
+
+        with patch.dict(
+            os.environ, self._env(tmp_path, ".project-toolkit/architecture/ADR-001.md")
+        ):
+            assert run() == EXIT_CONFIG
+
+    def test_a_planning_ref_loads(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        planning = tmp_path / ".project-toolkit" / "planning"
+        planning.mkdir(parents=True)
+        (planning / "sprint.md").write_text("# sprint body")
+
+        with patch.dict(os.environ, self._env(tmp_path, ".project-toolkit/planning/sprint.md")):
+            assert run() == EXIT_OK
+
+    def test_a_nul_byte_in_a_path_is_refused_not_a_traceback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The environment cannot carry a NUL, so call the guard directly."""
+        monkeypatch.chdir(tmp_path)
+        _spec_tree(tmp_path)
+
+        assert _confined(Path(".project-toolkit/specs/a\x00b.md")) is None
