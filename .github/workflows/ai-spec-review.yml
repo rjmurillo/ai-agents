@@ -52,14 +52,31 @@ jobs:
     timeout-minutes: 26
 
     steps:
-      - name: Checkout repository
+      # Issue #6506 workflow-ci-04: this job holds the model key, so every step
+      # runs code from the base commit, never from the synthetic pull request
+      # merge tree. On workflow_dispatch the base is the tip of the ref the
+      # dispatch ran from.
+      - name: Checkout base commit
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
           fetch-depth: 0
+          # The token must not sit in .git/config where a head-controlled
+          # symlink could point the spec loader at it. The one fetch below
+          # passes it on the command line instead.
+          persist-credentials: false
 
-      # Both SHAs come from the event payload, never a branch name: on
-      # pull_request the checkout is the synthetic refs/pull/N/merge commit, so
-      # an implicit HEAD would credit this pull request with base-branch files.
+      # The pull request head arrives as data only. Fetch its ref so the scope
+      # script can diff the two SHAs, then export just the spec trees the
+      # reviewer reads. Nothing from the head is executed.
+      - name: Fetch pull request head as data
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/ci/spec_review_export_head.py
+
+      # Both SHAs come from the event payload, never a branch name: the
+      # checkout is the base commit, so an implicit HEAD would diff nothing.
       - name: Decide scope
         id: should-run
         env:
@@ -83,7 +100,15 @@ jobs:
           SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
           ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
           AZURE_REFS: ${{ steps.spec-ref.outputs.azure_refs }}
-        run: python3 scripts/ci/spec_load_content.py
+          PR_HEAD_DATA: ${{ runner.temp }}/pr-head-data
+          EVENT_NAME: ${{ github.event_name }}
+        # Base-commit script, head-commit spec files: reads relative paths
+        # from the exported data tree, or from the base on workflow_dispatch.
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            cd "$PR_HEAD_DATA"
+          fi
+          python3 "$GITHUB_WORKSPACE/scripts/ci/spec_load_content.py"
 
       - name: Prepare Spec Context
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'

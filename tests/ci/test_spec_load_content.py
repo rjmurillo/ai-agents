@@ -21,6 +21,17 @@ from scripts.ci.spec_load_content import (
 )
 
 
+def _spec_tree(root: Path) -> Path:
+    """Create ./.project-toolkit/specs under ``root`` and return it."""
+    tree = root / ".project-toolkit" / "specs"
+    tree.mkdir(parents=True, exist_ok=True)
+    return tree
+
+
+def _rel(path: Path, root: Path) -> str:
+    return path.relative_to(root).as_posix()
+
+
 class TestGhIssueBody:
     def test_returns_output_on_success(self) -> None:
         mock = MagicMock(returncode=0, stdout="Title\n\nBody text")
@@ -46,12 +57,15 @@ class TestGhIssueBody:
 
 
 class TestRun:
-    def test_creates_spec_file_output(self, tmp_path: Path) -> None:
-        spec_file = tmp_path / "spec.md"
+    def test_creates_spec_file_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        spec_file = _spec_tree(tmp_path) / "spec.md"
         spec_file.write_text("## Spec\nContent")
         out_file = tmp_path / "out.txt"
         env = {
-            "SPEC_REFS": str(spec_file),
+            "SPEC_REFS": _rel(spec_file, tmp_path),
             "ISSUE_REFS": "",
             "GITHUB_REPOSITORY": "owner/repo",
             "RUNNER_TEMP": str(tmp_path),
@@ -63,12 +77,13 @@ class TestRun:
         assert rc == 0
         assert "spec_file=" in out_file.read_text()
 
-    def test_loads_spec_by_md_path(self, tmp_path: Path) -> None:
-        spec_file = tmp_path / "REQ-001-spec.md"
+    def test_loads_spec_by_md_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        spec_file = _spec_tree(tmp_path) / "REQ-001-spec.md"
         spec_file.write_text("# REQ-001")
         out_file = tmp_path / "out.txt"
         env = {
-            "SPEC_REFS": str(spec_file),
+            "SPEC_REFS": _rel(spec_file, tmp_path),
             "ISSUE_REFS": "",
             "RUNNER_TEMP": str(tmp_path),
             "GITHUB_OUTPUT": str(out_file),
@@ -227,12 +242,15 @@ class TestRun:
         assert "Acceptance criteria" in written
         assert "5600" not in written
 
-    def test_unresolvable_ref_is_skipped_when_a_spec_file_resolves(self, tmp_path: Path) -> None:
-        spec_file = tmp_path / "REQ-010-spec.md"
+    def test_unresolvable_ref_is_skipped_when_a_spec_file_resolves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        spec_file = _spec_tree(tmp_path) / "REQ-010-spec.md"
         spec_file.write_text("# REQ-010\nSpec body", encoding="utf-8")
         out_file = tmp_path / "out.txt"
         env = {
-            "SPEC_REFS": str(spec_file),
+            "SPEC_REFS": _rel(spec_file, tmp_path),
             "ISSUE_REFS": "5600",
             "GITHUB_REPOSITORY": "owner/repo",
             "RUNNER_TEMP": str(tmp_path),
@@ -423,10 +441,13 @@ class TestBlankToken:
             with patch("scripts.ci.spec_load_content.subprocess.run", return_value=ok):
                 assert main() == EXIT_OK
 
-    def test_blank_token_without_issue_refs_is_unchanged(self, tmp_path: Path) -> None:
-        spec = tmp_path / "spec.md"
+    def test_blank_token_without_issue_refs_is_unchanged(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        spec = _spec_tree(tmp_path) / "spec.md"
         spec.write_text("# Spec\nBody")
-        env = self._env(tmp_path, GH_TOKEN="", SPEC_REFS=str(spec), ISSUE_REFS="")
+        env = self._env(tmp_path, GH_TOKEN="", SPEC_REFS=_rel(spec, tmp_path), ISSUE_REFS="")
         with patch.dict(os.environ, env):
             assert main() == EXIT_OK
         assert (tmp_path / "spec-content-0.md").exists()
