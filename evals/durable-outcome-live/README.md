@@ -231,7 +231,7 @@ Owner decision of 2026-11-06 on #5768: the human correction time clause is dropp
 `review_findings` and `rollback_events` with the arms merged in PR #6692 (019abf42e5). Base
 commit `3e9f30aaa15f91ff3c67372379768c3e031bf2c8`. Both arms were checked first: the
 `eval_control_ablation.py --dry-run` discrimination check passed (5 of 5 known-good accepted,
-0 of 5 known-bad, rollbacks ran for real), and 682 tests under `tests/eval` passed.
+0 of 5 known-bad, rollbacks ran for real), and 682 tests under `tests/eval` passed at 3e9f30aaa1 (2026-11-06).
 
 Launch budget: 100 across all harnesses. Used 86: Claude 62, Codex 24.
 

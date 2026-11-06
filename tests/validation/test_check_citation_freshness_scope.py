@@ -276,6 +276,23 @@ class TestScopeBoundaries:
 
         assert code == 0
 
+    def test_durable_outcome_live_run_report_is_never_scanned(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Issue #5768: raw model replies in a live run report quote the
+        # invented paths of the prompts under test.
+        root = _repo(tmp_path)
+        _add_doc(
+            root,
+            "evals/durable-outcome-live/run-1/cont-a/report.json",
+            f'{{"reply": "See `{TARGET}:2` (`magic_token`)."}}\n',
+        )
+
+        code, out = _run(root, capsys)
+
+        assert code == 0
+        assert "examined 0 citation(s)" in out
+
     def test_top_level_fixtures_directory_is_never_scanned(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
