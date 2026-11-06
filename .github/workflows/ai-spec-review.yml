@@ -36,8 +36,7 @@ concurrency:
 
 env:
   # Workflow-level env must not carry a secret (semgrep gha-workflow-env-secret).
-  # The runner token reads issues on this public repository. The ai-review
-  # calls still receive BOT_PAT as input.
+  # The runner token reads issues on this public repository.
   GH_TOKEN: ${{ github.token }}
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
@@ -111,7 +110,6 @@ jobs:
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-trace-requirements.md
           timeout-minutes: 3
-          bot-pat: ${{ secrets.BOT_PAT }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report traceability check result
@@ -137,7 +135,6 @@ jobs:
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-check-completeness.md
           timeout-minutes: 3
-          bot-pat: ${{ secrets.BOT_PAT }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report completeness check result

@@ -209,12 +209,16 @@ def _resolve_literal(literal: str, inventory: Inventory) -> list[str]:
 
 
 def _references(path: str, repo_root: Path, inventory: Inventory) -> set[str]:
-    """Tracked files the Python module at ``path`` names."""
+    """Tracked files the Python module at ``path`` names.
+
+    Raises:
+        ReachError: ``path`` could not be read or parsed.
+    """
     try:
         source = (repo_root / path).read_text(encoding="utf-8", errors="replace")
         tree = ast.parse(source)
-    except (OSError, SyntaxError, ValueError):
-        return set()
+    except (OSError, SyntaxError, ValueError) as exc:
+        raise ReachError(f"could not read or parse {path}: {exc}") from exc
     found: set[str] = set()
     for module in _imports(tree):
         found.update(inventory.by_module_tail.get(module, []))
@@ -262,7 +266,8 @@ def filter_patterns(repo_root: Path, files: Iterable[str] | None = None) -> dict
     """Globs per marked module for the tree at ``repo_root``.
 
     Raises:
-        ReachError: the inventory could not be read.
+        ReachError: the inventory could not be read, or a reachable Python
+            file could not be read or parsed.
         run_pytest_windows.DiscoveryError: a test module could not be read.
     """
     inventory = Inventory(tracked_files(repo_root) if files is None else files)

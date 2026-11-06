@@ -259,7 +259,7 @@ def run(_argv: list[str] | None = None) -> int:
         print(
             "::error::GH_TOKEN is set but empty, so issue lookups cannot authenticate "
             f"({issue_refs_raw}). The step inherits github.token. If a step overrides "
-            "GH_TOKEN with a secret such as BOT_PAT, refill that secret.",
+            "GH_TOKEN with a secret, refill that secret.",
             file=sys.stderr,
         )
         return EXIT_AUTH

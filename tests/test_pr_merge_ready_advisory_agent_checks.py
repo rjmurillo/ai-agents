@@ -429,7 +429,7 @@ EXPECTED_JOB_ENVIRONMENTS = {
     ("skill-overlap-eval.yml", "run-eval"): "agent-claude",
     ("slash-command-quality.yml", "validate-slash-commands"): "agent-claude",
     ("software-engineering-library-activation.yml", "activation-gate"): "agent-claude",
-    # Sits in agent-claude only so it may read BOT_PAT. It calls no model.
+    # Sits in agent-claude for historical reasons (it once read BOT_PAT). It calls no model.
     ("update-reviewer-stats.yml", "update-stats"): "agent-claude",
 }
 
