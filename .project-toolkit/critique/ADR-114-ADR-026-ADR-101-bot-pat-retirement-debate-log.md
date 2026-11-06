@@ -57,5 +57,5 @@ The /review security and devops axes returned WARN. Edits made:
 
 ## Outcome
 
-Outcome: Consensus. Accept or Disagree-and-Commit from 6 of 6 seats after one
-round. Status of the ADRs: accepted, unchanged.
+Outcome: Consensus. Accept or Disagree-and-Commit from 6 of 6 seats after
+round 1. The round 2 edits were not re-voted by the panel. Status of the ADRs: accepted, unchanged.
