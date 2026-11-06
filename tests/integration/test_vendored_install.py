@@ -336,15 +336,17 @@ def test_review_library_bindings_parser_reads_a_sibling_clause() -> None:
     }
 
 
+@pytest.mark.parametrize("layout", ["claude-project", "copilot-plugin"])
 def test_review_path_resolution_symbols_import_from_named_modules(
-    vendored_root: Path,
+    vendored_root: Path, layout: str
 ) -> None:
     """Every symbol /review binds to a module imports from that module.
 
     A symbol listed under the wrong module raises ImportError for whoever
     follows the skill's path-resolution guidance (issue #7101). The import
-    runs against the vendored copy, in a subprocess, for the same reason as
-    `test_ai_review_common_imports_from_vendored_copy`.
+    covers both candidates: `.claude/lib` in the vendored copy, and the
+    plugin-root `lib/` of the Copilot plugin tree. It runs in a subprocess for
+    the same reason as `test_ai_review_common_imports_from_vendored_copy`.
     """
     text = (vendored_root / ".claude" / "skills" / "review" / "SKILL.md").read_text(
         encoding="utf-8"
@@ -359,7 +361,11 @@ def test_review_path_resolution_symbols_import_from_named_modules(
     }
     assert required <= bound, f"/review path resolution omits: {sorted(required - bound)}"
 
-    lib_path = str(vendored_root / ".claude" / "lib")
+    lib_root = {
+        "claude-project": vendored_root / ".claude" / "lib",
+        "copilot-plugin": REPO_ROOT / "src" / "copilot-cli" / "lib",
+    }[layout]
+    lib_path = str(lib_root)
     code = (
         "import importlib, json, sys\n"
         f"sys.path.insert(0, {lib_path!r})\n"
