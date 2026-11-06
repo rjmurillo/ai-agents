@@ -803,7 +803,7 @@ def main(argv: list[str] | None = None) -> int:
         "Repo": repo,
         "PullRequest": pr_number,
         "FailingChecks": len(failing_checks),
-        "CheckNames": args.check_name,
+        "CheckNames": args.check_name or [],
         "CheckLogs": check_logs,
     }
     if merge_ref_warning:

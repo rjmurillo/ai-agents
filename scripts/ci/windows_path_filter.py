@@ -218,7 +218,6 @@ def _references(path: str, repo_root: Path, inventory: Inventory) -> set[str]:
         source = (repo_root / path).read_text(encoding="utf-8", errors="replace")
         tree = ast.parse(source)
     except (OSError, SyntaxError, ValueError) as exc:
-        print(f"windows_path_filter: cannot read or parse {path}: {exc}", file=sys.stderr)
         raise ReachError(f"could not read or parse {path}: {exc}") from exc
     found: set[str] = set()
     for module in _imports(tree):
