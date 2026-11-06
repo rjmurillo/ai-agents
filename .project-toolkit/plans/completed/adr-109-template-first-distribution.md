@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | Active |
+| **Status** | Completed |
 | **Created** | 2026-09-11 |
 | **Owner** | rjmurillo |
 | **Complexity** | High |
@@ -142,6 +142,7 @@ B1 must land before B2 through B5, because each of those adds a row to the binpl
 | 2026-09-15 | B2 through B4 confirmed landed on `main` (`084f89340` #5775, five B3 batch PRs plus `23c3d5dd3` #5785, `9bf7c7c3a` #5784); B5 (lib) landing in parallel on `feat/adr-109-b5-lib` (PR #5787); B6 (TASK-036 marketplace switch) implemented on `feat/adr-109-b6-marketplace`: `claude-agents` entry dropped, `project-toolkit` repointed to `./src/claude`, `.claude/.claude-plugin/plugin.json` deleted, `.github/plugin/marketplace.json` description text updated, every `claude-agents` reference across code, tests, templates, and docs updated | claude |
 | 2026-09-15 | PR #5791 (B6) opened; CodeRabbit review confirmed the install-parity blocker this branch's own verification already found (84 of 111 skills missing `scripts/`, `references/`, or `tests/` under `src/claude/skills/`) and requested B6 stay blocked until it closes. Fix assigned to `feat/adr-109-b3-skill-support-files` (sibling branch, separate agent). B6's status reverted from done to blocked pending that branch's merge. | claude |
 | 2026-09-15 | `feat/adr-109-b3-skill-support-files` merged to `main` (`77a44751b`, #5794): `build/scripts/skill_support_mirror.py` mirrors every skill's `scripts/`, `references/`, and `tests/` into `src/claude/skills/<name>/`. Merged `main` into `feat/adr-109-b6-marketplace`; rebuilt (`build_all.py --check` exit 0); switched `test_resolve_lib_dir.py`'s CLI fixtures to source the script from `src/claude/skills/merge-resolver/scripts/`, the marketplace-installed artifact, and added `test_marketplace_script_exists` as the negative control CodeRabbit asked for; verified zero missing support-file twins by direct file walk and `tests/e2e/test_claude_skill_support_mirror_parity.py`. TASK-036's install-verification criterion and B6's checkbox both flipped to done. ADR-109's migration order is complete: B0 through B6 all landed. | claude |
+| 2026-11-06 | Plan closed out. All objectives B0 through B6 are checked, no blockers remain, and every tracking issue is closed. | Claude |
 
 ## Blockers
 

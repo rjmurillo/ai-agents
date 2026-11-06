@@ -187,7 +187,8 @@ The worst state that blocked the gate picks the code
 `--summary-json PATH` (or `PRE_PR_SUMMARY_JSON`) writes the run as JSON: the
 parent state, the counts per state, the declared policy, one row per gate with
 its state, reason code, scope, revision, and counts, and the subset that
-blocked.
+blocked. A run with only licensed `FAIL` rows has the parent state `ADVISORY`
+and exits 0. Those rows keep `FAIL`, and `advisory_count` counts them.
 
 ```bash
 uv run --frozen python scripts/validation/pre_pr.py --summary-json /tmp/pre-pr.json
