@@ -26,7 +26,7 @@ _AUTOMERGE_OFF_MANAGERS = {"devcontainer"}
 
 # The second deliberate exception is by path, not manager (#6506 review-gates-15):
 # a workflow file can hold secrets or write tokens, so a bump to it needs a human
-# approval. Scope stays on the workflow directory because PR #6127 made automerge
+# approval. Scope stays on the two directories below because PR #6127 made automerge
 # universal and a wider glob would quietly remove other updates from that path.
 _WORKFLOW_FILE_GLOB = ".github/workflows/**"
 # The CLI smoke pins moved out of the workflow into .github/cli-smoke/ (#6506
@@ -34,7 +34,6 @@ _WORKFLOW_FILE_GLOB = ".github/workflows/**"
 # move a bump edited the workflow file, so the same approval applies to them.
 _CLI_SMOKE_FILE_GLOB = ".github/cli-smoke/**"
 _EXEMPT_FILE_GLOBS = [_WORKFLOW_FILE_GLOB, _CLI_SMOKE_FILE_GLOB]
-_AUTOMERGE_OFF_FILE_GLOBS = set(_EXEMPT_FILE_GLOBS)
 
 
 @pytest.fixture(scope="module")
@@ -71,8 +70,15 @@ def test_vulnerability_alerts_label_security(config: dict[str, Any]) -> None:
     assert "security" in config["vulnerabilityAlerts"]["labels"]
 
 
-def test_vulnerability_alerts_automerge(config: dict[str, Any]) -> None:
-    assert config["vulnerabilityAlerts"]["automerge"] is True
+def test_vulnerability_alerts_do_not_force_automerge(config: dict[str, Any]) -> None:
+    """Renovate appends each alert as a rule that carries `force: {vulnerabilityAlerts}`.
+
+    A forced `automerge: true` there beats every user packageRules entry, including
+    the workflow-file exemption (#6506 review-gates-15). Leaving the key out keeps
+    alert PRs on the repo default (`automerge: true`) and lets the exemption apply.
+    """
+    assert "automerge" not in config["vulnerabilityAlerts"]
+    assert config["automerge"] is True
 
 
 def test_global_automerge_and_platform_automerge_enabled(config: dict[str, Any]) -> None:
@@ -90,9 +96,9 @@ def test_automerge_stays_on_except_for_named_managers(config: dict[str, Any]) ->
     for rule in config["packageRules"]:
         if rule.get("automerge") is False:
             if set(rule.get("matchFileNames", [])) and not rule.get("matchManagers"):
-                assert set(rule["matchFileNames"]) <= _AUTOMERGE_OFF_FILE_GLOBS, (
+                assert set(rule["matchFileNames"]) <= set(_EXEMPT_FILE_GLOBS), (
                     f"rule {rule.get('description', rule)!r} disables automerge for "
-                    f"{rule['matchFileNames']}; add the glob to _AUTOMERGE_OFF_FILE_GLOBS "
+                    f"{rule['matchFileNames']}; add the glob to _EXEMPT_FILE_GLOBS "
                     "if that is intended"
                 )
                 continue

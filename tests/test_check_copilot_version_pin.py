@@ -1,8 +1,9 @@
 """Tests for the Copilot CLI version-pin guard (Issue #2630).
 
-The guard reads the pinned Copilot CLI version (``COPILOT_CLI_VERSION`` in the
-CLI smoke workflow, or the shell form ``COPILOT_VERSION``) and fails when the pin is missing,
-unparseable, or on the known-bad list. ``0.0.397`` is the seed known-bad entry:
+The guard reads the pinned Copilot CLI version (``@github/copilot`` in
+``.github/cli-smoke/copilot/package.json``, or the older env and shell forms) and
+fails when the pin is missing, unparseable, or on the known-bad list.
+``0.0.397`` is the seed known-bad entry:
 npm flags it deprecated for "invalid session id errors", which broke the
 PR-comment-processing step of the PR Maintenance workflow.
 """

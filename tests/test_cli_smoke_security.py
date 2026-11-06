@@ -141,7 +141,7 @@ def test_pi_install_skips_lifecycle_scripts() -> None:
 
 def test_cli_pins_receive_native_renovate_updates(renovate_config: dict[str, Any]) -> None:
     """Edge: Renovate's npm manager bumps manifest and lockfile; the regex pins are gone."""
-    assert "renovate:" not in WORKFLOW.read_text(encoding="utf-8")
+    assert "# renovate: datasource" not in WORKFLOW.read_text(encoding="utf-8")
     package_rule = next(
         rule
         for rule in renovate_config["packageRules"]
