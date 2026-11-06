@@ -7,21 +7,31 @@ credential, and gate tests stay in ``tests/test_cli_smoke_security.py``.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 import yaml
 
 from tests.lib.cli_smoke_workflow import (
+    CLI_SMOKE_DIR,
     PACKAGE_DIR,
     SEMVER,
     WORKFLOW,
     _step_by_name,
-    load_package_json,
-    load_package_lock,
 )
 
 pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
+
+
+def load_package_json(package: str) -> dict[str, Any]:
+    path = CLI_SMOKE_DIR / PACKAGE_DIR[package] / "package.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_package_lock(package: str) -> dict[str, Any]:
+    path = CLI_SMOKE_DIR / PACKAGE_DIR[package] / "package-lock.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _install_steps() -> dict[str, dict[str, Any]]:

@@ -8,7 +8,6 @@ matrix, and gate wiring) and the ``tests/test_cli_smoke_trust*.py`` modules
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shlex
@@ -67,16 +66,6 @@ SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 def load_workflow() -> dict[Any, Any]:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-
-
-def load_package_json(package: str) -> dict[str, Any]:
-    path = CLI_SMOKE_DIR / PACKAGE_DIR[package] / "package.json"
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def load_package_lock(package: str) -> dict[str, Any]:
-    path = CLI_SMOKE_DIR / PACKAGE_DIR[package] / "package-lock.json"
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_renovate_config() -> dict[str, Any]:

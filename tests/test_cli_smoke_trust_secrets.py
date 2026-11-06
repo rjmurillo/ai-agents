@@ -19,8 +19,8 @@ from tests.lib.cli_smoke_workflow import (
     _collected_count,
     _expected_count,
     _step_by_name,
-    load_package_json,
 )
+from tests.test_cli_smoke_lockfiles import load_package_json
 
 pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
 

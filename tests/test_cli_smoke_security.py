@@ -15,7 +15,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-import yaml
 
 from tests.lib.cli_smoke_workflow import (
     CLI_PACKAGE,
@@ -68,4 +67,4 @@ def test_cli_install_uses_npm_ci_on_its_own_lockfile_only(
     assert install["working-directory"] == f".github/cli-smoke/{PACKAGE_DIR[package]}"
     assert "npm ci" in install["run"]
     other = next(p for p in CLI_PACKAGE.values() if p != package)
-    assert other not in yaml.safe_dump(install)
+    assert other not in str(install)
