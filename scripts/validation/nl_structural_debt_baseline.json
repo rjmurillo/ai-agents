@@ -481,7 +481,7 @@
     "templates/agents/partials/quality-auditor-intro.mustache|templates/agents/quality-auditor.shared.md": 33,
     "templates/agents/partials/retrospective-claude-code-tools.mustache|templates/agents/retrospective.shared.md": 4,
     "templates/agents/partials/retrospective-continuous-improvement-loop.mustache|templates/agents/retrospective.shared.md": 3,
-    "templates/agents/partials/retrospective-integration-with-skillbook.mustache|templates/agents/retrospective.shared.md": 26,
+    "templates/agents/partials/retrospective-integration-with-skillbook.mustache|templates/agents/retrospective.shared.md": 30,
     "templates/agents/partials/retrospective-intro.mustache|templates/agents/partials/security-intro.mustache": 2,
     "templates/agents/partials/retrospective-intro.mustache|templates/agents/partials/task-decomposer-task-decomposer.mustache": 2,
     "templates/agents/partials/retrospective-intro.mustache|templates/agents/pr-comment-responder.shared.md": 2,
