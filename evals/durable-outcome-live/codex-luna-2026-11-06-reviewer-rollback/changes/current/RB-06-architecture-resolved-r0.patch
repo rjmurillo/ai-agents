@@ -1,0 +1,64 @@
+--- a/tests/check_visible_throttle.py
++++ b/tests/check_visible_throttle.py
+@@ -16,6 +16,25 @@
+         self.assertTrue(limiter.allow("a"))
+         self.assertFalse(limiter.allow("a"))
+ 
++    def test_clients_have_independent_limits(self) -> None:
++        limiter = RateLimiter(1, 10.0, lambda: 0.0)
++        self.assertTrue(limiter.allow("a"))
++        self.assertTrue(limiter.allow("b"))
++
++    def test_limit_resets_at_the_window_boundary(self) -> None:
++        now = [0.0]
++        limiter = RateLimiter(1, 10.0, lambda: now[0])
++        self.assertTrue(limiter.allow("a"))
++        self.assertFalse(limiter.allow("a"))
++        now[0] = 10.0
++        self.assertTrue(limiter.allow("a"))
++
++    def test_invalid_configuration_is_rejected(self) -> None:
++        with self.assertRaises(ValueError):
++            RateLimiter(0, 10.0, lambda: 0.0)
++        with self.assertRaises(ValueError):
++            RateLimiter(1, 0.0, lambda: 0.0)
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+--- a/throttle/limiter.py
++++ b/throttle/limiter.py
+@@ -4,8 +4,31 @@
+ 
+ 
+ class RateLimiter:
++    """Limit each client with a counter in a client-local fixed window."""
++
+     def __init__(self, limit: int, window_seconds: float, clock: Callable[[], float]) -> None:
+-        raise NotImplementedError("RateLimiter is not implemented yet")
++        if limit <= 0:
++            raise ValueError("limit must be positive")
++        if window_seconds <= 0:
++            raise ValueError("window_seconds must be positive")
++
++        self._limit = limit
++        self._window_seconds = window_seconds
++        self._clock = clock
++        self._clients: dict[str, tuple[float, int]] = {}
+ 
+     def allow(self, client_id: str) -> bool:
+-        raise NotImplementedError("RateLimiter is not implemented yet")
++        now = self._clock()
++        window_start, count = self._clients.get(client_id, (now, 0))
++
++        # Each client gets its own window, which keeps clients independent and
++        # makes the boundary behavior deterministic with an injected clock.
++        if now >= window_start + self._window_seconds:
++            window_start, count = now, 0
++
++        if count >= self._limit:
++            self._clients[client_id] = (window_start, count)
++            return False
++
++        self._clients[client_id] = (window_start, count + 1)
++        return True
