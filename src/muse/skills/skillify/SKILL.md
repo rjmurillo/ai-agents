@@ -22,6 +22,9 @@ workflow behind it. Starting from a goal: use `skillforge`.
 
 `skillify this`, `skillify`, `save this as a skill`, `make this proper`
 
+The body loads only after activation, so the generated skill's `description`
+must also cover its trigger intents.
+
 ## Contract
 
 - A skill is written only when the step 2 gate returns `PROCEED`.
@@ -90,8 +93,13 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    boundary (read-only, internal change, or external/public; step 6 tags both). Stop splitting
    when an action runs on its own and its result can be checked. Keep
    mandatory actions apart from optional recovery paths. Keep approval and
-   draft gates exactly where the workflow had them.
+   draft gates exactly where the workflow had them. If the skill will claim it
+   improves the agent at a task, read
+   [capability-gate.md](references/capability-gate.md) now and record its
+   baseline before step 6.
 6. **Write.** Use the skeleton in [skill-skeleton.md](references/skill-skeleton.md).
+   Read `../skillforge/references/skill-content-rules.md` first and apply its
+   content and description rules to the draft.
    Create `<root>/<name>/SKILL.md` with the harness file-write tool, or patch
    with the file-edit tool using a unique old string. Inline every convention
    the skill needs; do not depend on a personal instruction file or a path
@@ -111,9 +119,13 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    Steps run 1, 2, 3 in order, restarting or continuing after a subheading. Recovery paths need a step marked optional or
    recovery. Create mode reads numbered Procedure steps; patch mode also
    reads a Process section. Fix every failure
-   and rerun. Do not run a broader evaluation pass.
+   and rerun. Do not run a broader evaluation pass. A passing `verify` shows
+   the file loads, not that the skill helps; settle any capability claim with
+   [capability-gate.md](references/capability-gate.md).
 8. **Report in one line:** `Skillified as <name>. Trigger: "<phrase>".` or
-   `Patched <name>. Trigger: "<phrase>".` No offers to adjust.
+   `Patched <name>. Trigger: "<phrase>".` When a baseline was recorded, add
+   `Capability gain: MEASURED | UNVERIFIED | NO GAIN` with its values. No
+   offers to adjust.
 
 ## Scripts
 
@@ -140,6 +152,7 @@ A relative `--explicit` or env-var path is anchored at `--cwd` and returned abso
 | Vague description | Agents scan only the opening clause | Lead with the action and the real trigger phrase |
 | Trigger phrases nobody says | The skill never loads | Use the user's own words |
 | Dropping Anti-patterns and Pitfalls | Without them the skill is a README | Write at least two of each |
+| Claiming a skill improves capability because it loads | Loading and repeating a procedure are not outcomes | Record a baseline and measure, or report `UNVERIFIED` |
 | Removing an approval gate while simplifying | A public action then runs unreviewed | Carry every gate into the new skill |
 | Publishing the new skill automatically | Skills load in every later session | Write locally; leave sharing to the user |
 | Asking about every section | Skillify is your work | Ask only for the trigger phrase, or for the destination when `resolve` needs it |
@@ -176,5 +189,7 @@ A relative `--explicit` or env-var path is anchored at `--cwd` and returned abso
       unresolved one produced no write.
 - [ ] `overlap` ran; a skill at 0.70 or more was patched, not duplicated.
 - [ ] `verify` returned `PASS` on the written file.
+- [ ] The description is under 1024 characters and the body under 500 lines and
+      5,000 tokens, or the overage is stated.
 - [ ] External or public actions in the workflow kept their approval gates.
 - [ ] The report is one line naming the skill and its trigger.
