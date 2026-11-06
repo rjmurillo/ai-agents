@@ -34,18 +34,10 @@ import lib_mirror  # noqa: E402
 
 _PRODUCTION_ROOTS = ("scripts", "memory_enhancement")
 
-# Modules that fail to import under bare python3 without PyYAML. Two import it at
-# the top level (the ignored edges in pyproject.toml). The other four reach one of
-# those two, directly or through each other. bot_config also imports yaml, but
-# behind `except ImportError`.
-_FAIL_WITHOUT_YAML = {
-    "scripts.github_core.workflow_event_subscriptions",
-    "scripts.github_core.workflow_provenance",
-    "scripts.github_core.recovery_manifest",
-    "scripts.github_core.workflow_runs",
-    "scripts.github_core.runs_file",
-    "scripts.github_core.pull_request_targets",
-}
+# Modules that fail to import under bare python3 without PyYAML. The set is empty:
+# callers inject the YAML parser (issue #7082), and bot_config imports yaml behind
+# `except ImportError`.
+_FAIL_WITHOUT_YAML: set[str] = set()
 _GUARDED_YAML_IMPORTERS = {"scripts.github_core.bot_config"}
 
 
@@ -295,3 +287,34 @@ def test_the_modules_that_need_yaml_are_the_ones_that_fail_without_it() -> None:
     assert result.returncode == 0, result.stderr
     assert modules
     assert set(json.loads(result.stdout)) == _FAIL_WITHOUT_YAML
+
+
+def test_shipped_workflow_modules_import_under_bare_python() -> None:
+    """Issue #7082 repro: isolated python with no site-packages, from the shipped tree."""
+    program = textwrap.dedent(
+        """
+        import importlib, sys
+        sys.path.insert(0, sys.argv[1])
+        for name in sys.argv[2:]:
+            importlib.import_module(f"github_core.{name}")
+        assert "yaml" not in sys.modules
+        """
+    )
+    modules = [
+        "workflow_event_subscriptions",
+        "workflow_provenance",
+        "recovery_manifest",
+        "runs_file",
+        "workflow_runs",
+        "pull_request_targets",
+    ]
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", program, str(_REPO_ROOT / "src/claude/lib"), *modules],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr

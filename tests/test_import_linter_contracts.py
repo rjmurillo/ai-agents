@@ -40,7 +40,7 @@ _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 
 # The shrink-only ceiling for ignore_imports across every contract. Lower it in
 # the change that deletes an entry. Raising it is the edit a reviewer must see.
-IGNORE_IMPORTS_BASELINE = 3
+IGNORE_IMPORTS_BASELINE = 1
 
 _SHIPPED_LIB_CONTRACTS = (
     "shipped-lib-independence",
@@ -337,10 +337,10 @@ def test_each_contract_breaks_on_the_import_it_forbids(
 
 
 def test_a_stale_ignore_entry_fails(fixture_tree: Path) -> None:
-    _write_module(fixture_tree, "scripts.github_core.workflow_provenance", "import json\n")
+    _write_module(fixture_tree, "scripts.github_core.bot_config", "import json\n")
     result = _run_lint_imports(fixture_tree, fixture_tree / "pyproject.toml")
     assert result.returncode != 0
-    assert "scripts.github_core.workflow_provenance -> yaml" in result.stdout + result.stderr
+    assert "scripts.github_core.bot_config -> yaml" in result.stdout + result.stderr
 
 
 @pytest.mark.parametrize("force_color", [False, True], ids=["plain", "forced-color"])

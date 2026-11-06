@@ -53,24 +53,29 @@ could publish regardless of what the API has materialized.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 __all__ = [
     "DEFAULT_PULL_REQUEST_TYPES",
     "PULL_REQUEST_RECOVERY_EVENTS",
     "RECOVERY_EVENTS",
     "WorkflowSubscriptions",
+    "WorkflowYamlParser",
     "declared_required_contexts",
     "load_workflow_subscriptions",
     "parse_workflow_subscriptions",
     "pin_to_head_ref",
     "subscribes_to",
 ]
+
+# Turns workflow text into a document, or None when the text does not parse.
+# The caller supplies it so this shipped lib stays standard-library only at
+# import time (issue #7082). A hand-rolled YAML reader is not an option: PR
+# #3793 tried one and found six divergences from yaml.safe_load.
+WorkflowYamlParser = Callable[[str], object]
 
 # GitHub's documented default activity types for pull_request and
 # pull_request_target when the workflow declares no explicit `types` list.
@@ -408,6 +413,7 @@ def _narrow_to_shared(
 
 def load_workflow_subscriptions(
     workflows_dir: Path,
+    parse_yaml: WorkflowYamlParser,
 ) -> dict[str, WorkflowSubscriptions]:
     """Parse every workflow file in a directory, keyed by workflow name.
 
@@ -441,9 +447,10 @@ def load_workflow_subscriptions(
         if path.suffix not in (".yml", ".yaml") or not path.is_file():
             continue
         try:
-            document = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
             continue
+        document = parse_yaml(text)
         if not isinstance(document, Mapping):
             continue
         parsed = parse_workflow_subscriptions(document, fallback_name=path.name)
