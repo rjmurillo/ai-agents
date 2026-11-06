@@ -383,7 +383,7 @@ class TestBlankToken:
         err = capsys.readouterr().err
         assert err.count("::error::") == 1
         assert "GH_TOKEN is set but empty" in err
-        assert "BOT_PAT" in err
+        assert "refill that secret" in err
         assert "github.token" in err
 
     def test_whitespace_token_is_blank(self, tmp_path: Path) -> None:
