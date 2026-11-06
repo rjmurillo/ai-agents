@@ -37,4 +37,8 @@ Three fixtures gained `voice.md`, and the skip-tests regex now accepts "added no
 | `first-occurrence-targeted-fix-only` | 1 of 3 | fail |
 | `explicit-skip-tests-override-edit-variant` | 1 of 3 | fail |
 
-`first-occurrence-targeted-fix-only` fails when the reply ends with a handoff to `qa`. `explicit-skip-tests-override-edit-variant` fails when the reply does not state the coverage trade-off.
+`first-occurrence-targeted-fix-only` failed when the reply ended with a handoff to `qa`. The implementer agent required that line in every reply. It now applies only to delegated tasks. Three later isolated runs passed 3 of 3.
+
+`explicit-skip-tests-override-edit-variant` still passes 1 of 3 after that change. The replies say tests were skipped but do not state the lost coverage. One reply also omitted the `dates.py:31` line reference. This is a behavior miss, so the rubric stays as written.
+
+The Copilot harness could not run. Copilot CLI 1.0.105 removed `--no-remote`, which the runner passes, so each launch exits with an error.
