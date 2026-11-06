@@ -54,7 +54,7 @@ def test_the_workflow_step_runs_the_exporter() -> None:
 
 
 @pytest.fixture
-def repos(tmp_path: Path) -> dict[str, Path | str]:
+def repos(tmp_path: Path) -> dict[str, Any]:
     origin = tmp_path / "origin.git"
     work = tmp_path / "work"
     _git(tmp_path, "init", "-q", "--bare", str(origin))
@@ -90,7 +90,7 @@ def repos(tmp_path: Path) -> dict[str, Path | str]:
 
 
 def _run_step(
-    repos: dict[str, Path | str], head_sha: str, **overrides: str
+    repos: dict[str, Any], head_sha: str, **overrides: str
 ) -> subprocess.CompletedProcess[str]:
     tmp = Path(str(repos["tmp"]))
     runner_temp = tmp / "runner"
@@ -115,14 +115,14 @@ def _run_step(
     )
 
 
-def _export(repos: dict[str, Path | str], head_sha: str) -> Path:
+def _export(repos: dict[str, Any], head_sha: str) -> Path:
     result = _run_step(repos, head_sha)
     assert result.returncode == 0, result.stderr
     return Path(str(repos["tmp"])) / "runner" / "pr-head-data"
 
 
 def test_head_specs_export_and_the_base_workspace_stays_on_base(
-    repos: dict[str, Path | str],
+    repos: dict[str, Any],
 ) -> None:
     data = _export(repos, str(repos["head"]))
     workspace = Path(str(repos["workspace"]))
@@ -133,7 +133,7 @@ def test_head_specs_export_and_the_base_workspace_stays_on_base(
     assert _git(workspace, "rev-parse", "HEAD") != str(repos["head"])
 
 
-def test_symlinks_in_the_head_are_not_exported(repos: dict[str, Path | str]) -> None:
+def test_symlinks_in_the_head_are_not_exported(repos: dict[str, Any]) -> None:
     if not repos["symlinks"]:
         pytest.skip("this platform cannot create symlinks")
     data = _export(repos, str(repos["head"]))
@@ -143,7 +143,7 @@ def test_symlinks_in_the_head_are_not_exported(repos: dict[str, Path | str]) -> 
 
 
 def test_loader_reads_a_new_head_spec_from_the_exported_tree(
-    repos: dict[str, Path | str],
+    repos: dict[str, Any],
 ) -> None:
     data = _export(repos, str(repos["head"]))
     runner_temp = data.parent
@@ -173,7 +173,7 @@ def test_loader_reads_a_new_head_spec_from_the_exported_tree(
 
 
 def test_a_head_without_spec_trees_exports_nothing_and_does_not_fail(
-    repos: dict[str, Path | str],
+    repos: dict[str, Any],
 ) -> None:
     tmp = Path(str(repos["tmp"]))
     work = tmp / "work"
@@ -190,7 +190,7 @@ def test_a_head_without_spec_trees_exports_nothing_and_does_not_fail(
     assert not any(data.rglob("*.md"))
 
 
-def test_a_moved_head_is_fetched_by_sha(repos: dict[str, Path | str]) -> None:
+def test_a_moved_head_is_fetched_by_sha(repos: dict[str, Any]) -> None:
     """The ref moved on after the event fired; the event SHA is still exported."""
     tmp = Path(str(repos["tmp"]))
     work = tmp / "work"
@@ -207,20 +207,20 @@ def test_a_moved_head_is_fetched_by_sha(repos: dict[str, Path | str]) -> None:
     assert (data / ".project-toolkit" / "specs" / "SPEC-new.md").is_file()
 
 
-def test_missing_environment_is_a_config_error(repos: dict[str, Path | str]) -> None:
+def test_missing_environment_is_a_config_error(repos: dict[str, Any]) -> None:
     result = _run_step(repos, str(repos["head"]), GH_TOKEN="")
 
     assert result.returncode == 2
     assert "required" in result.stderr
 
 
-def test_a_non_numeric_pr_number_is_refused(repos: dict[str, Path | str]) -> None:
+def test_a_non_numeric_pr_number_is_refused(repos: dict[str, Any]) -> None:
     result = _run_step(repos, str(repos["head"]), PR_NUMBER="7; rm -rf /")
 
     assert result.returncode == 2
 
 
-def test_an_unfetchable_head_is_an_external_failure(repos: dict[str, Path | str]) -> None:
+def test_an_unfetchable_head_is_an_external_failure(repos: dict[str, Any]) -> None:
     result = _run_step(repos, str(repos["head"]), PR_NUMBER="999")
 
     assert result.returncode == 3
@@ -229,21 +229,21 @@ def test_an_unfetchable_head_is_an_external_failure(repos: dict[str, Path | str]
 
 @pytest.mark.parametrize("bad_sha", ["--upload-pack=evil", "abc123", "", "g" * 40, "-" + "a" * 39])
 def test_a_head_sha_that_is_not_a_full_object_name_is_refused(
-    repos: dict[str, Path | str], bad_sha: str
+    repos: dict[str, Any], bad_sha: str
 ) -> None:
     result = _run_step(repos, bad_sha)
 
     assert result.returncode == 2
 
 
-def test_non_ascii_digits_in_the_pr_number_are_refused(repos: dict[str, Path | str]) -> None:
+def test_non_ascii_digits_in_the_pr_number_are_refused(repos: dict[str, Any]) -> None:
     result = _run_step(repos, str(repos["head"]), PR_NUMBER="\u00b2")
 
     assert result.returncode == 2
 
 
 def test_nested_files_and_executable_modes_are_exported_as_regular_files(
-    repos: dict[str, Path | str],
+    repos: dict[str, Any],
 ) -> None:
     tmp = Path(str(repos["tmp"]))
     work = tmp / "work"
@@ -268,7 +268,7 @@ def test_nested_files_and_executable_modes_are_exported_as_regular_files(
     assert not (data / ".project-toolkit" / "specs" / "evil.md").exists()
 
 
-def test_a_submodule_entry_is_not_exported(repos: dict[str, Path | str]) -> None:
+def test_a_submodule_entry_is_not_exported(repos: dict[str, Any]) -> None:
     """Edge: a gitlink (mode 160000) is neither a blob nor a regular file."""
     tmp = Path(str(repos["tmp"]))
     work = tmp / "work"
@@ -290,7 +290,7 @@ def test_a_submodule_entry_is_not_exported(repos: dict[str, Path | str]) -> None
     assert (data / ".project-toolkit" / "specs" / "SPEC-new.md").is_file()
 
 
-def test_a_local_filesystem_error_is_a_config_exit(repos: dict[str, Path | str]) -> None:
+def test_a_local_filesystem_error_is_a_config_exit(repos: dict[str, Any]) -> None:
     """ADR-035: a disk or permission problem is exit 2, not an external failure."""
     blocker = Path(str(repos["tmp"])) / "not-a-directory"
     blocker.write_text("file in the way\n", encoding="utf-8")
