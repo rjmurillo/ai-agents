@@ -25,15 +25,28 @@ size-exception rationale (carried forward under ADR-064).
 What the check wants: the skill_size validator blocks a SKILL.md over 500 lines
 or 24576 bytes and tells you to decompose it into references/.
 
-Why the idiomatic fix does not apply: this file carries the entire Ready-to-Merge
-protocol by design ("Nothing outside it is needed to run this skill"). The body
-includes the tier ladder, Ready-to-Merge gate definition, thread-lifecycle state
-machine, and CI-failure triage procedure, and the Process phases are one annotated
-bash program whose ordering IS the safety argument. Splitting it into references/
-moves a live-state gate or a disarm gate out of the loaded body,
-which is a behavioral change that must be measured against the eval harness before
-shipping. ADR-064 changed where this file lives, not what
-it carries, so the exception moves with it unchanged.
+Why the idiomatic fix only partly applies: this file carries the entire
+Ready-to-Merge protocol by design ("Nothing outside it is needed to run this
+skill"). The body includes the tier ladder, Ready-to-Merge gate definition,
+thread-lifecycle state machine, and CI-failure triage procedure, and the
+Process phases are one annotated bash program whose ordering IS the safety
+argument. Moving a live-state gate or a disarm gate out of the loaded body is a
+behavioral change that must be measured against the eval harness before
+shipping, so none moved.
+What moved to references/: Post-merge cleanup (references/post-merge-cleanup.md),
+the test_pr_merged.py exit-code contract (references/merge-check-exit-codes.md),
+and Extension Points (references/extension-points.md). Each has a read-when
+condition in the body and moved verbatim. The first two run only after a merge
+or for a legacy caller; none of the three gates a mutation.
+What stayed and why: the Process phases, Tier Definitions (the tier table and
+the merge-path rows carry the UNSUPPORTED and STACKED disarm gates), Fix
+Patterns (its examples are the late live-state wrapper and the armed
+auto-merge thread guard that tests/test_pr_autofix_late_live_state_gate.py
+reads in this file), Ready-to-Merge, Force-Push Safety, the Scripts command
+block and merge-path table (the only place the guarded merge commands are
+spelled), the Completion Gate, Verification, and Anti-Patterns.
+The 500-line target is not met: the body stays over it, so size-exception stays.
+ADR-064 changed where this file lives, not what it carries.
 Preserved invariant: One loaded workflow owns mutation safety, live-state revalidation, and merge readiness.
 Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`, `tests/skills/pr-autofix/test_check_pr_round_cap.py`
 Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
@@ -1053,127 +1066,32 @@ GitHub refuses auto-merge for `UNSTABLE` PRs and may also reject an already-`CLE
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
 
+### Reference files (read on demand)
+
+Three procedures moved out of this file into `references/`. Resolve the
+`references/` directory via the first candidate that exists:
+
+1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
+2. `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/skills/pr-autofix/references/` (plugin install, Copilot CLI and Claude Code)
+3. `.claude/skills/pr-autofix/references/` (Claude Code project layout)
+4. `skills/pr-autofix/references/` (vendored install)
+
+If none exists, the reference is unavailable: stop that step and hand the PR to
+a human. Do not reconstruct the procedure from memory.
+
 ### Post-merge cleanup
 
-Run this after every merge this skill lands, once `test_pr_merged.py` reports
-`merged: true`. The snippet reads its inputs from `test_pr_merged.py`
-(`head_ref`, `head_sha`, `merge_commit_sha`, `head_repo`), fails when any is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
-A leftover worktree costs disk and slows repo-wide scans: one machine counted
-113 of them at 10.6G. A merged PR has been found with its worktree and
-local branch still in place.
-
-```bash
-# Replace <pr> with the merged PR number. SCRIPTS_DIR is set by resolve_pr_scripts_dir above.
-# jq prints nothing unless all five values exist, so the guard below fails loud.
-read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA PR_HEAD_REPO < <(python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request <pr> --output-format json \
-    | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha and .head_repo) | [.head_ref, .head_sha, .merge_commit_sha, .head_repo] | @tsv')
-: "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}" "${PR_HEAD_REPO:?}"
-git fetch origin main && git merge-base --is-ancestor "$MERGE_SHA" origin/main || { echo "merge not on main yet"; exit 1; }
-# The branch name is chosen by the PR author, so the ref alone does not identify
-# the worktree. Also require HEAD to equal the merged head and origin to be the
-# PR's head repository (the fork for a fork PR, not the base repository). A worktree
-# that fails either check is not matched, so WT stays empty and the guard below
-# keeps and reports it. There is no path-convention fallback: it would reinstate
-# a ref-only match.
-WT=""
-# pr-worktree-select:begin
-WANT_REPO=$(printf '%s' "$PR_HEAD_REPO" | tr 'A-Z' 'a-z')
-# awk fields are written $(N), not $N: the skill loader rewrites a bare $<digit> as an argument.
-while IFS= read -r CANDIDATE; do
-    [ -n "$CANDIDATE" ] || continue
-    [ "$(git -C "$CANDIDATE" rev-parse HEAD 2>/dev/null)" = "$MERGED_HEAD_SHA" ] || continue
-    ORIGIN_URL=$(git -C "$CANDIDATE" remote get-url origin 2>/dev/null | tr 'A-Z' 'a-z')
-    ORIGIN_URL=${ORIGIN_URL%/}
-    ORIGIN_URL=${ORIGIN_URL%.git}
-    case "$ORIGIN_URL" in
-        *"/$WANT_REPO" | *":$WANT_REPO") WT="$CANDIDATE"; break ;;
-    esac
-done < <(git worktree list --porcelain | awk -v ref="refs/heads/$PR_HEAD_REF" \
-    '/^worktree /{p=substr($(0), 10)} $(1) == "branch" && $(2) == ref {print p}')
-# pr-worktree-select:end
-# Keep when nothing matched, or the match has local edits or a head other than the merged one.
-[ -n "$WT" ] && [ -z "$(git -C "$WT" status --porcelain)" ] && \
-  [ "$(git -C "$WT" rev-parse HEAD)" = "$MERGED_HEAD_SHA" ] || { echo "keep ${WT:-<no matching worktree>}"; exit 1; }
-COMMON=$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)
-# -C, not --git-dir: after a self-removal the cwd is gone and git cannot start there.
-git -C "$COMMON" worktree remove "$WT"
-# -D, not -d: a squash merge leaves the tip outside main's history. The SHA check above makes it safe.
-git -C "$COMMON" branch -D "$PR_HEAD_REF"
-# Empty output means the remote branch is gone.
-git -C "$COMMON" ls-remote origin "refs/heads/$PR_HEAD_REF"
-```
-
-- Never pass `--force` to `git worktree remove`. A dirty or moved worktree is
-  kept and reported with the reason.
-- Run removal through the owning clone's `--git-common-dir`. `git worktree list`
-  in a sibling clone does not see the worktree.
-- The remote branch goes away when the repository sets `delete_branch_on_merge`.
-  Otherwise pass `--delete-branch` to `merge_pr.py`. Set `git config fetch.prune
-  true` so the next fetch drops the stale remote-tracking ref.
+Read `references/post-merge-cleanup.md` after every merge this skill lands, once
+`test_pr_merged.py` reports `merged: true`, and before the Verification item on
+worktree and branch removal. It holds the worktree-selection and keep-guard
+snippet that removes the PR worktree and local branch. Do not remove a worktree
+or delete a branch without it.
 
 ### Merge-check exit codes: `test_pr_merged.py`
 
-`test_pr_merged.py` now exits **0** on any successful query
-and reports merge state in the JSON `merged` field. This makes the script
-behave like every other shell-friendly probe: exit 0 means "I answered your
-question". Branch on the JSON, not the exit code.
-
-Earlier history: the script used to exit **100** when the PR was merged
-(Skill-PR-Review-007). Treating 100 as a failure caused wasted polling loops
-on several PRs, and made successful merge verification look
-failed on another.
-
-When invoking from autofix code:
-
-```bash
-PR_NUMBER="123"
-resolve_pr_scripts_dir() {
-  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  for root in \
-    "${COPILOT_PLUGIN_ROOT:-}" \
-    "${CLAUDE_PLUGIN_ROOT:-}" \
-    "$repo_root/.claude" \
-    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
-    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
-    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
-    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
-      printf '%s\n' "$root/skills/github/scripts/pr"
-      return 0
-    fi
-  done
-  printf '%s\n' ".claude/skills/github/scripts/pr"
-}
-SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
-python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" | jq -e '.merged == true'
-```
-
-To restore the legacy skip-review sentinel (only for callers that already
-encoded "100 = merged"):
-
-```bash
-PR_NUMBER="123"
-resolve_pr_scripts_dir() {
-  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  for root in \
-    "${COPILOT_PLUGIN_ROOT:-}" \
-    "${CLAUDE_PLUGIN_ROOT:-}" \
-    "$repo_root/.claude" \
-    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
-    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
-    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
-    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
-      printf '%s\n' "$root/skills/github/scripts/pr"
-      return 0
-    fi
-  done
-  printf '%s\n' ".claude/skills/github/scripts/pr"
-}
-SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
-python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" --exit-100-on-merged
-```
-
-The legacy `--exit-zero-on-merged` flag still parses as a no-op
-for backward compatibility.
+Read `references/merge-check-exit-codes.md` when you call `test_pr_merged.py`
+and need its exit-code contract, or when a caller still expects the legacy
+exit 100 on merged. Branch on the JSON `merged` field, not the exit code.
 
 ## Completion Gate
 
@@ -1243,14 +1161,6 @@ Per PR processed:
 
 ## Extension Points
 
-- **A new tier.** Add its row to the tier table and its branch to the tier-dispatch
-  block. `test_pr_merge_ready.py` owns the tier set, so the producer changes first
-  and `tests/commands/test_pr_autofix_tier_contract.py` fails until this file agrees.
-- **A new merge state.** Add a row to the merge-path table and to the producer's
-  supported set together. A state with no row here must stay UNSUPPORTED rather
-  than fall through to a default; the test that pins that is deliberate.
-- **A different round budget.** `check_pr_round_cap.py` owns both the count and the
-  wall-clock budget. Change them there and every caller moves together.
-- **A different concurrency boundary.** The Force-Push Safety SHA gate owns it.
-  It is a hard gate (re-read the ref, pin `--force-with-lease` to the observed
-  SHA), so a replacement has to be at least as strong; an advisory marker is not.
+Read `references/extension-points.md` when you change this skill's tier set,
+merge-state rows, round budget, or concurrency boundary. It is not needed to
+run the skill.
