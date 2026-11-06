@@ -138,3 +138,16 @@ def fail_git_subcommand(
         return real_run(argv, *args, **kwargs)
 
     return run
+
+
+def time_out_ruff_version(
+    real_run: Callable[..., subprocess.CompletedProcess[str]],
+) -> Callable[..., object]:
+    """Return a ``subprocess.run`` stand-in whose ``ruff --version`` call times out."""
+
+    def run(argv: list[str], *args: object, **kwargs: object) -> object:
+        if argv[-1] == "--version":
+            raise subprocess.TimeoutExpired(cmd=argv, timeout=1)
+        return real_run(argv, *args, **kwargs)
+
+    return run

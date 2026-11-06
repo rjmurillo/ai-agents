@@ -37,7 +37,9 @@ this script. It runs as the pre-push ``python-unused-arguments`` job, the
 - The gate ignores noqa comments (``--ignore-noqa``), so a bare noqa comment
   on a ``def`` line cannot hide a finding.
 - The escapes that remain are a leading underscore, the ruff exemptions listed
-  above, and a baseline line that already exists.
+  above, a baseline line that already exists, any path with a ``tests``
+  component (skipped by directory name), and a branch edit to ``SCAN_ROOTS`` or
+  ``EXCLUDED_PATHS``, because the gate reads both from the branch it checks.
 
 The baseline can only shrink, and the gate enforces it against the merge base.
 It reads the baseline as committed at ``git merge-base HEAD <base-ref>``, so
@@ -107,6 +109,8 @@ from scripts.validation.unused_arguments_git import (
     Deadline,
     ExternalToolError,
     GateConfigError,
+    GrowthCheckError,
+    describe_ruff,
     run_git,
 )
 from scripts.validation.unused_arguments_growth import (
@@ -130,7 +134,12 @@ SCAN_ROOTS = ("scripts", "src/claude", "templates/hooks", ".claude/lib", ".claud
 # equal to an entry, or under an entry that ends in "/", is skipped. Test trees
 # are skipped by directory name in _is_excluded. Linked files need no entry:
 # the scan skips every tracked symlink (mode 120000), which covers the
-# .claude/lib links into src/claude/lib. The seven top-level src/claude/lib
+# .claude/lib links into src/claude/lib. The src/claude/lib packages
+# (ai_review_common, failure_classifier, github_core, hook_utilities) and
+# bootstrap.py are not original files: build/scripts/lib_mirror.py renders them
+# from scripts/<package>/ (bootstrap.py from scripts/hook_utilities/), which is
+# in SCAN_ROOTS, so each is scanned once there. A test pins that every such
+# entry has a scanned counterpart. The seven top-level src/claude/lib
 # modules below are byte-identical copies of real files in .claude/lib. The
 # skill-bundled copies of redact_secrets.py and metrics_writer.py are real
 # files in each skill (a skill must be self-contained), so each is scanned and
@@ -168,6 +177,7 @@ class ScanResult:
     keys: list[str]
     scanned_files: int
     rows: dict[str, list[int]] = field(default_factory=dict)
+    ruff: str = ""
 
 
 @dataclass(frozen=True)
@@ -325,7 +335,8 @@ def _finding_key(item: dict[str, object], resolved_root: Path) -> str:
 
 def _read_source(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8")
+        # utf-8-sig drops a leading BOM, which ruff accepts and ast.parse rejects.
+        return path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as exc:
         raise GateConfigError(f"cannot read {path} to name an owner: {exc}") from exc
 
@@ -351,6 +362,7 @@ def scan(repo_root: Path, deadline: Deadline | None = None) -> ScanResult:
     files = tracked_python_files(repo_root, deadline=deadline)
     if not files:
         raise GateConfigError(f"no tracked Python files under {list(SCAN_ROOTS)}")
+    ruff_description = describe_ruff(repo_root, ruff, deadline)
     resolved_root = repo_root.resolve()
     keys: list[str] = []
     rows: dict[str, list[int]] = {}
@@ -363,6 +375,7 @@ def scan(repo_root: Path, deadline: Deadline | None = None) -> ScanResult:
         keys=sorted(keys),
         scanned_files=len(files),
         rows={key: sorted(found) for key, found in rows.items()},
+        ruff=ruff_description,
     )
 
 
@@ -387,6 +400,13 @@ def _rename_hint(outcome: Comparison) -> str:
     )
 
 
+def _print_findings(outcome: Comparison, result: ScanResult, baseline: Sequence[str]) -> None:
+    for key in outcome.new:
+        print(f"  new unused argument: {_describe(key, result, baseline)}", file=sys.stderr)
+    for key in outcome.stale:
+        print(f"  stale baseline entry: {key}", file=sys.stderr)
+
+
 def validate(
     repo_root: Path,
     baseline_path: Path,
@@ -398,18 +418,26 @@ def validate(
     baseline = load_baseline(baseline_path)
     result = scan(repo_root, deadline)
     outcome = compare(result.keys, baseline)
-    growth = baseline_growth(repo_root, baseline_path, baseline, base_ref, deadline)
+    try:
+        growth = baseline_growth(repo_root, baseline_path, baseline, base_ref, deadline)
+    except (GateConfigError, ExternalToolError) as exc:
+        # The scan ran: report what it found before failing on the growth check.
+        _print_findings(outcome, result, baseline)
+        raise GrowthCheckError(
+            f"unused-argument gate: the scan ran ({result.scanned_files} file(s), ruff: "
+            f"{result.ruff}) with {len(outcome.new)} new finding(s) and {len(outcome.stale)} "
+            f"stale baseline line(s), listed above, but the baseline growth check could not "
+            f"run: {exc}",
+            2 if isinstance(exc, GateConfigError) else 3,
+        ) from exc
     if not outcome.new and not outcome.stale and not growth.added and not growth.error:
         print(
             f"check_unused_arguments: OK. Scanned {result.scanned_files} Python file(s); "
             f"{len(result.keys)} finding(s), all in the baseline of {len(baseline)}; "
-            f"{growth.note}."
+            f"{growth.note}; ruff: {result.ruff}."
         )
         return True
-    for key in outcome.new:
-        print(f"  new unused argument: {_describe(key, result, baseline)}", file=sys.stderr)
-    for key in outcome.stale:
-        print(f"  stale baseline entry: {key}", file=sys.stderr)
+    _print_findings(outcome, result, baseline)
     for key in growth.added:
         print(f"  baseline line not in the merge base: {key}", file=sys.stderr)
     if growth.error:
@@ -417,7 +445,8 @@ def validate(
     print(
         f"\ncheck_unused_arguments: {len(outcome.new)} new finding(s), "
         f"{len(outcome.stale)} stale baseline line(s), {len(growth.added)} added baseline "
-        f"line(s) across {result.scanned_files} scanned file(s). Use or remove each new "
+        f"line(s) across {result.scanned_files} scanned file(s) (ruff: {result.ruff}). "
+        f"Use or remove each new "
         f"argument; never add it to the baseline. Delete each stale line from "
         f"{baseline_path.name}.{_rename_hint(outcome)} {growth.note}.",
         file=sys.stderr,
@@ -429,6 +458,9 @@ def validate_unused_arguments(repo_root: Path) -> bool:
     """pre_pr gate entry point. Fails closed when the scan cannot run."""
     try:
         return validate(repo_root, repo_root / BASELINE_RELPATH)
+    except GrowthCheckError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return False
     except (GateConfigError, ExternalToolError) as exc:
         print(f"error: unused-argument gate did not run: {exc}", file=sys.stderr)
         return False
@@ -451,6 +483,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     baseline = args.baseline if args.baseline is not None else repo_root / BASELINE_RELPATH
     try:
         return 0 if validate(repo_root, baseline, args.base_ref) else 1
+    except GrowthCheckError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return exc.exit_code
     except GateConfigError as exc:
         print(f"error: unused-argument gate did not run: {exc}", file=sys.stderr)
         return 2

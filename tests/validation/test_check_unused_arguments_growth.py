@@ -257,7 +257,9 @@ def test_an_unreadable_fork_point_in_a_shallow_clone_names_the_remedy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     repo = _base(tmp_path, UNUSED_KEY)
-    monkeypatch.setattr(unused_arguments_growth, "is_shallow_repository", lambda _root: True)
+    monkeypatch.setattr(
+        unused_arguments_growth, "is_shallow_repository", lambda _root, _deadline: True
+    )
 
     assert run_gate(repo, repo / BASELINE_RELPATH, "--base-ref", "no-such-ref") == 3
     assert "git fetch --unshallow" in capsys.readouterr().err

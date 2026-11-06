@@ -18,6 +18,7 @@ KEY_SEPARATOR = ": "
 # limits only bound a single hung call.
 TOTAL_DEADLINE_SECONDS = 75.0
 GIT_TIMEOUT_SECONDS = 30
+RUFF_VERSION_TIMEOUT_SECONDS = 10
 
 
 class GateConfigError(RuntimeError):
@@ -26,6 +27,14 @@ class GateConfigError(RuntimeError):
 
 class ExternalToolError(RuntimeError):
     """Raised when a tool the gate runs does not finish in time."""
+
+
+class GrowthCheckError(Exception):
+    """The scan finished but the baseline growth check could not run."""
+
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
 
 
 class Deadline:
@@ -74,3 +83,31 @@ def run_git(
         ) from exc
     except OSError as exc:
         raise GateConfigError(f"cannot run git: {exc}") from exc
+
+
+def describe_ruff(repo_root: Path, ruff: Sequence[str], deadline: Deadline) -> str:
+    """Return the ruff command and its version, for the gate's output.
+
+    The finding set depends on the ruff version, so a failure names the ruff
+    that produced it. A version call that fails reads ``version unknown``; it
+    never changes the verdict.
+    """
+    timeout = deadline.timeout_for(RUFF_VERSION_TIMEOUT_SECONDS, "ruff --version")
+    version = "version unknown"
+    try:
+        completed = subprocess.run(
+            [*ruff, "--version"],
+            cwd=repo_root,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            env=git_environment(),
+            timeout=timeout,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return f"{' '.join(ruff)} ({version})"
+    lines = completed.stdout.strip().splitlines()
+    if completed.returncode == 0 and lines:
+        version = lines[0][:80]
+    return f"{' '.join(ruff)} ({version})"

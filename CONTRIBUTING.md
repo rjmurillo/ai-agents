@@ -824,7 +824,8 @@ them: a stub body (`pass`, `...`, a docstring alone, or `raise NotImplementedErr
 `@override`, `@abstractmethod`, or `@overload`, a dunder method such as `__eq__`, a function that calls
 `locals()`, and any argument with a leading underscore.
 
-Untracked drafts are not scanned. A tracked file is read from the working tree, so an uncommitted edit to
+Files under a `tests` directory are skipped, and so are generated copies named in `EXCLUDED_PATHS`:
+each copy is scanned once, at the file it is rendered from. Untracked drafts are not scanned. A tracked file is read from the working tree, so an uncommitted edit to
 a tracked file can fail a local push that CI passes.
 It runs in the pre-push hook (`python-unused-arguments`), as the `Unused Argument Detection` gate in
 `pre_pr.py`, and in the `pytest` workflow.
@@ -838,8 +839,9 @@ The baseline may only shrink, and the gate enforces it. It reads the baseline as
 base (`git merge-base HEAD <base-ref>`) and fails on any line your branch added, so swapping one line for
 another fails too. This follows the merge-base idea of the ratchets in `scripts/ci`, with a committed
 baseline file instead of a count, because a count lets a swap pass. Because the file is shared, two
-branches that edit adjacent lines can conflict; resolve it by keeping both deletions. Every line is
-distinct, so two branches that each fix a different finding delete different lines and merge cleanly.
+branches that edit adjacent lines can conflict. Two branches that each fix a different finding delete
+different lines, and git merges that cleanly only when the deleted lines are not adjacent. When they are
+adjacent, git reports a conflict; resolve it by keeping both deletions.
 Do not add a line for new code; use or remove the argument, or prefix it with an underscore when a
 signature must keep it. When you fix a listed finding, delete its line in the same change.
 

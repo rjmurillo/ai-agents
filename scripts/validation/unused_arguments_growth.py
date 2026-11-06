@@ -14,7 +14,6 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.ci.count_ratchet import is_shallow_repository
 from scripts.validation.unused_arguments_git import (
     KEY_SEPARATOR,
     Deadline,
@@ -59,6 +58,20 @@ def default_base_ref(repo_root: Path, deadline: Deadline) -> str | None:
     return None
 
 
+def is_shallow_repository(repo_root: Path, deadline: Deadline) -> bool:
+    """True when git says ``repo_root`` is shallow, under the shared deadline.
+
+    Only picks which remedy an unreadable fork point prints, so a git call that
+    fails, cannot start, or runs out of time reads as not shallow: the exit 3
+    for the fork point is already decided.
+    """
+    try:
+        proc = run_git(repo_root, ["rev-parse", "--is-shallow-repository"], deadline)
+    except (GateConfigError, ExternalToolError):
+        return False
+    return proc.returncode == 0 and proc.stdout.strip() == "true"
+
+
 def fork_point(repo_root: Path, base_ref: str, deadline: Deadline) -> str:
     """Return the commit where HEAD left ``base_ref``, or raise exit 3."""
     proc = run_git(repo_root, ["merge-base", "--", base_ref, "HEAD"], deadline)
@@ -67,7 +80,7 @@ def fork_point(repo_root: Path, base_ref: str, deadline: Deadline) -> str:
         cause = (
             "this is a shallow clone, so there is no common history: run "
             "`git fetch --unshallow` and re-run"
-            if is_shallow_repository(repo_root)
+            if is_shallow_repository(repo_root, deadline)
             else f"{base_ref} is not fetched, is not a valid ref, or shares no history with "
             f"this checkout: fetch the base branch and re-run"
         )
