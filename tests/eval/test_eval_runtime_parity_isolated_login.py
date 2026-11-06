@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from tests.eval._credential_test_support import set_sources
 from tests.eval._runtime_parity_test_support import parity
+
+parity_module = sys.modules["_runtime_parity"]
 
 TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 DISK_TOKEN = "disk-token-for-test"
@@ -132,3 +135,18 @@ def test_output_is_untouched_when_no_token_was_passed() -> None:
     run = _echoing_run("plain output")
 
     assert parity._without_token(run, None) is run
+
+
+@pytest.mark.parametrize(
+    "path",
+    [".claude/settings.json", ".claude/hooks/run.py", "sub/.claude/settings.local.json"],
+)
+def test_setup_files_may_not_plant_claude_config(path: str) -> None:
+    with pytest.raises(parity_module.ParityConfigError, match="must not write under .claude"):
+        parity_module._load_setup_files({path: "{}"}, "fixtures[0].setup_files")
+
+
+def test_setup_files_accept_ordinary_workspace_paths() -> None:
+    files = {"dates.py": "x = 1", "tests/test_dates.py": "", "claude/notes.md": ""}
+
+    assert parity_module._load_setup_files(files, "fixtures[0].setup_files") == files

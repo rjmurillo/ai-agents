@@ -184,6 +184,19 @@ def _load_files(value: object, field: str) -> dict[str, str]:
     return files
 
 
+def _load_setup_files(value: object, field: str) -> dict[str, str]:
+    """Load workspace files, refusing any path under a `.claude` directory.
+
+    `--setting-sources project` reads that directory, so a planted settings
+    file could run a hook inside a process that holds the OAuth token.
+    """
+    files = _load_files(value, field)
+    for path in files:
+        if ".claude" in Path(path).parts:
+            raise ParityConfigError(f"{field} must not write under .claude: {path}")
+    return files
+
+
 def load_fixtures(path: Path) -> list[Fixture]:
     """Load and validate a runtime parity fixture corpus."""
     try:
@@ -270,7 +283,7 @@ def _load_fixture(value: object, index: int) -> Fixture:
         claude_agent=_repo_file(agents.get("claude"), f"{field}.agents.claude"),
         copilot_agent=_repo_file(agents.get("copilot"), f"{field}.agents.copilot"),
         prompt=_string(raw.get("prompt"), f"{field}.prompt"),
-        setup_files=_load_files(raw.get("setup_files", {}), f"{field}.setup_files"),
+        setup_files=_load_setup_files(raw.get("setup_files", {}), f"{field}.setup_files"),
         tools=tuple(tools_raw),
         assertions=tuple(
             _load_assertion(item, f"{field}.assertions[{assertion_index}]")
