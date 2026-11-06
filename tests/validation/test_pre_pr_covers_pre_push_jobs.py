@@ -54,6 +54,7 @@ GATED: dict[str, str] = {
     "planning-artifacts": "Planning Artifacts",
     "dash-prohibition": "Em/en-dash Prohibition",
     "review-axis-drift": "Review Axis Drift",
+    "import-boundaries": "Import Boundaries",
     "security-suppression-policy": "Security Suppressions Diff",
     "placeholder-identity": "Placeholder Identity",
     "python-type-check": "Mypy Changed Files (ratchet)",

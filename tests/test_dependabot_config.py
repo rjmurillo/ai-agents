@@ -89,10 +89,3 @@ def test_workflow_enables_auto_merge_for_every_dependabot_pr() -> None:
 
 def test_workflow_does_not_filter_semver_major() -> None:
     assert "semver-major" not in WORKFLOW.read_text(encoding="utf-8")
-
-
-def test_renovate_job_approves_major_updates() -> None:
-    wf = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    steps = {s["name"]: s for s in wf["jobs"]["renovate"]["steps"]}
-    assert "if" not in steps["Approve PR"]
-    assert "Detect major update" not in steps

@@ -69,6 +69,7 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "path-normalization",
         "planning-artifacts",
         "review-axis-drift",
+        "import-boundaries",
         "zero-collection-tests",
         "worktree-gc-report",
         "branch-config-prune-report",

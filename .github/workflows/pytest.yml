@@ -427,6 +427,14 @@ jobs:
         if: matrix.primary
         run: uv run --frozen --extra dev ruff format --check .
 
+      # Module boundaries declared in pyproject.toml [tool.importlinter].
+      # Blocking. The pre-push import-boundaries job runs the same command.
+      - name: Check import boundaries (lint-imports)
+        if: matrix.primary
+        env:
+          PYTHONIOENCODING: utf-8
+        run: uv run --frozen --extra dev lint-imports --no-cache
+
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the
       # hook: pre-existing errors print, errors on changed lines block.

@@ -355,3 +355,70 @@ def validate_skill_description_budget(repo_root: Path) -> bool:
         "--budget-file",
         "scripts/skill_description_budget.json",
     )
+
+
+# import-linter ships a console script and no ``__main__``, so the gate calls the
+# click command through the interpreter running pre_pr. ``--no-cache`` matches the
+# pytest.yml step and the pre-push ``import-boundaries`` job.
+_LINT_IMPORTS_PROGRAM = (
+    "import sys; from importlinter.cli import lint_imports_command; "
+    "sys.exit(lint_imports_command())"
+)
+# lint-imports prints a banner, a summary, and last a "Broken contracts" section
+# that names each offending import. The gate shows that section whole, up to this
+# many lines, and says how many it left out.
+_IMPORT_DETAIL_LINES = 200
+
+
+def _declares_import_contracts(pyproject: Path) -> bool:
+    """True when a line of ``pyproject`` opens a ``[tool.importlinter]`` table.
+
+    A comment that mentions the table name does not count, because the stripped
+    line must start with the header. A multi-line string line that starts with
+    it would count, which only runs the gate. This avoids a ``tomllib`` import,
+    which would raise this module's import count past the coupling gate.
+    """
+    headers = ("[tool.importlinter]", "[tool.importlinter.", "[[tool.importlinter.")
+    return any(
+        line.strip().startswith(headers) for line in pyproject.read_text("utf-8").splitlines()
+    )
+
+
+def validate_import_boundaries(repo_root: Path) -> bool:
+    """Fail when a module boundary in ``pyproject.toml`` [tool.importlinter] breaks.
+
+    Runs the command the ``Check import boundaries (lint-imports)`` step of
+    ``pytest.yml`` and the pre-push ``import-boundaries`` job run. A repository
+    with no ``[tool.importlinter]`` table has no contracts to enforce, so it
+    raises :class:`MissingScriptSkip` instead of failing.
+
+    On a failure, prints the summary line and the "Broken contracts" section, which
+    names the offending imports. A failure with no such section (a config error or
+    a traceback) prints the last ``_REPORT_LINES`` lines instead.
+    """
+    pyproject = repo_root / "pyproject.toml"
+    if not pyproject.is_file():
+        raise MissingScriptSkip("no pyproject.toml")
+    if not _declares_import_contracts(pyproject):
+        raise MissingScriptSkip("no [tool.importlinter] table in pyproject.toml")
+    # Color codes would hide the "Broken contracts" header from the report below.
+    # UTF-8 is defensive, so the output does not depend on the terminal code page.
+    env = {key: value for key, value in os.environ.items() if key != "FORCE_COLOR"}
+    env.update({"PYTHONIOENCODING": "utf-8", "NO_COLOR": "1"})
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, "-c", _LINT_IMPORTS_PROGRAM, "--no-cache"], cwd=repo_root, env=env
+    )
+    lines = ((stdout or "") + (stderr or "")).strip().splitlines()
+    detail_at = next((i for i, line in enumerate(lines) if line == "Broken contracts"), None)
+    if exit_code == 0 or detail_at is None:
+        shown = lines[-_REPORT_LINES:]
+    else:
+        summary = [line for line in lines[:detail_at] if line.startswith("Contracts:")]
+        detail = lines[detail_at:]
+        omitted = len(detail) - _IMPORT_DETAIL_LINES
+        shown = summary + detail[:_IMPORT_DETAIL_LINES]
+        if omitted > 0:
+            shown.append(f"... {omitted} more lines not shown; run lint-imports for the rest")
+    for line in shown:
+        print(line)
+    return bool(exit_code == 0)

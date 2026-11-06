@@ -36,7 +36,7 @@ jobs:
     name: Update Reviewer Stats
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
+    environment: agent-claude
 
     steps:
       - name: Checkout repository

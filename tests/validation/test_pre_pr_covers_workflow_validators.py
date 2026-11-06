@@ -356,6 +356,7 @@ _NEW_GATES: dict[str, str] = {
     "Memory Placement": "check_memory_placement.py",
     "Review Axis Drift": "generate_pr_quality_prompts.py",
     "Skill Description Budget": "skill_description_budget.py",
+    "Import Boundaries": "lint_imports_command",
 }
 
 

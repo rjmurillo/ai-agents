@@ -863,6 +863,32 @@ or underscore-prefix those arguments. `uv.lock` pins ruff, so the gate changes o
 changes the lock. A message-format change that drops the backquoted argument name makes the gate exit 2,
 not pass. The author of the upgrade change owns a red gate.
 
+### Import Boundaries
+
+`lint-imports` ([import-linter](https://import-linter.readthedocs.io/)) checks the contracts in `pyproject.toml` under `[tool.importlinter]`.
+The pre-push `import-boundaries` job and the pytest workflow both run `uv run --frozen --extra dev lint-imports --no-cache`.
+Each contract enforces a rule the repository already states:
+
+- The four packages `build/scripts/lib_mirror.py` ships into plugin lib trees (`scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common`, `scripts/failure_classifier`) do not import each other. The mirror rewrites `from scripts.<pkg> import` to `from . import`, so a sibling import would break in the shipped copy.
+- Those packages import nothing else from `scripts/`, `memory_enhancement/`, or `tests/`. The mirror copies the four packages and one sidecar file (`scripts/validation/validate_review_marker.py`, which no contract covers), so those trees never ship (`.claude/rules/plugin-self-containment.md` MUST 1).
+- Those packages do not import a `[project]` dependency, because shipped scripts run under bare `python3` (MUST 4 of the same rule). The contract names the six `[project]` packages; a grimp scan in `tests/test_import_linter_contracts.py` fails on any other non-stdlib import.
+- `scripts` and `memory_enhancement` never import `tests`, which is not part of the installed package.
+
+The gate shares the topic with two older validators and does not repeat them.
+`scripts/validation/check_plugin_root_interpreter.py` and `check_doc_interpreter_portability.py` start from an invocation: a documented or plugin-root `python3 <script>` command. They walk that script's module-level imports for anything outside the standard library.
+A lib module that no invoked script reaches at import time goes unchecked by both. Both treat an import of another tracked repository module as allowed, so neither catches a sibling or `scripts/` import.
+`lint-imports` starts from the four packages: it checks every module in them, including imports inside functions, which the module-level walk of those validators skips. It also flags imports inside `try` blocks, which those validators walk but this gate cannot excuse as guarded.
+A guarded import that complies with MUST 4, such as `bot_config -> yaml`, still needs an `ignore_imports` entry.
+
+Three limits apply. `grimp` (the graph library under import-linter) reads only directories that hold an `__init__.py`, so a `tests` import under `scripts/ci` or `scripts/eval` escapes the contracts.
+`tests/test_import_linter_source_scans.py` scans every `scripts/` and `memory_enhancement/` file for that import and checks the four shipped packages have no directory without `__init__.py`.
+`grimp` also collapses an import of an `__init__`-less directory, such as `scripts.ci.tool`, to the bare `scripts` package, so `shipped-lib-self-contained` stays KEPT for it. The `grimp` scan in `tests/test_import_linter_contracts.py` catches that case in pytest, not in the pre-push or pre-PR run.
+An ignored import also hides the modules that import the ignored module. `tests/test_import_linter_source_scans.py` pins the six modules that fail without PyYAML.
+
+The `ignore_imports` entries are existing debt, one comment each. They shrink as debt is paid. The one reason to add an entry is a compliant guarded import, as above.
+Delete an entry in the change that removes its import, and lower `IGNORE_IMPORTS_BASELINE` in `tests/test_import_linter_contracts.py` in the same diff. `lint-imports` fails on an entry that no longer matches.
+The test pins the entry count in that constant, so a new entry fails until you raise it in the same diff. It checks the count only: swapping one entry for another passes it, so a reviewer must read that change.
+
 ### Manual Testing (Optional)
 
 For local debugging or development iteration:
@@ -915,7 +941,7 @@ The only pin is `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml
 
 `.github/workflows/plugin-cli-smoke.yml` runs on pull requests. It proves the plugin loads in Claude, Copilot, and Codex on Ubuntu, macOS, and Windows. A path filter (`scripts/validation/cli_smoke_paths.py`) runs the legs only when a change touches a plugin-shipped path. Lefthook's `hook-anchoring-e2e` and `plugin-load-e2e` pre-push gates mirror that list, and `tests/validation/test_cli_smoke_paths.py` fails when they drift. A local push runs the smoke with the harness you use locally, `claude` or `codex`, on your own login. It never calls Copilot. Copilot cases run only in CI, behind the `agent-copilot` approval.
 
-After this workflow is on `main`, dispatch it once there, then require the `CLI Smoke Result` check in the branch ruleset. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
+The `CLI Smoke Result` check is advisory (owner decision 2026-11-05, ADR-114). It is not in the branch ruleset, and the readiness check does not block on it. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
 
 ### Why Version Pinning
 
@@ -958,7 +984,6 @@ gh act pull_request \
   -j "validate-spec" \
   -W .github/workflows/ai-spec-validation.yml \
   -s "GITHUB_TOKEN=$TOKEN" \
-  -s "BOT_PAT=$TOKEN" \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest
 ```
 

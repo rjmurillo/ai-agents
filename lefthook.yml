@@ -588,6 +588,27 @@ pre-push:
             timeout: 90s
             run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
 
+          # The import-linter contracts in pyproject.toml [tool.importlinter].
+          # No glob: a pyproject.toml or uv.lock change can break a contract in
+          # a push that carries no Python file. Measured standalone on
+          # 2026-11-03 at af9a4d392: about 0.5s. Measured again on 2026-11-04
+          # with the six sibling commands of this group started at the same
+          # time (a replica of the parallel stage, not a lefthook summary,
+          # which prints no per-job time on success), on a 48-core host at load
+          # average 7.8 to 13.6: 0.40 to 0.46s over five runs, while the
+          # slowest sibling took 19.6s. ci-scripts.md MUST 16 asks for a
+          # measurement during a real push. This replica is not one: no push
+          # ran, so the figure is not a lefthook per-job time. The margin
+          # between 0.46s and the cap is about 200x. 90s matches the siblings,
+          # and the group's declared worst case stays at branch-context-policy's
+          # 2m.
+          - name: import-boundaries
+            timeout: 90s
+            # Defensive: keep output off the terminal code page.
+            env:
+              PYTHONIOENCODING: utf-8
+            run: uv run --frozen --extra dev lint-imports --no-cache
+
           # Issue #5086: the branch-wide dash scan used to run only inside
           # pre-pr-validation, in the expensive stage, so a one-character
           # violation of universal.md MUST NOT 4 was reported after every
