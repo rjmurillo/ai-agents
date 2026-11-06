@@ -418,6 +418,17 @@ uv run python scripts/eval/eval_runtime_parity.py \
   --workspace-root "$(mktemp -d)"
 ```
 
+A Claude fixture runs in an isolated profile by default, and it needs no
+exported token. The runner walks the shared credential order in
+`_cli_credentials.py` and passes the stored login as
+`CLAUDE_CODE_OAUTH_TOKEN`. The profile stays empty, so `~/.claude` instructions
+do not load. An exported `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` wins
+over that lookup. When no token is reachable the run exits 4 before any fixture
+starts. Keep `--workspace-root` outside your home directory: the
+ancestry guard refuses a root below `~/.claude/CLAUDE.md`. Use `--real-home`
+only when a run must load your own instructions, because they confound every
+fixture.
+
 `--model` defaults to `claude-opus-5-5`, the default frontier model in the
 routing policy (`AGENTS.md`). The two CLIs spell Claude IDs differently:
 Claude Code accepts only `claude-opus-5-5` and Copilot CLI only
@@ -2665,7 +2676,7 @@ minimum, and maximum across repeats. It reports spread only and makes no signifi
 
 ### Real home for Claude runtime parity (issue #5404)
 
-The isolated Claude profile carries no login, and the owner ruled out API keys and OAuth tokens for this run. `--real-home` runs Claude, and the `claude-cli` grader, on the operator's own `HOME` with `CLAUDE_CONFIG_DIR` unset, so the CLI finds its own stored login. The harness creates no link to, copy of, or read of a credential file.
+For the issue #5404 run, the owner ruled out API keys and OAuth tokens, so that run used `--real-home`. An isolated run now gets the stored login as a token (see Real CLI Runtime Parity). `--real-home` runs Claude, and the `claude-cli` grader, on the operator's own `HOME` with `CLAUDE_CONFIG_DIR` unset, so the CLI finds its own stored login. The harness creates no link to, copy of, or read of a credential file.
 
 The confound: `~/.claude` instructions, rules, and skills load ambiently in every scenario, under the control and the candidate alike. The report records it as `ambient_home` and the init events in each raw output list what loaded. Results are evidence for Claude Code on this operator's configuration, not for a clean profile.
 
