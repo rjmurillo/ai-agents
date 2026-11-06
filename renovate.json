@@ -54,9 +54,10 @@
     },
     {
       "matchFileNames": [
-        ".github/workflows/**"
+        ".github/workflows/**",
+        ".github/cli-smoke/**"
       ],
-      "description": "A workflow file can hold secrets or write tokens, so a bump to it needs a human approval (#6506 review-gates-15). The scope is the workflow directory only. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
+      "description": "A workflow file can hold secrets or write tokens, so a bump to it needs a human approval (#6506 review-gates-15). The CLI smoke pins moved from the workflow into .github/cli-smoke/, and those CLIs run beside the smoke credentials, so they keep the same approval. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
       "automerge": false
     },
     {

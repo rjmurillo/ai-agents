@@ -29,7 +29,12 @@ _AUTOMERGE_OFF_MANAGERS = {"devcontainer"}
 # approval. Scope stays on the workflow directory because PR #6127 made automerge
 # universal and a wider glob would quietly remove other updates from that path.
 _WORKFLOW_FILE_GLOB = ".github/workflows/**"
-_AUTOMERGE_OFF_FILE_GLOBS = {_WORKFLOW_FILE_GLOB}
+# The CLI smoke pins moved out of the workflow into .github/cli-smoke/ (#6506
+# workflow-ci-01). Those CLIs run beside the smoke credentials, and before the
+# move a bump edited the workflow file, so the same approval applies to them.
+_CLI_SMOKE_FILE_GLOB = ".github/cli-smoke/**"
+_EXEMPT_FILE_GLOBS = [_WORKFLOW_FILE_GLOB, _CLI_SMOKE_FILE_GLOB]
+_AUTOMERGE_OFF_FILE_GLOBS = set(_EXEMPT_FILE_GLOBS)
 
 
 @pytest.fixture(scope="module")
@@ -171,12 +176,12 @@ def _workflow_exemptions(config: dict[str, Any]) -> list[int]:
     return [
         index
         for index, rule in enumerate(config["packageRules"])
-        if rule.get("matchFileNames") == [_WORKFLOW_FILE_GLOB] and rule.get("automerge") is False
+        if rule.get("matchFileNames") == _EXEMPT_FILE_GLOBS and rule.get("automerge") is False
     ]
 
 
 def test_workflow_file_updates_require_a_manual_merge(config: dict[str, Any]) -> None:
-    """A bump to .github/workflows/** must not automerge (#6506 review-gates-15).
+    """A bump to .github/workflows/** or .github/cli-smoke/** must not automerge (#6506).
 
     Like the devcontainer exemption, this holds only while no later rule turns
     automerge back on, and only while the rule carries no narrowing key. A
@@ -185,7 +190,7 @@ def test_workflow_file_updates_require_a_manual_merge(config: dict[str, Any]) ->
     """
     rules = config["packageRules"]
     exemptions = _workflow_exemptions(config)
-    assert exemptions, "no packageRules entry disables automerge for .github/workflows/**"
+    assert exemptions, "no packageRules entry disables automerge for the workflow file globs"
     exemption = rules[exemptions[-1]]
     extra = set(exemption) - {"matchFileNames", "description", "automerge"}
     assert not extra, f"the workflow exemption is narrowed by {sorted(extra)}"
@@ -194,11 +199,14 @@ def test_workflow_file_updates_require_a_manual_merge(config: dict[str, Any]) ->
 
 
 def test_workflow_exemption_does_not_reach_other_paths(config: dict[str, Any]) -> None:
-    """Edge: the exception names the workflow directory and nothing wider."""
+    """Edge: the exception names the two directories and nothing wider."""
     for rule in config["packageRules"]:
         if rule.get("automerge") is False and "matchFileNames" in rule:
-            assert rule["matchFileNames"] == [_WORKFLOW_FILE_GLOB]
-    assert config["automerge"] is True, "the repo default stays automerge"
+            assert rule["matchFileNames"] == _EXEMPT_FILE_GLOBS
+
+
+def test_repo_default_stays_automerge(config: dict[str, Any]) -> None:
+    assert config["automerge"] is True
 
 
 def test_workflow_exemption_follows_the_rules_that_enable_automerge(

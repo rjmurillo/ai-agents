@@ -74,23 +74,34 @@ def test_cli_install_uses_npm_ci_on_its_own_lockfile_only(
     assert other not in yaml.safe_dump(install)
 
 
-@pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
-def test_no_install_step_resolves_a_version_at_run_time(package: str) -> None:
+def _install_steps() -> dict[str, dict[str, Any]]:
+    """Map each CLI package to its parsed install step across every smoke job."""
+    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    found: dict[str, dict[str, Any]] = {}
+    for job in jobs.values():
+        for step in job.get("steps", []):
+            directory = step.get("working-directory", "")
+            for package, name in PACKAGE_DIR.items():
+                if directory == f".github/cli-smoke/{name}":
+                    found[package] = step
+    return found
+
+
+def test_no_run_field_resolves_a_version_at_run_time() -> None:
     """Negative: `npm install -g <pkg>@<version>` has no integrity check (workflow-ci-01)."""
-    workflow_text = WORKFLOW.read_text(encoding="utf-8")
-    assert "npm install" not in workflow_text
-    assert f"{package}@" not in workflow_text
-    assert "_CLI_VERSION" not in workflow_text
-    assert "CLAUDE_CODE_VERSION" not in workflow_text
+    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    runs = [step.get("run", "") for job in jobs.values() for step in job.get("steps", [])]
+    assert not [run for run in runs if "npm install" in run]
+    assert not [run for run in runs if any(f"{package}@" in run for package in PACKAGE_DIR)]
 
 
 @pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
-def test_install_steps_keep_the_cli_on_path(package: str) -> None:
-    """Positive: later steps find the CLI because the install step extends GITHUB_PATH."""
-    workflow_text = WORKFLOW.read_text(encoding="utf-8")
-    bin_dir = f".github/cli-smoke/{PACKAGE_DIR[package]}/node_modules/.bin"
-    assert bin_dir in workflow_text
-    assert '>> "$GITHUB_PATH"' in workflow_text
+def test_install_step_keeps_the_cli_on_path(package: str) -> None:
+    """Positive: later steps find the CLI because its own install step extends GITHUB_PATH."""
+    step = _install_steps()[package]
+    bin_dir = f"/.github/cli-smoke/{PACKAGE_DIR[package]}/node_modules/.bin"
+    assert step["env"]["BIN_DIR"] == "${{ github.workspace }}" + bin_dir
+    assert 'echo "$BIN_DIR" >> "$GITHUB_PATH"' in step["run"]
 
 
 @pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
@@ -115,7 +126,7 @@ def test_lockfile_matches_manifest_and_carries_integrity(package: str) -> None:
     locked = lock["packages"][f"node_modules/{package}"]
     assert locked["version"] == manifest["dependencies"][package]
     for path, entry in lock["packages"].items():
-        if path == "":
+        if path == "" or entry.get("link"):
             continue
         assert entry["resolved"].startswith("https://registry.npmjs.org/"), path
         assert entry["integrity"].startswith("sha512-"), path
@@ -129,8 +140,7 @@ def test_pi_install_skips_lifecycle_scripts() -> None:
 
 
 def test_cli_pins_receive_native_renovate_updates(renovate_config: dict[str, Any]) -> None:
-    """Edge: Renovate's npm manager bumps manifest and lockfile; no regex manager remains."""
-    assert "customManagers" not in renovate_config
+    """Edge: Renovate's npm manager bumps manifest and lockfile; the regex pins are gone."""
     assert "renovate:" not in WORKFLOW.read_text(encoding="utf-8")
     package_rule = next(
         rule

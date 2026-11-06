@@ -71,7 +71,7 @@ def test_codex_job_matrix_covers_each_operating_system(codex_job: dict[str, Any]
     assert codex_job["strategy"]["fail-fast"] is False
 
 
-def test_codex_install_uses_the_exact_pinned_version(codex_job: dict[str, Any]) -> None:
+def test_codex_install_reads_its_own_pinned_manifest(codex_job: dict[str, Any]) -> None:
     install = _step_by_name(codex_job, "Install pinned Codex CLI")
 
     assert install["working-directory"] == ".github/cli-smoke/codex"
@@ -109,7 +109,7 @@ def test_pi_job_runs_on_ubuntu_only(pi_job: dict[str, Any]) -> None:
     assert pi_job["strategy"]["matrix"]["os"] == ["ubuntu-latest"]
 
 
-def test_pi_install_uses_the_exact_pinned_version(pi_job: dict[str, Any]) -> None:
+def test_pi_install_reads_its_own_pinned_manifest(pi_job: dict[str, Any]) -> None:
     install = _step_by_name(pi_job, "Install pinned Pi CLI")
 
     package = "@earendil-works/pi-coding-agent"

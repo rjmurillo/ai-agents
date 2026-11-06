@@ -38,6 +38,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -62,11 +63,6 @@ _PIN_RE = re.compile(
     re.MULTILINE,
 )
 
-# The package.json form: "@github/copilot": "x.y.z" under dependencies. The CLI
-# smoke installs the CLI with `npm ci` from .github/cli-smoke/copilot/, so the
-# manifest is the single pin Renovate maintains.
-_JSON_PIN_RE = re.compile(r"""^[ \t]*"@github/copilot"[ \t]*:[ \t]*"([^"]+)\"""", re.MULTILINE)
-
 # Accept semver-ish versions: x.y.z with an optional -prerelease suffix
 # (npm publishes tags such as 1.0.62-2). Match the shapes this action pins.
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
@@ -90,6 +86,19 @@ def is_known_bad(version: str) -> bool:
     return version in KNOWN_BAD_VERSIONS
 
 
+def _extract_manifest_pin(text: str, path: Path) -> str:
+    """Read ``dependencies["@github/copilot"]`` from a package.json manifest."""
+    try:
+        manifest = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise VersionPinError(f"{path} is not valid JSON: {exc}") from exc
+    dependencies = manifest.get("dependencies") if isinstance(manifest, dict) else None
+    version = dependencies.get("@github/copilot") if isinstance(dependencies, dict) else None
+    if not isinstance(version, str):
+        raise VersionPinError(f"no Copilot CLI pin (@github/copilot dependency) found in {path}")
+    return version
+
+
 def extract_pinned_version(action_path: Path) -> str:
     """Extract the pinned ``COPILOT_VERSION`` from the action file.
 
@@ -102,9 +111,11 @@ def extract_pinned_version(action_path: Path) -> str:
     installed. Requiring exactly one pin avoids this ambiguity.
     """
     text = action_path.read_text(encoding="utf-8")
-    matches = _PIN_RE.findall(text) + _JSON_PIN_RE.findall(text)
+    if action_path.suffix == ".json":
+        return _extract_manifest_pin(text, action_path)
+    matches = _PIN_RE.findall(text)
     if not matches:
-        raise VersionPinError(f"no COPILOT_VERSION pin found in {action_path}")
+        raise VersionPinError(f"no Copilot CLI pin (COPILOT_VERSION) found in {action_path}")
     if len(matches) > 1:
         raise VersionPinError(
             f"multiple COPILOT_VERSION pins found in {action_path}: {matches}. "

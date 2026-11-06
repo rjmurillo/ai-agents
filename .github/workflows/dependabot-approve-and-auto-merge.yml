@@ -29,6 +29,7 @@ jobs:
       contents: write
       pull-requests: write
     runs-on: ubuntu-26.04-arm
+    timeout-minutes: 5
     # Gate on the PR author, not github.actor. The actor can be Dependabot on
     # a PR someone else wrote, and this job holds a write token (the
     # confused deputy pattern, CWE-441).
@@ -37,7 +38,7 @@ jobs:
       - name: Enable auto-merge
         run: |
           files=$(gh pr diff "$PR_URL" --name-only)
-          if printf '%s\n' "$files" | grep -q '^\.github/workflows/'; then
+          if grep -q '^\.github/workflows/' <<<"$files"; then
             echo "PR touches .github/workflows/, leaving it for manual merge."
             exit 0
           fi
