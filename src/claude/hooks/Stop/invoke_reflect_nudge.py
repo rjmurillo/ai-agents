@@ -9,19 +9,14 @@ it never invokes reflect and never writes memory.
 Hook Type: Stop (non-blocking, fail-open)
 Exit Codes:
     0 = always. The hook never emits ``decision: "block"`` and never exits 2,
-        so it cannot trap a session or loop on re-entry. A nudge is a
-        ``systemMessage`` advisory on stdout. Every internal error exits 0.
-        The registered command ends in ``|| true`` because python itself
-        exits 2 when the script file is missing, and exit 2 on Stop blocks.
+        so it cannot trap a session or loop. A nudge is a ``systemMessage``
+        advisory on stdout. Every internal error exits 0. Python exits 2 on
+        a missing script, and exit 2 on Stop blocks, so the registered
+        command checks the dispatcher file first and exits 0 when it is
+        missing. The advisory launcher then exits 0 on every failure path.
 
-Stop payload (source: issue #3184, which probed the real event; the
-agent-harness-reference skill does not define these fields): "the Claude Code
-Stop payload carries `session_id`, `transcript_path`, and `cwd`, not
-`messages`."
-    {"session_id": "...", "transcript_path": "...", "cwd": "..."}
-The deleted invoke_skill_learning.py read ``hook_input["messages"]``, a field
-the event never sent, and early-returned on every Stop. This hook reads
-``transcript_path`` and reports the fail-open reason when it is absent.
+Stop payload (issue #3184 probed the real event): ``session_id``, ``transcript_path``,
+and ``cwd``, not ``messages``. A missing ``transcript_path`` is the fail-open reason.
 
 Transcript contract (measured on real sessions, issue #5817): newline-delimited
 JSON. ``type == "user"`` also covers tool results, which carry
@@ -30,44 +25,40 @@ JSON. ``type == "user"`` also covers tool results, which carry
 ``queued``), no ``toolUseResult``, not ``isMeta``, not ``isSidechain``.
 
 Dedupe marker: one file per (session, signal set) under per-user state
-outside any repository, mode 0o600 in an owner-only 0o700 directory. It is
-claimed with an exclusive create (O_CREAT | O_EXCL), so overlapping Stop
-events cannot both nudge: the loser sees the file exists and stays silent.
-The name carries a hash of the counts. The body holds counts, never
-transcript text.
+outside any repository (mode 0o600, in a 0o700 directory), claimed with an
+exclusive create (O_CREAT | O_EXCL) so overlapping Stops cannot both nudge.
+The name hashes the counts; the body holds counts, never transcript text.
 
-Calibration status (issue #5820, AC-9): the patterns are anchored at the
-start of a turn or are fixed phrases, except one bounded "use ... instead"
-window. The original set was tuned on one operator's 191 human turns.
-Recall was not measured. See the pull request that introduced this hook
-for the examined counts and the limits.
+Friction branch (REQ-048 TASK-003): the scan keeps conversation records, up
+to MAX_FRICTION_RECORDS, and the shared ``failure_classifier`` (``lib/``)
+scores them, one marker per (session, tier). Firing bound: at most one
+friction nudge per session per threshold tier. Off is read before any I/O.
+A budget stop, a missing lib, or a lib error skips friction only; stderr says so.
+Customer value: retro prompt after repeated failures. Off: AI_AGENTS_RETRO_NUDGE_THRESHOLD=0|off.
 
-The HIGH patterns under the "Adapted from claude-mem" comment adapt the
-user-side correction regexes in thedotmack/claude-mem (Apache-2.0),
-plugin/skills/agent-cost-report/scripts/acr/patterns.py and behavior.py,
-at commit 356b7c08f64c. Only fixed phrases were kept. Bare words such as
-"already", "stop", "never", and "again", and profanity other than "wtf",
-were dropped as too broad. claude-mem carries no praise regexes.
+Calibration status (issue #5820, AC-9): patterns are turn-anchored or fixed
+phrases, except one bounded "use ... instead" window, tuned on one operator's
+191 human turns. Recall was not measured.
 
-The newer transcript-derived patterns (the "we don't use/open" HIGH
-phrase and the MED preference phrases) were checked against a second
-corpus from the same operator: 326 distinct human turns of Claude Code
-history over 30 days. Every new match in that corpus was read by hand and
-was a real correction or preference. The MED phrases "use ... instead"
-and "prefer" follow the MEDIUM trigger table in the reflect skill's
-references/triggers.md; "I don't want" and "I don't like" come from the
-transcripts. A cross-check on 30 days of Codex and Droid history (141 and
-97 distinct user turns) found no new false positive except "rather than",
-which matched pasted prose in 4 of 5 turns and was left out. Copilot CLI
-history held only automated prompts. Recall was not measured.
+HIGH patterns under "Adapted from claude-mem" adapt thedotmack/claude-mem
+(Apache-2.0) acr/patterns.py and behavior.py at commit 356b7c08f64c, fixed
+phrases only. Bare words ("already", "stop", "never", "again") and profanity
+other than "wtf" were dropped as too broad.
 
-References:
-    - Issue #5817 (this hook), #5820 (PRD), #3184 (the no-op it replaces)
+The newer patterns ("we don't use/open" HIGH; MED "use ... instead",
+"prefer", "I don't want", "I don't like") were read by hand on 326 human
+turns of 30-day Claude Code history: every match was a real correction or
+preference. Codex and Droid history (141 and 97 turns) found no new false
+positive except "rather than" (pasted prose in 4 of 5), left out. Recall
+was not measured.
+
+References: issue #5817 (this hook), #5820 (PRD), #3184 (the replaced no-op).
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -75,22 +66,35 @@ import stat
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, Any
+from types import ModuleType
+from typing import IO, TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from failure_classifier import Friction
+
+# Hooks run from repo and plugin trees: write no __pycache__ beside them.
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling state module
+from _reflect_nudge_state import (  # noqa: E402
+    claim,
+    is_off,
+    prune_markers,
+    resolve_state_root,
+    safe_marker_dir,
+)
 
 HOOK_NAME = "reflect-trigger"
 MARKER_VERSION = 1
 SESSION_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,128}")
-STATE_SUBDIR = "ai-agents-reflect-nudge"
 
 MAX_STDIN_BYTES = 1_000_000
 MAX_TRANSCRIPT_BYTES = 64 * 1024 * 1024
 MAX_LINE_CHARS = 1024 * 1024
+MAX_FRICTION_RECORDS = 200_000
 SCAN_BUDGET_SECONDS = 2.0
 MAX_TURN_CHARS = 1000
-MARKER_MAX_AGE_SECONDS = 30 * 24 * 3600
-MARKER_PRUNE_LIMIT = 500
 OVERLONG_LINE = "\x00"  # not valid JSON, so the caller counts it as skipped
 HUMAN_PROMPT_SOURCES = frozenset({"typed", "queued"})
 MED_THRESHOLD = 2
@@ -142,9 +146,31 @@ MED_PATTERNS = tuple(
 )
 
 
+def _load_classifier() -> ModuleType | None:
+    """Import the shared classifier from ``<root>/lib``, or None when absent.
+
+    The path comes from this file's own location, never an env var (AC-22).
+    """
+    lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+    if os.path.isdir(lib_dir) and lib_dir not in sys.path:
+        sys.path.insert(0, lib_dir)
+    try:
+        return importlib.import_module("failure_classifier")
+    except Exception:  # fail-open: a broken lib must not break the correction branch
+        return None
+
+
+failure_classifier: Any = _load_classifier()
+
+
 @dataclass(frozen=True, slots=True)
 class ScanResult:
-    """Counts from one transcript scan. Never holds transcript text."""
+    """Counts from one transcript scan. Never holds transcript text.
+
+    ``records`` (friction input) stays out of equality and repr.
+    ``stopped_on`` is ``time`` or ``bytes``; ``dropped_records`` counts
+    records past the event cap.
+    """
 
     user_records: int = 0
     human_turns: int = 0
@@ -152,6 +178,11 @@ class ScanResult:
     med: int = 0
     skipped_lines: int = 0
     truncated: bool = False
+    stopped_on: str = ""
+    dropped_records: int = 0
+    lines_scanned: int = 0
+    records: tuple[Mapping[str, Any], ...] = field(default=(), compare=False, repr=False)
+    collect_failed: bool = field(default=False, compare=False, repr=False)
 
 
 def read_payload(stream: IO[str]) -> dict[str, Any] | None:
@@ -244,27 +275,49 @@ def scan_transcript(
     *,
     clock: Callable[[], float] = time.monotonic,
     budget: float = SCAN_BUDGET_SECONDS,
+    collect: bool = False,
 ) -> ScanResult:
-    """Stream the transcript once, stopping at the wall-clock budget."""
+    """Stream the transcript once, stopping at the time or byte budget.
+
+    With ``collect`` the decoded conversation records are kept, up to
+    MAX_FRICTION_RECORDS, for the friction branch.
+    """
     deadline = clock() + budget
-    counts = {"user": 0, "human": 0, "high": 0, "med": 0, "skipped": 0}
-    truncated = False
+    counts = dict.fromkeys(
+        ("user", "human", "high", "med", "skipped", "dropped", "lines", "collect_failed"), 0
+    )
+    kept: list[Mapping[str, Any]] | None = [] if collect and failure_classifier else None
+    stopped_on = ""
+    seen_bytes = 0
     for line in _bounded_lines(handle):
         if clock() > deadline:
-            truncated = True
+            stopped_on = "time"
             break
-        _scan_line(line, counts)
+        # Count each U+FFFD (errors="replace") as one byte: never above real size.
+        seen_bytes += len(line.encode("utf-8")) - 2 * line.count("\ufffd")
+        if seen_bytes > MAX_TRANSCRIPT_BYTES:
+            stopped_on = "bytes"
+            break
+        counts["lines"] += 1
+        _scan_line(line, counts, kept)
     return ScanResult(
         user_records=counts["user"],
         human_turns=counts["human"],
         high=counts["high"],
         med=counts["med"],
         skipped_lines=counts["skipped"],
-        truncated=truncated,
+        truncated=bool(stopped_on),
+        stopped_on=stopped_on,
+        dropped_records=counts["dropped"],
+        lines_scanned=counts["lines"],
+        records=tuple(kept) if kept is not None else (),
+        collect_failed=bool(counts["collect_failed"]),
     )
 
 
-def _scan_line(line: str, counts: dict[str, int]) -> None:
+def _scan_line(
+    line: str, counts: dict[str, int], kept: list[Mapping[str, Any]] | None = None
+) -> None:
     if not line.strip():
         return
     try:
@@ -275,6 +328,13 @@ def _scan_line(line: str, counts: dict[str, int]) -> None:
     if not isinstance(record, dict):
         counts["skipped"] += 1
         return
+    if kept is not None and not counts["collect_failed"]:
+        try:
+            counts["dropped"] += failure_classifier.collect_record(
+                kept, record, MAX_FRICTION_RECORDS
+            )
+        except Exception:  # fail-open: a broken lib skips friction only
+            counts["collect_failed"] = 1
     if record.get("type") == "user":
         counts["user"] += 1
     if not is_human_turn(record):
@@ -295,100 +355,36 @@ def signal_hash(result: ScanResult) -> str:
     return hashlib.sha256(f"{result.high}:{result.med}".encode()).hexdigest()[:16]
 
 
-def default_state_root(env: Mapping[str, str], os_name: str = os.name) -> Path:
-    """Per-user state directory root, outside any repository."""
-    if os_name == "nt":
-        base = env.get("LOCALAPPDATA")
-        if base and Path(base).is_absolute():
-            return Path(base)
-        return Path.home() / "AppData" / "Local"
-    xdg = env.get("XDG_STATE_HOME")
-    if xdg and Path(xdg).is_absolute():
-        return Path(xdg)
-    return Path.home() / ".local" / "state"
-
-
-def _safe_marker_dir(state_root: Path) -> Path | None:
-    """Create or validate the 0o700 marker directory, refusing symlinks.
-
-    The state root is resolved first, so a symlinked state root (a dotfile
-    manager, for example) works and every later check runs on the real path.
-    The root is not mode-checked: a 0o002 umask makes group-writable roots
-    normal. A directory another user pre-creates under it fails the owner and
-    0o700 checks below, which is what protects the marker.
-    """
-    state_root.mkdir(parents=True, exist_ok=True)
-    root = state_root.resolve()
-    if not _owned_by_current_user(root.lstat()):
-        return None
-    target = root / STATE_SUBDIR
-    try:
-        target.mkdir(mode=0o700)
-    except FileExistsError:
-        pass
-    info = target.lstat()
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
-        return None
-    return target if _owned_by_current_user(info) and _is_private(info) else None
-
-
-def _owned_by_current_user(info: os.stat_result) -> bool:
-    return not hasattr(os, "getuid") or info.st_uid == os.getuid()
-
-
-def _is_private(info: os.stat_result) -> bool:
-    """True when group and other have no access (the 0o700 rule)."""
-    return os.name == "nt" or (info.st_mode & 0o077) == 0
-
-
 def claim_marker(directory: Path, session_id: str, result: ScanResult) -> bool:
-    """Atomically claim the (session, signal set) marker.
-
-    Returns True for the one caller that created it and False when it already
-    exists. O_EXCL makes the create atomic across overlapping Stop events and
-    refuses to follow a symlink planted at the leaf.
-    """
-    marker = directory / f"{session_id}.{signal_hash(result)}.json"
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        fd = os.open(marker, flags, 0o600)
-    except FileExistsError:
-        return False
+    """Atomically claim the (session, signal set) correction marker."""
     body = {"v": MARKER_VERSION, "high": result.high, "med": result.med}
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(body, handle)
-    return True
+    return claim(directory, f"{session_id}.{signal_hash(result)}.json", body)
 
 
-def prune_markers(directory: Path, now: float) -> None:
-    """Remove markers older than MARKER_MAX_AGE_SECONDS, bounded per run."""
-    for index, entry in enumerate(directory.iterdir()):
-        if index >= MARKER_PRUNE_LIMIT:
-            return
-        try:
-            if now - entry.lstat().st_mtime > MARKER_MAX_AGE_SECONDS:
-                entry.unlink()
-        except OSError:
-            continue
+def claim_friction_marker(directory: Path, session_id: str, friction: Friction) -> bool:
+    """Atomically claim the (session, tier) friction marker. Body: counts only."""
+    fc = failure_classifier
+    name = fc.friction_marker_name(session_id, friction.tier, MARKER_VERSION)
+    return claim(directory, name, fc.friction_marker_body(friction, MARKER_VERSION))
 
 
 def build_message(result: ScanResult) -> str:
     """Counts and the skill name only. Never quotes transcript text."""
     return (
-        f"{HOOK_NAME}: detected {result.high} correction and "
-        f"{result.med} praise or preference signal(s) in this session. "
-        "Run the reflect skill to review and approve what to keep."
+        f"{HOOK_NAME}: this session holds {result.high} correction and "
+        f"{result.med} praise or preference signal(s). "
+        "You can run /reflect to review and approve what to keep."
     )
 
 
-def status_line(result: ScanResult, outcome: str) -> str:
+def status_line(result: ScanResult, outcome: str, note: str = "") -> str:
     """Examined counts beside findings (ci-scripts MUST-12)."""
-    tail = ", scan truncated at budget" if result.truncated else ""
+    cut = f", scan truncated at {result.stopped_on} budget" if result.stopped_on else ""
     return (
-        f"{HOOK_NAME}: {result.user_records} user records, "
+        f"{HOOK_NAME}: {result.lines_scanned} lines scanned, {result.user_records} user records, "
         f"{result.human_turns} human turns, {result.high} HIGH, "
-        f"{result.med} MED, {result.skipped_lines} skipped lines "
-        f"({outcome}{tail})"
+        f"{result.med} MED, {result.skipped_lines} skipped lines, "
+        f"{result.dropped_records} records over event cap ({outcome}{cut}{note})"
     )
 
 
@@ -408,6 +404,15 @@ def run(
     now: Callable[[], float] = time.time,
 ) -> int:
     """Run one Stop event. Always returns 0."""
+    if is_off(env):
+        return 0  # AC-12, AC-20: off is checked before any read or write
+    fc = failure_classifier
+    threshold: int | None = None
+    if fc is not None:
+        try:
+            threshold = fc.parse_threshold(env)
+        except Exception:  # fail-open: a broken lib skips friction only
+            fc = None
     payload = read_payload(stdin)
     if payload is None:
         return _fail_open(stderr, "stop payload missing or malformed")
@@ -419,30 +424,62 @@ def run(
     if handle is None:
         return _fail_open(stderr, "transcript_path missing, unreadable, or too large")
     with handle:
-        result = scan_transcript(handle, clock=clock)
-    if not has_signal(result):
-        print(status_line(result, "silent"), file=stderr)
+        result = scan_transcript(handle, clock=clock, collect=fc is not None)
+    friction, note = _friction(fc, result, threshold)
+    wants_friction = friction is not None and friction.tier >= 1
+    if not (has_signal(result) or wants_friction):
+        print(status_line(result, "silent", note), file=stderr)
         return 0
-    root = state_root or default_state_root(env)
-    return _nudge_once(result, session_id, stdout, stderr, root, now)
+    root, refusal = resolve_state_root(env, state_root)
+    if root is None:  # AC-24: no mkdir, no systemMessage, one stderr line
+        return _fail_open(stderr, refusal)
+    return _nudge_once(result, friction, session_id, (stdout, stderr), root, now, note)
+
+
+def _friction(
+    fc: ModuleType | None, result: ScanResult, threshold: int | None
+) -> tuple[Friction | None, str]:
+    """Score friction; any classifier error skips friction and keeps correction."""
+    if fc is None or threshold is None or result.collect_failed:
+        return None, ", friction skipped: classifier unavailable"
+    try:
+        if fc.partial_budget(result.stopped_on, result.dropped_records):
+            return None, fc.friction_status(result.stopped_on, result.dropped_records, None)
+        friction = fc.compute_friction(result.records, threshold)
+        return friction, fc.friction_status(result.stopped_on, result.dropped_records, friction)
+    except Exception:  # fail-open: a broken lib skips friction only
+        return None, ", friction skipped: classifier error"
 
 
 def _nudge_once(
     result: ScanResult,
+    friction: Friction | None,
     session_id: str,
-    stdout: IO[str],
-    stderr: IO[str],
+    streams: tuple[IO[str], IO[str]],
     state_root: Path,
     now: Callable[[], float],
+    note: str,
 ) -> int:
-    directory = _safe_marker_dir(state_root)
+    stdout, stderr = streams
+    directory = safe_marker_dir(state_root)
     if directory is None:
         return _fail_open(stderr, "marker directory unsafe")
-    if not claim_marker(directory, session_id, result):
-        print(status_line(result, "already nudged"), file=stderr)
+    messages: list[str] = []
+    if has_signal(result) and claim_marker(directory, session_id, result):
+        messages.append(build_message(result))
+    if friction is not None and friction.tier >= 1:
+        try:  # fail-open: a broken lib skips friction only, never the correction
+            text = failure_classifier.build_friction_message(friction, HOOK_NAME)
+            claimed = claim_friction_marker(directory, session_id, friction)
+        except Exception:
+            text, claimed, note = "", False, ", friction skipped: classifier error"
+        if text and claimed:
+            messages.append(text)
+    if not messages:
+        print(status_line(result, "already nudged", note), file=stderr)
         return 0
-    print(json.dumps({"systemMessage": build_message(result)}), file=stdout, flush=True)
-    print(status_line(result, "nudged"), file=stderr)
+    print(json.dumps({"systemMessage": "\n".join(messages)}), file=stdout, flush=True)
+    print(status_line(result, "nudged", note), file=stderr)
     try:
         prune_markers(directory, now())
     except OSError:

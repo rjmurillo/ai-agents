@@ -18,6 +18,8 @@ Outputs:
   azure_refs         - space-delimited Azure Boards tokens, literally `AB#<n>`
   incremental_scope  - incremental scope declaration from PR title
   has_specs          - "true" if any references were found, else "false"
+  pr_body_file       - path to the body this step read, newline-terminated, so a
+                       later step grades the same body instead of fetching again
 
 Source-platform contract (issue #5621). This script runs on GitHub pull
 requests, so the text it reads is GitHub text. Two reference systems appear in
@@ -42,7 +44,7 @@ is a GitHub issue ref, because GitHub is the platform that reads it.
 
 EXIT CODES (ADR-035):
   0 - extraction complete
-  3 - GitHub or incremental-scope subprocess failed
+  3 - GitHub or incremental-scope subprocess failed or timed out
 """
 
 from __future__ import annotations
@@ -250,7 +252,12 @@ def _gh_pr_field(pr_number: str, repository: str, field: str) -> tuple[int, str]
             file=sys.stderr,
         )
         return EXIT_EXTERNAL, ""
-    return EXIT_OK, result.stdout.strip()
+    out = result.stdout
+    if field == "body":
+        # gh appends one newline. Leading spaces can decide whether a heading
+        # counts, so only that newline is removed from a body.
+        return EXIT_OK, out.removesuffix("\n")
+    return EXIT_OK, out.strip()
 
 
 def _extract_spec_refs(combined: str) -> str:
@@ -295,19 +302,39 @@ def _extract_azure_refs(combined: str) -> str:
     return " ".join(f"AB#{number}" for number in sorted(numbers, key=int))
 
 
+_SCOPE_HELPER = (
+    Path(__file__).resolve().parents[2] / ".github" / "scripts" / "extract_incremental_scope.py"
+)
+# The helper parses one title with no I/O, so it should finish at once. The
+# bound keeps a hung helper from holding the workflow step until its timeout.
+_SCOPE_TIMEOUT_SECONDS = 30
+
+
 def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
-    """Call extract_incremental_scope.py and return its output."""
+    """Call extract_incremental_scope.py and return its output.
+
+    The helper resolves from this script's own checkout, not the working
+    directory, so a workflow that runs this script from the trusted base also
+    runs the base copy of the helper (issue #6506, review-gates-14).
+    """
     try:
         result = subprocess.run(
-            [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
+            [sys.executable, str(_SCOPE_HELPER), "--", pr_title],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=_SCOPE_TIMEOUT_SECONDS,
             check=False,
         )
     except OSError as exc:
         print(f"::error::failed to launch incremental scope parser: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL, ""
+    except subprocess.TimeoutExpired:
+        print(
+            f"::error::incremental scope parser timed out after {_SCOPE_TIMEOUT_SECONDS}s",
+            file=sys.stderr,
+        )
         return EXIT_EXTERNAL, ""
     if result.returncode != 0:
         print(
@@ -371,12 +398,13 @@ def run(_argv: list[str] | None = None) -> int:
     write_github_output("issue_refs", issue_refs)
     write_github_output("azure_refs", azure_refs)
     write_github_output("incremental_scope", incremental_scope)
+    # The body file stays for the verdict step; the runner clears RUNNER_TEMP
+    # when the job ends.
+    write_github_output("pr_body_file", str(body_file))
 
     _announce_references(spec_refs, issue_refs, azure_refs)
 
-    # Clean up temp files
     title_file.unlink(missing_ok=True)
-    body_file.unlink(missing_ok=True)
 
     return EXIT_OK
 

@@ -154,6 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         "merged_by": state.merged_by,
         "head_ref": state.head_ref,
         "head_sha": state.head_sha,
+        "head_repo": state.head_repo,
         "merge_commit_sha": state.merge_commit_sha,
     }
 

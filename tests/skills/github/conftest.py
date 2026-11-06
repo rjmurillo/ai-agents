@@ -62,3 +62,11 @@ def make_completed_process(
     from test_helpers import make_completed_process as _make
 
     return _make(stdout=stdout, stderr=stderr, returncode=returncode)
+
+
+@pytest.fixture
+def run_gate(tmp_path, monkeypatch, capsys):
+    """Run the completion gate against a fake session (issue #5232)."""
+    from tests.skills.github.session_refusal_helpers import make_gate_runner
+
+    return make_gate_runner(tmp_path, monkeypatch, capsys)

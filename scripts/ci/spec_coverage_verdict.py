@@ -23,28 +23,24 @@ ENV:
   HAS_SPECS            - "true" or "false", from the Extract Spec References step
   PR_BODY              - pull request body (author-controlled; read from env,
                          never interpolated into a shell, CWE-78)
+  PR_BODY_FILE         - path to the body the Extract Spec References step read,
+                         so both steps grade one body. Used when PR_BODY is
+                         empty. This script never fetches a body itself.
   EVENT_NAME           - github.event_name
-  PR_NUMBER            - pull request number (workflow_dispatch body fetch)
-  GITHUB_REPOSITORY    - owner/repo (workflow_dispatch body fetch)
-  GH_TOKEN             - API token for the body fetch (falls back to GITHUB_TOKEN)
-  GITHUB_API_URL       - API base, https only (default https://api.github.com)
   GITHUB_STEP_SUMMARY  - path to the step summary file (optional)
 
 EXIT CODES (ADR-035):
   0 - PASS
   1 - FAIL: the pull request links a spec and its acceptance criteria are
       missing or unchecked
-  2 - config error: HAS_SPECS is not "true" or "false", or a
-      workflow_dispatch body fetch failed
+  2 - config error: HAS_SPECS is not "true" or "false", PR_BODY_FILE is
+      unreadable, or workflow_dispatch ran with no PR_BODY and no PR_BODY_FILE
 """
 
 from __future__ import annotations
 
-import json
 import os
-import re
 import sys
-import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -66,7 +62,6 @@ EXIT_CONFIG = 2
 CHECK_NAME = "Validate Spec Coverage"
 ACCEPTANCE_HEADING = "## Acceptance criteria"
 _DISPATCH_EVENT = "workflow_dispatch"
-_FETCH_TIMEOUT_SECONDS = 60
 _UNCLOSED_REASONS = {
     "comment": (
         "The pull request body has an HTML comment (`<!--`) with no closing `-->`. "
@@ -79,29 +74,6 @@ _UNCLOSED_REASONS = {
 }
 
 
-class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
-    """Refuse every redirect, so the bearer token never reaches another URL.
-
-    The default handler forwards the Authorization header to the redirect
-    target. Returning None makes urllib raise HTTPError on the 3xx instead.
-    """
-
-    def redirect_request(
-        self,
-        req: urllib.request.Request,
-        fp: object,
-        code: int,
-        msg: str,
-        headers: object,
-        newurl: str,
-    ) -> urllib.request.Request | None:
-        return None
-
-
-_OPENER = urllib.request.build_opener(_RefuseRedirect)
-_DEFAULT_API_URL = "https://api.github.com"
-_PR_NUMBER = re.compile(r"[1-9][0-9]*")
-_REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 # GitHub shows about ten annotations per step. Leave room for the verdict line.
 _MAX_ITEM_ANNOTATIONS = 8
 
@@ -191,52 +163,22 @@ def _parse_has_specs(raw: str) -> bool | None:
     return None
 
 
-def _fetch_error(message: str) -> None:
+def _read_error(message: str) -> None:
     print(f"::error::{_escape_annotation(message)}", file=sys.stderr)
 
 
-def _pull_request_url(pr_number: str, repository: str) -> str | None:
-    """Build the pull request API URL from validated inputs, or None."""
-    api_url = os.environ.get("GITHUB_API_URL", "") or _DEFAULT_API_URL
-    if not _PR_NUMBER.fullmatch(pr_number):
-        _fetch_error(f"PR_NUMBER must be a positive integer, got {pr_number!r}.")
-    elif not _REPOSITORY.fullmatch(repository) or {".", ".."} & set(repository.split("/")):
-        _fetch_error(f"GITHUB_REPOSITORY must be owner/repo, got {repository!r}.")
-    elif not api_url.startswith("https://"):
-        _fetch_error("GITHUB_API_URL must start with https://.")
-    else:
-        return f"{api_url.rstrip('/')}/repos/{repository}/pulls/{pr_number}"
-    return None
+def _read_body_file(path: str) -> str | None:
+    """Read the body the Extract Spec References step saved. None means failure.
 
-
-def _read_body_field(url: str) -> str | None:
-    """GET the pull request and return its body ('' when null), or None on failure."""
-    headers = {"Accept": "application/vnd.github+json"}
-    token = os.environ.get("GH_TOKEN", "") or os.environ.get("GITHUB_TOKEN", "")
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    request = urllib.request.Request(url, headers=headers, method="GET")
+    That step appends one newline when it writes the file, so exactly one is
+    removed here and a body that itself ends in newlines comes back unchanged.
+    """
     try:
-        with _OPENER.open(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read())
+        text = Path(path).read_text(encoding="utf-8")
     except (OSError, ValueError) as exc:
-        # HTTPError and URLError are OSError; bad JSON or bytes are ValueError.
-        _fetch_error(f"reading the pull request failed: {exc}")
+        _read_error(f"reading the saved pull request body failed: {exc}")
         return None
-    if not isinstance(payload, dict) or "body" not in payload:
-        _fetch_error("the pull request response has no body field.")
-        return None
-    body = payload["body"]
-    if body is not None and not isinstance(body, str):
-        _fetch_error("the pull request body field is not text.")
-        return None
-    return body or ""
-
-
-def _fetch_body(pr_number: str, repository: str) -> str | None:
-    """Read the pull request body over the GitHub REST API. None means failure."""
-    url = _pull_request_url(pr_number, repository)
-    return None if url is None else _read_body_field(url)
+    return text[:-1] if text.endswith("\n") else text
 
 
 def _format_summary(verdict: Verdict) -> str:
@@ -299,16 +241,19 @@ def run() -> int:
             'HAS_SPECS must be "true" or "false"; the Extract Spec References step did not emit it.'
         )
     body = os.environ.get("PR_BODY", "")
-    if not body and os.environ.get("EVENT_NAME", "") == _DISPATCH_EVENT:
-        fetched = _fetch_body(
-            os.environ.get("PR_NUMBER", ""), os.environ.get("GITHUB_REPOSITORY", "")
-        )
-        if fetched is None:
+    body_file = os.environ.get("PR_BODY_FILE", "")
+    if not body and body_file:
+        saved = _read_body_file(body_file)
+        if saved is None:
             return _config_error(
-                "Could not read the pull request body for this workflow_dispatch "
-                "run; see the log for the error."
+                "Could not read the pull request body the Extract Spec References "
+                "step saved; see the log for the error."
             )
-        body = fetched
+        body = saved
+    elif not body and os.environ.get("EVENT_NAME", "") == _DISPATCH_EVENT:
+        return _config_error(
+            "PR_BODY_FILE missing; the Extract Spec References step did not emit pr_body_file."
+        )
     verdict = decide(has_specs, body)
     _report(verdict)
     return EXIT_OK if verdict.passed else EXIT_FAIL

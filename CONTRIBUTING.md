@@ -34,6 +34,15 @@ Thank you for your interest in contributing to this project. This guide explains
 
 ### Setup Steps
 
+**One command.** From a fresh clone, this installs the locked environment and
+Git hooks, then runs a quick test to prove the setup works:
+
+```bash
+uv sync --frozen --extra dev && uv run --frozen lefthook install --reset-hooks-path && uv run --frozen lefthook check-install && git config blame.ignoreRevsFile .git-blame-ignore-revs && uv run --frozen pytest tests/test_workspace_limits.py -q
+```
+
+It covers steps 4, 6, and 7 below. Step 5 (Git configuration) stays manual.
+
 1. Fork the repository
 2. Clone your fork locally
 3. **Install Python 3.14.x** (see Prerequisites above)
@@ -43,6 +52,8 @@ Thank you for your interest in contributing to this project. This guide explains
 7. Hide the bulk format commit from blame: `git config blame.ignoreRevsFile .git-blame-ignore-revs`
 8. Make your changes following the guidelines below
 9. Submit a pull request
+
+**Open in dev container:** `.devcontainer/devcontainer.json` covers steps 3, 4, and 6; steps 5 and 7 stay manual. It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, then runs the `uv sync` and Lefthook commands above. It does not run the `tests/test_workspace_limits.py` check from the one command, so run that once to prove the environment. Use VS Code "Reopen in Container" or `devcontainer up --workspace-folder .`. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128. Each feature reference carries a sha256 digest, so integrity is verified on every client without an extra flag. Add `--frozen-lockfile` to also check the committed `devcontainer-lock.json` against the config. If you change a feature, run `devcontainer upgrade --workspace-folder .` and commit both files.
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 
@@ -780,6 +791,104 @@ The repository enforces quality automatically at multiple stages:
 
 **No manual test runs required for routine development.** Quality gates run automatically.
 
+### Type and Complexity Baselines
+
+mypy runs in strict mode. ruff enforces C901 with a max complexity of 15.
+Code that failed either check when it landed sits in a baseline in `pyproject.toml`:
+
+- The "Strict-mode baseline" `[[tool.mypy.overrides]]` entries. Each turns off only the strict checks its listed modules failed, which is one to three checks, so the rest of strict still applies. The baseline covers the code the mypy gate checks. The gate skips `src/claude/skills/`, because `.claude/skills/*` are symlinks into it, so that tree is not type-checked yet.
+- The `[tool.ruff.lint.extend-per-file-ignores]` table. Each entry waives C901 for one file.
+
+The baselines may only shrink. Do not add an entry for new code; fix the code.
+When you fix a listed module or file, delete its entry in the same change.
+`tests/test_strict_baselines.py` fails on a stale C901 entry and
+`tests/test_mypy_strict_baseline.py` on a stale mypy entry. Both read their
+baseline size from a constant in `tests/strict_baseline_helpers.py`, so adding an entry fails until you raise the
+matching constant in the same diff, which is the edit a reviewer sees.
+
+### Unused-Argument Baseline
+
+`scripts/validation/check_unused_arguments.py` runs `ruff check --select ARG --isolated` over the tracked
+Python files under `scripts`, `src/claude`, `templates/hooks`, `.claude/lib`, and `.claude/skills`. It
+reports unused function, method, and lambda arguments (`ARG001` to `ARG005`). ruff resolves names per
+function, so an unused `path` or `args` is reported even when another function reads that name. The gate
+ignores `# noqa` comments, so a `# noqa` on a `def` line does not hide a finding. `--isolated` makes ruff
+read no config file, so `per-file-ignores`, `exclude`, `extend-exclude`, `dummy-variable-rgx`, and a nested
+`ruff.toml` cannot hide one either.
+
+The gate does not catch unused imports, functions, classes, variables, or unreachable code. Other
+checks cover some of those: the repo-wide ruff `F` rules for imports, and `check_unreachable_code.py`
+for statements after a terminator. ARG is not in the repo-wide ruff `select`, because that would turn
+every baseline entry red in the other ruff gates. ruff also exempts these shapes, so the gate never sees
+them: a stub body (`pass`, `...`, a docstring alone, or `raise NotImplementedError`), a method decorated
+`@override`, `@abstractmethod`, or `@overload`, a dunder method such as `__eq__`, a function that calls
+`locals()`, and any argument with a leading underscore.
+
+Files under a `tests` directory are skipped, and so are generated copies named in `EXCLUDED_PATHS`:
+each copy is scanned once, at the file it is rendered from. Untracked drafts are not scanned. A tracked file is read from the working tree, so an uncommitted edit to
+a tracked file can fail a local push that CI passes.
+It runs in the pre-push hook (`python-unused-arguments`), as the `Unused Argument Detection` gate in
+`pre_pr.py`, and in the `pytest` workflow.
+
+Findings that existed when the gate landed sit in `scripts/validation/unused_arguments_baseline.txt`.
+Each line is `<path>: <rule code> <argument> in <owner>`, where the owner is the function that holds the
+argument (`Class.method` for a method), with no line number. A failure prints the line ruff reported for
+each new finding.
+
+The baseline may only shrink, and the gate enforces it. It reads the baseline as committed at the merge
+base (`git merge-base HEAD <base-ref>`) and fails on any line your branch added, so swapping one line for
+another fails too. This follows the merge-base idea of the ratchets in `scripts/ci`, with a committed
+baseline file instead of a count, because a count lets a swap pass. Because the file is shared, two
+branches that edit adjacent lines can conflict. Two branches that each fix a different finding delete
+different lines, and git merges that cleanly only when the deleted lines are not adjacent. When they are
+adjacent, git reports a conflict; resolve it by keeping both deletions.
+Do not add a line for new code; use or remove the argument, or prefix it with an underscore when a
+signature must keep it. When you fix a listed finding, delete its line in the same change.
+
+When git reports a file as renamed, change the path on that file's baseline lines and nothing else. The
+merge-base comparison follows the rename, so no line counts as added. A path rewrite for a file git does
+not report as renamed counts as growth. Renaming a function, or moving it to another class, changes the
+owner in its key, so a listed finding there reads as new: use or remove the argument in that change.
+`--base-ref` names the ref; with none, the gate tries `refs/remotes/origin/HEAD`, `origin/main`, then
+`main`, and exits 2 when none resolves. CI passes the fetched base branch. The first run is decided by
+whether the merge base carries `check_unused_arguments.py`; once it does, a baseline missing from its path
+fails the gate (exit 1).
+
+Not handled: two branches that each remove one of two reads of an argument can merge into a tree with a
+new finding that neither branch saw. The gate fails on the base branch then, and the fix is to use or
+remove the argument.
+
+A ruff upgrade that reports new ARG findings has no baseline path: the upgrade change must use, remove,
+or underscore-prefix those arguments. `uv.lock` pins ruff, so the gate changes only when a pull request
+changes the lock. A message-format change that drops the backquoted argument name makes the gate exit 2,
+not pass. The author of the upgrade change owns a red gate.
+
+### Import Boundaries
+
+`lint-imports` ([import-linter](https://import-linter.readthedocs.io/)) checks the contracts in `pyproject.toml` under `[tool.importlinter]`.
+The pre-push `import-boundaries` job and the pytest workflow both run `uv run --frozen --extra dev lint-imports --no-cache`.
+Each contract enforces a rule the repository already states:
+
+- The four packages `build/scripts/lib_mirror.py` ships into plugin lib trees (`scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common`, `scripts/failure_classifier`) do not import each other. The mirror rewrites `from scripts.<pkg> import` to `from . import`, so a sibling import would break in the shipped copy.
+- Those packages import nothing else from `scripts/`, `memory_enhancement/`, or `tests/`. The mirror copies the four packages and one sidecar file (`scripts/validation/validate_review_marker.py`, which no contract covers), so those trees never ship (`.claude/rules/plugin-self-containment.md` MUST 1).
+- Those packages do not import a `[project]` dependency, because shipped scripts run under bare `python3` (MUST 4 of the same rule). The contract names the six `[project]` packages; a grimp scan in `tests/test_import_linter_contracts.py` fails on any other non-stdlib import.
+- `scripts` and `memory_enhancement` never import `tests`, which is not part of the installed package.
+
+The gate shares the topic with two older validators and does not repeat them.
+`scripts/validation/check_plugin_root_interpreter.py` and `check_doc_interpreter_portability.py` start from an invocation: a documented or plugin-root `python3 <script>` command. They walk that script's module-level imports for anything outside the standard library.
+A lib module that no invoked script reaches at import time goes unchecked by both. Both treat an import of another tracked repository module as allowed, so neither catches a sibling or `scripts/` import.
+`lint-imports` starts from the four packages: it checks every module in them, including imports inside functions, which the module-level walk of those validators skips. It also flags imports inside `try` blocks, which those validators walk but this gate cannot excuse as guarded.
+A guarded import that complies with MUST 4, such as `bot_config -> yaml`, still needs an `ignore_imports` entry.
+
+Three limits apply. `grimp` (the graph library under import-linter) reads only directories that hold an `__init__.py`, so a `tests` import under `scripts/ci` or `scripts/eval` escapes the contracts.
+`tests/test_import_linter_source_scans.py` scans every `scripts/` and `memory_enhancement/` file for that import and checks the four shipped packages have no directory without `__init__.py`.
+`grimp` also collapses an import of an `__init__`-less directory, such as `scripts.ci.tool`, to the bare `scripts` package, so `shipped-lib-self-contained` stays KEPT for it. The `grimp` scan in `tests/test_import_linter_contracts.py` catches that case in pytest, not in the pre-push or pre-PR run.
+An ignored import also hides the modules that import the ignored module. `tests/test_import_linter_source_scans.py` pins the modules that fail without PyYAML, a set that is now empty.
+
+The `ignore_imports` entries are existing debt, one comment each. They shrink as debt is paid. The one reason to add an entry is a compliant guarded import, as above.
+Delete an entry in the change that removes its import, and lower `IGNORE_IMPORTS_BASELINE` in `tests/test_import_linter_contracts.py` in the same diff. `lint-imports` fails on an entry that no longer matches.
+The test pins the entry count in that constant, so a new entry fails until you raise it in the same diff. It checks the count only: swapping one entry for another passes it, so a reviewer must read that change.
+
 ### Manual Testing (Optional)
 
 For local debugging or development iteration:
@@ -802,6 +911,22 @@ uv run bandit -r .claude/ scripts/          # Static analysis
 uv run pytest tests/build_scripts/test_generate_agents.py
 ```
 
+### Reading the Flaky Test Report
+
+When a CI pytest leg fails, `pytest.yml` reruns only the failed tests once.
+The rerun is serial and capped at 25 tests. `scripts/ci/flaky_test_report.py` then classifies each failure.
+
+- **flaky**: the test failed, then passed on rerun.
+- **consistent**: the test failed both times. Treat it as a real failure.
+- **unclassified**: no verdict. The rerun was skipped above the cap, did not finish, or gave an unusable result.
+
+The table appears in the leg's job summary, under "Flaky test report".
+Each flaky test also raises a warning annotation.
+The `flaky-tests-<partition>` artifact holds the same result as JSON.
+
+Detection never masks a failure. The leg stays red even when every failure was flaky.
+Fix the flaky test, then push again or re-run the job.
+
 ## Copilot CLI Version Management
 
 The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) uses GitHub Copilot CLI to prove the plugin loads. The `ai-review` action reviews with Claude and no longer installs Copilot (REQ-047, issue #6069). The CLI version is pinned to prevent regressions from auto-updates.
@@ -816,7 +941,7 @@ The only pin is `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml
 
 `.github/workflows/plugin-cli-smoke.yml` runs on pull requests. It proves the plugin loads in Claude, Copilot, and Codex on Ubuntu, macOS, and Windows. A path filter (`scripts/validation/cli_smoke_paths.py`) runs the legs only when a change touches a plugin-shipped path. Lefthook's `hook-anchoring-e2e` and `plugin-load-e2e` pre-push gates mirror that list, and `tests/validation/test_cli_smoke_paths.py` fails when they drift. A local push runs the smoke with the harness you use locally, `claude` or `codex`, on your own login. It never calls Copilot. Copilot cases run only in CI, behind the `agent-copilot` approval.
 
-After this workflow is on `main`, dispatch it once there, then require the `CLI Smoke Result` check in the branch ruleset. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
+The `CLI Smoke Result` check is advisory (owner decision 2026-11-05, ADR-114). It is not in the branch ruleset, and the readiness check does not block on it. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
 
 ### Why Version Pinning
 
@@ -859,7 +984,6 @@ gh act pull_request \
   -j "validate-spec" \
   -W .github/workflows/ai-spec-validation.yml \
   -s "GITHUB_TOKEN=$TOKEN" \
-  -s "BOT_PAT=$TOKEN" \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest
 ```
 

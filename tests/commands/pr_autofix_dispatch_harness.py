@@ -393,8 +393,8 @@ run_pr_mutation_if_live() {{
     fi
     "$@"
 }}
-
 for PR in 5176 5177; do
+    EXPECTED_HEAD_SHA=$(printf '%s' "$LIVE" | jq -r '.Data.head_sha // empty')
     printf 'visiting %s\\n' "$PR"
 {block}
     printf 'reached-post-tier\\n'

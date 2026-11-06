@@ -41,6 +41,7 @@ EXIT_EXTERNAL = 3
 ALERT_TITLE = "Ruleset Required Context Drift Detected"
 ALERT_MARKER = "RULESET-CONTEXT-DRIFT"
 ALERT_LABELS = "bug,area-workflows,drift-detected,automated"
+RUNBOOK_PATH = "docs/runbooks/ruleset-drift-alert.md"
 ISSUE_SCRIPT_DIR = Path(".claude/skills/github/scripts/issue")
 
 
@@ -67,12 +68,17 @@ def _format_contexts(contexts: Sequence[str]) -> str:
     return "\n".join(f"- `{context}`" for context in contexts)
 
 
-def _run_url() -> str:
+def run_url() -> str:
     server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     if not run_id:
         return "Local check"
     return f"{server_url}/{REPOSITORY}/actions/runs/{run_id}"
+
+
+def runbook_url() -> str:
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    return f"{server_url}/{REPOSITORY}/blob/{BRANCH}/{RUNBOOK_PATH}"
 
 
 def step0_evidence(
@@ -91,7 +97,7 @@ def step0_evidence(
     # Counts only: the body lists the context names, and a free-form name
     # holding a hedge word would make new_issue.py refuse the alert.
     signal = (
-        f"Run {_run_url()} compared ruleset {RULESET_ID}: "
+        f"Run {run_url()} compared ruleset {RULESET_ID}: "
         f"{len(added)} required context(s) not pinned; "
         f"{len(removed)} pinned context(s) no longer required."
     )
@@ -105,12 +111,13 @@ def render_alert(
     removed: Sequence[str],
 ) -> str:
     """Build the actionable issue body for a detected divergence."""
-    run_url = _run_url()
+    workflow_run_url = run_url()
     return f"""<!-- {ALERT_MARKER} -->
 ## Ruleset Required Context Drift
 
 **Ruleset**: `{RULESET_ID}`
-**Workflow run**: {run_url}
+**Workflow run**: {workflow_run_url}
+**Runbook**: {runbook_url()}
 
 ### Added to live ruleset
 
@@ -188,7 +195,7 @@ def _run_issue_skill(
     return EXIT_OK, data
 
 
-def _find_existing_alert() -> tuple[int, int | None]:
+def _find_existing_alert(title: str) -> tuple[int, int | None]:
     owner, repo = REPOSITORY.split("/", maxsplit=1)
     rc, data = _run_issue_skill(
         "list_issues.py",
@@ -198,7 +205,7 @@ def _find_existing_alert() -> tuple[int, int | None]:
             "--repo",
             repo,
             "--search",
-            f'is:open in:title "{ALERT_TITLE}"',
+            f'is:open in:title "{title}"',
             "--limit",
             "1",
         ],
@@ -216,31 +223,40 @@ def _find_existing_alert() -> tuple[int, int | None]:
     return EXIT_OK, number
 
 
-def publish_alert(
+def publish_issue_alert(
+    *,
+    title: str,
+    marker: str,
+    labels: str,
     body: str,
-    added: Sequence[str],
-    removed: Sequence[str],
+    body_filename: str,
+    blocked_by: str,
+    signal: str,
 ) -> int:
-    """Create one alert issue, or update its marked comment."""
+    """Create one open issue titled `title`, or update its marked comment.
+
+    Shared by every scheduled drift check so the issue plumbing exists once.
+    `blocked_by` and `signal` answer new_issue.py's Step 0 questions (Q3, Q5)
+    and must clear its hedge-word gate.
+    """
     runner_temp = os.environ.get("RUNNER_TEMP")
     if not runner_temp:
         print("::error::RUNNER_TEMP is required with --alert", file=sys.stderr)
         return EXIT_CONFIG
 
-    body_path = Path(runner_temp) / "ruleset-context-drift.md"
+    body_path = Path(runner_temp) / body_filename
     try:
         body_path.write_text(body, encoding="utf-8")
     except OSError as exc:
         print(f"::error::failed to write alert body: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
-    rc, issue_number = _find_existing_alert()
+    rc, issue_number = _find_existing_alert(title)
     if rc != EXIT_OK:
         return rc
 
     owner, repo = REPOSITORY.split("/", maxsplit=1)
     if issue_number is None:
-        blocked_by, signal = step0_evidence(added, removed)
         rc, _ = _run_issue_skill(
             "new_issue.py",
             [
@@ -249,11 +265,11 @@ def publish_alert(
                 "--repo",
                 repo,
                 "--title",
-                ALERT_TITLE,
+                title,
                 "--body-file",
                 str(body_path),
                 "--labels",
-                ALERT_LABELS,
+                labels,
                 "--source",
                 "agent",
                 "--blocked-by",
@@ -276,11 +292,29 @@ def publish_alert(
             "--body-file",
             str(body_path),
             "--marker",
-            ALERT_MARKER,
+            marker,
             "--update-if-exists",
         ],
     )
     return rc
+
+
+def publish_alert(
+    body: str,
+    added: Sequence[str],
+    removed: Sequence[str],
+) -> int:
+    """Create one alert issue, or update its marked comment."""
+    blocked_by, signal = step0_evidence(added, removed)
+    return publish_issue_alert(
+        title=ALERT_TITLE,
+        marker=ALERT_MARKER,
+        labels=ALERT_LABELS,
+        body=body,
+        body_filename="ruleset-context-drift.md",
+        blocked_by=blocked_by,
+        signal=signal,
+    )
 
 
 def run(*, alert: bool) -> int:

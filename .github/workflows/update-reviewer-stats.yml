@@ -36,7 +36,7 @@ jobs:
     name: Update Reviewer Stats
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
+    environment: agent-claude
 
     steps:
       - name: Checkout repository
@@ -46,7 +46,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       # Issue #4607 / ADR-026 Decision 5: report which account BOT_PAT
       # resolves to before the first API call so a mis-issued secret is

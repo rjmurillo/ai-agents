@@ -130,7 +130,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -169,7 +169,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -194,7 +194,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -209,7 +209,8 @@ jobs:
   count-ratchet-guard:
     name: Check whole-tree count ratchets (blocking)
     # Issue #5636, decision D13. The ruff and subprocess-encoding count
-    # ratchets score every tracked Python file, so they are whole-tree checks
+    # ratchets and the unused-argument gate score every tracked Python file in
+    # scope, so they are whole-tree checks
     # (`.claude/rules/ci-scripts.md`, "Path filters gate the diff, never the
     # tree"). This job has no `needs:` and no
     # `if:` on purpose, the same shape as zero-collection-guard above.
@@ -222,9 +223,9 @@ jobs:
     # `uv run --frozen` pins ruff to the lockfile; an open-ended `ruff>=` could
     # fail the baseline on an unrelated PR after a rule change. BASE_REF stays
     # in env, so a ref name never reaches the script source, and the ratchet
-    # receives the fixed literal FETCH_HEAD, never the ref name. Both ratchets
-    # compare against a ref: without --base-ref, raising the baseline in the
-    # change that adds the violations would pass as an improvement.
+    # receives the fixed literal FETCH_HEAD, never the ref name. All three gates
+    # compare against a ref: without one, raising the baseline in the change
+    # that adds the violations would pass as an improvement.
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 10
     permissions:
@@ -233,7 +234,7 @@ jobs:
       BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -257,6 +258,15 @@ jobs:
 
       - name: Run subprocess encoding count ratchet (whole tree)
         run: uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
+
+      # Blocking. ruff ARG findings must equal the baseline in
+      # scripts/validation/unused_arguments_baseline.txt, and the baseline may
+      # not gain a line the merge base lacks. --base-ref FETCH_HEAD names the
+      # base branch tip fetched above, so the ceiling is that tip's baseline
+      # whatever the local ref names are. An unreadable FETCH_HEAD exits 3. Exit 2
+      # applies only when no --base-ref is passed and no default ref resolves.
+      - name: Run unused-argument gate (whole tree)
+        run: uv run --frozen --extra dev python scripts/validation/check_unused_arguments.py --base-ref FETCH_HEAD
 
       # ADR-113 decision 2: persist this job's typed result for the promotion gate.
       - name: Upload promotion evidence
@@ -290,7 +300,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -367,7 +377,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -417,12 +427,27 @@ jobs:
         if: matrix.primary
         run: uv run --frozen --extra dev ruff format --check .
 
+      # Module boundaries declared in pyproject.toml [tool.importlinter].
+      # Blocking. The pre-push import-boundaries job runs the same command.
+      - name: Check import boundaries (lint-imports)
+        if: matrix.primary
+        env:
+          PYTHONIOENCODING: utf-8
+        run: uv run --frozen --extra dev lint-imports --no-cache
+
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the
       # hook: pre-existing errors print, errors on changed lines block.
-      # Each mypy call has a 60s cap, but the calls run in series. The step cap
-      # keeps a stall from eating the pytest steps' share of the job's 10 min.
-      # Measured: 40 scripts/validation files with a cold cache took 6.7s.
+      # run_mypy issues one batch for changed source files and one for changed
+      # test files, because git_hook_policy._mypy_invocations keeps those apart
+      # so only a test-only batch takes the annotation relaxation. It also
+      # starts one child per scripts/validation/ path and one per colliding
+      # basename (see the python-type-check comment in lefthook.yml). Each
+      # child is a separate mypy process with a 60s cap and
+      # they run in series, so the step cap below covers the total for the step,
+      # not one call, and keeps a stall from eating the pytest steps' share of
+      # the job's 10 min. The earlier cold-cache measurement predates strict
+      # mode and this split, so it no longer sizes the cap.
       - name: Run mypy ratchet (changed Python files)
         if: matrix.primary
         timeout-minutes: 3
@@ -486,6 +511,47 @@ jobs:
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
 
+      # Flaky test detection, detect only. When the leg's tests fail, rerun
+      # just the failed tests once and report the ones that failed and then
+      # passed as flaky in the step summary and the flaky-tests artifact. The
+      # Run pytest step above has no continue-on-error, so its failure already
+      # fails the job; nothing below can turn the leg green, and the report
+      # exits nonzero too. scripts/ci/flaky_test_report.py holds the logic
+      # (ADR-006). The rerun must come straight after Run pytest: it reads the
+      # pytest cache's lastfailed file, which the pin steps below overwrite.
+      # It writes its JUnit report under artifacts/flaky/, never to the leg's
+      # junit_file, so the wall-time and budget gates read only the first run.
+      # The script skips the rerun above 25 failed tests, and the step cap
+      # keeps one slow rerun from eating the job's 10 minutes.
+      - name: Rerun failed tests once (flaky detection)
+        id: flaky-rerun
+        if: failure() && steps.run-pytest.outcome == 'failure'
+        timeout-minutes: 3
+        env:
+          PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest-rerun
+        run: >-
+          uv run --frozen python scripts/ci/flaky_test_report.py rerun
+          --out-dir artifacts/flaky/${{ matrix.partition }}
+
+      - name: Report flaky tests (detect only)
+        if: failure() && steps.run-pytest.outcome == 'failure'
+        run: >-
+          uv run --frozen python scripts/ci/flaky_test_report.py report
+          --first-junit ${{ matrix.junit_file }}
+          --first-outcome ${{ steps.run-pytest.outcome }}
+          --out-dir artifacts/flaky/${{ matrix.partition }}
+          --partition ${{ matrix.partition }}
+
+      - name: Upload flaky test report
+        if: failure() && steps.run-pytest.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flaky-tests-${{ matrix.partition }}
+          path: artifacts/flaky/${{ matrix.partition }}/flaky-tests.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
+
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto
       # --dist worksteal` shard above measures the runner's load, not the
@@ -546,7 +612,13 @@ jobs:
         if: always()
         with:
           name: pytest-results-${{ matrix.partition }}
-          path: artifacts/
+          # artifacts/flaky/ holds the rerun's own JUnit file and cache. It is
+          # a second measurement of the same tests, and the downstream wall-time
+          # and slow-test gates must read the first run only, so it is excluded
+          # here rather than being filtered again in each of those gates.
+          path: |
+            artifacts/
+            !artifacts/flaky/
           include-hidden-files: true
           overwrite: true
           retention-days: 7
@@ -564,7 +636,7 @@ jobs:
       actions: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -745,7 +817,7 @@ jobs:
       actions: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -908,7 +980,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -1037,7 +1109,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -1092,7 +1164,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
@@ -1133,7 +1205,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -1150,7 +1222,7 @@ jobs:
           python-version: '3.15'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
 

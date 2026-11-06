@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Select Stage-2 review axes from verified changed paths and diff effects.
 
 ``/review`` runs a Stage-1 ``spec-compliance`` gate, then a set of Stage-2
@@ -24,9 +25,11 @@ every matched category contributes its axes.
 Fail-closed rule: when a changed path matches no known risk category, when the
 path list is empty or holds nothing but blanks, when a declared diff effect is
 not in the known vocabulary, or when a demanded axis has no
-``references/{stem}.md`` prompt to load, every candidate axis is selected.  An
-unclassified change gets the full review, never an empty one, and an incomplete
-prompt set widens the review instead of narrowing it.  A demanded axis with no
+``references/{stem}.md`` prompt to load, every canonical candidate is selected,
+plus each local axis whose scanner reads a changed path (all four when no
+usable path was passed; issue #7031).  An unclassified change gets every
+canonical axis, never an empty review, and an incomplete prompt set widens the
+review instead of narrowing it.  A demanded axis with no
 prompt is reported in ``unresolved_axes`` so it never vanishes from both
 ``canonical_selected`` and ``skipped``.
 
@@ -55,12 +58,15 @@ ALWAYS_ON_CANONICAL = ("analyst",)
 LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
 
 # Every suffix either local scanner reads, plus the ones only the canonical
-# code-quality subagent covers (.rs, .rb). A suffix missing here never matches
+# code-quality subagent covers (.rs, .rb, .psd1, .ps1xml). A suffix missing here never matches
 # executable-code, so the row cannot contribute code-quality or either scanner,
 # and a file that another row already classified is silently reviewed by less
 # than it should be: scripts/setup.bash matched toolkit-governance alone and
 # skipped taste-lints, which reads .bash, and an .mjs or .cjs hook matched
 # agent-artifacts alone and skipped code-qualities-assessment, which reads both.
+# .psd1 and .ps1xml carry PowerShell code (a manifest is a hashtable, and
+# types.ps1xml embeds ScriptBlock members). Leaving them out made a module
+# change fail closed and scan zero files (issue #7004).
 _CODE_SUFFIXES = frozenset(
     {
         ".py",
@@ -73,6 +79,8 @@ _CODE_SUFFIXES = frozenset(
         ".cs",
         ".ps1",
         ".psm1",
+        ".psd1",
+        ".ps1xml",
         ".sh",
         ".bash",
         ".go",
@@ -238,7 +246,9 @@ def _is_security_path(path: str) -> bool:
 
 def _is_dependency_path(path: str) -> bool:
     name = path.rsplit("/", 1)[-1]
-    if name in _DEPENDENCY_MANIFESTS or name.endswith(".csproj"):
+    # A .psd1 module manifest declares RequiredModules and RequiredAssemblies,
+    # the PowerShell counterpart of a .csproj.
+    if name in _DEPENDENCY_MANIFESTS or name.endswith((".csproj", ".psd1")):
         return True
     return name.startswith("requirements") and name.endswith(".txt")
 
@@ -385,7 +395,7 @@ def _is_code_path(path: str) -> bool:
 # dict `_LANGUAGE_BY_SUFFIX`, read through `_LANGUAGE_BY_SUFFIX.get(
 # file_path.suffix.lower())`. The `.lower()` is why this mirror folds case.
 # Divergence: none. Absent on purpose because the canonical map has no entry
-# for them: .ps1, .psm1, .sh, .rs, .rb. Parity is asserted against the dict
+# for them: .ps1, .psm1, .psd1, .ps1xml, .sh, .bash, .rs, .rb. Parity is asserted against the dict
 # itself in tests/skills/review/test_select_axes_scanner_capability.py.
 _ASSESS_SUFFIXES = frozenset(
     {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cs", ".java", ".go"}
@@ -406,25 +416,13 @@ _TASTE_LINT_SUFFIXES = frozenset(
 # tests/skills/review/test_select_axes_scanner_capability.py, so widening the
 # canonical list reds that test instead of silently drifting from this one.
 _DOC_ACCURACY_SUFFIXES = frozenset({".md"})
-# Same file, `EXCLUDE_DIRS`, quoted verbatim. The inventory walk skips any path
-# under one of these, so a Markdown file inside one is never read even though
-# its suffix matches. This repository tracks `build/AGENTS.md`, which is
-# exactly that case.
-_DOC_ACCURACY_EXCLUDED_DIRS = frozenset(
-    {
-        ".git",
-        "node_modules",
-        "__pycache__",
-        ".venv",
-        "venv",
-        "target",
-        "dist",
-        "build",
-        "bin",
-        "obj",
-        ".doc-accuracy",
-    }
-)
+# Same file, `_GIT_EXCLUDE_DIRS`, quoted verbatim. /review always runs the
+# scanner with `--diff-base`, which forces git mode: the inventory comes from
+# `git ls-files` and drops only these two directories. The walk-mode
+# `EXCLUDE_DIRS` (build, bin, dist, ...) does not apply, so a tracked
+# `build/AGENTS.md` is read (issue #6202). Mirroring the walk-mode set here
+# made deep review skip doc-accuracy for such a file.
+_DOC_ACCURACY_EXCLUDED_DIRS = frozenset({".git", ".doc-accuracy"})
 # scan_principles._is_applicable compares these two names literally. The
 # classifier above matches them lowercased; this mirror keeps the real casing.
 _GP_SCANNER_SKILL_FILENAME = "SKILL.md"
@@ -463,12 +461,11 @@ def _taste_lints_reads(path: str) -> bool:
 def _doc_accuracy_reads(path: str) -> bool:
     """Return True when doc_accuracy.py would inventory *path*.
 
-    Mirrors `DOC_GLOBS` and `EXCLUDE_DIRS` in
+    Mirrors `DOC_GLOBS` and the git-mode `_GIT_EXCLUDE_DIRS` in
     `.claude/skills/doc-accuracy/scripts/doc_accuracy.py`; see the constants
-    above for the quoted contracts and the divergence notes. The suffix alone
-    is not enough: the inventory walk prunes excluded directories first, so a
-    tracked file like `build/AGENTS.md` matches the glob and is still never
-    read.
+    above for the quoted contracts. The suffix alone is not enough: git mode
+    still drops `.git/` and `.doc-accuracy/`. A tracked `build/AGENTS.md` is
+    read, because git mode skips the walk-mode `EXCLUDE_DIRS`.
     """
     if _suffix(path) not in _DOC_ACCURACY_SUFFIXES:
         return False
@@ -551,6 +548,22 @@ def scannable_local_axes(paths: Sequence[str]) -> set[str]:
     }
 
 
+def readable_local_axes(paths: Sequence[str]) -> set[str]:
+    """Local axes whose scanner reads at least one of *paths*.
+
+    Deep and fail-closed runs use this whole-list question on purpose. Neither
+    routes an axis by category, so every changed path is in scope for every
+    axis, and the only question left is whether the scanner can read any of
+    them. A path the scanner cannot read stays covered by the canonical axes,
+    which both modes always run in full.
+    """
+    return {
+        axis
+        for axis in LOCAL_AXES
+        if any(_LOCAL_SCANNER_READS[axis](_posix(path)) for path in paths if _norm(path))
+    }
+
+
 # Ordered risk table. Each row is (category, predicate, canonical axes, local
 # axes). Every row whose predicate matches contributes its axes, so a single
 # path can select several axes and several paths accumulate.
@@ -603,17 +616,21 @@ _PINNED_REASON = "selected - caller-pinned always-on"
 
 
 def _blanket_reason(
-    deep: bool,
     unclassified: Sequence[str],
     unknown_effects: Sequence[str],
     usable_paths: Sequence[str],
+    unresolved: Sequence[str],
 ) -> str:
-    """Return the reason recorded on every axis when the whole set runs."""
-    if deep:
-        return _DEEP_REASON
+    """Return the reason recorded on every axis a deep or fail-closed run selects.
+
+    Fail-closed wins over deep: a deep run that fails closed says so on every
+    axis it selects, so the reader sees why the run did not narrow by category.
+    """
     if unclassified or unknown_effects or not usable_paths:
         return _FAIL_CLOSED_REASON
-    return _UNRESOLVED_REASON
+    if unresolved:
+        return _UNRESOLVED_REASON
+    return _DEEP_REASON
 
 
 def discover_canonical_axes(references_dir: Path) -> list[str]:
@@ -634,11 +651,13 @@ def unreviewable_paths(paths: Sequence[str]) -> list[str]:
     other axis still covers the path. `executable-code` also contributes the
     canonical `code-quality` subagent, so dropping both scanners for a Rust file
     still leaves it reviewed. `docs-and-instructions` and `toolkit-governance`
-    contribute local axes alone, so dropping theirs leaves nobody: a tracked
-    `build/AGENTS.md` or a `README.MD` would be classified, skipped by every
-    axis that claimed it, and the run could still finish PASS with no
-    documentation evidence at all. Those paths are reported so the caller fails
-    the run closed instead.
+    contribute local axes alone, so dropping theirs leaves nobody: a
+    `.doc-accuracy/notes.md` or a `README.MD` would be classified, skipped by every
+    axis that claimed it, and reviewed by no axis at all. Those paths are
+    reported so the caller fails the run closed, which selects every canonical
+    axis. The local scanner that claimed them still cannot read them, so the
+    fail-closed narrowing skips it with a reason rather than scanning zero files into an UNKNOWN that
+    blocks PASS forever (issue #7031). The canonical axes are their review.
     """
     stranded: list[str] = []
     for raw in paths:
@@ -745,9 +764,25 @@ def select_axes(
     skip_overrides: dict[str, str] = {}
 
     if deep or fail_closed:
-        blanket = _blanket_reason(deep, unclassified, unknown_effects, usable_paths)
+        blanket = _blanket_reason(unclassified, unknown_effects, usable_paths, unresolved_axes)
         canonical_selected = set(canonical_candidates)
         local_selected = set(LOCAL_AXES)
+        if usable_paths:
+            # The caller passes only verified diff paths (SKILL.md tells a
+            # caller unsure of them to pass none), so a local scanner that
+            # reads none of them is skipped with a reason rather than run over
+            # zero files. That run reports UNKNOWN, which no fix round can
+            # clear, so the change could never reach PASS: issue #7004 for
+            # deep, issue #7031 for fail-closed. Failing closed on an
+            # unclassified path, an unknown effect, or an unresolved axis
+            # leaves the path list itself trustworthy, and no effect routes a
+            # local axis. Every canonical axis still runs, which keeps this the
+            # superset of CI: CI runs no local axis. With no usable path there
+            # is nothing to narrow against, so all four local axes run.
+            local_selected = readable_local_axes(usable_paths)
+            skip_overrides.update(
+                dict.fromkeys(set(LOCAL_AXES) - local_selected, _UNREADABLE_REASON)
+            )
         for axis in canonical_selected | local_selected:
             reasons[axis] = blanket
         for axis in unresolved_axes:
@@ -763,9 +798,8 @@ def select_axes(
         # never inventories. Selecting those anyway yields a scan over zero
         # files, which reports UNKNOWN, and an UNKNOWN axis blocks a PASS just
         # as a skipped one does without saying why. Skipping names the reason.
-        # Deep and fail-closed runs skip this narrowing on purpose: both are
-        # explicit "run everything" modes, and fail-closed has no trustworthy
-        # path list to narrow by.
+        # Deep and fail-closed narrow by scanner reads alone
+        # (readable_local_axes), since neither routes an axis by category.
         routed_local = set(local_sources) & set(LOCAL_AXES)
         local_selected = routed_local & scannable_local_axes(usable_paths)
         unreadable_local = routed_local - local_selected
@@ -845,7 +879,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--deep",
         action="store_true",
-        help="Deep review: select every candidate axis regardless of risk.",
+        help=(
+            "Deep review: select every canonical axis regardless of risk, and "
+            "each local axis whose scanner reads a changed file."
+        ),
     )
     parser.add_argument(
         "--references-dir",

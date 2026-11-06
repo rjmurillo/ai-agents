@@ -6,8 +6,8 @@ code is 0 by design. A reader scanning the run still saw the word "FAIL" and the
 word "passed" together and could not tell which one governed the push.
 
 These drive the real ``main`` and read its stdout, so what is pinned is the
-process's own output (``.claude/rules/testing.md`` MUST 8). The typed state in
-the JSON summary stays ``FAIL``; only the console label changes.
+process's own output (``.claude/rules/testing.md`` MUST 8). Each JSON row keeps
+its typed ``FAIL``. Only the console label and the JSON parent state change.
 """
 
 from __future__ import annotations
@@ -62,6 +62,13 @@ def _advisory(findings: int = 2) -> CheckOutcome:
 
 def _blocking() -> CheckOutcome:
     return CheckOutcome.failed("lint_gate", reason="lint.violation", findings=1, detail="bad")
+
+
+def _summary(capsys: pytest.CaptureFixture[str], tmp_path: Path, *outcomes: Any) -> dict[str, Any]:
+    destination = tmp_path / "summary.json"
+    _run(capsys, *outcomes, argv=("--summary-json", str(destination)))
+    data: dict[str, Any] = json.loads(destination.read_text(encoding="utf-8"))
+    return data
 
 
 class TestAdvisoryLabel:
@@ -124,7 +131,7 @@ class TestAdvisoryLabel:
     def test_the_json_summary_keeps_the_typed_fail_state(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
     ) -> None:
-        """Negative control on scope: the label is console-only."""
+        """Negative control on scope: rows and counts keep the typed state."""
         destination = tmp_path / "summary.json"
 
         code, _ = _run(capsys, _passing(), _advisory(), argv=("--summary-json", str(destination)))
@@ -133,6 +140,36 @@ class TestAdvisoryLabel:
         assert code == 0
         assert data["counts"]["FAIL"] == 1
         assert [r["state"] for r in data["results"]] == ["PASS", "FAIL"]
+
+    def test_the_json_parent_names_an_advisory_only_run(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """Discriminating case: the parent state read ``FAIL`` beside exit 0."""
+        data = _summary(capsys, tmp_path, _passing(), _advisory(), _advisory())
+
+        assert data["state"] == "ADVISORY"
+        assert data["exit_code"] == 0
+        assert data["blocking"] is False
+        assert data["advisory_count"] == 2
+
+    def test_the_json_parent_of_a_clean_run_stays_pass(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        data = _summary(capsys, tmp_path, _passing())
+
+        assert data["state"] == "PASS"
+        assert data["advisory_count"] == 0
+
+    def test_the_json_parent_stays_fail_when_a_finding_blocks(
+        self, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    ) -> None:
+        """Negative control: an advisory row must not soften a blocking run."""
+        data = _summary(capsys, tmp_path, _advisory(), _blocking())
+
+        assert data["state"] == "FAIL"
+        assert data["exit_code"] == 1
+        assert data["blocking"] is True
+        assert data["advisory_count"] == 1
 
 
 class TestBlockingFailUnchanged:

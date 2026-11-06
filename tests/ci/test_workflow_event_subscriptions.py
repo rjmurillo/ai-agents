@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.bulk_cancel_guard import parse_workflow_yaml
 from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
 from scripts.github_core.workflow_event_subscriptions import (
     DEFAULT_PULL_REQUEST_TYPES,
@@ -164,19 +165,19 @@ class TestLoadWorkflowSubscriptions:
             "name: Validate PR\non:\n  pull_request:\n", encoding="utf-8"
         )
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert loaded["validate.yml"].name == "Validate PR"
         assert loaded["Validate PR"].pull_request_types == DEFAULT_PULL_REQUEST_TYPES
 
     def test_missing_directory_yields_an_empty_map(self, tmp_path: Path):
-        assert load_workflow_subscriptions(tmp_path / "absent") == {}
+        assert load_workflow_subscriptions(tmp_path / "absent", parse_workflow_yaml) == {}
 
     def test_malformed_workflow_is_skipped_without_hiding_its_siblings(self, tmp_path: Path):
         (tmp_path / "broken.yml").write_text("name: [unclosed\n", encoding="utf-8")
         (tmp_path / "good.yml").write_text("name: Good\non:\n  pull_request:\n", encoding="utf-8")
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert "broken.yml" not in loaded
         assert loaded["Good"].pull_request_types == DEFAULT_PULL_REQUEST_TYPES
@@ -184,12 +185,12 @@ class TestLoadWorkflowSubscriptions:
     def test_non_yaml_files_are_ignored(self, tmp_path: Path):
         (tmp_path / "README.md").write_text("not a workflow\n", encoding="utf-8")
 
-        assert load_workflow_subscriptions(tmp_path) == {}
+        assert load_workflow_subscriptions(tmp_path, parse_workflow_yaml) == {}
 
     def test_scalar_document_is_skipped(self, tmp_path: Path):
         (tmp_path / "scalar.yml").write_text("just a string\n", encoding="utf-8")
 
-        assert load_workflow_subscriptions(tmp_path) == {}
+        assert load_workflow_subscriptions(tmp_path, parse_workflow_yaml) == {}
 
     def test_parses_this_repository_s_real_workflow_corpus(self):
         # A synthesized fixture proves the parser's branches; only the real
@@ -197,7 +198,7 @@ class TestLoadWorkflowSubscriptions:
         # at. `.github/workflows/pr-validation.yml` line 1 declares
         # `name: PR Validation` and line 12 declares
         # `types: [opened, edited, synchronize, reopened]`.
-        loaded = load_workflow_subscriptions(_WORKFLOWS_DIR)
+        loaded = load_workflow_subscriptions(_WORKFLOWS_DIR, parse_workflow_yaml)
 
         assert len(loaded) > 10, "the workflow corpus should not be empty"
         pr_validation = loaded["PR Validation"]
@@ -230,7 +231,7 @@ class TestSharedWorkflowNames:
         # b.yml, so the name "Dup" must not answer yes for `reopened`.
         self.write_pair(tmp_path, "[opened, reopened]", "[opened, synchronize]")
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert loaded["Dup"].pull_request_types == frozenset({"opened"})
         assert subscribes_to(loaded["Dup"], "reopened") is False
@@ -240,14 +241,14 @@ class TestSharedWorkflowNames:
         # ambiguous name outright would pass the negative test too.
         self.write_pair(tmp_path, "[opened, reopened]", "[reopened, synchronize]")
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert subscribes_to(loaded["Dup"], "reopened") is True
 
     def test_each_sharer_still_resolves_by_its_own_filename(self, tmp_path: Path):
         self.write_pair(tmp_path, "[synchronize]", "[reopened]")
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert loaded["a.yml"].pull_request_types == frozenset({"synchronize"})
         assert loaded["b.yml"].pull_request_types == frozenset({"reopened"})
@@ -258,7 +259,7 @@ class TestSharedWorkflowNames:
         )
         (tmp_path / "b.yml").write_text("name: Dup\non:\n  pull_request:\n", encoding="utf-8")
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert subscribes_to(loaded["Dup"], "workflow_dispatch") is False
         assert subscribes_to(loaded["a.yml"], "workflow_dispatch") is True
@@ -274,7 +275,7 @@ class TestSharedWorkflowNames:
                 encoding="utf-8",
             )
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert loaded["Dup"].pull_request_types == frozenset({"opened"})
 
@@ -291,7 +292,7 @@ class TestSharedWorkflowNames:
             encoding="utf-8",
         )
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert declared_required_contexts(loaded["Dup"], REQUIRED_CONTEXTS) == frozenset(
             {"Validate PR", "Run Python Tests"}
@@ -303,7 +304,7 @@ class TestSharedWorkflowNames:
         )
         (tmp_path / "b.yml").write_text("name: Dup\non:\n  pull_request:\n", encoding="utf-8")
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert loaded["Dup"].has_path_filters is True
         assert loaded["b.yml"].has_path_filters is False
@@ -323,7 +324,7 @@ class TestSharedWorkflowNames:
             "on:\n  pull_request:\n    types: [reopened]\n", encoding="utf-8"
         )
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert loaded["target.yml"].pull_request_types == frozenset()
         assert subscribes_to(loaded["target.yml"], "reopened") is False
@@ -340,7 +341,7 @@ class TestSharedWorkflowNames:
             "on:\n  pull_request:\n    types: [reopened]\n", encoding="utf-8"
         )
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert subscribes_to(loaded["target.yml"], "reopened") is True
 
@@ -352,7 +353,15 @@ class TestSharedWorkflowNames:
             encoding="utf-8",
         )
 
-        loaded = load_workflow_subscriptions(tmp_path)
+        loaded = load_workflow_subscriptions(tmp_path, parse_workflow_yaml)
 
         assert loaded["solo.yml"].pull_request_types == frozenset({"opened", "reopened"})
         assert subscribes_to(loaded["solo.yml"], "reopened") is True
+
+
+class TestParseWorkflowYaml:
+    def test_returns_the_document_with_the_on_key_as_true(self):
+        assert parse_workflow_yaml("on: push\n") == {True: "push"}
+
+    def test_returns_none_for_malformed_yaml(self):
+        assert parse_workflow_yaml("name: [unclosed\n") is None

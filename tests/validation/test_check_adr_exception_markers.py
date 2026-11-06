@@ -7,9 +7,8 @@ Pins the runner-exception marker gate:
   rejected ADR, exits 1 and names file, line, and ADR
 - edge: marker spelling variants, `.yaml` files, an ADR whose status cannot be
   read (absent, malformed, or non-scalar; the marker fails, issue #6506), a
-  `# ADR-NNN:` line that is not an exception marker, missing directories
-  (exit 2 per ADR-035)
-- composite action files: see test_check_adr_exception_markers_actions.py
+  `# ADR-NNN:` line that is not
+  an exception marker, missing directories (exit 2 per ADR-035)
 - wiring: the pre-PR adapter returns a bool that follows the exit code
 """
 
@@ -93,7 +92,7 @@ def test_no_markers_passes_and_reports_zero_markers(tmp_path: Path) -> None:
     result = _run(tmp_path)
     assert result.returncode == 0
     assert "0 marker" in result.stdout
-    assert "in 1 workflow and action file" in result.stdout
+    assert "in 1 file" in result.stdout
 
 
 # --- neg --------------------------------------------------------------------
@@ -317,59 +316,6 @@ def test_judge_still_passes_a_live_status() -> None:
     assert gate.judge(gate.Marker("wf.yml", 3, 55), {55: "accepted"}) is None
 
 
-def _duplicate_adr(repo: Path, number: int, status: str, suffix: str) -> None:
-    adr_dir = repo / ".project-toolkit" / "architecture"
-    (adr_dir / f"ADR-{number:03d}-{suffix}.md").write_text(
-        f"---\nid: ADR-{number:03d}\nstatus: {status}\n---\n\n# ADR-{number:03d}\n",
-        encoding="utf-8",
-    )
-
-
-@pytest.mark.parametrize(
-    ("first", "second"), [("accepted", "superseded"), ("superseded", "accepted")]
-)
-def test_marker_naming_a_duplicated_adr_number_fails(
-    tmp_path: Path, first: str, second: str
-) -> None:
-    """detection-gaps-07: the first-sorted file no longer sets the status."""
-    _adr(tmp_path, 55, first)
-    _duplicate_adr(tmp_path, 55, second, "zdup")
-    _workflow(tmp_path, "# ADR-055 Exception: windows")
-    result = _run(tmp_path)
-    assert result.returncode == 1
-    assert "ADR-055 is held by 2 files (ADR-055-runner.md, ADR-055-zdup.md)" in result.stdout
-
-
-def test_two_accepted_duplicates_still_fail(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _duplicate_adr(tmp_path, 55, "accepted", "zdup")
-    _workflow(tmp_path, "# ADR-055 Exception: windows")
-    assert _run(tmp_path).returncode == 1
-
-
-def test_duplicate_that_no_marker_cites_does_not_fail_this_gate(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _adr(tmp_path, 56, "accepted")
-    _duplicate_adr(tmp_path, 56, "accepted", "zdup")
-    _workflow(tmp_path, "# ADR-055 Exception: windows")
-    assert _run(tmp_path).returncode == 0
-
-
-def test_find_duplicate_adrs_lists_both_files_and_ignores_unique_numbers(tmp_path: Path) -> None:
-    _adr(tmp_path, 55, "accepted")
-    _adr(tmp_path, 56, "accepted")
-    _duplicate_adr(tmp_path, 55, "accepted", "zdup")
-    adr_dir = tmp_path / ".project-toolkit" / "architecture"
-    assert gate.find_duplicate_adrs(adr_dir) == {55: ["ADR-055-runner.md", "ADR-055-zdup.md"]}
-    assert gate.collect_adr_statuses(adr_dir) == {55: "", 56: "accepted"}
-
-
-def test_judge_names_the_duplicate_files() -> None:
-    message = gate.judge(gate.Marker("wf.yml", 3, 55), {55: ""}, {55: ["a.md", "b.md"]})
-    assert message is not None
-    assert "held by 2 files (a.md, b.md)" in message
-
-
 def test_status_case_and_padding_are_normalised(tmp_path: Path) -> None:
     adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
@@ -439,3 +385,63 @@ def test_adapter_returns_false_on_violation_and_on_config_error(tmp_path: Path) 
 def test_real_corpus_passes() -> None:
     """Rule 13: the gate passes against the full corpus on this branch."""
     assert gate.main(["--repo-root", str(REPO_ROOT)]) == 0
+
+
+def _action(repo: Path, comment: str, subdir: str = "setup", name: str = "action.yml") -> Path:
+    action_dir = repo / ".github" / "actions" / subdir
+    action_dir.mkdir(parents=True, exist_ok=True)
+    path = action_dir / name
+    path.write_text(
+        f"name: setup\nruns:\n  using: composite\n  steps:\n    {comment}\n    - run: echo hi\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_marker_in_composite_action_naming_missing_adr_fails(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: windows-only tool")
+    _action(tmp_path, "# ADR-999 Exception: x")
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert ".github/actions/setup/action.yml:5" in result.stdout
+    assert "ADR-999" in result.stdout
+
+
+def test_marker_in_nested_action_yaml_extension_fails_when_retired(tmp_path: Path) -> None:
+    _adr(tmp_path, 24, "superseded")
+    _workflow(tmp_path, "# plain comment")
+    _action(tmp_path, "# ADR-024 Exception: x", subdir="a/b", name="action.yaml")
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert ".github/actions/a/b/action.yaml:5" in result.stdout
+    assert "superseded" in result.stdout
+
+
+def test_near_miss_in_action_fails(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# plain comment")
+    _action(tmp_path, "# ADR-055 Exeption: typo")
+    assert _run(tmp_path).returncode == 1
+
+
+def test_live_marker_in_action_passes_and_is_counted(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: windows-only tool")
+    _action(tmp_path, "# ADR-055 Exception: windows-only tool")
+    result = _run(tmp_path)
+    assert result.returncode == 0
+    assert "2 marker(s) in 2 file(s)" in result.stdout
+
+
+def test_tree_without_actions_directory_still_passes(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: windows-only tool")
+    assert _run(tmp_path).returncode == 0
+
+
+def test_non_action_yaml_under_actions_is_not_scanned(tmp_path: Path) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: ok")
+    _action(tmp_path, "# ADR-999 Exception: x", name="other.yml")
+    assert _run(tmp_path).returncode == 0

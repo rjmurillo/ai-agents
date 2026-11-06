@@ -1,6 +1,6 @@
 ---
 name: review
-description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs the full 16-axis set. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit.
+description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs every canonical axis. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit.
 metadata:
   capability:
     kind: orchestrator
@@ -54,7 +54,7 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
   1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
   2. `.claude/skills/review/references/` (Claude Code project layout)
   3. `skills/review/references/` (vendored install)
-- **Verdict library** (`merge_verdicts`, `extract_verdict`, `get_verdict_emoji`, `FAIL_VERDICTS`): try each candidate in order, use the first that exists:
+- **Verdict library** (`merge_verdicts`, `extract_verdict`, `FAIL_VERDICTS`; `get_verdict_emoji` is in sibling `issue_triage.py`): use the first candidate that exists:
   1. `.claude/lib/ai_review_common/verdict.py` (Claude Code project layout)
   2. `lib/ai_review_common/verdict.py` (vendored install)
 - **Complexity tiers reference** (`engineering-complexity-tiers.md`): try each candidate in order, use the first that exists:
@@ -87,9 +87,9 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 4. **Select the Stage-2 axes with `select_axes.py`, then run the canonical ones.** Pass every path from step 1 and every effect from the diff hunks. Pass each path as one argument. Never shell-expand Git-controlled paths. The selector is deterministic, so do not re-derive routing from prose. The co-located `resources/axis-selection.md` defines effects, risks, and output fields.
 
-   Pass `--deep` when the caller asks for a deep or full review, when the invocation is a pre-merge gate that must be a strict superset of CI, or when you cannot enumerate the changed paths with confidence.
+   Pass `--deep` when the caller asks for a deep or full review, or when the invocation is a pre-merge gate that must be a strict superset of CI. Deep and fail-closed skip a local axis whose scanner reads no changed file. Unsure of the paths? Pass none; that fails closed.
 
-   Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every candidate was selected; that is intended, not an error. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
+   Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every canonical axis is selected; that is intended. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
 
    For each selected axis load `references/{role}.md`, then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `Task(subagent_type="general-purpose")`; the prompt drives the review, not the subagent identity.
 
@@ -105,7 +105,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 - local axis 4: Skill(skill="taste-lints"), invoking `python3 <taste_lints.py> --diff-scope "origin/$BASE_BRANCH" --format json`.
 
 6. **Extract verdict per axis**. Canonical axes end with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Parse them with `extract_verdict` from the verdict library. Local axes emit JSON or `Gate:` instead, so normalize them first with `adapt_local_axis_verdict` from that library: it maps code-quality exit codes, `doc-accuracy` `gate_result.verdict`, and golden/taste `error_count` plus `warning_count` into PASS, WARN, FAIL, or UNKNOWN. On a crash, malformed output, or an unclassified result, record `UNKNOWN` and continue.
-7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict, the step 4c correctness verdict, plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis.
+7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict, the step 4c correctness verdict, plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; at most 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis.
 8. **Emit findings table** (see Output below).
 
 ## Running without the Task tool
@@ -122,6 +122,7 @@ A subagent with no `Task` tool MUST NOT review its own diff and write the marker
 - A canonical axis whose output cannot be parsed by `extract_verdict` -> mark `UNKNOWN`.
 - UNKNOWN does NOT override real findings: `merge_verdicts(["WARN", "UNKNOWN"])` returns `WARN`. UNKNOWN only matters when it would otherwise be PASS.
 - UNKNOWN axes are surfaced in the output table so the reviewer sees what was not evaluated.
+- A local axis skipped as unreadable is not PASS and gets no marker row; its Summary names the language-native checks run instead, or `none run`.
 
 ## Output
 
@@ -181,7 +182,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs before Stage 2 (Process step 2)
 - [ ] Every non-spec `references/*.md` file is either selected by change risk or reported as SKIPPED with a reason, and deep review still runs the full set (11 with the current set: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality)
-- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; the 4 local axes stayed in `local_selected`; an unclassifiable path, a blank-only path list, or an unknown `--effect` gave `fail_closed: true` and the full set
+- [ ] Stage-2 selection came from `select_axes.py` over the verified three-dot diff; local axes stayed out of `canonical_selected`; an unclassifiable path, a blank-only path list, or an unknown `--effect` gave `fail_closed: true`
 - [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
 - [ ] The verdict library resolves under one of the two documented candidate paths
 - [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7

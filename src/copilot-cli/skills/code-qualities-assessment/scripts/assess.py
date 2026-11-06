@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """
 Code Qualities Assessment - Main Orchestrator
 
@@ -27,7 +28,9 @@ import json
 import math
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -67,9 +70,28 @@ _LINE_COMMENT_PREFIXES = {
     "go": ("//",),
 }
 
+# Repo-root-anchored prefixes of build outputs (ADR-109, ADR-119). Under
+# ADR-119, src/claude/skills/<name>/ scripts and the top-level src/claude/lib
+# modules are hand-maintained source, so only the rendered parts of src/claude
+# are listed. build/scripts/lib_mirror.py renders the three lib packages,
+# bootstrap.py, and the review skill's validator sidecar from scripts/.
+# Every outputDir in templates/platforms/*.yaml and every lib_mirror.py
+# destination falls under one of these prefixes; test_assess.py pins that.
 _GENERATED_PATH_SEGMENTS = (
-    ("src", "claude"),
+    ("src", "claude", "agents"),
+    ("src", "claude", "hooks"),
+    ("src", "claude", "lib", "ai_review_common"),
+    ("src", "claude", "lib", "bootstrap.py"),
+    ("src", "claude", "lib", "failure_classifier"),
+    ("src", "claude", "lib", "github_core"),
+    ("src", "claude", "lib", "hook_utilities"),
+    ("src", "claude", "rules"),
+    ("src", "claude", "skills", "review", "scripts", "validate_review_marker.py"),
+    ("src", "codex"),
     ("src", "copilot-cli"),
+    ("src", "cursor"),
+    ("src", "hermes"),
+    ("src", "muse"),
     ("src", "vs-code-agents"),
     (".claude", "hooks"),
     (".github", "instructions"),
@@ -141,6 +163,16 @@ _IMPORT_PATTERNS = {
         r'|^\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
     ),
 }
+
+# Extracts the quoted import path from a line the Go import pattern matched.
+_GO_IMPORT_PATH = re.compile(r'"([^"]+)"')
+
+# Reads the module path from a go.mod ``module`` directive.
+_GO_MODULE_DIRECTIVE = re.compile(r'^\s*module\s+"?([^"\s]+)"?', re.MULTILINE)
+
+# Score at or above which an import count reads as reasonable. Matches the
+# default ``coupling.min`` so the explanation agrees with the default verdict.
+_COUPLING_REASONABLE_MIN = 7.0
 
 # Generic import fallback for languages without a tuned pattern.
 _GENERIC_IMPORT_PATTERN = re.compile(r"^\s*(?:import|from|using|require|#include)\b")
@@ -818,7 +850,7 @@ def _get_base_assessments(
         raw = get_file_at_revision(relative_path, revision)
         if raw is None:
             continue
-        assessments[str(file_path)] = _assess_base_bytes(file_path, raw)
+        assessments[str(file_path)] = _assess_base_bytes(file_path, raw, revision, relative_path)
     return assessments
 
 
@@ -1005,7 +1037,7 @@ def build_comparisons(
             )
             new_files.append(head)
             continue
-        base_assessment = _assess_base_bytes(base_path, raw)
+        base_assessment = _assess_base_bytes(base_path, raw, revision)
         absolute_reason = None if _has_scored_quality(base_assessment) else "base_unscored"
         comparisons.append(
             compare_assessments(
@@ -1022,14 +1054,25 @@ def build_comparisons(
     return comparisons, new_files
 
 
-def _assess_base_bytes(path: Path, raw: bytes) -> FileAssessment:
+def _assess_base_bytes(
+    path: Path,
+    raw: bytes,
+    revision: str | None = None,
+    revision_path: Path | None = None,
+) -> FileAssessment:
     """Score the base revision's bytes, or record it as unmeasurable.
 
     An undecodable base scores nothing, so every quality reads as newly scored
-    and no delta is fabricated from a file the assessor could not read.
+    and no delta is fabricated from a file the assessor could not read. With
+    *revision*, Go module context comes from that revision's go.mod, found
+    from *revision_path* (the path ``git show`` accepts, default *path*).
     """
+    resolver: Callable[[], str | None] | None = None
+    if revision is not None:
+        resolver = partial(_go_module_path_at_revision, revision_path or path, revision)
+
     try:
-        return assess_content(path, raw.decode("utf-8"))
+        return assess_content(path, raw.decode("utf-8"), resolver)
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(path, f"decode failed at base: {exc}")
 
@@ -1104,7 +1147,68 @@ def _score_cohesion(language: str | None, code_lines: list[str], loc: int) -> Qu
     return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
 
 
-def _score_coupling(language: str | None, code_lines: list[str]) -> QualityScore:
+def _parse_go_module(raw: bytes) -> str | None:
+    """Return the ``module`` directive of go.mod bytes, or None if unreadable."""
+    try:
+        match = _GO_MODULE_DIRECTIVE.search(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        return None
+    return match.group(1) if match else None
+
+
+def _go_module_path(file_path: Path | None) -> str | None:
+    """Return the module path from the nearest working-tree go.mod.
+
+    The module's own packages are application coupling even when the module
+    path has no dot (``module myapp``), so they must not read as standard
+    library. Returns None when no readable go.mod declares a module.
+    """
+    if file_path is None:
+        return None
+    for directory in Path(file_path).resolve().parents:
+        go_mod = directory / "go.mod"
+        if not go_mod.is_file():
+            continue
+        try:
+            return _parse_go_module(go_mod.read_bytes())
+        except OSError:
+            return None
+    return None
+
+
+def _go_module_path_at_revision(file_path: Path, revision: str) -> str | None:
+    """Return the module path from the nearest go.mod at *revision*.
+
+    Base scoring must read the base go.mod, not the working tree's. A renamed
+    dotless module would otherwise classify the base's own imports as
+    standard library and report a false coupling regression.
+    """
+    for directory in file_path.parents:
+        raw = get_file_at_revision(directory / "go.mod", revision)
+        if raw is not None:
+            return _parse_go_module(raw)
+    return None
+
+
+def _is_go_standard_import(import_path: str, module_path: str | None) -> bool:
+    """Classify a Go import path as standard library.
+
+    Uses the Go toolchain rule: a standard path's first element has no dot.
+    ``C`` (cgo) is a foreign-code dependency, and the enclosing module's own
+    packages are application code, so neither counts as standard.
+    """
+    if import_path == "C":
+        return False
+    if module_path and (import_path == module_path or import_path.startswith(module_path + "/")):
+        return False
+    return "." not in import_path.split("/", 1)[0]
+
+
+def _score_coupling(
+    language: str | None,
+    code_lines: list[str],
+    go_module_resolver: Callable[[], str | None] | None = None,
+) -> QualityScore:
     """Approximate coupling from the number of import/dependency statements.
 
     A high score means loose coupling (few imports), which is good, matching
@@ -1112,28 +1216,43 @@ def _score_coupling(language: str | None, code_lines: list[str]) -> QualityScore
     counted with a generic fallback for the report but returned at confidence
     0.0 so the threshold gate does not fail a file scored only by that
     untuned heuristic (matches the file-header contract).
+
+    Go standard-library imports are reported but not scored: they are stable
+    utilities, not application or third-party coupling (issue #7047).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
+    standard_count = 0
     if pattern is not None:
-        import_count = sum(1 for line in code_lines if pattern.search(line))
+        import_lines = [line for line in code_lines if pattern.search(line)]
+        import_count = len(import_lines)
+        if language == "go":
+            module_path = go_module_resolver() if go_module_resolver else None
+            for line in import_lines:
+                match = _GO_IMPORT_PATH.search(line)
+                if match and _is_go_standard_import(match.group(1), module_path):
+                    standard_count += 1
         confidence = 0.6
         tuned = True
     else:
         import_count = sum(1 for line in code_lines if _GENERIC_IMPORT_PATTERN.search(line))
         confidence = 0.0
         tuned = False
-    score = max(1.0, min(10.0, 10.0 - import_count))
+    scored_count = import_count - standard_count
+    score = max(1.0, min(10.0, 10.0 - scored_count))
     detail = (
-        "High import count suggests high coupling"
-        if import_count > 10
-        else "Import count is reasonable"
+        "Import count is reasonable"
+        if score >= _COUPLING_REASONABLE_MIN
+        else "High import count suggests high coupling"
     )
     if not tuned:
         detail = "Generic import approximation (untuned language); not gated"
-    reasons = [
-        f"{import_count} import/dependency statements",
-        detail,
-    ]
+    reasons = [f"{import_count} import/dependency statements"]
+    if language == "go":
+        reasons.append(
+            f"{standard_count} Go standard library (not scored), "
+            f"{scored_count} application or third-party (scored)"
+        )
+    reasons.append(detail)
     return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
 
 
@@ -1268,14 +1387,23 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     )
 
 
-def assess_content(file_path: Path, content: str) -> FileAssessment:
+def assess_content(
+    file_path: Path,
+    content: str,
+    go_module_resolver: Callable[[], str | None] | None = None,
+) -> FileAssessment:
     """Score already-loaded *content* attributed to *file_path*.
 
     Split out of ``assess_file`` so the same scoring runs over a base revision
     fetched with ``git show``, which never touches the working tree. Keeping
     one scoring body is what makes a base-to-head delta meaningful: two bodies
     would drift and the delta would measure the drift instead of the code.
+
+    *go_module_resolver* supplies the enclosing Go module path. It defaults to
+    the working-tree go.mod; base scoring passes one that reads the revision.
     """
+    resolve_go_module = go_module_resolver or (lambda: _go_module_path(file_path))
+
     language = detect_language(file_path)
     comment_prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
 
@@ -1295,7 +1423,7 @@ def assess_content(file_path: Path, content: str) -> FileAssessment:
         file_path=str(file_path),
         category=category,
         cohesion=_score_cohesion(language, code_lines, loc),
-        coupling=_score_coupling(language, code_lines),
+        coupling=_score_coupling(language, code_lines, resolve_go_module),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
         non_redundancy=_score_non_redundancy(lines, language is not None),

@@ -145,7 +145,7 @@ surfaces:
     generator: build/scripts/hook_templates.py
     owner: build_all.py --check
   - id: hooks-json-claude-plugin
-    path: src/claude/hooks.json
+    path: src/claude/hooks/hooks.json
     relation: generated
     authority: templates/hooks/hooks.json
     generator: build/scripts/hook_templates.py
@@ -164,7 +164,7 @@ surfaces:
   - id: hooks-json-claude-install
     path: .claude/hooks/hooks.json
     relation: binplaced
-    authority: src/claude/hooks.json
+    authority: src/claude/hooks/hooks.json
     generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
   - id: settings-claude
@@ -272,6 +272,13 @@ surfaces:
     generator: build/scripts/generate_skills.py
     owner: build_all.py --check
     reason: Frontmatter keys model and model-rationale drop; the body ships verbatim (ADR-115 Decision 2).
+  - id: skills-muse
+    path: src/muse/skills
+    relation: translated
+    authority: src/claude/skills
+    generator: build/scripts/generate_skills.py
+    owner: build_all.py --check
+    reason: Frontmatter keeps only name and description (frontmatterKeep in templates/platforms/muse.yaml); the body ships verbatim.
 
   # ---- Lib packages -------------------------------------------------------
   - id: lib-hook-utilities-claude-plugin
@@ -292,6 +299,13 @@ surfaces:
     path: src/claude/lib/ai_review_common
     relation: translated
     authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-claude-plugin
+    path: src/claude/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
@@ -323,6 +337,13 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-copilot-plugin
+    path: src/copilot-cli/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
   - id: lib-bootstrap-copilot-plugin
     path: src/copilot-cli/lib/bootstrap.py
     relation: translated
@@ -348,6 +369,13 @@ surfaces:
     path: src/cursor/lib/ai_review_common
     relation: translated
     authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-cursor-plugin
+    path: src/cursor/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
@@ -379,8 +407,50 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-codex-plugin
+    path: src/codex/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
   - id: lib-bootstrap-codex-plugin
     path: src/codex/lib/bootstrap.py
+    relation: translated
+    authority: scripts/hook_utilities/bootstrap.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-hook-utilities-muse-plugin
+    path: src/muse/lib/hook_utilities
+    relation: translated
+    authority: scripts/hook_utilities
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-github-core-muse-plugin
+    path: src/muse/lib/github_core
+    relation: translated
+    authority: scripts/github_core
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-ai-review-common-muse-plugin
+    path: src/muse/lib/ai_review_common
+    relation: translated
+    authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-failure-classifier-muse-plugin
+    path: src/muse/lib/failure_classifier
+    relation: translated
+    authority: scripts/failure_classifier
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-bootstrap-muse-plugin
+    path: src/muse/lib/bootstrap.py
     relation: translated
     authority: scripts/hook_utilities/bootstrap.py
     generator: build/scripts/lib_mirror.py
@@ -406,6 +476,14 @@ surfaces:
     relation: independent
     include: ["*.py"]
     reason: Top-level modules have no scripts/ source and are edited here.
+  - id: lib-claude-dispatch-copies
+    path: src/claude/lib
+    relation: translated
+    authority: .claude/lib
+    include: [claude_hook_dispatch.py, claude_hook_protocol.py, hook_dispatch.py, hook_dispatch_protocol.py, hook_dispatch_timeout.py, output_capture.py, shim_loader.py]
+    divergent: []
+    owner: build/scripts/check_surface_parity.py
+    reason: The plugin launcher imports the grouped dispatcher from its own lib/ (REQ-048 TASK-006), so the plugin ships byte copies of these seven .claude/lib modules. Edit .claude/lib, then copy.
   - id: lib-copilot-modules
     path: src/copilot-cli/lib
     relation: translated
@@ -483,6 +561,11 @@ surfaces:
     relation: independent
     include: ["plugin.json"]
     reason: Plugin manifest is authored in place (ADR-115 Decision 1).
+  - id: src-muse-authored
+    path: src/muse
+    relation: independent
+    include: ["README.md"]
+    reason: Tree guide and Muse install instructions are authored in place; Muse has no plugin manifest.
   - id: claude-guides
     path: .claude
     relation: independent
@@ -503,6 +586,7 @@ surfaces:
       - copilot-instructions.md
       - dependabot.yml
       - labeler.yml
+      - release.yml
     reason: Repository configuration authored in place.
   - id: github-workflows
     path: .github/workflows

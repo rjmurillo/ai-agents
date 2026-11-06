@@ -74,6 +74,7 @@ from check_template_repo_refs import validate_template_repo_refs
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
+from check_unused_arguments import validate_unused_arguments
 from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import (
     validate_adr_uniqueness,
@@ -81,6 +82,7 @@ from checks_ci_parity import (
     validate_agent_skill_discriminator,
     validate_closure_manifest,
     validate_hook_contracts,
+    validate_import_boundaries,
     validate_memory_placement,
     validate_passive_context_budget,
     validate_placeholder_identity,
@@ -318,6 +320,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
         _root_only(validate_unreachable_code),
         already_run_by="python-unreachable-statements",
     ),
+    # Same check as the pre-push python-unused-arguments job. No already_run_by, so
+    # the gate runs again inside pre-pr-validation. Standalone wall time was 0.75s
+    # to 0.77s over five runs on 2026-11-05 (48 cores, load average 14), so the
+    # repeat costs less than one deferral's scheduling risk (ADR-104 rule 6).
+    _Gate("Unused Argument Detection", _root_only(validate_unused_arguments)),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
@@ -486,6 +493,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # run and cost a rejected push when pre_pr skipped them (issue #6426).
     _Gate("Review Axis Drift", _root_only(validate_review_axis_drift)),
     _Gate("Skill Description Budget", _root_only(validate_skill_description_budget)),
+    # Module boundaries in pyproject.toml [tool.importlinter]. The pytest.yml
+    # step and the pre-push import-boundaries job run the same command.
+    _Gate("Import Boundaries", _root_only(validate_import_boundaries)),
     # Advisory: the typed dependency closure of every pinned required context
     # (ADR-101 Phase 1, issue #5245). Prints the summary and any unresolved edge,
     # never fails; the job that binds runs from the default branch.
@@ -776,7 +786,10 @@ def run_all_validations(
     fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
         if fast_stage_ran and gate.already_run_by:
-            detail = f"already passed as the unconditional pre-push job {gate.already_run_by}"
+            detail = (
+                f"covered by the unconditional pre-push job {gate.already_run_by}, "
+                "which blocks the push when it fails"
+            )
             outcome = CheckOutcome.skipped(gate.name, reason=REASON_ALREADY_RUN, detail=detail)
             if not state.hides(outcome):
                 print(f"[SKIP] {gate.name} ({detail})")

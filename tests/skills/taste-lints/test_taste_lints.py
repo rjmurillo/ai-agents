@@ -243,6 +243,112 @@ class TestCheckNaming:
         assert skill_violations == []
 
 
+def _naming_messages(filepath: str) -> list[str]:
+    return [v.message for v in check_naming(filepath, []) if v.rule == "naming"]
+
+
+def _only_remediation(filepath: str, message_part: str) -> str:
+    matches = [v for v in check_naming(filepath, []) if message_part in v.message]
+    assert len(matches) == 1, f"{filepath}: {matches}"
+    return str(matches[0].remediation)
+
+
+class TestNamingRepairsClearTheirViolation:
+    """A suggested name must pass the rule that suggested it. Issue #7100."""
+
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "sample.pr.yml",
+            "docker-compose.override.yaml",
+            "values.2024.yml",
+            ".coderabbit.yaml",
+            ".markdownlint-cli2.yaml",
+        ],
+    )
+    def test_dotted_and_dotfile_yaml_stems_are_accepted(self, filename: str) -> None:
+        assert _naming_messages(f"config/{filename}") == []
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("Sample.PR.yml", "sample.pr.yml"),
+            ("my_config.pr.yml", "my-config.pr.yml"),
+            (".Foo_Bar.yaml", ".foo-bar.yaml"),
+            ("foo..bar.yml", "foo.bar.yml"),
+            ("foo bar.yml", "foo-bar.yml"),
+            ("1config.yml", "item-1config.yml"),
+            ("_foo.yml", "foo.yml"),
+            ("-.yml", "item.yml"),
+            ("caf\u00e9.yml", "caf.yml"),
+        ],
+    )
+    def test_yaml_repair_is_suggested_and_clears_the_warning(
+        self, filename: str, expected: str
+    ) -> None:
+        remediation = _only_remediation(f"config/{filename}", "is not kebab-case")
+
+        assert f"Suggested: {expected}\n" in remediation
+        assert expected != filename
+        assert _naming_messages(f"config/{expected}") == []
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("MyModule.py", "my_module.py"),
+            ("a.b.py", "a_b.py"),
+            ("foo-bar.py", "foo_bar.py"),
+            ("foo bar.py", "foo_bar.py"),
+            ("1foo.py", "item_1foo.py"),
+            ("__Foo.py", "_foo.py"),
+            ("_1foo.py", "_item_1foo.py"),
+        ],
+    )
+    def test_python_repair_is_suggested_and_clears_the_error(
+        self, filename: str, expected: str
+    ) -> None:
+        remediation = _only_remediation(f"src/{filename}", "is not snake_case")
+
+        assert f"Suggested: {expected}\n" in remediation
+        assert f"Run: git mv src/{filename} src/{expected}" in remediation
+        assert _naming_messages(f"src/{expected}") == []
+
+    def test_python_entry_point_module_is_exempt(self) -> None:
+        assert _naming_messages("pkg/__main__.py") == []
+
+    @pytest.mark.parametrize(
+        ("directory", "expected"),
+        [
+            ("My_Skill", "my-skill"),
+            ("my.skill", "my-skill"),
+            ("1skill", "item-1skill"),
+            ("_foo", "foo"),
+        ],
+    )
+    def test_skill_directory_repair_clears_the_warning(self, directory: str, expected: str) -> None:
+        remediation = _only_remediation(f".claude/skills/{directory}/notes.md", "Skill directory")
+
+        assert f"Rename: {directory} -> {expected}\n" in remediation
+        assert _naming_messages(f".claude/skills/{expected}/notes.md") == []
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("my_guard.py", "invoke_my_guard.py"),
+            ("my-guard.py", "invoke_my_guard.py"),
+            ("MyGuard.py", "invoke_my_guard.py"),
+            ("Invoke_guard.py", "invoke_guard.py"),
+            ("InvokeGuard.py", "invoke_guard.py"),
+        ],
+    )
+    def test_hook_repair_clears_every_naming_violation(self, filename: str, expected: str) -> None:
+        hooks = ".claude/hooks/PreToolUse"
+        remediation = _only_remediation(f"{hooks}/{filename}", "missing 'invoke_'")
+
+        assert f"Rename to: {expected}\n" in remediation
+        assert _naming_messages(f"{hooks}/{expected}") == []
+
+
 class TestCheckComplexity:
     """Tests for function complexity checking."""
 
@@ -1156,3 +1262,151 @@ class TestSuppressionSurvivesFrontmatter:
         lines = ["# Title\n", "body\n"]
 
         assert _suppression_window(lines) == lines
+
+
+# --------------------------------------------------------------------------- #
+# ADR-119: src/claude/skills/<name>/ support files are source; SKILL.md renders
+# --------------------------------------------------------------------------- #
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/taste-lints/scripts/taste_lints.py",
+        "src/claude/skills/taste-lints/references/rules.md",
+        "src/claude/skills/build/scripts/validation_trigger.py",
+        "src/claude/skills/review/scripts/review_gate.py",
+        "src/claude/skills/review/SKILL.md.bak",
+        "src/claude/skills/review/references/SKILL.md",
+        "src/claude/lib/paths.py",
+    ],
+)
+def test_src_claude_skill_and_lib_sources_are_authored(relative: str) -> None:
+    assert classify_file_category(relative, ["x = 1\n"]) == "authored"
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/taste-lints/SKILL.md",
+        "src/claude/skills/review/SKILL.md",
+        "src/claude/skills/review/scripts/validate_review_marker.py",
+        "src/claude/hooks/SessionStart/invoke_context_loader.py",
+        "src/claude/lib/bootstrap.py",
+        "src/claude/lib/github_core/api.py",
+        "src/claude/agents/analyst.md",
+        "src/claude/rules/universal.md",
+    ],
+)
+def test_src_claude_rendered_files_are_generated(relative: str) -> None:
+    assert classify_file_category(relative, ["x = 1\n"]) == "generated"
+
+
+def _platform_output_roots() -> list[str]:
+    """Collect every output path templates/platforms/*.yaml declares."""
+    import yaml
+
+    path_keys = {"outputDir", "outputDirs", "outputScripts", "outputConfig"}
+    roots: set[str] = set()
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in path_keys and isinstance(value, str):
+                    roots.add(value)
+                elif key in path_keys and isinstance(value, list):
+                    roots.update(v for v in value if isinstance(v, str))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    for manifest in sorted((_REPO_ROOT / "templates" / "platforms").glob("*.yaml")):
+        walk(yaml.safe_load(manifest.read_text(encoding="utf-8")))
+    return sorted(roots)
+
+
+def test_platform_manifests_declare_output_roots() -> None:
+    roots = _platform_output_roots()
+
+    # Guard against a walker that silently finds nothing.
+    for expected in ("src/codex/skills", "src/cursor/skills", "src/hermes", "src/muse/skills"):
+        assert expected in roots
+
+
+@pytest.mark.parametrize("root", _platform_output_roots())
+def test_every_platform_output_root_is_generated(root: str) -> None:
+    # A new render tree in templates/platforms/*.yaml must be added to
+    # _GENERATED_PATH_SEGMENTS, or taste-lints flags its copies as authored.
+    root_path = Path(root)
+    probe = root_path if root_path.suffix else root_path / "pkg" / "module.py"
+
+    assert classify_file_category(str(probe), ["x = 1\n"]) == "generated"
+
+
+def _lib_mirror_destinations() -> list[str]:
+    """Collect every path build/scripts/lib_mirror.py renders from scripts/."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "lib_mirror", _REPO_ROOT / "build" / "scripts" / "lib_mirror.py"
+    )
+    assert spec is not None and spec.loader is not None
+    lib_mirror = importlib.util.module_from_spec(spec)
+    # Its dataclasses resolve their module through sys.modules at class build.
+    with patch.dict(sys.modules, {"lib_mirror": lib_mirror}):
+        spec.loader.exec_module(lib_mirror)
+
+    destinations: list[str] = []
+    for root in lib_mirror.PLUGIN_ROOTS:
+        destinations.extend(f"{root}/{pkg}/module.py" for pkg in lib_mirror.PACKAGES)
+        destinations.extend(f"{root}/{name}" for _, name in lib_mirror.SYNC_FILE_NAMES)
+    destinations.extend(lib_mirror.SKILLS_SIDECAR_PLUGIN_TREES)
+    return sorted(destinations)
+
+
+@pytest.mark.parametrize("destination", _lib_mirror_destinations())
+def test_every_lib_mirror_destination_is_generated(destination: str) -> None:
+    assert classify_file_category(destination, ["x = 1\n"]) == "generated"
+
+
+def test_every_plugin_skill_md_is_generated() -> None:
+    # Every shipped SKILL.md renders from templates/skills/<name>.SKILL.md.tmpl.
+    skill_mds = sorted((_REPO_ROOT / "src" / "claude" / "skills").glob("*/SKILL.md"))
+    assert skill_mds
+
+    for skill_md in skill_mds:
+        name = skill_md.parent.name
+        assert (_REPO_ROOT / "templates" / "skills" / f"{name}.SKILL.md.tmpl").is_file(), name
+        relative = skill_md.relative_to(_REPO_ROOT).as_posix()
+        assert classify_file_category(relative, []) == "generated", relative
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/Bad_Skill/scripts/run.py",
+        ".claude/skills/Bad_Skill/scripts/run.py",
+    ],
+)
+def test_skill_dir_naming_checks_source_and_install_trees(relative: str) -> None:
+    rules = [v.message for v in check_naming(relative, ["x = 1\n"])]
+
+    assert "Skill directory 'Bad_Skill' is not kebab-case" in rules
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/good-skill/scripts/run.py",
+        "vendor/src/claude/skills/Bad_Skill/run.py",
+        "src/codex/skills/Bad_Skill/run.py",
+    ],
+)
+def test_skill_dir_naming_ignores_kebab_and_other_trees(relative: str) -> None:
+    messages = [v.message for v in check_naming(relative, ["x = 1\n"])]
+
+    assert not any(m.startswith("Skill directory") for m in messages)

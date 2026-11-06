@@ -112,9 +112,9 @@ Users install plugins with `/plugin install <plugin-name>@ai-agents` after regis
 | File format | `.md` (no frontmatter) | `.agent.md` (with frontmatter) | `.agent.md` (with frontmatter) |
 | Invocation | `Task(subagent_type="...")` | `--agent` flag or `/agent` | `@agent` in Copilot Chat |
 | Skills | Yes (`src/claude/skills/`) | Yes (`src/copilot-cli/skills/`) | No |
-| Plugin hooks | None registered (ADR-097) | None registered (ADR-097) | No |
+| Plugin hooks | One advisory Stop hook (ADR-084 rule 2a); no tool-use hooks (ADR-097) | None registered | No |
 
-Claude Code and Copilot CLI both get agents and skills from the `project-toolkit` plugin. Claude Code also runs the six lifecycle skills as slash commands (`/spec` to `/ship`). Neither plugin registers hooks: `src/claude/hooks.json` and `src/copilot-cli/hooks/hooks.json` both hold `"hooks": {}`. Contributors to this repository get the hooks in `.claude/hooks/` through `.claude/settings.json`.
+Claude Code and Copilot CLI both get agents and skills from the `project-toolkit` plugin. Claude Code also runs the six lifecycle skills as slash commands (`/spec` to `/ship`). The Claude Code plugin registers one advisory Stop hook in `src/claude/hooks/hooks.json` (ADR-084 rule 2a). The Copilot CLI plugin registers none: `src/copilot-cli/hooks/hooks.json` holds `"hooks": {}`. Contributors to this repository get the hooks in `.claude/hooks/` through `.claude/settings.json`.
 
 ## Agent Communication
 

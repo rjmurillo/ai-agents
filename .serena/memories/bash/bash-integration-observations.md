@@ -53,6 +53,7 @@ These are observations that may become patterns:
 | 2026-10-12 | 2026-10-12 sweep | MED | zsh does not word-split unquoted variables |
 | 2026-10-12 | 2026-10-12 sweep | MED | zsh `$VAR:t` and `:h` modifiers corrupt `rev:path` strings |
 | 2026-10-12 | 2026-10-12 sweep | MED | `pgrep -f` and `pkill -f` match the calling shell's own command line |
+| 2026-10-31 | PR #7007 retro | MED | Recurrence: unquoted `$files` passed 58 paths as one arg; pytest collected 0 items. `xargs` fixed it |
 
 ## Related
 

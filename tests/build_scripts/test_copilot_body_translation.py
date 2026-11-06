@@ -279,3 +279,19 @@ def test_translated_text_wraps_frontmatter_errors(tmp_path: Path) -> None:
     src.write_text("---\nmodel: {a: 1,\nb: 2}\nname: x\n---\nbody\n", encoding="utf-8")
     with pytest.raises(SupportTranslationError, match="SKILL.md"):
         translated_text(Path("SKILL.md"), src, None, _OUT, frozenset({"model"}))
+
+
+def test_harness_placeholder_becomes_copilot() -> None:
+    """The Copilot copy names its own scripts map (issue #6506, D3 and D5)."""
+    source = "```bash\nrun_completion_gate.py \\\n    --harness {harness} \\\n    --json\n```\n"
+
+    translated = translate_body(source, _OUT)
+
+    assert "--harness copilot \\\n" in translated
+    assert "{harness}" not in translated
+
+
+def test_body_without_harness_flag_is_unchanged_by_that_transform() -> None:
+    source = "Pass `--harness claude_code` in Claude Code.\n"
+
+    assert translate_body(source, _OUT) == source

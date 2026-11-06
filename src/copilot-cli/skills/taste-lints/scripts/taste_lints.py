@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Taste invariant linter with agent-readable remediation instructions.
 
 Exit codes: 0 = clean, 1 = script error, 10 = violations detected.
@@ -107,21 +108,35 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # testing.md included (see .agents/governance/GENERATOR-FILES.md).
     ("src", "claude", "rules"),
     (".claude", "rules"),
-    # ADR-109 B3: src/claude/skills/ is the skills class's plugin tree.
-    # Narrower than the agents/rules pattern above on purpose: only
-    # src/claude/skills/ is listed, not .claude/skills/, because
-    # skill_templates.compile_all renders ONLY SKILL.md into the plugin
-    # tree, so every file under src/claude/skills/ is generated, but
-    # .claude/skills/<name>/ also holds hand-maintained scripts,
-    # references, and tests, so that tree stays classified authored (the
-    # same reason it is absent from FILE_SIZE_EXEMPT_SEGMENTS above).
-    ("src", "claude", "skills"),
+    # ADR-109 B4: hook scripts render from templates/hooks/.
+    ("src", "claude", "hooks"),
+    # build/scripts/lib_mirror.py renders these from scripts/. The other
+    # top-level src/claude/lib modules, such as paths.py, are hand-maintained.
+    ("src", "claude", "lib", "ai_review_common"),
+    ("src", "claude", "lib", "bootstrap.py"),
+    ("src", "claude", "lib", "failure_classifier"),
+    ("src", "claude", "lib", "github_core"),
+    ("src", "claude", "lib", "hook_utilities"),
+    ("src", "claude", "skills", "review", "scripts", "validate_review_marker.py"),
+    # src/claude/skills/ is not listed. Under ADR-119 decision 3, a shipped
+    # skill's scripts, references, and tests are hand-maintained there, and
+    # .claude/skills/<name> links to them. Only <name>/SKILL.md renders, from
+    # templates/skills/; _generated_by_path matches that one file.
     # ADR-115 Decision 7: src/codex/skills/ and src/codex/lib/ are the same
     # copies again, minus the dropped model keys in SKILL.md. The
     # hand-written src/codex/plugin.json stays classified authored.
     ("src", "codex", "skills"),
     ("src", "codex", "lib"),
+    # The Muse tree renders the same skills and lib packages
+    # (templates/platforms/muse.yaml), with SKILL.md frontmatter
+    # reduced to name and description. The hand-written
+    # src/muse/README.md stays classified authored.
+    ("src", "muse", "skills"),
+    ("src", "muse", "lib"),
 )
+# src/claude/skills/<name>/SKILL.md, rendered from templates/skills/. None
+# matches any skill name.
+_PLUGIN_SKILL_MD: tuple[str | None, ...] = ("src", "claude", "skills", None, "SKILL.md")
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",
     "GENERATED -- DO NOT EDIT",
@@ -173,6 +188,10 @@ def _generated_by_path(path: Path) -> bool:
     """True when the path alone marks a file generated (no body read needed)."""
     parts = _repo_relative_parts(path)
     if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
+        return True
+    if len(parts) == len(_PLUGIN_SKILL_MD) and all(
+        want is None or got == want for got, want in zip(parts, _PLUGIN_SKILL_MD, strict=True)
+    ):
         return True
     return path.name.startswith("pr-quality-gate-") and ".github" in parts
 
@@ -662,9 +681,11 @@ def _check_python_naming(filepath: str, name: str, suffix: str) -> Violation | N
     # "internal use"); the rest is snake_case. Without the `_?` the rule
     # flags every `_private_module.py` in the repo (e.g. scripts/eval/_*).
     # See issue #2795.
-    if name == "__init__" or re.match(r"^_?[a-z][a-z0-9_]*$", name):
+    # `__init__` and `__main__` are names the interpreter requires.
+    if name in ("__init__", "__main__") or re.match(r"^_?[a-z][a-z0-9_]*$", name):
         return None
     path = Path(filepath)
+    suggested = _to_snake_case(name) + suffix
     return Violation(
         rule="naming",
         severity="error",
@@ -673,16 +694,21 @@ def _check_python_naming(filepath: str, name: str, suffix: str) -> Violation | N
         message=f"Python file '{name}{suffix}' is not snake_case",
         remediation=(
             f"AGENT_REMEDIATION: Rename to snake_case. "
-            f"Suggested: {_to_snake_case(name)}{suffix}\n"
+            f"Suggested: {suggested}\n"
             f"  Update all imports that reference this module.\n"
-            f"  Run: git mv {filepath} "
-            f"{path.parent / (_to_snake_case(name) + suffix)}"
+            f"  Run: git mv {filepath} {path.parent / suggested}"
         ),
     )
 
 
+# Dot-separated kebab-case segments, so a qualifier such as `ci.pr.yml` is valid.
+# A leading dot marks a dotfile whose name a tool requires, such as
+# `.coderabbit.yaml`. Issue #7100.
+_YAML_STEM = re.compile(r"\.?[a-z][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*")
+
+
 def _check_yaml_naming(filepath: str, name: str, suffix: str) -> Violation | None:
-    if re.match(r"^[a-z][a-z0-9-]*$", name) or name in ("CLAUDE", "project", "settings"):
+    if _YAML_STEM.fullmatch(name) or name in ("CLAUDE", "project", "settings"):
         return None
     return Violation(
         rule="naming",
@@ -692,7 +718,7 @@ def _check_yaml_naming(filepath: str, name: str, suffix: str) -> Violation | Non
         message=f"YAML file '{name}{suffix}' is not kebab-case",
         remediation=(
             f"AGENT_REMEDIATION: Rename to kebab-case. "
-            f"Suggested: {_to_kebab_case(name)}{suffix}\n"
+            f"Suggested: {_to_yaml_stem(name)}{suffix}\n"
             f"  Update any references in workflows or configs."
         ),
     )
@@ -706,6 +732,8 @@ def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | Non
     # (*_base.py, e.g. push_guard_base.py). See issue #3239.
     if name.startswith("invoke_") or name.startswith("_") or name.endswith("_base"):
         return None
+    stem = _to_snake_case(name)
+    suggested = stem if stem.startswith("invoke_") else f"invoke_{stem}"
     return Violation(
         rule="naming",
         severity="error",
@@ -715,7 +743,7 @@ def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | Non
         remediation=(
             f"AGENT_REMEDIATION: Hook scripts must use invoke_ prefix "
             f"for consistency.\n"
-            f"  Rename to: invoke_{name}{suffix}\n"
+            f"  Rename to: {suggested}{suffix}\n"
             f"  Update .claude/settings.json hook command references."
         ),
     )
@@ -746,6 +774,17 @@ def _check_skill_dir_naming(filepath: str) -> Violation | None:
     )
 
 
+def _is_skill_tree_path(filepath: str) -> bool:
+    """True for a path in a skill tree: .claude/skills/ or its ADR-119 source.
+
+    Git names skill sources by their src/claude/skills/ path, because
+    .claude/skills/<name> is a link to that directory (ADR-119).
+    """
+    if ".claude/skills/" in filepath:
+        return True
+    return _repo_relative_parts(Path(filepath))[:3] == ("src", "claude", "skills")
+
+
 def check_naming(filepath: str, _lines: list[str]) -> list[Violation]:
     """Check file naming conventions."""
     if has_suppression(_lines, "naming"):
@@ -762,7 +801,7 @@ def check_naming(filepath: str, _lines: list[str]) -> list[Violation]:
             ".claude/hooks/" in filepath and suffix == ".py",
             lambda: _check_hook_naming(filepath, name, suffix),
         ),
-        (".claude/skills/" in filepath, lambda: _check_skill_dir_naming(filepath)),
+        (_is_skill_tree_path(filepath), lambda: _check_skill_dir_naming(filepath)),
     ]
     for condition, checker in checkers:
         if condition:
@@ -899,18 +938,37 @@ def check_skill_size(filepath: str, lines: list[str]) -> list[Violation]:
     return []
 
 
+def _join_words(name: str, separator: str) -> str:
+    """Lowercase ``name`` and join its ASCII words with ``separator``."""
+    s = re.sub(r"([A-Z]+)([A-Z][a-z])", rf"\1{separator}\2", name)
+    s = re.sub(r"([a-z\d])([A-Z])", rf"\1{separator}\2", s)
+    return re.sub(r"[^a-z0-9]+", separator, s.lower()).strip(separator)
+
+
+def _lead_with_letter(words: str, separator: str) -> str:
+    """Prefix ``words`` when it cannot start a valid name on its own."""
+    if words[:1].isalpha():
+        return words
+    return f"item{separator}{words}".rstrip(separator)
+
+
 def _to_snake_case(name: str) -> str:
-    """Convert a name to snake_case."""
-    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
-    s = re.sub(r"([a-z\d])([A-Z])", r"\1_\2", s)
-    return s.replace("-", "_").lower()
+    """Convert a name to snake_case, keeping one private-module underscore."""
+    private = "_" if name.startswith("_") else ""
+    return private + _lead_with_letter(_join_words(name, "_"), "_")
 
 
 def _to_kebab_case(name: str) -> str:
     """Convert a name to kebab-case."""
-    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", name)
-    s = re.sub(r"([a-z\d])([A-Z])", r"\1-\2", s)
-    return s.replace("_", "-").lower()
+    return _lead_with_letter(_join_words(name, "-"), "-")
+
+
+def _to_yaml_stem(name: str) -> str:
+    """Convert a YAML stem to the shape ``_YAML_STEM`` accepts."""
+    dotfile = "." if name.startswith(".") else ""
+    words = [w for w in (_join_words(part, "-") for part in name.split(".")) if w]
+    head = _lead_with_letter(words[0] if words else "", "-")
+    return dotfile + ".".join([head, *words[1:]])
 
 
 RULE_CHECKERS = {

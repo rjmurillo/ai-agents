@@ -57,7 +57,6 @@
     ".claude/skills/spec-generator/SKILL.md": 1,
     ".claude/skills/spec-generator/references/spec-schemas.md": 2,
     ".claude/skills/steering-matcher/SKILL.md": 3,
-    ".claude/skills/stuck-detection/SKILL.md": 7,
     ".claude/skills/taste-lints/SKILL.md": 7,
     ".claude/skills/threat-modeling/SKILL.md": 7,
     ".claude/skills/work-operating-model/SKILL.md": 2,
@@ -96,7 +95,6 @@
     "src/copilot-cli/skills/spec-generator/SKILL.md": 1,
     "src/copilot-cli/skills/spec-generator/references/spec-schemas.md": 2,
     "src/copilot-cli/skills/steering-matcher/SKILL.md": 3,
-    "src/copilot-cli/skills/stuck-detection/SKILL.md": 7,
     "src/copilot-cli/skills/taste-lints/SKILL.md": 7,
     "src/copilot-cli/skills/threat-modeling/SKILL.md": 7,
     "src/copilot-cli/skills/work-operating-model/SKILL.md": 2

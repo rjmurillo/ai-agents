@@ -39,7 +39,7 @@ reds when they drift.
 | `--changed-path PATH` | One path from the verified three-dot diff collected in Process step 1. Repeatable. Pass the real diff, never a guess: an unverified path list selects the wrong axes. |
 | `--effect NAME` | One diff effect read from the diff body, where no path glob can see it. Repeatable. Declare every effect that applies. |
 | `--pin AXIS` | One caller-pinned always-on axis, canonical or local. Repeatable. |
-| `--deep` | Explicit deep review: select every candidate axis regardless of risk. |
+| `--deep` | Explicit deep review: select every canonical axis regardless of risk, and each local axis whose scanner reads a changed file. |
 | `--references-dir DIR` | Override the canonical axis directory. Defaults to `references/` next to the script, which resolves in both the source project and a vendored plugin install. |
 
 ### Diff-effect vocabulary
@@ -50,7 +50,7 @@ reds when they drift.
 `artifact-or-rollback`.
 
 An effect outside this list fails closed rather than being ignored, so a typo
-costs a full review instead of silently selecting nothing.
+costs every canonical axis instead of silently selecting nothing.
 
 ## Output
 
@@ -63,7 +63,7 @@ JSON on stdout:
 | `selection_reasons` | Per axis, why it was selected: the risk categories, the effects, `always-on`, `caller-pinned`, `deep review`, or `fail-closed`. |
 | `skipped` | Per unselected axis, the skip reason. Copy it into the output table verbatim. A skipped axis is never PASS. |
 | `unresolved_axes` | Axes a matched risk category or diff effect demanded that have no `references/{stem}.md` prompt to load. Non-empty sets `fail_closed`. Report each as UNKNOWN; an axis the change demanded is never silently absent from both `canonical_selected` and `skipped`. |
-| `fail_closed` | True when the change could not be classified, or `unresolved_axes` is non-empty, and every candidate axis was selected. Intended behavior, not an error. |
+| `fail_closed` | True when the change could not be classified, or `unresolved_axes` is non-empty. Every canonical candidate is selected; local axes narrow to scanner reads unless no usable path was passed. Intended behavior, not an error. |
 | `matched_categories`, `unclassified_paths`, `unknown_effects` | The classification evidence behind the fields above. |
 
 Exit codes: `0` a selection was emitted; `2` config error (an unknown pinned
@@ -71,7 +71,8 @@ axis name, or the references directory is missing or empty).
 
 An incomplete prompt set widens the review rather than narrowing it: a demanded
 axis with no prompt cannot be dispatched, so the selector reports it and runs
-every candidate instead of quietly reviewing less than the change warrants.
+every canonical candidate instead of quietly reviewing less than the change
+warrants.
 
 ## Risk categories
 
@@ -82,7 +83,7 @@ contributes its axes.
 |----------|---------|----------------|------------|
 | `tests-or-fixtures` | a whole `tests/` or `fixtures/` path segment, a `test_*` or `test.*` filename, or a `.test.`, `.tests.`, `.spec.`, `_test.`, `_tests.`, or `_spec.` name segment whatever suffix follows | `qa` | |
 | `auth-secrets-execution` | a whole path word of `auth`, `authn`, `authz`, `oauth`, `secret(s)`, `credential(s)`, `password(s)`, `token(s)`, `permission(s)`, a word starting `sanitiz` or `crypto`, or a `.env*` file | `security` | |
-| `dependencies` | a dependency manifest or lockfile (`pyproject.toml`, `uv.lock`, `package.json`, `*.csproj`, `go.mod`, `requirements*.txt`, and peers) | `security`, `devops` | |
+| `dependencies` | a dependency manifest or lockfile (`pyproject.toml`, `uv.lock`, `package.json`, `*.csproj`, `*.psd1`, `go.mod`, `requirements*.txt`, and peers) | `security`, `devops` | |
 | `ci-deploy-artifacts` | `.github/workflows/`, `.github/actions/`, a `lefthook`, `Dockerfile`, `docker-compose`, `deploy.*`, or `release.yml` file, a `*.tf`/`*.tfvars` file, or a `deploy/` or `release/` directory | `devops`, `security` | |
 | `types-or-public-api` | a `*.d.ts` or `*.proto` file, a whole `schemas/` or `interfaces/` path segment, or a whole basename of `types`, `api`, `models`, `schema`, `protocols`, or `interfaces` carrying any supported source suffix (`types.go` and `models.ts` count; `prototypes.py` does not) | `architect` | |
 | `agent-artifacts` | a file named `SKILL.md`, or a whole path segment of `skills/`, `agents/`, `hooks/`, `prompts/`, or `commands/` | `agent-safety` | |
@@ -117,12 +118,39 @@ and its skip reason says so.
 Two consequences worth knowing. A `.rs` or `.rb` change selects no local axis
 at all, because neither scanner scores it; the canonical `code-quality`
 subagent still reviews it. A `.txt`, `.rst`, or `.mdx` change is not classified
-at all, so the run fails closed onto the full set rather than handing the file
-to a scanner that would not open it.
+at all, so the run fails closed onto every canonical axis rather than handing
+the file to a scanner that would not open it.
 
-`--deep` and a fail-closed run skip this narrowing. Both are explicit
-run-everything modes, and a fail-closed run has no trustworthy path list to
-narrow by. A `--pin` also overrides it: a caller who names the axis gets it.
+`--deep` narrows by scanner reads alone. It routes no axis by category, so a
+local axis runs when its scanner reads any changed file, and is skipped with
+the same reason otherwise. A PowerShell-only change therefore skips
+`code-qualities-assessment` and `golden-principles` instead of reporting an
+UNKNOWN that no review can clear. Every canonical axis still runs. A
+fail-closed run narrows the same way, deep or not (issue #7031). Failing
+closed on an unclassified path, an unknown effect, or a missing prompt does
+not make the verified path list untrustworthy, and no effect routes a local
+axis. Without the narrowing, a change whose only unclassified path was
+`src/cursor/rules/python.mdc` ran `golden-principles` over zero files and
+could never reach PASS. A run with no usable path keeps all four local axes.
+A `--pin` also overrides the narrowing: a caller who names the axis gets it.
+
+The narrowing trusts the path list, so pass only the verified diff paths. A
+caller who cannot list the changed paths with confidence passes none. An
+empty list fails closed, and all four local axes run over the real diff. A
+partial list would skip a scanner that the missing files needed.
+
+PowerShell module parts (`.ps1`, `.psm1`, `.psd1` manifests, `.ps1xml`
+format and type files) all classify as executable code, so a module change
+does not fail closed. The canonical `code-quality` axis reviews them. A
+`.psd1` manifest also routes as a dependency manifest, like a `.csproj`,
+because it declares `RequiredModules` and `RequiredAssemblies`. No local
+scanner reads `.psd1` or `.ps1xml`.
+
+A local axis skipped this way is not PASS and gets no marker row. In its
+Summary cell, name the language-native checks that covered those files, such
+as PSScriptAnalyzer and Pester for PowerShell or shellcheck for shell. If no
+such check ran, write `none run`. That note is evidence for the reader, not a
+verdict.
 
 `golden-principles` is scoped to toolkit artifacts because that is the surface
 its GP rules govern; a clean result elsewhere means no rule applied, not that

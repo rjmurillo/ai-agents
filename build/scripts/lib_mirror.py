@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile ``scripts/{hook_utilities,github_core,ai_review_common}/`` into
+"""Compile ``scripts/{hook_utilities,github_core,ai_review_common,failure_classifier}/`` into
 the lib plugin trees (ADR-109 B5, TASK-035).
 
 Absorbs `scripts/sync_plugin_lib.py`'s copy logic (its `SYNC_PAIRS`,
@@ -16,6 +16,10 @@ ADR-115 Decision 1 and has no binplace row because the Cursor tree has no instal
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/claude/lib/<pkg>/*.py
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/copilot-cli/lib/<pkg>/*.py
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/codex/lib/<pkg>/*.py
+    scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/muse/lib/<pkg>/*.py
+
+The Muse tree (src/muse/lib) follows the Cursor pattern: a render
+destination with no binplace row and no install tree.
 
 `binplace_manifest.binplace()` then copies `src/claude/lib/<pkg>/` onto its
 `.claude/lib/<pkg>/` install-tree counterpart; `src/copilot-cli/lib/<pkg>/`
@@ -60,7 +64,12 @@ from atomic_write import publish_bytes_atomically, read_bytes_no_redirect  # noq
 
 # Package name -> canonical scripts/ source. Each package lands at
 # "<plugin_root>/<package>" under every root in PLUGIN_ROOTS.
-PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common")
+PACKAGES: tuple[str, ...] = (
+    "hook_utilities",
+    "github_core",
+    "ai_review_common",
+    "failure_classifier",
+)
 
 # Every plugin tree a package (or a SYNC_FILE_PAIRS-equivalent single file)
 # is rendered into. `.claude/lib/` is never a render target here: it is an
@@ -71,6 +80,7 @@ PLUGIN_ROOTS: tuple[str, ...] = (
     "src/copilot-cli/lib",
     "src/codex/lib",
     "src/cursor/lib",
+    "src/muse/lib",
 )
 
 # Individual file copies: (source file, destination file name under each
@@ -103,12 +113,14 @@ SKILLS_SIDECAR_PLUGIN_TREE = "src/claude/skills/review/scripts/validate_review_m
 SKILLS_SIDECAR_COPILOT_TREE = "src/copilot-cli/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_CURSOR_TREE = "src/cursor/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_CODEX_TREE = "src/codex/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_MUSE_TREE = "src/muse/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_INSTALL_TREE = ".claude/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREES: tuple[str, ...] = (
     SKILLS_SIDECAR_PLUGIN_TREE,
     SKILLS_SIDECAR_COPILOT_TREE,
     SKILLS_SIDECAR_CURSOR_TREE,
     SKILLS_SIDECAR_CODEX_TREE,
+    SKILLS_SIDECAR_MUSE_TREE,
 )
 SKILLS_SIDECAR_OWNED: tuple[str, str] = ("review", "scripts/validate_review_marker.py")
 
@@ -133,9 +145,11 @@ IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"from scripts\.github_core\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.hook_utilities\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.ai_review_common\.(\w+) import"), r"from .\1 import"),
+    (re.compile(r"from scripts\.failure_classifier\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.github_core import"), "from . import"),
     (re.compile(r"from scripts\.hook_utilities import"), "from . import"),
     (re.compile(r"from scripts\.ai_review_common import"), "from . import"),
+    (re.compile(r"from scripts\.failure_classifier import"), "from . import"),
 ]
 
 # Files that exist only in a destination package dir and must not be
@@ -213,7 +227,7 @@ def sync_pair(
     original scope exactly.
 
     A missing source directory fails closed (error, not warning): the
-    three packages in `PACKAGES` are registered, tracked sources that
+    packages in `PACKAGES` are registered, tracked sources that
     always exist in a real checkout, so a missing one means the package
     was deleted, not that it is legitimately optional. Warning and
     leaving the destination mirrors untouched let a deleted package's

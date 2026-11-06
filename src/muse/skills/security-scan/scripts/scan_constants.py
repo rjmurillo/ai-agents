@@ -1,0 +1,20 @@
+"""Exit-code constants for the security scanner (ADR-035 compliant).
+
+Single source of truth shared by ``scan_vulnerabilities.py`` (the entry point)
+and ``scan_format.py`` (console formatter). Extracted so the formatter can reference
+``EXIT_VULNERABILITIES`` without importing the main module, which would create an
+import cycle. The values are unchanged from the original inline definitions.
+
+Exit codes:
+    0  - No vulnerabilities found, or nothing assessed (files_scanned is 0)
+    1  - Scan error (file not found, unsupported --cwe, rejected path)
+    2  - Invalid command-line arguments
+    3  - Git could not enumerate staged files
+    10 - Vulnerabilities detected
+"""
+
+EXIT_SUCCESS = 0
+EXIT_ERROR = 1
+EXIT_USAGE = 2
+EXIT_EXTERNAL = 3
+EXIT_VULNERABILITIES = 10

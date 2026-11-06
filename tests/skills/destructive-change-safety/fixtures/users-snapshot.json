@@ -1,0 +1,1 @@
+{"format":"destructive-change-snapshot","payload":"users-snapshot.sql","ref":"snap-2026-10-11","sha256":"2bc38f3cb0f4af458d8c4b65e7ce22d21a00db28f15f4aff64087ad2afe4a6b3","target":"sqlite:users","version":1}

@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from scripts.validation.evidence import (
     AggregateOutcome,
@@ -35,10 +36,10 @@ from scripts.validation.evidence import (
     GatePolicy,
 )
 
-#: Label for a FAIL the pre-PR policy licenses. The typed state stays ``FAIL`` in
-#: the JSON summary and the exit code; only the console label changes, so a
-#: finding that does not block the push cannot sit beside a pass banner under the
-#: same word a blocking finding uses.
+#: Label for a FAIL the pre-PR policy licenses. Each JSON row keeps its typed
+#: ``FAIL`` and the exit code ignores it. Only the console label and the JSON
+#: parent state change, so a finding that does not block the push cannot sit
+#: beside a pass banner under the same word a blocking finding uses.
 ADVISORY_LABEL = "ADVISORY"
 
 
@@ -151,6 +152,21 @@ def print_blocking_guidance(summary: AggregateOutcome) -> None:
     print()
 
 
+def summary_payload(summary: AggregateOutcome) -> dict[str, Any]:
+    """Return the JSON summary with an all-advisory parent named ``ADVISORY``.
+
+    A parent ``FAIL`` beside ``exit_code: 0`` read as a failed run. When nothing
+    blocks, every ``FAIL`` row is licensed, so the parent says so. The parent never
+    becomes ``PASS``: these checks did not prove their contract. Rows and ``counts``
+    keep the typed state, so a finding stays countable (issue #5636).
+    """
+    payload = summary.to_dict()
+    payload["advisory_count"] = state_counts(summary)[ADVISORY_LABEL]
+    if summary.state is EvidenceState.FAIL and not summary.blocking:
+        payload["state"] = ADVISORY_LABEL
+    return payload
+
+
 def write_summary_json(summary: AggregateOutcome, destination: str) -> None:
     """Write the machine-readable summary when a destination was given.
 
@@ -161,7 +177,7 @@ def write_summary_json(summary: AggregateOutcome, destination: str) -> None:
         return
     try:
         Path(destination).write_text(
-            json.dumps(summary.to_dict(), indent=2) + "\n", encoding="utf-8"
+            json.dumps(summary_payload(summary), indent=2) + "\n", encoding="utf-8"
         )
     except OSError as exc:
         print(f"[WARNING] could not write summary JSON to {destination}: {exc}", file=sys.stderr)

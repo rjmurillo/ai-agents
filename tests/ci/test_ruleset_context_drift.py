@@ -34,6 +34,27 @@ RETIRED_AI_REVIEW_CONTEXTS = frozenset(
 )
 
 
+def test_render_alert_links_the_ruleset_runbook(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_SERVER_URL", raising=False)
+
+    body = drift.render_alert({"a"}, {"a"}, [], [])
+
+    assert (
+        f"**Runbook**: https://github.com/{drift.REPOSITORY}/blob/main/"
+        "docs/runbooks/ruleset-drift-alert.md\n" in body
+    )
+
+
+def test_runbook_url_follows_the_server_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://ghe.example.com")
+
+    assert drift.runbook_url().startswith("https://ghe.example.com/")
+
+
+def test_linked_runbook_exists() -> None:
+    assert (REPO_ROOT / drift.RUNBOOK_PATH).is_file()
+
+
 def test_matching_contexts_return_zero_without_publishing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

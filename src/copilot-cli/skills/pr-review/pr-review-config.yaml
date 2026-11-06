@@ -85,7 +85,10 @@ scripts:
 # and a status context (no workflow run) always stays blocking. Schedule and
 # dispatch only agent workflows are environment-gated but not listed: they post
 # no check on a pull request. claude.yml is environment-gated by agent-claude
-# and listed, because it triggers on pull_request. See ADR-114.
+# and listed, because it triggers on pull_request. plugin-cli-smoke.yml is listed
+# too (owner decision 2026-11-05): Claude and Copilot legs need provider
+# credentials and an approval, so the whole CLI Smoke Result stays visible but
+# never holds a merge. See ADR-114.
 advisory_agent_workflows:
   - path: ".github/workflows/ai-spec-validation.yml"
     reason: "Deterministic Validate Spec Coverage check, no model call; kept advisory by owner decision (issue 6182)"
@@ -105,6 +108,9 @@ advisory_agent_workflows:
   - path: ".github/workflows/claude.yml"
     reason: "The Claude agent answers @claude mentions and pull request events"
     owner: "rjmurillo"
+  - path: ".github/workflows/plugin-cli-smoke.yml"
+    reason: "Claude and Copilot legs need provider credentials and an approval click; Codex and Pi do not. Owner decision 2026-11-05: no critical path depends on AI"
+    owner: "rjmurillo"
 
 transport_preflight:
   # BEFORE command_key, the workflow runs the --verify-config-only command
@@ -115,11 +121,11 @@ transport_preflight:
   # documents the outcomes of that Step 0 command.
   verify_config_only_exits:
     - exit_code: 0
-      meaning: "Config and the files its scripts-map commands name match the trusted ref. Proceed to check_transport. Read unverifiable_command_tokens: a token listed there reaches its target through shell evaluation, so its file was not compared."
+      meaning: "Config and the tracked files its scripts-map commands name match the trusted ref; an untracked file in this work tree is listed in skipped_untracked_files, not compared; an installed plugin's config and files are install-trusted, not compared. Read blocking_unverifiable_command_tokens: a token listed there comes from the running harness's map (--harness) and reaches its target through shell evaluation, so its file was not compared. Proceed to check_transport only when that list is empty; a non-empty list stops the run. Tokens only in unverifiable_command_tokens belong to another harness's map and do not stop the run. Without --harness every token blocks."
     - exit_code: 2
-      meaning: "The config or a named script diverges from the trusted ref. STOP. Do not run any command from this file. Surface the diff to the human and stop; do not pass --approve-untrusted-config on your own initiative."
+      meaning: "The config or a named script diverges from the trusted ref (surface the diff to the human), or --harness names no scripts map (report the known maps). STOP. Do not run any command from this file; do not pass --approve-untrusted-config on your own initiative."
     - exit_code: 3
-      meaning: "Verification is impossible (no work tree, trusted ref missing). STOP. --approve-untrusted-config does not apply; there is nothing a human could have inspected."
+      meaning: "Verification is impossible (no work tree, current directory outside it, trusted ref missing, git failure). STOP. --approve-untrusted-config does not apply; there is nothing a human could have inspected."
   command_key: "check_transport"
   blocking: true
   verdicts:

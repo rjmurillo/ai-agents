@@ -50,6 +50,7 @@ ENV/
 .pytest_cache/
 .pytest_tmp/
 .ruff_cache/
+.import_linter_cache/
 # Legacy python build/dist outputs live at /build and /dist, anchored to repo
 # root. An unanchored `build/` rule silently shadowed
 # `src/copilot-cli/skills/build/` (the M4 generated `/build` slash-command
@@ -133,6 +134,29 @@ scripts/validation/.agent_skill_discriminator_baseline.json.write-lock
 .idea/
 *.DotSettings.user
 
+# VS Code: ignore local state such as launch.json, keep the shared workspace
+# config. The re-includes below are the files the repository tracks on purpose.
+# Contents rather than the directory itself, because git cannot re-include a
+# file whose parent directory is excluded.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/mcp.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/toolsets.jsonc
+
+# OS metadata files (macOS Finder, Windows Explorer)
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Editor swap and backup files
+*.swp
+*.swo
+*~
+
 # Obsidian workspace (user-specific state)
 **/.obsidian/workspace.json
 **/.obsidian/workspace-mobile.json
@@ -147,8 +171,10 @@ wt_*/
 # Flowbaby files
 .flowbaby/
 
-# Local environment configuration
+# Local environment configuration. .env.example is the tracked template that
+# documents the variables, so it stays visible to git.
 .env*
+!.env.example
 
 # Factory.ai (DROID)
 # Contents rather than the directory itself: .factory/mcp.json is tracked and

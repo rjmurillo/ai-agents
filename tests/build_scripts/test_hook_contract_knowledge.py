@@ -375,7 +375,7 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
 
 
 def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
-    """Stop has one local registration: the non-blocking reflect nudge (#5817).
+    """Stop has one local registration and one vendored advisory group, both the nudge.
 
     The vendored and generated surfaces were purged under ADR-084. The local
     surface once kept a Stop group whose only shim, invoke_auto_retrospective.py,
@@ -383,11 +383,14 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
     a retrospective skeleton into the working tree and returned a block decision
     to force another turn. That path was deleted outright.
 
-    #5817 added back one direct registration, invoke_reflect_nudge.py, which
-    never blocks. This test pins what keeps the old failure shape gone: the
-    registration is direct (no dispatch group, so the gate_all mode that exits
-    on a block never wraps it), it exists on the local surface only, and its
-    source cannot emit a block decision.
+    #5817 added back one direct local registration, invoke_reflect_nudge.py,
+    which never blocks. REQ-048 TASK-006 added one vendored registration, the
+    plugin group ``plugin-stop-1-reflect_nudge``, registered with ``--advisory``
+    (Stop only, absent from the Copilot tree). This test pins what keeps the old
+    failure shape gone: the local registration is direct (no dispatch group), the
+    vendored group is advisory so its failures and any block decision cannot
+    block a Stop, no other Stop group exists, and the source cannot emit a block
+    decision.
     """
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
@@ -399,7 +402,11 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
     commands = [h["command"] for entry in local_hooks["Stop"] for h in entry["hooks"]]
     assert len(commands) == 1
     assert ".claude/hooks/Stop/invoke_reflect_nudge.py" in commands[0]
-    assert "Stop" not in vendored_hooks
+    # REQ-048 TASK-006 added the vendored registration: one advisory plugin
+    # group, Stop only, absent from the Copilot tree (owner decision D20).
+    (vendored_stop,) = [h["command"] for entry in vendored_hooks["Stop"] for h in entry["hooks"]]
+    assert "--group plugin-stop-1-reflect_nudge --advisory" in vendored_stop
+    assert list(vendored_hooks) == ["Stop"]
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
     assert [group_id for group_id in dispatch_groups if group_id.startswith("stop-")] == []
@@ -407,7 +414,9 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
         group_id
         for group_id, spec in dispatch_groups.items()
         if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
-    ] == []
+    ] == ["plugin-stop-1-reflect_nudge"]
+    stop_spec = dispatch_groups["plugin-stop-1-reflect_nudge"]
+    assert stop_spec["advisory"] is True and stop_spec["surface"] == "plugin"
 
     tree = ast.parse(
         (REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py").read_text(
@@ -1566,11 +1575,14 @@ def test_adr_068_dependent_components_table_matches_the_registration_count() -> 
     # ADR-097 retired every tool-call hook, so the count is now zero. The row
     # keeps its historical chain (three after the three-way merge, four before
     # it) because those are dated records, not live claims.
-    assert registrations == 0
+    # REQ-048 TASK-006 registered one advisory Stop group, so the live count is
+    # one. ADR-068's 2026-11-04 amendment records it in the table row.
+    assert registrations == 1
     assert (
-        "Zero vendored plugin registrations after ADR-097 retired every "
-        "tool-call hook (three after merging issues #4917, #5061, and #5154; "
-        "four before any of the three)" in text
+        "One vendored plugin registration after REQ-048 TASK-006 added the "
+        "advisory Stop group `plugin-stop-1-reflect_nudge` (zero after ADR-097 "
+        "retired every tool-call hook; three after merging issues #4917, #5061, "
+        "and #5154; four before any of the three)" in text
     )
     _refute(text, "| Four vendored plugin registrations", source=DISPATCHER_ADR)
     _refute(text, "One vendored plugin registration after issue #5154", source=DISPATCHER_ADR)

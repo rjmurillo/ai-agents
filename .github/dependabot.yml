@@ -26,6 +26,11 @@ updates:
           - "*"
     commit-message:
       prefix: "fix(deps)"
+    # .github/release.yml sorts PRs by label. label-pr.yml skips Dependabot,
+    # so the labels must come from here.
+    labels:
+      - "dependencies"
+      - "python:uv"
 
   # GitHub Actions security advisories. Same split as uv above: Renovate bumps
   # the SHA pins for versions, so this entry only opens security updates.
@@ -43,3 +48,6 @@ updates:
           - "*"
     commit-message:
       prefix: "fix(deps)"
+    labels:
+      - "dependencies"
+      - "github-actions"

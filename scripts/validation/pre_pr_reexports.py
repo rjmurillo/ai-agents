@@ -35,6 +35,7 @@ from check_skill_shell_placeholders import validate_skill_shell_placeholders
 from check_skill_tree_layout import validate_skill_tree_layout
 from check_template_repo_refs import validate_template_repo_refs
 from check_tmp_worktrees import validate_tmp_worktrees
+from check_unused_arguments import validate_unused_arguments
 from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import (
     validate_closure_manifest,
@@ -121,5 +122,6 @@ __all__ = [
     "validate_template_repo_refs",
     "validate_tmp_worktrees",
     "validate_traceability",
+    "validate_unused_arguments",
     "validate_worktree_recipes",
 ]

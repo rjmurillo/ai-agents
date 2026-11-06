@@ -9,6 +9,8 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 
+RUNBOOK_PATH = "docs/runbooks/red-ci-on-main.md"
+
 
 def _failed_needs(needs_json: str) -> list[str]:
     try:
@@ -56,10 +58,8 @@ def _find_existing_issue(repository: str) -> int | None:
 
 
 def _issue_body(env: dict[str, str], failed_jobs: list[str]) -> str:
-    run_url = (
-        f"{env.get('GITHUB_SERVER_URL', 'https://github.com')}/"
-        f"{env['GITHUB_REPOSITORY']}/actions/runs/{env['GITHUB_RUN_ID']}"
-    )
+    repo_url = f"{env.get('GITHUB_SERVER_URL', 'https://github.com')}/{env['GITHUB_REPOSITORY']}"
+    run_url = f"{repo_url}/actions/runs/{env['GITHUB_RUN_ID']}"
     sha = env.get("GITHUB_SHA", "")
     short_sha = sha[:12] if sha else "unknown"
     jobs = "\n".join(f"- {job}" for job in failed_jobs)
@@ -76,6 +76,8 @@ Failed job(s):
 {jobs}
 
 Action required: inspect the workflow run and fix main before more branches push.
+
+Runbook: {repo_url}/blob/main/{RUNBOOK_PATH}
 """
 
 

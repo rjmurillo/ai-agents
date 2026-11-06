@@ -125,3 +125,14 @@ def test_trusted_checkout_is_full_and_pinned_to_the_workflow_sha() -> None:
 )
 def test_checker_flags_untrusted_secret_steps_only(step: dict[str, Any], expected: int) -> None:
     assert len(untrusted_secret_steps([step])) == expected
+
+
+def test_discover_prs_token_can_read_the_status_rollup() -> None:
+    """github.token sees only declared scopes, and discovery reads statusCheckRollup."""
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    assert workflow["jobs"]["discover-prs"]["permissions"] == {
+        "checks": "read",
+        "contents": "read",
+        "pull-requests": "read",
+        "statuses": "read",
+    }

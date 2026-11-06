@@ -19,12 +19,16 @@ covers what is testable in pure Python:
    would lack those).
 5. `/review` command prose loads axes from the canonical directory
    (structural grep).
+6. Each symbol the `/review` path-resolution section lists imports from the
+   module that section names, in both install layouts.
 
 Refs #1934 (REQ-008-06).
 """
 
 from __future__ import annotations
 
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -283,6 +287,112 @@ def test_review_skill_loads_from_canonical_dir(vendored_root: Path) -> None:
     )
     assert "merge_verdicts" in text, "/review must invoke merge_verdicts from ai_review_common"
     assert "ai_review_common" in text, "/review must reference the verdict module"
+
+
+def _review_library_bindings(text: str) -> dict[str, list[str]]:
+    """Map each ai_review_common module to the symbols /review binds to it.
+
+    Reads the "Path resolution" bullet whose first candidate is a module under
+    `.claude/lib/ai_review_common/`, and requires the vendored-layout candidate
+    for that same module on the next line. A clause of the form
+    "`symbol` is in sibling `module.py`" binds that symbol to the sibling.
+    """
+    bullet = re.compile(
+        r"^- \*\*[^*]+\*\* \((?P<symbols>`[^)]+`)\):[^\n]*\n"
+        r"  1\. `\.claude/lib/ai_review_common/(?P<module>\w+)\.py`[^\n]*\n"
+        r"  2\. `lib/ai_review_common/(?P=module)\.py`",
+        re.MULTILINE,
+    )
+    bindings: dict[str, list[str]] = {}
+    for match in bullet.finditer(text):
+        primary, *siblings = match["symbols"].split(";")
+        bindings.setdefault(match["module"], []).extend(re.findall(r"`(\w+)`", primary))
+        for clause in siblings:
+            for symbol, module in re.findall(r"`(\w+)` is in sibling `(\w+)\.py`", clause):
+                bindings.setdefault(module, []).append(symbol)
+    return bindings
+
+
+def test_review_library_bindings_parser_rejects_a_missing_vendored_candidate() -> None:
+    """A bullet with no vendored-layout candidate binds nothing."""
+    text = (
+        "- **Verdict library** (`merge_verdicts`): try each candidate:\n"
+        "  1. `.claude/lib/ai_review_common/verdict.py` (project layout)\n"
+        "  2. `lib/ai_review_common/other.py` (vendored install)\n"
+    )
+    assert _review_library_bindings(text) == {}
+
+
+def test_review_library_bindings_parser_reads_a_sibling_clause() -> None:
+    """A sibling clause binds its symbol to the sibling, not the candidate."""
+    text = (
+        "- **Verdict library** (`merge_verdicts`; `helper` is in sibling `other.py`): pick:\n"
+        "  1. `.claude/lib/ai_review_common/verdict.py` (project layout)\n"
+        "  2. `lib/ai_review_common/verdict.py` (vendored install)\n"
+    )
+    assert _review_library_bindings(text) == {
+        "verdict": ["merge_verdicts"],
+        "other": ["helper"],
+    }
+
+
+@pytest.mark.parametrize("layout", ["claude-project", "copilot-plugin"])
+def test_review_path_resolution_symbols_import_from_named_modules(
+    vendored_root: Path, layout: str
+) -> None:
+    """Every symbol /review binds to a module imports from that module.
+
+    A symbol listed under the wrong module raises ImportError for whoever
+    follows the skill's path-resolution guidance (issue #7101). The import
+    covers both candidates: `.claude/lib` in the vendored copy, and the
+    plugin-root `lib/` of the Copilot plugin tree. It runs in a subprocess for
+    the same reason as `test_ai_review_common_imports_from_vendored_copy`.
+    """
+    text = (vendored_root / ".claude" / "skills" / "review" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    bindings = _review_library_bindings(text)
+    bound = {symbol for symbols in bindings.values() for symbol in symbols}
+    required = {
+        "merge_verdicts",
+        "extract_verdict",
+        "get_verdict_emoji",
+        "FAIL_VERDICTS",
+    }
+    assert required <= bound, f"/review path resolution omits: {sorted(required - bound)}"
+
+    lib_root = {
+        "claude-project": vendored_root / ".claude" / "lib",
+        "copilot-plugin": REPO_ROOT / "src" / "copilot-cli" / "lib",
+    }[layout]
+    lib_path = str(lib_root)
+    code = (
+        "import importlib, json, sys\n"
+        f"sys.path.insert(0, {lib_path!r})\n"
+        f"bindings = json.loads({json.dumps(bindings)!r})\n"
+        "missing = [f'{module}.{symbol}' for module, symbols in bindings.items()\n"
+        "           for symbol in symbols\n"
+        "           if not hasattr(\n"
+        "               importlib.import_module(f'ai_review_common.{module}'), symbol)]\n"
+        "assert not missing, missing\n"
+        "from ai_review_common.issue_triage import get_verdict_emoji\n"
+        "assert get_verdict_emoji('PASS') == '\\u2705'\n"
+        "print('OK')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"/review names a symbol its module lacks: stdout={result.stdout!r} "
+        f"stderr={result.stderr!r}"
+    )
+    assert "OK" in result.stdout
 
 
 def test_review_skill_chains_skill_extras(vendored_root: Path) -> None:

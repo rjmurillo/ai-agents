@@ -160,7 +160,10 @@ class TestLowRiskRunsFewerAxes:
         low_count = len(low["canonical_selected"]) + len(low["local_selected"])
         deep_count = len(deep["canonical_selected"]) + len(deep["local_selected"])
         assert low_count < deep_count
-        assert deep_count == len(CANDIDATES) + len(mod.LOCAL_AXES)
+        # Deep runs every canonical axis, plus each local axis whose scanner
+        # reads the Markdown file: doc-accuracy and taste-lints (issue #7004).
+        assert set(deep["canonical_selected"]) == set(CANDIDATES)
+        assert set(deep["local_selected"]) == {"doc-accuracy", "taste-lints"}
 
     def test_skipped_axes_carry_a_reason_and_are_not_reported_as_pass(self) -> None:
         result = select(["docs/guide.md"])
@@ -175,7 +178,11 @@ class TestFailClosed:
         result = select(["some/unknown/artifact.xyz"])
         assert result["fail_closed"] is True
         assert set(result["canonical_selected"]) == set(CANDIDATES)
-        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        # No local scanner reads a .xyz file, so each one is skipped with a
+        # reason instead of scanning zero files into an UNKNOWN (issue #7031).
+        assert result["local_selected"] == []
+        for axis in mod.LOCAL_AXES:
+            assert result["skipped"][axis] == mod._UNREADABLE_REASON
         assert result["unclassified_paths"] == ["some/unknown/artifact.xyz"]
 
     def test_unknown_diff_effect_fails_closed(self) -> None:
@@ -188,6 +195,9 @@ class TestFailClosed:
         result = select([])
         assert result["fail_closed"] is True
         assert set(result["canonical_selected"]) == set(CANDIDATES)
+        # No usable path means nothing to narrow against: all four run.
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        assert result["skipped"] == {}
 
     def test_fail_closed_reason_is_recorded_per_axis(self) -> None:
         result = select(["some/unknown/artifact.xyz"])
@@ -244,7 +254,10 @@ class TestDemandedAxisWithNoPrompt:
         result = self._partial_run(candidates)
         assert result["fail_closed"] is True
         assert set(result["canonical_selected"]) == set(candidates)
-        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+        # A missing prompt says nothing about the path list, so local axes
+        # still narrow to the scanners that read a changed file.
+        assert set(result["local_selected"]) == {"code-qualities-assessment", "taste-lints"}
+        assert result["skipped"]["doc-accuracy"] == mod._UNREADABLE_REASON
 
     def test_every_candidate_is_selected_or_skipped(self, tmp_path: Path) -> None:
         # No axis disappears from both lists, on either branch.
@@ -361,11 +374,15 @@ class TestLocalAxisSelection:
         # that by claiming a scanner that cannot read it: DOC_GLOBS is
         # ["docs/**/*.md", "**/*.md"], so the scan found nothing and gated
         # PASS on a file it never opened. Unclassified is the honest answer,
-        # and it still gets the file reviewed, by the whole set.
+        # and it still gets the file reviewed, by every canonical axis.
+        # doc-accuracy is skipped with a reason rather than run over zero
+        # files into an UNKNOWN that no fix round can clear (issue #7031).
         result = select(["CHANGELOG.txt"])
         assert result["unclassified_paths"] == ["CHANGELOG.txt"]
         assert result["fail_closed"] is True
-        assert "doc-accuracy" in result["local_selected"]
+        assert set(result["canonical_selected"]) == set(CANDIDATES)
+        assert "doc-accuracy" not in result["local_selected"]
+        assert result["skipped"]["doc-accuracy"] == mod._UNREADABLE_REASON
 
     def test_code_change_does_not_select_doc_accuracy(self) -> None:
         result = select(["src/service.py"])

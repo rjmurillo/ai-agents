@@ -57,6 +57,9 @@ work:
    A branch with a recorded upstream that no longer appears in
    `git ls-remote --heads origin` was merged. One network round trip covers every
    branch in a run; never call it per branch.
+   Recurrence 2026-10-31 (PR #7007 retro): a report said the head branch still
+   existed after merge because `merge_pr.py` got no `--delete-branch`. The branch
+   was already gone. Check `git ls-remote` before stating remote branch state.
 2. The pull request state itself, via `gh pr list --state merged --json headRefName`.
 
 Keep ancestry as a cheap first pass. When it says merged it is still right and it

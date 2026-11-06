@@ -51,6 +51,8 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.ci.ruleset_required_contexts import (
@@ -78,6 +80,7 @@ from scripts.github_core.workflow_event_subscriptions import (
 )
 from scripts.github_core.workflow_provenance import resolve_run_subscriptions
 from scripts.github_core.workflow_runs import (
+    UnexpectedPayloadError,
     cancel_runs,
     collect_runs_for_targets,
     with_artifact_counts,
@@ -369,8 +372,24 @@ def _resolve_live_subscriptions(
     if args.runs_file is not None:
         return None
     return resolve_run_subscriptions(
-        client, args.repository, runs, base_subscriptions=subscriptions
+        client,
+        args.repository,
+        runs,
+        base_subscriptions=subscriptions,
+        parse_yaml=parse_workflow_yaml,
     )
+
+
+def parse_workflow_yaml(text: str) -> object:
+    """Parse one workflow file, or return None when its YAML is malformed.
+
+    This lives here, not in ``scripts.github_core``, because the shipped lib must
+    import without PyYAML (issue #7082).
+    """
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None
 
 
 def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) -> int:
@@ -399,11 +418,11 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
     except ValueError as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    except (RuntimeError, OSError) as exc:
+    except (RuntimeError, OSError, UnexpectedPayloadError) as exc:
         print(f"[FAIL] GitHub API read failed: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
 
-    subscriptions = load_workflow_subscriptions(args.workflows_dir)
+    subscriptions = load_workflow_subscriptions(args.workflows_dir, parse_workflow_yaml)
     manifest = plan_recovery(
         runs,
         required=REQUIRED_CONTEXTS,

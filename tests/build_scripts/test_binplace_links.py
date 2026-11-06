@@ -23,6 +23,7 @@ if str(_BUILD_SCRIPTS) not in sys.path:
 
 import binplace_links  # noqa: E402
 import binplace_manifest  # noqa: E402
+import lib_render  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
     sys.platform == "win32", reason="symlink creation needs Developer Mode on Windows"
@@ -211,14 +212,12 @@ def test_binplace_places_links_and_allowlists_them(tmp_path: Path) -> None:
     ("row_extra", "plugin_tree", "message"),
     [
         ('    link: "yes"\n', "src/claude/agents", "must be a boolean"),
-        ("    link: true\n", "src/claude/hooks.json", "file-shaped"),
     ],
 )
 def test_manifest_rejects_malformed_link_rows(
     tmp_path: Path, row_extra: str, plugin_tree: str, message: str
 ) -> None:
     (tmp_path / "src" / "claude").mkdir(parents=True)
-    (tmp_path / "src" / "claude" / "hooks.json").write_text("{}\n", encoding="utf-8")
     _manifest(tmp_path, row_extra, plugin_tree)
 
     with pytest.raises(binplace_manifest.BinplaceConfigError, match=message):
@@ -394,17 +393,23 @@ def test_live_manifest_links_claude_lib_and_compiles_without_installing() -> Non
 
 def test_claude_lib_links_every_plugin_entry_and_keeps_repo_local_modules_real() -> None:
     plugin, install = _REPO_ROOT / "src/claude/lib", _REPO_ROOT / ".claude/lib"
+    # REQ-048 TASK-006: the plugin also ships byte copies of seven repo-local
+    # modules. They stay real files in .claude/lib; surface-parity row
+    # lib-claude-dispatch-copies pins the copies to them.
+    copies = set(lib_render.CLAUDE_ONLY_LIB_FILES)
 
     for entry in plugin.iterdir():
-        if entry.name == "__pycache__":
+        if entry.name == "__pycache__" or entry.name in copies:
             continue
         assert os.readlink(install / entry.name) == f"../../src/claude/lib/{entry.name}", entry.name
         assert (install / entry.name).resolve() == entry.resolve(), entry.name
         assert entry.resolve().is_relative_to(plugin.resolve()), entry.name
     real = {entry.name for entry in install.iterdir() if not entry.is_symlink()}
     assert real - {"__pycache__"} == binplace_manifest.REPO_LOCAL_LIB_NAMES
-    for name in binplace_manifest.REPO_LOCAL_LIB_NAMES:
+    for name in binplace_manifest.REPO_LOCAL_LIB_NAMES - copies:
         assert not (plugin / name).exists(), f"{name} now ships; drop it from REPO_LOCAL_LIB_NAMES"
+    for name in copies:
+        assert (plugin / name).read_bytes() == (install / name).read_bytes(), name
 
 
 def test_a_hand_edited_real_lib_package_is_refused_not_replaced(tmp_path: Path) -> None:
@@ -470,3 +475,6 @@ def test_dropping_link_true_turns_lib_file_links_back_into_copies(tmp_path: Path
     assert installed.is_file() and not installed.is_symlink()
     assert installed.read_text(encoding="utf-8") == "x = 1\n"
     assert (plugin / "paths.py").read_text(encoding="utf-8") == "x = 1\n"
+
+
+# --- ADR-109 amendment 2026-11-04: file-shaped link row (hooks-json) -------

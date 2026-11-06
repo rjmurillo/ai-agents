@@ -2,7 +2,10 @@
 
 Split out so the record validator stays under the repository file-size limit.
 Every function is pure: it reads the record fragment it is given and returns
-defect strings. Nothing here touches the filesystem or runs a command.
+defect strings. Nothing here touches the filesystem or runs a command. Real
+pytest collection lives in ``relocation_collector``; the CLI passes it in as a
+``collector`` so the claimed test ids are checked against what pytest really
+collects (issue #6506, review-gates-03).
 """
 
 from __future__ import annotations
@@ -127,15 +130,32 @@ def relocation_scope_defects(where: str, target: dict[str, Any]) -> list[str]:
     defects: list[str] = []
     if target["provenance"].get("category") != "LOCAL":
         defects.append(f"{where}: {RELOCATION} applies only to LOCAL provenance")
-    segments = path_key(target.get("target")).split("/")
-    if segments[0] != "tests" or ".." in segments:
-        defects.append(f"{where}: {RELOCATION} applies only to a target under tests/")
-    elif not _is_test_module(segments):
-        defects.append(
-            f"{where}: {RELOCATION} applies only to a test module (test_*.py or *_test.py); "
-            "conftest.py and other support files need a defect diagnosis"
-        )
+    defects += _tests_path_defects(where, "a target", target.get("target"))
+    evidence = target.get("relocation_evidence")
+    if isinstance(evidence, dict):
+        for key in ("moved_from", "moved_to"):
+            listed = evidence.get(key)
+            if isinstance(listed, list):
+                for item in listed:
+                    if is_text(item):
+                        defects += _tests_path_defects(
+                            where, f"a relocation_evidence.{key} path", item
+                        )
     return defects
+
+
+def _tests_path_defects(where: str, label: str, path: object) -> list[str]:
+    """One path must sit under ``tests/``, hold no ``..``, and name a test module."""
+    segments = path_key(path).split("/")
+    if segments[0] != "tests" or ".." in segments:
+        return [f"{where}: {RELOCATION} applies only to {label} under tests/ ({path_key(path)!r})"]
+    if not _is_test_module(segments):
+        return [
+            f"{where}: {RELOCATION} applies only to a test module (test_*.py or *_test.py) "
+            f"in {label} ({path_key(path)!r}); "
+            "conftest.py and other support files need a defect diagnosis"
+        ]
+    return []
 
 
 def is_text_list(value: object) -> bool:

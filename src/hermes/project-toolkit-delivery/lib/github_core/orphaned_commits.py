@@ -6,14 +6,18 @@ so a resuming session could push them on the strength of a commit message.
 On PR #5344 one such commit claimed to drop a duplicate pre-push gate. Its diff
 deleted the lefthook job and the one test that would have caught the deletion.
 
-This module is read-only. It compares the live PR head SHA with the local
+This module moves no ref. It compares the live PR head SHA with the local
 ``HEAD`` and reports every commit the live head does not contain, flagging the
 two shapes the incident showed: edits to CI or pre-push wiring, and removed
 tests. ``check_pr_round_cap.py`` owns the CLI and the output envelope; the git
-calls go through an injectable runner so tests never need a repository.
+calls go through an injectable runner so tests never need a repository. Its one
+write fetches a missing live head by SHA for an escalated record: objects, no refs.
 
 Status values: ``clean`` (no commit ahead), ``ahead`` (commits listed),
-``unverified`` (git could not answer, so the caller must check by hand).
+``unverified`` (git could not answer, so the caller must check by hand). An
+``unverified`` report can still list commits: when the live head is not an
+ancestor of ``HEAD`` it carries ``force_push_suspected`` and the commits only
+``HEAD`` holds, and when a diff could not be read it names those commits.
 """
 
 from __future__ import annotations
@@ -64,6 +68,13 @@ _GIT_ENV_KEYS = (
 _GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _RECORD_SEP = "\x1e"
+#: ``%s`` holds no newline but can hold the separator, so a record starts only at a line start.
+_RECORD_START = re.compile(rf"(?m)^{_RECORD_SEP}(?={_SHA.pattern}\t)")
+#: Hooks off: a fetch fires ``reference-transaction``, and this scan must run no repo code.
+_FETCH = (
+    f"-c core.hooksPath={os.devnull} fetch --quiet --no-tags --no-write-fetch-head "
+    "--no-auto-maintenance --no-recurse-submodules -- origin"
+).split()
 
 _WIRING_PATH = re.compile(
     r"(^|/)lefthook\.ya?ml$"
@@ -81,11 +92,11 @@ _TEST_PATH = re.compile(
 )
 _TEST_DEF = r"(?:async\s+)?def\s+test_|(?:it|test)\(|\[(?:Fact|Theory|Test|TestMethod)\b"
 _REMOVED_TEST_DEF = re.compile(rf"^-\s*(?:{_TEST_DEF})")
-_ADDED_TEST_DEF = re.compile(rf"^\+\s*(?:{_TEST_DEF})")
 
 RISK_WIRING = "touches CI or pre-push wiring"
 RISK_TEST_FILE_DELETED = "deletes a test file"
 RISK_TEST_DEFS_REMOVED = "removes test definitions"
+RISK_DIFF_UNREADABLE = "test diff unreadable (git show failed)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,15 +117,14 @@ def _run_git(args: list[str], env: dict[str, str] | None = None) -> tuple[int, s
         result = subprocess.run(
             ["git", *args],
             capture_output=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=30,
             check=False,
             env=env,
         )
     except (subprocess.SubprocessError, OSError):
         return _LAUNCH_FAILURE, ""
-    return result.returncode, result.stdout or ""
+    # Bytes, not text mode: universal newlines would turn a ``\r`` in a subject into ``\n``.
+    return result.returncode, (result.stdout or b"").decode("utf-8", "replace")
 
 
 def default_runner(args: list[str]) -> tuple[int, str]:
@@ -164,6 +174,7 @@ def worktree_runner(worktree: str) -> GitRunner:
         for key, value in os.environ.items()
         if key not in _GIT_ENV_KEYS and not key.startswith(_GIT_ENV_PREFIXES)
     }
+    env["GIT_TERMINAL_PROMPT"] = "0"
 
     def run(args: list[str]) -> tuple[int, str]:
         return _run_git(["-C", worktree, *args], env)
@@ -178,8 +189,8 @@ def _clean(text: str) -> str:
 def parse_log(text: str) -> list[Commit]:
     """Parse ``git log --name-status --format=%x1e%H%x09%s`` output."""
     commits: list[Commit] = []
-    for record in text.split(_RECORD_SEP):
-        lines = [line for line in record.splitlines() if line.strip()]
+    for record in _RECORD_START.split(text):
+        lines = [line for line in record.split("\n") if line.strip()]
         if not lines:
             continue
         sha, _, subject = lines[0].partition("\t")
@@ -193,19 +204,25 @@ def parse_log(text: str) -> list[Commit]:
 
 
 def _count_test_defs(patch: str) -> int:
-    """Removed minus added test definitions in a zero-context patch."""
-    lines = patch.splitlines()
-    removed = sum(1 for line in lines if _REMOVED_TEST_DEF.match(line))
-    added = sum(1 for line in lines if _ADDED_TEST_DEF.match(line))
-    return removed - added
+    """Removed test definitions in a zero-context patch.
+
+    Added definitions are not netted out: a commit that deletes a guard test and
+    adds an unrelated one still removed the guard (issue #6506).
+    """
+    return sum(1 for line in patch.splitlines() if _REMOVED_TEST_DEF.match(line))
 
 
-def _removed_test_defs(commit: Commit, runner: GitRunner) -> int:
+def _removed_test_defs(commit: Commit, runner: GitRunner) -> int | None:
+    """Count removed test definitions, or ``None`` when ``git show`` failed.
+
+    ``None`` means the diff was not read. It is not "no removed tests".
+    """
     modified = [path for status, path in commit.files if status == "M" and _TEST_PATH.search(path)]
     if not modified:
         return 0
-    code, patch = runner(["show", "-U0", "--format=", "--no-renames", commit.sha, "--", *modified])
-    return _count_test_defs(patch) if code == 0 else 0
+    args = ["show", "-U0", "--format=", "--no-renames", "--end-of-options", commit.sha]
+    code, patch = runner([*args, "--", *modified])
+    return _count_test_defs(patch) if code == 0 else None
 
 
 def classify(commit: Commit, runner: GitRunner) -> Commit:
@@ -215,7 +232,10 @@ def classify(commit: Commit, runner: GitRunner) -> Commit:
         risks.append(RISK_WIRING)
     if any(status == "D" and _TEST_PATH.search(path) for status, path in commit.files):
         risks.append(RISK_TEST_FILE_DELETED)
-    if _removed_test_defs(commit, runner) > 0:
+    removed = _removed_test_defs(commit, runner)
+    if removed is None:
+        risks.append(RISK_DIFF_UNREADABLE)
+    elif removed > 0:
         risks.append(RISK_TEST_DEFS_REMOVED)
     return Commit(commit.sha, commit.subject, commit.files, tuple(risks))
 
@@ -224,22 +244,25 @@ def _report(status: str, live_head: str, **extra: object) -> dict[str, object]:
     return {"status": status, "live_head": live_head, "commits": [], "warning": "", **extra}
 
 
-def _unverified(live_head: str, reason: str) -> dict[str, object]:
+def _unverified(live_head: str, reason: str, **extra: object) -> dict[str, object]:
     warning = (
         f"Could not compare local HEAD with live PR head {live_head[:9] or 'unknown'}: {reason}. "
         "Run `git log <live head>..HEAD` by hand and treat any commit there as "
         "unverified input before reuse."
     )
-    return _report("unverified", live_head, reason=reason, warning=warning)
+    return _report("unverified", live_head, reason=reason, warning=warning, **extra)
 
 
-def render_warning(live_head: str, commits: list[Commit], truncated: bool) -> str:
+def render_warning(
+    live_head: str, commits: list[Commit], truncated: bool, *, diverged: bool = False
+) -> str:
     """Human-readable warning naming each commit and its risk flags."""
+    where = "not in" if diverged else "ahead of"
+    note = "Some may predate the rewrite." if diverged else "No record shows they were pushed."
     lines = [
-        f"{len(commits)} local commit(s) ahead of live PR head {live_head[:9]}"
+        f"{len(commits)} local commit(s) {where} live PR head {live_head[:9]}"
         f"{' (latest ' + str(MAX_COMMITS) + ' shown)' if truncated else ''}. "
-        "No record shows they were pushed. Treat each as unverified input, "
-        "not ready to push."
+        f"{note} Treat each as unverified input, not ready to push."
     ]
     for commit in commits:
         flags = f" [{'; '.join(commit.risks)}]" if commit.risks else ""
@@ -252,50 +275,127 @@ def render_warning(live_head: str, commits: list[Commit], truncated: bool) -> st
     return "\n".join(lines)
 
 
-def scan_unpushed_commits(live_head: str, runner: GitRunner = default_runner) -> dict[str, object]:
+def _log_commits(rev_range: str, runner: GitRunner) -> tuple[int, list[Commit]]:
+    """Return ``(exit code, parsed commits)`` for ``git log`` over ``rev_range``."""
+    args = ["log", "--reverse", "--no-renames", "--name-status"]
+    args += [f"--max-count={MAX_COMMITS + 1}", f"--format={_RECORD_SEP}%H%x09%s", rev_range]
+    code, out = runner(args)
+    return (code, parse_log(out)) if code == 0 else (code, [])
+
+
+def _diverged_report(live_head: str, runner: GitRunner) -> dict[str, object]:
+    """Unverified report for a live head that ``HEAD`` does not contain.
+
+    This is the force-pushed-head shape: the remote history was rewritten, or the
+    local branch diverged. List the commits only ``HEAD`` holds so the reader can
+    see what a push would carry.
+    """
+    reason = "live head is not an ancestor of HEAD (diverged or another branch)"
+    code, out = runner(["merge-base", live_head, "HEAD"])
+    base = out.strip()
+    if code == 0 and _SHA.fullmatch(base):
+        rev_range = f"{base}..HEAD"
+    elif code == 1:
+        rev_range, reason = "HEAD", f"{reason}; no common ancestor"
+    else:
+        detail = "output was not a commit SHA" if code == 0 else f"exited {code}"
+        return _unverified(live_head, f"{reason}; merge-base {detail}", force_push_suspected=True)
+    code, parsed = _log_commits(rev_range, runner)
+    if code != 0:
+        return _unverified(live_head, f"{reason}; git log exited {code}", force_push_suspected=True)
+    if not parsed:
+        return _unverified(live_head, f"{reason}; local HEAD is behind the live head")
+    truncated = len(parsed) > MAX_COMMITS
+    commits = [classify(commit, runner) for commit in parsed[-MAX_COMMITS:]]
+    warning = (
+        f"Live PR head {live_head[:9]} is not an ancestor of local HEAD: the branch was "
+        "force-pushed or has diverged. "
+        + render_warning(live_head, commits, truncated, diverged=True)
+        + " Confirm by hand with `git log <live head>..HEAD`."
+    )
+    return _report(
+        "unverified",
+        live_head,
+        reason=reason,
+        force_push_suspected=True,
+        commits=[commit.to_dict() for commit in commits],
+        truncated=truncated,
+        warning=warning,
+    )
+
+
+def _fetch_missing_head(live_head: str, runner: GitRunner) -> str:
+    """Fetch an absent live head, and return a failure reason or ``""``.
+
+    By SHA: a branch fetch would advance the ref a bare ``--force-with-lease`` reads.
+    """
+    code, _ = runner(["cat-file", "-e", f"{live_head}^{{commit}}"])
+    if code in (0, _INVALID_WORKTREE, _LAUNCH_FAILURE):
+        return ""
+    code, _ = runner([*_FETCH, live_head])
+    if code == 0:
+        return ""
+    detail = "timed out or could not start" if code == _LAUNCH_FAILURE else f"exited {code}"
+    return f"could not fetch the live head from origin: git fetch {detail}. Fetch it by hand first"
+
+
+def scan_unpushed_commits(
+    live_head: str, runner: GitRunner = default_runner, *, pr_checkout: bool = False
+) -> dict[str, object]:
     """Report local commits that the live PR head does not contain.
 
-    Read-only. Never raises: a git failure yields an ``unverified`` report.
+    ``pr_checkout`` stays False unless ``runner`` points at a named PR worktree. In the
+    current directory ``HEAD`` may be another branch, so a diverged live head proves
+    nothing about a force-push and its commits are not listed.
+
+    Moves no ref. A named worktree fetches an absent live head first; the current
+    directory may be another repository. Never raises: a git failure is ``unverified``.
     The SHA comes from the GitHub API, so its shape is checked before it
     reaches a git argument vector (CWE-88).
     """
     if not _SHA.fullmatch(live_head):
         return _unverified(live_head, "live head is not a commit SHA")
+    if pr_checkout and (failure := _fetch_missing_head(live_head, runner)):
+        return _unverified(live_head, failure)
     code, _ = runner(["merge-base", "--is-ancestor", live_head, "HEAD"])
     if code == 1:
-        return _unverified(
-            live_head, "live head is not an ancestor of HEAD (diverged or another branch)"
-        )
+        if not pr_checkout:
+            return _unverified(
+                live_head, "live head is not an ancestor of HEAD and no PR worktree was named"
+            )
+        return _diverged_report(live_head, runner)
     if code == _INVALID_WORKTREE:
         return _unverified(live_head, "the --worktree path is not a git checkout; scan skipped")
     if code == _LAUNCH_FAILURE:
         return _unverified(live_head, "git could not be launched")
     if code != 0:
         return _unverified(live_head, f"git merge-base exited {code}; fetch the PR head first")
-    code, out = runner(
-        [
-            "log",
-            "--reverse",
-            "--no-renames",
-            "--name-status",
-            f"--max-count={MAX_COMMITS + 1}",
-            f"--format={_RECORD_SEP}%H%x09%s",
-            f"{live_head}..HEAD",
-        ]
-    )
+    code, parsed = _log_commits(f"{live_head}..HEAD", runner)
     if code != 0:
         return _unverified(live_head, f"git log exited {code}")
-    parsed = parse_log(out)
     if not parsed:
         return _report("clean", live_head)
     truncated = len(parsed) > MAX_COMMITS
     commits = [classify(commit, runner) for commit in parsed[-MAX_COMMITS:]]
+    warning = render_warning(live_head, commits, truncated)
+    unreadable = [c.sha for c in commits if RISK_DIFF_UNREADABLE in c.risks]
+    if unreadable:
+        shown = ", ".join(sha[:9] for sha in unreadable)
+        reason = f"git show failed for {len(unreadable)} commit(s): {shown}"
+        return _report(
+            "unverified",
+            live_head,
+            reason=reason,
+            commits=[commit.to_dict() for commit in commits],
+            truncated=truncated,
+            warning=f"{reason}; removed tests cannot be ruled out. {warning}",
+        )
     return _report(
         "ahead",
         live_head,
         commits=[commit.to_dict() for commit in commits],
         truncated=truncated,
-        warning=render_warning(live_head, commits, truncated),
+        warning=warning,
     )
 
 
@@ -303,6 +403,8 @@ def scan_if_escalated(
     escalated: bool,
     live_head: str | None,
     runner: GitRunner = default_runner,
+    *,
+    pr_checkout: bool = False,
 ) -> dict[str, object]:
     """Scan only when the round-cap record is escalated; otherwise ``not_checked``.
 
@@ -312,4 +414,4 @@ def scan_if_escalated(
         return _report("not_checked", live_head or "")
     if not live_head:
         return _unverified("", "live PR head SHA unavailable")
-    return scan_unpushed_commits(live_head, runner)
+    return scan_unpushed_commits(live_head, runner, pr_checkout=pr_checkout)

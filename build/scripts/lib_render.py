@@ -25,6 +25,23 @@ from lib_mirror import PACKAGES, SYNC_FILE_NAMES, _transform_file  # noqa: E402
 # plugin's lib/ (ADR-119: skill scripts import paths.py from there). Byte copies.
 PLUGIN_LIB_FILES: tuple[str, ...] = ("paths.py",)
 
+# Hand-maintained modules that this renderer places only in the Claude
+# plugin's lib/, never in another plugin tree or the Hermes pack: the grouped
+# hook dispatcher that ``hooks/invoke_dispatch_claude.py`` imports from its own
+# ``lib/`` (REQ-048 TASK-006). The ``.claude/lib/`` originals are real files,
+# and the ``lib-claude-dispatch-copies`` parity row pins these byte copies.
+# The Copilot copy of claude_hook_dispatch.py is hand-copied, not rendered,
+# and the ``lib-copilot-modules`` row pins it.
+CLAUDE_ONLY_LIB_FILES: tuple[str, ...] = (
+    "claude_hook_dispatch.py",
+    "claude_hook_protocol.py",
+    "hook_dispatch.py",
+    "hook_dispatch_protocol.py",
+    "hook_dispatch_timeout.py",
+    "output_capture.py",
+    "shim_loader.py",
+)
+
 
 class LibRenderError(Exception):
     """A registered lib source is missing or unreadable."""

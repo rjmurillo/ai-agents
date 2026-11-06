@@ -18,7 +18,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-LIB_MIRROR_PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common")
+LIB_MIRROR_PACKAGES: tuple[str, ...] = (
+    "hook_utilities",
+    "github_core",
+    "ai_review_common",
+    "failure_classifier",
+)
 
 _HERMES_MIRROR_RE = re.compile(
     r"^src/hermes/project-toolkit-[a-z0-9-]+/"

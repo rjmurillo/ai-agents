@@ -18,6 +18,7 @@ native-argument quoting on Windows.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -32,6 +33,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
+import copilot_launcher  # noqa: E402
 from copilot_launcher import (  # noqa: E402
     LAUNCHER_PREFIX,
     LauncherError,
@@ -190,6 +192,54 @@ class TestShippedMap:
         source = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))["scripts"]["copilot"]
         copy = yaml.safe_load(shipped.read_text(encoding="utf-8"))["scripts"]["copilot"]
         assert copy == source
+
+
+def _import_gate():
+    """The completion gate, which carries its own port of the launcher."""
+    path = REPO_ROOT / "src" / "claude" / "skills" / "github" / "scripts" / "pr"
+    spec = importlib.util.spec_from_file_location(
+        "run_completion_gate_launcher_port",
+        path / "run_completion_gate.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestGatePortMatchesTheRenderer:
+    """run_completion_gate.py ports the launcher because build/ does not ship.
+
+    Its verifier trusts a launcher only when re-rendering reproduces it,
+    so a port that drifted from this module would block every Copilot run
+    or, worse, vouch for a form this module never emits (D5, #6506).
+    """
+
+    gate = _import_gate()
+
+    def test_constants_match(self):
+        assert self.gate._LAUNCHER_PREFIX == LAUNCHER_PREFIX
+        assert self.gate._LAUNCHER_ROOT_ENV_VARS == copilot_launcher.ROOT_ENV_VARS
+        assert self.gate._LAUNCHER_FALLBACK_ROOT == copilot_launcher.FALLBACK_ROOT
+        assert self.gate._LAUNCHER_PAYLOAD_RE.pattern == copilot_launcher._PAYLOAD_RE.pattern
+        assert self.gate._LAUNCHER_SCRIPT_REL_RE.pattern == copilot_launcher._SCRIPT_REL_RE.pattern
+
+    def test_every_shipped_entry_renders_identically_in_the_gate(self):
+        for key, command in _copilot_map().items():
+            parsed = split_launcher(command)
+            assert parsed is not None, key
+            rel, args = parsed
+            assert self.gate._render_launcher_payload(rel) == render_payload(rel), key
+            assert self.gate._render_launcher(rel) == render_launcher(rel), key
+            assert self.gate._launcher_script(command) == rel, key
+            assert render_launcher(rel, args) == command, key
+
+    def test_root_form_is_the_chain_the_payload_resolves(self):
+        first, second = copilot_launcher.ROOT_ENV_VARS
+        expected = f"${{{first}:-${{{second}:-{copilot_launcher.FALLBACK_ROOT}}}}}"
+        assert self.gate._LAUNCHER_ROOT_FORM == expected
+        assert expected in self.gate._PLUGIN_ROOT_FORMS
+        assert self.gate._PLUGIN_ROOT_FORMS[expected] == copilot_launcher.ROOT_ENV_VARS
 
 
 @requires_pwsh

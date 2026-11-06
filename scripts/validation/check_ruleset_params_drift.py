@@ -12,24 +12,30 @@ Compares ruleset_params_baseline.json against the live ruleset fetched via
     live outside any rule's `parameters` block and were previously never
     fetched at all
 
-Exits non-zero when any of the above drifts.
+Exits non-zero when any of the above drifts; --alert also files an issue.
+
+`bypass_actors` is only returned to callers with admin access to the
+repository. The Actions GITHUB_TOKEN cannot see it: the key is absent from
+the response. That is a distinct state, "not observable with this token",
+and it is not drift. It is logged as such and the comparison is skipped;
+whenever the key is present (including an empty list) it is compared as
+before, so a token that can see it still catches an added or removed actor.
 
 Usage (local):
-    python scripts/validation/check_ruleset_params_drift.py
+    python scripts/validation/check_ruleset_params_drift.py [--alert]
 
 Usage (CI, offline / no token):
     python scripts/validation/check_ruleset_params_drift.py --offline
 
 EXIT CODES (ADR-035):
-    0 - all state matches or --offline skipped the live check
-    1 - drift detected
+    0 - all observable state matches (bypass_actors is skipped when the
+        token cannot see it) or --offline skipped the live check
+    1 - drift detected (and alert published when --alert is set)
     2 - configuration error (missing baseline, bad JSON, missing/malformed
         'parameters' or 'ruleset' section)
-    3 - external error (gh CLI unavailable, API failure)
+    3 - external error (gh CLI unavailable, API failure, alert publish failure)
     4 - authentication error (gh CLI not authenticated)
 """
-
-from __future__ import annotations
 
 import json
 import subprocess
@@ -46,6 +52,8 @@ EXIT_AUTH = 4
 BASELINE_PATH = Path(__file__).parent / "ruleset_params_baseline.json"
 REPO = "rjmurillo/ai-agents"
 
+ALERT_MARKER = "RULESET-PARAMS-DRIFT"
+
 # `required_status_checks` is both a rule TYPE and, within that rule's
 # `parameters` block, a parameter KEY holding the list of required status
 # check contexts. That key is owned by
@@ -56,6 +64,14 @@ REPO = "rjmurillo/ai-agents"
 # no second baseline of the required contexts may exist, so this module
 # excludes the key from both value comparison and unknown-key detection.
 DELEGATED_PARAM_KEYS: frozenset[str] = frozenset({"required_status_checks"})
+
+BYPASS_ACTORS_NOT_OBSERVABLE_MESSAGE = (
+    "NOT OBSERVABLE: bypass_actors was absent from the API response. "
+    "GitHub only returns it to callers with admin access, so this token "
+    "(for example the Actions GITHUB_TOKEN) cannot see it. This is not drift. "
+    "bypass_actors was not compared; run this script with an admin token to "
+    "check it."
+)
 
 
 def load_baseline() -> dict[str, Any]:
@@ -133,11 +149,21 @@ def extract_live_params(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_live_ruleset_state(data: dict[str, Any]) -> dict[str, Any]:
-    """Extract the ruleset's top-level `enforcement` and `bypass_actors`."""
+    """Extract the ruleset's top-level `enforcement` and `bypass_actors`.
+
+    `bypass_actors` is None when the API response omits it (or returns null),
+    which is what a token without admin access gets. An empty list is a real
+    observation (no bypass actors) and stays an empty list.
+    """
     return {
         "enforcement": data.get("enforcement"),
-        "bypass_actors": data.get("bypass_actors", []),
+        "bypass_actors": data.get("bypass_actors"),
     }
+
+
+def bypass_actors_observable(live_ruleset: dict[str, Any]) -> bool:
+    """Return True when the live payload carried a `bypass_actors` value."""
+    return live_ruleset.get("bypass_actors") is not None
 
 
 def check_drift(baseline: dict[str, Any], live: dict[str, Any]) -> list[str]:
@@ -196,10 +222,14 @@ def check_ruleset_drift(baseline: dict[str, Any], live_ruleset: dict[str, Any]) 
     """Compare baseline top-level ruleset state against live state.
 
     `live_ruleset` is the shape extract_live_ruleset_state returns:
-    {"enforcement": ..., "bypass_actors": [...]}. `bypass_actors` is compared
-    order-insensitively (GitHub may return the list in a different order
-    without any actor having changed), but an added, removed, or modified
-    actor is still reported.
+    {"enforcement": ..., "bypass_actors": [...] or None}. `bypass_actors` is
+    compared order-insensitively (GitHub may return the list in a different
+    order without any actor having changed), but an added, removed, or
+    modified actor is still reported.
+
+    A None `bypass_actors` means the token could not see the field. That is
+    not drift: the comparison is skipped and main() reports the state with
+    bypass_actors_observable().
     """
     drifts: list[str] = []
     baseline_ruleset = baseline.get("ruleset", {})
@@ -211,12 +241,48 @@ def check_ruleset_drift(baseline: dict[str, Any], live_ruleset: dict[str, Any]) 
             f"  enforcement: expected={expected_enforcement!r}, actual={actual_enforcement!r}"
         )
 
+    if not bypass_actors_observable(live_ruleset):
+        return drifts
+
     expected_actors = _normalize_bypass_actors(baseline_ruleset.get("bypass_actors", []))
-    actual_actors = _normalize_bypass_actors(live_ruleset.get("bypass_actors", []))
+    actual_actors = _normalize_bypass_actors(live_ruleset["bypass_actors"])
     if actual_actors != expected_actors:
         drifts.append(f"  bypass_actors: expected={expected_actors!r}, actual={actual_actors!r}")
 
     return drifts
+
+
+def publish_drift_alert(ruleset_id: int, drifts: list[str]) -> int:
+    """Create or update the tracking issue; the signal omits live values (hedge gate)."""
+    # Lazy import keeps the default run stdlib-only under bare python3. CI runs
+    # this file as a script, so the repo root must be on sys.path first.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.ci.ruleset_context_drift import (
+        ALERT_LABELS,
+        publish_issue_alert,
+        run_url,
+        runbook_url,
+    )
+
+    drift_lines = "\n".join(drifts)
+    return publish_issue_alert(
+        title="Ruleset Parameter Drift Detected",
+        marker=ALERT_MARKER,
+        labels=ALERT_LABELS,
+        body=(
+            f"<!-- {ALERT_MARKER} -->\n## Ruleset Parameter Drift\n\n"
+            f"**Ruleset**: `{ruleset_id}`\n**Workflow run**: {run_url()}\n"
+            f"**Runbook**: {runbook_url()}\n\n"
+            f"```text\n{drift_lines}\n```\n\n"
+            f"Update `{BASELINE_PATH.name}` after confirming the change is intentional.\n"
+        ),
+        body_filename="ruleset-params-drift.md",
+        blocked_by=(
+            f"Maintainers merging to main in {REPO}: they rely on ruleset "
+            f"{ruleset_id} settings, which no longer match the recorded baseline."
+        ),
+        signal=f"Run {run_url()} compared ruleset {ruleset_id}: {len(drifts)} drifted item(s).",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -240,13 +306,28 @@ def main(argv: list[str] | None = None) -> int:
     drifts = check_drift(baseline, live_params)
     drifts += check_ruleset_drift(baseline, live_ruleset_state)
 
+    observable = bypass_actors_observable(live_ruleset_state)
+    if not observable:
+        print(BYPASS_ACTORS_NOT_OBSERVABLE_MESSAGE)
+
     if drifts:
         print("DRIFT DETECTED between baseline and live ruleset:")
         print("\n".join(drifts))
         print(f"\nUpdate {BASELINE_PATH.name} after confirming the change is intentional.")
+        if "--alert" not in args:
+            return EXIT_DRIFT
+        publish_rc = publish_drift_alert(ruleset_id, drifts)
+        if publish_rc != EXIT_OK:
+            return publish_rc
+        print("ALERT: tracking issue created or updated.")
         return EXIT_DRIFT
 
-    print("OK: all recorded ruleset parameters match live values.")
+    if observable:
+        print("OK: all recorded ruleset parameters match live values.")
+    else:
+        print(
+            "OK: all observable ruleset parameters match live values (bypass_actors not compared)."
+        )
     return EXIT_OK
 
 

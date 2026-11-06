@@ -9,6 +9,9 @@ Evidence is a JSON object the agent assembles from real command output:
       "expected": 3,                       # or {"max": 10}
       "rollback": {"kind": "backup", "ref": "...",
                    "backup_path": "...", "source_path": "..."},
+      # snapshot needs "snapshot_path" and "snapshot_target"; its manifest must
+      # name the same ref and target and a payload whose SHA-256 matches.
+      # version needs "ref" to be a 40-hex commit id that git can resolve.
       "approval": {"human": "who or ticket"},   # required when irreversible
       "checks": [{"command": "pytest ...", "exit_code": 0}]
     }
@@ -32,10 +35,10 @@ EXIT CODES (ADR-035), through ``destructive_gate.py``:
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Callable
-from pathlib import Path
 from typing import TypeGuard
+
+from rollback_checks import KIND_CHECKS
 
 Evidence = dict[str, object]
 Rule = Callable[[Evidence, "list[str]"], list[str]]
@@ -116,25 +119,11 @@ def rule_cardinality(evidence: Evidence, scanned: list[str]) -> list[str]:
     return ["no expected scope declared: cardinality cannot be checked"]
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def backup_reasons(rollback: dict[str, object]) -> list[str]:
-    """When both paths are given, the backup must exist and match the source."""
-    backup, source = rollback.get("backup_path"), rollback.get("source_path")
-    if not (backup and source):
-        return []
-    backup_file, source_file = Path(str(backup)), Path(str(source))
-    if not backup_file.is_file() or not source_file.is_file():
-        return ["rollback backup or source file does not exist"]
-    if sha256(backup_file) != sha256(source_file):
-        return ["rollback backup does not match the source file"]
-    return []
-
-
 def rule_rollback(evidence: Evidence, scanned: list[str]) -> list[str]:
-    """Recovery must be stated before execution; irreversible needs a human."""
+    """Recovery must be stated before execution; irreversible needs a human.
+
+    Each referenced kind is verified by its check in ``rollback_checks``.
+    """
     rollback = as_dict(evidence.get("rollback"))
     kind = rollback.get("kind")
     if kind not in ROLLBACK_KINDS:
@@ -142,8 +131,11 @@ def rule_rollback(evidence: Evidence, scanned: list[str]) -> list[str]:
     if kind == "irreversible":
         approved = as_dict(evidence.get("approval")).get("human")
         return [] if approved else ["irreversible operation needs human approval"]
-    reasons = [] if rollback.get("ref") else [f"rollback kind {kind} names no ref"]
-    return reasons + backup_reasons(rollback)
+    # Snapshot and version checks report their own ref defects, so skip the
+    # generic one for those kinds.
+    has_ref = rollback.get("ref") or kind in {"snapshot", "version"}
+    reasons = [] if has_ref else [f"rollback kind {kind} names no ref"]
+    return reasons + KIND_CHECKS[str(kind)](rollback)
 
 
 def rule_checks(evidence: Evidence, scanned: list[str]) -> list[str]:

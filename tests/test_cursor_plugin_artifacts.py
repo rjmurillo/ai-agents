@@ -225,6 +225,7 @@ def test_cursor_tree_has_lib_for_skill_scripts() -> None:
     assert {p.name for p in lib.iterdir() if p.name != "__pycache__"} == {
         "ai_review_common",
         "bootstrap.py",
+        "failure_classifier",
         "github_core",
         "hook_utilities",
     }

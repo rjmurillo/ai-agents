@@ -1,0 +1,50 @@
+{
+  "name": "ai-agents",
+  "image": "mcr.microsoft.com/devcontainers/python:3-3.14-trixie@sha256:66a39503cd5b53c94a57b9a235c6c9371ccf17bafd9c90369e566f638a05ac89",
+  // Each feature carries both an exact version and the sha256 digest from
+  // devcontainer-lock.json. The digest in the reference is what enforces
+  // integrity: the CLI verifies it on every client, including the documented
+  // `devcontainer up --workspace-folder .` and the VS Code "Reopen in
+  // Container" path, neither of which passes --frozen-lockfile.
+  "features": {
+    "ghcr.io/devcontainers/features/node:2.1.1@sha256:2a19d3b0b3879437637cfd292eb29fee0afcfbe6364e33db9afc4f80c5c1f956": {
+      // CI uses lts/*, which resolves to 26 today. The major is fixed so the
+      // toolchain stays on one line; the 26.x patch still resolves at build
+      // time. Bump it when CI's LTS line moves.
+      "version": "26",
+      "pnpmVersion": "none"
+    },
+    "ghcr.io/devcontainers/features/powershell:2.0.3@sha256:460fb241f4f9e098a30f9e1ea4a6ac8cac8cdf5df89ba2edfcf177f66e17d8b7": {
+      "version": "7.5"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1.1.3@sha256:bd7ab48a832228f633239277552c30b353867fef2e5b037e064b4e64f0b843f2": {
+      "version": "2.103.3"
+    }
+  },
+  "containerEnv": {
+    // ADR-104 rule 8: tests/hooks/test_managed_image_marker.py requires every
+    // tracked image to declare itself so hook timeouts clamp to the container.
+    "AI_AGENTS_REMOTE_CONTAINER": "1",
+    // The uv cache and the bind-mounted workspace sit on different
+    // filesystems, so hardlinking fails and uv warns on every sync.
+    "UV_LINK_MODE": "copy"
+  },
+  // uv comes from PyPI through the base image's pipx, not from a third-party
+  // container feature, so no unaffiliated publisher script runs at create.
+  // The version is the uv release current when this landed; CI pins none, so
+  // bump this with the feature pins rather than tracking latest at build time.
+  "postCreateCommand": "pipx install --force uv==0.13.6 && uv sync --frozen --extra dev && uv run --frozen --extra dev lefthook install --reset-hooks-path && uv run --frozen --extra dev lefthook check-install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker",
+        "ms-vscode.powershell",
+        "DavidAnson.vscode-markdownlint",
+        "redhat.vscode-yaml",
+        "github.vscode-github-actions"
+      ]
+    }
+  }
+}

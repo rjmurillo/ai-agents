@@ -104,15 +104,23 @@ uv run python "$SCRIPTS_DIR/run_completion_gate.py" \
     --config "$PR_REVIEW_CONFIG" \
     --pull-request {pr} \
     --verify-config-only \
+    --harness copilot \
     --json
 ```
 
 It checks the config and every file the `scripts` map names against the trusted
 ref and executes nothing from the config. A non-zero exit means execute nothing
 from the config, surface the diff, and stop. Exit 3 means verification is
-impossible, and `--approve-untrusted-config` does not apply.
+impossible, and `--approve-untrusted-config` does not apply. On exit 0, read
+`blocking_unverifiable_command_tokens`. A non-empty list stops the run: those
+tokens come from the `scripts.copilot` map and reach shell evaluation
+uncompared. Tokens only in `unverifiable_command_tokens` come from another
+harness's map, which this run never dispatches;
+they are reported and do not stop it. If you omit `--harness`, every token blocks.
 
-Only after exit 0, run `transport_preflight.command_key` from config.
+Only after exit 0 with an empty `blocking_unverifiable_command_tokens` list, run
+`transport_preflight.command_key`, read from the
+`$PR_REVIEW_CONFIG` file just verified (same path, resolved once).
 Then branch on the transport verdict. `gh` can be installed, hold a token, and
 still be refused for the whole session, in which case every script below fails
 with HTTP 403 for a reason that has nothing to do with the PR. Never turn a
@@ -183,7 +191,7 @@ uv run python .claude/skills/github/scripts/pr/run_completion_gate.py \
     --json
 ```
 
-Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error (including a config that diverges from or is absent at the trusted ref); exit 3 = trust verification impossible (no git work tree, trusted ref missing). On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
+Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error (including a config that diverges from or is absent at the trusted ref); exit 3 = trust verification impossible (no git work tree, trusted ref missing), with no payload; exit 3 with `verdict: unknown` = this session refuses GitHub, so check `unknown_criteria` by hand and do not retry. On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
 
 ### Trust boundary on the PR branch
 

@@ -138,9 +138,10 @@
 |local passes CI fails same commit gitignored build: [decision-local-pass-does-not-clear-red-ci](decision-local-pass-does-not-clear-red-ci.md) (942)
 |spec coverage acceptance criteria checkbox fails unchecked linked spec observe-only history verdict spec_coverage_verdict linked spec rerun stale body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (1256)
 |mutation harness restore failure truncate empty target sibling: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
+|root uid 0 non-root claude user managed container pre-push hooks testmon env -i GH_TOKEN PYTHONUNBUFFERED mutation marker push: [ci/ci-run-hooks-as-non-root](ci/ci-run-hooks-as-non-root.md) (925)
 |BOT_PAT github.token runner token AI review read calls: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (1609)
-|taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
+|taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (1045)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
 |CLAUDE_PLUGIN_ROOT pycache bytecode generated staleness gate python-tests collect only full suite merge_group D9 review marker merge main: [ci/ci-local-push-and-test-environment-contracts](ci/ci-local-push-and-test-environment-contracts.md) (608)
 |pre-push pytest CLAUDE_PLUGIN_ROOT src/copilot-cli COPILOT_PLUGIN_ROOT env default test passes locally fails push git_hook_policy: [ci/ci-pre-push-pytest-sets-claude-plugin-root-to-copilot-tree](ci/ci-pre-push-pytest-sets-claude-plugin-root-to-copilot-tree.md) (327)
@@ -176,7 +177,7 @@
 |build_all --check drift uncommitted changes git diff legacy.boolean_contract Generated Artifact Staleness check_generated_staleness: [ci/ci-build-all-check-reports-uncommitted-changes-as-drift](ci/ci-build-all-check-reports-uncommitted-changes-as-drift.md) (373)
 
 [Documentation and Planning]
-|documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
+|documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (356)
 |planning task file path scope breakdown: [skills-planning-index](skills-planning-index.md) (246)
 |roadmap epic priority strategic vision business value: [planning/roadmap-priorities](planning/roadmap-priorities.md) (271)
 

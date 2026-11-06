@@ -19,6 +19,7 @@ import builtins
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -386,8 +387,14 @@ def test_gate_fails_tightly_coupled_file(tmp_path: Path) -> None:
 
 def test_go_import_block_not_overcounted(tmp_path: Path) -> None:
     """A Go ``import ( ... )`` block must count only the specs inside it, not
-    the block opener. A 3-import block is 3 imports (coupling 7), not 4."""
-    body = 'package main\n\nimport (\n    "fmt"\n    "os"\n    "strings"\n)\n\nfunc main() {}\n'
+    the block opener. A 3-import block is 3 imports (coupling 7), not 4.
+    Third-party paths are used because standard-library imports are not
+    scored (issue #7047)."""
+    body = (
+        "package main\n\nimport (\n"
+        '    "github.com/a/one"\n    "github.com/b/two"\n    "example.com/three"\n'
+        ")\n\nfunc main() {}\n"
+    )
     path = _write(tmp_path, "main.go", body)
     coupling = assess_file(path, "production", False).coupling
     # 10 - 3 imports == 7; the block opener must not add a fourth.
@@ -402,7 +409,7 @@ def test_go_imports_with_trailing_comments_counted(tmp_path: Path) -> None:
     single = _write(
         tmp_path,
         "single.go",
-        'package main\n\nimport "fmt" // formatting\n\nfunc main() {}\n',
+        'package main\n\nimport "github.com/a/fmtx" // formatting\n\nfunc main() {}\n',
     )
     # One counted import => coupling 9 (10 - 1); a missed import would score 10.
     assert assess_file(single, "production", False).coupling.value == 9
@@ -413,8 +420,8 @@ def test_go_imports_with_trailing_comments_counted(tmp_path: Path) -> None:
         (
             "package main\n\n"
             "import (\n"
-            '    "fmt" // formatting\n'
-            '    "os"  // process env\n'
+            '    "github.com/a/fmtx" // formatting\n'
+            '    "github.com/b/envx"  // process env\n'
             '    _ "github.com/lib/pq" // sql driver, blank import\n'
             ")\n\n"
             "func main() {}\n"
@@ -422,6 +429,183 @@ def test_go_imports_with_trailing_comments_counted(tmp_path: Path) -> None:
     )
     # Three specs, each with a trailing comment => coupling 7 (10 - 3).
     assert assess_file(block, "production", False).coupling.value == 7
+
+
+# Issue #7047 reproduction: a valid Go test using only standard-library imports.
+_GO_STDLIB_ONLY_TEST = """package couplingrepro
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "io"
+    "os"
+    "os/exec"
+    "path/filepath"
+    "strings"
+    "testing"
+    "time"
+)
+
+func TestCommand(t *testing.T) {
+    ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+    defer cancel()
+    cmd := exec.CommandContext(ctx, os.Args[0], "-test.list=^$")
+    cmd.Dir = filepath.Clean(t.TempDir())
+    cmd.Stdout = io.Discard
+    cmd.Stderr = io.Discard
+    if err := cmd.Run(); err != nil {
+        t.Fatal(fmt.Errorf("%s: %w", strings.TrimSpace(cmd.Path), errors.Join(err, ctx.Err())))
+    }
+}
+"""
+
+
+def test_go_stdlib_only_test_passes_absolute_coupling_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #7047: ten standard-library imports used to score coupling 1.0
+    and exit 11. They are reported but not scored, so the gate passes."""
+    path = _write(tmp_path, "checkout_test.go", _GO_STDLIB_ONLY_TEST)
+    monkeypatch.chdir(tmp_path)
+
+    coupling = assess_file(path, "production", False).coupling
+    rc = main(
+        [
+            "--target",
+            ".",
+            "--gate-mode",
+            "absolute",
+            "--format",
+            "json",
+            "--output",
+            str(tmp_path / "quality.json"),
+        ]
+    )
+
+    assert coupling.value == 10
+    assert coupling.confidence == 0.6
+    assert coupling.reasons == [
+        "10 import/dependency statements",
+        "10 Go standard library (not scored), 0 application or third-party (scored)",
+        "Import count is reasonable",
+    ]
+    report = json.loads((tmp_path / "quality.json").read_text())
+    assert report["files"][0]["coupling"]["value"] == 10
+    assert rc == 0
+
+
+def test_go_third_party_imports_still_fail_gate(tmp_path: Path) -> None:
+    """Negative control: the same import count from third-party modules still
+    scores below coupling.min and fails, so the gate stays intact."""
+    specs = "".join(f'    "github.com/org/dep{i}"\n' for i in range(10))
+    body = f"package dep\n\nimport (\n{specs})\n\nfunc F() {{}}\n"
+    path = _write(tmp_path, "dep.go", body)
+
+    assessment = assess_file(path, "production", False)
+
+    assert assessment.coupling.value == 1
+    assert assessment.coupling.reasons[-1] == "High import count suggests high coupling"
+    assert check_thresholds([assessment], _default_config(), "production") == 11
+
+
+def test_go_mixed_imports_score_only_non_standard(tmp_path: Path) -> None:
+    """Standard imports add nothing; each third-party import costs one point."""
+    body = (
+        "package mixed\n\nimport (\n"
+        '    "fmt"\n    "os"\n    "strings"\n'
+        '    "github.com/a/one"\n    "golang.org/x/sync/errgroup"\n'
+        ")\n\nfunc F() {}\n"
+    )
+    path = _write(tmp_path, "mixed.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 8
+    assert coupling.reasons[1] == (
+        "3 Go standard library (not scored), 2 application or third-party (scored)"
+    )
+
+
+def test_go_dotless_module_packages_count_as_application(tmp_path: Path) -> None:
+    """A module path without a dot (``module myapp``) looks like standard
+    library to the first-element rule. The go.mod lookup keeps the module's
+    own packages scored as application coupling."""
+    (tmp_path / "go.mod").write_text("module myapp\n\ngo 1.25\n", encoding="utf-8")
+    pkg = tmp_path / "cmd"
+    pkg.mkdir()
+    body = (
+        "package main\n\nimport (\n"
+        '    "fmt"\n    "myapp/internal/a"\n    "myapp/internal/b"\n    "myapp"\n'
+        ")\n\nfunc main() {}\n"
+    )
+    path = _write(pkg, "main.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 7
+    assert coupling.reasons[1] == (
+        "1 Go standard library (not scored), 3 application or third-party (scored)"
+    )
+
+
+def test_go_module_prefix_match_is_segment_aware(tmp_path: Path) -> None:
+    """``myappx/util`` shares a string prefix with ``module myapp`` but is a
+    different path, so it stays classified by the first-element rule."""
+    (tmp_path / "go.mod").write_text('module "myapp"\n', encoding="utf-8")
+    body = 'package main\n\nimport "myappx/util"\n\nfunc main() {}\n'
+    path = _write(tmp_path, "main.go", body)
+
+    assert assess_file(path, "production", False).coupling.value == 10
+
+
+@pytest.mark.parametrize(
+    "import_line",
+    ['import _ "embed"\n', 'import m "math"\n', 'import . "strings"\n'],
+)
+def test_go_named_standard_imports_are_not_scored(tmp_path: Path, import_line: str) -> None:
+    """The alias, blank, or dot name before the path must not hide that the
+    path itself is standard library."""
+    body = "package main\n\n" + import_line + "\nfunc main() {}\n"
+    path = _write(tmp_path, "main.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 10
+    assert coupling.reasons[0] == "1 import/dependency statements"
+
+
+def test_go_cgo_import_is_scored(tmp_path: Path) -> None:
+    """``import "C"`` binds foreign code, so it is not standard library."""
+    body = 'package main\n\nimport "C"\n\nfunc main() {}\n'
+    path = _write(tmp_path, "cgo.go", body)
+
+    assert assess_file(path, "production", False).coupling.value == 9
+
+
+def test_go_unreadable_go_mod_falls_back_to_first_element_rule(tmp_path: Path) -> None:
+    """An undecodable go.mod must not crash scoring; classification falls back
+    to the first-element rule."""
+    (tmp_path / "go.mod").write_bytes(b"\xff\xfe\x00module")
+    body = 'package main\n\nimport (\n    "fmt"\n    "github.com/a/b"\n)\n\nfunc main() {}\n'
+    path = _write(tmp_path, "main.go", body)
+
+    assert assess_file(path, "production", False).coupling.value == 9
+
+
+def test_coupling_explanation_matches_failing_score(tmp_path: Path) -> None:
+    """Issue #7047: a score below the default minimum must not say the import
+    count is reasonable. Five Python imports score 5 and fail the gate."""
+    body = "".join(f"import mod{i}\n" for i in range(5)) + "def f():\n    return 1\n"
+    path = _write(tmp_path, "five.py", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 5
+    assert coupling.reasons == [
+        "5 import/dependency statements",
+        "High import count suggests high coupling",
+    ]
 
 
 def test_web_indented_local_var_not_counted_as_global(tmp_path: Path) -> None:
@@ -749,10 +933,10 @@ def test_go_aliased_and_dot_imports_counted(tmp_path: Path) -> None:
     body = (
         "package main\n\n"
         "import (\n"
-        '    "fmt"\n'
-        '    _ "database/sql"\n'
-        '    m "math"\n'
-        '    . "strings"\n'
+        '    "github.com/a/fmtx"\n'
+        '    _ "github.com/lib/pq"\n'
+        '    m "github.com/b/mathx"\n'
+        '    . "github.com/c/stringsx"\n'
         ")\n\n"
         "func main() {}\n"
     )
@@ -765,9 +949,9 @@ def test_go_aliased_and_dot_imports_counted(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "import_line",
     [
-        'import _ "fmt"\n',
-        'import myfmt "fmt"\n',
-        'import . "fmt"\n',
+        'import _ "github.com/a/fmtx"\n',
+        'import myfmt "github.com/a/fmtx"\n',
+        'import . "github.com/a/fmtx"\n',
     ],
 )
 def test_go_single_line_named_blank_and_dot_imports_counted(
@@ -785,9 +969,9 @@ def test_go_named_blank_and_dot_imports_counted_inside_block(tmp_path: Path) -> 
     body = (
         "package main\n\n"
         "import (\n"
-        '    myfmt "fmt"\n'
-        '    _ "database/sql"\n'
-        '    . "strings"\n'
+        '    myfmt "github.com/a/fmtx"\n'
+        '    _ "github.com/lib/pq"\n'
+        '    . "github.com/c/stringsx"\n'
         ")\n\n"
         "func main() {}\n"
     )
@@ -1149,6 +1333,56 @@ def _repo_with_change(
 
 def _regression_argv() -> list[str]:
     return ["--target", ".", "--changed-only", "--base", "main", "--format", "json"]
+
+
+def _go_service(module: str) -> str:
+    specs = "".join(f'    "{module}/internal/p{i}"\n' for i in range(4))
+    return f'package service\n\nimport (\n    "fmt"\n{specs})\n\nfunc F() {{ fmt.Println() }}\n'
+
+
+def test_regression_mode_scores_base_go_against_base_go_mod(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A dotless module rename keeps coupling unchanged. Scoring the base blob
+    against the working-tree go.mod made its imports look standard, scored the
+    base 10 against a head of 6, and failed regression mode with exit 10."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "go.mod", "module myapp\n", "base mod")
+    _commit(tmp_path, "service.go", _go_service("myapp"), "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _write(tmp_path, "go.mod", "module newapp\n")
+    _commit(tmp_path, "service.go", _go_service("newapp"), "rename module")
+    monkeypatch.chdir(tmp_path)
+    output = tmp_path / "out.json"
+
+    rc = main([*_regression_argv(), "--output", str(output)])
+
+    coupling = next(
+        d
+        for c in json.loads(output.read_text())["comparisons"]
+        for d in c["deltas"]
+        if d["quality"] == "coupling"
+    )
+    assert (coupling["base"], coupling["head"]) == (6.0, 6.0)
+    assert rc == 0
+
+
+def test_go_module_path_at_revision_reads_nearest_base_go_mod(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The nearest go.mod at the revision wins; no go.mod at all yields None."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "go.mod", "module outer\n", "outer")
+    (tmp_path / "sub").mkdir()
+    _commit(tmp_path, "sub/go.mod", "module inner\n", "inner")
+    monkeypatch.chdir(tmp_path)
+    lookup = _mod._go_module_path_at_revision
+
+    assert lookup(Path("sub/pkg/a.go"), "main") == "inner"
+    assert lookup(Path("other/a.go"), "main") == "outer"
+    _run_git(tmp_path, "rm", "-q", "go.mod", "sub/go.mod")
+    _run_git(tmp_path, "commit", "-m", "drop")
+    assert lookup(Path("other/a.go"), "main") is None
 
 
 def test_regression_mode_passes_a_comment_only_change_to_a_legacy_file(
@@ -1698,9 +1932,13 @@ def test_get_file_at_revision_returns_bytes_it_did_not_decode(
 @pytest.mark.parametrize(
     "relative",
     [
-        "src/claude/skills/build/scripts/validation_trigger.py",
         "src/copilot-cli/skills/build/scripts/validation_trigger.py",
+        "src/codex/skills/build/scripts/validation_trigger.py",
+        "src/cursor/skills/build/scripts/validation_trigger.py",
+        "src/hermes/project-toolkit-delivery/skills/build/scripts/validation_trigger.py",
+        "src/muse/skills/build/scripts/validation_trigger.py",
         "src/vs-code-agents/agent.py",
+        "src/claude/hooks/SessionStart/invoke_context_loader.py",
         ".claude/hooks/SessionStart/invoke_context_loader.py",
     ],
 )
@@ -1719,6 +1957,10 @@ def test_render_mirror_paths_are_generated(
 @pytest.mark.parametrize(
     "relative",
     [
+        # Issue #7037: under ADR-119 these src/claude paths are the source.
+        "src/claude/skills/build/scripts/validation_trigger.py",
+        "src/claude/lib/paths.py",
+        "src/claude/skills/review/scripts/review_gate.py",
         ".claude/skills/build/scripts/validation_trigger.py",
         ".claude/lib/paths.py",
         "scripts/validation/pre_pr.py",
@@ -1734,6 +1976,79 @@ def test_authored_source_paths_stay_authored(
     monkeypatch.chdir(tmp_path)
 
     assert classify_file_category(Path(relative)) == "authored"
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _platform_output_roots() -> list[str]:
+    """Collect every output path the build manifests declare (issue #7037)."""
+    import yaml
+
+    # Path-valued keys only; outputSuffix and outputFormat are not paths.
+    path_keys = {"outputDir", "outputDirs", "outputScripts", "outputConfig"}
+    roots: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in path_keys and isinstance(value, str):
+                    roots.add(value)
+                elif key in path_keys and isinstance(value, list):
+                    roots.update(v for v in value if isinstance(v, str))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    for manifest in sorted((_REPO_ROOT / "templates" / "platforms").glob("*.yaml")):
+        walk(yaml.safe_load(manifest.read_text(encoding="utf-8")))
+    return sorted(roots)
+
+
+def test_platform_manifests_declare_output_roots() -> None:
+    roots = _platform_output_roots()
+
+    # Guard against a walker that silently finds nothing.
+    for expected in ("src/codex/skills", "src/cursor/skills", "src/hermes", "src/muse/skills"):
+        assert expected in roots
+
+
+@pytest.mark.parametrize("root", _platform_output_roots())
+def test_every_platform_output_root_is_generated(root: str) -> None:
+    # A new mirror tree in templates/platforms/*.yaml must be added to
+    # _GENERATED_PATH_SEGMENTS, or CQA scores its copies as authored code.
+    root_path = Path(root)
+    probe = root_path if root_path.suffix else root_path / "pkg" / "module.py"
+
+    assert classify_file_category(probe, content="x = 1\n") == "generated"
+
+
+def _lib_mirror_destinations() -> list[str]:
+    """Collect every path build/scripts/lib_mirror.py renders from scripts/."""
+    spec = importlib.util.spec_from_file_location(
+        "lib_mirror", _REPO_ROOT / "build" / "scripts" / "lib_mirror.py"
+    )
+    assert spec is not None and spec.loader is not None
+    lib_mirror = importlib.util.module_from_spec(spec)
+    # Its dataclasses resolve their module through sys.modules at class build.
+    with patch.dict(sys.modules, {"lib_mirror": lib_mirror}):
+        spec.loader.exec_module(lib_mirror)
+
+    destinations: list[str] = []
+    for root in lib_mirror.PLUGIN_ROOTS:
+        destinations.extend(f"{root}/{pkg}/module.py" for pkg in lib_mirror.PACKAGES)
+        destinations.extend(f"{root}/{name}" for _, name in lib_mirror.SYNC_FILE_NAMES)
+    destinations.extend(lib_mirror.SKILLS_SIDECAR_PLUGIN_TREES)
+    return sorted(destinations)
+
+
+@pytest.mark.parametrize("destination", _lib_mirror_destinations())
+def test_every_lib_mirror_destination_is_generated(destination: str) -> None:
+    # src/claude/lib/<pkg>/ and the review sidecar render from scripts/, so
+    # CQA must skip them even though the rest of src/claude is source.
+    assert classify_file_category(Path(destination), content="x = 1\n") == "generated"
 
 
 def _large_module(tmp_path: Path) -> Path:

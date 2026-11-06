@@ -61,12 +61,12 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 
 A Claude install lands the full set of agents and skills, including the six lifecycle skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
-> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python 3.10 or later on PATH (`py` on Windows). Skill and hook scripts are held to a 3.10 syntax floor (`.claude/rules/python.md`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
+> **One advisory hook.** In Claude Code, the `project-toolkit@ai-agents` plugin registers one advisory Stop hook (ADR-084 rule 2a). It prints a one-line retrospective suggestion when a session shows friction. It never blocks, never writes inside a repository, and keeps per-session markers under `$XDG_STATE_HOME/ai-agents-reflect-nudge` (default `~/.local/state/...`; `%LOCALAPPDATA%` on Windows). Set `AI_AGENTS_RETRO_NUDGE_THRESHOLD=0` (or `off`) to turn it off. The Copilot CLI plugin registers no hooks. Neither CLI gets tool-use hooks (ADR-097). The Stop hook and some skills run Python scripts, so they need Python 3.10 or later on PATH. The Stop hook looks for `python3`, then `python`. Skills also accept `py` on Windows. Skill and hook scripts are held to a 3.10 syntax floor (`.claude/rules/python.md`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
 
 ### Trust Boundary
 
 - **Runs in:** Claude Code, GitHub Copilot CLI, or VS Code Copilot Chat. This repository ships agents, skills (some with Python scripts), and marketplace metadata.
-- **Hooks and local code:** no hooks are registered (ADR-097). Some skills run Python scripts, so they need Python 3.10+ on PATH (see the note above).
+- **Hooks and local code:** Claude Code registers one advisory Stop hook (ADR-084 rule 2a). Copilot CLI registers no hooks. Neither registers tool-use hooks (ADR-097). The Stop hook and some skills run Python scripts, so they need Python 3.10+ on PATH (see the note above).
 - **Data sent:** prompts, source context, and agent output go through the host CLI and its model. This repository runs no hosted service. Skills you invoke can reach other services: the `github` skill calls the GitHub API through `gh`, `research` and `context-gather` can use the host's web search and fetch tools, and `benchmark-models` sends your prompt to the `claude`, `codex`, and `gemini` CLIs you have installed and signed in to, plus the Anthropic API if you enable its `--judge` option with `ANTHROPIC_API_KEY`. The plugin registers no MCP servers; any MCP server you add (for example GitHub MCP or Serena) receives the data its tools are called with.
 - **Permissions:** the host CLI's permission prompts apply. Review shell and git actions before you accept them. Child CLIs that a skill starts follow their own settings: `benchmark-models` runs `gemini` with `--yolo` (auto-approve, not sandboxed) in a throwaway workdir.
 - **Remove access:** run `/plugin uninstall project-toolkit@ai-agents` in either CLI. See [Uninstallation](docs/installation.md#uninstallation).
@@ -78,7 +78,7 @@ A Claude install lands the full set of agents and skills, including the six life
 | Agents | Included | Included |
 | Skills | Included | Included |
 | Lifecycle skills (`/spec` to `/ship`) | Included, run as slash commands | Included, name the skill with a slash in your prompt (for example `Use /plan ...`), per GitHub's Copilot CLI skills docs |
-| Hooks | Not registered (ADR-097) | Not registered (ADR-097) |
+| Hooks | One advisory Stop hook (ADR-084 rule 2a) | Not registered |
 | Session protocol | Included | Included |
 | Review gates | Included | Included |
 
@@ -87,7 +87,7 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 ### Troubleshooting
 
 - **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install project-toolkit@ai-agents`.
-- **`Denied by preToolUse hook from "project-toolkit@ai-agents"`:** Current plugin versions register no hooks (ADR-097), so this message cannot come from them. If you see it, your installed plugin predates that change. Reinstall with `/plugin install project-toolkit@ai-agents`.
+- **`Denied by preToolUse hook from "project-toolkit@ai-agents"`:** Current plugin versions register no tool-use hooks (ADR-097), so this message cannot come from them. If you see it, your installed plugin predates that change. Reinstall with `/plugin install project-toolkit@ai-agents`.
 - **`/plugin` not recognized, or plugin install fails or hangs:** Update your CLI to a recent stable release with plugin marketplace support, then retry. Check the version in a regular terminal with `claude --version` or `copilot --version`.
 - **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot plugin list` in Copilot CLI to confirm `project-toolkit@ai-agents` is installed, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
@@ -182,7 +182,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 The [Fastest Start](#fastest-start) above is the recommended path. Use the commands below when you want component-level control (agents only, no skills, etc.).
 
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python 3.10 or later on PATH.
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. In Claude Code, the `project-toolkit@ai-agents` plugin registers one advisory Stop hook (ADR-084 rule 2a) and no tool-use hooks (ADR-097). The Stop hook and skills that run Python scripts need Python 3.10 or later on PATH.
 
 ### Quick Install (CLI marketplace)
 
@@ -500,7 +500,7 @@ ai-agents/
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python 3.10 or later on PATH.
+- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). In Claude Code, the `project-toolkit@ai-agents` plugin registers one advisory Stop hook (ADR-084 rule 2a) and no tool-use hooks (ADR-097). The Stop hook and skills that run Python scripts need Python 3.10 or later on PATH.
 - The `.python-version` file pins the exact version (currently 3.14.4)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
 
@@ -525,28 +525,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
 If you're contributing code or running tests locally:
 
+**Dev container option:** open the repository in a dev container (VS Code "Reopen in Container", or `devcontainer up`). It installs Python 3.14, uv, Node 26, PowerShell 7.5, and the GitHub CLI, runs `uv sync --frozen --extra dev`, and installs the Git hooks. That covers most of step 2; run the remaining `git config blame.ignoreRevsFile` command and the smoke test yourself. Steps 1, 3, 4, and 5 stay manual. Open a normal clone, not a git worktree: a worktree's `.git` file points outside the container mount, so the Lefthook install exits 128. Each feature reference carries a sha256 digest, so integrity is verified without an extra flag; add `--frozen-lockfile` to also check `devcontainer-lock.json`.
+
 1. Fork and clone the repository
-2. Install Python dependencies:
+2. From the clone root, run one command to install dependencies and Git hooks
+   and to prove the setup with a quick test:
 
    ```bash
-   # Create virtual environment (optional but recommended)
-   uv venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-   # Install project with dev dependencies
-   uv pip install -e ".[dev]"
+   uv sync --frozen --extra dev && uv run --frozen lefthook install --reset-hooks-path && uv run --frozen lefthook check-install && git config blame.ignoreRevsFile .git-blame-ignore-revs && uv run --frozen pytest tests/test_workspace_limits.py -q
    ```
+
+   It needs Python 3.14 and [UV](https://docs.astral.sh/uv/getting-started/installation/).
+   Run the full suite later with `uv run --frozen pytest tests/`.
 
 3. Set up environment variables (copy `.env.example` to `.env` and fill in your API keys)
-4. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
-5. Run tests to verify setup:
-
-   ```bash
-   python -m pytest tests/ -v
-   ```
-
-6. Make changes following the guidelines
-7. Submit a pull request
+4. Make changes following the guidelines
+5. Submit a pull request
 
 ### Agent Development
 
@@ -580,6 +574,8 @@ This project uses a **template-based generation system**. To modify agents:
 | [docs/when-to-use.md](docs/when-to-use.md) | Fitness guide: which lifecycle phases fit which task shapes, and when the full lifecycle is overkill |
 | [docs/ideation-workflow.md](docs/ideation-workflow.md) | Ideation workflow documentation |
 | [docs/markdown-linting.md](docs/markdown-linting.md) | Markdown standards |
+| [docs/runbooks/README.md](docs/runbooks/README.md) | Operational runbooks: red CI on main, publish failures, drift alerts, rollback, leaked secrets, hook failures |
+| [docs/agent-readiness.md](docs/agent-readiness.md) | Agent Readiness signals: which pass, which are out of scope, and why |
 
 ---
 

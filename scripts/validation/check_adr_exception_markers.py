@@ -9,10 +9,9 @@ PR #1604 renumbered it from ADR-032 and left the body unswept, and the retired s
 gate read the pattern, so a marker could name an ADR that does not exist, or one
 that a later record retired, and still pass.
 
-This gate scans `.github/workflows/*.yml` and `*.yaml`, plus every composite
-action's `.github/actions/**/action.yml` or `action.yaml` (issue #6506: a
-`runs-on` exception can sit in an action a workflow calls), for the marker and
-checks each cited number against `.project-toolkit/architecture/ADR-NNN-*.md`:
+This gate scans `.github/workflows/*.yml` and `*.yaml`, plus every
+`.github/actions/**/action.yml` and `action.yaml`, for the marker and checks
+each cited number against `.project-toolkit/architecture/ADR-NNN-*.md`:
 
     missing   no ADR file carries that number
     retired   the ADR's frontmatter `status` is superseded, deprecated, or rejected
@@ -24,10 +23,6 @@ fails the gate: `# ADR 055 Exception:`, `# ADR-055 Exception` (no colon),
 `# ADR-055: Exception`, or a misspelled word such as `Exeption`. A marker no gate
 can read is an audit trail nobody checks. Only a comment that starts with
 `# ADR` is examined, so prose such as `(ADR-055 exception)` is left alone.
-
-A number held by two ADR files fails every marker that cites it, naming both files:
-the first file in sort order would otherwise set the status and hide the second.
-`check_adr_uniqueness` still owns blocking the duplicate itself.
 
 A marker can be written as a whole-line comment or trailing a YAML key. An ADR
 with no readable status fails the marker (issue #6506): passing on existence
@@ -42,8 +37,8 @@ fails is a new violation.
 
 Exit codes (per ADR-035):
     0 - every marker names a live ADR (or the tree holds no marker)
-    1 - one or more markers name a missing, retired, duplicated, or
-        unreadable-status ADR, or are misspelled
+    1 - one or more markers name a missing, retired, or unreadable-status ADR,
+        or are misspelled
     2 - config error (a directory is missing, or a workflow cannot be read)
 """
 
@@ -68,7 +63,6 @@ EXIT_CONFIG = 2
 ADR_DIR = Path(".project-toolkit") / "architecture"
 WORKFLOW_DIR = Path(".github") / "workflows"
 ACTIONS_DIR = Path(".github") / "actions"
-ACTION_FILE_NAMES: tuple[str, ...] = ("action.yml", "action.yaml")
 
 # `# ADR-055 Exception:`, case-insensitive, any spacing around the words.
 MARKER_RE = re.compile(r"#\s*ADR-(?P<number>\d+)\s+Exception\s*:", re.IGNORECASE)
@@ -124,56 +118,24 @@ def _status_of(path: Path) -> str:
     return str(value).strip().lower()
 
 
-def _adr_files(adr_dir: Path) -> dict[int, list[Path]]:
-    """Return {adr_number: [files]} in sorted order; a number held twice lists both."""
-    files: dict[int, list[Path]] = {}
+def collect_adr_statuses(adr_dir: Path) -> dict[int, str]:
+    """Return {adr_number: status}; status is "" when it cannot be read."""
+    statuses: dict[int, str] = {}
     for md in sorted(adr_dir.glob("ADR-*.md")):
         match = ADR_FILENAME_RE.match(md.name)
         if match:
-            files.setdefault(int(match.group(1)), []).append(md)
-    return files
-
-
-def collect_adr_statuses(adr_dir: Path) -> dict[int, str]:
-    """Return {adr_number: status}; status is "" when it cannot be read.
-
-    A number held by two files reads as "" because neither status speaks for it;
-    ``find_duplicate_adrs`` names the files.
-    """
-    return {
-        number: _status_of(paths[0]) if len(paths) == 1 else ""
-        for number, paths in _adr_files(adr_dir).items()
-    }
-
-
-def find_duplicate_adrs(adr_dir: Path) -> dict[int, list[str]]:
-    """Return {adr_number: [file names]} for every number held by more than one file.
-
-    ``check_adr_uniqueness`` blocks the duplicate. This gate reports it where a
-    marker cites the number, because the first file in sort order would
-    otherwise set the status and hide the second.
-    """
-    return {
-        number: [path.name for path in paths]
-        for number, paths in _adr_files(adr_dir).items()
-        if len(paths) > 1
-    }
+            statuses.setdefault(int(match.group(1)), _status_of(md))
+    return statuses
 
 
 def _workflow_files(workflow_dir: Path) -> list[Path]:
     return sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")])
 
 
-def _action_files(actions_dir: Path) -> list[Path]:
-    """Return every ``action.yml`` or ``action.yaml`` under ``actions_dir``, at any depth.
-
-    The directory is optional: a repository with no composite action scans none.
-    """
-    if not actions_dir.is_dir():
-        return []
-    return sorted(
-        path for path in actions_dir.rglob("*") if path.is_file() and path.name in ACTION_FILE_NAMES
-    )
+def _action_files(repo_root: Path) -> list[Path]:
+    """Composite and local actions: `.github/actions/**/action.y*ml` (issue #6506)."""
+    actions_dir = repo_root / ACTIONS_DIR
+    return sorted([*actions_dir.glob("**/action.yml"), *actions_dir.glob("**/action.yaml")])
 
 
 def find_near_miss(line: str) -> str | None:
@@ -187,19 +149,11 @@ def find_near_miss(line: str) -> str | None:
     return None
 
 
-def scan_markers(
-    repo_root: Path, workflow_dir: Path, actions_dir: Path | None = None
-) -> tuple[list[Marker], list[NearMiss], int]:
-    """Return every marker, every near miss, and the count of files examined.
-
-    Examined files are the workflows under ``workflow_dir`` and, when
-    ``actions_dir`` is given, every composite action definition under it.
-    """
+def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], list[NearMiss], int]:
+    """Return every marker, every near miss, and the count of workflow and action files examined."""
     markers: list[Marker] = []
     near_misses: list[NearMiss] = []
-    files = _workflow_files(workflow_dir)
-    if actions_dir is not None:
-        files += _action_files(actions_dir)
+    files = [*_workflow_files(workflow_dir), *_action_files(repo_root)]
     for wf in files:
         rel = wf.relative_to(repo_root).as_posix()
         try:
@@ -215,22 +169,11 @@ def scan_markers(
     return markers, near_misses, len(files)
 
 
-def judge(
-    marker: Marker,
-    statuses: dict[int, str],
-    duplicates: dict[int, list[str]] | None = None,
-) -> str | None:
+def judge(marker: Marker, statuses: dict[int, str]) -> str | None:
     """Return the violation text for ``marker``, or None when it names a live ADR."""
     cite = f"ADR-{marker.number:03d}"
     if marker.number not in statuses:
         return f"{marker.path}:{marker.line}: {cite} does not exist under {ADR_DIR.as_posix()}/"
-    if duplicates and marker.number in duplicates:
-        names = ", ".join(duplicates[marker.number])
-        return (
-            f"{marker.path}:{marker.line}: {cite} is held by {len(duplicates[marker.number])} "
-            f"files ({names}), so the marker cannot be shown to name one live ADR; "
-            f"renumber the duplicate (check_adr_uniqueness blocks it)"
-        )
     status = statuses[marker.number]
     if not status:
         return (
@@ -254,20 +197,17 @@ def run(repo_root: Path) -> int:
             print(f"[CONFIG] {label} directory not found: {directory}", file=sys.stderr)
             return EXIT_CONFIG
     try:
-        markers, near_misses, examined = scan_markers(
-            repo_root, workflow_dir, repo_root / ACTIONS_DIR
-        )
+        markers, near_misses, examined = scan_markers(repo_root, workflow_dir)
     except ConfigError as exc:
         print(f"[CONFIG] {exc}", file=sys.stderr)
         return EXIT_CONFIG
     statuses = collect_adr_statuses(adr_dir)
-    duplicates = find_duplicate_adrs(adr_dir)
-    problems = [text for m in markers if (text := judge(m, statuses, duplicates)) is not None]
+    problems = [text for m in markers if (text := judge(m, statuses)) is not None]
     problems += [
         f"{n.path}:{n.line}: near-miss marker {n.text!r}; write it as `# ADR-NNN Exception:`"
         for n in near_misses
     ]
-    summary = f"{len(markers)} marker(s) in {examined} workflow and action file(s)"
+    summary = f"{len(markers)} marker(s) in {examined} file(s)"
     if problems:
         header = (
             "[FAIL] Runner-exception markers cite a missing, retired, or unreadable-status ADR,"

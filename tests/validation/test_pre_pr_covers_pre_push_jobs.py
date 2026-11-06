@@ -49,10 +49,12 @@ _MIN_REASON_LENGTH = 40
 GATED: dict[str, str] = {
     "count-ratchets": "Count Ratchets",
     "python-unreachable-statements": "Unreachable Code Detection",
+    "python-unused-arguments": "Unused Argument Detection",
     "path-normalization": "Path Normalization",
     "planning-artifacts": "Planning Artifacts",
     "dash-prohibition": "Em/en-dash Prohibition",
     "review-axis-drift": "Review Axis Drift",
+    "import-boundaries": "Import Boundaries",
     "security-suppression-policy": "Security Suppressions Diff",
     "placeholder-identity": "Placeholder Identity",
     "python-type-check": "Mypy Changed Files (ratchet)",

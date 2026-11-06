@@ -114,6 +114,8 @@ The `changes` job prints which changed paths matched the filter. The result job 
 5. WHEN a pull request changes no file in the smoke path list, the smoke result SHALL pass with no leg run and no model call.
 6. The smoke result SHALL fail WHEN any leg that should run fails, is skipped, is cancelled, or never gets approval.
 7. The plugin CLI smoke workflow (`plugin-cli-smoke.yml`; `cli-smoke.yml` is the unrelated bun CLI smoke) SHALL NOT be listed in `advisory_agent_workflows`, so its failure blocks merge.
+
+    Superseded 2026-11-05: by owner decision, the workflow is listed in `advisory_agent_workflows` and its failure does not block merge. See ADR-114, Amendment 2026-11-05. The blocking wording in user story 1, the prior-art "one exception" bullet, the Failure modes "PR does not merge" bullet, and the Observability success metric is superseded the same way.
 8. `nightly-cli-smoke.yml` SHALL be removed. Live references SHALL point at the PR workflow.
 9. Each job that reads a model key SHALL declare the matching provider environment. The existing test SHALL cover the new workflow and the Codex legs.
 10. The pre-push hooks and the CI path filter SHALL read one smoke path list. A test SHALL fail WHEN `lefthook.yml` globs differ from it.
@@ -128,7 +130,7 @@ The `changes` job prints which changed paths matched the filter. The result job 
 ## Out of scope
 
 - Adding the smoke result to the branch ruleset. The owner does that in repository settings.
-- Codex hooks and agents. `src/claude/hooks.json` ships no hooks, and Codex exposes no agents key for plugins.
+- Codex hooks and agents. `src/codex/` ships no hooks directory, and Codex exposes no agents key for plugins.
 - `copilot-context-synthesis.yml`. It assigns the Copilot coding agent and is already gated in `agent-copilot`.
 
 ## Deferred

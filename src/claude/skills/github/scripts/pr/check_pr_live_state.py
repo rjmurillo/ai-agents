@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Per-PR live-state re-triage probe (issue #2455).
 
 The pr-autofix workflow triages all open PRs once at session start
@@ -160,6 +161,9 @@ query($owner: String!, $repo: String!, $number: Int!) {
             closed
             headRefName
             headRefOid
+            headRepository {
+                nameWithOwner
+            }
             baseRefName
             baseRefOid
         }
@@ -659,6 +663,7 @@ def main(argv: list[str] | None = None) -> int:
         "closed": pr.get("closed") is True,
         "head_ref": pr.get("headRefName"),
         "head_sha": pr.get("headRefOid"),
+        "head_repo": (pr.get("headRepository") or {}).get("nameWithOwner"),
         "base_ref": pr.get("baseRefName"),
         "base_sha": pr.get("baseRefOid"),
         "superseded_by_base": supersession

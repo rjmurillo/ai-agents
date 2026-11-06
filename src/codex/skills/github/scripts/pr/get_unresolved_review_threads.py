@@ -13,6 +13,7 @@ Output is a JSON object with:
       "pull_request": <int>,
       "unresolved_count": <int>,
       "fetched_pages_complete": <bool>,
+      "api_error": <bool>,
       "threads": [<thread>, ...]
     }
 
@@ -39,12 +40,15 @@ Exit codes follow ADR-035, with one deliberate deviation noted below:
     4 - Auth error
 
 API/pagination failures do NOT exit 3. They return 0 with
-``success: false`` and ``fetched_pages_complete: false`` so the
-/pr-review completion gate's ``pass_when`` (which requires
-``fetched_pages_complete == true``) remains the single source of
-truth for the verdict. Mixing exit-3 with the JSON-flag contract
-would force every consumer to handle two failure surfaces; one
-surface is enough.
+``success: false``, ``fetched_pages_complete: false``, and, when a ``gh`` call
+raised, ``api_error: true``, so the /pr-review completion gate's ``pass_when``
+(which requires ``fetched_pages_complete == true``) still decides pass or fail.
+The gate reads ``api_error`` only to decide whether a failed row can read
+unknown. Mixing exit-3 with the JSON-flag contract would force every consumer
+to handle two failure surfaces; one surface is enough.
+
+A page cap or a missing cursor leaves ``api_error`` false, because no ``gh``
+call raised. Nothing a PR author controls may set it (ADR-120).
 """
 
 from __future__ import annotations
@@ -126,10 +130,10 @@ def fetch_unresolved_threads_paginated(
     repo: str,
     pull_request: int,
     comments_limit: int = 1,
-) -> tuple[list[dict], bool]:
+) -> tuple[list[dict], bool, bool]:
     """Fetch unresolved review threads, paginating to exhaustion.
 
-    Returns a tuple ``(threads, fetched_pages_complete)`` of raw GraphQL
+    Returns a tuple ``(threads, fetched_pages_complete, api_error)`` of raw GraphQL
     nodes. ``comments_limit`` is forwarded to the query's
     ``comments(first: ...)`` selection: 1 for the cheap probe, higher when
     the caller wants the full comment list. The flag is True only when the
@@ -165,15 +169,15 @@ def fetch_unresolved_threads_paginated(
                 f"Failed to query review threads (page {page_index}): {exc}",
                 file=sys.stderr,
             )
-            return all_unresolved, False
+            return all_unresolved, False, True
 
         repo_data = data.get("repository") or {}
         pr_data = repo_data.get("pullRequest")
         if pr_data is None:
-            return all_unresolved, False
+            return all_unresolved, False, False
         review_threads = pr_data.get("reviewThreads")
         if review_threads is None:
-            return all_unresolved, False
+            return all_unresolved, False, False
 
         nodes = review_threads.get("nodes", []) or []
         for node in nodes:
@@ -187,9 +191,9 @@ def fetch_unresolved_threads_paginated(
         cursor = page_info.get("endCursor")
         if not cursor:
             # hasNextPage was true but no cursor; treat as incomplete.
-            return all_unresolved, False
+            return all_unresolved, False, False
 
-    return all_unresolved, fetched_pages_complete
+    return all_unresolved, fetched_pages_complete, False
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -232,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     # the caller wants the whole conversation.
     comments_limit = 50 if args.include_comments else 1
 
-    nodes, fetched_pages_complete = fetch_unresolved_threads_paginated(
+    nodes, fetched_pages_complete, api_error = fetch_unresolved_threads_paginated(
         owner,
         repo,
         args.pull_request,
@@ -253,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
         "repo": repo,
         "unresolved_count": len(threads),
         "fetched_pages_complete": fetched_pages_complete,
+        "api_error": api_error,
         "threads": threads,
     }
     print(json.dumps(output, indent=2))

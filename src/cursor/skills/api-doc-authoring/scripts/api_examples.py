@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
 """Run the executable HTTP examples in API documentation and record evidence.
 
 The documentation is the thing under test. An executable example is a fenced
@@ -34,12 +35,15 @@ such a stop is still exit 1. A stop with ``--evidence`` writes the file (UNVERIF
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import http.client
 import ipaddress
 import json
+import os
 import platform
 import re
+import stat
 import sys
 import threading
 import time
@@ -71,6 +75,8 @@ TIMEOUT_SECONDS = 10
 MAX_BODY_BYTES = 2 * 1024 * 1024
 REQUEST_DEADLINE_SECONDS = 30
 RUN_DEADLINE_SECONDS = 300
+# An existing --evidence file is read to prove it is a prior report; a larger file is not one.
+_MAX_EVIDENCE_BYTES = 10_000_000
 _CHUNK_BYTES = 64 * 1024
 REDACTED_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization", "x-api-key"})
 
@@ -338,9 +344,292 @@ def _evidence(
     }
 
 
+def _is_prior_evidence(path: Path, size: int) -> bool:
+    """Return whether ``path`` holds an evidence report this tool wrote earlier.
+
+    ``size`` is the byte length from the caller's ``lstat``; a file over
+    ``_MAX_EVIDENCE_BYTES`` is not a report and is never read.
+    """
+    if size > _MAX_EVIDENCE_BYTES:
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return _is_report(data)
+
+
+def _is_report(data: object) -> bool:
+    """Return whether parsed JSON has the shape of an evidence report."""
+    return isinstance(data, dict) and "verdict" in data and isinstance(data.get("doc_sha256"), dict)
+
+
+def _check_entry_at(raw: str, parent_fd: int, name: str) -> os.stat_result | None:
+    """Apply the target refusals to ``name`` inside ``parent_fd``, the entry the write replaces.
+
+    The path check reads ``raw`` while the anchored write uses the resolved parent. A path
+    such as ``missing/../README.md`` reads as absent through ``raw`` yet names an existing
+    file through the handle, so the refusals run again on the entry itself.
+
+    The open handle must be the same regular file the ``lstat`` saw, so the identity
+    returned is the file whose contents were validated. ``O_NONBLOCK`` keeps a FIFO
+    swapped in between the two calls from hanging the open. Returns that file's
+    ``fstat`` result, or ``None`` when the name is free.
+    """
+    try:
+        info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
+    data: object = None
+    opened: os.stat_result | None = None
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0)
+    try:
+        fd = os.open(name, flags, dir_fd=parent_fd)
+        with os.fdopen(fd, encoding="utf-8") as handle:
+            opened = os.fstat(handle.fileno())
+            if (
+                stat.S_ISREG(opened.st_mode)
+                and (opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino)
+                and opened.st_size <= _MAX_EVIDENCE_BYTES
+            ):
+                data = json.loads(handle.read())
+    except (OSError, ValueError):
+        data = None
+    if opened is None or not _is_report(data):
+        raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
+    return opened
+
+
+def _parent_parts(raw: str, target: Path) -> tuple[str, ...]:
+    """Return the target's resolved parent as parts under the working directory.
+
+    Raises ``InputError`` when the parent resolves outside the working directory.
+    """
+    cwd = Path.cwd().resolve()
+    parent = (cwd / target).parent.resolve()
+    if not parent.is_relative_to(cwd):
+        raise InputError(f"evidence path `{raw}` resolves outside the working directory")
+    return parent.relative_to(cwd).parts
+
+
+# The evidence parent is opened by a no-follow walk and every write goes through its
+# handle. A platform without these calls (Windows) cannot pin the parent, so --evidence
+# is refused there. os.link installs the report without replacing a name (linkat).
+_DIR_FLAGS = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+_ANCHORED_WRITES = (
+    hasattr(os, "O_DIRECTORY")
+    and hasattr(os, "O_NOFOLLOW")
+    and {os.open, os.link, os.rename, os.stat, os.unlink} <= os.supports_dir_fd
+    and {os.link, os.stat} <= os.supports_follow_symlinks
+)
+# The report holds request URLs and identifiers, so only its owner may read it.
+_EVIDENCE_MODE = 0o600
+
+
+def _open_parent(parts: tuple[str, ...]) -> int:
+    """Open the working directory, then each part with no-follow, and return the last handle.
+
+    A part swapped for a symlink fails the open, so the handle is always a directory
+    inside the working directory.
+    """
+    fd = os.open(".", _DIR_FLAGS)
+    try:
+        for part in parts:
+            child = os.open(part, _DIR_FLAGS, dir_fd=fd)
+            os.close(fd)
+            fd = child
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _check_evidence_path(raw: str) -> Path:
+    """Validate ``--evidence`` and return the target; runs before the examples and at write.
+
+    Refuses a symlink at the target, a target that is not a regular file, and
+    an existing file that is not a prior evidence report, so the flag cannot
+    clobber a source file or write through a planted link (CWE-59). The
+    target's parent, relative or absolute, must resolve inside the working
+    directory, which stops a symlinked directory or a `..` segment from
+    carrying the write out of the checkout. Run the tool from the directory
+    the evidence belongs in. A platform without no-follow, ``dir_fd`` writes is
+    refused outright: a path-based write there could follow a swapped parent.
+    """
+    if not _ANCHORED_WRITES:
+        raise InputError(
+            "--evidence needs O_NOFOLLOW and dir_fd file calls, which this platform lacks; "
+            "run without it and save the report printed to stdout"
+        )
+    target = Path(raw)
+    try:
+        info: os.stat_result | None = target.lstat()
+    except FileNotFoundError:
+        info = None
+    except OSError as exc:
+        raise InputError(f"cannot inspect evidence path `{raw}`: {exc.strerror or exc}") from exc
+    if info is not None and not stat.S_ISREG(info.st_mode):
+        raise InputError(f"evidence path `{raw}` is a symlink or not a regular file; refusing")
+    _parent_parts(raw, target)
+    if info is not None and not _is_prior_evidence(target, info.st_size):
+        raise InputError(f"evidence path `{raw}` exists and is not a prior evidence report")
+    return target
+
+
+def _same_entry(moved: os.stat_result, checked: os.stat_result) -> bool:
+    """Return whether ``moved`` is the unchanged prior report that ``checked`` described."""
+    return stat.S_ISREG(moved.st_mode) and (
+        moved.st_dev,
+        moved.st_ino,
+        moved.st_size,
+        moved.st_mtime_ns,
+    ) == (checked.st_dev, checked.st_ino, checked.st_size, checked.st_mtime_ns)
+
+
+# errno values linkat returns when the filesystem has no hard links (vfat, exFAT, some
+# FUSE and SMB mounts) or the file is at its link limit.
+_NO_LINK_ERRNOS = frozenset(
+    code
+    for code in (
+        getattr(errno, "EPERM", None),
+        getattr(errno, "ENOTSUP", None),
+        getattr(errno, "EOPNOTSUPP", None),
+        getattr(errno, "EMLINK", None),
+    )
+    if code is not None
+)
+
+
+def _link(raw: str, parent_fd: int, src: str, dst: str) -> None:
+    """Hard link ``src`` to ``dst`` in ``parent_fd``; name a missing link feature plainly."""
+    try:
+        os.link(src, dst, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+    except FileExistsError:
+        raise
+    except OSError as exc:
+        if exc.errno in _NO_LINK_ERRNOS:
+            raise InputError(
+                f"cannot write evidence to `{raw}`: its filesystem does not support hard "
+                f"links ({exc.strerror or exc}); run without --evidence and save the report "
+                "printed to stdout"
+            ) from exc
+        raise
+
+
+def _link_new(raw: str, parent_fd: int, src: str, name: str) -> None:
+    """Give ``src`` the name ``name``; refuse if any entry already holds that name."""
+    try:
+        _link(raw, parent_fd, src, name)
+    except FileExistsError:
+        raise InputError(
+            f"evidence path `{raw}` was created by another writer after the check; refusing"
+        ) from None
+
+
+def _put_back(
+    raw: str, parent_fd: int, aside: str, name: str, moved: os.stat_result | None
+) -> None:
+    """Return the moved entry to ``name`` without replacing anything, or say where it is.
+
+    A directory cannot be hard linked, so it goes back by rename, which fails rather
+    than replace a file or a non-empty directory. Accepted gap: the stdlib has no
+    no-replace rename, so an empty directory created at ``name`` in that instant is
+    replaced. It holds no data.
+    """
+    try:
+        if moved is not None and stat.S_ISDIR(moved.st_mode):
+            os.rename(aside, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        else:
+            os.link(aside, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+            os.unlink(aside, dir_fd=parent_fd)
+    except OSError as exc:
+        raise InputError(
+            f"cannot write evidence to `{raw}`: the name changed during the write and the "
+            f"prior report is kept at `{aside}` ({exc.strerror or exc})"
+        ) from exc
+
+
+def _install(
+    raw: str, parent_fd: int, temporary: str, name: str, checked: os.stat_result | None, token: str
+) -> None:
+    """Move the finished temp file to ``name`` without destroying an entry nobody validated.
+
+    A free name takes a hard link, which fails if another writer claimed it. A prior report
+    is renamed aside first, so whatever holds the name at that instant is kept, not lost. The
+    moved entry must be the report ``checked`` saw; otherwise it goes back and the write is
+    refused. A probe link first proves the filesystem supports hard links before anything moves.
+    """
+    if checked is None:
+        _link_new(raw, parent_fd, temporary, name)
+        return
+    probe = f".{name}.{token}.probe"
+    _link(raw, parent_fd, temporary, probe)
+    os.unlink(probe, dir_fd=parent_fd)
+    aside = f".{name}.{token}.old"
+    try:
+        os.rename(name, aside, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+    except FileNotFoundError:
+        _link_new(raw, parent_fd, temporary, name)
+        return
+    moved: os.stat_result | None = None
+    try:
+        moved = os.stat(aside, dir_fd=parent_fd, follow_symlinks=False)
+        if not _same_entry(moved, checked):
+            raise InputError(f"evidence path `{raw}` changed after the check; refusing")
+        _link_new(raw, parent_fd, temporary, name)
+    except BaseException:  # an interrupt here must not strand the prior entry at `aside`
+        _put_back(raw, parent_fd, aside, name, moved)
+        raise
+    try:
+        os.unlink(aside, dir_fd=parent_fd)
+    except OSError as exc:  # the new report is in place; only the old copy is left behind
+        sys.stderr.write(f"api_examples: could not remove `{aside}`: {exc.strerror or exc}\n")
+
+
+def _write_evidence(target: Path, report: dict[str, Any]) -> None:
+    """Check the target again, then write an owner-only temp file and install it.
+
+    A run can last ``RUN_DEADLINE_SECONDS`` after the first check, so every refusal
+    is checked again here. The parent is opened by a no-follow walk, the refusals run
+    on the entry it holds, and the temp file, install, and cleanup all use that handle,
+    so a directory swapped for a symlink after the check cannot carry the write
+    elsewhere. ``_install`` never replaces an entry that changed after the check.
+    """
+    raw = str(target)
+    _check_evidence_path(raw)
+    parts = _parent_parts(raw, target)
+    text = json.dumps(report, indent=2) + "\n"
+    token = os.urandom(8).hex()
+    temporary = f".{target.name}.{token}.tmp"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    parent_fd: int | None = None
+    created = False
+    try:
+        parent_fd = _open_parent(parts)
+        checked = _check_entry_at(raw, parent_fd, target.name)
+        fd = os.open(temporary, flags, _EVIDENCE_MODE, dir_fd=parent_fd)
+        created = True
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        _install(raw, parent_fd, temporary, target.name, checked, token)
+    except OSError as exc:
+        raise InputError(f"cannot write evidence to `{target}`: {exc.strerror or exc}") from exc
+    finally:
+        if parent_fd is not None:
+            if created:
+                try:
+                    os.unlink(temporary, dir_fd=parent_fd)
+                except OSError:
+                    pass
+            os.close(parent_fd)
+
+
 def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, Any], int]:
     """Execute examples against a local or mock server."""
     base_url = check_base_url(args.base_url, args.allow_remote)
+    evidence_target = _check_evidence_path(args.evidence) if args.evidence else None
     examples, findings = _collect(args.docs, args.touching)
     runnable = [e for e in examples if e.expect is not None]
     if not runnable:
@@ -349,13 +638,18 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
     results: list[dict[str, Any]] = []
     for example in runnable:
         if time.monotonic() > deadline:
-            return _past_deadline(args, base_url, results, runnable[len(results) :], findings)
+            return _past_deadline(
+                args, base_url, results, runnable[len(results) :], findings, evidence_target
+            )
         try:
             results.append(run_example(example, base_url, sender))
         except InputError as exc:
-            return _request_failed(args, base_url, results, runnable[len(results) :], findings, exc)
+            return _request_failed(
+                args, base_url, results, runnable[len(results) :], findings, evidence_target, exc
+            )
     report = _report(args, base_url, results, findings)
-    _write_evidence(args, report)
+    if evidence_target is not None:
+        _write_evidence(evidence_target, report)
     return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
 
 
@@ -373,16 +667,12 @@ def _report(
     return report
 
 
-def _write_evidence(args: argparse.Namespace, report: dict[str, Any]) -> None:
-    if args.evidence:
-        Path(args.evidence).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-
-
 def _stopped(
     args: argparse.Namespace,
     base_url: str,
     results: list[dict[str, Any]],
     findings: list[dict[str, Any]],
+    evidence_target: Path | None,
     *,
     key: str,
     detail: dict[str, Any],
@@ -399,7 +689,8 @@ def _stopped(
     if not failed:
         report["verdict"] = "UNVERIFIED"
     report[key] = detail
-    _write_evidence(args, report)
+    if evidence_target is not None:
+        _write_evidence(evidence_target, report)
     if failed:
         return report, EXIT_FINDINGS
     raise InputError(message)
@@ -411,6 +702,7 @@ def _past_deadline(
     results: list[dict[str, Any]],
     unrun: list[Example],
     findings: list[dict[str, Any]],
+    evidence_target: Path | None,
 ) -> tuple[dict[str, Any], int]:
     """Stop a run that passed its deadline; the examples that never ran are listed."""
     detail = {"seconds": RUN_DEADLINE_SECONDS, "unrun": [e.id for e in unrun]}
@@ -420,7 +712,14 @@ def _past_deadline(
         "the run is unverified and the finished results are not a verdict"
     )
     return _stopped(
-        args, base_url, results, findings, key="deadline_exceeded", detail=detail, message=message
+        args,
+        base_url,
+        results,
+        findings,
+        evidence_target,
+        key="deadline_exceeded",
+        detail=detail,
+        message=message,
     )
 
 
@@ -430,6 +729,7 @@ def _request_failed(
     results: list[dict[str, Any]],
     unrun: list[Example],
     findings: list[dict[str, Any]],
+    evidence_target: Path | None,
     error: InputError,
 ) -> tuple[dict[str, Any], int]:
     """Stop a run whose request could not finish (deadline, byte cap, unreachable server).
@@ -445,7 +745,14 @@ def _request_failed(
         "the run is unverified and the finished results are not a verdict"
     )
     return _stopped(
-        args, base_url, results, findings, key="request_failed", detail=detail, message=message
+        args,
+        base_url,
+        results,
+        findings,
+        evidence_target,
+        key="request_failed",
+        detail=detail,
+        message=message,
     )
 
 
@@ -471,7 +778,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--base-url", required=True, help="http://127.0.0.1:PORT of a local or mock API"
     )
     run.add_argument("--allow-remote", action="store_true", help="permit a non-loopback host")
-    run.add_argument("--evidence", help="write the evidence JSON here")
+    run.add_argument(
+        "--evidence",
+        help=(
+            "write the evidence JSON here (refuses a symlink, a non-regular file, a path "
+            "outside the working directory, or an existing file that is not a prior report)"
+        ),
+    )
     return parser
 
 

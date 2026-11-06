@@ -5,6 +5,11 @@ Tracks recent response signatures in a JSON history file. When the most
 recent N entries exceed a similarity threshold, emits a nudge payload so
 the orchestrator can break the loop.
 
+The ``check-failures`` subcommand is a separate, stateless detector for
+repeated tool failures. It lives in the sibling ``failure_loops.py``. Its
+arguments are not parsed here: ``main`` parses only the global flags and the
+subcommand name, then hands the rest to ``failure_loops``.
+
 EXIT CODES (ADR-035):
     0 - Success (regardless of stuck/not-stuck)
     2 - Invalid command or arguments
@@ -17,6 +22,7 @@ which optional packages happen to be installed in the environment.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -390,11 +396,28 @@ def _read_text(positional: list[str]) -> str:
     return sys.stdin.read()
 
 
+def _run_failure_loops(argv: list[str]) -> int:
+    """Load the sibling ``failure_loops.py`` by path and run its CLI."""
+    path = Path(__file__).resolve().with_name("failure_loops.py")
+    spec = importlib.util.spec_from_file_location("stuck_detection_failure_loops", path)
+    if spec is None or spec.loader is None:
+        print(f"stuck-detection: cannot load {path}", file=sys.stderr)
+        return 2
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except (OSError, ImportError, SyntaxError) as exc:
+        print(f"stuck-detection: cannot load {path}: {exc}", file=sys.stderr)
+        return 2
+    result: int = module.main(argv)
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="stuck-detection",
-        description="Detect agent conversation loops via topic-signature similarity.",
+        description="Detect agent loops via topic signatures or repeated tool failures.",
     )
     parser.add_argument(
         "--history",
@@ -413,7 +436,19 @@ def main(argv: list[str] | None = None) -> int:
     extract_parser = sub.add_parser("extract", help="Extract topic signature only.")
     extract_parser.add_argument("text", nargs="*", help="Text to analyze (or stdin).")
 
-    args = parser.parse_args(argv)
+    # check-failures owns its own flags in failure_loops.py, so its parser
+    # here only claims the name; every argument after it is passed through.
+    sub.add_parser(
+        "check-failures",
+        add_help=False,
+        help="Check tool events for a failure loop (see 'check-failures --help').",
+    )
+
+    args, extra = parser.parse_known_args(argv)
+    if args.command == "check-failures":
+        return _run_failure_loops(extra)
+    if extra:
+        parser.error(f"unrecognized arguments: {' '.join(extra)}")
     raw_path = args.history or default_history_path()
     history_path = Path(raw_path).expanduser().resolve()
 
