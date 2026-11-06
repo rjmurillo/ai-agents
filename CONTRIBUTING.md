@@ -935,7 +935,7 @@ The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) uses GitHub Copilot CLI
 
 The only pin is `@github/copilot` in `.github/cli-smoke/copilot/package.json`. Its `package-lock.json` holds the integrity hashes, and the smoke installs both with `npm ci`. Renovate maintains the pair.
 
-`scripts/validation/check_copilot_version_pin.py` rejects known-bad pins in that manifest. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md).
+`scripts/validation/check_copilot_version_pin.py` rejects known-bad pins in that manifest. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md) for the known-bad guard policy. That ADR's Amendment still names the former workflow env pin; use this section for the pin location until the ADR is amended.
 
 ### CLI Smoke Gate
 
