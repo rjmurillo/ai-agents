@@ -557,8 +557,8 @@ pre-push:
           # "growth not checked" line (the merge base does not carry the script
           # yet) is hidden on a passing push by this file's output: [failure];
           # the CI step logs it. The script's own 75s deadline starts when
-          # Python starts, so it fires before this 90s cap unless `uv run`
-          # setup alone takes over 15s. Measured standalone on
+          # validate() is entered, so it fires before this 90s cap unless `uv run`
+          # setup, interpreter startup, and imports together take over 15s. Measured standalone on
           # 2026-11-05 (48 cores, load average 14): 0.75s to 0.77s over five
           # runs of `uv run`. Not timed inside a real push, and not timed with the group's
           # other jobs running. The 90s cap matches the group's siblings.

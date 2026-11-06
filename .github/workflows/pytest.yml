@@ -263,8 +263,8 @@ jobs:
       # scripts/validation/unused_arguments_baseline.txt, and the baseline may
       # not gain a line the merge base lacks. --base-ref FETCH_HEAD names the
       # base branch tip fetched above, so the ceiling is that tip's baseline
-      # whatever the local ref names are. With no resolvable base ref the gate
-      # exits 2 rather than skip the comparison.
+      # whatever the local ref names are. An unreadable FETCH_HEAD exits 3. Exit 2
+      # applies only when no --base-ref is passed and no default ref resolves.
       - name: Run unused-argument gate (whole tree)
         run: uv run --frozen --extra dev python scripts/validation/check_unused_arguments.py --base-ref FETCH_HEAD
 

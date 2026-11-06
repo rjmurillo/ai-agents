@@ -12,10 +12,10 @@ from scripts.ci.count_ratchet import git_environment
 KEY_SEPARATOR = ": "
 
 # One deadline for the whole run. lefthook kills the python-unused-arguments
-# job at 90s with no message, so the gate gives up first and says why, once the
-# interpreter is running. The clock starts there: `uv run` environment setup
-# before it counts against the 90s but not against this budget. The per-call
-# limits only bound a single hung call.
+# job at 90s with no message, so the gate gives up first and says why. The clock
+# starts when `validate()` is entered: `uv run` environment setup, interpreter
+# startup, and imports come before it and count against the 90s but not against
+# this budget. The per-call limits only bound a single hung call.
 TOTAL_DEADLINE_SECONDS = 75.0
 GIT_TIMEOUT_SECONDS = 30
 RUFF_VERSION_TIMEOUT_SECONDS = 10

@@ -20,7 +20,7 @@ from check_unused_arguments import BASELINE_RELPATH
 
 from scripts.validation import unused_arguments_growth
 from tests.validation.unused_arguments_helpers import (
-    UNUSED,
+    DEFINED_TWICE,
     UNUSED_KEY,
     add_file,
     commit,
@@ -86,12 +86,21 @@ def test_a_same_count_swap_fails(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert f"baseline line not in the merge base: {OTHER_KEY}" in capsys.readouterr().err
 
 
-def test_a_duplicate_baseline_line_counts_as_growth(tmp_path: Path) -> None:
+def test_a_duplicate_baseline_line_counts_as_growth(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # DEFINED_TWICE yields two findings under UNUSED_KEY, so the two baseline
+    # lines match the scan and only the multiset growth check can fail. A set
+    # would read the repeated line as already in the merge base.
     repo = _base(tmp_path, UNUSED_KEY)
-    add_file(repo, "scripts/mod.py", UNUSED + "\n\ndef h(path):\n    return 2\n")
+    add_file(repo, "scripts/mod.py", DEFINED_TWICE)
     commit_baseline(repo, UNUSED_KEY, UNUSED_KEY)
 
     assert _gate(repo) == 1
+    err = capsys.readouterr().err
+    assert f"baseline line not in the merge base: {UNUSED_KEY}" in err
+    assert "new unused argument" not in err
+    assert "stale baseline entry" not in err
 
 
 def test_the_branch_cannot_edit_the_ceiling_it_is_held_to(tmp_path: Path) -> None:

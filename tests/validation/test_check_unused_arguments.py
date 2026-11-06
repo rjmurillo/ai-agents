@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "valida
 from check_unused_arguments import SCAN_ROOTS, GateConfigError, compare, parse_baseline, scan
 
 from tests.validation.unused_arguments_helpers import (
+    DEFINED_TWICE,
     UNUSED,
     UNUSED_KEY,
     add_file,
@@ -139,10 +140,7 @@ def test_same_argument_name_in_two_functions_gets_two_different_keys(tmp_path: P
 def test_a_function_defined_twice_in_one_scope_needs_one_baseline_line_each(
     tmp_path: Path,
 ) -> None:
-    source = (
-        "if True:\n    def f(path):\n        return 1\nelse:\n    def f(path):\n        return 2\n"
-    )
-    repo = make_repo(tmp_path, source=source)
+    repo = make_repo(tmp_path, source=DEFINED_TWICE)
 
     assert run_gate(repo, write_baseline(tmp_path, UNUSED_KEY)) == 1
     assert run_gate(repo, write_baseline(tmp_path, UNUSED_KEY, UNUSED_KEY)) == 0
@@ -247,10 +245,7 @@ def test_listed_key_with_a_new_duplicate_prints_every_candidate_line(
 ) -> None:
     # One function defined twice in a scope gives two findings under one key. A
     # baseline that lists one must show which lines to look at.
-    source = (
-        "if True:\n    def f(path):\n        return 1\nelse:\n    def f(path):\n        return 2\n"
-    )
-    repo = make_repo(tmp_path, source=source)
+    repo = make_repo(tmp_path, source=DEFINED_TWICE)
 
     assert run_gate(repo, write_baseline(tmp_path, UNUSED_KEY)) == 1
     assert f"{UNUSED_KEY} (line 2, 5; the baseline lists 1 of 2)" in capsys.readouterr().err

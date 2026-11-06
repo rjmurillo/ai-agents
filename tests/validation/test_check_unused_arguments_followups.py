@@ -25,12 +25,14 @@ from check_unused_arguments import (
     _read_source,
     tracked_python_files,
     validate,
+    validate_unused_arguments,
 )
 
 from tests.validation.unused_arguments_helpers import (
     UNUSED,
     UNUSED_KEY,
     add_file,
+    commit_baseline,
     fail_git_subcommand,
     make_repo,
     run_gate,
@@ -111,6 +113,41 @@ def test_the_shallow_probe_runs_under_the_deadline(
     assert len(seen) == 1
     assert isinstance(seen[0], int | float)
     assert 0 < seen[0] <= 5.0
+
+
+def test_a_failed_shallow_probe_keeps_the_fork_point_exit_3(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The probe only picks the remedy text. A probe that cannot start raises
+    # GateConfigError, which main() maps to exit 2 unless the probe swallows it.
+    repo = make_repo(tmp_path)
+
+    def vanish(argv: list[str], kwargs: dict[str, object]) -> None:
+        if "--is-shallow-repository" in argv:
+            raise FileNotFoundError("git vanished")
+
+    monkeypatch.setattr(check_unused_arguments.subprocess, "run", spy_run(subprocess.run, vanish))
+
+    code = run_gate(repo, write_baseline(tmp_path, UNUSED_KEY), "--base-ref", "no-such-ref")
+
+    assert code == 3
+    err = capsys.readouterr().err
+    assert "FORK POINT UNREADABLE" in err
+    assert "is not fetched, is not a valid ref" in err
+
+
+def test_the_pre_pr_entry_point_fails_closed_when_the_growth_check_cannot_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # "trunk" is in none of DEFAULT_BASE_REFS, so the growth check raises after
+    # the scan. GrowthCheckError is outside the other handler's exception tuple.
+    repo = make_repo(tmp_path, branch="trunk")
+    commit_baseline(repo, UNUSED_KEY)
+
+    assert validate_unused_arguments(repo) is False
+    err = capsys.readouterr().err
+    assert err.startswith("error: unused-argument gate: the scan ran")
+    assert "growth check could not run" in err
 
 
 def test_read_source_reports_a_missing_file(tmp_path: Path) -> None:

@@ -69,9 +69,10 @@ tracked file reads its working-tree content, so an uncommitted edit to a
 tracked file can fail a local push that CI would pass.
 
 One total deadline (``TOTAL_DEADLINE_SECONDS``) covers every git and ruff call
-from interpreter start, below the 90s lefthook cap, so exit 3 prints before
-lefthook kills the job. Environment setup by ``uv run`` before the interpreter
-starts is outside that budget.
+from the moment ``validate()`` is entered, below the 90s lefthook cap, so exit 3
+prints before lefthook kills the job. Environment setup by ``uv run``,
+interpreter startup, and imports come before that clock and are outside the
+budget.
 
 ruff comes from the interpreter running the gate (``python -P -m ruff``) when
 that environment has it, and from ``PATH`` otherwise.

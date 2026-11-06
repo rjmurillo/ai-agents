@@ -32,8 +32,8 @@ def make_repo(tmp_path: Path, *, source: str = UNUSED, branch: str = "main") -> 
     """Build a fixture git repo with one commit on ``branch``.
 
     The commit gives the gate a base ref. The fixture has no gate script yet, so
-    a run against that commit is the bootstrap case. Later edits are staged; the
-    gate reads the index.
+    a run against that commit is the bootstrap case. Later edits are staged. The
+    gate lists files from the index and reads their content from the working tree.
     """
     scripts = tmp_path / "scripts"
     scripts.mkdir()
