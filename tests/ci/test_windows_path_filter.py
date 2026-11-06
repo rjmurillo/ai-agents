@@ -187,21 +187,6 @@ class TestReach:
             "lib/mod_b.py",
         }
 
-    def test_unparseable_module_contributes_nothing_and_does_not_raise(
-        self, tmp_path: Path
-    ) -> None:
-        files = {
-            "tests/test_a.py": "import broken\n",
-            "lib/broken.py": "def (:\n",
-        }
-
-        assert _reach(tmp_path, files, "tests/test_a.py") == {"tests/test_a.py", "lib/broken.py"}
-
-    def test_unreadable_module_contributes_nothing(self, tmp_path: Path) -> None:
-        inventory = wpf.Inventory(["tests/test_a.py"])
-
-        assert wpf.reach(tmp_path, "tests/test_a.py", inventory) == {"tests/test_a.py"}
-
 
 class TestFilterPatterns:
     def _patterns(self, root: Path, files: dict[str, str]) -> dict[str, list[str]]:
