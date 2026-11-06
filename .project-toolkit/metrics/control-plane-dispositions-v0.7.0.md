@@ -957,7 +957,7 @@ below.
 
 | # | Gate | Status | Evidence / blocker |
 |---|---|---|---|
-| 1 | Canonical behavior owners decrease from the pinned baseline | Checked | Re-measured whole-tree at `4e0e8eec8` with the same script that produced the baseline, not by recounting the one category a PR touched: canonical owner total 412 to 407. Components that moved: rules 30 to 28 (`claude-model-patches.md` and `search-before-building.md` folded into skills in M4 PR1 and PR2), validators 99 to 98, workflows 58 to 56 (`rjmurillo-bot.yml`, `auto-assign-reviewer.yml`). Unchanged: agents 31, skills 111, hook files by event 7, lefthook jobs 76. The script recomputes its target from the measured total and now emits `"strictly below 407"`, which is the next release's figure to beat, not this one's. Re-measured 2026-09-28 at `7bc260179`: 411, still below 412 but up 4 from 407 because validators rose 98 to 104; see "Re-measurement, 2026-09-28". |
+| 1 | Canonical behavior owners decrease from the pinned baseline | Not met, regressed (superseded 2026-11-06) | Owner decision 2026-11-06 chose option C (redefine the gate); under the redefinition the count still regresses, 334 against 301 at `3e9f30aaa1`, and Abort-if clause 1 tripped for owners. See "Re-measurement, 2026-11-06". The text below is the historical 2026-09-16 and 2026-09-28 record, when the gate held: Re-measured whole-tree at `4e0e8eec8` with the same script that produced the baseline, not by recounting the one category a PR touched: canonical owner total 412 to 407. Components that moved: rules 30 to 28 (`claude-model-patches.md` and `search-before-building.md` folded into skills in M4 PR1 and PR2), validators 99 to 98, workflows 58 to 56 (`rjmurillo-bot.yml`, `auto-assign-reviewer.yml`). Unchanged: agents 31, skills 111, hook files by event 7, lefthook jobs 76. The script recomputes its target from the measured total and now emits `"strictly below 407"`, which is the next release's figure to beat, not this one's. Re-measured 2026-09-28 at `7bc260179`: 411, still below 412 but up 4 from 407 because validators rose 98 to 104; see "Re-measurement, 2026-09-28". |
 | 2 | Always-loaded instruction tokens decrease for every supported harness | Checked | Every supported harness decreased at `4e0e8eec8`, so the gate needs no harness-specific exception. Claude Code 16,879 to 11,676 estimated tokens (63,290 to 43,386 bytes), Copilot 17,281 to 12,007 (64,595 to 44,504 bytes), Codex 965 to 953 (2,999 to 2,950 bytes). The always-on rule set went five files to three: `builder-ethos.md`, `universal.md`, `voice.md`. Codex moves least because its always-loaded surface is `AGENTS.md` alone, which the M4 folds never touched; its 12 tokens come from the three commits that did edit that file since the baseline (PRs #5723, #5753, #5792). |
 | 3 | Required local-gate p95 does not regress | First measured reference recorded; not met | The baseline's "no sampler exists" exclusion is answered: `scripts/metrics/gate_latency.py` (REQ-027) now measures a real hook, and `.project-toolkit/metrics/gate-latency-v0.7.0.md` carries the figures at commit `1251644dd` on a 4-CPU container. Worst observed: pre-push 128.21s against a declared 3,330s, pre-commit 9.82s against a declared 6,230s. ADR-104's 300s pre-push target and its 60s pre-commit placeholder both hold, at 43 and 16 percent. Structural evidence is complete: `lefthook.yml` between `53ffe92c2` and `659097d6d` differs by exactly one removed block, `retrospective-policy` (2m, pre-push, PR #5803), with no job added and no surviving `timeout:` raised, so the declared pre-push ceiling fell 3,450s to 3,330s. That bounds the declared ceiling and not latency, which is why this row does not read "Checked": 50 commits and 1,999 changed files separate the two SHAs and test files grew 1,031 to 1,174, so a surviving job can have slowed with no job added. A paired capture at `53ffe92c2` was attempted on the same machine in an external worktree and could not produce a comparable number: that tree is 50 commits behind `main`, its count ratchets evaluate against a base that has moved, and the piped hook aborts after 9 jobs. Recorded per REQ-027 AC-15 as a first reference rather than a met gate; the comparison that decides it is the next release's measurement against this one, which is now possible. Two named exclusions: `workflow-local-run` is unmeasured (needs `act` and a container runtime, neither present), and no p95 is reported at n=2 and n=3. Read against gate 3's own wording, ADR-104's 300s figure is "a ceiling, not a goal", so the distance below it is not a surplus to spend: `ci-scripts.md` MUST-16 and ADR-104's "Neither target is enforced at runtime" both hold that a `timeout:` is sized for a loaded host, and the sampler records no load average, so nothing measured here bounds any job under contention. Dividing each cap by its worst observed run puts `pre-pr-validation` at 2.6x (4m cap, 93.80s) and `count-ratchets` at 3.8x, with every other pre-push job above 8x and most above 60x. MUST-16's own recorded standalone-to-in-push gap on one machine was near 14x. So the actionable direction from this measurement is that `pre-pr-validation` may be capped too low, not that any cap is too high; it is piped, so the jobs after it do not run when it dies. Choosing a replacement cap needs a measurement under load, which the instrument cannot yet take. |
 | 4 | No new agent/skill/rule/hook/validator/workflow/ADR/registry lands unless it removes or consolidates | Met: two named exceptions (`control_plane_baseline.py`, `gate_latency.py`), owner decision 2026-10-04; six `KEEP` rows | **Owner decision, 2026-10-04 (D32):** the owner accepted `scripts/metrics/control_plane_baseline.py` and `scripts/metrics/gate_latency.py` as the two named exceptions to this gate, because measuring tools make the reduction claim provable. The arguments below record the grounds. **First exception, `control_plane_baseline.py`.** This PR alone (four markdown files plus two memory edits) adds no agent, skill, rule, hook, validator, workflow, ADR, or registry. But its sibling PR #5725 lands `scripts/metrics/control_plane_baseline.py` and `scripts/ci/lefthook_budget_model.py` alongside three spec files and four test files, and removes nothing, so release scope is not clean against this gate. Named exception, argued against the epic's Abort-if clause 3 (forbidding "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify"): `control_plane_baseline.py` is measurement-only, exits 0 for any metric value (not a pass/fail evaluator), is wired into no gate this session verified (`grep -rn control_plane_baseline lefthook.yml scripts/validation/pre_pr_sequence.py .github/workflows/*.yml` returns nothing), and the epic's own Baseline section requires exactly this script's output ("Before the first deletion cohort, capture a reproducible baseline from one pinned `main` SHA") before any classification, including this ledger's, could be trusted. It is a precondition for subtraction, not a competing governance layer. **Second exception, `gate_latency.py`.** `scripts/metrics/gate_latency.py` and its five sibling modules (REQ-027) land with nothing removed, the same shape as `control_plane_baseline.py`, and take the same named exception on the same grounds. It is none of the eight classes the gate enumerates: not an agent, skill, rule, hook, validator, workflow, ADR, or registry, but a measurement script. It cannot act as an evaluator: the exit code is independent of every metric value, a hook that fails every repetition still exits 0, and `tests/metrics/test_gate_latency_cli.py` pins that as a matrix over hook exit codes and durations. It is wired into no gate, verified by `grep -rn gate_latency lefthook.yml scripts/validation/pre_pr*.py .github/workflows/*.yml`, which returns nothing, and `tests/metrics/test_gate_latency_classes.py` asserts that absence so a later wiring fails a test. Against Abort-if clause 3, which forbids "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify": it is not a registry (no state another mechanism reads), not a ratchet (no baseline file, no threshold, no failing exit), and not a governance layer (it decides nothing). The epic's own Baseline section names "local pre-commit and pre-push p50/p95 latency by gate" as a required dimension that was captured as an exclusion for want of this tool, and gate 3 cannot be evaluated without it, so it is a precondition for a gate the epic already committed to, not a new obligation. Issue #5768 adds `scripts/eval/eval_durable_outcome.py` and offsets it: the two private `_percentile` copies merge into `_eval_common.percentile`, and its record becomes the #5424 result contract instead of a second one. **2026-09-28:** six validators landed after `4e0e8eec8` with no offset. The owner ruled all six `KEEP`, each with the five fields, under "Re-measurement, 2026-09-28". `eval_control_ablation.py` (REQ-046) takes the same measurement-only exception as the two scripts above: exit code independent of the comparison result, wired into no gate. |
@@ -1130,3 +1130,66 @@ Measured from each merge commit's own diff (`git diff <sha>^ <sha>`).
 | #5396, capability DAG | PRs #5879, #5881, #5885 | Adds `check_capability_graph.py` and ADR-110; net growth. This is the graph authority the epic warned against, landed before deleting the mechanism it simplifies (Abort-if clause 3) | `KEEP` by owner ruling, see its row above |
 | #5420 and #5421, generated state | PRs #5887 (`efd148e89`), #5935 (`8ae97876a`) | About 3,950 files renamed from `.agents/` to `.project-toolkit/`; adds `check_agents_write_targets.py`. Relocation, not subtraction | `EXPERIMENT` stays: relocation earns no gate credit |
 
+## Re-measurement, 2026-11-06
+
+Re-run of `scripts/metrics/control_plane_baseline.py` at `main` `3e9f30aaa1`
+(2026-11-06), against the baseline pinned at `53ffe92c2`. The pinned baseline
+JSON is unchanged. No mechanism was deleted by this section.
+
+### Owner decision
+
+On 2026-11-06 the owner chose option C on epic #5456 gate 1: rebaseline or
+redefine the gate (sweep-2026-11-06 comment). The options on offer were stated
+on 2026-10-19 and 2026-10-20: A, subtract 37 or more owners; B, record KEEP
+justifications and a gate 1 exception; C, redefine the gate.
+
+### New definition
+
+Gate 1 counts canonical behavior owners excluding the whole skills category,
+on both sides of the comparison. This matches the owner's 2026-11-06 figures
+(334 against 301). The owner rule is that skills and agents are `KEEP`, and
+most skill entries under `.claude/skills/` are generated symlinks.
+
+The exclusion is the category, not only the symlinks. At `3e9f30aaa1` 104 of the
+121 skill entries are symlinks, and the pinned tree at `53ffe92c2` has none.
+Excluding only the symlinks from the measured side would give 351 against 412,
+which compares unlike sets and is not the owner's definition. If the owner
+intends the symlink-only reading, gate 1 would read as met on that basis, and
+the owner must say so before this ledger changes. The pinned figure is
+restated on the same basis: 412 less 111 skills is 301 at `53ffe92c2`.
+
+### Measurements at `3e9f30aaa1` (2026-11-06)
+
+| Dimension | Pinned (`53ffe92c2`) | Measured (`3e9f30aaa1`) | Change |
+|---|---|---|---|
+| Agents | 31 | 30 | -1 |
+| Skills | 111 | 121 | +10 |
+| Rules | 30 | 29 | -1 |
+| Hook registrations | 7 | 8 | +1 |
+| Validators | 99 | 125 | +26 |
+| Workflows | 58 | 62 | +4 |
+| Lefthook jobs | 76 | 80 | +4 |
+| Canonical owner total, original definition | 412 | 455 | +43 |
+| Canonical owner total, excluding skills (gate 1 as redefined) | 301 | 334 | +33 |
+
+### Result
+
+Gate 1 is not met under the original definition (455 against 412 at
+`3e9f30aaa1`) and is not met under the redefined one (334 against 301 at
+`3e9f30aaa1`). The redefinition removes 10 of the 43 added owners. The other 33
+are validators (+26), workflows (+4), lefthook jobs (+4) and one hook
+registration, less one agent and one rule.
+
+Abort-if clause 1 says the release aborts if canonical owners "grow during the
+subtraction release". Owners grew against the pinned baseline under both
+definitions, so the clause has tripped for owners. The 2026-09-28 reading of the
+clause against the pinned baseline (decision D12) no longer shelters it: that
+reading held only while the total stayed below 412. The total was 448 at
+`7e43f7f89d` on 2026-10-19 and is 455 at `3e9f30aaa1`.
+
+The redefinition changes what is counted. It does not change the outcome, and
+this section does not record gate 1 as passing.
+
+### Other gates
+
+This section does not close gates 3, 4, 5 to 7, or 10. Epic #5456 stays open.
