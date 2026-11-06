@@ -439,17 +439,22 @@ def _fixture_env(workspace: Path, harness: str, executable: str) -> dict[str, st
     way the `claude-cli` grader does. The token travels as an environment
     variable under the empty profile, which keeps `~/.claude` instructions out
     of the run. No credential file is copied or linked. A login the empty
-    profile cannot reach raises `ParityAuthError`, so no fixture starts.
+    profile cannot reach raises `ParityAuthError`; `main` checks this first.
     """
     env: dict[str, str] = runtime_env(workspace, harness)
+    if harness == "claude" and not real_home_enabled():
+        _add_claude_login(env, executable)
+    return env
+
+
+def _add_claude_login(env: dict[str, str], executable: str) -> None:
+    """Add the resolved token to `env`, or raise `ParityAuthError`."""
     spec = _claude_cli.CREDENTIAL_SPEC
-    if harness != "claude" or real_home_enabled():
-        return env
     for name in ("ANTHROPIC_API_KEY", spec.inject_env):
         if name in env and not env[name].strip():
             del env[name]
     if "ANTHROPIC_API_KEY" in env or spec.inject_env in env:
-        return env
+        return
     try:
         credential = resolve_cached(spec, executable=executable)
     except CredentialNotFoundError as exc:
@@ -457,7 +462,14 @@ def _fixture_env(workspace: Path, harness: str, executable: str) -> dict[str, st
     if credential.secret is None:
         raise ParityAuthError(_NO_ISOLATED_LOGIN)
     env[spec.inject_env] = credential.secret
-    return env
+
+
+def _require_isolated_login(harnesses: str, executable: str, *, dry_run: bool) -> None:
+    """Stop before any workspace exists when no credential reaches Claude."""
+    if dry_run or harnesses == "copilot" or real_home_enabled():
+        return
+    names = ("ANTHROPIC_API_KEY", _claude_cli.CREDENTIAL_SPEC.inject_env)
+    _add_claude_login({k: os.environ[k] for k in names if k in os.environ}, executable)
 
 
 def _without_token(
@@ -1162,6 +1174,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
     output = (args.output or _default_output()).resolve()
     try:
         verify_worktree_identity()
+        _require_isolated_login(args.harnesses, args.claude_bin, dry_run=args.dry_run)
         report, code = run_evaluation(
             fixtures_path=args.fixtures.resolve(),
             model=args.model,

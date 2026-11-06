@@ -121,17 +121,35 @@ def test_blank_credentials_do_not_block_the_stored_login(
     assert "ANTHROPIC_API_KEY" not in env
 
 
-def test_main_exits_4_when_no_login_reaches_the_isolated_run(
+def test_main_exits_4_before_any_workspace_when_no_login_is_reachable(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def no_login(**_kwargs: object) -> None:
-        raise parity.ParityAuthError("no login")
-
-    monkeypatch.setattr(parity, "run_evaluation", no_login)
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
     monkeypatch.setattr(parity, "verify_worktree_identity", lambda: None)
+    started: list[bool] = []
+    monkeypatch.setattr(parity, "run_evaluation", lambda **_kwargs: started.append(True))
 
     assert parity.main([]) == parity.EXIT_AUTH
-    assert "no login" in capsys.readouterr().err
+    assert started == []
+    assert "needs a token" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("harnesses", "dry_run", "real_home"),
+    [("copilot", False, False), ("claude", True, False), ("claude", False, True)],
+)
+def test_preflight_skips_runs_that_need_no_isolated_login(
+    monkeypatch: pytest.MonkeyPatch, harnesses: str, dry_run: bool, real_home: bool
+) -> None:
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    if real_home:
+        monkeypatch.setenv(parity.REAL_HOME_ENV, "1")
+    set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
+
+    parity._require_isolated_login(harnesses, "claude", dry_run=dry_run)
 
 
 def _echoing_run(text: str) -> subprocess.CompletedProcess[str]:
