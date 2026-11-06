@@ -429,6 +429,8 @@ EXPECTED_JOB_ENVIRONMENTS = {
     ("skill-overlap-eval.yml", "run-eval"): "agent-claude",
     ("slash-command-quality.yml", "validate-slash-commands"): "agent-claude",
     ("software-engineering-library-activation.yml", "activation-gate"): "agent-claude",
+    # Sits in agent-claude only so it may read BOT_PAT. It calls no model.
+    ("update-reviewer-stats.yml", "update-stats"): "agent-claude",
 }
 
 
@@ -625,7 +627,7 @@ def test_the_matrix_environment_resolves_to_provider_environments_only() -> None
     assert {f"agent-{cli}" for cli in clis} <= PROVIDER_ENVIRONMENTS
 
 
-def test_the_twelve_gated_workflows_are_exactly_the_policy_set() -> None:
+def test_the_thirteen_gated_workflows_are_exactly_the_policy_set() -> None:
     gated = {path for path, doc in _workflow_docs().items() if _gated_jobs(doc)}
     assert gated == {
         f".github/workflows/{name}.yml"
@@ -642,6 +644,7 @@ def test_the_twelve_gated_workflows_are_exactly_the_policy_set() -> None:
             "plugin-cli-smoke",
             "copilot-context-synthesis",
             "claude",
+            "update-reviewer-stats",
         )
     }
 

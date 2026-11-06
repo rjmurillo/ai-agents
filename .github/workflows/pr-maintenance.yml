@@ -31,11 +31,14 @@ jobs:
   # Job 1: Discover PRs needing attention
   discover-prs:
     runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
     timeout-minutes: 10
+    # The discovery query reads statusCheckRollup, so github.token needs
+    # checks and statuses too.
     permissions:
+      checks: read
       contents: read
       pull-requests: read
+      statuses: read
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
       has-prs: ${{ steps.discover.outputs.has-prs }}
@@ -47,27 +50,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Issue #4607 / ADR-026 Decision 5: report which account BOT_PAT
-      # resolves to (expected rjmurillo-bot, id 250269933) so a mis-issued
-      # secret is visible in every run log instead of surfacing as shared
-      # rate-limit exhaustion. Non-blocking until the secret is rotated.
-      - name: Report BOT_PAT identity
-        env:
-          IDENTITY_TOKEN: ${{ secrets.BOT_PAT }}
-          EXPECTED_BOT_ID: '250269933'
-          EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
-        run: python3 scripts/ci/check_bot_identity.py
-
       - name: Check API rate limit
         id: ratelimit
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 .github/scripts/test_rate_limit.py
 
       - name: Discover PRs needing attention
         id: discover
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           result=$(python3 .github/scripts/invoke_pr_maintenance.py --max-prs "$PR_MAX_PRS" --output-json)
           matrix_json=$(echo "$result" | jq -c '{include: .prs}')
@@ -85,7 +77,7 @@ jobs:
 
       - name: Write step summary
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           SUMMARY_JSON: ${{ steps.discover.outputs.summary }}
         run: python3 scripts/ci/write_pr_discovery_summary.py
 
@@ -95,7 +87,7 @@ jobs:
       - name: Detect orphan commits on merged PR branches
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: >-
           python3 scripts/ci/report_advisory_result.py run
           --validator orphan-commit-report
@@ -258,10 +250,11 @@ jobs:
     needs: [discover-prs, process-prs]
     if: always()
     runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
     timeout-minutes: 5
     permissions:
       contents: read
+      issues: read
+      pull-requests: read
 
     steps:
       - name: Checkout
@@ -269,7 +262,7 @@ jobs:
 
       - name: Final summary
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           SUMMARY_JSON: ${{ needs.discover-prs.outputs.summary-json }}
         run: python3 scripts/ci/write_pr_maintenance_summary.py
 
@@ -278,5 +271,5 @@ jobs:
       # a known false positive (#4163) and needs a human to confirm.
       - name: Report PR supersession candidates
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/report_pr_supersession.py >> "$GITHUB_STEP_SUMMARY"

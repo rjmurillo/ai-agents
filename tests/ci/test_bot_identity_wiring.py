@@ -24,7 +24,6 @@ MODULE_INVOCATION = "check_bot_identity.py"
 EXPECTED_BOT_ID = "250269933"
 
 WORKFLOW_CONSUMERS = [
-    ("pr-maintenance.yml", "discover-prs"),
     ("ai-metrics-analysis.yml", "analyze-metrics"),
     ("update-reviewer-stats.yml", "update-stats"),
 ]
