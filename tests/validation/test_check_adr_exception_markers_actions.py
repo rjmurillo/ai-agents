@@ -46,7 +46,7 @@ def test_action_marker_naming_live_adr_passes_and_is_counted(tmp_path: Path) -> 
     _action(tmp_path, "# ADR-055 Exception: composite action needs x64")
     result = _run(tmp_path)
     assert result.returncode == 0
-    assert "1 marker(s) in 2 workflow and action file(s)" in result.stdout
+    assert "1 marker(s) in 2 file(s)" in result.stdout
 
 
 @pytest.mark.parametrize("file_name", ["action.yml", "action.yaml"])
@@ -97,7 +97,7 @@ def test_other_yaml_under_actions_is_not_scanned(tmp_path: Path) -> None:
     )
     result = _run(tmp_path)
     assert result.returncode == 0
-    assert "0 marker(s) in 2 workflow and action file(s)" in result.stdout
+    assert "0 marker(s) in 2 file(s)" in result.stdout
 
 
 def test_missing_actions_dir_is_not_a_config_error(tmp_path: Path) -> None:
@@ -106,7 +106,7 @@ def test_missing_actions_dir_is_not_a_config_error(tmp_path: Path) -> None:
     assert not (tmp_path / ".github" / "actions").exists()
     result = _run(tmp_path)
     assert result.returncode == 0
-    assert "1 marker(s) in 1 workflow and action file(s)" in result.stdout
+    assert "1 marker(s) in 1 file(s)" in result.stdout
 
 
 def test_non_utf8_action_is_reported_not_crashed(tmp_path: Path) -> None:
