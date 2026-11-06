@@ -288,6 +288,25 @@ After running security scan:
 
 ---
 
+## Reference Files
+
+Load a file only when its condition holds. The scanner runs without any of them.
+
+| File | Read when |
+|------|-----------|
+| `references/vulnerability-patterns.md` | A finding needs remediation detail or a false-positive call for CWE-78, or you review CWE-22 by hand in PowerShell, Bash, or C# (CodeQL does not cover those) |
+| `references/powershell-security-checklist.md` | The diff adds or changes a `.ps1` or `.psm1` file and you review it beyond the scanner's CWE-78 patterns |
+| `references/agent-guardrails-template.md` | The diff adds or changes an agent prompt, a `SKILL.md` or its scripts, or a lifecycle hook |
+| `references/agent-memory-inference-leakage.md` | The diff touches a memory write path: a `write_memory` call, a reflection script, or a prompt that lets an agent record observations |
+| `references/autonomous-execution-guardrails.md` | You work unsupervised and are about to merge, or you are about to dismiss a security review comment as "won't fix" |
+| `references/dependency-risk-scoring.md` | The diff adds an external package or changes its version |
+
+`references/threat-model-template.md` has no load condition here. It is a short
+older copy of the template the `threat-modeling` skill ships under
+`templates/`. Use that one.
+
+---
+
 ## References
 
 - [CWE-78: OS Command Injection](https://cwe.mitre.org/data/definitions/78.html)
