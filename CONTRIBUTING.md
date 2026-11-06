@@ -858,7 +858,7 @@ The only pin is `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml
 
 `.github/workflows/plugin-cli-smoke.yml` runs on pull requests. It proves the plugin loads in Claude, Copilot, and Codex on Ubuntu, macOS, and Windows. A path filter (`scripts/validation/cli_smoke_paths.py`) runs the legs only when a change touches a plugin-shipped path. Lefthook's `hook-anchoring-e2e` and `plugin-load-e2e` pre-push gates mirror that list, and `tests/validation/test_cli_smoke_paths.py` fails when they drift. A local push runs the smoke with the harness you use locally, `claude` or `codex`, on your own login. It never calls Copilot. Copilot cases run only in CI, behind the `agent-copilot` approval.
 
-After this workflow is on `main`, dispatch it once there, then require the `CLI Smoke Result` check in the branch ruleset. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
+The `CLI Smoke Result` check is advisory (owner decision 2026-11-05, ADR-114). It is not in the branch ruleset, and the readiness check does not block on it. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
 
 ### Why Version Pinning
 

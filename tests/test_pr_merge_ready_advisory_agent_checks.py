@@ -434,19 +434,6 @@ EXPECTED_JOB_ENVIRONMENTS = {
 }
 
 
-# Pull-request workflows with a provider-gated job that are deliberately NOT in
-# advisory_agent_workflows, so their failure blocks merge. Each needs a reason.
-# REQ-047 (issue #6069), owner decision D2: the CLI smoke proves the plugin
-# loads in Claude, Copilot, and Codex, and the owner wants a red smoke to block.
-BLOCKING_GATED_WORKFLOWS = {
-    ".github/workflows/plugin-cli-smoke.yml": (
-        "REQ-047 owner decision D2: a PR that changes a plugin-shipped path must "
-        "not merge until each CLI loads the plugin. ADR-114 Decision 8 otherwise "
-        "keeps agent checks advisory."
-    ),
-}
-
-
 def _is_gated(job: dict) -> bool:
     environment = job.get("environment")
     return environment in PROVIDER_ENVIRONMENTS or environment == MATRIX_ENVIRONMENT
@@ -532,23 +519,26 @@ def test_every_pull_request_workflow_with_a_provider_gated_job_is_listed() -> No
         for path, doc in _workflow_docs().items()
         if "pull_request" in _triggers(doc) and _gated_jobs(doc)
     }
-    assert listed - {DETERMINISTIC_LISTED} == expected - set(BLOCKING_GATED_WORKFLOWS)
+    assert listed - {DETERMINISTIC_LISTED} == expected
     assert DETERMINISTIC_LISTED in listed
 
 
-def test_blocking_gated_workflows_are_real_pull_request_workflows_with_a_reason() -> None:
-    docs = _workflow_docs()
-    for path, reason in BLOCKING_GATED_WORKFLOWS.items():
-        assert reason.strip(), path
-        assert path in docs, path
-        assert "pull_request" in _triggers(docs[path]), path
-        assert _gated_jobs(docs[path]), f"{path} has no provider-gated job"
+SMOKE = ".github/workflows/plugin-cli-smoke.yml"
+# Records the required status checks of the default branch ruleset (ADR-113 decision 3).
+PROMOTION_APPLICABILITY = REPO_ROOT / ".agents" / "governance" / "promotion-applicability.json"
 
 
-def test_the_cli_smoke_is_blocking_so_it_is_never_listed_as_advisory() -> None:
-    """REQ-047 AC7: listing the smoke would exempt its failure from the merge gate."""
-    assert ".github/workflows/plugin-cli-smoke.yml" in BLOCKING_GATED_WORKFLOWS
-    assert ".github/workflows/plugin-cli-smoke.yml" not in {e["path"] for e in _shipped_entries()}
+def test_the_cli_smoke_is_listed_as_advisory() -> None:
+    """Owner decision 2026-11-05: the smoke needs provider credentials and an approval."""
+    assert SMOKE in {e["path"] for e in _shipped_entries()}
+
+
+def test_the_cli_smoke_is_not_a_required_ruleset_context() -> None:
+    """ADR-114 Decision 11 item 8 is withdrawn: `CLI Smoke Result` stays out of the ruleset."""
+    entries = json.loads(PROMOTION_APPLICABILITY.read_text(encoding="utf-8"))["entries"]
+    assert entries
+    assert SMOKE not in {e["workflow"] for e in entries}
+    assert "CLI Smoke Result" not in {e["job"] for e in entries}
 
 
 def test_claude_workflow_is_gated_by_agent_claude_and_listed_as_advisory() -> None:
