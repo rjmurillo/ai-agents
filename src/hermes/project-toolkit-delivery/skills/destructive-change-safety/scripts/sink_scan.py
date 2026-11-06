@@ -87,9 +87,13 @@ SQL_PATTERN = re.compile(
     r"|UPDATE\s+\w+\s+SET)\b",
     re.IGNORECASE,
 )
-# A force-push argument: ``--force``, ``--force-with-lease``, a short-flag
-# cluster that holds ``f`` (``-f``, ``-fu``), or a ``+ref`` refspec.
-FORCE_PUSH_ARG = r"(?:--force(?:-with-lease)?\b|-[a-zA-Z]*f[a-zA-Z]*(?=\s|$)|\+\S)"
+# A destructive push argument: ``--force``, ``--force-with-lease``, a short-flag
+# cluster that holds ``f`` (``-f``, ``-fu``), a ``+ref`` refspec, ``--delete``,
+# ``--mirror``, or a ``:ref`` refspec that deletes the remote ref.
+FORCE_PUSH_ARG = (
+    r"(?:--force(?:-with-lease)?\b|-[a-zA-Z]*f[a-zA-Z]*(?=\s|$)|\+\S"
+    r"|--delete\b|--mirror\b|:[^\s:]\S*)"
+)
 SHELL_PATTERN = re.compile(
     r"(?:^|[\s;&|(])(rm|rmdir|shred|truncate)\s"
     r"|git\s+(?:clean|reset\s+--hard|branch\s+-D|push\s+(?:\S+\s+)*" + FORCE_PUSH_ARG + r")"
