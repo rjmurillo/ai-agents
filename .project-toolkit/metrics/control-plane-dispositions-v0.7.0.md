@@ -1152,10 +1152,10 @@ most skill entries under `.claude/skills/` are generated symlinks.
 
 The exclusion is the category, not only the symlinks. At `3e9f30aaa1` 104 of the
 121 skill entries are symlinks, and the pinned tree at `53ffe92c2` has none.
-Excluding only the symlinks from the measured side would give 351 against 412,
-which compares unlike sets and is not the owner's definition. If the owner
-intends the symlink-only reading, gate 1 would read as met on that basis, and
-the owner must say so before this ledger changes. The pinned figure is
+Owner decision D11 (2026-11-06) settled this: gate 1 excludes the whole skills
+category from both sides, giving 334 against 301, not met. The symlink-only
+reading is rejected. It would give 351 against 412, but the pinned tree has no
+symlinks, so that comparison is not like for like. The pinned figure is
 restated on the same basis: 412 less 111 skills is 301 at `53ffe92c2`.
 
 ### Measurements at `3e9f30aaa1` (2026-11-06)
