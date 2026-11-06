@@ -31,6 +31,7 @@ dev = [
     "pytest-testmon>=2.2.0",
     "pytest-split>=0.11.0",
     "chevron==0.14.0",
+    "import-linter>=2.15",
 ]
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
@@ -706,6 +707,101 @@ module = [
 ]
 disable_error_code = ["type-arg"]
 
+# Module boundaries, enforced by `lint-imports` (import-linter) in the pre-push
+# `import-boundaries` job and the pytest workflow. Each contract states a rule
+# the repository already documents; tests/test_import_linter_contracts.py ties
+# the module lists to their sources and pins the ignore count.
+[tool.importlinter]
+root_packages = ["scripts", "memory_enhancement", "tests"]
+# Third-party packages join the graph so a forbidden contract can name them.
+include_external_packages = true
+
+# build/scripts/lib_mirror.py ships these four packages into every plugin lib
+# tree (ADR-109 B5). Its IMPORT_CONVERSIONS rewrite turns any
+# `from scripts.<pkg> import` into `from . import`, so an import of a sibling
+# package would resolve inside the importing package in the shipped copy.
+# shipped-lib-self-contained below also forbids every `scripts.*` import, so it
+# breaks on a sibling import too. This contract stays for its message: it names
+# the broken rule as "do not import each other", where the broader one reports
+# a generic repository import.
+[[tool.importlinter.contracts]]
+id = "shipped-lib-independence"
+name = "Shipped lib packages do not import each other"
+type = "independence"
+modules = [
+    "scripts.hook_utilities",
+    "scripts.github_core",
+    "scripts.ai_review_common",
+    "scripts.failure_classifier",
+]
+
+# lib_mirror.py copies these four packages plus one sidecar file,
+# scripts/validation/validate_review_marker.py (ADR-109 B5). No contract covers
+# the sidecar. The rest of scripts/, memory_enhancement/, and tests/ never ship,
+# so an import of them would dangle in every plugin install.
+# plugin-self-containment.md MUST 1 states the same boundary for shipped files.
+[[tool.importlinter.contracts]]
+id = "shipped-lib-self-contained"
+name = "Shipped lib packages import nothing else from the repository"
+type = "forbidden"
+source_modules = [
+    "scripts.hook_utilities",
+    "scripts.github_core",
+    "scripts.ai_review_common",
+    "scripts.failure_classifier",
+]
+forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
+
+# plugin-self-containment.md MUST 4: a plugin-root script runs under bare
+# `python3` and must be stdlib-only at import time, and its closure includes
+# the shipped lib. This contract covers the import name of each [project]
+# dependency. tests/test_import_linter_contracts.py covers every other
+# non-stdlib import with a grimp scan that honors the same ignores.
+# The ignores are existing debt. They may only shrink: delete an entry in the
+# change that removes its import, and lint-imports fails on an entry that no
+# longer matches an import.
+# An ignore removes one edge, not the modules that import the ignored module.
+# Without PyYAML, six modules fail to import: the two unguarded importers below
+# and four that import workflow_event_subscriptions, directly or through
+# recovery_manifest (recovery_manifest, workflow_runs, runs_file,
+# pull_request_targets). tests/test_import_linter_source_scans.py pins that set
+# and checks it against a real import with yaml blocked.
+[[tool.importlinter.contracts]]
+id = "shipped-lib-no-runtime-dependencies"
+name = "Shipped lib packages do not import the project's third-party dependencies"
+type = "forbidden"
+source_modules = [
+    "scripts.hook_utilities",
+    "scripts.github_core",
+    "scripts.ai_review_common",
+    "scripts.failure_classifier",
+]
+forbidden_modules = ["anthropic", "jsonschema", "markdown_it", "frontmatter", "yaml", "tiktoken"]
+ignore_imports = [
+    # Guarded by `except ImportError`, so the module still loads without
+    # PyYAML. import-linter cannot see the guard.
+    "scripts.github_core.bot_config -> yaml",
+    # Unguarded top-level import: under bare python3 without PyYAML, importing
+    # this module raises ModuleNotFoundError. So do recovery_manifest,
+    # workflow_runs, runs_file, and pull_request_targets, which reach it.
+    "scripts.github_core.workflow_event_subscriptions -> yaml",
+    # Unguarded top-level import: under bare python3 without PyYAML, importing
+    # this module raises ModuleNotFoundError.
+    "scripts.github_core.workflow_provenance -> yaml",
+]
+
+# [tool.setuptools.packages.find] ships scripts* and memory_enhancement*, never
+# tests, so an installed package that imported tests would fail at import.
+# grimp walks only directories that hold an __init__.py, so this contract does
+# not see scripts/ci, scripts/eval, and five other directories without one.
+# tests/test_import_linter_source_scans.py scans every file for the same import.
+[[tool.importlinter.contracts]]
+id = "production-does-not-import-tests"
+name = "Production code does not import tests"
+type = "forbidden"
+source_modules = ["scripts", "memory_enhancement"]
+forbidden_modules = ["tests"]
+
 # Mirror of [project.optional-dependencies].dev above. Both tables must list the
 # same dev tools: `uv pip install -e ".[dev]"` reads only the extra, while a plain
 # `uv sync` installs this group by default and ignores extras (issue #3111). Keep
@@ -726,6 +822,7 @@ dev = [
     "pytest-testmon>=2.2.0",
     "pytest-split>=0.11.0",
     "chevron==0.14.0",
+    "import-linter>=2.15",
 ]
 
 # Seconds a validator suite's tests may sum to in one JUnit report, enforced by

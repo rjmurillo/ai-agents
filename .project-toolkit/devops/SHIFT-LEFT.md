@@ -428,9 +428,10 @@ a security gate.
 | pre-push | `planning-artifacts` | unscoped | Planning artifact validation | - | no | CI, not required: validate-planning-artifacts.yml |
 | pre-push | `branch-context-policy` | unscoped | Blocks when the branch contradicts today's session log | pre-commit | no | None found |
 | pre-push | `review-axis-drift` | unscoped | Review axis prompts match their source | - | no | Required: Validate Generated Files, step Review-axes drift check (REQ-008-03) |
+| pre-push | `import-boundaries` | unscoped | import-linter contracts in pyproject.toml | - | no | Required: Run Python Tests, step Check import boundaries (lint-imports) |
 | pre-push | `dash-prohibition` | unscoped | Em and en dash scan of the whole branch | - | no | None found |
 | pre-push | `security-scan` | push range (stdin) | Semgrep on every pushed head | - | yes | None found |
-| pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 115 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |
+| pre-push | `pre-pr-validation` | unscoped | Runs pre_pr.py, 117 gates in _SEQUENCE | - | adjacent | None found as an aggregate: no workflow runs pre_pr.py, and some gates have their own CI steps |
 | pre-push | `worktree-gc-report` | unscoped | Reports stale registered worktrees, advisory | - | no | Local state, no CI analogue |
 | pre-push | `branch-config-prune-report` | unscoped | Reports stale branch sections in .git/config, advisory | - | no | Local state, no CI analogue |
 | pre-push | `plugin-scanner` | unscoped | HOL plugin scanner score of HEAD is at least 80 (awesome-ai-plugins listing bar) | - | adjacent | CI, not required: plugin-scanner.yml |
@@ -455,8 +456,8 @@ another clone or worktree, so neither hook can rely on the other having run.
 `branch-context-policy` also reads the session log, which can change between
 the commit and the push.
 
-`pre-push` job `pre-pr-validation` runs `pre_pr.py`, which holds 115 gates in
-`_SEQUENCE` (`pre_pr_sequence.py`, 2026-10-23). Five gates carry
+`pre-push` job `pre-pr-validation` runs `pre_pr.py`, which holds 117 gates in
+`_SEQUENCE` (`pre_pr_sequence.py`, 2026-11-05). Five gates carry
 `already_run_by` and skip when the matching unconditional pre-push job passed:
 `count-ratchets`, `python-unreachable-statements`, `dash-prohibition`,
 `path-normalization`, and `planning-artifacts`. The `Review Axis Drift` gate

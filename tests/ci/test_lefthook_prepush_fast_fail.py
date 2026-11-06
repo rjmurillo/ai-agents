@@ -50,6 +50,7 @@ FAST_PARALLEL_GATES = frozenset(
         "planning-artifacts",
         "branch-context-policy",
         "review-axis-drift",
+        "import-boundaries",
         "dash-prohibition",
     }
 )

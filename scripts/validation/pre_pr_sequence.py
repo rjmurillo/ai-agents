@@ -81,6 +81,7 @@ from checks_ci_parity import (
     validate_agent_skill_discriminator,
     validate_closure_manifest,
     validate_hook_contracts,
+    validate_import_boundaries,
     validate_memory_placement,
     validate_passive_context_budget,
     validate_placeholder_identity,
@@ -486,6 +487,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # run and cost a rejected push when pre_pr skipped them (issue #6426).
     _Gate("Review Axis Drift", _root_only(validate_review_axis_drift)),
     _Gate("Skill Description Budget", _root_only(validate_skill_description_budget)),
+    # Module boundaries in pyproject.toml [tool.importlinter]. The pytest.yml
+    # step and the pre-push import-boundaries job run the same command.
+    _Gate("Import Boundaries", _root_only(validate_import_boundaries)),
     # Advisory: the typed dependency closure of every pinned required context
     # (ADR-101 Phase 1, issue #5245). Prints the summary and any unresolved edge,
     # never fails; the job that binds runs from the default branch.
