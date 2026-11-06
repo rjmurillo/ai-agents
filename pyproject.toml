@@ -765,11 +765,8 @@ forbidden_modules = ["scripts.*", "memory_enhancement", "tests"]
 # change that removes its import, and lint-imports fails on an entry that no
 # longer matches an import.
 # An ignore removes one edge, not the modules that import the ignored module.
-# Without PyYAML, six modules fail to import: the two unguarded importers below
-# and four that import workflow_event_subscriptions, directly or through
-# recovery_manifest (recovery_manifest, workflow_runs, runs_file,
-# pull_request_targets). tests/test_import_linter_source_scans.py pins that set
-# and checks it against a real import with yaml blocked.
+# tests/test_import_linter_source_scans.py pins the set of modules that fail
+# without PyYAML, now empty, and checks it against a real import with yaml blocked.
 [[tool.importlinter.contracts]]
 id = "shipped-lib-no-runtime-dependencies"
 name = "Shipped lib packages do not import the project's third-party dependencies"
@@ -785,13 +782,6 @@ ignore_imports = [
     # Guarded by `except ImportError`, so the module still loads without
     # PyYAML. import-linter cannot see the guard.
     "scripts.github_core.bot_config -> yaml",
-    # Unguarded top-level import: under bare python3 without PyYAML, importing
-    # this module raises ModuleNotFoundError. So do recovery_manifest,
-    # workflow_runs, runs_file, and pull_request_targets, which reach it.
-    "scripts.github_core.workflow_event_subscriptions -> yaml",
-    # Unguarded top-level import: under bare python3 without PyYAML, importing
-    # this module raises ModuleNotFoundError.
-    "scripts.github_core.workflow_provenance -> yaml",
 ]
 
 # [tool.setuptools.packages.find] ships scripts* and memory_enhancement*, never

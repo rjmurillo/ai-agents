@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.bulk_cancel_guard import parse_workflow_yaml
 from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
 from scripts.github_core.recovery_manifest import (
     MANIFEST_VERSION,
@@ -232,7 +233,7 @@ class TestSharedWorkflowName:
                 f"name: {REQUIRED_WORKFLOW}\non:\n  pull_request:\n    types: {types}\n",
                 encoding="utf-8",
             )
-        return load_workflow_subscriptions(directory)
+        return load_workflow_subscriptions(directory, parse_workflow_yaml)
 
     def test_blocks_when_only_one_sharer_subscribes_to_the_recovery_event(self, tmp_path: Path):
         subscriptions = self.load_pair(tmp_path, "[opened, reopened]", "[opened, synchronize]")

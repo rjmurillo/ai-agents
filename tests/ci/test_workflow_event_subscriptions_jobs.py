@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.bulk_cancel_guard import parse_workflow_yaml
 from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
 from scripts.github_core.workflow_event_subscriptions import (
     declared_required_contexts,
@@ -186,7 +187,7 @@ class TestRealCorpus:
         declares ``Analyze (actions)`` literally, only
         ``Analyze (${{ matrix.language }})`` in ``codeql-analysis.yml``.
         """
-        loaded = load_workflow_subscriptions(_WORKFLOWS_DIR)
+        loaded = load_workflow_subscriptions(_WORKFLOWS_DIR, parse_workflow_yaml)
 
         claimed: set[str] = set()
         for subscriptions in loaded.values():
@@ -199,7 +200,7 @@ class TestRealCorpus:
 
     def test_the_real_corpus_marks_its_path_filtered_workflows(self):
         """The four files carrying ``paths`` on a pull_request-family trigger."""
-        loaded = load_workflow_subscriptions(_WORKFLOWS_DIR)
+        loaded = load_workflow_subscriptions(_WORKFLOWS_DIR, parse_workflow_yaml)
 
         filtered = {
             filename

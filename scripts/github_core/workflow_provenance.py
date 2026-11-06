@@ -36,12 +36,11 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import quote
 
-import yaml
-
 from scripts.github_core.protocol import GitHubClient
 from scripts.github_core.recovery_manifest import WorkflowRun
 from scripts.github_core.workflow_event_subscriptions import (
     WorkflowSubscriptions,
+    WorkflowYamlParser,
     parse_workflow_subscriptions,
     pin_to_head_ref,
 )
@@ -66,7 +65,7 @@ def merge_ref(pr_number: int) -> str:
 
 
 def fetch_workflow_document(
-    client: GitHubClient, repository: str, path: str, ref: str
+    client: GitHubClient, repository: str, path: str, ref: str, parse_yaml: WorkflowYamlParser
 ) -> Mapping[str, Any] | None:
     """Read one workflow file at one ref, or None when it cannot be read.
 
@@ -93,10 +92,7 @@ def fetch_workflow_document(
         text = base64.b64decode(content, validate=False).decode("utf-8")
     except (binascii.Error, UnicodeDecodeError, ValueError):
         return None
-    try:
-        document = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return None
+    document = parse_yaml(text)
     return document if isinstance(document, Mapping) else None
 
 
@@ -106,6 +102,7 @@ def resolve_run_subscriptions(
     runs: Sequence[WorkflowRun],
     *,
     base_subscriptions: Mapping[str, WorkflowSubscriptions],
+    parse_yaml: WorkflowYamlParser,
 ) -> dict[int, WorkflowSubscriptions | None]:
     """Map each run id to the definition GitHub will evaluate for its PR.
 
@@ -120,6 +117,8 @@ def resolve_run_subscriptions(
         base_subscriptions: The base branch's corpus, keyed by name and
             filename, used only for the ``workflow_dispatch`` half of
             :func:`pin_to_head_ref`.
+        parse_yaml: Turns fetched workflow text into a document, returning None
+            for text that does not parse.
 
     Returns:
         One entry per run id, so no run silently falls back to the name map.
@@ -135,7 +134,7 @@ def resolve_run_subscriptions(
             continue
         key = (merge_ref(run.pr_number), run.workflow_path)
         if key not in documents:
-            documents[key] = _parse_at_ref(client, repository, key, base_subscriptions)
+            documents[key] = _parse_at_ref(client, repository, key, base_subscriptions, parse_yaml)
         resolved[run.run_id] = documents[key]
     return resolved
 
@@ -145,10 +144,11 @@ def _parse_at_ref(
     repository: str,
     key: tuple[str, str],
     base_subscriptions: Mapping[str, WorkflowSubscriptions],
+    parse_yaml: WorkflowYamlParser,
 ) -> WorkflowSubscriptions | None:
     """Fetch, parse, and pin one workflow file at one ref."""
     ref, path = key
-    document = fetch_workflow_document(client, repository, path, ref)
+    document = fetch_workflow_document(client, repository, path, ref, parse_yaml)
     if document is None:
         return None
     filename = path.rsplit("/", 1)[-1]
