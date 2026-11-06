@@ -147,7 +147,7 @@
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no(?:ne)?\\b)[^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no(?:ne)?\\s)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",
@@ -211,7 +211,7 @@
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no(?:ne)?\\b)[^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no(?:ne)?\\s)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",
