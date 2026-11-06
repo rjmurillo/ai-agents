@@ -13,6 +13,7 @@ import pytest
 from tests import new_pr_harness
 from tests.containment_fixtures import private_dir
 from tests.new_pr_harness import completed, main, new_pr
+from tests.pr_body_base_repo import prepare_offline
 
 _pr_val = new_pr._pr_val
 
@@ -303,7 +304,7 @@ class TestMainRequiresPushedHead:
 @pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 class TestPreflight:
     def _prepared(self, repo: Path, content: str = "## Summary\n\nDone.\n") -> str:
-        relative = new_pr.prepare_pr_body(repo)
+        relative = prepare_offline(new_pr, repo)
         (repo / relative).write_text(content, encoding="utf-8")
         return relative.as_posix()
 
@@ -390,7 +391,7 @@ class TestPreflight:
         assert "mode 600" in capsys.readouterr().err
 
     def test_unedited_seed_fails(self, tmp_path: Path, capsys) -> None:
-        relative = new_pr.prepare_pr_body(tmp_path)
+        relative = prepare_offline(new_pr, tmp_path)
 
         rc = self._preflight(
             tmp_path, ["--title", "feat: test", "--body-file", relative.as_posix()]
