@@ -15,17 +15,20 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+import yaml
 
 from tests.lib.cli_smoke_workflow import (
     CLI_PACKAGE,
     CLIS,
     INSTALL_STEP,
     OPERATING_SYSTEMS,
-    PACKAGE_VERSION_ENV,
+    PACKAGE_DIR,
     SECRET_NAMES,
     SEMVER,
     WORKFLOW,
     _step_by_name,
+    load_package_json,
+    load_package_lock,
 )
 
 pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
@@ -57,36 +60,82 @@ def test_job_scope_contains_no_smoke_credentials(smoke_job: dict[str, Any]) -> N
 
 
 @pytest.mark.parametrize("cli", CLIS)
-def test_cli_install_uses_exact_version_for_its_own_cli_only(
+def test_cli_install_uses_npm_ci_on_its_own_lockfile_only(
     smoke_job: dict[str, Any], cli: str
 ) -> None:
-    """Positive: each install step resolves one reviewed package version, on its leg."""
+    """Positive: each leg installs from the committed lockfile, for its own CLI only."""
     install = _step_by_name(smoke_job, INSTALL_STEP[cli])
     package = CLI_PACKAGE[cli]
-    env_name = PACKAGE_VERSION_ENV[package]
 
     assert install["if"] == f"matrix.cli == '{cli}'"
-    assert SEMVER.fullmatch(smoke_job["env"][env_name])
-    assert f"{package}@${{{env_name}}}" in install["run"]
+    assert install["working-directory"] == f".github/cli-smoke/{PACKAGE_DIR[package]}"
+    assert "npm ci" in install["run"]
     other = next(p for p in CLI_PACKAGE.values() if p != package)
-    assert other not in install["run"]
+    assert other not in yaml.safe_dump(install)
 
 
-def test_cli_pins_receive_renovate_updates(renovate_config: dict[str, Any]) -> None:
-    """Edge: vendor updates stay visible without restoring floating installs."""
+@pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
+def test_no_install_step_resolves_a_version_at_run_time(package: str) -> None:
+    """Negative: `npm install -g <pkg>@<version>` has no integrity check (workflow-ci-01)."""
     workflow_text = WORKFLOW.read_text(encoding="utf-8")
-    for package, env_name in PACKAGE_VERSION_ENV.items():
-        marker = f"# renovate: datasource=npm depName={package}"
-        assert f"{marker}\n      {env_name}: '" in workflow_text
+    assert "npm install" not in workflow_text
+    assert f"{package}@" not in workflow_text
+    assert "_CLI_VERSION" not in workflow_text
+    assert "CLAUDE_CODE_VERSION" not in workflow_text
 
-    managers = renovate_config["customManagers"]
-    patterns = [" ".join(manager["managerFilePatterns"]) for manager in managers]
-    assert any("plugin-cli-smoke" in joined for joined in patterns)
-    assert not any("nightly" in joined for joined in patterns)
+
+@pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
+def test_install_steps_keep_the_cli_on_path(package: str) -> None:
+    """Positive: later steps find the CLI because the install step extends GITHUB_PATH."""
+    workflow_text = WORKFLOW.read_text(encoding="utf-8")
+    bin_dir = f".github/cli-smoke/{PACKAGE_DIR[package]}/node_modules/.bin"
+    assert bin_dir in workflow_text
+    assert '>> "$GITHUB_PATH"' in workflow_text
+
+
+@pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
+def test_package_json_pins_one_exact_version(package: str) -> None:
+    """Positive: the manifest names the CLI once, with an exact version (no range)."""
+    manifest = load_package_json(package)
+
+    assert manifest["private"] is True
+    assert list(manifest["dependencies"]) == [package]
+    assert SEMVER.fullmatch(manifest["dependencies"][package])
+
+
+@pytest.mark.parametrize("package", sorted(PACKAGE_DIR))
+def test_lockfile_matches_manifest_and_carries_integrity(package: str) -> None:
+    """Edge: `npm ci` fails on drift, and every locked tarball has a hash to verify."""
+    manifest = load_package_json(package)
+    lock = load_package_lock(package)
+
+    assert lock["lockfileVersion"] >= 3
+    root_deps = lock["packages"][""]["dependencies"]
+    assert root_deps == manifest["dependencies"]
+    locked = lock["packages"][f"node_modules/{package}"]
+    assert locked["version"] == manifest["dependencies"][package]
+    for path, entry in lock["packages"].items():
+        if path == "":
+            continue
+        assert entry["resolved"].startswith("https://registry.npmjs.org/"), path
+        assert entry["integrity"].startswith("sha512-"), path
+
+
+def test_pi_install_skips_lifecycle_scripts() -> None:
+    """Edge: the Pi leg keeps the --ignore-scripts hardening it had with `npm install -g`."""
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    step = _step_by_name(workflow["jobs"]["smoke-pi"], "Install pinned Pi CLI")
+    assert "npm ci --ignore-scripts" in step["run"]
+
+
+def test_cli_pins_receive_native_renovate_updates(renovate_config: dict[str, Any]) -> None:
+    """Edge: Renovate's npm manager bumps manifest and lockfile; no regex manager remains."""
+    assert "customManagers" not in renovate_config
+    assert "renovate:" not in WORKFLOW.read_text(encoding="utf-8")
     package_rule = next(
         rule
         for rule in renovate_config["packageRules"]
-        if set(rule.get("matchPackageNames") or {}) == set(PACKAGE_VERSION_ENV)
+        if set(rule.get("matchPackageNames") or {}) == set(PACKAGE_DIR)
     )
     assert package_rule["automerge"] is True
     assert package_rule["minimumReleaseAge"] == "7 days"

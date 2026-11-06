@@ -102,3 +102,29 @@ def test_only_github_token_secret_is_referenced() -> None:
     """Negative: GITHUB_TOKEN is the only secrets.* name in the file."""
     names = set(re.findall(r"secrets\.([A-Za-z_][A-Za-z0-9_]*)", _text()))
     assert names == {"GITHUB_TOKEN"}
+
+
+def _merge_step_run(workflow: dict) -> str:
+    steps = {s.get("name"): s for s in workflow["jobs"]["dependabot"]["steps"]}
+    return steps["Enable auto-merge"]["run"]
+
+
+def test_workflow_file_prs_are_left_for_manual_merge(workflow: dict) -> None:
+    """Positive: a PR touching .github/workflows/ returns before gh pr merge (review-gates-15)."""
+    run = _merge_step_run(workflow)
+    assert 'gh pr diff "$PR_URL" --name-only' in run
+    assert "grep -q '^\\.github/workflows/'" in run
+    assert run.index("exit 0") < run.index("gh pr merge --auto")
+
+
+def test_file_list_is_read_before_any_decision(workflow: dict) -> None:
+    """Edge: the file list is a plain assignment, so a failed read aborts under bash -e."""
+    run = _merge_step_run(workflow)
+    assert run.lstrip().startswith("files=$(gh pr diff")
+    assert "|| true" not in run
+    assert "continue-on-error" not in _text()
+
+
+def test_auto_merge_still_enabled_for_other_prs(workflow: dict) -> None:
+    """Positive: the merge command remains, scoped to the squash method."""
+    assert 'gh pr merge --auto --squash "$PR_URL"' in _merge_step_run(workflow)

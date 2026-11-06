@@ -20,17 +20,6 @@
     ],
     "automerge": true
   },
-  "customManagers": [
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^\\.github\\/workflows\\/plugin-cli-smoke\\.yml$/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s+[A-Z_]+_VERSION: '(?<currentValue>[^']+)'"
-      ]
-    }
-  ],
   "packageRules": [
     {
       "matchUpdateTypes": [
@@ -62,6 +51,13 @@
       ],
       "automerge": true,
       "minimumReleaseAge": "7 days"
+    },
+    {
+      "matchFileNames": [
+        ".github/workflows/**"
+      ],
+      "description": "A workflow file can hold secrets or write tokens, so a bump to it needs a human approval (#6506 review-gates-15). The scope is the workflow directory only. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
+      "automerge": false
     },
     {
       "matchManagers": [

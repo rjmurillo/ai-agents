@@ -2,10 +2,12 @@
 """Guard the pinned ``@github/copilot`` CLI version (Issue #2630).
 
 REQ-047 (issue #6069) removed the Copilot CLI from the ``ai-review`` action.
-The only remaining pin lives in the CLI smoke workflow, as a Renovate-managed
-env entry of the form::
+The only remaining pin lives in ``.github/cli-smoke/copilot/package.json``, which
+Renovate maintains with its lockfile and the smoke installs with ``npm ci``::
 
-    COPILOT_CLI_VERSION: '<version>'
+    "@github/copilot": "<version>"
+
+The guard also accepts the earlier workflow env form ``COPILOT_CLI_VERSION: '<version>'``.
 
 The guard also accepts the older shell form ``COPILOT_VERSION="<version>"`` so
 the same denylist can scan any file that pins the CLI.
@@ -60,12 +62,17 @@ _PIN_RE = re.compile(
     re.MULTILINE,
 )
 
+# The package.json form: "@github/copilot": "x.y.z" under dependencies. The CLI
+# smoke installs the CLI with `npm ci` from .github/cli-smoke/copilot/, so the
+# manifest is the single pin Renovate maintains.
+_JSON_PIN_RE = re.compile(r"""^[ \t]*"@github/copilot"[ \t]*:[ \t]*"([^"]+)\"""", re.MULTILINE)
+
 # Accept semver-ish versions: x.y.z with an optional -prerelease suffix
 # (npm publishes tags such as 1.0.62-2). Match the shapes this action pins.
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
 
 _DEFAULT_ACTION = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "plugin-cli-smoke.yml"
+    Path(__file__).resolve().parents[2] / ".github" / "cli-smoke" / "copilot" / "package.json"
 )
 
 
@@ -95,7 +102,7 @@ def extract_pinned_version(action_path: Path) -> str:
     installed. Requiring exactly one pin avoids this ambiguity.
     """
     text = action_path.read_text(encoding="utf-8")
-    matches = _PIN_RE.findall(text)
+    matches = _PIN_RE.findall(text) + _JSON_PIN_RE.findall(text)
     if not matches:
         raise VersionPinError(f"no COPILOT_VERSION pin found in {action_path}")
     if len(matches) > 1:

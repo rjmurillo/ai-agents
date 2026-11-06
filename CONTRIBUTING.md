@@ -933,9 +933,9 @@ The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) uses GitHub Copilot CLI
 
 ### Current Pin
 
-The only pin is `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml`, which Renovate manages.
+The only pin is `@github/copilot` in `.github/cli-smoke/copilot/package.json`. Its `package-lock.json` holds the integrity hashes, and the smoke installs both with `npm ci`. Renovate maintains the pair.
 
-`scripts/validation/check_copilot_version_pin.py` rejects known-bad pins in that workflow. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md).
+`scripts/validation/check_copilot_version_pin.py` rejects known-bad pins in that manifest. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md).
 
 ### CLI Smoke Gate
 
@@ -995,7 +995,7 @@ When changing the Copilot CLI version the smoke installs:
 
 1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
 2. Run the agent validation loop above
-3. Update `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml`
+3. In `.github/cli-smoke/copilot/`, set the new version in `package.json`, then run `npm install --package-lock-only --ignore-scripts`
 4. Run `gh act` dry-run to validate workflow structure
 5. Run `uv run pytest tests/test_check_copilot_version_pin.py`
 6. Run `uv run python scripts/validation/check_copilot_version_pin.py`

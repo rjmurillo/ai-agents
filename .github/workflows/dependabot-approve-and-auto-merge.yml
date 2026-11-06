@@ -5,6 +5,12 @@ name: Auto-Merge Dependabot PRs
 # auto-merge (renovate.json). Required status checks still gate every
 # merge. No AI and no stored secret is on this path.
 #
+# A PR that touches .github/workflows/ is left for a human to merge: a workflow
+# file can hold secrets or write tokens (#6506 review-gates-15). Renovate gets
+# the same exception in renovate.json. The file list is read through the API,
+# so the job still checks out no PR code. A failed read stops the step, so the
+# check fails closed.
+#
 # Security: the PR URL is passed via env and used as a quoted shell variable,
 # never interpolated into a run block.
 
@@ -29,7 +35,13 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          files=$(gh pr diff "$PR_URL" --name-only)
+          if printf '%s\n' "$files" | grep -q '^\.github/workflows/'; then
+            echo "PR touches .github/workflows/, leaving it for manual merge."
+            exit 0
+          fi
+          gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -19,6 +19,7 @@ from tests.lib.cli_smoke_workflow import (
     _collected_count,
     _expected_count,
     _step_by_name,
+    load_package_json,
 )
 
 pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
@@ -73,9 +74,10 @@ def test_codex_job_matrix_covers_each_operating_system(codex_job: dict[str, Any]
 def test_codex_install_uses_the_exact_pinned_version(codex_job: dict[str, Any]) -> None:
     install = _step_by_name(codex_job, "Install pinned Codex CLI")
 
-    assert SEMVER.fullmatch(codex_job["env"]["CODEX_CLI_VERSION"])
-    assert '"@openai/codex@${CODEX_CLI_VERSION}"' in install["run"]
-    assert not (install.get("env") or {})
+    assert install["working-directory"] == ".github/cli-smoke/codex"
+    assert "npm ci" in install["run"]
+    assert SEMVER.fullmatch(load_package_json("@openai/codex")["dependencies"]["@openai/codex"])
+    assert set(install.get("env") or {}) <= {"BIN_DIR"}
 
 
 def test_codex_step_selects_only_the_codex_marker(codex_job: dict[str, Any]) -> None:
@@ -110,8 +112,10 @@ def test_pi_job_runs_on_ubuntu_only(pi_job: dict[str, Any]) -> None:
 def test_pi_install_uses_the_exact_pinned_version(pi_job: dict[str, Any]) -> None:
     install = _step_by_name(pi_job, "Install pinned Pi CLI")
 
-    assert SEMVER.fullmatch(pi_job["env"]["PI_CLI_VERSION"])
-    assert '"@earendil-works/pi-coding-agent@${PI_CLI_VERSION}"' in install["run"]
+    package = "@earendil-works/pi-coding-agent"
+    assert install["working-directory"] == ".github/cli-smoke/pi"
+    assert "npm ci --ignore-scripts" in install["run"]
+    assert SEMVER.fullmatch(load_package_json(package)["dependencies"][package])
 
 
 def test_pi_step_selects_only_the_pi_marker(pi_job: dict[str, Any]) -> None:

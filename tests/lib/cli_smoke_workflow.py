@@ -8,6 +8,7 @@ matrix, and gate wiring) and the ``tests/test_cli_smoke_trust*.py`` modules
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
@@ -28,11 +29,14 @@ CLI_SECRET = {"claude": "CLAUDE_CODE_OAUTH_TOKEN", "copilot": "COPILOT_GITHUB_TO
 SECRET_NAMES = set(CLI_SECRET.values())
 EVERY_MODEL_SECRET = SECRET_NAMES | {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "FACTORY_API_KEY"}
 CLI_PACKAGE = {"claude": "@anthropic-ai/claude-code", "copilot": "@github/copilot"}
-PACKAGE_VERSION_ENV = {
-    "@anthropic-ai/claude-code": "CLAUDE_CODE_VERSION",
-    "@github/copilot": "COPILOT_CLI_VERSION",
-    "@openai/codex": "CODEX_CLI_VERSION",
-    "@earendil-works/pi-coding-agent": "PI_CLI_VERSION",
+# Each CLI installs from its own committed package.json and package-lock.json
+# (`npm ci`), so Renovate maintains the pin natively and npm checks integrity.
+CLI_SMOKE_DIR = REPO_ROOT / ".github" / "cli-smoke"
+PACKAGE_DIR = {
+    "@anthropic-ai/claude-code": "claude",
+    "@github/copilot": "copilot",
+    "@openai/codex": "codex",
+    "@earendil-works/pi-coding-agent": "pi",
 }
 OPERATING_SYSTEMS = ["ubuntu-latest", "macos-latest", "windows-latest"]
 INSTALL_STEP = {"claude": "Install pinned Claude CLI", "copilot": "Install pinned Copilot CLI"}
@@ -63,6 +67,16 @@ SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 def load_workflow() -> dict[Any, Any]:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+
+def load_package_json(package: str) -> dict[str, Any]:
+    path = CLI_SMOKE_DIR / PACKAGE_DIR[package] / "package.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_package_lock(package: str) -> dict[str, Any]:
+    path = CLI_SMOKE_DIR / PACKAGE_DIR[package] / "package-lock.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_renovate_config() -> dict[str, Any]:

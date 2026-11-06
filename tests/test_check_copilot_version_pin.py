@@ -91,7 +91,7 @@ def test_repo_action_pin_is_clean() -> None:
     version (e.g. reverts to 0.0.397) before the change reaches CI.
     """
     repo_action = (
-        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "plugin-cli-smoke.yml"
+        Path(__file__).resolve().parents[1] / ".github" / "cli-smoke" / "copilot" / "package.json"
     )
     assert mod.check_action(repo_action) == mod.EXIT_OK
 

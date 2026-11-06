@@ -24,6 +24,13 @@ CONFIG_PATH = Path(__file__).resolve().parents[1] / "renovate.json"
 # `test_devcontainer_updates_require_a_manual_merge` asserts it is still there.
 _AUTOMERGE_OFF_MANAGERS = {"devcontainer"}
 
+# The second deliberate exception is by path, not manager (#6506 review-gates-15):
+# a workflow file can hold secrets or write tokens, so a bump to it needs a human
+# approval. Scope stays on the workflow directory because PR #6127 made automerge
+# universal and a wider glob would quietly remove other updates from that path.
+_WORKFLOW_FILE_GLOB = ".github/workflows/**"
+_AUTOMERGE_OFF_FILE_GLOBS = {_WORKFLOW_FILE_GLOB}
+
 
 @pytest.fixture(scope="module")
 def config() -> dict[str, Any]:
@@ -77,6 +84,13 @@ def test_automerge_stays_on_except_for_named_managers(config: dict[str, Any]) ->
     """
     for rule in config["packageRules"]:
         if rule.get("automerge") is False:
+            if set(rule.get("matchFileNames", [])) and not rule.get("matchManagers"):
+                assert set(rule["matchFileNames"]) <= _AUTOMERGE_OFF_FILE_GLOBS, (
+                    f"rule {rule.get('description', rule)!r} disables automerge for "
+                    f"{rule['matchFileNames']}; add the glob to _AUTOMERGE_OFF_FILE_GLOBS "
+                    "if that is intended"
+                )
+                continue
             managers = set(rule.get("matchManagers", []))
             assert managers <= _AUTOMERGE_OFF_MANAGERS, (
                 f"rule {rule.get('description', rule)!r} disables automerge for "
@@ -151,3 +165,53 @@ def test_package_rules_keep_minimum_release_age(config: dict[str, Any]) -> None:
 
 def test_still_extends_recommended_preset(config: dict[str, Any]) -> None:
     assert "config:recommended" in config["extends"]
+
+
+def _workflow_exemptions(config: dict[str, Any]) -> list[int]:
+    return [
+        index
+        for index, rule in enumerate(config["packageRules"])
+        if rule.get("matchFileNames") == [_WORKFLOW_FILE_GLOB] and rule.get("automerge") is False
+    ]
+
+
+def test_workflow_file_updates_require_a_manual_merge(config: dict[str, Any]) -> None:
+    """A bump to .github/workflows/** must not automerge (#6506 review-gates-15).
+
+    Like the devcontainer exemption, this holds only while no later rule turns
+    automerge back on, and only while the rule carries no narrowing key. A
+    `matchUpdateTypes` or `matchManagers` key would leave some workflow bumps on
+    the automerge path with this test still green.
+    """
+    rules = config["packageRules"]
+    exemptions = _workflow_exemptions(config)
+    assert exemptions, "no packageRules entry disables automerge for .github/workflows/**"
+    exemption = rules[exemptions[-1]]
+    extra = set(exemption) - {"matchFileNames", "description", "automerge"}
+    assert not extra, f"the workflow exemption is narrowed by {sorted(extra)}"
+    reenabled = [rule for rule in rules[exemptions[-1] + 1 :] if rule.get("automerge") is True]
+    assert not reenabled, f"a rule after the workflow exemption re-enables automerge: {reenabled}"
+
+
+def test_workflow_exemption_does_not_reach_other_paths(config: dict[str, Any]) -> None:
+    """Edge: the exception names the workflow directory and nothing wider."""
+    for rule in config["packageRules"]:
+        if rule.get("automerge") is False and "matchFileNames" in rule:
+            assert rule["matchFileNames"] == [_WORKFLOW_FILE_GLOB]
+    assert config["automerge"] is True, "the repo default stays automerge"
+
+
+def test_workflow_exemption_follows_the_rules_that_enable_automerge(
+    config: dict[str, Any],
+) -> None:
+    """Edge: Renovate applies rules in order, so every automerge:true rule must come first."""
+    rules = config["packageRules"]
+    index = _workflow_exemptions(config)[-1]
+    enabling = [i for i, rule in enumerate(rules) if rule.get("automerge") is True]
+    assert enabling, "expected at least one rule that enables automerge"
+    assert max(enabling) < index
+
+
+def test_no_regex_custom_manager_remains(config: dict[str, Any]) -> None:
+    """The CLI pins moved to .github/cli-smoke/*/package.json, which the npm manager reads."""
+    assert "customManagers" not in config
