@@ -228,3 +228,51 @@ def test_non_ascii_digits_in_the_pr_number_are_refused(repos: dict[str, Path | s
     result = _run_step(repos, str(repos["head"]), PR_NUMBER="\u00b2")
 
     assert result.returncode == 2
+
+
+def test_nested_files_and_executable_modes_are_exported_as_regular_files(
+    repos: dict[str, Path | str],
+) -> None:
+    tmp = Path(str(repos["tmp"]))
+    work = tmp / "work"
+    _git(work, "checkout", "-q", "pr")
+    nested = work / ".project-toolkit" / "planning" / "a" / "b"
+    nested.mkdir(parents=True)
+    (nested / "deep.md").write_text("# deep\n", encoding="utf-8")
+    script = work / ".project-toolkit" / "specs" / "run.md"
+    script.write_text("# exec\n", encoding="utf-8")
+    script.chmod(0o755)
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "nested")
+    nested_sha = _git(work, "rev-parse", "HEAD")
+    _git(work, "push", "-q", "-f", "origin", f"HEAD:refs/pull/{PR_NUMBER}/head")
+
+    data = _export(repos, nested_sha)
+
+    assert (data / ".project-toolkit" / "planning" / "a" / "b" / "deep.md").read_text(
+        encoding="utf-8"
+    ) == "# deep\n"
+    assert (data / ".project-toolkit" / "specs" / "run.md").is_file()
+    assert not (data / ".project-toolkit" / "specs" / "evil.md").exists()
+
+
+def test_a_submodule_entry_is_not_exported(repos: dict[str, Path | str]) -> None:
+    """Edge: a gitlink (mode 160000) is neither a blob nor a regular file."""
+    tmp = Path(str(repos["tmp"]))
+    work = tmp / "work"
+    _git(work, "checkout", "-q", "pr")
+    _git(
+        work,
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        f"160000,{repos['head']},.project-toolkit/specs/sub",
+    )
+    _git(work, "commit", "-q", "-m", "gitlink")
+    link_sha = _git(work, "rev-parse", "HEAD")
+    _git(work, "push", "-q", "-f", "origin", f"HEAD:refs/pull/{PR_NUMBER}/head")
+
+    data = _export(repos, link_sha)
+
+    assert not (data / ".project-toolkit" / "specs" / "sub").exists()
+    assert (data / ".project-toolkit" / "specs" / "SPEC-new.md").is_file()

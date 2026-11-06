@@ -3,12 +3,12 @@
 
 Issue #6506 workflow-ci-04: the review job holds the model key, so it checks
 out the base commit and runs only base code. The pull request head arrives
-here as data. This script fetches the head commit and extracts the spec and
-planning trees into a directory under RUNNER_TEMP. The extraction filter skips
-every symlink and hardlink, and a second pass deletes any symlink that remains,
-so a head-controlled link cannot point the spec loader at a runner file.
-The spec loader and the ref extractor refuse any ref that leaves
-.project-toolkit/specs and planning, so a `..` segment cannot reach a runner file either.
+here as data. This script fetches the head commit and writes the regular files
+of the spec and planning trees into a directory under RUNNER_TEMP. It reads
+blobs from the git object store and writes only mode 100644 and 100755 entries,
+so a head-controlled symlink never exists on disk for the spec loader to follow.
+The spec loader and the ref extractor also refuse any ref that leaves
+`.project-toolkit/specs` or `.project-toolkit/planning`.
 
 Environment:
   GH_TOKEN      token for the one authenticated fetch (required)
@@ -22,12 +22,10 @@ Exit codes (ADR-035): 0 success, 2 config error, 3 external (git) failure.
 from __future__ import annotations
 
 import base64
-import io
 import os
 import re
 import subprocess
 import sys
-import tarfile
 from pathlib import Path
 
 EXIT_OK = 0
@@ -68,28 +66,46 @@ def fetch_head(pr_number: str, head_sha: str, token: str) -> bool:
     return _git(["fetch", "--no-tags", "origin", "--", head_sha], token=token).returncode == 0
 
 
-def _regular_files_only(member: tarfile.TarInfo, path: str) -> tarfile.TarInfo | None:
-    """Skip links entirely, and let the stdlib data filter vet everything else."""
-    if member.issym() or member.islnk():
-        return None
-    return tarfile.data_filter(member, path)
+# Git tree modes for a regular file. A symlink is 120000 and a submodule is
+# 160000, so neither is ever written.
+REGULAR_FILE_MODES = frozenset({"100644", "100755"})
+
+
+def _safe_relative(path: str) -> bool:
+    """True for a plain relative path with no empty, `.`, or `..` segment."""
+    parts = path.split("/")
+    return bool(path) and not path.startswith("/") and all(p not in ("", ".", "..") for p in parts)
 
 
 def export_trees(head_sha: str, destination: Path) -> None:
-    """Extract each spec tree present in the head, then drop every symlink."""
+    """Write each regular file of the head's spec trees under ``destination``.
+
+    Files are read as blobs, not extracted from an archive, so a link or a
+    crafted member name never reaches the filesystem.
+    """
     destination.mkdir(parents=True, exist_ok=True)
+    root = destination.resolve()
     for tree in TREES:
         if not _has_tree(head_sha, tree):
             continue
-        archive = _git(["archive", head_sha, tree])
-        if archive.returncode != 0:
-            raise RuntimeError(f"git archive failed for {tree}")
-        with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
-            tar.extractall(destination, filter=_regular_files_only)
-    # Defense in depth behind the extraction filter.
-    for path in destination.rglob("*"):
-        if path.is_symlink():
-            path.unlink()
+        listing = _git(["ls-tree", "-r", "-z", "--full-tree", head_sha, "--", tree])
+        if listing.returncode != 0:
+            raise RuntimeError(f"git ls-tree failed for {tree}")
+        for entry in listing.stdout.decode("utf-8", "surrogateescape").split("\0"):
+            if not entry:
+                continue
+            meta, _, name = entry.partition("\t")
+            mode, kind, blob = meta.split(" ")
+            if kind != "blob" or mode not in REGULAR_FILE_MODES or not _safe_relative(name):
+                continue
+            target = (root / name).resolve()
+            if not target.is_relative_to(root):
+                continue
+            content = _git(["cat-file", "blob", blob])
+            if content.returncode != 0:
+                raise RuntimeError(f"git cat-file failed for {name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content.stdout)
 
 
 def main() -> int:
@@ -116,7 +132,7 @@ def main() -> int:
         return EXIT_EXTERNAL
     try:
         export_trees(head_sha, Path(runner_temp) / EXPORT_DIR_NAME)
-    except (RuntimeError, tarfile.TarError, OSError) as exc:
+    except (RuntimeError, ValueError, OSError) as exc:
         print(f"::error::could not export the head spec trees: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
     return EXIT_OK
