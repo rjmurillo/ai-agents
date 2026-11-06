@@ -238,6 +238,14 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
 
 **Example**: A PR had 4 Gemini security comments on `.claude/hooks/Stop/invoke_skill_learning.py` (Python), which was deleted in commit `2777c91` and replaced with Python. All 4 comments were stale (reason: `FileDeleted`).
 
+## Reference Loading
+
+Skill references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/`. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `bots.md`: scoring reviewer signal quality or updating its statistics; Phase 4.5 finds a Copilot follow-up PR; a Copilot, CodeRabbit, or cursor[bot] comment needs bot-specific handling.
+- `templates.md`: composing a Won't Fix, Question, Acknowledged, Resolution, or Premise Refuted reply; checking a comment against the security keyword list.
+- `workflow.md`: building the Step 3.1 context object or the Phase 4 `tasks.md` file; applying the Quick Fix criteria; running the Phase 9 memory update.
+
 ## Workflow Paths Reference
 
 This agent delegates to orchestrator, which uses these canonical workflow paths:
@@ -254,67 +262,11 @@ See `orchestrator.md` for full routing logic. This agent passes context to orche
 
 ### Reviewer Signal Quality
 
-Prioritize comments based on historical actionability rates (updated after each PR):
-
-#### Cumulative Performance
-
-| Reviewer | Comments | Actionable | Signal | Trend | Action |
-|----------|----------|------------|--------|-------|--------|
-| **cursor[bot]** | 9 | 9 | **100%** | [STABLE] | Process immediately |
-| **Human reviewers** | - | - | High | - | Process with priority |
-| **Copilot** | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
-| **coderabbitai[bot]** | 6 | 3 | **50%** | [STABLE] | Review carefully |
-
-#### Priority Matrix
-
-| Priority | Reviewer | Rationale |
-|----------|----------|-----------|
-| **P0** | cursor[bot] | 100% actionable, finds CRITICAL bugs |
-| **P1** | Human reviewers | Domain expertise, project context |
-| **P2** | coderabbitai[bot] | ~50% signal, medium quality |
-| **P2** | Copilot | ~44% signal, improving trend |
-
-#### Signal Quality Thresholds
-
-| Quality | Range | Action |
-|---------|-------|--------|
-| **High** | >80% | Process all comments immediately |
-| **Medium** | 30-80% | Triage carefully, verify before acting |
-| **Low** | <30% | Quick scan, focus on non-duplicate content |
-
-#### Comment Type Analysis
-
-| Type | Actionability | Examples |
-|------|---------------|----------|
-| Bug reports | ~90% | cursor[bot] bugs, type errors |
-| Missing coverage | ~70% | Test gaps, edge cases |
-| Style suggestions | ~20% | Formatting, naming |
-| Summaries | 0% | CodeRabbit walkthroughs |
-| Duplicates | 0% | Same issue from multiple bots |
-
-**cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
-
-**Note**: Statistics are sourced from the `pr-review/pr-comment-responder-skills` memory (read via `Read .serena/memories/pr-review/pr-comment-responder-skills.md`) and should be updated there after each PR review session.
-
-#### Updating Signal Quality
-
-After completing each PR comment response session, update this section and the `pr-review/pr-comment-responder-skills` memory with:
-
-1. Per-reviewer comment counts and actionability
-2. Any trend changes (improving/declining signal)
-3. New patterns observed (e.g., duplicate detection)
+Triage reviewers in this order: cursor[bot] (P0), human reviewers (P1), coderabbitai[bot] and Copilot (P2). Signal comes from the `pr-review/pr-comment-responder-skills` memory, which Phase 9 updates after each session. Read `references/bots.md` for the signal tables, thresholds, comment-type rates, cumulative counts, and the signal-quality update procedure.
 
 ### Comment Triage Priority
 
 **MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
-
-#### Priority Adjustment by Domain
-
-| Comment Domain | Keywords | Priority Adjustment | Rationale |
-|----------------|----------|---------------------|-----------|
-| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage if missed during review |
-| **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
-| **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
 
 #### Processing Order
 
@@ -324,65 +276,15 @@ After completing each PR comment response session, update this section and the `
 
 #### Security Keyword Detection
 
-Scan each comment body for these patterns (case-insensitive):
-
-```text
-CWE-\d+          # CWE identifier (e.g., CWE-20, CWE-78)
-vulnerability    # General security issue
-injection        # SQL, command, code injection
-XSS              # Cross-site scripting
-SQL              # SQL-related (often injection)
-CSRF             # Cross-site request forgery
-auth             # Authentication or authorization
-authentication
-authorization
-secrets?         # Secret/secrets exposure
-credentials?     # Credential exposure
-TOCTOU           # Time-of-check-time-of-use
-symlink          # Symlink attacks
-traversal        # Path traversal
-sanitiz          # Input sanitization
-escap            # Output escaping
-```
-
-#### Evidence
-
-Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
-
-**Skill Reference**: pr-review-security (atomicity: 94%)
+Scan each comment body, case-insensitive, for security terms: CWE ids, vulnerability, injection, XSS, SQL, CSRF, auth, secrets, credentials, TOCTOU, symlink, traversal, sanitization, escaping. A match makes the comment security-domain. Read `references/templates.md` (Security Domain Priority) for the full pattern list.
 
 ### Quick Fix Path Criteria
 
-For atomic bugs that meet ALL of these criteria, delegate directly to `implementer` (bypassing orchestrator) for efficiency:
-
-| Criterion | Description | Example |
-|-----------|-------------|---------|
-| **Single-file** | Fix affects only one file | Adding BeforeEach to one test file |
-| **Single-function** | Change is within one function/block | Converting PathInfo to string |
-| **Clear fix** | Can explain the fix in one sentence | "Add .Path to extract string from PathInfo" |
-| **No architectural impact** | Doesn't change interfaces or patterns | Bug fix, not refactoring |
-
-**When to bypass orchestrator:**
-
-```python
-# Direct to implementer for Quick Fix
-Task(subagent_type="implementer", prompt="Fix: [one-sentence description]...")
-
-# Still use orchestrator for Standard/Strategic paths
-Task(subagent_type="orchestrator", prompt="Analyze and implement...")
-```
+Delegate straight to `implementer`, bypassing orchestrator, only for an atomic bug that meets all four: it touches one file, it stays inside one function or block, you can explain the fix in one sentence, and it changes no interface or pattern. Every other comment goes to `orchestrator`. Read `references/workflow.md` (Triage detail) for the criteria table and invocation forms.
 
 ### QA Integration Requirement
 
-**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
-
-| Fix Type | QA Required | Rationale |
-|----------|-------------|-----------|
-| Quick Fix | Yes | May need regression tests even for simple fixes |
-| Standard | Yes | Full test coverage verification |
-| Strategic | Yes | Architectural impact assessment |
-
-Even "simple" bug fixes often need regression tests that would otherwise go untested.
+**MUST**: Run the `qa` agent after ALL implementer work, Quick Fix, Standard, or Strategic, regardless of perceived fix complexity. A simple fix can still need a regression test that would otherwise go untested.
 
 ```python
 # After implementer completes ANY fix
@@ -1114,47 +1016,7 @@ For each comment, delegate to orchestrator with full context. Do NOT implement c
 
 #### Step 3.1: Prepare Context for Orchestrator
 
-For each comment, build a context object:
-
-````markdown
-## PR Comment Analysis Request
-
-### PR Context
-- **PR**: #[number] - [title]
-- **Branch**: [head] → [base]
-- **Author**: @[pr_author]
-
-### Comment Details
-- **Comment ID**: [id]
-- **Reviewer**: @[author]
-- **Type**: [review/issue]
-- **Path**: [path]
-- **Line**: [line]
-- **Created**: [timestamp]
-
-### Code Context
-```diff
-[diff_hunk - surrounding code]
-```
-
-### Comment Body
->
-> [full comment body]
-
-### Thread Context (if reply)
-
-[Previous comments in thread]
-
-### Request
-
-Analyze this PR comment and determine:
-
-1. Classification (Quick Fix / Standard / Strategic)
-2. Priority (Critical / Major / Minor / Won't Fix / Question)
-3. Required action
-4. Implementation plan (if applicable)
-
-````
+For each comment, build a context object: PR number, title, branches, and author; comment id, reviewer, type, path, line, and timestamp; the diff hunk; the full comment body; and earlier thread comments. Ask orchestrator for the classification (Quick Fix / Standard / Strategic), priority, required action, and implementation plan. Read `references/workflow.md` (Step 3.1 context template) for the exact template.
 
 #### Step 3.2: Delegate to Orchestrator
 
@@ -1181,151 +1043,13 @@ After orchestrator returns, update the comment map with analysis results.
 
 ### Phase 4: Task List Generation
 
-Based on orchestrator analysis, generate a prioritized task list.
-
-Save to: `.project-toolkit/pr-comments/PR-[number]/tasks.md`
-
-```markdown
-# PR #[number] Task List
-
-**Generated**: [YYYY-MM-DD HH:MM:SS]
-**Total Tasks**: [N]
-
-## Priority Summary
-
-| Priority | Count | Action |
-|----------|-------|--------|
-| Critical | [N] | Implement immediately |
-| Major | [N] | Implement in order |
-| Minor | [N] | Implement if time permits |
-| Won't Fix | [N] | Reply with rationale |
-| Question | [N] | Reply and wait for response |
-
-## Immediate Replies (Phase 5)
-
-These comments require immediate response before implementation:
-
-| Comment ID | Author | Reason | Response Draft |
-|------------|--------|--------|----------------|
-| [id] | @[author] | Won't Fix / Question / Clarification | [draft] |
-
-## Implementation Tasks (Phase 6)
-
-### Critical Priority
-
-- [ ] **TASK-[id]**: [description]
-  - Comment: [comment_id] by @[author]
-  - File: [path]
-  - Plan: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
-
-### Major Priority
-
-- [ ] **TASK-[id]**: [description]
-  ...
-
-### Minor Priority
-
-- [ ] **TASK-[id]**: [description]
-  ...
-
-## Dependency Graph
-
-[If tasks have dependencies, document here]
-```
+Based on orchestrator analysis, generate a prioritized task list and save it to `.project-toolkit/pr-comments/PR-[number]/tasks.md`. Group implementation tasks as Critical, Major, and Minor. List Won't Fix, Question, and Clarification comments under Immediate Replies (Phase 5). Gate 3 reads an implementation row in the shape `- [ ] **TASK-[id]**: [description]`, so write every row in exactly that shape. Read `references/workflow.md` (Phase 4 task list template) for the full file layout.
 
 ### Phase 4.5: Copilot Follow-Up Handling
 
-**BLOCKING GATE**: Must complete before Phase 5 begins
+**BLOCKING GATE**: Must complete before Phase 5 begins.
 
-This phase detects and handles Copilot's follow-up PR creation pattern. When you reply to Copilot's review comments, Copilot often creates a new PR targeting the original PR's branch.
-
-#### Detection Pattern
-
-Copilot follow-up PRs match:
-
-- **Branch**: `copilot/sub-pr-{original_pr_number}`
-- **Target**: Original PR's base branch (not main)
-- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
-
-**Example**: an original PR → its follow-up PR (branch `copilot/sub-pr-{original_pr_number}`)
-
-#### Step 4.5.1: Query for Follow-Up PRs
-
-```bash
-# Search for follow-up PR matching pattern
-FOLLOW_UP=$(gh pr list --state=open \
-  --search="head:copilot/sub-pr-${PR_NUMBER}" \
-  --json=number,title,body,headRefName,baseRefName,state,author)
-
-if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
-  echo "No follow-up PRs found. Proceed to Phase 5."
-  exit 0
-fi
-```
-
-#### Step 4.5.2: Verify Copilot Announcement
-
-```bash
-# Check for Copilot announcement comment on original PR
-ANNOUNCEMENT=$(gh api repos/OWNER/REPO/issues/${PR_NUMBER}/comments \
-  --jq '.[] | select(.user.login == "app/copilot-swe-agent" and .body | contains("opened a new pull request"))')
-
-if [ -z "$ANNOUNCEMENT" ]; then
-  echo "WARNING: Follow-up PR found but no Copilot announcement. May not be official follow-up."
-fi
-```
-
-#### Step 4.5.3: Categorize Follow-Up Intent
-
-Analyze the follow-up PR content to determine intent:
-
-**DUPLICATE**: Follow-up contains same changes as fixes already applied
-
-- Example: the original PR and its follow-up PR (both address same 5 comments)
-- Action: Close with explanation linking to original commits
-
-**SUPPLEMENTAL**: Follow-up addresses different/additional issues
-
-- Example: Extra changes needed after initial reply
-- Action: Evaluate for merge or request changes
-
-**INDEPENDENT**: Follow-up unrelated to original review
-
-- Example: Copilot misunderstood context
-- Action: Close with note
-
-#### Step 4.5.4: Execute Decision
-
-**DUPLICATE Decision**:
-
-```bash
-# Close with explanation
-gh pr close ${FOLLOW_UP_PR} --comment "Closing: This follow-up PR duplicates changes already applied in the original PR.
-
-Applied fixes:
-- Commit [hash1]: [description]
-- Commit [hash2]: [description]
-
-See PR #${PR_NUMBER} for details."
-```
-
-**SUPPLEMENTAL Decision**:
-
-```bash
-# Evaluate for merge or request changes
-# Option A: Merge if changes are valid and address new issues
-gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
-
-# Option B: Leave open for review
-# Post comment on original PR documenting supplemental follow-up
-```
-
-**INDEPENDENT Decision**:
-
-```bash
-# Close with note
-gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
-```
+When you reply to Copilot's review comments, Copilot often opens a follow-up PR on branch `copilot/sub-pr-{original_pr_number}` that targets the original PR's base branch. Query for it, then categorize it as DUPLICATE, SUPPLEMENTAL, or INDEPENDENT and close or evaluate it. If no follow-up PR exists, proceed to Phase 5. Read `references/bots.md` (Copilot follow-up handling) for the queries, the announcement check, the categories, and the close and merge commands.
 
 ### Phase 5: Immediate Replies
 
@@ -1337,92 +1061,7 @@ Reply to comments that need immediate response BEFORE implementation:
 
 #### Reply Guidelines
 
-**DO mention reviewer when**:
-
-- You have a question that needs their answer
-- You need clarification to proceed
-- The comment requires their decision
-
-**DO NOT mention reviewer when**:
-
-- Acknowledging receipt (use reaction instead)
-- Providing a final resolution (commit hash)
-- The response is informational only
-
-**Why this matters**:
-
-- Mentioning @copilot triggers a new PR analysis (costs premium requests)
-- Mentioning @coderabbitai triggers re-review
-- Unnecessary mentions create noise and cleanup work
-
-#### Reply Template
-
-> **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
-
-```bash
-PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-# Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
-# Reply to review comment (in-thread reply using /replies endpoint)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [comment_id] --body "[response]"
-
-# For multi-line responses, use --body-file to avoid escaping issues
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [comment_id] --body-file reply.md
-
-# Post new top-level PR comment (no CommentId = issue comment)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --body "[response]"
-```
-
-<details>
-<summary>Alternative: Raw gh CLI</summary>
-
-```bash
-# Reply to review comment (CORRECT - in-thread reply)
-# Uses pulls/{pull_number}/comments endpoint with in_reply_to field
-gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
-  -X POST \
-  -f body="[response]" \
-  -F in_reply_to=[comment_id]
-
-# Note: in_reply_to must reference a top-level review comment ID (not a reply)
-# When in_reply_to is provided, location fields (commit_id, path, position) are ignored
-
-# Post new top-level PR comment (issue comments endpoint)
-# ONLY use this for new standalone comments, NOT for replies
-gh api repos/[owner]/[repo]/issues/[number]/comments \
-  -X POST \
-  -f body="[response]"
-```
-
-</details>
-
-#### Response Templates
-
-**Won't Fix**:
-
-```markdown
-Thanks for the suggestion. After analysis, we've decided not to implement this because:
-
-[Rationale]
-
-If you disagree, please let me know and I'll reconsider.
-```
-
-**Question/Clarification**:
-
-```markdown
-@[reviewer] I have a question before I can address this:
-
-[Question]
-
-Once clarified, I'll proceed with the implementation.
-```
-
-**Acknowledged (for complex items)**:
-
-```markdown
-Understood. This will require [brief scope]. Working on it now.
-```
+@ mention the reviewer only when you need their answer or decision. Do not mention on acknowledgment, final resolution, or informational replies: mentioning @copilot triggers a new PR analysis and costs premium requests, and mentioning @coderabbitai triggers a re-review. Reply to review comments in-thread, never through `/issues/{number}/comments`. Read `references/templates.md` when composing a Won't Fix, Question, Acknowledged, or Resolution reply.
 
 #### Step 5.1: Record Terminal Outcomes Decided Here
 
@@ -2048,88 +1687,9 @@ echo "[ ] Pushed: $(git status -sb | head -1)"
 
 **MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
-#### Step 9.1: Calculate Session Statistics
+#### Steps 9.1 to 9.4: Update And Verify The Memory
 
-For each reviewer who commented on this PR:
-
-```python
-session_stats = {
-    "pr_number": PR_NUMBER,
-    "date": "YYYY-MM-DD",
-    "reviewers": {
-        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
-        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
-        # ... other reviewers
-    },
-}
-```
-
-#### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
-
-<!-- Formatter off: this block ends in a bare `Read .serena/...` path line in the Claude variant, which ruff would rewrite as a division expression. Both variants keep the original text. -->
-<!-- fmt:off -->
-```python
-# Read current memory to get existing statistics
-current = Read .serena/memories/pr-review/pr-comment-responder-skills.md
-
-# Calculate new cumulative totals from session_stats
-# Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
-# New totals: 11 comments, 11 actionable, 100%
-
-# Update Per-Reviewer Performance table with new totals
-# Find the row for each reviewer and update their cumulative stats
-mcp__serena__edit_memory(
-    memory_file_name="pr-review/pr-comment-responder-skills",
-    needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
-    repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
-    mode="regex"
-)
-
-# Add new Per-PR Breakdown entry (prepend to existing entries)
-new_pr_section = f"""### Per-PR Breakdown
-
-#### PR #{PR_NUMBER} ({date})
-
-| Reviewer | Comments | Actionable | Rate |
-|----------|----------|------------|------|
-| cursor[bot] | {cursor_comments} | {cursor_actionable} | {cursor_rate}% |
-| copilot-pull-request-reviewer | {copilot_comments} | {copilot_actionable} | {copilot_rate}% |
-
-"""
-
-mcp__serena__edit_memory(
-    memory_file_name="pr-review/pr-comment-responder-skills",
-    needle="### Per-PR Breakdown",
-    repl=new_pr_section,
-    mode="literal"
-)
-```
-<!-- fmt:on -->
-
-#### Step 9.3: Update Required Fields
-
-The following MUST be updated in `pr-review/pr-comment-responder-skills`:
-
-| Section | What to Update |
-|---------|----------------|
-| Per-Reviewer Performance | Add PR to PRs list, update totals |
-| Per-PR Breakdown | Add new PR section with per-reviewer stats |
-| Metrics | Update cumulative totals |
-
-#### Step 9.4: Verify Memory Updated
-
-Confirm that the `pr-review/pr-comment-responder-skills` memory reflects the new PR:
-
-- [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
-- [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
-- [ ] In **Metrics**, cumulative totals (PR counts, comment counts, resolution stats) include this PR
-
-**Verification Command**:
-
-```text
-# Read updated memory and verify new PR data appears
-Read .serena/memories/pr-review/pr-comment-responder-skills.md
-```
+Count the comments and the actionable comments per reviewer for this PR. Update the Per-Reviewer Performance, Per-PR Breakdown, and Metrics sections of `pr-review/pr-comment-responder-skills` with `edit_memory`, subject to the worktree rule under Memory Protocol. Then read the memory back and confirm this PR appears in all three sections. Read `references/workflow.md` (Phase 9 detail) for the statistics shape and the edit calls.
 
 ---
 
@@ -2185,34 +1745,7 @@ See `universal.md` MUST NOT 11.
 
 ## Bot-Specific Handling
 
-### Copilot Behavior
-
-Copilot may:
-
-1. Create follow-up PRs after you reply
-2. Post issue comments (not review replies)
-3. Continue working even when told "no action needed"
-
-**Handling unnecessary follow-up PRs**:
-
-```bash
-# Check if Copilot created a follow-up PR
-FOLLOW_UP=$(gh pr list --author "copilot[bot]" --search "base:[branch]" --json number,state)
-
-# If exists and our resolution was "won't fix", close it
-gh pr close [follow_up_number] --comment "Closing: Original comment addressed without code changes. See PR #[original]."
-```
-
-### CodeRabbit Behavior
-
-CodeRabbit responds to commands:
-
-```text
-@coderabbitai resolve    # Resolve all comments
-@coderabbitai review     # Trigger re-review
-```
-
-Use sparingly. Only resolve after actually addressing issues.
+Read `references/bots.md` when a Copilot, CodeRabbit, or cursor[bot] comment needs bot-specific handling. Use CodeRabbit commands (`@coderabbitai resolve`, `@coderabbitai review`) sparingly, and resolve only after you address the issue.
 
 ## Output Format
 
