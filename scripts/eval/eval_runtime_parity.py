@@ -94,6 +94,7 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 EXIT_AUTH = 4
+_TOKEN_MASK = "<redacted-token>"
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FIXTURES = Path(__file__).parent / "examples" / "runtime-parity-fixtures.json"
@@ -446,6 +447,20 @@ def _fixture_env(workspace: Path, harness: str, executable: str) -> dict[str, st
     return env
 
 
+def _without_token(
+    run: subprocess.CompletedProcess[str], token: str | None
+) -> subprocess.CompletedProcess[str]:
+    """Mask the token in captured output, because reports record that output."""
+    if not token:
+        return run
+    return subprocess.CompletedProcess(
+        run.args,
+        run.returncode,
+        run.stdout.replace(token, _TOKEN_MASK),
+        run.stderr.replace(token, _TOKEN_MASK),
+    )
+
+
 def _invoke_runtime(
     fixture: Fixture,
     harness: str,
@@ -472,11 +487,12 @@ def _invoke_runtime(
         )
         if failure is not None:
             return None, argv, failure, None
+    env = _fixture_env(workspace, harness, executable)
     try:
         run = runner(
             argv,
             cwd=cwd,
-            env=_fixture_env(workspace, harness, executable),
+            env=env,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -496,7 +512,7 @@ def _invoke_runtime(
             ),
             listing,
         )
-    return run, argv, None, listing
+    return _without_token(run, env.get(_claude_cli.OAUTH_TOKEN_ENV)), argv, None, listing
 
 
 def _parse_runtime_events(

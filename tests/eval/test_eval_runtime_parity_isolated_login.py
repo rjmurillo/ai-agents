@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -92,3 +93,42 @@ def test_missing_credential_leaves_the_env_for_the_cli_to_fail_on(
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=False)
 
     assert TOKEN_ENV not in parity._fixture_env(tmp_path, "claude", "claude")
+
+
+def _echoing_run(text: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(["claude"], 0, stdout=text, stderr=text)
+
+
+def test_invoke_runtime_masks_a_token_the_child_printed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _disk_login(monkeypatch)
+    monkeypatch.setattr(parity, "prepare_workspace", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(parity, "resolve_cwd", lambda workspace, _cwd: workspace)
+    monkeypatch.setattr(parity, "build_argv", lambda *_args: ["claude"])
+    seen: dict[str, str] = {}
+
+    def runner(
+        _argv: list[str], *, env: dict[str, str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        seen.update(env)
+        return _echoing_run(f"leaked {DISK_TOKEN} here")
+
+    fixture = type("FixtureStub", (), {"cwd": "."})()
+    run, _argv, failure, _listing = parity._invoke_runtime(
+        fixture, "claude", "claude", "model", tmp_path, runner, 1.0, {}, {}
+    )
+
+    assert failure is None
+    assert seen[TOKEN_ENV] == DISK_TOKEN
+    assert DISK_TOKEN not in run.stdout
+    assert DISK_TOKEN not in run.stderr
+    assert parity._TOKEN_MASK in run.stdout
+
+
+def test_output_is_untouched_when_no_token_was_passed() -> None:
+    run = _echoing_run("plain output")
+
+    assert parity._without_token(run, None) is run
