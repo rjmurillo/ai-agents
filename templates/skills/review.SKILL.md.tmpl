@@ -59,7 +59,7 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
   1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
   2. `.claude/skills/review/references/` (Claude Code project layout)
   3. `skills/review/references/` (vendored install)
-- **Verdict library** (`merge_verdicts`, `extract_verdict`, `get_verdict_emoji`, `FAIL_VERDICTS`): try each candidate in order, use the first that exists:
+- **Verdict library** (`merge_verdicts`, `extract_verdict`, `FAIL_VERDICTS`; `get_verdict_emoji` is in sibling `issue_triage.py`): use the first candidate that exists:
   1. `.claude/lib/ai_review_common/verdict.py` (Claude Code project layout)
   2. `lib/ai_review_common/verdict.py` (vendored install)
 - **Complexity tiers reference** (`engineering-complexity-tiers.md`): try each candidate in order, use the first that exists:
