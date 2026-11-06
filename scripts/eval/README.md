@@ -418,6 +418,16 @@ uv run python scripts/eval/eval_runtime_parity.py \
   --workspace-root "$(mktemp -d)"
 ```
 
+A Claude fixture runs in an isolated profile by default, and it needs no
+exported token. The runner walks the shared credential order in
+`_cli_credentials.py` and passes the stored login as
+`CLAUDE_CODE_OAUTH_TOKEN`. The profile stays empty, so `~/.claude` instructions
+do not load. An exported `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` wins
+over that lookup. Keep `--workspace-root` outside your home directory: the
+ancestry guard refuses a root below `~/.claude/CLAUDE.md`. Use `--real-home`
+only when a run must load your own instructions, because they confound every
+fixture.
+
 `--model` defaults to `claude-opus-5-5`, the default frontier model in the
 routing policy (`AGENTS.md`). The two CLIs spell Claude IDs differently:
 Claude Code accepts only `claude-opus-5-5` and Copilot CLI only

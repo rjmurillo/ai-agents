@@ -26,6 +26,8 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import cast
 
+import _claude_cli
+from _cli_credentials import CredentialNotFoundError, resolve_cached
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
     REAL_HOME_ENV,
@@ -419,6 +421,31 @@ def _require_listed_sources(fixture_id: str, listing: list[object], installed: s
         )
 
 
+def _fixture_env(workspace: Path, harness: str, executable: str) -> dict[str, str]:
+    """Build a fixture's environment and give an isolated Claude run a login.
+
+    `runtime_env` stays login-free because capability probes share it. A parity
+    fixture is a deliberate live run, so it resolves the credential the same
+    way the `claude-cli` grader does. The token travels as an environment
+    variable under the empty profile, which keeps `~/.claude` instructions out
+    of the run. No credential file is copied or linked. With no credential the
+    CLI fails on auth and `_failure_code` reports it.
+    """
+    env: dict[str, str] = runtime_env(workspace, harness)
+    spec = _claude_cli.CREDENTIAL_SPEC
+    if harness != "claude" or real_home_enabled():
+        return env
+    if "ANTHROPIC_API_KEY" in env or spec.inject_env in env:
+        return env
+    try:
+        credential = resolve_cached(spec, executable=executable)
+    except CredentialNotFoundError:
+        return env
+    if credential.secret is not None:
+        env[spec.inject_env] = credential.secret
+    return env
+
+
 def _invoke_runtime(
     fixture: Fixture,
     harness: str,
@@ -449,7 +476,7 @@ def _invoke_runtime(
         run = runner(
             argv,
             cwd=cwd,
-            env=runtime_env(workspace, harness),
+            env=_fixture_env(workspace, harness, executable),
             capture_output=True,
             text=True,
             encoding="utf-8",
