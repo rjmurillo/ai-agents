@@ -1152,7 +1152,7 @@ most skill entries under `.claude/skills/` are generated symlinks.
 
 The exclusion is the category, not only the symlinks. At `3e9f30aaa1` 104 of the
 121 skill entries are symlinks, and the pinned tree at `53ffe92c2` has none.
-Owner decision D11 (2026-11-06) settled this: gate 1 excludes the whole skills
+Owner decision of 2026-11-06 (#5456 session) settled this: gate 1 excludes the whole skills
 category from both sides, giving 334 against 301, not met. The symlink-only
 reading is rejected. It would give 351 against 412, but the pinned tree has no
 symlinks, so that comparison is not like for like. The pinned figure is
