@@ -100,7 +100,7 @@ def _extract_manifest_pin(text: str, path: Path) -> str:
 
 
 def extract_pinned_version(action_path: Path) -> str:
-    """Extract the pinned ``COPILOT_VERSION`` from the action file.
+    """Extract the pinned Copilot CLI version from a manifest, workflow, or action file.
 
     Raises ``VersionPinError`` when no pin is present so a silently dropped pin
     fails the guard rather than passing vacuously.
