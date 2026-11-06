@@ -17,6 +17,7 @@ against its baseline.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -135,6 +136,42 @@ def test_scan_real_repo_restores_scan_all(monkeypatch: pytest.MonkeyPatch) -> No
     _scan_real_repo()
 
     assert cmp.scan_all is before
+
+
+def _docstring_words(relative_path: str) -> str:
+    """Return a module docstring with its line wrapping collapsed."""
+    source = (Path(__file__).resolve().parents[2] / relative_path).read_text(encoding="utf-8")
+    return " ".join((ast.get_docstring(ast.parse(source)) or "").split())
+
+
+def test_generate_rules_contract_conformance() -> None:
+    """The portability docstring's account of the generator must hold at the source."""
+    canonical = _docstring_words("build/scripts/generate_rules.py")
+    citing = _docstring_words("scripts/validation/check_skill_md_portability.py")
+
+    for section in ("Per-rule logic", "Output targets"):
+        assert section in canonical
+        assert f"``{section}``" in citing
+    for step in (
+        "rename ``paths:`` to ``applyTo:``",
+        "drop ``alwaysApply:`` and ``priority:``",
+        "preserve ``description:``",
+        "skip the rule",
+        "- body unchanged 3. NO-REGEN",
+    ):
+        assert step in canonical
+
+
+def test_skill_portability_deferral_conformance() -> None:
+    """The quoted deferral must still appear in the sibling validator's docstring."""
+    quote = (
+        "Markdown instruction files carry a prose-vs-runtime ambiguity (a maintainer note "
+        "mentioning ``.agents/`` is fine; a runtime instruction to write there is not) and "
+        "are a documented follow-up, not part of this ratchet."
+    )
+
+    assert quote in _docstring_words("scripts/validation/check_skill_portability.py")
+    assert quote in _docstring_words("scripts/validation/check_skill_md_portability.py")
 
 
 class TestCountUpstreamRefs:
