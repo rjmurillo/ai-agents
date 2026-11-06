@@ -681,9 +681,11 @@ def _check_python_naming(filepath: str, name: str, suffix: str) -> Violation | N
     # "internal use"); the rest is snake_case. Without the `_?` the rule
     # flags every `_private_module.py` in the repo (e.g. scripts/eval/_*).
     # See issue #2795.
-    if name == "__init__" or re.match(r"^_?[a-z][a-z0-9_]*$", name):
+    # `__init__` and `__main__` are names the interpreter requires.
+    if name in ("__init__", "__main__") or re.match(r"^_?[a-z][a-z0-9_]*$", name):
         return None
     path = Path(filepath)
+    suggested = _to_snake_case(name) + suffix
     return Violation(
         rule="naming",
         severity="error",
@@ -692,16 +694,21 @@ def _check_python_naming(filepath: str, name: str, suffix: str) -> Violation | N
         message=f"Python file '{name}{suffix}' is not snake_case",
         remediation=(
             f"AGENT_REMEDIATION: Rename to snake_case. "
-            f"Suggested: {_to_snake_case(name)}{suffix}\n"
+            f"Suggested: {suggested}\n"
             f"  Update all imports that reference this module.\n"
-            f"  Run: git mv {filepath} "
-            f"{path.parent / (_to_snake_case(name) + suffix)}"
+            f"  Run: git mv {filepath} {path.parent / suggested}"
         ),
     )
 
 
+# Dot-separated kebab-case segments, so a qualifier such as `ci.pr.yml` is valid.
+# A leading dot marks a dotfile whose name a tool requires, such as
+# `.coderabbit.yaml`. Issue #7100.
+_YAML_STEM = re.compile(r"\.?[a-z][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*")
+
+
 def _check_yaml_naming(filepath: str, name: str, suffix: str) -> Violation | None:
-    if re.match(r"^[a-z][a-z0-9-]*$", name) or name in ("CLAUDE", "project", "settings"):
+    if _YAML_STEM.fullmatch(name) or name in ("CLAUDE", "project", "settings"):
         return None
     return Violation(
         rule="naming",
@@ -711,7 +718,7 @@ def _check_yaml_naming(filepath: str, name: str, suffix: str) -> Violation | Non
         message=f"YAML file '{name}{suffix}' is not kebab-case",
         remediation=(
             f"AGENT_REMEDIATION: Rename to kebab-case. "
-            f"Suggested: {_to_kebab_case(name)}{suffix}\n"
+            f"Suggested: {_to_yaml_stem(name)}{suffix}\n"
             f"  Update any references in workflows or configs."
         ),
     )
@@ -725,6 +732,8 @@ def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | Non
     # (*_base.py, e.g. push_guard_base.py). See issue #3239.
     if name.startswith("invoke_") or name.startswith("_") or name.endswith("_base"):
         return None
+    stem = _to_snake_case(name)
+    suggested = stem if stem.startswith("invoke_") else f"invoke_{stem}"
     return Violation(
         rule="naming",
         severity="error",
@@ -734,7 +743,7 @@ def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | Non
         remediation=(
             f"AGENT_REMEDIATION: Hook scripts must use invoke_ prefix "
             f"for consistency.\n"
-            f"  Rename to: invoke_{name}{suffix}\n"
+            f"  Rename to: {suggested}{suffix}\n"
             f"  Update .claude/settings.json hook command references."
         ),
     )
@@ -929,18 +938,37 @@ def check_skill_size(filepath: str, lines: list[str]) -> list[Violation]:
     return []
 
 
+def _join_words(name: str, separator: str) -> str:
+    """Lowercase ``name`` and join its ASCII words with ``separator``."""
+    s = re.sub(r"([A-Z]+)([A-Z][a-z])", rf"\1{separator}\2", name)
+    s = re.sub(r"([a-z\d])([A-Z])", rf"\1{separator}\2", s)
+    return re.sub(r"[^a-z0-9]+", separator, s.lower()).strip(separator)
+
+
+def _lead_with_letter(words: str, separator: str) -> str:
+    """Prefix ``words`` when it cannot start a valid name on its own."""
+    if words[:1].isalpha():
+        return words
+    return f"item{separator}{words}".rstrip(separator)
+
+
 def _to_snake_case(name: str) -> str:
-    """Convert a name to snake_case."""
-    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
-    s = re.sub(r"([a-z\d])([A-Z])", r"\1_\2", s)
-    return s.replace("-", "_").lower()
+    """Convert a name to snake_case, keeping one private-module underscore."""
+    private = "_" if name.startswith("_") else ""
+    return private + _lead_with_letter(_join_words(name, "_"), "_")
 
 
 def _to_kebab_case(name: str) -> str:
     """Convert a name to kebab-case."""
-    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", name)
-    s = re.sub(r"([a-z\d])([A-Z])", r"\1-\2", s)
-    return s.replace("_", "-").lower()
+    return _lead_with_letter(_join_words(name, "-"), "-")
+
+
+def _to_yaml_stem(name: str) -> str:
+    """Convert a YAML stem to the shape ``_YAML_STEM`` accepts."""
+    dotfile = "." if name.startswith(".") else ""
+    words = [w for w in (_join_words(part, "-") for part in name.split(".")) if w]
+    head = _lead_with_letter(words[0] if words else "", "-")
+    return dotfile + ".".join([head, *words[1:]])
 
 
 RULE_CHECKERS = {

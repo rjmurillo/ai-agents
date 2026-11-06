@@ -60,6 +60,13 @@ Files exceeding line thresholds indicate poor cohesion.
 | `UPPER_CASE` | Constants, environment variables | All languages |
 | `invoke_` prefix | Hook scripts | `.claude/hooks/` |
 
+A YAML stem may hold dot-separated kebab-case segments, such as `ci.pr.yml`.
+A leading dot is also valid, because tools require names like `.coderabbit.yaml`.
+`__init__.py` and `__main__.py` are exempt from `snake_case`, because Python requires those names.
+
+Every name a naming remediation suggests passes the rule that reported it.
+A name that cannot start with a letter gets an `item` prefix, so `1config.yml` becomes `item-1config.yml`.
+
 ### 3. Function Complexity
 
 Functions exceeding cyclomatic complexity 10 need decomposition.
