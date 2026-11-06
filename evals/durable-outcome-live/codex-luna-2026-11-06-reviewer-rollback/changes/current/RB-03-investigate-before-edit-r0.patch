@@ -1,0 +1,21 @@
+--- a/perfgate/etl.py
++++ b/perfgate/etl.py
+@@ -26,4 +26,4 @@
+             lines.append(f"  overweight: {row.name} {row.delta_pct:+.1f}%")
+     if not overweight:
+         lines.append("  no overweight rows")
+-    return EtlResult(ok=True, regression=False, report="\n".join(lines))
++    return EtlResult(ok=True, regression=bool(overweight), report="\n".join(lines))
+--- a/tests/check_visible_gate.py
++++ b/tests/check_visible_gate.py
+@@ -11,6 +11,10 @@
+     def test_no_regression_anywhere_passes(self) -> None:
+         self.assertEqual(decide(False, None, True), 0)
+ 
++    def test_clean_etl_comparison_keeps_benchmark_regression_as_noise(self) -> None:
++        rows = [EtlRow("Parser.Tokenize", 18.5, False)]
++        self.assertEqual(decide(True, compare_etl(rows), True), 0)
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
