@@ -175,10 +175,16 @@ def test_output_is_untouched_when_no_token_was_passed() -> None:
 
 @pytest.mark.parametrize(
     "path",
-    [".claude/settings.json", ".claude/hooks/run.py", "sub/.claude/settings.local.json"],
+    [
+        ".claude/settings.json",
+        ".claude/hooks/run.py",
+        "sub/.claude/settings.local.json",
+        ".CLAUDE/settings.json",
+        ".git/config",
+    ],
 )
 def test_setup_files_may_not_plant_claude_config(path: str) -> None:
-    with pytest.raises(parity_module.ParityConfigError, match="must not write under .claude"):
+    with pytest.raises(parity_module.ParityConfigError, match="must not write under"):
         parity_module._load_setup_files({path: "{}"}, "fixtures[0].setup_files")
 
 

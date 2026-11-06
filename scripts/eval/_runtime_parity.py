@@ -173,6 +173,9 @@ def _load_control(value: object, field: str) -> Control:
     )
 
 
+_CONFIG_DIRS = frozenset({".claude", ".git"})
+
+
 def _load_files(value: object, field: str) -> dict[str, str]:
     files_raw = _mapping(value, field)
     files: dict[str, str] = {}
@@ -185,15 +188,16 @@ def _load_files(value: object, field: str) -> dict[str, str]:
 
 
 def _load_setup_files(value: object, field: str) -> dict[str, str]:
-    """Load workspace files, refusing any path under a `.claude` directory.
+    """Load workspace files, refusing paths that configure the CLI or git.
 
-    `--setting-sources project` reads that directory, so a planted settings
-    file could run a hook inside a process that holds the OAuth token.
+    `--setting-sources project` reads `.claude`, and git runs what `.git/config`
+    names, so a planted file could run code in a process that holds the OAuth
+    token. The check ignores case for case-insensitive filesystems.
     """
     files = _load_files(value, field)
     for path in files:
-        if ".claude" in Path(path).parts:
-            raise ParityConfigError(f"{field} must not write under .claude: {path}")
+        if _CONFIG_DIRS & {part.lower() for part in Path(path).parts}:
+            raise ParityConfigError(f"{field} must not write under .claude or .git: {path}")
     return files
 
 
