@@ -195,7 +195,7 @@ Change: the owner decided on 2026-11-06, on issue #4607, to retire `BOT_PAT`. Th
 - **Who re-runs checks.** A resolved head gets no automatic required-check run. A human push, or a manual re-run, is the intended path. No new credential is added to avoid this.
 - **Alternatives not taken.** A GitHub App installation token would keep attribution and workflow triggering. The owner chose to retire `BOT_PAT` and accept the loss. The owner did not ask for the App token to be evaluated, so this ADR does not.
 - **Permission added.** `ai-metrics-analysis.yml` gains `pull-requests: read` so `gh-metrics` can read pull request data with `github.token`.
-- **Scrub lists.** `BOT_PAT` stays in the secret-name lists of `scripts/ai_review_outputs.py`, `scripts/ci/artifact_build_context.py`, `scripts/ci/invoke_copilot_cli.py`, and `scripts/gh_retry_helpers.py`. Those lists remove a name from child environments and are kept on purpose.
+- **Scrub lists.** `BOT_PAT` stays in the secret-name lists of four modules under `scripts/`. Find them with `git grep BOT_PAT -- scripts`. Those lists remove a name from child environments and are kept on purpose.
 - **Decision 11 item 4.** Still open. Repository-level `SMOKE_ANTHROPIC_API_KEY` and `FACTORY_API_KEY` still exist, and only the owner can delete them. This amendment does not mark that item done.
 - **Rollback.** Revert the #4607 pull request, then re-create the `BOT_PAT` secret. Both steps are needed because the secret was never in the repository or any environment on 2026-11-05.
 

@@ -47,6 +47,9 @@ The /review security and devops axes returned WARN. Edits made:
 - `apply_ai_conflict_resolution.py` already limits resolutions to conflicted
   files (`_require_conflicted`), so no new path filter is added.
 
+- CI test `test_adr_hook_claims` read script names in the ADR-114 amendment as hook
+  files. The amendment now says "four modules under `scripts/`" and gives a grep.
+
 ## Dissent
 
 - security: `persist-credentials` on the `process-prs` checkout keeps the write
