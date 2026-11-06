@@ -732,6 +732,8 @@ def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | Non
     # (*_base.py, e.g. push_guard_base.py). See issue #3239.
     if name.startswith("invoke_") or name.startswith("_") or name.endswith("_base"):
         return None
+    stem = _to_snake_case(name)
+    suggested = stem if stem.startswith("invoke_") else f"invoke_{stem}"
     return Violation(
         rule="naming",
         severity="error",
@@ -741,7 +743,7 @@ def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | Non
         remediation=(
             f"AGENT_REMEDIATION: Hook scripts must use invoke_ prefix "
             f"for consistency.\n"
-            f"  Rename to: invoke_{_to_snake_case(name)}{suffix}\n"
+            f"  Rename to: {suggested}{suffix}\n"
             f"  Update .claude/settings.json hook command references."
         ),
     )

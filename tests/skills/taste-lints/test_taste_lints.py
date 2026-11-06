@@ -337,6 +337,8 @@ class TestNamingRepairsClearTheirViolation:
             ("my_guard.py", "invoke_my_guard.py"),
             ("my-guard.py", "invoke_my_guard.py"),
             ("MyGuard.py", "invoke_my_guard.py"),
+            ("Invoke_guard.py", "invoke_guard.py"),
+            ("InvokeGuard.py", "invoke_guard.py"),
         ],
     )
     def test_hook_repair_clears_every_naming_violation(self, filename: str, expected: str) -> None:
