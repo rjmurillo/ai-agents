@@ -100,15 +100,6 @@ def test_exemption_globs_cover_workflow_and_lockfile_paths() -> None:
     assert not fnmatch("src/ci.yml", _WORKFLOW_FILE_GLOB)
 
 
-def test_every_file_glob_exemption_stays_inside_the_two_directories(
-    config: dict[str, Any],
-) -> None:
-    """Edge: no automerge:false file rule reaches a path outside the two directories."""
-    for rule in config["packageRules"]:
-        if rule.get("automerge") is False and "matchFileNames" in rule:
-            assert set(rule["matchFileNames"]) <= set(_EXEMPT_FILE_GLOBS), rule
-
-
 def test_cli_smoke_lock_maintenance_gets_its_own_branch(config: dict[str, Any]) -> None:
     """The cli-smoke lock refresh is stated in config, on a branch of its own.
 

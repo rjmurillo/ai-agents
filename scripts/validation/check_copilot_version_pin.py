@@ -72,6 +72,8 @@ _MANIFEST_PIN_RE = re.compile(r"""\"@github/copilot\"[ \t]*:[ \t]*\"([^\"]+)\"""
 # (npm publishes tags such as 1.0.62-2). Match the shapes this action pins.
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
 
+# The default target is the Copilot CLI manifest (the name predates the move out of the
+# workflow); ``check_action`` accepts a manifest, a workflow, or an action file.
 _DEFAULT_ACTION = (
     Path(__file__).resolve().parents[2] / ".github" / "cli-smoke" / "copilot" / "package.json"
 )
@@ -97,10 +99,10 @@ def extract_pinned_version(action_path: Path) -> str:
     Raises ``VersionPinError`` when no pin is present so a silently dropped pin
     fails the guard rather than passing vacuously.
 
-    Also raises ``VersionPinError`` when multiple pins are found. Bash executes
-    the last assignment before ``npm install``, so if this guard only checked
-    the first match, a later known-bad pin could pass validation yet still be
-    installed. Requiring exactly one pin avoids this ambiguity.
+    Also raises ``VersionPinError`` when multiple pins are found. In a shell file the
+    last assignment wins, and in a manifest a duplicate key is ambiguous, so checking
+    only the first match could pass a known-bad pin that is still installed.
+    Requiring exactly one pin avoids this ambiguity.
     """
     text = action_path.read_text(encoding="utf-8")
     pin_re = _MANIFEST_PIN_RE if action_path.suffix == ".json" else _PIN_RE
@@ -110,7 +112,7 @@ def extract_pinned_version(action_path: Path) -> str:
     if len(matches) > 1:
         raise VersionPinError(
             f"multiple Copilot CLI pins found in {action_path}: {matches}. "
-            f"Remove duplicates to avoid ambiguity (bash uses the last assignment)."
+            f"Remove duplicates to avoid ambiguity."
         )
     # re.Pattern.findall returns list[Any]; the single capture group is a str.
     # Cast keeps mypy's no-any-return happy once MYPYPATH lets this module be

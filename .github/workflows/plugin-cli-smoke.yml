@@ -244,7 +244,10 @@ jobs:
           node-version: 'lts/*'
 
       # Keep credentials out of npm lifecycle scripts (CWE-829). npm ci installs
-      # the committed lockfile and checks every tarball integrity hash.
+      # the committed lockfile and checks every tarball integrity hash. Each
+      # install step puts its node_modules/.bin first on PATH for later steps, as
+      # the global npm bin did; CODEOWNERS covers .github/cli-smoke/, so a pin or
+      # lockfile change gets owner review.
       - name: Install pinned Claude CLI
         if: matrix.cli == 'claude'
         shell: bash

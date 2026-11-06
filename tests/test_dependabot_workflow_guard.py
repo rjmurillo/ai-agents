@@ -8,6 +8,7 @@ The token and trigger regression tests live in ``tests/test_dependabot_workflow_
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ import pytest
 import yaml
 
 from tests.test_dependabot_workflow_token import WORKFLOW
+from tests.test_renovate_config import _EXEMPT_FILE_GLOBS
 
 
 @pytest.fixture(scope="module")
@@ -100,3 +102,15 @@ def test_failed_file_list_read_fails_closed(workflow: dict, tmp_path: Path) -> N
 def test_job_has_a_timeout(workflow: dict) -> None:
     """Edge: a hung gh call must not hold the write token for the 360 minute default."""
     assert workflow["jobs"]["dependabot"]["timeout-minutes"] == 5
+
+
+def test_dependabot_regex_covers_the_same_directories_as_the_renovate_globs(
+    workflow: dict,
+) -> None:
+    """Drift guard: the step's directory list equals the directories in the Renovate globs."""
+    run = _merge_step_run(workflow)
+    match = re.search(r"grep -qE '\^\\\.github/\(([^)]*)\)/'", run)
+    assert match, "the step no longer greps for the exempt directories"
+    in_step = set(match.group(1).split("|"))
+    in_renovate = {glob.split("/")[1] for glob in _EXEMPT_FILE_GLOBS}
+    assert in_step == in_renovate

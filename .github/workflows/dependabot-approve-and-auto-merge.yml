@@ -7,9 +7,9 @@ name: Auto-Merge Dependabot PRs
 #
 # A PR that touches .github/workflows/ or .github/cli-smoke/ is left for a human
 # to merge: a workflow file or a CLI pin can hold or reach secrets (#6506
-# review-gates-15). Renovate gets the same exception in renovate.json. The file list is read through the API,
-# so the job still checks out no PR code. A failed read stops the step, so the
-# check fails closed.
+# review-gates-15). Renovate gets the same exception in renovate.json. The file
+# list is read through the API, so the job still checks out no PR code. A failed
+# read stops the step, so the check fails closed.
 #
 # Security: the PR URL is passed via env and used as a quoted shell variable,
 # never interpolated into a run block.
