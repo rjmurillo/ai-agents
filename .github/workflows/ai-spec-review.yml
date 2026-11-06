@@ -73,25 +73,7 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          fetch() { git -c "http.extraheader=AUTHORIZATION: basic ${auth}" fetch --no-tags origin "$@"; }
-          fetch "+refs/pull/${PR_NUMBER}/head:refs/remotes/pull/head"
-          # The head may have moved since the event fired. Ask for the event
-          # SHA itself when the ref no longer points at it.
-          if ! git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null; then
-            fetch "$HEAD_SHA"
-          fi
-          mkdir -p "$RUNNER_TEMP/pr-head-data"
-          for tree in .project-toolkit/specs .project-toolkit/planning; do
-            if git cat-file -e "$HEAD_SHA:$tree" 2>/dev/null; then
-              git archive "$HEAD_SHA" "$tree" | tar -x -C "$RUNNER_TEMP/pr-head-data"
-            fi
-          done
-          # A symlink in the head would let a spec reference read any runner
-          # file. Only regular files are data.
-          find "$RUNNER_TEMP/pr-head-data" -type l -delete
+        run: python3 scripts/ci/spec_review_export_head.py
 
       # Both SHAs come from the event payload, never a branch name: the
       # checkout is the base commit, so an implicit HEAD would diff nothing.

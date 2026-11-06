@@ -1,9 +1,9 @@
-"""Run the ai-spec-review head-data step for real against a local fake origin.
+"""Run the ai-spec-review head-data export for real against a local fake origin.
 
 Issue #6506 workflow-ci-04: the review job checks out the base commit and
 receives the pull request head as data. The YAML-shape tests cannot tell
-whether the export works, so this runs the step's own shell and then the
-spec loader from the exported tree.
+whether the export works, so this runs the step's script and then the spec
+loader from the exported tree.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-spec-review.yml"
 LOADER = REPO_ROOT / "scripts" / "ci" / "spec_load_content.py"
+EXPORTER = REPO_ROOT / "scripts" / "ci" / "spec_review_export_head.py"
 STEP_NAME = "Fetch pull request head as data"
 PR_NUMBER = "7"
 
@@ -42,12 +43,12 @@ def _git(cwd: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def _step_script() -> str:
+def test_the_workflow_step_runs_the_exporter() -> None:
     data: dict[str, Any] = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    for step in data["jobs"]["review-spec"]["steps"]:
-        if step.get("name") == STEP_NAME:
-            return str(step["run"])
-    raise AssertionError(f"step not found: {STEP_NAME}")
+    steps = {step.get("name"): step for step in data["jobs"]["review-spec"]["steps"]}
+
+    assert steps[STEP_NAME]["run"].strip() == "python3 scripts/ci/spec_review_export_head.py"
+    assert steps[STEP_NAME]["if"] == "github.event_name == 'pull_request'"
 
 
 @pytest.fixture
@@ -82,32 +83,40 @@ def repos(tmp_path: Path) -> dict[str, Path | str]:
     return {"workspace": workspace, "head": head_sha, "tmp": tmp_path}
 
 
-def _run_step(repos: dict[str, Path | str], head_sha: str) -> Path:
+def _run_step(
+    repos: dict[str, Path | str], head_sha: str, **overrides: str
+) -> subprocess.CompletedProcess[str]:
     tmp = Path(str(repos["tmp"]))
     runner_temp = tmp / "runner"
-    runner_temp.mkdir()
+    runner_temp.mkdir(exist_ok=True)
     env = {
         **os.environ,
         "GH_TOKEN": "not-a-real-token",
         "PR_NUMBER": PR_NUMBER,
         "HEAD_SHA": head_sha,
         "RUNNER_TEMP": str(runner_temp),
+        **overrides,
     }
-    subprocess.run(
-        ["bash", "-c", _step_script()],
+    return subprocess.run(
+        [sys.executable, str(EXPORTER)],
         cwd=Path(str(repos["workspace"])),
         env=env,
-        check=True,
         capture_output=True,
         text=True,
+        check=False,
     )
-    return runner_temp / "pr-head-data"
+
+
+def _export(repos: dict[str, Path | str], head_sha: str) -> Path:
+    result = _run_step(repos, head_sha)
+    assert result.returncode == 0, result.stderr
+    return Path(str(repos["tmp"])) / "runner" / "pr-head-data"
 
 
 def test_head_specs_export_and_the_base_workspace_stays_on_base(
     repos: dict[str, Path | str],
 ) -> None:
-    data = _run_step(repos, str(repos["head"]))
+    data = _export(repos, str(repos["head"]))
     workspace = Path(str(repos["workspace"]))
 
     assert (data / ".project-toolkit" / "specs" / "SPEC-new.md").is_file()
@@ -117,7 +126,7 @@ def test_head_specs_export_and_the_base_workspace_stays_on_base(
 
 
 def test_symlinks_in_the_head_are_not_exported(repos: dict[str, Path | str]) -> None:
-    data = _run_step(repos, str(repos["head"]))
+    data = _export(repos, str(repos["head"]))
 
     assert not (data / ".project-toolkit" / "specs" / "evil.md").exists()
     assert not (data / ".project-toolkit" / "specs" / "evil.md").is_symlink()
@@ -126,7 +135,7 @@ def test_symlinks_in_the_head_are_not_exported(repos: dict[str, Path | str]) -> 
 def test_loader_reads_a_new_head_spec_from_the_exported_tree(
     repos: dict[str, Path | str],
 ) -> None:
-    data = _run_step(repos, str(repos["head"]))
+    data = _export(repos, str(repos["head"]))
     runner_temp = data.parent
     output = runner_temp / "out.txt"
     env = {
@@ -163,7 +172,7 @@ def test_a_head_without_spec_trees_exports_nothing_and_does_not_fail(
     bare_head = _git(work, "rev-parse", "HEAD")
     _git(work, "push", "-q", "-f", "origin", f"HEAD:refs/pull/{PR_NUMBER}/head")
 
-    data = _run_step(repos, bare_head)
+    data = _export(repos, bare_head)
 
     assert data.is_dir()
     assert not any(data.rglob("*.md"))
@@ -181,6 +190,26 @@ def test_a_moved_head_is_fetched_by_sha(repos: dict[str, Path | str]) -> None:
     # Keep the older commit reachable from a ref, as GitHub does for pull refs.
     _git(work, "push", "-q", "origin", f"{repos['head']}:refs/heads/older")
 
-    data = _run_step(repos, str(repos["head"]))
+    data = _export(repos, str(repos["head"]))
 
     assert (data / ".project-toolkit" / "specs" / "SPEC-new.md").is_file()
+
+
+def test_missing_environment_is_a_config_error(repos: dict[str, Path | str]) -> None:
+    result = _run_step(repos, str(repos["head"]), GH_TOKEN="")
+
+    assert result.returncode == 2
+    assert "required" in result.stderr
+
+
+def test_a_non_numeric_pr_number_is_refused(repos: dict[str, Path | str]) -> None:
+    result = _run_step(repos, str(repos["head"]), PR_NUMBER="7; rm -rf /")
+
+    assert result.returncode == 2
+
+
+def test_an_unfetchable_head_is_an_external_failure(repos: dict[str, Path | str]) -> None:
+    result = _run_step(repos, str(repos["head"]), PR_NUMBER="999")
+
+    assert result.returncode == 3
+    assert "could not fetch" in result.stderr
