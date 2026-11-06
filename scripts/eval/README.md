@@ -2676,7 +2676,7 @@ minimum, and maximum across repeats. It reports spread only and makes no signifi
 
 ### Real home for Claude runtime parity (issue #5404)
 
-The isolated Claude profile carries no login, and the owner ruled out API keys and OAuth tokens for this run. `--real-home` runs Claude, and the `claude-cli` grader, on the operator's own `HOME` with `CLAUDE_CONFIG_DIR` unset, so the CLI finds its own stored login. The harness creates no link to, copy of, or read of a credential file.
+For the issue #5404 run, the owner ruled out API keys and OAuth tokens, so that run used `--real-home`. An isolated run now gets the stored login as a token (see Real CLI Runtime Parity). `--real-home` runs Claude, and the `claude-cli` grader, on the operator's own `HOME` with `CLAUDE_CONFIG_DIR` unset, so the CLI finds its own stored login. The harness creates no link to, copy of, or read of a credential file.
 
 The confound: `~/.claude` instructions, rules, and skills load ambiently in every scenario, under the control and the candidate alike. The report records it as `ambient_home` and the init events in each raw output list what loaded. Results are evidence for Claude Code on this operator's configuration, not for a clean profile.
 
