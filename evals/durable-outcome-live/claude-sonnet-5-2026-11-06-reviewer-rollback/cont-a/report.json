@@ -1,0 +1,175 @@
+{
+  "mode": "live",
+  "harness_version": "2.1.319 (Claude Code)",
+  "real_home": true,
+  "spent_usd": 0.094845,
+  "spend_unmeasured": false,
+  "runs": [
+    {
+      "task_id": "split-bill-cents",
+      "control": "reduced",
+      "repeat": 0,
+      "argv": [
+        "claude",
+        "--print",
+        "<fixture-prompt>",
+        "--setting-sources",
+        "project",
+        "--strict-mcp-config",
+        "--mcp-config",
+        "{\"mcpServers\":{}}",
+        "--permission-mode",
+        "acceptEdits",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--no-session-persistence",
+        "--model",
+        "claude-sonnet-5",
+        "--tools",
+        "Read,Edit,Write,Glob,Grep,Bash",
+        "--allowedTools",
+        "Bash(python3:*),Bash(git:*),Bash(ls:*),Bash(cat:*)"
+      ],
+      "reply": "I need your approval to run the test command \u2014 want me to proceed?",
+      "reviewer_note": "",
+      "change_patch": "changes/reduced/split-bill-cents-r0.patch",
+      "record": {
+        "task_id": "split-bill-cents",
+        "repeat": 0,
+        "config": {
+          "model": "claude-sonnet-5",
+          "harness": "claude",
+          "harness_version": "2.1.319 (Claude Code)",
+          "context_bytes": 0,
+          "retry_budget": 0,
+          "reviewer": "claude:claude-sonnet-5:default",
+          "control": "reduced"
+        },
+        "capability": {
+          "attempted": true,
+          "produced_artifact": true
+        },
+        "execution": {
+          "deterministic_acceptance": "PASS",
+          "first_pass": "PASS",
+          "tool_failures": 2,
+          "retries": 0,
+          "scope_violations": 0,
+          "judge": null
+        },
+        "durable": {
+          "followup_validation": "PASS",
+          "objective_satisfied": "PASS",
+          "residual_defects": 0,
+          "review_findings": 0,
+          "rollback_events": 0,
+          "rework_minutes": 0
+        },
+        "economics": {
+          "model_cost_usd": 0.094845,
+          "tool_cost_usd": 0,
+          "wall_seconds": 26.479168015997857,
+          "human_correction_minutes": null
+        },
+        "risk": {
+          "security_findings": 0,
+          "unapproved_external_actions": 0,
+          "unsupported_claims": 0,
+          "unresolved_uncertainty": 1
+        }
+      },
+      "trajectory": {
+        "tool_calls": 5,
+        "other_tool_inputs": [
+          {
+            "name": "Read",
+            "input": {
+              "file_path": "/tmp/control-ablation-4d25ecd6de684ec58589ba11e94e8cd0/split-bill-cents-reduced-0/billing/split.py"
+            }
+          },
+          {
+            "name": "Read",
+            "input": {
+              "file_path": "/tmp/control-ablation-4d25ecd6de684ec58589ba11e94e8cd0/split-bill-cents-reduced-0/tests/test_split.py"
+            }
+          },
+          {
+            "name": "Edit",
+            "input": {
+              "replace_all": false,
+              "file_path": "/tmp/control-ablation-4d25ecd6de684ec58589ba11e94e8cd0/split-bill-cents-reduced-0/billing/split.py",
+              "old_string": "def split_bill(total_cents, people):\n    return [total_cents // people] * people",
+              "new_string": "def split_bill(total_cents, people):\n    base = total_cents // people\n    remainder = total_cents % people\n    return [base + 1 if i < remainder else base for i in range(people)]"
+            }
+          }
+        ],
+        "bash_commands": [
+          "python -m pytest tests/test_split.py -q",
+          "python -m pytest tests/test_split.py -q"
+        ],
+        "test_commands": [],
+        "denied_test_commands": [
+          "python -m pytest tests/test_split.py -q",
+          "python -m pytest tests/test_split.py -q"
+        ],
+        "permission_denials": 2,
+        "withheld_marker_hits": []
+      },
+      "checks": {
+        "acceptance": {
+          "argv": [
+            "python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-t",
+            "."
+          ],
+          "exit_code": 0
+        },
+        "followup": {
+          "argv": [
+            "python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "followup",
+            "-t",
+            "."
+          ],
+          "exit_code": 0
+        }
+      }
+    }
+  ],
+  "confound": "real HOME: ~/.claude instructions, rules, and skills load under every control, so `reduced` is not AGENTS-free",
+  "provenance": {
+    "runner_commit": "3e9f30aaa15f91ff3c67372379768c3e031bf2c8",
+    "runner_tree_dirty": true,
+    "runner_diff_sha256": "8f99041ca649197439ddaadc88229a5ad4329ea02a802fa366f52bcd290e9ce4",
+    "tasks_file": "/home/richard/worktrees/ai-agents/eval-5768-reviewer-rollback-run/scripts/eval/examples/control-ablation-tasks.json",
+    "tasks_file_sha256": "403313200b834038ef39379aea7c1d03465578e5354f573e31e3685ebc8d1f0c",
+    "task_sha256": {
+      "duration-hours": "ee86d46772d67a9cb1688e832cbed330f558d14bf564759710c3e4ca59cdbc53",
+      "config-loader-resume": "dee41c6302bac3eadd23f73f3c2989ee0b5a4bccdc1533dafe5f9e148da4314d",
+      "split-bill-cents": "e816babeaae7b8b3a1231b94c1a0aaac2c9cb63f99890bd1d2fc26c040a2649c",
+      "docs-title-publish": "15d8dc2615e8122f6c4064e666247b263dc30ce9719e769e383968c1697ab0cf",
+      "slug-punctuation": "1f41f6a8f7757b92f9a8c9563cc77920142ca04d6b095216b8ac0fca3dc68d03"
+    },
+    "sources": {},
+    "controls": {
+      "reduced": {
+        "context_bytes": 0,
+        "files": {}
+      }
+    },
+    "model_requested": "claude-sonnet-5",
+    "pass_env": [],
+    "agent_path_first": "/home/richard/worktrees/ai-agents/eval-5768-reviewer-rollback-run/.venv/bin",
+    "max_cost_usd": 5.0
+  }
+}

@@ -1,0 +1,54 @@
+--- a/ledger/models.py
++++ b/ledger/models.py
+@@ -2,7 +2,7 @@
+ 
+ from dataclasses import dataclass
+ 
+-SIGN = {"deposit": 1, "withdrawal": -1}
++SIGN = {"deposit": 1, "withdrawal": -1, "refund": 1}
+ KINDS = tuple(SIGN)
+ 
+ 
+--- a/ledger/report.py
++++ b/ledger/report.py
+@@ -1,6 +1,6 @@
+ """Summary report over a ledger."""
+ 
+-from ledger.models import KINDS
++from ledger.models import KINDS, SIGN
+ from ledger.store import Ledger
+ 
+ 
+@@ -8,5 +8,7 @@
+     totals = {f"{kind}_cents": 0 for kind in KINDS}
+     for entry in ledger.entries:
+         totals[f"{entry.kind}_cents"] += entry.cents
+-    totals["balance_cents"] = totals["deposit_cents"] - totals["withdrawal_cents"]
++    totals["balance_cents"] = sum(
++        SIGN[entry.kind] * entry.cents for entry in ledger.entries
++    )
+     return totals
+--- a/ledger/store.py
++++ b/ledger/store.py
+@@ -12,6 +12,21 @@
+             raise ValueError(f"unknown entry kind {entry.kind!r}")
+         if isinstance(entry.cents, bool) or not isinstance(entry.cents, int) or entry.cents <= 0:
+             raise ValueError("cents must be a positive integer")
++        if entry.kind == "refund":
++            if isinstance(entry.ref, bool) or not isinstance(entry.ref, int):
++                raise ValueError("refund must reference a withdrawal entry")
++            if entry.ref < 0 or entry.ref >= len(self.entries):
++                raise ValueError("refund must reference an existing withdrawal entry")
++            withdrawal = self.entries[entry.ref]
++            if withdrawal.kind != "withdrawal":
++                raise ValueError("refund must reference a withdrawal entry")
++            refunded = sum(
++                existing.cents
++                for existing in self.entries
++                if existing.kind == "refund" and existing.ref == entry.ref
++            )
++            if refunded + entry.cents > withdrawal.cents:
++                raise ValueError("refunds may not exceed the withdrawal amount")
+         self.entries.append(entry)
+         return len(self.entries) - 1
+ 
