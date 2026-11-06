@@ -257,7 +257,12 @@ def publish_drift_alert(ruleset_id: int, drifts: list[str]) -> int:
     # Lazy import keeps the default run stdlib-only under bare python3. CI runs
     # this file as a script, so the repo root must be on sys.path first.
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from scripts.ci.ruleset_context_drift import ALERT_LABELS, publish_issue_alert, run_url
+    from scripts.ci.ruleset_context_drift import (
+        ALERT_LABELS,
+        publish_issue_alert,
+        run_url,
+        runbook_url,
+    )
 
     drift_lines = "\n".join(drifts)
     return publish_issue_alert(
@@ -266,7 +271,8 @@ def publish_drift_alert(ruleset_id: int, drifts: list[str]) -> int:
         labels=ALERT_LABELS,
         body=(
             f"<!-- {ALERT_MARKER} -->\n## Ruleset Parameter Drift\n\n"
-            f"**Ruleset**: `{ruleset_id}`\n**Workflow run**: {run_url()}\n\n"
+            f"**Ruleset**: `{ruleset_id}`\n**Workflow run**: {run_url()}\n"
+            f"**Runbook**: {runbook_url()}\n\n"
             f"```text\n{drift_lines}\n```\n\n"
             f"Update `{BASELINE_PATH.name}` after confirming the change is intentional.\n"
         ),

@@ -66,9 +66,22 @@ class TestAlert:
         assert "strict_required_status_checks_policy" in call["body"]
         assert "ruleset_params_baseline.json" in call["body"]
         assert "11104075" in call["body"]
+        assert f"**Runbook**: {sibling.runbook_url()}\n" in call["body"]
         out = capsys.readouterr().out
         assert "ALERT: tracking issue created or updated." in out
         assert out.index("NOT OBSERVABLE") < out.index("DRIFT DETECTED")
+
+    def test_alert_runbook_link_follows_the_server_url(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[dict[str, Any]] = []
+        monkeypatch.setenv("GITHUB_SERVER_URL", "https://ghe.example.com")
+        monkeypatch.setattr(sibling, "publish_issue_alert", _recorder(calls))
+
+        with patch("subprocess.run", return_value=_live(drift=True)):
+            mod.main(["--alert"])
+
+        assert f"https://ghe.example.com/{sibling.REPOSITORY}/blob/main/" in calls[0]["body"]
 
     @pytest.mark.parametrize("publish_rc", [mod.EXIT_CONFIG, mod.EXIT_EXTERNAL])
     def test_publish_failure_rc_propagates(
