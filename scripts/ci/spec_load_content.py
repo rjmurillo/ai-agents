@@ -143,6 +143,26 @@ def _find_spec_by_id(ref: str) -> Path | None:
     )
 
 
+_SPEC_TREES = (".project-toolkit/specs", ".project-toolkit/planning")
+
+
+def _confined(path: Path) -> Path | None:
+    """Return the resolved path when it stays under a spec tree, else None.
+
+    A pull request body names these refs, so ``..`` segments, absolute paths,
+    and symlinks must not reach a file outside ``./.project-toolkit/specs`` or
+    ``./.project-toolkit/planning``, the only trees the ref extractor emits.
+    Resolving first makes all three collapse to one containment check. A value
+    that cannot be resolved (a NUL byte) is refused the same way.
+    """
+    try:
+        resolved = (Path.cwd() / path).resolve()
+        roots = [(Path.cwd() / tree).resolve() for tree in _SPEC_TREES]
+    except (ValueError, OSError):
+        return None
+    return resolved if any(resolved.is_relative_to(root) for root in roots) else None
+
+
 def _read_spec(path: Path, display: str) -> tuple[int, str]:
     """Read nonempty spec content."""
     try:
@@ -161,6 +181,9 @@ def _load_spec_refs(spec_refs: list[str]) -> tuple[int, list[str]]:
     parts: list[str] = []
     for ref in spec_refs:
         path = Path(ref) if ref.endswith(".md") else _find_spec_by_id(ref)
+        if path is not None and _confined(path) is None:
+            print(f"::error::spec ref escapes the spec trees: {ref}", file=sys.stderr)
+            return EXIT_CONFIG, []
         if path is None or not path.is_file():
             label = "spec file" if ref.endswith(".md") else "spec ID"
             print(f"::error::{label} not found: {ref}", file=sys.stderr)
