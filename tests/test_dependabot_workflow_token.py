@@ -83,11 +83,11 @@ def test_no_step_uses_an_action(workflow: dict) -> None:
     assert used == []
 
 
-def test_trigger_excludes_reopened(workflow: dict) -> None:
-    """Negative: reopening needs only triage, so it must not start auto-merge."""
+def test_trigger_keeps_reopened(workflow: dict) -> None:
+    """Positive: a reopened Dependabot PR gets auto-merge (owner decision 2026-11-05)."""
     # PyYAML reads the bare key `on` as the boolean True.
     types = workflow[True]["pull_request_target"]["types"]
-    assert types == ["opened", "synchronize"]
+    assert types == ["opened", "synchronize", "reopened"]
 
 
 def test_job_permissions_are_the_two_write_scopes(workflow: dict) -> None:
