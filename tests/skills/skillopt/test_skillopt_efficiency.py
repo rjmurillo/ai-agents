@@ -266,6 +266,26 @@ class TestMeasurementShape:
         measurements["candidate"] = [1, 2, 3]
         assert _gate(measurements=measurements)["reasons"] == ["measurements_missing"]
 
+    def test_per_task_values_that_sum_past_float_range_are_invalid(self) -> None:
+        """Each task mean is finite; the summed total across tasks overflows."""
+        ids = ["a", "b", "guard", "d"]
+        eval_set = _eval()
+        eval_set["splits"]["sel"] = ids
+        huge = {tid: [5e307, 5e307, 5e307] for tid in ids}
+        measurements = {"incumbent": huge, "candidate": huge, "null": huge}
+        passing = dict.fromkeys(ids, True)
+        report = _gate(eval_set, passing, passing, measurements)
+        assert report["reasons"] == ["measurements_invalid"]
+
+    def test_incumbent_best_repeats_of_zero_make_spread_undefined(self) -> None:
+        measurements = _measurements(candidate=80)
+        measurements["incumbent"] = {tid: [0, 100, 100] for tid in TASKS}
+        measurements["null"] = {tid: [0, 100, 100] for tid in TASKS}
+        report = _gate(measurements=measurements)
+        assert report["accepted"] is False
+        assert report["worst_case_gain"] is None
+        assert "gain_within_spread" in report["reasons"]
+
     def test_values_summing_past_float_range_are_invalid(self) -> None:
         huge = 1.7e308
         measurements = {
