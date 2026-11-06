@@ -149,6 +149,12 @@ These comments require immediate response before implementation:
 
 Read this when you run the Phase 9 memory update.
 
+> Serena writes to the checkout active at server start, not your current
+> directory. In a linked git worktree, or when you cannot tell, do not call
+> Serena memory mutation tools. Make the same change to this checkout's
+> `.serena/memories/` files, or return it to the parent session
+> (`universal.md` MUST NOT 11, issue #5061).
+
 ### Step 9.1: Calculate Session Statistics
 
 For each reviewer who commented on this PR:
