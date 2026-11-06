@@ -262,7 +262,7 @@ Skill references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claud
 
 - `bots.md`: scoring reviewer signal quality or updating its statistics; Phase 4.5 finds a Copilot follow-up PR; a Copilot, CodeRabbit, or cursor[bot] comment needs bot-specific handling.
 - `templates.md`: composing a Won't Fix, Question, Acknowledged, Resolution, or Premise Refuted reply; checking a comment against the security keyword list.
-- `workflow.md`: building the Step 3.1 context object or the Phase 4 `tasks.md` file; applying the Quick Fix criteria; running the Phase 9 memory update.
+- `coordinator-detail.md`: building the Step 3.1 context object or the Phase 4 `tasks.md` file; applying the Quick Fix criteria; running the Phase 9 memory update.
 
 ## Workflow Paths Reference
 
@@ -298,7 +298,7 @@ Scan each comment body, case-insensitive, for security terms: CWE ids, vulnerabi
 
 ### Quick Fix Path Criteria
 
-Delegate straight to `implementer`, bypassing orchestrator, only for an atomic bug that meets all four: it touches one file, it stays inside one function or block, you can explain the fix in one sentence, and it changes no interface or pattern. Every other comment goes to `orchestrator`. Read `references/workflow.md` (Triage detail) for the criteria table and invocation forms.
+Delegate straight to `implementer`, bypassing orchestrator, only for an atomic bug that meets all four: it touches one file, it stays inside one function or block, you can explain the fix in one sentence, and it changes no interface or pattern. Every other comment goes to `orchestrator`. Read `references/coordinator-detail.md` (Triage detail) for the criteria table and invocation forms.
 
 ### QA Integration Requirement
 
@@ -1034,7 +1034,7 @@ For each comment, delegate to orchestrator with full context. Do NOT implement c
 
 #### Step 3.1: Prepare Context for Orchestrator
 
-For each comment, build a context object: PR number, title, branches, and author; comment id, reviewer, type, path, line, and timestamp; the diff hunk; the full comment body; and earlier thread comments. Ask orchestrator for the classification (Quick Fix / Standard / Strategic), priority, required action, and implementation plan. Read `references/workflow.md` (Step 3.1 context template) for the exact template.
+For each comment, build a context object: PR number, title, branches, and author; comment id, reviewer, type, path, line, and timestamp; the diff hunk; the full comment body; and earlier thread comments. Ask orchestrator for the classification (Quick Fix / Standard / Strategic), priority, required action, and implementation plan. Read `references/coordinator-detail.md` (Step 3.1 context template) for the exact template.
 
 #### Step 3.2: Delegate to Orchestrator
 
@@ -1061,7 +1061,7 @@ After orchestrator returns, update the comment map with analysis results.
 
 ### Phase 4: Task List Generation
 
-Based on orchestrator analysis, generate a prioritized task list and save it to `.project-toolkit/pr-comments/PR-[number]/tasks.md`. Group implementation tasks as Critical, Major, and Minor. List Won't Fix, Question, and Clarification comments under Immediate Replies (Phase 5). Gate 3 reads an implementation row in the shape `- [ ] **TASK-[id]**: [description]`, so write every row in exactly that shape. Read `references/workflow.md` (Phase 4 task list template) for the full file layout.
+Based on orchestrator analysis, generate a prioritized task list and save it to `.project-toolkit/pr-comments/PR-[number]/tasks.md`. Group implementation tasks as Critical, Major, and Minor. List Won't Fix, Question, and Clarification comments under Immediate Replies (Phase 5). Gate 3 reads an implementation row in the shape `- [ ] **TASK-[id]**: [description]`, so write every row in exactly that shape. Read `references/coordinator-detail.md` (Phase 4 task list template) for the full file layout.
 
 ### Phase 4.5: Copilot Follow-Up Handling
 
@@ -1707,7 +1707,7 @@ echo "[ ] Pushed: $(git status -sb | head -1)"
 
 #### Steps 9.1 to 9.4: Update And Verify The Memory
 
-Count the comments and the actionable comments per reviewer for this PR. Update the Per-Reviewer Performance, Per-PR Breakdown, and Metrics sections of `pr-review/pr-comment-responder-skills` with `edit_memory`, subject to the worktree rule under Memory Protocol. Then read the memory back and confirm this PR appears in all three sections. Read `references/workflow.md` (Phase 9 detail) for the statistics shape and the edit calls.
+Count the comments and the actionable comments per reviewer for this PR. Update the Per-Reviewer Performance, Per-PR Breakdown, and Metrics sections of `pr-review/pr-comment-responder-skills` with `edit_memory`, subject to the worktree rule under Memory Protocol. Then read the memory back and confirm this PR appears in all three sections. Read `references/coordinator-detail.md` (Phase 9 detail) for the statistics shape and the edit calls.
 
 ---
 
