@@ -49,6 +49,7 @@ _MIN_REASON_LENGTH = 40
 GATED: dict[str, str] = {
     "count-ratchets": "Count Ratchets",
     "python-unreachable-statements": "Unreachable Code Detection",
+    "python-unused-arguments": "Unused Argument Detection",
     "path-normalization": "Path Normalization",
     "planning-artifacts": "Planning Artifacts",
     "dash-prohibition": "Em/en-dash Prohibition",

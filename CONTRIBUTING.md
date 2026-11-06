@@ -806,6 +806,63 @@ When you fix a listed module or file, delete its entry in the same change.
 baseline size from a constant in `tests/strict_baseline_helpers.py`, so adding an entry fails until you raise the
 matching constant in the same diff, which is the edit a reviewer sees.
 
+### Unused-Argument Baseline
+
+`scripts/validation/check_unused_arguments.py` runs `ruff check --select ARG --isolated` over the tracked
+Python files under `scripts`, `src/claude`, `templates/hooks`, `.claude/lib`, and `.claude/skills`. It
+reports unused function, method, and lambda arguments (`ARG001` to `ARG005`). ruff resolves names per
+function, so an unused `path` or `args` is reported even when another function reads that name. The gate
+ignores `# noqa` comments, so a `# noqa` on a `def` line does not hide a finding. `--isolated` makes ruff
+read no config file, so `per-file-ignores`, `exclude`, `extend-exclude`, `dummy-variable-rgx`, and a nested
+`ruff.toml` cannot hide one either.
+
+The gate does not catch unused imports, functions, classes, variables, or unreachable code. Other
+checks cover some of those: the repo-wide ruff `F` rules for imports, and `check_unreachable_code.py`
+for statements after a terminator. ARG is not in the repo-wide ruff `select`, because that would turn
+every baseline entry red in the other ruff gates. ruff also exempts these shapes, so the gate never sees
+them: a stub body (`pass`, `...`, a docstring alone, or `raise NotImplementedError`), a method decorated
+`@override`, `@abstractmethod`, or `@overload`, a dunder method such as `__eq__`, a function that calls
+`locals()`, and any argument with a leading underscore.
+
+Files under a `tests` directory are skipped, and so are generated copies named in `EXCLUDED_PATHS`:
+each copy is scanned once, at the file it is rendered from. Untracked drafts are not scanned. A tracked file is read from the working tree, so an uncommitted edit to
+a tracked file can fail a local push that CI passes.
+It runs in the pre-push hook (`python-unused-arguments`), as the `Unused Argument Detection` gate in
+`pre_pr.py`, and in the `pytest` workflow.
+
+Findings that existed when the gate landed sit in `scripts/validation/unused_arguments_baseline.txt`.
+Each line is `<path>: <rule code> <argument> in <owner>`, where the owner is the function that holds the
+argument (`Class.method` for a method), with no line number. A failure prints the line ruff reported for
+each new finding.
+
+The baseline may only shrink, and the gate enforces it. It reads the baseline as committed at the merge
+base (`git merge-base HEAD <base-ref>`) and fails on any line your branch added, so swapping one line for
+another fails too. This follows the merge-base idea of the ratchets in `scripts/ci`, with a committed
+baseline file instead of a count, because a count lets a swap pass. Because the file is shared, two
+branches that edit adjacent lines can conflict. Two branches that each fix a different finding delete
+different lines, and git merges that cleanly only when the deleted lines are not adjacent. When they are
+adjacent, git reports a conflict; resolve it by keeping both deletions.
+Do not add a line for new code; use or remove the argument, or prefix it with an underscore when a
+signature must keep it. When you fix a listed finding, delete its line in the same change.
+
+When git reports a file as renamed, change the path on that file's baseline lines and nothing else. The
+merge-base comparison follows the rename, so no line counts as added. A path rewrite for a file git does
+not report as renamed counts as growth. Renaming a function, or moving it to another class, changes the
+owner in its key, so a listed finding there reads as new: use or remove the argument in that change.
+`--base-ref` names the ref; with none, the gate tries `refs/remotes/origin/HEAD`, `origin/main`, then
+`main`, and exits 2 when none resolves. CI passes the fetched base branch. The first run is decided by
+whether the merge base carries `check_unused_arguments.py`; once it does, a baseline missing from its path
+fails the gate (exit 1).
+
+Not handled: two branches that each remove one of two reads of an argument can merge into a tree with a
+new finding that neither branch saw. The gate fails on the base branch then, and the fix is to use or
+remove the argument.
+
+A ruff upgrade that reports new ARG findings has no baseline path: the upgrade change must use, remove,
+or underscore-prefix those arguments. `uv.lock` pins ruff, so the gate changes only when a pull request
+changes the lock. A message-format change that drops the backquoted argument name makes the gate exit 2,
+not pass. The author of the upgrade change owns a red gate.
+
 ### Import Boundaries
 
 `lint-imports` ([import-linter](https://import-linter.readthedocs.io/)) checks the contracts in `pyproject.toml` under `[tool.importlinter]`.

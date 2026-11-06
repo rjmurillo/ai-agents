@@ -25,6 +25,8 @@ Negative controls, each verified to fail before shipping:
   workflows: ``test_exemptions_are_not_stale`` fails.
 - Switch the model-pin gate to ``--mode enforce`` without removing its
   ``WARN_ONLY`` row: ``test_warn_only_rows_match_what_runs`` fails.
+- Make ``validate_unused_arguments`` return True unconditionally:
+  ``test_the_unused_arguments_gate_fails_on_a_failing_fixture`` fails.
 """
 
 from __future__ import annotations
@@ -389,9 +391,49 @@ def test_each_new_gate_goes_red_for_its_own_validator_only(
     assert [name for name, passed in results.items() if not passed] == [gate_name]
 
 
+# Gates that run their validator in process, so the subprocess recorder above
+# cannot force them red. Each is driven against a fixture repository instead.
+_IN_PROCESS_GATES: tuple[str, ...] = ("Unused Argument Detection",)
+
+
+def _unused_arguments_fixture(root: Path, *, baseline: str) -> Path:
+    import subprocess
+
+    (root / "scripts").mkdir()
+    (root / "scripts" / "mod.py").write_text("def f(path):\n    return 1\n", encoding="utf-8")
+    baseline_path = root / "scripts" / "validation" / "unused_arguments_baseline.txt"
+    baseline_path.parent.mkdir(parents=True)
+    baseline_path.write_text(baseline, encoding="utf-8")
+    # One commit on main gives the gate a base ref; the fixture has no gate
+    # script yet, so the growth check takes the first-run path.
+    identity = ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
+    for argv in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "add", "-A"],
+        ["git", *identity, "commit", "-q", "-m", "fixture"],
+    ):
+        subprocess.run(argv, cwd=root, check=True, capture_output=True)
+    return root
+
+
+@pytest.mark.parametrize(
+    ("baseline", "expected"),
+    [("", False), ("scripts/mod.py: ARG001 path in f\n", True)],
+    ids=["new-finding-fails", "matching-baseline-passes"],
+)
+def test_the_unused_arguments_gate_fails_on_a_failing_fixture(
+    tmp_path: Path, baseline: str, expected: bool
+) -> None:
+    root = _unused_arguments_fixture(tmp_path, baseline=baseline)
+    gates = {gate.name: gate for gate in pre_pr_sequence._SEQUENCE}
+    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+        assert bool(gates["Unused Argument Detection"].run(root, argparse.Namespace())) is expected
+
+
 def test_new_gates_are_never_skipped_in_quick_mode() -> None:
     gates = {gate.name: gate for gate in pre_pr_sequence._SEQUENCE}
-    assert not [name for name in _NEW_GATES if gates[name].skip_when_quick]
+    names = [*_NEW_GATES, *_IN_PROCESS_GATES]
+    assert not [name for name in names if gates[name].skip_when_quick]
 
 
 def test_a_missing_script_skips_where_no_workflows_exist(tmp_path: Path) -> None:

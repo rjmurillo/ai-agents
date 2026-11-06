@@ -184,12 +184,15 @@ def test_import_linter_is_blind_to_a_directory_with_no_init(tmp_path: Path) -> N
         ),
     )
     env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    env["PYTHONIOENCODING"] = "utf-8"
     result = subprocess.run(
         [sys.executable, "-c", checks_ci_parity._LINT_IMPORTS_PROGRAM, "--no-cache"],
         cwd=tmp_path,
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=120,
         check=False,
     )
@@ -277,12 +280,15 @@ def test_the_modules_that_need_yaml_are_the_ones_that_fail_without_it() -> None:
         """
     )
     env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    env["PYTHONIOENCODING"] = "utf-8"
     result = subprocess.run(
         [sys.executable, "-c", program, json.dumps(modules)],
         cwd=_REPO_ROOT,
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=120,
         check=False,
     )
