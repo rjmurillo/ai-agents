@@ -1145,9 +1145,17 @@ justifications and a gate 1 exception; C, redefine the gate.
 
 ### New definition
 
-Gate 1 counts canonical behavior owners excluding skills, on both sides of the
-comparison. Skills are generated symlinks under `.claude/skills/`, and the
-owner rule is that skills and agents are `KEEP`. The pinned figure is
+Gate 1 counts canonical behavior owners excluding the whole skills category,
+on both sides of the comparison. This matches the owner's 2026-11-06 figures
+(334 against 301). The owner rule is that skills and agents are `KEEP`, and
+most skill entries under `.claude/skills/` are generated symlinks.
+
+The exclusion is the category, not only the symlinks. At `3e9f30aaa1` 104 of the
+121 skill entries are symlinks, and the pinned tree at `53ffe92c2` has none.
+Excluding only the symlinks from the measured side would give 351 against 412,
+which compares unlike sets and is not the owner's definition. If the owner
+intends the symlink-only reading, gate 1 would read as met on that basis, and
+the owner must say so before this ledger changes. The pinned figure is
 restated on the same basis: 412 less 111 skills is 301 at `53ffe92c2`.
 
 ### Measurements at `3e9f30aaa1` (2026-11-06)
