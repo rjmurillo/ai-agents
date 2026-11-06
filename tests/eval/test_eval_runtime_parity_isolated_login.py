@@ -17,6 +17,11 @@ TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 DISK_TOKEN = "disk-token-for-test"
 
 
+@pytest.fixture(autouse=True)
+def _parity_runs_have_a_token() -> None:
+    """Override the conftest stub: these tests exercise real resolution."""
+
+
 def _disk_login(monkeypatch: pytest.MonkeyPatch) -> None:
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: DISK_TOKEN)
 
@@ -78,24 +83,55 @@ def test_an_exported_credential_is_left_alone(
     assert env.get(TOKEN_ENV) != DISK_TOKEN
 
 
-def test_existing_login_step_injects_nothing(
+def test_existing_login_step_stops_the_run_with_an_auth_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(TOKEN_ENV, raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
 
-    assert TOKEN_ENV not in parity._fixture_env(tmp_path, "claude", "claude")
+    with pytest.raises(parity.ParityAuthError, match="needs a token"):
+        parity._fixture_env(tmp_path, "claude", "claude")
 
 
-def test_missing_credential_leaves_the_env_for_the_cli_to_fail_on(
+def test_missing_credential_stops_the_run_with_an_auth_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(TOKEN_ENV, raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=False)
 
-    assert TOKEN_ENV not in parity._fixture_env(tmp_path, "claude", "claude")
+    with pytest.raises(parity.ParityAuthError):
+        parity._fixture_env(tmp_path, "claude", "claude")
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+@pytest.mark.parametrize("name", ["ANTHROPIC_API_KEY", TOKEN_ENV])
+def test_blank_credentials_do_not_block_the_stored_login(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, blank: str
+) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.setenv(name, blank)
+    _disk_login(monkeypatch)
+
+    env = parity._fixture_env(tmp_path, "claude", "claude")
+
+    assert env[TOKEN_ENV] == DISK_TOKEN
+    assert "ANTHROPIC_API_KEY" not in env
+
+
+def test_main_exits_4_when_no_login_reaches_the_isolated_run(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def no_login(**_kwargs: object) -> None:
+        raise parity.ParityAuthError("no login")
+
+    monkeypatch.setattr(parity, "run_evaluation", no_login)
+    monkeypatch.setattr(parity, "verify_worktree_identity", lambda: None)
+
+    assert parity.main([]) == parity.EXIT_AUTH
+    assert "no login" in capsys.readouterr().err
 
 
 def _echoing_run(text: str) -> subprocess.CompletedProcess[str]:

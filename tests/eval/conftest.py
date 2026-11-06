@@ -42,6 +42,20 @@ def _hermetic_credential_sources(monkeypatch: pytest.MonkeyPatch):
     reset_cache()
 
 
+@pytest.fixture(autouse=True)
+def _parity_runs_have_a_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give isolated parity runs a credential.
+
+    The inert sources report a login with no token, and `_fixture_env` refuses
+    that state. Tests about credential resolution override this fixture.
+    """
+    from tests.eval._credential_test_support import _cli_credentials
+    from tests.eval._runtime_parity_test_support import parity
+
+    credential = _cli_credentials.ResolvedCredential(_cli_credentials.STEP_DISK, "inert-test-token")
+    monkeypatch.setattr(parity, "resolve_cached", lambda _spec, *, executable: credential)
+
+
 def import_runtime_harness(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     """Import `_runtime_harness` with `scripts/eval` on `sys.path` for one test.
 

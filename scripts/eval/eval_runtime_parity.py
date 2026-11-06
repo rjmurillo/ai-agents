@@ -95,6 +95,15 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 EXIT_AUTH = 4
 _TOKEN_MASK = "<redacted-token>"
+_NO_ISOLATED_LOGIN = (
+    "an isolated Claude run needs a token, but the stored login has none. "
+    "Run `claude setup-token` and export CLAUDE_CODE_OAUTH_TOKEN, or pass --real-home."
+)
+
+
+class ParityAuthError(RuntimeError):
+    """No credential reaches an isolated Claude run."""
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FIXTURES = Path(__file__).parent / "examples" / "runtime-parity-fixtures.json"
@@ -429,21 +438,25 @@ def _fixture_env(workspace: Path, harness: str, executable: str) -> dict[str, st
     fixture is a deliberate live run, so it resolves the credential the same
     way the `claude-cli` grader does. The token travels as an environment
     variable under the empty profile, which keeps `~/.claude` instructions out
-    of the run. No credential file is copied or linked. With no credential the
-    CLI fails on auth and `_failure_code` reports it.
+    of the run. No credential file is copied or linked. A login the empty
+    profile cannot reach raises `ParityAuthError`, so no fixture starts.
     """
     env: dict[str, str] = runtime_env(workspace, harness)
     spec = _claude_cli.CREDENTIAL_SPEC
     if harness != "claude" or real_home_enabled():
         return env
+    for name in ("ANTHROPIC_API_KEY", spec.inject_env):
+        if name in env and not env[name].strip():
+            del env[name]
     if "ANTHROPIC_API_KEY" in env or spec.inject_env in env:
         return env
     try:
         credential = resolve_cached(spec, executable=executable)
-    except CredentialNotFoundError:
-        return env
-    if credential.secret is not None:
-        env[spec.inject_env] = credential.secret
+    except CredentialNotFoundError as exc:
+        raise ParityAuthError(str(exc)) from exc
+    if credential.secret is None:
+        raise ParityAuthError(_NO_ISOLATED_LOGIN)
+    env[spec.inject_env] = credential.secret
     return env
 
 
@@ -1167,6 +1180,9 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
     except ParityConfigError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
+    except ParityAuthError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_AUTH
     except (
         FileNotFoundError,
         OSError,

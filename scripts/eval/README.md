@@ -423,7 +423,8 @@ exported token. The runner walks the shared credential order in
 `_cli_credentials.py` and passes the stored login as
 `CLAUDE_CODE_OAUTH_TOKEN`. The profile stays empty, so `~/.claude` instructions
 do not load. An exported `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` wins
-over that lookup. Keep `--workspace-root` outside your home directory: the
+over that lookup. When no token is reachable the run exits 4 before any fixture
+starts. Keep `--workspace-root` outside your home directory: the
 ancestry guard refuses a root below `~/.claude/CLAUDE.md`. Use `--real-home`
 only when a run must load your own instructions, because they confound every
 fixture.
