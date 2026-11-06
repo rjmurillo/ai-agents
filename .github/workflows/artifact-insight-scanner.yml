@@ -36,7 +36,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   scan-artifacts:
@@ -83,7 +83,6 @@ jobs:
           context-path: ${{ steps.context.outputs.context_file }}
           prompt-file: .github/prompts/artifact-insight-scan.md
           timeout-minutes: 10
-          bot-pat: ${{ secrets.BOT_PAT }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Parse findings
@@ -101,7 +100,7 @@ jobs:
           inputs.dry-run != true
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           FINDINGS_JSON: ${{ steps.parse.outputs.findings_json }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}

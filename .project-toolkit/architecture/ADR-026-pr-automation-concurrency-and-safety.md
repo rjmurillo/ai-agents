@@ -131,14 +131,16 @@ function Test-SafeBranchName {
 
 ### Decision 5: BOT_PAT for Attribution
 
-**Decision**: Use `BOT_PAT` secret instead of `github.token` for workflow authentication.
+**Status: Retired 2026-11-06** (owner decision, issue #4607). Workflows use the per-run `github.token`. The accepted trade-off: bot attribution is lost, and writes made with `GITHUB_TOKEN` do not trigger other workflows. The text below is the original decision, kept as history.
+
+**Decision (original, retired)**: Use `BOT_PAT` secret instead of `github.token` for workflow authentication.
 
 **Rationale**:
 - Ensures actions are attributed to `rjmurillo-bot` service account
 - Clearer audit trail (bot actions vs. GitHub Actions runner)
 - Follows existing repository pattern for automated operations
 
-**Implementation**: Change all `GH_TOKEN: ${{ github.token }}` to `GH_TOKEN: ${{ secrets.BOT_PAT }}`
+**Implementation (original, retired)**: Change all `GH_TOKEN: ${{ github.token }}` to `GH_TOKEN: ${{ secrets.BOT_PAT }}`
 
 **Rejected Alternative**: Use github.token
 - **Why rejected**: Poor attribution; actions appear to come from GitHub Actions runner, not identifiable bot
@@ -151,13 +153,13 @@ function Test-SafeBranchName {
 - Multi-resource rate limiting prevents silent failures on low-limit resources
 - Input validation prevents command injection and path traversal
 - DryRun-first enables safe production validation
-- BOT_PAT improves attribution and audit trail
+- BOT_PAT improved attribution and audit trail (retired 2026-11-06, see Decision 5)
 
 ### Negative
 
 - Multi-resource rate limiting adds complexity (must track multiple thresholds)
 - DryRun-first delays live automation by 1-2 weeks
-- Requires BOT_PAT secret configuration in repository
+- Required BOT_PAT secret configuration in repository (retired 2026-11-06, see Decision 5)
 
 ### Risks
 
