@@ -89,6 +89,41 @@ def test_existing_issue_gets_comment(monkeypatch):
     assert calls[1][:4] == ["api", "repos/o/r/issues/77/comments", "-X", "POST"]
 
 
+@pytest.mark.parametrize(
+    ("items", "endpoint"),
+    [([], "repos/o/r/issues"), ([{"number": 77}], "repos/o/r/issues/77/comments")],
+    ids=["new-issue", "existing-issue"],
+)
+def test_notification_links_the_red_ci_runbook(monkeypatch, items, endpoint):
+    calls = []
+
+    def fake_gh(args):
+        calls.append(args)
+        if args[:2] == ["api", "search/issues"]:
+            return _completed(stdout=json.dumps({"items": items}))
+        return _completed(stdout=json.dumps({"number": 77}))
+
+    monkeypatch.setattr(alert, "_run_gh", fake_gh)
+
+    alert.run(_env({"test": {"result": "failure"}}))
+
+    assert calls[1][1] == endpoint
+    link = "Runbook: https://github.com/o/r/blob/main/docs/runbooks/red-ci-on-main.md\n"
+    assert any(link in arg for arg in calls[1])
+
+
+def test_runbook_link_follows_the_server_url():
+    env = {**_env({}), "GITHUB_SERVER_URL": "https://ghe.example.com"}
+
+    body = alert._issue_body(env, ["test"])
+
+    assert "Runbook: https://ghe.example.com/o/r/blob/main/docs/runbooks/" in body
+
+
+def test_linked_runbook_exists():
+    assert (REPO_ROOT / alert.RUNBOOK_PATH).is_file()
+
+
 def test_gh_failure_exits_external(monkeypatch):
     monkeypatch.setattr(alert, "_run_gh", lambda args: _completed(stderr="api down", rc=1))
 

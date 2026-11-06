@@ -41,6 +41,7 @@ EXIT_EXTERNAL = 3
 ALERT_TITLE = "Ruleset Required Context Drift Detected"
 ALERT_MARKER = "RULESET-CONTEXT-DRIFT"
 ALERT_LABELS = "bug,area-workflows,drift-detected,automated"
+RUNBOOK_PATH = "docs/runbooks/ruleset-drift-alert.md"
 ISSUE_SCRIPT_DIR = Path(".claude/skills/github/scripts/issue")
 
 
@@ -73,6 +74,11 @@ def run_url() -> str:
     if not run_id:
         return "Local check"
     return f"{server_url}/{REPOSITORY}/actions/runs/{run_id}"
+
+
+def runbook_url() -> str:
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    return f"{server_url}/{REPOSITORY}/blob/{BRANCH}/{RUNBOOK_PATH}"
 
 
 def step0_evidence(
@@ -111,6 +117,7 @@ def render_alert(
 
 **Ruleset**: `{RULESET_ID}`
 **Workflow run**: {workflow_run_url}
+**Runbook**: {runbook_url()}
 
 ### Added to live ruleset
 

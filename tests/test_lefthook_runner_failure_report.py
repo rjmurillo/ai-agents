@@ -151,6 +151,14 @@ def test_report_lists_every_failed_job() -> None:
         assert f"run pre-commit --job {job}\n" in report
 
 
+@pytest.mark.parametrize("jobs", [["python-format"], []], ids=["job", "no-job"])
+def test_report_links_a_runbook_that_exists(jobs: list[str]) -> None:
+    report = report_module.failure_report(COMMAND, ["run", "pre-commit"], 1, jobs, [])
+
+    assert "  runbook: docs/runbooks/local-hook-failure.md\n" in report
+    assert (PROJECT_ROOT / report_module.RUNBOOK_PATH).is_file()
+
+
 def test_report_text_has_no_dashes() -> None:
     report = report_module.failure_report(COMMAND, ["run", "pre-push", "o", "u"], 1, ["a"], ["r"])
 

@@ -26,6 +26,7 @@ from collections.abc import Sequence
 from typing import IO
 
 OUTPUT_ENV = "LEFTHOOK_OUTPUT"
+RUNBOOK_PATH = "docs/runbooks/local-hook-failure.md"
 # Seconds an interrupted Lefthook gets to exit after SIGTERM before it is killed.
 TERMINATE_GRACE_SECONDS = 5.0
 # Lefthook lists each failed job as "<boxing glove> <name> (<n> seconds)"; an
@@ -118,7 +119,7 @@ def failure_report(
     jobs: Sequence[str],
     refs: Sequence[str],
 ) -> str:
-    """Return the closing block for a failed ``run <hook>``: stage, job, rerun.
+    """Return the closing block for a failed ``run <hook>``: stage, job, runbook, rerun.
 
     Every failed job is listed, because a job left out is a failure the reader
     never sees.
@@ -129,6 +130,7 @@ def failure_report(
         lines.append(f"  rerun: {_rerun_command(command, arguments, job, refs)}")
     if not jobs:
         lines.append("  job: not reported by Lefthook")
+    lines.append(f"  runbook: {RUNBOOK_PATH}")
     # A job rerun skips the jobs that ran before it (pre-pr-validation assumes the
     # fast-stage jobs passed), so the whole hook is the rerun to trust before a push.
     lines.append(f"  rerun hook: {_rerun_command(command, arguments, None, refs)}")
