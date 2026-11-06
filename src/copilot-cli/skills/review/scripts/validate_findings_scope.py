@@ -4,6 +4,8 @@
 After each stage-2 axis returns, the orchestrator passes the axis text to
 this script.  The script extracts ``location:`` fields and free-form file
 paths, strips line suffixes, and checks each path against the three-dot diff.
+Comparison treats ``\\`` and ``/`` as the same separator; reported locations
+keep the text the axis wrote.
 
 When one or more locations fall outside the diff, the script exits 1 and
 prints the out-of-scope paths to stderr.  With ``--emit-adjusted-text``, it
@@ -50,11 +52,11 @@ _LOCATION_FIELD_RE = re.compile(
     r"([^\s``,\[|\]]+)"  # the path (stops at whitespace/comma/table char/backtick)
 )
 _PROSE_PATH_RE = re.compile(
-    r"(?<![\w./-])"
-    r"((?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+"
+    r"(?<![\w./\\-])"
+    r"((?:[A-Za-z0-9_.-]+[/\\])*[A-Za-z0-9_.-]+"
     r"\.(?:py|md|yml|yaml|json|ts|js|cs|ps1|sh))"
     r"(?::\d+(?:-\d+)?)?"
-    r"(?![\w./-])"
+    r"(?![\w./\\-])"
 )
 
 _VERDICT_RE = re.compile(
@@ -145,16 +147,26 @@ def extract_locations(text: str) -> list[str]:
     return paths
 
 
+def _normalize_separators(path: str) -> str:
+    """Return *path* with ``\\`` separators as ``/``, for comparison only."""
+    return path.replace("\\", "/")
+
+
 def _file_in_diff(location: str, diff_files: list[str]) -> bool:
     """Return True when *location* matches a file in *diff_files*.
 
     Supports suffix matching: ``scripts/foo.py`` matches both
     ``scripts/foo.py`` and ``path/to/scripts/foo.py`` in the diff.
+    Windows separators match their ``/`` form on either side.
     """
+    normalized_location = _normalize_separators(location)
     for diff_file in diff_files:
-        if diff_file == location:
+        normalized_diff_file = _normalize_separators(diff_file)
+        if normalized_diff_file == normalized_location:
             return True
-        if diff_file.endswith(f"/{location}") or location.endswith(f"/{diff_file}"):
+        if normalized_diff_file.endswith(f"/{normalized_location}"):
+            return True
+        if normalized_location.endswith(f"/{normalized_diff_file}"):
             return True
     return False
 

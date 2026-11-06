@@ -251,6 +251,92 @@ class TestValidateScope:
         assert len(out_of_scope) > 0
 
 
+class TestWindowsSeparators:
+    """Issue #7099: both path separators name the same file in the diff."""
+
+    def test_forward_slash_location_is_in_scope(self) -> None:
+        in_scope, out_of_scope = validate_scope("Location: `src/sample.go:10`", ["src/sample.go"])
+        assert in_scope == ["src/sample.go"]
+        assert out_of_scope == []
+
+    def test_backslash_location_is_in_scope_with_original_text(self) -> None:
+        in_scope, out_of_scope = validate_scope(r"Location: `src\sample.go:10`", ["src/sample.go"])
+        assert in_scope == [r"src\sample.go"]
+        assert out_of_scope == []
+
+    def test_backslash_line_range_is_in_scope(self) -> None:
+        in_scope, out_of_scope = validate_scope(r"location: src\sample.py:10-20", ["src/sample.py"])
+        assert in_scope == [r"src\sample.py"]
+        assert out_of_scope == []
+
+    def test_mixed_separators_are_in_scope(self) -> None:
+        in_scope, out_of_scope = validate_scope(r"location: src\pkg/mod.py:1", ["src/pkg/mod.py"])
+        assert in_scope == [r"src\pkg/mod.py"]
+        assert out_of_scope == []
+
+    def test_backslash_suffix_of_diff_path_is_in_scope(self) -> None:
+        in_scope, out_of_scope = validate_scope(r"location: pkg\mod.py:1", ["src/pkg/mod.py"])
+        assert in_scope == [r"pkg\mod.py"]
+        assert out_of_scope == []
+
+    def test_absolute_windows_location_is_in_scope(self) -> None:
+        text = r"location: C:\repo\src\sample.py:10"
+        in_scope, out_of_scope = validate_scope(text, ["src/sample.py"])
+        assert in_scope == [r"C:\repo\src\sample.py"]
+        assert out_of_scope == []
+
+    def test_backslash_diff_entry_matches_forward_slash_location(self) -> None:
+        in_scope, out_of_scope = validate_scope("location: src/sample.py:1", [r"src\sample.py"])
+        assert in_scope == ["src/sample.py"]
+        assert out_of_scope == []
+
+    def test_unchanged_backslash_location_is_out_of_scope(self) -> None:
+        in_scope, out_of_scope = validate_scope(r"location: other\sample.go:10", ["src/sample.go"])
+        assert in_scope == []
+        assert out_of_scope == [r"other\sample.go"]
+
+    def test_shared_basename_does_not_put_unchanged_location_in_scope(self) -> None:
+        """Prose extraction must not cut ``other\\sample.py`` down to ``sample.py``."""
+        in_scope, out_of_scope = validate_scope(r"location: other\sample.py:10", ["src/sample.py"])
+        assert in_scope == []
+        assert out_of_scope == [r"other\sample.py"]
+
+    def test_prose_backslash_path_keeps_its_directories(self) -> None:
+        assert extract_locations(r"See other\sample.py:10 for detail") == [r"other\sample.py"]
+
+    def test_partial_directory_name_is_not_a_match(self) -> None:
+        in_scope, out_of_scope = validate_scope(r"location: rc\sample.go:1", ["src/sample.go"])
+        assert in_scope == []
+        assert out_of_scope == [r"rc\sample.go"]
+
+    def test_in_scope_backslash_keeps_blocking_verdict_and_text(self) -> None:
+        text = "VERDICT: CRITICAL_FAIL\n" + "location: src\\sample.py:10\n"
+
+        adjusted = _scope_checked_text(text, ["src/sample.py"])
+
+        assert adjusted == text
+
+    def test_unchanged_backslash_location_downgrades_and_keeps_display_text(self) -> None:
+        text = "VERDICT: CRITICAL_FAIL\n" + "location: other\\sample.py:10\n"
+
+        adjusted = _scope_checked_text(text, ["src/sample.py"])
+
+        assert "VERDICT: WARN" in adjusted
+        assert "location: other\\sample.py:10 [pre-existing - not in this PR diff]" in adjusted
+
+    def test_main_exits_zero_for_changed_backslash_location(self) -> None:
+        text = r"location: src\sample.py:10"
+        with patch.object(mod, "get_diff_files", return_value=["src/sample.py"]):
+            rc = main(["--worktree", ".", "--base-branch", "main", "--text", text])
+        assert rc == 0
+
+    def test_main_exits_one_for_unchanged_backslash_location(self) -> None:
+        text = r"location: other\sample.py:10"
+        with patch.object(mod, "get_diff_files", return_value=["src/sample.py"]):
+            rc = main(["--worktree", ".", "--base-branch", "main", "--text", text])
+        assert rc == 1
+
+
 class TestScopeAdjustedText:
     def test_in_scope_critical_verdict_stays_critical(self) -> None:
         text = (
