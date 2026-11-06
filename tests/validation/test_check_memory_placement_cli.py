@@ -180,13 +180,26 @@ def test_readme_and_index_files_are_skipped(repo: Path, monkeypatch, capsys):
 
 def test_non_text_files_in_the_memory_tree_are_ignored(repo: Path, monkeypatch, capsys):
     _write(repo, ".serena/memories/notes.json", NORMATIVE_HEADING)
-    _write(repo, ".serena/memories/.obsidian/app.md", NORMATIVE_HEADING)
     monkeypatch.chdir(repo)
 
     exit_code = checker.main(["--ci", "--path", ".serena/memories"])
 
     assert exit_code == 0
     assert "0 file(s) examined" in capsys.readouterr().out
+
+
+def test_hidden_text_memories_are_classified(repo: Path, monkeypatch, capsys):
+    """A dot-directory or dot-name must not hide a normative memory."""
+    _write(repo, ".serena/memories/.hidden/policy.md", NORMATIVE_HEADING)
+    _write(repo, ".serena/memories/.policy.md", NORMATIVE_HEADING)
+    monkeypatch.chdir(repo)
+
+    exit_code = checker.main(["--ci", "--path", ".serena/memories"])
+
+    out = capsys.readouterr().out
+    assert exit_code == 1
+    assert ".serena/memories/.hidden/policy.md: normative:" in out
+    assert ".serena/memories/.policy.md: normative:" in out
 
 
 def test_text_memory_with_another_extension_is_classified(repo: Path, monkeypatch, capsys):

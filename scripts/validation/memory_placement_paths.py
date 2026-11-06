@@ -43,19 +43,17 @@ def is_skippable(path: Path, repo_root: Path) -> bool:
     """True when ``path`` is not a memory the placement check should classify.
 
     Decided by location first. Under ``.serena/memories`` a file is skipped only
-    when it sits in a dot-directory (tool config such as ``.obsidian``), is the
-    root ``README.md`` guide, is a generated domain index directly under the
-    root, or is not a text document. A ``README.md`` or ``*-index.md`` in a
-    subdirectory, or a ``.txt`` memory, is classified. Outside the memory root a
-    file is classified only when it is Markdown.
+    when it is the root ``README.md`` guide, is a generated domain index directly
+    under the root, or is not a text document. A ``README.md`` or ``*-index.md``
+    in a subdirectory, a ``.txt`` memory, and a text file in a dot-directory or
+    with a dot-name are classified, so a hidden path cannot hide policy. Outside
+    the memory root a file is classified only when it is Markdown.
     """
     suffix = path.suffix.lower()
     memory_root = repo_root / MEMORY_PATHSPEC
     if not path.is_relative_to(memory_root):
         return suffix not in _MARKDOWN_SUFFIXES
     relative = path.relative_to(memory_root)
-    if any(part.startswith(".") for part in relative.parts):
-        return True
     if len(relative.parts) == 1 and (
         relative.name == "README.md" or _GENERATED_INDEX_RE.match(relative.name)
     ):
