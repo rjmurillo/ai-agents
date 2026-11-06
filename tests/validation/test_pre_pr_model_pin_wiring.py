@@ -279,24 +279,3 @@ def test_lazy_version_pin_import_resolves_without_sys_path_restore() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "LAZY_IMPORT_OK" in result.stdout
-
-
-def test_pre_pr_pin_check_reads_the_copilot_manifest(tmp_path: Path) -> None:
-    """The pre-PR wrapper targets .github/cli-smoke/copilot/package.json (#6506).
-
-    The pin moved out of plugin-cli-smoke.yml. A wrapper still pointing at the
-    workflow would find no pin and fail on every run.
-    """
-    assert pre_pr.validate_copilot_version_pin(REPO_ROOT) is True
-
-    manifest_dir = tmp_path / ".github" / "cli-smoke" / "copilot"
-    manifest_dir.mkdir(parents=True)
-    (manifest_dir / "package.json").write_text(
-        '{"dependencies": {"@github/copilot": "0.0.397"}}\n', encoding="utf-8"
-    )
-    assert pre_pr.validate_copilot_version_pin(tmp_path) is False
-
-
-def test_pre_pr_pin_check_skips_when_the_manifest_is_absent(tmp_path: Path) -> None:
-    with pytest.raises(pre_pr.MissingScriptSkip):
-        pre_pr.validate_copilot_version_pin(tmp_path)

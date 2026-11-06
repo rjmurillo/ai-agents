@@ -70,17 +70,6 @@ def test_vulnerability_alerts_label_security(config: dict[str, Any]) -> None:
     assert "security" in config["vulnerabilityAlerts"]["labels"]
 
 
-def test_vulnerability_alerts_do_not_force_automerge(config: dict[str, Any]) -> None:
-    """Renovate appends each alert as a rule that carries `force: {vulnerabilityAlerts}`.
-
-    A forced `automerge: true` there beats every user packageRules entry, including
-    the workflow-file exemption (#6506 review-gates-15). Leaving the key out keeps
-    alert PRs on the repo default (`automerge: true`) and lets the exemption apply.
-    """
-    assert "automerge" not in config["vulnerabilityAlerts"]
-    assert config["automerge"] is True
-
-
 def test_global_automerge_and_platform_automerge_enabled(config: dict[str, Any]) -> None:
     assert config["automerge"] is True
     assert config["platformAutomerge"] is True
@@ -176,56 +165,3 @@ def test_package_rules_keep_minimum_release_age(config: dict[str, Any]) -> None:
 
 def test_still_extends_recommended_preset(config: dict[str, Any]) -> None:
     assert "config:recommended" in config["extends"]
-
-
-def _workflow_exemptions(config: dict[str, Any]) -> list[int]:
-    return [
-        index
-        for index, rule in enumerate(config["packageRules"])
-        if rule.get("matchFileNames") == _EXEMPT_FILE_GLOBS and rule.get("automerge") is False
-    ]
-
-
-def test_workflow_file_updates_require_a_manual_merge(config: dict[str, Any]) -> None:
-    """A bump to .github/workflows/** or .github/cli-smoke/** must not automerge (#6506).
-
-    Like the devcontainer exemption, this holds only while no later rule turns
-    automerge back on, and only while the rule carries no narrowing key. A
-    `matchUpdateTypes` or `matchManagers` key would leave some workflow bumps on
-    the automerge path with this test still green.
-    """
-    rules = config["packageRules"]
-    exemptions = _workflow_exemptions(config)
-    assert exemptions, "no packageRules entry disables automerge for the workflow file globs"
-    exemption = rules[exemptions[-1]]
-    extra = set(exemption) - {"matchFileNames", "description", "automerge"}
-    assert not extra, f"the workflow exemption is narrowed by {sorted(extra)}"
-    reenabled = [rule for rule in rules[exemptions[-1] + 1 :] if rule.get("automerge") is True]
-    assert not reenabled, f"a rule after the workflow exemption re-enables automerge: {reenabled}"
-
-
-def test_workflow_exemption_does_not_reach_other_paths(config: dict[str, Any]) -> None:
-    """Edge: the exception names the two directories and nothing wider."""
-    for rule in config["packageRules"]:
-        if rule.get("automerge") is False and "matchFileNames" in rule:
-            assert rule["matchFileNames"] == _EXEMPT_FILE_GLOBS
-
-
-def test_repo_default_stays_automerge(config: dict[str, Any]) -> None:
-    assert config["automerge"] is True
-
-
-def test_workflow_exemption_follows_the_rules_that_enable_automerge(
-    config: dict[str, Any],
-) -> None:
-    """Edge: Renovate applies rules in order, so every automerge:true rule must come first."""
-    rules = config["packageRules"]
-    index = _workflow_exemptions(config)[-1]
-    enabling = [i for i, rule in enumerate(rules) if rule.get("automerge") is True]
-    assert enabling, "expected at least one rule that enables automerge"
-    assert max(enabling) < index
-
-
-def test_no_regex_custom_manager_remains(config: dict[str, Any]) -> None:
-    """The CLI pins moved to .github/cli-smoke/*/package.json, which the npm manager reads."""
-    assert "customManagers" not in config

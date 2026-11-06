@@ -51,7 +51,7 @@ EXIT_CONFIG = 2
 # was once defective stays defective. Seed entry is the Issue #2630 defect.
 KNOWN_BAD_VERSIONS: frozenset[str] = frozenset({"0.0.397"})
 
-# The pin: COPILOT_VERSION="x.y.z" (shell) or COPILOT_CLI_VERSION: 'x.y.z' (YAML
+# The legacy text pin: COPILOT_VERSION="x.y.z" (shell) or COPILOT_CLI_VERSION: 'x.y.z' (YAML
 # env), single or double quoted.
 # Anchored to a non-comment line start via ``^`` with ``re.MULTILINE``.
 # Leading whitespace and an optional ``export`` keyword are accepted so the
