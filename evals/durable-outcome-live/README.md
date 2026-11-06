@@ -233,6 +233,8 @@ commit `3e9f30aaa15f91ff3c67372379768c3e031bf2c8`. Both arms were checked first:
 `eval_control_ablation.py --dry-run` discrimination check passed (5 of 5 known-good accepted,
 0 of 5 known-bad, rollbacks ran for real), and 682 tests under `tests/eval` passed at 3e9f30aaa1 (2026-11-06).
 
+Run `report.json` files are stored as compact one-line JSON (content unchanged from the driver output).
+
 Launch budget: 100 across all harnesses. Used 86: Claude 62, Codex 24.
 
 ### Claude half: `claude-sonnet-5-2026-11-06-reviewer-rollback/`
