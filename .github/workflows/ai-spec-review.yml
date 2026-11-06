@@ -54,12 +54,17 @@ jobs:
     steps:
       # Issue #6506 workflow-ci-04: this job holds the model key, so every step
       # runs code from the base commit, never from the synthetic pull request
-      # merge tree. On workflow_dispatch the base is the default branch tip.
+      # merge tree. On workflow_dispatch the base is the tip of the ref the
+      # dispatch ran from.
       - name: Checkout base commit
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           fetch-depth: 0
+          # The token must not sit in .git/config where a head-controlled
+          # symlink could point the spec loader at it. The one fetch below
+          # passes it on the command line instead.
+          persist-credentials: false
 
       # The pull request head arrives as data only. Fetch its ref so the scope
       # script can diff the two SHAs, then export just the spec trees the
@@ -70,14 +75,23 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pull/head"
-          test "$(git rev-parse refs/remotes/pull/head)" = "$HEAD_SHA"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          fetch() { git -c "http.extraheader=AUTHORIZATION: basic ${auth}" fetch --no-tags origin "$@"; }
+          fetch "+refs/pull/${PR_NUMBER}/head:refs/remotes/pull/head"
+          # The head may have moved since the event fired. Ask for the event
+          # SHA itself when the ref no longer points at it.
+          if ! git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null; then
+            fetch "$HEAD_SHA"
+          fi
           mkdir -p "$RUNNER_TEMP/pr-head-data"
           for tree in .project-toolkit/specs .project-toolkit/planning; do
             if git cat-file -e "$HEAD_SHA:$tree" 2>/dev/null; then
               git archive "$HEAD_SHA" "$tree" | tar -x -C "$RUNNER_TEMP/pr-head-data"
             fi
           done
+          # A symlink in the head would let a spec reference read any runner
+          # file. Only regular files are data.
+          find "$RUNNER_TEMP/pr-head-data" -type l -delete
 
       # Both SHAs come from the event payload, never a branch name: the
       # checkout is the base commit, so an implicit HEAD would diff nothing.
@@ -110,7 +124,6 @@ jobs:
         # from the exported data tree, or from the base on workflow_dispatch.
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            mkdir -p "$PR_HEAD_DATA"
             cd "$PR_HEAD_DATA"
           fi
           python3 "$GITHUB_WORKSPACE/scripts/ci/spec_load_content.py"

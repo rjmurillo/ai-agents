@@ -256,6 +256,7 @@ class TestWorkflowWiring:
             .strip()
             .endswith('python3 "$GITHUB_WORKSPACE/scripts/ci/spec_load_content.py"')
         )
+        assert 'cd "$PR_HEAD_DATA"' in step["run"]
 
     def test_extract_step_output_feeds_the_report(self) -> None:
         step = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")

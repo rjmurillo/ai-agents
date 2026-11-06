@@ -392,8 +392,8 @@ class TestWorkflowWiring:
         steps = self._job(workflow_and_job)["steps"]
         assert isinstance(steps, list)
         ref = str(steps[0]["with"].get("ref", ""))
-        assert "github.event.pull_request.base.sha" in ref
-        assert "head" not in ref
+        assert ref == "${{ github.event.pull_request.base.sha || github.sha }}"
+        assert steps[0]["with"]["persist-credentials"] is False
 
     def test_no_step_reads_another_jobs_output(
         self, workflow_and_job: tuple[dict[str, Any], str]
