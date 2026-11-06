@@ -1,0 +1,8 @@
+--- a/perfgate/etl.py
++++ b/perfgate/etl.py
+@@ -26,4 +26,4 @@
+             lines.append(f"  overweight: {row.name} {row.delta_pct:+.1f}%")
+     if not overweight:
+         lines.append("  no overweight rows")
+-    return EtlResult(ok=True, regression=False, report="\n".join(lines))
++    return EtlResult(ok=True, regression=bool(overweight), report="\n".join(lines))
