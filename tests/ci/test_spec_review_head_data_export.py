@@ -32,6 +32,8 @@ def _git(cwd: Path, *args: str) -> str:
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env={
             **os.environ,
             "GIT_AUTHOR_NAME": "t",
@@ -70,7 +72,11 @@ def repos(tmp_path: Path) -> dict[str, Path | str]:
     (specs / "SPEC-new.md").write_text("# New spec from the PR head\n", encoding="utf-8")
     secret = tmp_path / "runner-secret.md"
     secret.write_text("TOKEN-IN-RUNNER-FILE\n", encoding="utf-8")
-    (specs / "evil.md").symlink_to(secret)
+    symlinks = True
+    try:
+        (specs / "evil.md").symlink_to(secret)
+    except OSError:
+        symlinks = False  # Windows without Developer Mode cannot create links.
     _git(work, "add", "-A")
     _git(work, "commit", "-q", "-m", "head")
     head_sha = _git(work, "rev-parse", "HEAD")
@@ -80,7 +86,7 @@ def repos(tmp_path: Path) -> dict[str, Path | str]:
     workspace = tmp_path / "workspace"
     _git(tmp_path, "clone", "-q", str(origin), str(workspace))
     _git(workspace, "checkout", "-q", "--detach", base_sha)
-    return {"workspace": workspace, "head": head_sha, "tmp": tmp_path}
+    return {"workspace": workspace, "head": head_sha, "tmp": tmp_path, "symlinks": symlinks}
 
 
 def _run_step(
@@ -103,6 +109,8 @@ def _run_step(
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
@@ -126,6 +134,8 @@ def test_head_specs_export_and_the_base_workspace_stays_on_base(
 
 
 def test_symlinks_in_the_head_are_not_exported(repos: dict[str, Path | str]) -> None:
+    if not repos["symlinks"]:
+        pytest.skip("this platform cannot create symlinks")
     data = _export(repos, str(repos["head"]))
 
     assert not (data / ".project-toolkit" / "specs" / "evil.md").exists()
@@ -153,6 +163,8 @@ def test_loader_reads_a_new_head_spec_from_the_exported_tree(
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
     assert result.returncode == 0, result.stderr
@@ -276,3 +288,14 @@ def test_a_submodule_entry_is_not_exported(repos: dict[str, Path | str]) -> None
 
     assert not (data / ".project-toolkit" / "specs" / "sub").exists()
     assert (data / ".project-toolkit" / "specs" / "SPEC-new.md").is_file()
+
+
+def test_a_local_filesystem_error_is_a_config_exit(repos: dict[str, Path | str]) -> None:
+    """ADR-035: a disk or permission problem is exit 2, not an external failure."""
+    blocker = Path(str(repos["tmp"])) / "not-a-directory"
+    blocker.write_text("file in the way\n", encoding="utf-8")
+
+    result = _run_step(repos, str(repos["head"]), RUNNER_TEMP=str(blocker))
+
+    assert result.returncode == 2
+    assert "could not write" in result.stderr

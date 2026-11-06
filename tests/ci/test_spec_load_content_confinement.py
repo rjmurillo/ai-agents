@@ -19,6 +19,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_load_content import EXIT_CONFIG, EXIT_OK, _confined, run
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    """Create a symlink, or skip where the platform cannot (Windows, no dev mode)."""
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("this platform cannot create symlinks")
+
+
 def _spec_tree(root: Path) -> Path:
     """Create ./.project-toolkit/specs under ``root`` and return it."""
     tree = root / ".project-toolkit" / "specs"
@@ -81,7 +89,7 @@ class TestSpecRefConfinement:
         monkeypatch.chdir(tmp_path)
         outside = tmp_path / "outside.md"
         outside.write_text("RUNNER FILE CONTENT")
-        (_spec_tree(tmp_path) / "link.md").symlink_to(outside)
+        _symlink_or_skip(_spec_tree(tmp_path) / "link.md", outside)
 
         with patch.dict(os.environ, self._env(tmp_path, ".project-toolkit/specs/link.md")):
             assert run() == EXIT_CONFIG
@@ -107,7 +115,7 @@ class TestSpecRefConfinement:
         monkeypatch.chdir(tmp_path)
         outside = tmp_path / "outside.txt"
         outside.write_text("RUNNER FILE CONTENT")
-        (_spec_tree(tmp_path) / "REQ-777-x.txt").symlink_to(outside)
+        _symlink_or_skip(_spec_tree(tmp_path) / "REQ-777-x.txt", outside)
 
         with patch.dict(os.environ, self._env(tmp_path, "REQ-777")):
             assert run() == EXIT_CONFIG

@@ -45,6 +45,8 @@ def _git(args: list[str], *, token: str = "") -> subprocess.CompletedProcess[byt
     if token:
         basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
         command += ["-c", f"http.extraheader=AUTHORIZATION: basic {basic}"]
+    # main() matches HEAD_SHA against SHA_PATTERN and requires an ASCII decimal
+    # PR_NUMBER. The command is an argument list, never a shell string.
     return subprocess.run([*command, *args], capture_output=True, check=False)
 
 
@@ -103,7 +105,7 @@ def export_trees(head_sha: str, destination: Path) -> None:
                 continue
             content = _git(["cat-file", "blob", blob])
             if content.returncode != 0:
-                raise RuntimeError(f"git cat-file failed for {name}")
+                raise RuntimeError(f"git cat-file failed for {name!r}")
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content.stdout)
 
@@ -132,8 +134,12 @@ def main() -> int:
         return EXIT_EXTERNAL
     try:
         export_trees(head_sha, Path(runner_temp) / EXPORT_DIR_NAME)
-    except (RuntimeError, ValueError, OSError) as exc:
-        print(f"::error::could not export the head spec trees: {exc}", file=sys.stderr)
+    except OSError as exc:
+        # A local filesystem problem is a config error under ADR-035.
+        print(f"::error::could not write the head spec trees: {exc!r}", file=sys.stderr)
+        return EXIT_CONFIG
+    except (RuntimeError, ValueError) as exc:
+        print(f"::error::could not export the head spec trees: {exc!r}", file=sys.stderr)
         return EXIT_EXTERNAL
     return EXIT_OK
 
