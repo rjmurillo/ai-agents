@@ -426,3 +426,11 @@ def test_reject_unreplaced_placeholder_accepts_a_quoted_marker() -> None:
 
 def test_reject_unreplaced_placeholder_accepts_a_written_body() -> None:
     _MODULE.reject_unreplaced_placeholder("## Summary\n\nDone.\n")
+
+
+def test_seed_reads_the_template_from_a_repo_subdirectory(tmp_path: Path) -> None:
+    _write_template(tmp_path, "## Summary\n")
+    sub = tmp_path / "pkg" / "inner"
+    sub.mkdir(parents=True)
+
+    assert _MODULE._seed_content(sub) == _PLACEHOLDER_ONLY + "\n## Summary\n"

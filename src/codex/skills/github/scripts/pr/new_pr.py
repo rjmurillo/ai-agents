@@ -520,7 +520,10 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = get_repo_root()
 
     if args.prepare_body_file:
-        return _prepare_body_file(repo_root, f"origin/{args.base}" if args.base else None)
+        base = args.base
+        if base and not base.startswith("origin/"):
+            base = f"origin/{base}"
+        return _prepare_body_file(repo_root, base or None)
 
     if args.preflight:
         return _preflight(args, repo_root)

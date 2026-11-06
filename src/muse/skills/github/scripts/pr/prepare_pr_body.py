@@ -159,7 +159,9 @@ def _read_base_template(root: Path, base_ref: str) -> str | None:
     Usable means a regular-file blob (not a symlink or submodule), at most
     64 KiB, valid UTF-8. A template that is absent at the base is not an error.
     """
-    listing = _git(root, "ls-tree", "--long", "-z", base_ref, "--", _TEMPLATE_PATH.as_posix())
+    listing = _git(
+        root, "ls-tree", "--full-tree", "--long", "-z", base_ref, "--", _TEMPLATE_PATH.as_posix()
+    )
     if listing.returncode != 0:
         detail = listing.stderr.decode("utf-8", "replace").strip()
         raise PreparePrBodyError(f"cannot list {base_ref!r} to read the PR template: {detail}")
