@@ -24,9 +24,10 @@ present there fails only when its classification rises to ``normative`` from
 ``suspect`` or ``evidence`` (issue #5828), or when an already normative file
 gains normative terms (signal (a)) over its base text; otherwise it warns. A
 rename is read against its old path.
-``<!-- placement: evidence; reason: ... -->`` with a non-empty reason
-downgrades to evidence (reported ``suppressed``); an empty reason is
-reported ``invalid-suppression`` and does not downgrade. Route: (d) to an
+``<!-- placement: evidence; reason: ... -->`` with a reason of at least 20
+characters (after trimming) downgrades to evidence (reported ``suppressed``);
+a shorter or empty reason is reported ``invalid-suppression`` and does not
+downgrade (#6506). Route: (d) to an
 agent, (c) without (a) >= 5 to a skill, else to a rule. README.md,
 ``*-index.md``, and non-``.md`` files are skipped.
 
@@ -61,11 +62,14 @@ from memory_placement_git import (  # noqa: E402
     repo_root,
 )
 from memory_placement_paths import Scope, build_scope  # noqa: E402
+from memory_placement_suppression import (  # noqa: E402
+    MIN_SUPPRESSION_REASON_CHARS,  # noqa: F401  (public name, read by the tests)
+    suppression_status,
+)
 
 from scripts.utils.markdown_parser import (  # noqa: E402
     Section,
     blank_code_block_lines,
-    blank_non_prose_block_lines,
     parse_sections,
 )
 
@@ -111,14 +115,6 @@ _HEADING_GOVERNANCE_RE = re.compile(
 )
 
 _ORDERED_ITEM_RE = re.compile(r"^\s*\d+[.)]\s+")
-
-# The marker must stand alone on its line (not inside an inline code span or
-# another HTML element) and the reason must start with a non-whitespace char.
-_VALID_SUPPRESSION_RE = re.compile(
-    r"^[ \t]*<!--\s*placement:\s*evidence;\s*reason:\s*(\S[^>]*?)\s*-->[ \t]*$", re.MULTILINE
-)
-# Looser sibling: detects a marker that is present but malformed.
-_ANY_SUPPRESSION_RE = re.compile(r"<!--\s*placement:\s*evidence;\s*reason:\s*(.*?)-->", re.DOTALL)
 
 _ROUTE_DESTINATIONS = {
     "rule": "templates/rules/",
@@ -197,20 +193,6 @@ def _has_ordered_procedure(text: str) -> tuple[bool, int]:
     return longest >= _ORDERED_PROCEDURE_MIN_ITEMS, longest
 
 
-def _suppression_status(text: str) -> tuple[bool, bool]:
-    """Return (suppressed, invalid_suppression) for a placement marker in ``text``."""
-    valid_placeholder = "__valid_placement_marker__"
-    invalid_placeholder = "__invalid_placement_marker__"
-    marked = _VALID_SUPPRESSION_RE.sub(valid_placeholder, text)
-    marked = _ANY_SUPPRESSION_RE.sub(invalid_placeholder, marked)
-    prose = blank_non_prose_block_lines(marked)
-    if valid_placeholder in prose:
-        return True, False
-    if invalid_placeholder in prose:
-        return False, True
-    return False, False
-
-
 def _derive_raw_label(a_count: int, b_fires: bool, ordered_fires: bool, d_fires: bool) -> str:
     """Apply the two-signal policy from the module docstring."""
     if b_fires or d_fires or (a_count >= _NORMATIVE_TERM_THRESHOLD and ordered_fires):
@@ -280,7 +262,7 @@ def classify(text: str) -> Classification:
     raw_label = _derive_raw_label(a_count, b_fires, ordered_fires, d_fires)
     route = _derive_route(a_count, governance_fires, procedural_fires, ordered_fires, d_fires)
 
-    suppressed, invalid_suppression = _suppression_status(prose)
+    suppressed, invalid_suppression = suppression_status(prose)
     if invalid_suppression:
         signals.append("invalid-suppression")
 
