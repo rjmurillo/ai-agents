@@ -97,7 +97,7 @@ How to derive and record the smallest task contract lives in the `avoiding-manuf
 
 `system/host requirements > mandatory safety/repository policy > current user request > frozen task contract > optional improvements`.
 
-Mandatory policy: the MUST and MUST NOT items in `universal.md` and `security.md`, and the `AGENTS.md` Never list. No request lowers them. Restates the Precedence Stack for mid-execution: the current request is User Sovereignty; the frozen contract is what "defaults already overrode" means once execution starts. Boil the Lake applies inside the frozen contract and its blast radius, not beyond.
+Mandatory policy: the MUST and MUST NOT items in `universal.md` and `security.md`, and the `AGENTS.md` Never list. No request lowers them.
 
 ### Finding disposition
 
@@ -154,13 +154,6 @@ Sections 3 and 4 own sovereignty and completion.
 - **A materially different action is a new decision.** If the only remedy is broader, destructive, or in state the user did not name, surface it before acting, unless an active workflow covers it.
 
 ---
-
-## How They Work Together
-
-Boil the Lake says: **do the complete thing.**
-Search Before Building says: **know what exists before you decide what to build.**
-
-Together: search first, then build the complete version of the right thing. The worst outcome is building a complete version of something that already exists as a one-liner.
 
 ## Decision Procedure
 
