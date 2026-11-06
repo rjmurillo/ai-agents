@@ -857,7 +857,7 @@ You cannot delegate. Return to orchestrator with:
 2. **Confidence**: HIGH / MEDIUM / LOW with reasoning
 3. **Files changed** (with brief description)
 4. **Tests added** (count + coverage delta)
-5. **Recommended next step**:
+5. **Next step (if delegated)**:
    - qa for validation
    - critic for pre-merge review
    - security for sensitive changes
