@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tests.pr_body_base_repo import prepare_offline
+
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
@@ -45,6 +47,6 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
 
 
 def _prepared_body(repo_root: Path, content: str = "PR body content") -> str:
-    relative_path = _mod.prepare_pr_body(repo_root)
+    relative_path = prepare_offline(_mod, repo_root)
     (repo_root / relative_path).write_text(content, encoding="utf-8")
     return relative_path.as_posix()

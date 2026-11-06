@@ -113,7 +113,7 @@ def _copy_body_to_prepared_path(repo_root: Path, skill_script: Path, source_path
         raise RuntimeError(f"Could not load PR body allocator: {module_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    relative_path = Path(module.prepare_pr_body(repo_root))
+    relative_path = Path(module.prepare_pr_body(repo_root, seed_template=False))
     module.write_prepared_pr_body(repo_root, relative_path.as_posix(), content)
     return str(relative_path.as_posix())
 
