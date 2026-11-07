@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "id": "skillify-finished-thread-workflow",
+      "skill": "skillify",
+      "source": "outcome:#6578",
+      "prompt": "skillify this. This session I cleared the review feedback on a PR. I listed unresolved review threads, fixed 4 comments, replied to each thread with the commit that fixed it, resolved the threads, then re-checked the required checks until they were green. About 14 tool calls, and I had to handle one reviewer comment that was a question and not a change request.",
+      "expected_output": "Audits the session, and the gate passes: enough tool calls, a decision point, a gotcha, and a trigger phrase. Checks overlap with installed skills before writing. If an existing skill such as pr-review covers the workflow, proposes patching it and asks for confirmation instead of creating a duplicate. Writes nothing until the destination resolves."
+    },
+    {
+      "id": "skillify-one-off",
+      "skill": "skillify",
+      "source": "lens:gate",
+      "prompt": "save this as a skill: I ran git log --oneline -5 to see the last five commits.",
+      "expected_output": "The gate rejects the work as a one-off or trivial wrapper. A single tool call with arguments is a tool, not a skill. Says the work did not warrant a skill and stops. Writes no file."
+    },
+    {
+      "id": "skillify-unresolved-destination",
+      "skill": "skillify",
+      "source": "lens:destination",
+      "prompt": "make this proper. We just finished a 9-step, repeatable procedure for rotating an API key across three services, with a rollback branch when the second service rejects the new key. I am in a scratch directory with no skills folder, and I have not told you where skills go.",
+      "expected_output": "The gate passes, but the destination does not resolve. Stops all writes and asks the user for a directory path. Does not guess a path, and does not draft the skill file before the destination resolves."
+    }
+  ]
+}
