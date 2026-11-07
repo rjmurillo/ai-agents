@@ -198,13 +198,20 @@ frozen cases. Build it in every run.
 2. **Grade deterministically.** Use `contains_all`, `regex`, or
    `json_set_f1` with gold you derived from the repository before authoring.
    A case with no deterministic gold is not a case; record it under Limits.
-3. **Freeze** with `bootstrap_eval.py freeze` before you run anything. The
+   When you have a realistic prompt but have not seen an answer yet, keep it
+   as a draft: `expected_output` in prose, no `grader`. `bootstrap_eval.py
+   check --cases FILE` validates drafts and lists the ones still waiting;
+   `freeze` refuses them. Run the draft once, read the output, then write the
+   grader from what you saw and what the repository says is true.
+3. **Freeze** with `bootstrap_eval.py freeze` before any scored run. The
    hash makes a later edit to a case visible.
 4. **Run** each case at least twice per condition (protocol advice; `score`
    does not enforce it), in fresh agent contexts
    that differ only in whether the skill is installed. Use the smaller
    model the library targets. Write one JSON line per run:
-   `{"case_id", "condition": "baseline" | "with_skill", "output"}`.
+   `{"case_id", "condition": "baseline" | "with_skill", "output"}`. Add
+   `duration_ms` and `total_tokens` when the runner reports them; both are
+   optional, and a run without them adds nothing to the time and token means.
 5. **Score** with `bootstrap_eval.py score`. Read each case status:
 
    | Status | Meaning | Action |
@@ -214,6 +221,24 @@ frozen cases. Build it in every run.
    | `flat` | Equal pass rates, below 1.0 | The skill does not transfer. Fix the skill or the case. `score` exits 1 when every case of a skill is `flat`, names the skill under `flat_skills`, and lists its cases in `failing_cases`. One `flat` case among other statuses does not fail |
    | `regression` | The skill lowers the pass rate | Blocking finding |
    | `incomplete` | A condition has no runs, or a run is ungraded (regex timeout) | Run it, or report it under Limits |
+
+   Each case row also carries `signals`:
+
+   | Signal | Meaning | Action |
+   |---|---|---|
+   | `never_passes` | Both conditions have graded runs and neither passes one | Suspect the grader or the prompt before the skill; read the evidence |
+   | `unstable_baseline` / `unstable_with_skill` | Two or more graded runs in that condition, mixed pass and fail | Add runs before trusting the status |
+
+   `score` also prints a `benchmark` block: for `baseline` and `with_skill`,
+   the mean and sample standard deviation of pass rate (one value per
+   complete case), `duration_ms`, and `total_tokens` (one value per recorded
+   run), plus `delta` as `with_skill` minus `baseline`. A metric nobody
+   recorded reports `n` 0 and a null delta, never zero. `score --detail`
+   adds `runs`: one record per run with its pass flag, a one-line evidence
+   string (terms found and missing, whether a pattern matched, or the F1 with
+   missing and extra items), and the recorded time and tokens. Read the
+   evidence before you trust a pass; a pass with thin evidence is a grader to
+   tighten, and a grader that passes in both conditions is a case to drop.
 
 When no agent runner is available, freeze the cases anyway and report
 `capability: NOT RUN (no runner)` with the frozen file. The next run scores

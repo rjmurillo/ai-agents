@@ -13,13 +13,23 @@ Subcommands:
             changed afterwards. The file carries a SHA-256 of the sorted
             cases.
     score   Grade recorded agent outputs against a frozen file and report the
-            capability delta per case, per skill, and overall.
+            capability delta per case, per skill, and overall, plus a
+            benchmark block (mean, spread, and delta for pass rate, time, and
+            tokens). `--detail` adds one graded record with evidence per run.
+    check   Validate a draft cases file, where a case may carry an expected
+            output and no grader yet, and report which cases still need one.
+            `freeze` refuses a draft.
 
 Cases file (`freeze --cases`):
 
     {"cases": [{"id": "C1", "skill": "acme-change-control",
                 "source": "correction:<ref>" | "lens:<name>" | "outcome:<ref>",
-                "prompt": "...", "grader": {...}}]}
+                "prompt": "...", "grader": {...},
+                "expected_output": "what a good answer contains, in prose"}]}
+
+`expected_output` is optional and is for human readers; no grader reads it.
+A draft case has `expected_output` and no `grader`. Run it once, read the
+output, then write the grader from what you saw and freeze.
 
 Graders:
 
@@ -43,7 +53,27 @@ Graders:
 Results file (`score --results`), JSON lines, several reps per case and
 condition allowed:
 
-    {"case_id": "C1", "condition": "baseline" | "with_skill", "output": "..."}
+    {"case_id": "C1", "condition": "baseline" | "with_skill", "output": "...",
+     "duration_ms": 1234, "total_tokens": 5678}
+
+`duration_ms` (finite, at least 0) and `total_tokens` (integer, at least 0)
+are optional. A run without them adds nothing to the time and token means.
+
+Each graded run gets a one-line evidence string: the terms found and missing
+for `contains_all`, the pattern and whether it matched for `regex`, and the F1
+with the missing and extra items for `json_set_f1`. `--detail` prints them.
+
+Case signals (`signals` on each case row) map the pattern checks of the
+agentskills.io evaluation guide onto the statuses below:
+
+    never_passes         Both conditions have graded runs and neither passes
+                         one. Suspect the grader or the prompt before the skill.
+    unstable_baseline    Two or more graded baseline runs, mixed pass and fail.
+    unstable_with_skill  The same, for with_skill. Add runs before trusting
+                         the case status.
+
+A case that passes in both conditions is `no_gap`, and one that passes only
+with the skill is `gain`.
 
 Case status in the score payload:
 
@@ -63,8 +93,8 @@ Skill and overall means cover complete cases only, and include no_gap cases.
 
 Exit codes:
 
-    0  freeze wrote the file, or score found every case complete (and met
-       `--min-delta` when given).
+    0  freeze wrote the file, check found a valid cases file, or score found
+       every case complete (and met `--min-delta` when given).
     1  score found an incomplete case or a regression case, or the overall
        delta is below `--min-delta` (or unmeasured, when no case is complete).
        A skill whose cases are all flat also fails, in every mode: the
@@ -99,9 +129,10 @@ import json
 import math
 import os
 import re
+import statistics
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -112,6 +143,10 @@ CONDITIONS = ("baseline", "with_skill")
 STATUSES = ("gain", "no_gap", "regression", "flat", "incomplete")
 WORKFLOW_FAILING = ("regression", "incomplete")
 CASE_KEYS = frozenset({"id", "skill", "source", "prompt", "grader"})
+OPTIONAL_CASE_KEYS = frozenset({"expected_output"})
+DRAFT_REQUIRED = CASE_KEYS - {"grader"}
+EVIDENCE_TERMS_SHOWN = 8
+EVIDENCE_ITEM_CHARS = 60
 # The lookahead leaves each closing fence unconsumed, so a draft block that never
 # closes cannot swallow the opening fence of the final block.
 JSON_FENCE = re.compile(r"```json[ \t]*\r?\n(.*?)(?=```)", re.DOTALL | re.IGNORECASE)
@@ -370,6 +405,115 @@ def compile_grader(grader: Any) -> Grade:
     return builder(grader)
 
 
+# --- benchmark statistics -----------------------------------------------------
+#
+# The unit of observation differs by metric: `pass_rate` has one value per
+# complete case (its pass rate over graded reps); `duration_ms` and
+# `total_tokens` have one value per recorded run. A metric with no observations
+# reports `n` 0 and a null mean. One observation has a mean and no spread, so
+# `stdev` is null rather than zero.
+
+METRICS = ("pass_rate", "duration_ms", "total_tokens")
+ROUND_PLACES = 4
+
+
+def is_measurement(value: object, *, integer: bool = False) -> bool:
+    """True for a finite, non-negative number. A bool is not a measurement."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    if integer and not isinstance(value, int):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except OverflowError:
+        return False
+
+
+def spread(values: Sequence[float]) -> Payload:
+    """Return `n`, `mean`, and sample `stdev` (null below two observations)."""
+    if not values:
+        return {"n": 0, "mean": None, "stdev": None}
+    return {
+        "n": len(values),
+        "mean": round(statistics.fmean(values), ROUND_PLACES),
+        "stdev": round(statistics.stdev(values), ROUND_PLACES) if len(values) > 1 else None,
+    }
+
+
+def mean_delta(base: Sequence[float], other: Sequence[float]) -> float | None:
+    """Mean of `other` minus mean of `base`, rounded once from the raw values.
+
+    Subtracting two means that `spread` already rounded would round twice and
+    can differ from `overall.capability_delta` in the last place.
+    """
+    if not base or not other:
+        return None
+    return round(statistics.fmean(other) - statistics.fmean(base), ROUND_PLACES)
+
+
+def configuration_stats(observations: dict[str, list[float]]) -> Payload:
+    """Spread of every metric for one configuration (baseline or with_skill)."""
+    return {metric: spread(observations.get(metric, [])) for metric in METRICS}
+
+
+def benchmark(baseline: dict[str, list[float]], with_skill: dict[str, list[float]]) -> Payload:
+    """Per-configuration spread plus `with_skill` minus `baseline` for each mean.
+
+    A delta is null when either side has no observations, so a missing
+    measurement never reads as a zero change.
+    """
+    base, skill = configuration_stats(baseline), configuration_stats(with_skill)
+    delta: Payload = {m: mean_delta(baseline.get(m, []), with_skill.get(m, [])) for m in METRICS}
+    return {"baseline": base, "with_skill": skill, "delta": delta}
+
+
+def _shown(items: list[str]) -> str:
+    """Comma-join up to EVIDENCE_TERMS_SHOWN items, each clipped; say how many were left out."""
+    clipped = [
+        i if len(i) <= EVIDENCE_ITEM_CHARS else i[:EVIDENCE_ITEM_CHARS] + "..." for i in items
+    ]
+    extra = len(clipped) - EVIDENCE_TERMS_SHOWN
+    # An empty item (a whitespace-only list entry) must stay visible, not read as "none".
+    shown = [item or "(empty)" for item in clipped[:EVIDENCE_TERMS_SHOWN]]
+    text = ", ".join(shown) or "none"
+    return text if extra <= 0 else f"{text} (+{extra} more)"
+
+
+def _json_evidence(grader: Payload, output: str) -> str:
+    block = extract_last_json_object(output)
+    values = None if block is None else block.get(grader["key"])
+    if block is None:
+        return "no fenced json object in the output"
+    if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
+        return f"key {grader['key']!r} is missing or not a list of strings"
+    predicted, gold = {v.strip() for v in values}, {g.strip() for g in grader["gold"]}
+    return (
+        f"f1 {set_f1(predicted, gold):.2f} (threshold {grader.get('threshold', 1.0)}); "
+        f"missing: {_shown(sorted(gold - predicted))}; extra: {_shown(sorted(predicted - gold))}"
+    )
+
+
+def explain(grader: Payload, output: str, passed: bool | None) -> str:
+    """Return one line saying why a run passed or failed.
+
+    `passed` comes from the grader and is never recomputed here, so the
+    evidence cannot disagree with the score. It reads the same output the
+    grader read, with the same helpers where the grader has them.
+    """
+    if passed is None:
+        return "ungraded: the regex grader timed out"
+    kind = grader["kind"]
+    if kind == "contains_all":
+        folded = output.casefold()
+        found = [t for t in grader["terms"] if t.casefold() in folded]
+        lost = [t for t in grader["terms"] if t.casefold() not in folded]
+        return f"found: {_shown(found)}; missing: {_shown(lost)}"
+    if kind == "regex":
+        verdict = "matched" if passed else "did not match"
+        return f"pattern {_shown([grader['pattern']])} {verdict}"
+    return _json_evidence(grader, output)
+
+
 # --- cases and frozen file --------------------------------------------------
 
 
@@ -380,14 +524,20 @@ def _read_json(path: str, what: str) -> Any:
         raise ConfigError(f"cannot read {what} {path}: {exc}") from exc
 
 
-def _validate_case(case: Any, position: int) -> Payload:
+def _validate_case(case: Any, position: int, allow_draft: bool = False) -> Payload:
     if not isinstance(case, dict):
         raise ConfigError(f"case {position} is not an object")
-    missing = sorted(CASE_KEYS - set(case))
-    extra = sorted(set(case) - CASE_KEYS)
+    required = DRAFT_REQUIRED if allow_draft else CASE_KEYS
+    missing = sorted(required - set(case))
+    extra = sorted(set(case) - CASE_KEYS - OPTIONAL_CASE_KEYS)
+    if missing == ["grader"] and not extra and "expected_output" in case:
+        raise ConfigError(
+            f"case {position} is a draft with no grader; run it, read the output, "
+            "write the grader, then freeze"
+        )
     if missing or extra:
         raise ConfigError(f"case {position} keys: missing {missing}, unknown {extra}")
-    for key in ("id", "skill", "prompt"):
+    for key in ("id", "skill", "prompt", *(k for k in OPTIONAL_CASE_KEYS if k in case)):
         if not isinstance(case[key], str) or not case[key].strip():
             raise ConfigError(f"case {position} {key} must be a non-empty string")
     source = case["source"]
@@ -398,6 +548,10 @@ def _validate_case(case: Any, position: int) -> Payload:
         raise ConfigError(
             f"case {case['id']} source must be {' | '.join(p + '<ref>' for p in SOURCE_PREFIXES)}"
         )
+    if "grader" not in case:
+        if "expected_output" not in case:
+            raise ConfigError(f"case {case['id']} is a draft and needs expected_output")
+        return case
     try:
         compile_grader(case["grader"])
     except ConfigError as exc:
@@ -405,12 +559,16 @@ def _validate_case(case: Any, position: int) -> Payload:
     return case
 
 
-def validate_cases(raw: Any) -> list[Payload]:
-    """Return the cases sorted by id, or raise ConfigError on any defect."""
+def validate_cases(raw: Any, allow_draft: bool = False) -> list[Payload]:
+    """Return the cases sorted by id, or raise ConfigError on any defect.
+
+    A draft case has `expected_output` and no `grader`. Only `check` allows it:
+    a frozen file holds graded cases, so gold is fixed before any run is scored.
+    """
     cases = raw.get("cases") if isinstance(raw, dict) else None
     if not isinstance(cases, list) or not cases:
         raise ConfigError('input must be {"cases": [...]} with at least one case')
-    checked = [_validate_case(case, i) for i, case in enumerate(cases)]
+    checked = [_validate_case(case, i, allow_draft) for i, case in enumerate(cases)]
     ids = [case["id"] for case in checked]
     duplicates = sorted({i for i in ids if ids.count(i) > 1})
     if duplicates:
@@ -525,6 +683,22 @@ def freeze(args: argparse.Namespace) -> tuple[int, Payload]:
     }
 
 
+def check(args: argparse.Namespace) -> tuple[int, Payload]:
+    """Validate a cases file that may hold drafts, and list the cases still without a grader."""
+    cases = validate_cases(_read_json(args.cases, "cases file"), allow_draft=True)
+    drafts = [case["id"] for case in cases if "grader" not in case]
+    return 0, {
+        "valid": True,
+        "skills": sorted({case["skill"] for case in cases}),
+        "examined": {
+            "cases": len(cases),
+            "graded": len(cases) - len(drafts),
+            "drafts": len(drafts),
+        },
+        "draft_ids": drafts,
+    }
+
+
 # --- scoring ----------------------------------------------------------------
 
 
@@ -539,9 +713,17 @@ def load_frozen(path: str) -> list[Payload]:
     return cases
 
 
-def _parse_result(
-    line: str, number: int, graders: dict[str, Grade]
-) -> tuple[str, str, bool | None]:
+def _timing(row: Payload, key: str, number: int, *, integer: bool = False) -> float | None:
+    value = row.get(key)
+    if value is None:
+        return None
+    if not is_measurement(value, integer=integer):
+        kind = "an integer" if integer else "a number"
+        raise ConfigError(f"results line {number}: {key} must be {kind} of at least 0")
+    return value
+
+
+def _parse_result(line: str, number: int, cases: dict[str, Payload]) -> Payload:
     try:
         row = json.loads(line)
     except (ValueError, RecursionError) as exc:
@@ -549,20 +731,31 @@ def _parse_result(
     if not isinstance(row, dict):
         raise ConfigError(f"results line {number} is not an object")
     case_id, condition, output = row.get("case_id"), row.get("condition"), row.get("output")
-    if not isinstance(case_id, str) or case_id not in graders:
+    if not isinstance(case_id, str) or case_id not in cases:
         raise ConfigError(f"results line {number}: unknown case_id {case_id!r}")
     if condition not in CONDITIONS:
         raise ConfigError(f"results line {number}: unknown condition {condition!r}")
     if not isinstance(output, str):
         raise ConfigError(f"results line {number}: output must be a string")
-    return case_id, condition, graders[case_id](output)
+    return {
+        "case_id": case_id,
+        "condition": condition,
+        "output": output,
+        "duration_ms": _timing(row, "duration_ms", number),
+        "total_tokens": _timing(row, "total_tokens", number, integer=True),
+    }
 
 
 def grade_results(
     path: str, cases: list[Payload]
-) -> tuple[dict[tuple[str, str], list[bool | None]], int]:
-    """Grade every result line. Return pass flags per (case, condition) and the line count."""
-    graders = {case["id"]: compile_grader(case["grader"]) for case in cases}
+) -> tuple[dict[tuple[str, str], list[bool | None]], list[Payload]]:
+    """Grade every result line.
+
+    Return pass flags per (case, condition) and one record per run with its
+    rep number, pass flag, evidence, and recorded time and tokens.
+    """
+    by_id = {case["id"]: case for case in cases}
+    graders = {case_id: compile_grader(case["grader"]) for case_id, case in by_id.items()}
     try:
         # Split on "\n" only: str.splitlines also splits on U+2028 and U+0085, which JSON
         # allows raw inside a string.
@@ -570,18 +763,32 @@ def grade_results(
     except (OSError, ValueError) as exc:
         raise ConfigError(f"cannot read results {path}: {exc}") from exc
     tally: dict[tuple[str, str], list[bool | None]] = {}
-    count = 0
+    runs: list[Payload] = []
     for number, line in enumerate(lines, start=1):
         if not line.strip():
             continue
-        case_id, condition, passed = _parse_result(line, number, graders)
-        tally.setdefault((case_id, condition), []).append(passed)
-        count += 1
-    return tally, count
+        run = _parse_result(line, number, by_id)
+        passed = graders[run["case_id"]](run["output"])
+        flags = tally.setdefault((run["case_id"], run["condition"]), [])
+        flags.append(passed)
+        runs.append(_run_record(run, by_id[run["case_id"]], passed, rep=len(flags)))
+    return tally, runs
+
+
+def _run_record(run: Payload, case: Payload, passed: bool | None, rep: int) -> Payload:
+    return {
+        "case_id": run["case_id"],
+        "condition": run["condition"],
+        "rep": rep,
+        "passed": passed,
+        "evidence": explain(case["grader"], run["output"], passed),
+        "duration_ms": run["duration_ms"],
+        "total_tokens": run["total_tokens"],
+    }
 
 
 def _rate(flags: list[bool | None]) -> float | None:
-    graded = [flag for flag in flags if flag is not None]
+    graded = _graded(flags)
     return sum(graded) / len(graded) if graded else None
 
 
@@ -593,6 +800,26 @@ def _status(baseline: float | None, with_skill: float | None) -> str:
     if with_skill < baseline:
         return "regression"
     return "no_gap" if baseline == 1.0 else "flat"
+
+
+def _signals(base_flags: list[bool | None], with_flags: list[bool | None]) -> list[str]:
+    """Pattern-analysis flags for one case. See the module docstring."""
+    graded = {"baseline": _graded(base_flags), "with_skill": _graded(with_flags)}
+    signals = []
+    if all(flags and not any(flags) for flags in graded.values()):
+        signals.append("never_passes")
+    for condition, name in (
+        ("baseline", "unstable_baseline"),
+        ("with_skill", "unstable_with_skill"),
+    ):
+        flags = graded[condition]
+        if len(flags) > 1 and any(flags) and not all(flags):
+            signals.append(name)
+    return signals
+
+
+def _graded(flags: list[bool | None]) -> list[bool]:
+    return [flag for flag in flags if flag is not None]
 
 
 def _case_row(case: Payload, tally: dict[tuple[str, str], list[bool | None]]) -> Payload:
@@ -612,6 +839,7 @@ def _case_row(case: Payload, tally: dict[tuple[str, str], list[bool | None]]) ->
         "ungraded_runs": ungraded,
         "baseline_runs": len(base_flags),
         "with_skill_runs": len(with_flags),
+        "signals": _signals(base_flags, with_flags),
     }
 
 
@@ -631,6 +859,20 @@ def _summary(rows: list[Payload]) -> Payload:
     }
 
 
+def _observations(
+    rows: list[Payload], runs: list[Payload], condition: str
+) -> dict[str, list[float]]:
+    """Pass rate per complete case, plus time and tokens per recorded run."""
+    rate_key = "baseline_pass_rate" if condition == "baseline" else "with_skill_pass_rate"
+    complete = {row["id"] for row in rows if row["status"] != "incomplete"}
+    mine = [run for run in runs if run["condition"] == condition]
+    return {
+        "pass_rate": [row[rate_key] for row in rows if row["id"] in complete],
+        "duration_ms": [r["duration_ms"] for r in mine if r["duration_ms"] is not None],
+        "total_tokens": [r["total_tokens"] for r in mine if r["total_tokens"] is not None],
+    }
+
+
 def _rounded(rows: list[Payload]) -> list[Payload]:
     keys = ("baseline_pass_rate", "with_skill_pass_rate", "delta")
     return [
@@ -639,17 +881,12 @@ def _rounded(rows: list[Payload]) -> list[Payload]:
     ]
 
 
-def score(args: argparse.Namespace) -> tuple[int, Payload]:
-    cases = load_frozen(args.frozen)
-    tally, result_count = grade_results(args.results, cases)
-    rows = [_case_row(case, tally) for case in cases]
-    skills = {
-        name: _summary([row for row in rows if row["skill"] == name])
-        for name in sorted({row["skill"] for row in rows})
-    }
-    overall = _summary(rows)
+def _failing_cases(
+    rows: list[Payload], skills: dict[str, Payload], mode: str
+) -> tuple[list[str], list[str]]:
+    """Return the ids that fail the gate and the skills whose every case is flat."""
     failing_cases = [row["id"] for row in rows if row["status"] in WORKFLOW_FAILING]
-    if args.mode == "knowledge":
+    if mode == "knowledge":
         # A lens passes when one frozen case fails at baseline, so only a skill whose
         # cases are all no_gap fails; one no_gap case among gains does not.
         for name in skills:
@@ -665,6 +902,19 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
     ]
     for name in flat_skills:
         failing_cases += [row["id"] for row in rows if row["skill"] == name]
+    return failing_cases, flat_skills
+
+
+def score(args: argparse.Namespace) -> tuple[int, Payload]:
+    cases = load_frozen(args.frozen)
+    tally, runs = grade_results(args.results, cases)
+    rows = [_case_row(case, tally) for case in cases]
+    skills = {
+        name: _summary([row for row in rows if row["skill"] == name])
+        for name in sorted({row["skill"] for row in rows})
+    }
+    overall = _summary(rows)
+    failing_cases, flat_skills = _failing_cases(rows, skills, args.mode)
     failing = bool(failing_cases)
     payload: Payload = {
         "mode": args.mode,
@@ -673,8 +923,13 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
         "cases": _rounded(rows),
         "skills": skills,
         "overall": overall,
-        "examined": {"cases": len(cases), "results": result_count},
+        "benchmark": benchmark(
+            _observations(rows, runs, "baseline"), _observations(rows, runs, "with_skill")
+        ),
+        "examined": {"cases": len(cases), "results": len(runs)},
     }
+    if args.detail:
+        payload["runs"] = runs
     if flat_skills:
         message = (
             f"every case is flat for skill(s): {', '.join(flat_skills)}. "
@@ -711,6 +966,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="allow --out inside a git work tree, to commit the eval cases on purpose",
     )
 
+    p_check = sub.add_parser(
+        "check", allow_abbrev=False, help="validate a cases file that may hold ungraded drafts"
+    )
+    p_check.add_argument("--cases", required=True, help="cases JSON file")
+
     p_score = sub.add_parser(
         "score", allow_abbrev=False, help="grade results and report the capability delta"
     )
@@ -718,6 +978,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_score.add_argument("--results", required=True, help="JSON lines of agent outputs")
     p_score.add_argument(
         "--min-delta", type=float, help="exit 1 when the overall capability delta is below this"
+    )
+    p_score.add_argument(
+        "--detail",
+        action="store_true",
+        help="add one record per run (pass flag, evidence, time, tokens) under `runs`",
     )
     p_score.add_argument(
         "--mode",
@@ -730,7 +995,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    handlers = {"freeze": freeze, "score": score}
+    handlers = {"freeze": freeze, "check": check, "score": score}
     try:
         if getattr(args, "min_delta", None) is not None and not math.isfinite(args.min_delta):
             raise ConfigError("--min-delta must be a finite number")

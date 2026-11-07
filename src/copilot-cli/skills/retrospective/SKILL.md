@@ -27,7 +27,7 @@ Phase 0 through Phase 5 workflow that gathers evidence, generates insights, diag
 causes, decides actions, scores atomicity, and persists learnings. The long-form rubrics
 live verbatim in `references/`; this file is the orchestration contract.
 
-This skill replaces the former `retrospective` agent (`.claude/agents/retrospective.md`).
+This skill owns the long-form rubrics the retrospective agent loads from `references/`.
 It is callable from `Skill("retrospective")` and from `/retro fill <date>`.
 The Stop hook that once invoked it automatically was deleted, so a
 retrospective is written when someone asks for one.
@@ -222,5 +222,9 @@ Before the retrospective is complete, confirm:
   SMART validation, atomicity scoring, evidence-based tagging, memory protocol).
 - [learning-template.md](references/learning-template.md): the byte-exact Learning Extraction
   Template that the output artifact must match.
-- `.claude/agents/retrospective.md`: the source agent body these references were lifted from
-  (canonical source for the rubrics; retired once the skill ships).
+- [recursive-extraction.md](references/recursive-extraction.md): the agent's Phase 5 templates
+  (candidate list, delegation request, termination rules, artifact block).
+- [handoff-example.md](references/handoff-example.md): a filled example of the agent's
+  structured handoff block.
+- `.claude/agents/retrospective.md`: the agent that loads these references. The references
+  are the canonical home of the rubrics; the agent keeps only the gates and load conditions.

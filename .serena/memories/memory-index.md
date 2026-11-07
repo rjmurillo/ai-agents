@@ -162,6 +162,7 @@
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT file mentioned not in diff bullet bold rerun stale payload body edit: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3617)
 |workspace WSL native worktree uv network handshake mutation harness /mnt/c: [workspace/wsl-native-worktree-for-uv-network-access](workspace/wsl-native-worktree-for-uv-network-access.md) (352)
 |linking an issue Closes Fixes Resolves Implements Refs: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1723)
+|closing keyword negation does not close PR body issue auto-close GitHub validator: [ci/ci-github-ignores-negation-before-a-closing-keyword](ci/ci-github-ignores-negation-before-a-closing-keyword.md) (374)
 |combine job re-run slow-test budget stored timings JUnit rerun --failed: [ci/ci-combine-rerun-reuses-stored-test-timings](ci/ci-combine-rerun-reuses-stored-test-timings.md) (319)
 |QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1227)
 |job name collision duplicate check name ambiguous red push pull_request event rerun Run Python Tests: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1729)
@@ -218,7 +219,7 @@
 |github pr stack base branch delete-branch merge_pr dependent closed retarget sidecar: [github-observations](github-observations.md) (253)
 |orchestrator subagent owner approval relayed refuse approve-untrusted-config sidecar mid-turn message fan-out label duplicate credits quota reviewer review-loop convergence frozen-contract eureka review-date pre-written-amendment adr-083 decision-option gate baseline verifier security-review: [orchestrator-observations](orchestrator-observations.md) (1353)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
-|eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential isolated profile real-home token exit 4 auth blocked: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1793)
+|eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential isolated profile real-home token exit 4 auth blocked: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1881)
 |eval keyword grader verbatim phrase prompt wording behavior text-pinning ADR-057 false failure: [eval/eval-keyword-graders-test-wording-not-behavior](eval/eval-keyword-graders-test-wording-not-behavior.md) (358)
 |implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (816), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (848)
 
