@@ -195,6 +195,7 @@ class _QuietParser(argparse.ArgumentParser):
 def _build_parser() -> argparse.ArgumentParser:
     parser = _QuietParser(
         prog="metrics_writer.py",
+        allow_abbrev=False,
         description=(
             "Append one tally LINE to the metrics file at PATH. Refuses a "
             "symlinked target and a path outside the current directory."

@@ -384,3 +384,8 @@ def test_line_starting_with_hyphen_is_accepted_after_double_dash(
 
     assert rc == 0
     assert "- a hyphen line" in (tmp_path / "tally.md").read_text(encoding="utf-8")
+
+
+def test_abbreviated_help_flag_is_not_accepted_so_a_line_is_not_swallowed(capsys) -> None:
+    assert metrics_writer.main(["tally.md", "--he"]) == 2
+    assert capsys.readouterr().out == ""

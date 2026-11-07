@@ -20,6 +20,7 @@ from tests.new_pr_test_support import (
     main,
     validate_conventional_commit,
 )
+from tests.pr_body_base_repo import init_base_repo, prepare_offline
 
 
 @pytest.fixture(autouse=True)
@@ -34,6 +35,7 @@ class TestBuildParser:
             assert main([]) == 2
 
     def test_prepare_body_file_does_not_require_title(self, tmp_path):
+        init_base_repo(tmp_path)
         with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
             assert main(["--prepare-body-file"]) == 0
 
@@ -426,7 +428,7 @@ class TestMain:
     def test_unreplaced_placeholder_body_file_returns_2(
         self, tmp_path, tmp_path_is_temp_root, stub_git_probes, capsys
     ):
-        relative = _mod.prepare_pr_body(tmp_path)
+        relative = prepare_offline(_mod, tmp_path)
         with patch(
             "subprocess.run",
             side_effect=[_completed(stdout=str(tmp_path), rc=0), _completed(rc=0)],
