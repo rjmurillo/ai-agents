@@ -186,7 +186,7 @@ def safe_append_tally(
 class _QuietParser(argparse.ArgumentParser):
     """Parser whose usage errors never echo argv values (a LINE may hold a secret)."""
 
-    def error(self, message: str) -> NoReturn:
+    def error(self, _message: str) -> NoReturn:
         self.print_usage(sys.stderr)
         print("metrics_writer.py: invalid arguments (values not echoed)", file=sys.stderr)
         raise SystemExit(2)

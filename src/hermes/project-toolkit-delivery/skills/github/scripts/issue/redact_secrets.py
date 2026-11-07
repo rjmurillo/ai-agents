@@ -414,7 +414,7 @@ class _QuietParser(argparse.ArgumentParser):
     pasted secret, and the default message repeats it on stderr.
     """
 
-    def error(self, message: str) -> NoReturn:
+    def error(self, _message: str) -> NoReturn:
         self.print_usage(sys.stderr)
         print("redact_secrets.py: invalid arguments (values not echoed)", file=sys.stderr)
         raise SystemExit(2)
