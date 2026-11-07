@@ -268,7 +268,12 @@ def _extract_spec_refs(combined: str) -> str:
     if req_ids:
         parts.extend(sorted(set(req_ids)))
 
-    spec_paths = re.findall(r"\.project-toolkit/(?:specs|planning)/\S+\.md", combined)
+    spec_paths = [
+        path
+        for path in re.findall(r"\.project-toolkit/(?:specs|planning)/\S+\.md", combined)
+        # A `..` segment would climb out of the spec trees (issue #6506).
+        if ".." not in path.split("/")
+    ]
     if spec_paths:
         parts.extend(sorted(set(spec_paths)))
 

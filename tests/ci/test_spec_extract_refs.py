@@ -42,6 +42,23 @@ class TestExtractSpecRefs:
         result = _extract_spec_refs("Plan: .project-toolkit/planning/sprint.md")
         assert ".project-toolkit/planning/sprint.md" in result
 
+    def test_dot_dot_segments_are_not_extracted(self) -> None:
+        """Issue #6506: a ref must not climb out of the spec trees."""
+        body = "See .project-toolkit/specs/../../outside.md and .project-toolkit/planning/a/../b.md"
+
+        assert _extract_spec_refs(body) == ""
+
+    def test_a_clean_ref_survives_next_to_a_dot_dot_ref(self) -> None:
+        body = ".project-toolkit/specs/good.md .project-toolkit/specs/../../outside.md"
+
+        assert _extract_spec_refs(body) == ".project-toolkit/specs/good.md"
+
+    def test_dots_inside_a_file_name_are_not_a_dot_dot_segment(self) -> None:
+        """Edge: only a whole `..` segment is refused."""
+        body = ".project-toolkit/specs/notes..v2.md"
+
+        assert _extract_spec_refs(body) == ".project-toolkit/specs/notes..v2.md"
+
     def test_empty_string_returns_empty(self) -> None:
         assert _extract_spec_refs("no references here") == ""
 

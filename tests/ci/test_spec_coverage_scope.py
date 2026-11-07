@@ -375,9 +375,25 @@ class TestWorkflowWiring:
         assert str(checkout["uses"]).startswith("actions/checkout@")
         assert "if" not in checkout
         assert checkout["with"]["fetch-depth"] == 0
-        # A second checkout of the trusted base may sit between the two (issue #6506).
-        extra = sum(1 for s in steps[1:] if str(s.get("uses", "")).startswith("actions/checkout@"))
-        assert ids.index("should-run") == 1 + extra
+        # Issue #6506: the checkout is the base commit. The only step allowed
+        # between it and the scope step is the one that fetches the PR head ref
+        # as data, so both SHAs exist locally for the diff.
+        for step in steps[1 : ids.index("should-run")]:
+            is_checkout = str(step.get("uses", "")).startswith("actions/checkout@")
+            assert is_checkout or step.get("name") == "Fetch pull request head as data"
+
+    def test_secret_bearing_job_checks_out_the_base_commit_not_the_merge_tree(
+        self, workflow_and_job: tuple[dict[str, Any], str]
+    ) -> None:
+        """Issue #6506 workflow-ci-04: the model key never meets PR-controlled code."""
+        data, job_id = workflow_and_job
+        if "environment" not in data["jobs"][job_id]:
+            pytest.skip("only the model-key job holds a secret")
+        steps = self._job(workflow_and_job)["steps"]
+        assert isinstance(steps, list)
+        ref = str(steps[0]["with"].get("ref", ""))
+        assert ref == "${{ github.event.pull_request.base.sha || github.sha }}"
+        assert steps[0]["with"]["persist-credentials"] is False
 
     def test_no_step_reads_another_jobs_output(
         self, workflow_and_job: tuple[dict[str, Any], str]

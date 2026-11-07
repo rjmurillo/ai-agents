@@ -17,20 +17,8 @@
     "minimumReleaseAge": null,
     "labels": [
       "security"
-    ],
-    "automerge": true
+    ]
   },
-  "customManagers": [
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^\\.github\\/workflows\\/plugin-cli-smoke\\.yml$/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s+[A-Z_]+_VERSION: '(?<currentValue>[^']+)'"
-      ]
-    }
-  ],
   "packageRules": [
     {
       "matchUpdateTypes": [
@@ -62,6 +50,25 @@
       ],
       "automerge": true,
       "minimumReleaseAge": "7 days"
+    },
+    {
+      "matchFileNames": [
+        ".github/workflows/**",
+        ".github/cli-smoke/**"
+      ],
+      "description": "A workflow file can hold secrets or write tokens, so a bump to it needs a human approval (#6506 review-gates-15). The CLI smoke pins moved from the workflow into .github/cli-smoke/, and those CLIs run beside the smoke credentials, so they keep the same approval. Renovate applies rules in order, so this rule sits after every rule that enables automerge.",
+      "automerge": false
+    },
+    {
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "matchFileNames": [
+        ".github/cli-smoke/**"
+      ],
+      "description": "The weekly lock file refresh of the CLI smoke lockfiles needs a human approval, like their version bumps. A separate branch keeps the other lock file refreshes (the repo root) on the automerge path, because Renovate automerges a branch only when every update in it allows it.",
+      "branchTopic": "cli-smoke-lock-file-maintenance",
+      "automerge": false
     },
     {
       "matchManagers": [

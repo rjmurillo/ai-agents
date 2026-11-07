@@ -1,0 +1,40 @@
+--- a/throttle/limiter.py
++++ b/throttle/limiter.py
+@@ -4,8 +4,35 @@
+ 
+ 
+ class RateLimiter:
++    """Allow a fixed number of calls per client in each time window.
++
++    The limiter uses one fixed window per client. A window starts with the
++    client's first call and resets at its duration boundary.
++    """
++
+     def __init__(self, limit: int, window_seconds: float, clock: Callable[[], float]) -> None:
+-        raise NotImplementedError("RateLimiter is not implemented yet")
++        if limit <= 0:
++            raise ValueError("limit must be greater than zero")
++        if window_seconds <= 0:
++            raise ValueError("window_seconds must be greater than zero")
++
++        self._limit = limit
++        self._window_seconds = window_seconds
++        self._clock = clock
++        self._clients: dict[str, tuple[float, int]] = {}
+ 
+     def allow(self, client_id: str) -> bool:
+-        raise NotImplementedError("RateLimiter is not implemented yet")
++        now = self._clock()
++        window_start, count = self._clients.get(client_id, (now, 0))
++
++        # Treat a clock reset like a new window. This keeps injected test
++        # clocks and process-local monotonic clocks from retaining stale data.
++        if now < window_start or now - window_start >= self._window_seconds:
++            window_start, count = now, 0
++
++        if count >= self._limit:
++            self._clients[client_id] = (window_start, count)
++            return False
++
++        self._clients[client_id] = (window_start, count + 1)
++        return True

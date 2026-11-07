@@ -39,12 +39,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.external_signals.markdown_visibility import scan_hidden
 
 _ACCEPTANCE_HEADING = re.compile(
-    r"^(?P<hashes>#{1,6})\s*acceptance(?:\s+criteria)?\s*$",
+    r"^ {0,3}(?P<hashes>#{1,6})\s*acceptance(?:\s+criteria)?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
-_ACCEPTANCE_MENTION = re.compile(r"^#{1,6}\s+.*acceptance", re.IGNORECASE)
-_ANY_HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+\S", re.MULTILINE)
-_CHECKBOX = re.compile(r"^\s*[-*]\s*\[(?P<mark>[ xX])\]\s+(?P<text>.+?)\s*$")
+_ACCEPTANCE_MENTION = re.compile(r"^ {0,3}#{1,6}\s+.*acceptance", re.IGNORECASE)
+_ANY_HEADING = re.compile(r"^ {0,3}(?P<hashes>#{1,6})\s+\S", re.MULTILINE)
+_CHECKBOX = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s*\[(?P<mark>[ xX])\]\s+(?P<text>.+?)\s*$")
 
 
 @dataclass(frozen=True)
