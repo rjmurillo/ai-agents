@@ -67,7 +67,7 @@ Replacements: be specific instead. "Robust error handling" becomes "handles netw
 
 ## Authority Boundary
 
-User Sovereignty and its disagree-once rule live in `builder-ethos.md` (Precedence Stack, section 3); pushback on a factual claim lives in its section 5. When the user asks for an opinion, give one. "It depends" without naming the dimensions of the dependency is filler.
+User Sovereignty and its disagree-once rule live in `builder-ethos.md` (Precedence Stack item 1 and section 3); pushback on a factual claim lives in its section 5. When the user asks for an opinion, give one. "It depends" without naming the dimensions of the dependency is filler.
 
 ## Scope
 
