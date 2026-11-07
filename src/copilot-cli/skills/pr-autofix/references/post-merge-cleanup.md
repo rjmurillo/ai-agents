@@ -8,7 +8,24 @@ A leftover worktree costs disk and slows repo-wide scans: one machine counted
 local branch still in place.
 
 ```bash
-# Replace <pr> with the merged PR number. SCRIPTS_DIR is set by resolve_pr_scripts_dir above.
+# Replace <pr> with the merged PR number.
+resolve_pr_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    "$repo_root/.claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
+      printf '%s\n' "$root/skills/github/scripts/pr"
+      return 0
+    fi
+  done
+  printf '%s\n' ".claude/skills/github/scripts/pr"
+}
+SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 # jq prints nothing unless all five values exist, so the guard below fails loud.
 read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA PR_HEAD_REPO < <(python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request <pr> --output-format json \
     | jq -r 'select(.merged == true and .head_ref and .head_sha and .merge_commit_sha and .head_repo) | [.head_ref, .head_sha, .merge_commit_sha, .head_repo] | @tsv')

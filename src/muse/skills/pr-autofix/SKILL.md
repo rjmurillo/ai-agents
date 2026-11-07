@@ -1059,10 +1059,11 @@ GitHub refuses auto-merge for `UNSTABLE` PRs and may also reject an already-`CLE
 Three procedures moved out of this file into `references/`. Resolve the
 `references/` directory via the first candidate that exists:
 
-1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
-2. `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/skills/pr-autofix/references/` (plugin install, Copilot CLI and Claude Code)
-3. `.claude/skills/pr-autofix/references/` (Claude Code project layout)
-4. `skills/pr-autofix/references/` (vendored install)
+1. `references/` next to this `SKILL.md`, at the path the harness loaded this file from. This covers every install layout, including the Codex repository install, whatever directory holds the skill.
+2. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
+3. `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/skills/pr-autofix/references/` (plugin install, Copilot CLI and Claude Code)
+4. `.claude/skills/pr-autofix/references/` (Claude Code project layout)
+5. `skills/pr-autofix/references/` (vendored install)
 
 If none exists, the reference is unavailable: stop that step and hand the PR to
 a human. Do not reconstruct the procedure from memory.
