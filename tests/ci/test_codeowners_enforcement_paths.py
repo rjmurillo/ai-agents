@@ -26,6 +26,7 @@ ENFORCEMENT_PATTERNS: frozenset[str] = frozenset(
     {
         "/.github/workflows/",
         "/.github/actions/",
+        "/.github/cli-smoke/",
         "/scripts/validation/",
         "/scripts/ci/",
         "/scripts/workflows/",

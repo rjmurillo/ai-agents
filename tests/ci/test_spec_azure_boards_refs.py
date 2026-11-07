@@ -249,7 +249,14 @@ class TestWorkflowWiring:
         step = _step("ai-spec-review.yml", "review-spec", "Load Spec Content")
 
         assert step["env"]["AZURE_REFS"] == "${{ steps.spec-ref.outputs.azure_refs }}"
-        assert step["run"].strip() == "python3 scripts/ci/spec_load_content.py"
+        # Issue #6506: the base-commit script runs from the workspace, with the
+        # PR head's spec trees as the working directory on pull_request.
+        assert (
+            step["run"]
+            .strip()
+            .endswith('python3 "$GITHUB_WORKSPACE/scripts/ci/spec_load_content.py"')
+        )
+        assert 'cd "$PR_HEAD_DATA"' in step["run"]
 
     def test_extract_step_output_feeds_the_report(self) -> None:
         step = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")

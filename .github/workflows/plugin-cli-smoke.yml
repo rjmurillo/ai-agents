@@ -199,10 +199,6 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
       RUN_CLI_E2E: '1'
-      # renovate: datasource=npm depName=@anthropic-ai/claude-code
-      CLAUDE_CODE_VERSION: '2.1.314'
-      # renovate: datasource=npm depName=@github/copilot
-      COPILOT_CLI_VERSION: '1.0.105'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
@@ -247,17 +243,32 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      # Keep credentials out of npm lifecycle scripts (CWE-829).
+      # Keep credentials out of npm lifecycle scripts (CWE-829). npm ci installs
+      # the committed lockfile and checks every tarball integrity hash. Each
+      # install step puts its node_modules/.bin first on PATH for later steps, as
+      # the global npm bin did; CODEOWNERS covers .github/cli-smoke/, so a pin or
+      # lockfile change gets owner review.
       - name: Install pinned Claude CLI
         if: matrix.cli == 'claude'
         shell: bash
-        run: npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+        working-directory: .github/cli-smoke/claude
+        env:
+          BIN_DIR: ${{ github.workspace }}/.github/cli-smoke/claude/node_modules/.bin
+        run: |
+          npm ci
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
 
-      # Keep credentials out of npm lifecycle scripts (CWE-829).
+      # Keep credentials out of npm lifecycle scripts (CWE-829). npm ci installs
+      # the committed lockfile and checks every tarball integrity hash.
       - name: Install pinned Copilot CLI
         if: matrix.cli == 'copilot'
         shell: bash
-        run: npm install -g "@github/copilot@${COPILOT_CLI_VERSION}"
+        working-directory: .github/cli-smoke/copilot
+        env:
+          BIN_DIR: ${{ github.workspace }}/.github/cli-smoke/copilot/node_modules/.bin
+        run: |
+          npm ci
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Run real-CLI hook smoke (claude)
         if: matrix.cli == 'claude'
@@ -416,8 +427,6 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
       RUN_CLI_E2E: '1'
-      # renovate: datasource=npm depName=@openai/codex
-      CODEX_CLI_VERSION: '0.166.0'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
@@ -462,7 +471,12 @@ jobs:
 
       - name: Install pinned Codex CLI
         shell: bash
-        run: npm install -g "@openai/codex@${CODEX_CLI_VERSION}"
+        working-directory: .github/cli-smoke/codex
+        env:
+          BIN_DIR: ${{ github.workspace }}/.github/cli-smoke/codex/node_modules/.bin
+        run: |
+          npm ci
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Run real-CLI plugin-load smoke (codex)
         shell: bash
@@ -495,8 +509,6 @@ jobs:
         os: [ubuntu-latest]
     env:
       RUN_CLI_E2E: '1'
-      # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
-      PI_CLI_VERSION: '1.4.0'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
@@ -541,7 +553,12 @@ jobs:
 
       - name: Install pinned Pi CLI
         shell: bash
-        run: npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@${PI_CLI_VERSION}"
+        working-directory: .github/cli-smoke/pi
+        env:
+          BIN_DIR: ${{ github.workspace }}/.github/cli-smoke/pi/node_modules/.bin
+        run: |
+          npm ci --ignore-scripts
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Run real-CLI package smoke (pi)
         shell: bash
