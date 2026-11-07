@@ -864,5 +864,4 @@ You cannot delegate. Return to orchestrator with:
    - security for sensitive changes
    - architect for design review if patterns emerged
 
-**Think**: What is the smallest change that meets the acceptance criteria?
-**Act**: Test first when possible.
+**Think**: What is the smallest change that meets acceptance criteria? **Act**: Test first when possible.
