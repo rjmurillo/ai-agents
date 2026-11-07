@@ -688,7 +688,7 @@ class TestCli:
 
     def test_unknown_flag_is_usage_error(self, capsys):
         assert main(["--nope"]) == 2
-        assert "unrecognized arguments" in capsys.readouterr().err
+        assert "invalid arguments" in capsys.readouterr().err
 
     def test_terminal_stdin_without_file_fails_instead_of_blocking(self, capsys):
         class _Tty(io.StringIO):
@@ -706,5 +706,26 @@ class TestCli:
         rc = main([str(tmp_path / "absent.txt")])
         captured = capsys.readouterr()
         assert rc == 2
+        assert captured.out == ""
+        assert "cannot read input" in captured.err
+
+    def test_usage_error_never_echoes_argument_values(self, capsys):
+        secret = "ghp_exampleSecretValue1234567890"
+        assert main(["a", secret]) == 2
+        err = capsys.readouterr().err
+        assert secret not in err
+        assert "invalid arguments" in err
+
+    def test_unreadable_file_error_does_not_echo_the_path(self, tmp_path, capsys):
+        missing = tmp_path / "ghp_exampleSecretValue1234567890.txt"
+        assert main([str(missing)]) == 2
+        err = capsys.readouterr().err
+        assert "ghp_exampleSecretValue1234567890" not in err
+        assert "cannot read input (FileNotFoundError)" in err
+
+    def test_empty_file_argument_is_an_error_not_stdin(self, capsys):
+        with patch.object(sys, "stdin", io.StringIO("Bearer abc123def456ghi789")):
+            assert main([""]) == 2
+        captured = capsys.readouterr()
         assert captured.out == ""
         assert "cannot read input" in captured.err

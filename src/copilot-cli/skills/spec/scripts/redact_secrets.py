@@ -31,6 +31,7 @@ import re
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import NoReturn
 
 # Ordered: multi-line and specific token shapes first, broad shapes last, so a
 # specific match is not pre-empted by the generic hex rule.
@@ -406,8 +407,21 @@ def redact_ci_sink(
     )
 
 
+class _QuietParser(argparse.ArgumentParser):
+    """Parser whose usage errors never echo argv values.
+
+    The tool exists to keep secrets out of logs; a mistyped argument may be a
+    pasted secret, and the default message repeats it on stderr.
+    """
+
+    def error(self, message: str) -> NoReturn:
+        self.print_usage(sys.stderr)
+        print("redact_secrets.py: invalid arguments (values not echoed)", file=sys.stderr)
+        raise SystemExit(2)
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _QuietParser(
         prog="redact_secrets.py",
         description=(
             "Redact secret and PII token shapes from free text. Reads FILE, or "
@@ -443,9 +457,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     try:
-        text = open(args.file, encoding="utf-8").read() if args.file else sys.stdin.read()
+        text = (
+            open(args.file, encoding="utf-8").read() if args.file is not None else sys.stdin.read()
+        )
     except (OSError, UnicodeDecodeError) as exc:
-        print(f"redact_secrets: cannot read input: {exc}", file=sys.stderr)
+        print(f"redact_secrets: cannot read input ({type(exc).__name__})", file=sys.stderr)
         return 2
     sys.stdout.write(redact(text).text)
     return 0
