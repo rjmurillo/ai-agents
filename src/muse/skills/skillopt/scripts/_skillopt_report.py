@@ -10,7 +10,7 @@ skills ship separately, so this module cannot import that script. Parity is
 pinned by `tests/skills/skillopt/test_skillopt_report_parity.py`, which feeds
 both implementations the same inputs.
 
-Observation units: pass rate has one value per verified task (1.0 or 0.0).
+Observation units: pass rate has one value per task verified in both arms (1.0 or 0.0).
 Measurements read the same file `efficiency-gate` reads, one metric per file,
 with every repeat of every `sel` task pooled per arm.
 """
@@ -132,7 +132,10 @@ def _benchmark(
     measured: dict[str, list[float]] | None,
     metric: str | None,
 ) -> dict[str, Any]:
-    rates = {arm: _pass_rates(task_ids, results[arm]) for arm in ARMS}
+    # Pair the arms: a task unverified in either arm leaves both means, as
+    # bootstrap_eval pools only cases complete in both conditions.
+    paired = [t for t in task_ids if all(isinstance(results[a].get(t), bool) for a in ARMS)]
+    rates = {arm: _pass_rates(paired, results[arm]) for arm in ARMS}
     stats = {arm: {"pass_rate": spread(rates[arm])} for arm in ARMS}
     bench: dict[str, Any] = {
         **stats,
