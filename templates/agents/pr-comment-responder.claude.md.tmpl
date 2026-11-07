@@ -109,30 +109,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
 
 {{> pr-comment-responder-workflow-paths-reference}}
 
-**Note**: Statistics are sourced from the `pr-review/pr-comment-responder-skills` memory (read via `Read .serena/memories/pr-review/pr-comment-responder-skills.md`) and should be updated there after each PR review session.
-
-#### Updating Signal Quality
-
-After completing each PR comment response session, update this section and the `pr-review/pr-comment-responder-skills` memory with:
-
-1. Per-reviewer comment counts and actionability
-2. Any trend changes (improving/declining signal)
-3. New patterns observed (e.g., duplicate detection)
-
 {{> pr-comment-responder-updating-signal-quality}}
-
-```python
-# Direct to implementer for Quick Fix
-Task(subagent_type="implementer", prompt="Fix: [one-sentence description]...")
-
-# Still use orchestrator for Standard/Strategic paths
-Task(subagent_type="orchestrator", prompt="Analyze and implement...")
-{{> pr-comment-responder-still-use-orchestrator-for-standard}}
-| Quick Fix | Yes | May need regression tests even for simple fixes |
-| Standard | Yes | Full test coverage verification |
-| Strategic | Yes | Architectural impact assessment |
-
-Even "simple" bug fixes often need regression tests that would otherwise go untested.
 
 ```python
 # After implementer completes ANY fix
@@ -279,34 +256,7 @@ python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id [comment_i
 
 For each comment, delegate to orchestrator with full context. Do NOT implement custom routing logic.
 
-#### Step 3.1: Prepare Context for Orchestrator
-
-For each comment, build a context object:
-
-````markdown
-{{> pr-comment-responder-step-3-1-prepare-context-for}}
-```diff
-[diff_hunk - surrounding code]
-```
-
-### Comment Body
->
-> [full comment body]
-
-### Thread Context (if reply)
-
-[Previous comments in thread]
-
-### Request
-
-Analyze this PR comment and determine:
-
-1. Classification (Quick Fix / Standard / Strategic)
-2. Priority (Critical / Major / Minor / Won't Fix / Question)
-3. Required action
-4. Implementation plan (if applicable)
-
-````
+{{> pr-comment-responder-ref-step-3-1}}
 
 #### Step 3.2: Delegate to Orchestrator
 
@@ -318,45 +268,6 @@ Task(
 """,
 )
 {{> pr-comment-responder-step-3-2-delegate-to-orchestrator-2}}
-
-> **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
-
-```bash
-PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-# Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
-# Reply to review comment (in-thread reply using /replies endpoint)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [comment_id] --body "[response]"
-
-# For multi-line responses, use --body-file to avoid escaping issues
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [comment_id] --body-file reply.md
-
-# Post new top-level PR comment (no CommentId = issue comment)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --body "[response]"
-```
-
-<details>
-<summary>Alternative: Raw gh CLI</summary>
-
-```bash
-# Reply to review comment (CORRECT - in-thread reply)
-# Uses pulls/{pull_number}/comments endpoint with in_reply_to field
-gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
-  -X POST \
-  -f body="[response]" \
-  -F in_reply_to=[comment_id]
-
-# Note: in_reply_to must reference a top-level review comment ID (not a reply)
-# When in_reply_to is provided, location fields (commit_id, path, position) are ignored
-
-# Post new top-level PR comment (issue comments endpoint)
-# ONLY use this for new standalone comments, NOT for replies
-gh api repos/[owner]/[repo]/issues/[number]/comments \
-  -X POST \
-  -f body="[response]"
-```
-
-</details>
 
 {{> pr-comment-responder-only-use-this-for-new-standalone}}
 
@@ -531,15 +442,7 @@ fi
 
 **MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
-{{> pr-comment-responder-phase-9-memory-storage-blocking}}
-current = Read .serena/memories/pr-review/pr-comment-responder-skills.md
-
-{{> pr-comment-responder-read-current-memory-to-get-existing}}
-
-```text
-# Read updated memory and verify new PR data appears
-Read .serena/memories/pr-review/pr-comment-responder-skills.md
-```
+{{> pr-comment-responder-ref-phase-9}}
 
 ---
 
@@ -583,7 +486,7 @@ mcp__serena__write_memory(
 3. **Be concise**: Match response depth to path complexity
 4. **Conduct**: pushback, deferral, and escalation follow the review-conversation protocol (`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`)
 
-{{> pr-comment-responder-communication-guidelines}}
+{{> pr-comment-responder-ref-bot-handling}}
 
 {{> pr-comment-responder-coderabbit-behavior}}
 7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments, this places replies out of context as top-level comments instead of in-thread. Use `/pulls/{pull_number}/comments` with `in_reply_to`
