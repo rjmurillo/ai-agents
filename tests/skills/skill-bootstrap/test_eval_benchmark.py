@@ -456,3 +456,26 @@ def test_the_stats_helpers_treat_a_bool_and_a_negative_as_not_measurements():
     assert bootstrap_eval.is_measurement(2.5, integer=True) is False
     assert bootstrap_eval.is_measurement(None) is False
     assert bootstrap_eval.spread([]) == {"n": 0, "mean": None, "stdev": None}
+
+
+def test_benchmark_delta_equals_capability_delta_when_rounding_would_differ(capsys, tmp_path):
+    cases = [_case(f"C{i}") for i in range(3)]
+    rows = [_row(f"C{i}", "baseline", "alpha" if i == 0 else "x") for i in range(3)]
+    rows += [_row(f"C{i}", "with_skill", "alpha" if i < 2 else "x") for i in range(3)]
+
+    _, payload = _score(capsys, tmp_path, cases, rows)
+
+    assert payload["overall"]["capability_delta"] == 0.3333
+    assert payload["benchmark"]["delta"]["pass_rate"] == 0.3333
+
+
+def test_whitespace_only_json_items_stay_visible_in_evidence(capsys, tmp_path):
+    case = _case(grader={"kind": "json_set_f1", "key": "k", "gold": ["a"]})
+    output = _fence('{"k": ["a", "   "]}')
+
+    runs = _detail(
+        capsys, tmp_path, [case], [_row("C1", "baseline", output), _row("C1", "with_skill", output)]
+    )
+
+    assert runs[0]["passed"] is False
+    assert "extra: (empty)" in runs[0]["evidence"]

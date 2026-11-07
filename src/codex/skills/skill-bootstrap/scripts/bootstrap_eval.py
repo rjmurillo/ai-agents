@@ -440,6 +440,17 @@ def spread(values: Sequence[float]) -> Payload:
     }
 
 
+def mean_delta(base: Sequence[float], other: Sequence[float]) -> float | None:
+    """Mean of `other` minus mean of `base`, rounded once from the raw values.
+
+    Subtracting two means that `spread` already rounded would round twice and
+    can differ from `overall.capability_delta` in the last place.
+    """
+    if not base or not other:
+        return None
+    return round(statistics.fmean(other) - statistics.fmean(base), ROUND_PLACES)
+
+
 def configuration_stats(observations: dict[str, list[float]]) -> Payload:
     """Spread of every metric for one configuration (baseline or with_skill)."""
     return {metric: spread(observations.get(metric, [])) for metric in METRICS}
@@ -452,10 +463,7 @@ def benchmark(baseline: dict[str, list[float]], with_skill: dict[str, list[float
     measurement never reads as a zero change.
     """
     base, skill = configuration_stats(baseline), configuration_stats(with_skill)
-    delta: Payload = {}
-    for metric in METRICS:
-        lo, hi = base[metric]["mean"], skill[metric]["mean"]
-        delta[metric] = None if lo is None or hi is None else round(hi - lo, ROUND_PLACES)
+    delta: Payload = {m: mean_delta(baseline.get(m, []), with_skill.get(m, [])) for m in METRICS}
     return {"baseline": base, "with_skill": skill, "delta": delta}
 
 
@@ -465,7 +473,9 @@ def _shown(items: list[str]) -> str:
         i if len(i) <= EVIDENCE_ITEM_CHARS else i[:EVIDENCE_ITEM_CHARS] + "..." for i in items
     ]
     extra = len(clipped) - EVIDENCE_TERMS_SHOWN
-    text = ", ".join(clipped[:EVIDENCE_TERMS_SHOWN]) or "none"
+    # An empty item (a whitespace-only list entry) must stay visible, not read as "none".
+    shown = [item or "(empty)" for item in clipped[:EVIDENCE_TERMS_SHOWN]]
+    text = ", ".join(shown) or "none"
     return text if extra <= 0 else f"{text} (+{extra} more)"
 
 

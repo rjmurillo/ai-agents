@@ -166,3 +166,14 @@ def test_cli_exits_2_on_a_bad_input(tmp_path: Path, capsys):
 
     assert skillopt.main(argv) == 2
     assert "skillopt:" in capsys.readouterr().err
+
+
+def test_delta_is_rounded_once_from_raw_values():
+    eval_set = {"splits": {"sel": ["a", "b", "c"]}}
+    inc = {"a": True, "b": False, "c": False}
+    cand = {"a": True, "b": True, "c": False}
+
+    delta = report_mod.run_report(eval_set, inc, cand)["benchmark"]["delta"]["pass_rate"]
+
+    assert delta == 0.3333
+    assert report_mod.mean_delta([1 / 3], [2 / 3]) == 0.3333
