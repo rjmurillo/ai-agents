@@ -14,6 +14,14 @@ waives::
 The key is ``<review id>:<finding index>``, where the index is the finding's
 position in that review's ``findings`` output. Dispositions never change
 ``active_suppressed_count``; the gate reads ``undispositioned_suppressed_count``.
+
+Output: one JSON report on stdout; errors on stderr. Read-only.
+
+Exit codes follow ADR-035:
+    0 - Report written (even when suppressed findings exist; read the counts)
+    2 - Usage or config error (non-positive PR number, session refused)
+    3 - External error (review fetch failed)
+    4 - Auth error
 """
 
 from __future__ import annotations

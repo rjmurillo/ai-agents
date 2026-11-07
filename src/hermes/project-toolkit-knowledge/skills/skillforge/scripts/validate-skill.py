@@ -876,18 +876,21 @@ def main():
 
     parsed = parse_args(sys.argv[1:])
     if parsed is None:
-        print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
-        print("Example: python validate-skill.py ~/.claude/skills/my-skill/")
+        print(
+            "Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]",
+            file=sys.stderr,
+        )
+        print("Example: python validate-skill.py ~/.claude/skills/my-skill/", file=sys.stderr)
         sys.exit(1)
 
     skill_path, root = parsed
     if root is not None and not Path(root).is_dir():
-        print(f"Error: --root is not a directory: {root}")
+        print(f"Error: --root is not a directory: {root}", file=sys.stderr)
         sys.exit(1)
     try:
         validator = SkillValidator(skill_path, root=root)
     except ValueError as exc:
-        print(f"Error: {exc}")
+        print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     passed, report = validator.validate()
 

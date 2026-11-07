@@ -6,7 +6,7 @@ Creates a complete skill directory with SKILL.md template, references/,
 scripts/, and assets/ subdirectories pre-populated with starter files.
 
 Usage:
-    python init_skill.py <skill-name> [--path <parent-directory>]
+    python init_skill.py <skill-name> [--path <parent-directory>] [--dry-run]
 
 Examples:
     python init_skill.py code-reviewer
@@ -356,6 +356,12 @@ Examples:
         help="Parent directory for the new skill (default: current directory)",
     )
 
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run the checks and list the files that would be created; create nothing",
+    )
+
     args = parser.parse_args()
 
     # Validate name
@@ -369,6 +375,14 @@ Examples:
     if not parent.exists():
         print(f"Error: Parent directory not found: {parent}", file=sys.stderr)
         sys.exit(2)
+
+    if args.dry_run:
+        skill_dir = parent / args.name
+        if skill_dir.exists():
+            print(f"Error: Directory already exists: {skill_dir}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Dry run: would create {skill_dir} with SKILL.md, references/, scripts/, assets/")
+        sys.exit(0)
 
     # Create scaffold
     skill_dir = create_skill(args.name, parent)

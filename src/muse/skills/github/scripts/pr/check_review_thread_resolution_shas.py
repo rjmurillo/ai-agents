@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size -- pre-existing debt, unlinted before the ADR-119 source classification
-"""Verify commit references in resolved review threads are in the PR head."""
+"""Verify commit references in resolved review threads are in the PR head.
+
+Output: one JSON report on stdout (counts and one entry per reference); warnings
+and errors on stderr. Read-only.
+
+Exit codes follow ADR-035:
+    0 - Report written (even when references are unreachable; read the counts)
+    2 - Usage or config error (non-positive PR number, session refused)
+    3 - External error (review thread fetch failed)
+    4 - Auth error
+"""
 
 from __future__ import annotations
 
