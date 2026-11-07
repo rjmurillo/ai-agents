@@ -10,9 +10,11 @@ agent got better at the task. Without a recorded baseline the claim is
 
 ## Record a baseline before step 6
 
-Run this for every create, and for every patch that claims a gain. Otherwise
-skip it and report `UNVERIFIED (no baseline)`. The overlap check in step 4
-still decides create or patch. This gate never overrides it.
+Run this when the create or patch will claim a capability gain. If a claim is
+made without a baseline, report `UNVERIFIED (no baseline)`. If there is no
+claim, skip this gate and omit the capability field from the step 8 line. The
+overlap check in step 4 still decides create or patch. This gate never
+overrides it.
 
 Write the baseline from what you observed this session, not from memory:
 
@@ -101,8 +103,10 @@ Do not build a new evaluation harness in this pass. Use `skillopt` or report
 
 ## Report line
 
-Append the capability field to the step 8 line. It is required, and a gain you
-did not measure is never written:
+When this gate ran (a capability claim was made), append the capability field
+to the step 8 line. A gain you did not measure is never written as `MEASURED`.
+Use `Patched <name>. Trigger: "<phrase>".` in place of the first sentence after
+a patch:
 
 ```text
 Skillified as <name>. Trigger: "<phrase>". Capability gain: MEASURED (<before> -> <after>) | UNVERIFIED (<reason>) | NO GAIN (<before> -> <after>; <removed | patch reverted>).

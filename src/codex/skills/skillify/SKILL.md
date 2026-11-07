@@ -115,7 +115,7 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    draft gates exactly where the workflow had them. If the skill will claim it
    improves the agent at a task, read
    [capability-gate.md](references/capability-gate.md) now and record its
-   baseline before step 6.
+   baseline before step 6. With no such claim, skip the gate.
 6. **Write.** Use the skeleton in [skill-skeleton.md](references/skill-skeleton.md).
    Read `../skillforge/references/skill-content-rules.md` first and apply its
    content and description rules to the draft.
@@ -142,9 +142,10 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    the file loads, not that the skill helps; settle any capability claim with
    [capability-gate.md](references/capability-gate.md).
 8. **Report in one line:** `Skillified as <name>. Trigger: "<phrase>".` or
-   `Patched <name>. Trigger: "<phrase>".` When a baseline was recorded, add
-   `Capability gain: MEASURED | UNVERIFIED | NO GAIN` with its values. No
-   offers to adjust.
+   `Patched <name>. Trigger: "<phrase>".` When the skill claims a capability
+   gain, add `Capability gain: MEASURED | UNVERIFIED | NO GAIN` with its
+   values (`UNVERIFIED (no baseline)` when none was recorded). With no claim,
+   omit the field. No offers to adjust.
 
 ## Scripts
 
@@ -211,4 +212,6 @@ A relative `--explicit` or env-var path is anchored at `--cwd` and returned abso
 - [ ] The description is under 1024 characters and the body under 500 lines and
       5,000 tokens, or the overage is stated.
 - [ ] External or public actions in the workflow kept their approval gates.
-- [ ] The report is one line naming the skill and its trigger.
+- [ ] The report is one line naming the skill and its trigger. A claimed
+      capability gain adds the field from `capability-gate.md`; no claim adds
+      nothing.
