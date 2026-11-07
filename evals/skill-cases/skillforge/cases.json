@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "id": "skillforge-covered-topic",
+      "skill": "skillforge",
+      "source": "outcome:#6772",
+      "prompt": "which skill handles retrospectives?",
+      "expected_output": "Points to the existing retrospective skill and asks the user to confirm it fits. Does not start creating a new retrospective skill."
+    },
+    {
+      "id": "skillforge-pasted-error",
+      "skill": "skillforge",
+      "source": "outcome:#6772",
+      "prompt": "TypeError: Cannot read property 'map' of undefined",
+      "expected_output": "Reads the pasted text as an error to debug, not a request to author a skill. Routes to an existing debugging skill when one is installed. Proposes a new skill only when no installed skill covers debugging."
+    },
+    {
+      "id": "skillforge-uncovered-domain",
+      "skill": "skillforge",
+      "source": "outcome:#6647",
+      "prompt": "make a skill for running a social media hook testing loop",
+      "expected_output": "Finds that no installed skill covers the domain and goes ahead with creation. Does not stop to clarify against an unrelated skill that only shares scaffolding words such as make, skill, or test."
+    }
+  ]
+}
