@@ -176,7 +176,7 @@ Before emitting any prose artifact (reply body, comment response, summary, PR or
 
 Skill references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/`. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
-- `bots.md`: scoring reviewer signal quality or updating its statistics; Phase 4.5 finds a Copilot follow-up PR; a Copilot, CodeRabbit, or cursor[bot] comment needs bot-specific handling.
+- `bots.md`: scoring reviewer signal quality or updating its statistics; you start Phase 4.5 (read it first, because the query and its empty-result exit are there); a Copilot, CodeRabbit, or cursor[bot] comment needs bot-specific handling.
 - `templates.md`: composing a Won't Fix, Question, Clarification Needed, Acknowledged, Resolution, or Premise Refuted reply; posting a reply without `post_pr_comment_reply.py`; checking a comment against the security keyword list or the domain-priority table.
 - `coordinator-detail.md`: building the Step 3.1 context object or the Phase 4 `tasks.md` file; applying the Quick Fix criteria; running the Phase 9 memory update.
 
@@ -230,7 +230,7 @@ Triage reviewers in this order: cursor[bot] (P0), human reviewers (P1), coderabb
 
 #### Security Keyword Detection
 
-Scan each comment body, case-insensitive, for security terms: CWE ids, vulnerability, injection, XSS, SQL, CSRF, auth, secrets, credentials, TOCTOU, symlink, traversal, sanitization, escaping. A match makes the comment security-domain. Read `references/templates.md` (Security Domain Priority) for the full pattern list.
+Scan each comment body, case-insensitive, for these patterns: `CWE-\d+`, vulnerability, injection, XSS, SQL, CSRF, auth (also matches authentication and authorization), `secrets?`, `credentials?`, TOCTOU, symlink, traversal, and the stems `sanitiz` and `escap` (they match sanitize, sanitization, escape, escaping). A match makes the comment security-domain. Read `references/templates.md` (Security Domain Priority) for the full pattern list.
 
 ### Quick Fix Path Criteria
 

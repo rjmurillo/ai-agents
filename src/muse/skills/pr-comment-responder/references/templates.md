@@ -154,7 +154,7 @@ Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when se
 
 ## Raw API Reply Form
 
-Use this only when `post_pr_comment_reply.py` is unavailable.
+Use this only when `post_pr_comment_reply.py` is unavailable. The issue comments endpoint is for a new standalone comment, never for a reply.
 
 ```bash
 # CRITICAL: Reply to review comments using pulls comments API with in_reply_to

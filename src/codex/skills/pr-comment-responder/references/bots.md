@@ -117,7 +117,7 @@ cursor[bot] has 100% actionability (9/9 comments) - every comment identified a r
 
 **cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
-**Note**: Statistics are sourced from the `pr-review/pr-comment-responder-skills` memory and should be updated after each PR review session.
+**Note**: Statistics are sourced from the `pr-review/pr-comment-responder-skills` memory and should be updated after each PR review session. Claude Code reads it with `Read` on this checkout's `.serena/memories/pr-review/pr-comment-responder-skills.md`; Copilot CLI and VS Code use `mcp__serena__read_memory`. In a linked worktree every harness reads this checkout's file directly.
 
 ## Updating Signal Quality
 
