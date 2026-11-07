@@ -26,15 +26,16 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import cast
 
-import _claude_cli
-from _cli_credentials import CredentialNotFoundError, resolve_cached
+from _isolated_claude_login import IsolatedLoginError, add_claude_login, require_isolated_login
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
     REAL_HOME_ENV,
     SENTINEL,
     copilot_instruction_path,
     copilot_routing,
+    credential_values,
     hash_installed_agent,
+    mask_credentials,
     prepare_workspace,
     probe_version,
     real_home_enabled,
@@ -94,16 +95,6 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 EXIT_AUTH = 4
-_TOKEN_MASK = "<redacted-token>"
-_NO_ISOLATED_LOGIN = (
-    "an isolated Claude run needs a token, but the stored login has none. "
-    "Run `claude setup-token` and export CLAUDE_CODE_OAUTH_TOKEN, or pass --real-home."
-)
-
-
-class ParityAuthError(RuntimeError):
-    """No credential reaches an isolated Claude run."""
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FIXTURES = Path(__file__).parent / "examples" / "runtime-parity-fixtures.json"
@@ -297,11 +288,12 @@ def _verify_copilot_instruction_listing(
     `COPILOT_HOME` and caches there, not at `cwd`).
     """
     argv = [executable, "instruction", "list", "--json"]
+    env = runtime_env(workspace, "copilot")
     try:
         run = runner(
             argv,
             cwd=cwd,
-            env=runtime_env(workspace, "copilot"),
+            env=env,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -313,6 +305,7 @@ def _verify_copilot_instruction_listing(
         return None, runtime_failure_record(
             "copilot", argv, exit_code=None, error="instruction listing timed out"
         )
+    run = mask_credentials(run, credential_values("copilot", env))
     listing, reason = (
         _parse_instruction_listing(run.stdout)
         if run.returncode == 0
@@ -439,51 +432,19 @@ def _fixture_env(workspace: Path, harness: str, executable: str) -> dict[str, st
     way the `claude-cli` grader does. The token travels as an environment
     variable under the empty profile, which keeps `~/.claude` instructions out
     of the run. No credential file is copied or linked. A login the empty
-    profile cannot reach raises `ParityAuthError`; `main` checks this first.
+    profile cannot reach raises `IsolatedLoginError`; `main` checks this first.
     """
     env: dict[str, str] = runtime_env(workspace, harness)
     if harness == "claude" and not real_home_enabled():
-        _add_claude_login(env, executable)
+        add_claude_login(env, executable)
     return env
-
-
-def _add_claude_login(env: dict[str, str], executable: str) -> None:
-    """Add the resolved token to `env`, or raise `ParityAuthError`."""
-    spec = _claude_cli.CREDENTIAL_SPEC
-    for name in ("ANTHROPIC_API_KEY", spec.inject_env):
-        if name in env and not env[name].strip():
-            del env[name]
-    if "ANTHROPIC_API_KEY" in env or spec.inject_env in env:
-        return
-    try:
-        credential = resolve_cached(spec, executable=executable)
-    except CredentialNotFoundError as exc:
-        raise ParityAuthError(str(exc)) from exc
-    if credential.secret is None:
-        raise ParityAuthError(_NO_ISOLATED_LOGIN)
-    env[spec.inject_env] = credential.secret
 
 
 def _require_isolated_login(harnesses: str, executable: str, *, dry_run: bool) -> None:
     """Stop before any workspace exists when no credential reaches Claude."""
     if dry_run or harnesses == "copilot" or real_home_enabled():
         return
-    names = ("ANTHROPIC_API_KEY", _claude_cli.CREDENTIAL_SPEC.inject_env)
-    _add_claude_login({k: os.environ[k] for k in names if k in os.environ}, executable)
-
-
-def _without_token(
-    run: subprocess.CompletedProcess[str], token: str | None
-) -> subprocess.CompletedProcess[str]:
-    """Mask the token in captured output, because reports record that output."""
-    if not token:
-        return run
-    return subprocess.CompletedProcess(
-        run.args,
-        run.returncode,
-        run.stdout.replace(token, _TOKEN_MASK),
-        run.stderr.replace(token, _TOKEN_MASK),
-    )
+    require_isolated_login(executable)
 
 
 def _invoke_runtime(
@@ -537,7 +498,7 @@ def _invoke_runtime(
             ),
             listing,
         )
-    return _without_token(run, env.get(_claude_cli.OAUTH_TOKEN_ENV)), argv, None, listing
+    return mask_credentials(run, credential_values(harness, env)), argv, None, listing
 
 
 def _parse_runtime_events(
@@ -1193,7 +1154,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
     except ParityConfigError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    except ParityAuthError as exc:
+    except IsolatedLoginError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_AUTH
     except (

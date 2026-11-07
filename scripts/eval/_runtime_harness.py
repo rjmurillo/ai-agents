@@ -25,7 +25,7 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -286,6 +286,43 @@ HARNESS_AUTH_ENV: dict[str, set[str]] = {
     "codex": {"CODEX_API_KEY", "CODEX_ACCESS_TOKEN"},
 }
 
+#: Members of `HARNESS_AUTH_ENV` that route a run and carry no secret. They
+#: stay readable in a report, so output masking and credential-presence checks skip them.
+NON_CREDENTIAL_ENV = frozenset(
+    {
+        "COPILOT_PROVIDER_TYPE",
+        "COPILOT_PROVIDER_BASE_URL",
+        "COPILOT_PROVIDER_MODEL_ID",
+        "COPILOT_PROVIDER_WIRE_MODEL",
+    }
+)
+
+TOKEN_MASK = "<redacted-token>"
+
+
+def credential_values(harness: str, env: Mapping[str, str]) -> list[str]:
+    """Return the non-blank credential values in `env` for `harness`, longest first.
+
+    Longest first, so a value that contains another is masked whole.
+    """
+    names = HARNESS_AUTH_ENV[harness] - NON_CREDENTIAL_ENV
+    values = {env[name].strip() for name in names if name in env}
+    return sorted((value for value in values if value), key=len, reverse=True)
+
+
+def mask_credentials(
+    run: subprocess.CompletedProcess[str], values: Iterable[str]
+) -> subprocess.CompletedProcess[str]:
+    """Mask every credential value in captured output, because reports record that output."""
+    masked = [value for value in values if value]
+    if not masked:
+        return run
+    stdout, stderr = run.stdout, run.stderr
+    for value in masked:
+        stdout = stdout.replace(value, TOKEN_MASK)
+        stderr = stderr.replace(value, TOKEN_MASK)
+    return subprocess.CompletedProcess(run.args, run.returncode, stdout, stderr)
+
 
 REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
 _REAL_HOME_KEYS = ("HOME", "USERPROFILE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME")
@@ -333,8 +370,10 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     # the account's ChatGPT access token produced a 401 "Missing bearer"
     # against api.openai.com (probed 2026-09-24, codex-cli 0.156.0).
     # Isolated codex probes carry no login, so they cannot make paid calls.
-    # The repo never copies or links a credential file. Use the stored login
-    # through the real CODEX_HOME in drivers that do not isolate it. Both
+    # This harness never copies or links a credential file. Use the stored login
+    # through the real CODEX_HOME in drivers that do not isolate it. The
+    # `codex-cli` transport (`_codex_cli.py`) is the one place that copies a login:
+    # into a private CODEX_HOME it creates for that run. Both
     # variables stay in the allowlist regardless, in case an API-key-based
     # (non-ChatGPT) login honors one of them; only the
     # ChatGPT-token-in-CODEX_ACCESS_TOKEN combination above is falsified.

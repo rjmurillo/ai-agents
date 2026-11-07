@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from tests.eval._credential_test_support import set_sources
-from tests.eval._runtime_parity_test_support import parity
+from tests.eval._runtime_parity_test_support import parity, runtime_harness
 
 parity_module = sys.modules["_runtime_parity"]
 
@@ -90,7 +91,7 @@ def test_existing_login_step_stops_the_run_with_an_auth_error(
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=True)
 
-    with pytest.raises(parity.ParityAuthError, match="needs a token"):
+    with pytest.raises(parity.IsolatedLoginError, match="needs a token"):
         parity._fixture_env(tmp_path, "claude", "claude")
 
 
@@ -101,7 +102,7 @@ def test_missing_credential_stops_the_run_with_an_auth_error(
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     set_sources(monkeypatch, "_claude_cli", disk=lambda _env: None, probe=False)
 
-    with pytest.raises(parity.ParityAuthError):
+    with pytest.raises(parity.IsolatedLoginError):
         parity._fixture_env(tmp_path, "claude", "claude")
 
 
@@ -156,39 +157,166 @@ def _echoing_run(text: str) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(["claude"], 0, stdout=text, stderr=text)
 
 
-def test_invoke_runtime_masks_a_token_the_child_printed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv(TOKEN_ENV, raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    _disk_login(monkeypatch)
+def _invoke(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    harness: str,
+    printed: str,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, str]]:
+    """Run `_invoke_runtime` with a child that prints `printed`; return the run and its env."""
     monkeypatch.setattr(parity, "prepare_workspace", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(parity, "resolve_cwd", lambda workspace, _cwd: workspace)
-    monkeypatch.setattr(parity, "build_argv", lambda *_args: ["claude"])
+    monkeypatch.setattr(parity, "build_argv", lambda *_args: [harness])
     seen: dict[str, str] = {}
 
     def runner(
         _argv: list[str], *, env: dict[str, str], **_kwargs: object
     ) -> subprocess.CompletedProcess[str]:
         seen.update(env)
-        return _echoing_run(f"leaked {DISK_TOKEN} here")
+        return _echoing_run(printed)
 
-    fixture = type("FixtureStub", (), {"cwd": "."})()
+    fixture = type("FixtureStub", (), {"cwd": ".", "instructions": {}, "path_local": {}})()
     run, _argv, failure, _listing = parity._invoke_runtime(
-        fixture, "claude", "claude", "model", tmp_path, runner, 1.0, {}, {}
+        fixture, harness, harness, "model", tmp_path, runner, 1.0, {}, {}
     )
-
     assert failure is None
+    assert run is not None
+    return run, seen
+
+
+def test_invoke_runtime_masks_a_token_the_child_printed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _disk_login(monkeypatch)
+
+    run, seen = _invoke(tmp_path, monkeypatch, "claude", f"leaked {DISK_TOKEN} here")
+
     assert seen[TOKEN_ENV] == DISK_TOKEN
     assert DISK_TOKEN not in run.stdout
     assert DISK_TOKEN not in run.stderr
-    assert parity._TOKEN_MASK in run.stdout
+    assert runtime_harness.TOKEN_MASK in run.stdout
 
 
-def test_output_is_untouched_when_no_token_was_passed() -> None:
+def test_invoke_runtime_masks_an_exported_api_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-operator-key")
+
+    run, seen = _invoke(tmp_path, monkeypatch, "claude", "key=sk-ant-operator-key")
+
+    assert seen["ANTHROPIC_API_KEY"] == "sk-ant-operator-key"
+    assert "sk-ant-operator-key" not in run.stdout + run.stderr
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "COPILOT_GITHUB_TOKEN",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "COPILOT_PROVIDER_API_KEY",
+        "COPILOT_PROVIDER_BEARER_TOKEN",
+    ],
+)
+def test_invoke_runtime_masks_each_copilot_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "copilot-secret-value")
+
+    run, seen = _invoke(tmp_path, monkeypatch, "copilot", "echo copilot-secret-value")
+
+    assert seen[name] == "copilot-secret-value"
+    assert "copilot-secret-value" not in run.stdout + run.stderr
+    assert runtime_harness.TOKEN_MASK in run.stdout
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "COPILOT_PROVIDER_TYPE",
+        "COPILOT_PROVIDER_BASE_URL",
+        "COPILOT_PROVIDER_MODEL_ID",
+        "COPILOT_PROVIDER_WIRE_MODEL",
+    ],
+)
+def test_invoke_runtime_leaves_routing_values_readable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "routing-value")
+
+    run, _seen = _invoke(tmp_path, monkeypatch, "copilot", "route routing-value")
+
+    assert run.stdout == "route routing-value"
+
+
+def test_blank_credentials_do_not_corrupt_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "")
+    monkeypatch.setenv("GITHUB_TOKEN", "   ")
+
+    run, _seen = _invoke(tmp_path, monkeypatch, "copilot", "a b c")
+
+    assert run.stdout == "a b c"
+    assert run.stderr == "a b c"
+
+
+def test_a_padded_credential_is_masked_by_its_trimmed_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "  padded-secret\n")
+
+    run, _seen = _invoke(tmp_path, monkeypatch, "copilot", "printed padded-secret ok")
+
+    assert "padded-secret" not in run.stdout
+    assert run.stdout == f"printed {runtime_harness.TOKEN_MASK} ok"
+
+
+def test_a_credential_that_contains_another_is_masked_whole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "abcdefgh")
+    monkeypatch.setenv("GITHUB_TOKEN", "abcdefgh-extended")
+
+    run, _seen = _invoke(tmp_path, monkeypatch, "copilot", "abcdefgh-extended")
+
+    assert run.stdout == runtime_harness.TOKEN_MASK
+
+
+def test_instruction_listing_failure_record_masks_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "listing-secret")
+    monkeypatch.setenv("COPILOT_PROVIDER_TYPE", "anthropic")
+    monkeypatch.setattr(parity, "prepare_workspace", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(parity, "resolve_cwd", lambda workspace, _cwd: workspace)
+    monkeypatch.setattr(parity, "build_argv", lambda *_args: ["copilot"])
+
+    def runner(_argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            ["copilot"], 2, stdout="out listing-secret", stderr="err listing-secret"
+        )
+
+    fixture = type("FixtureStub", (), {"cwd": ".", "instructions": {"a": b"x"}, "path_local": {}})()
+    run, _argv, failure, _listing = parity._invoke_runtime(
+        fixture, "copilot", "copilot", "model", tmp_path, runner, 1.0, {"a": b"x"}, {}
+    )
+
+    assert run is None
+    assert failure is not None
+    recorded = json.dumps(failure)
+    assert "listing-secret" not in recorded
+    assert runtime_harness.TOKEN_MASK in recorded
+
+
+def test_output_is_untouched_when_no_credential_was_passed() -> None:
     run = _echoing_run("plain output")
 
-    assert parity._without_token(run, None) is run
+    assert runtime_harness.mask_credentials(run, []) is run
+    assert runtime_harness.credential_values("claude", {"PATH": "/bin"}) == []
 
 
 @pytest.mark.parametrize(
