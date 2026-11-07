@@ -30,5 +30,6 @@ Tests: `tests/test_pr_description_negated_closing.py`.
   not flagged.
 - A second keyword joined by "or" or "nor" ("does not close #1 or fix #2") is
   not flagged for the second reference.
-- The skill-side check `validate_pr_description.py` (used by `new_pr.py
-  --preflight`) only counts keywords. It does not look for negation.
+- The skill-side check `validate_pr_description.py` (run by `new_pr.py` during
+  PR creation via `pr_validations.py`) only counts keywords. It does not look
+  for negation.

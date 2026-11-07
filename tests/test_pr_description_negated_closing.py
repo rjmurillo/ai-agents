@@ -49,6 +49,13 @@ class TestNegatedPhrasesFlagged:
             "This does NOT CLOSE #3",
             "This does not close other-org/other-repo#9",
             "Not closes #4",
+            "This does **not** close #5",
+            "This does *not* close #5",
+            "This does _not_ close #5",
+            "This does ~~not~~ close #5",
+            "This does <b>not</b> close #5",
+            "This does not\nclose #5",
+            "This does not\r\nclose #5",
         ],
     )
     def test_flags(self, body: str) -> None:
@@ -85,6 +92,10 @@ class TestNotFlagged:
             "No tests fail. Fixes #5",
             "knot closes #5",
             "Do not merge yet\n\nCloses #5",
+            "Do not merge yet\nCloses #5",
+            "It does not help.\n\nCloses #5",
+            "The snake_case name closes #5",
+            "**Bold** text. Closes #5",
         ],
     )
     def test_clean(self, body: str) -> None:

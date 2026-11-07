@@ -1013,9 +1013,17 @@ _NEGATION_BEFORE_KW: re.Pattern[str] = re.compile(
     re.IGNORECASE,
 )
 
-# Characters that end a sentence. A negator before one of these does not reach
-# the keyword.
-_SENTENCE_END: re.Pattern[str] = re.compile(r"[.!?;:\n]")
+# A sentence or paragraph end. A negator before one of these does not reach the
+# keyword. A single newline is not one: GitHub reads it as whitespace, so a
+# wrapped "does not\nclose #N" still closes the issue.
+_SENTENCE_END: re.Pattern[str] = re.compile(r"[.!?;:]|\n[ \t]*\n")
+
+# Emphasis and inline HTML that can sit around a negator ("does **not** close").
+# GitHub strips them when it renders the body and still reads "close #N".
+_EMPHASIS_MARKUP: re.Pattern[str] = re.compile(
+    r"[*~]+|(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])|</?(?:b|i|em|strong|u|s|del|ins)>",
+    re.IGNORECASE,
+)
 
 # How far back from a keyword to look for its negator.
 _NEGATION_LOOKBACK = 60
@@ -1027,6 +1035,7 @@ def _is_negated(body: str, keyword_start: int) -> bool:
     ends = list(_SENTENCE_END.finditer(window))
     if ends:
         window = window[ends[-1].end() :]
+    window = _EMPHASIS_MARKUP.sub("", window)
     return _NEGATION_BEFORE_KW.search(window) is not None
 
 
