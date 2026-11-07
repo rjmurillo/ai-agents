@@ -989,6 +989,77 @@ _CLOSING_REFERENCES_QUERY = (
 )
 
 
+def _hidden_ranges(body: str) -> list[tuple[int, int]]:
+    """Ranges GitHub does not scan for closing keywords: fences, code spans, comments."""
+    fenced_ranges = _fenced_code_block_ranges(body)
+    code_span_ranges = _code_spans_outside_fences(body, fenced_ranges)
+    return (
+        fenced_ranges
+        + code_span_ranges
+        + _html_comments_outside_code(body, fenced_ranges, code_span_ranges)
+    )
+
+
+# A negation GitHub does not understand. GitHub's closing-keyword scan reads
+# "does not close #N" as "close #N" and closes the issue on merge (PR #7126
+# closed #5410 with a criterion unmet). The tail of the text before a keyword
+# is tested against this pattern. Fillers such as "yet" or "going to" may sit
+# between the negator and the keyword. "closing" is not a GitHub keyword, so
+# "not closing #N" closes nothing and is not matched here.
+_NEGATION_BEFORE_KW: re.Pattern[str] = re.compile(
+    r"(?:\bnot|\b\w+n['\u2019]t|\bnever|\bcannot|\bno\s+longer)"
+    r"(?:\s+(?:yet|fully|actually|really|automatically|also|going|intend|intended|meant|to|be)){0,3}"
+    r"\s+$",
+    re.IGNORECASE,
+)
+
+# Characters that end a sentence. A negator before one of these does not reach
+# the keyword.
+_SENTENCE_END: re.Pattern[str] = re.compile(r"[.!?;:\n]")
+
+# How far back from a keyword to look for its negator.
+_NEGATION_LOOKBACK = 60
+
+
+def _is_negated(body: str, keyword_start: int) -> bool:
+    """Return whether a negator directly governs the keyword at ``keyword_start``."""
+    window = body[max(0, keyword_start - _NEGATION_LOOKBACK) : keyword_start]
+    ends = list(_SENTENCE_END.finditer(window))
+    if ends:
+        window = window[ends[-1].end() :]
+    return _NEGATION_BEFORE_KW.search(window) is not None
+
+
+def validate_negated_closing_keywords(body: str) -> list[Issue]:
+    """Flag a negated closing keyword, which GitHub still honors.
+
+    "This PR does not close #N" closes #N on merge. Rephrase with ``Refs #N``
+    or a word that is not a closing keyword. Keywords inside fences, code
+    spans, and HTML comments are skipped: GitHub does not scan them.
+    """
+    body = body.replace("\r\n", "\n").replace("\r", "\n")
+    hidden = _hidden_ranges(body)
+    issues: list[Issue] = []
+    for m in _AUTO_CLOSE_KW.finditer(body):
+        if _in_any_range(m.start(), hidden) or not _is_negated(body, m.start()):
+            continue
+        issue_ref = f"{m.group('repo') or ''}#{m.group('number')}"
+        issues.append(
+            Issue(
+                severity="CRITICAL",
+                issue_type="Negated closing keyword",
+                file="<pr-body>",
+                message=(
+                    f"'{m.group(0)}' is written as a negation, but GitHub ignores the "
+                    f"negation and will close issue {issue_ref} on merge. "
+                    f"Use 'Refs {issue_ref}' or reword without close, fix, or resolve "
+                    "next to the issue number."
+                ),
+            )
+        )
+    return issues
+
+
 def extract_active_closing_claims(body: str, owner: str, repo: str) -> dict[ClosingTarget, str]:
     """Map each closing claim GitHub should honor to the reference the author wrote.
 
@@ -997,13 +1068,7 @@ def extract_active_closing_claims(body: str, owner: str, repo: str) -> dict[Clos
     GitHub renders the third as nothing. A bare `#N` targets ``owner/repo``.
     """
     body = body.replace("\r\n", "\n").replace("\r", "\n")
-    fenced_ranges = _fenced_code_block_ranges(body)
-    code_span_ranges = _code_spans_outside_fences(body, fenced_ranges)
-    hidden = (
-        fenced_ranges
-        + code_span_ranges
-        + _html_comments_outside_code(body, fenced_ranges, code_span_ranges)
-    )
+    hidden = _hidden_ranges(body)
     default_repo = f"{owner}/{repo}".lower()
     claims: dict[ClosingTarget, str] = {}
     for m in _AUTO_CLOSE_KW.finditer(body):
@@ -1452,6 +1517,7 @@ def main(argv: list[str] | None = None) -> int:
     base_branch: str = pr_data.get("base_ref", "") or ""
     default_branch: str = pr_data.get("default_branch", "main") or "main"
     issues.extend(validate_closing_links(description, base_branch, default_branch))
+    issues.extend(validate_negated_closing_keywords(description))
     issues.extend(
         validate_closing_links_against_github(
             args.pr_number, owner, repo, description, base_branch, default_branch
