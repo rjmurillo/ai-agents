@@ -800,14 +800,15 @@ def validate_copilot_version_pin(repo_root: Path) -> bool:
     """Guard the pinned @github/copilot CLI version (Issue #2630).
 
     Wraps ``check_copilot_version_pin.check_action``: fails when the pin is
-    missing, unparseable, or known-bad; SKIP when the workflow is absent.
+    missing, unparseable, or known-bad; SKIP when the manifest is absent.
     """
     from check_copilot_version_pin import EXIT_OK, check_action
 
-    action = repo_root / ".github" / "workflows" / "plugin-cli-smoke.yml"
+    action = repo_root / ".github" / "cli-smoke" / "copilot" / "package.json"
     if not action.exists():
         raise MissingScriptSkip(
-            "plugin-cli-smoke.yml not present (downstream install); nothing to pin-check"
+            ".github/cli-smoke/copilot/package.json not present (downstream install); "
+            "nothing to pin-check"
         )
     return bool(check_action(action) == EXIT_OK)
 

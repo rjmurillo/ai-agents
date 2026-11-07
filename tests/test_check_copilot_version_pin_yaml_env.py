@@ -1,8 +1,9 @@
 """Tests for the Copilot CLI version-pin guard reading a YAML ``env:`` pin.
 
-The CLI smoke workflow pins ``COPILOT_CLI_VERSION`` as a YAML env entry, the
-second form the guard accepts beside the shell ``COPILOT_VERSION`` assignment
-covered in ``test_check_copilot_version_pin.py``.
+The guard still accepts the older ``COPILOT_CLI_VERSION`` YAML env form (the CLI
+smoke workflow no longer uses it) beside the shell ``COPILOT_VERSION`` assignment
+covered in ``test_check_copilot_version_pin.py``. The package.json form is covered
+in ``test_check_copilot_version_pin_manifest.py``.
 """
 
 from __future__ import annotations

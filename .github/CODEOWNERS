@@ -77,6 +77,7 @@
 # tests/ci/test_codeowners_enforcement_paths.py pins every entry below.
 /.github/workflows/                       @rjmurillo
 /.github/actions/                         @rjmurillo
+/.github/cli-smoke/                       @rjmurillo
 /scripts/validation/                      @rjmurillo
 /scripts/ci/                              @rjmurillo
 /scripts/workflows/                       @rjmurillo

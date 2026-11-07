@@ -1,0 +1,28 @@
+{
+  "current_status": "UNVERIFIED",
+  "reduced_status": "UNVERIFIED",
+  "comparison": "UNVERIFIED",
+  "harness_scope": "codex only, not cross-harness",
+  "harness": "codex",
+  "commit": "3e9f30aaa15f91ff3c67372379768c3e031bf2c8",
+  "requested_model": "gpt-5.6-luna",
+  "requested_effort": "low",
+  "reviewer": "codex:gpt-5.6-luna:low",
+  "effort_verified": true,
+  "effort_observed": [
+    "low"
+  ],
+  "reviewer_effort_observed": [
+    "low"
+  ],
+  "first_repeat": 0,
+  "repeats": 1,
+  "launches": 24,
+  "harness_failures": [],
+  "reviewer_failures": [],
+  "change_patches": 12,
+  "control_bytes": {
+    "current": 39714,
+    "reduced": 2527
+  }
+}

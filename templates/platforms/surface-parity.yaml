@@ -600,6 +600,10 @@ surfaces:
     path: .github/actions
     relation: independent
     reason: Composite actions are authored in place.
+  - id: github-cli-smoke
+    path: .github/cli-smoke
+    relation: independent
+    reason: Pinned CLI manifests and npm lockfiles for the CLI smoke are authored in place; Renovate maintains them.
   - id: github-codeql
     path: .github/codeql
     relation: independent

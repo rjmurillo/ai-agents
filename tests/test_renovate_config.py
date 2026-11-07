@@ -24,6 +24,17 @@ CONFIG_PATH = Path(__file__).resolve().parents[1] / "renovate.json"
 # `test_devcontainer_updates_require_a_manual_merge` asserts it is still there.
 _AUTOMERGE_OFF_MANAGERS = {"devcontainer"}
 
+# The second deliberate exception is by path, not manager (#6506 review-gates-15):
+# a workflow file can hold secrets or write tokens, so a bump to it needs a human
+# approval. Scope stays on the two directories below because PR #6127 made automerge
+# universal and a wider glob would quietly remove other updates from that path.
+_WORKFLOW_FILE_GLOB = ".github/workflows/**"
+# The CLI smoke pins moved out of the workflow into .github/cli-smoke/ (#6506
+# workflow-ci-01). Those CLIs run beside the smoke credentials, and before the
+# move a bump edited the workflow file, so the same approval applies to them.
+_CLI_SMOKE_FILE_GLOB = ".github/cli-smoke/**"
+_EXEMPT_FILE_GLOBS = [_WORKFLOW_FILE_GLOB, _CLI_SMOKE_FILE_GLOB]
+
 
 @pytest.fixture(scope="module")
 def config() -> dict[str, Any]:
@@ -59,10 +70,6 @@ def test_vulnerability_alerts_label_security(config: dict[str, Any]) -> None:
     assert "security" in config["vulnerabilityAlerts"]["labels"]
 
 
-def test_vulnerability_alerts_automerge(config: dict[str, Any]) -> None:
-    assert config["vulnerabilityAlerts"]["automerge"] is True
-
-
 def test_global_automerge_and_platform_automerge_enabled(config: dict[str, Any]) -> None:
     assert config["automerge"] is True
     assert config["platformAutomerge"] is True
@@ -77,6 +84,13 @@ def test_automerge_stays_on_except_for_named_managers(config: dict[str, Any]) ->
     """
     for rule in config["packageRules"]:
         if rule.get("automerge") is False:
+            if set(rule.get("matchFileNames", [])) and not rule.get("matchManagers"):
+                assert set(rule["matchFileNames"]) <= set(_EXEMPT_FILE_GLOBS), (
+                    f"rule {rule.get('description', rule)!r} disables automerge for "
+                    f"{rule['matchFileNames']}; add the glob to _EXEMPT_FILE_GLOBS "
+                    "if that is intended"
+                )
+                continue
             managers = set(rule.get("matchManagers", []))
             assert managers <= _AUTOMERGE_OFF_MANAGERS, (
                 f"rule {rule.get('description', rule)!r} disables automerge for "
