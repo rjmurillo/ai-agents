@@ -19,7 +19,7 @@ The rules in this file are layered. When two appear to disagree, apply this orde
 
 1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
 2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. These are the rules you follow unless tier 3 overrides them.
-3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use first person in this PR because readers expect it"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
+3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use first person in this PR because readers expect it"). User Sovereignty (see `builder-ethos.md`) wins.
 
 The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). A terse-and-complete response is the target. A long response with no filler is fine when the scope demands it.
 
@@ -62,15 +62,11 @@ Replacements: be specific instead. "Robust error handling" becomes "handles netw
 
 ## No Em Dashes Or En Dashes
 
-Reinforces `.claude/rules/universal.md` and `.github/instructions/universal.instructions.md`. Use commas, periods, colons, parentheses, hyphens, or restructure. Test fixtures under `tests/hooks/fixtures/` remain exempt.
+`universal.md` MUST NOT 4 owns the ban and its carve-outs. Use commas, periods, colons, parentheses, hyphens, or restructure.
 
 ## Authority Boundary
 
-The user has context the model does not: domain knowledge, timing, relationships, organizational state, taste. Cross-model agreement, multi-agent consensus, and confident reasoning are recommendations, not decisions. The user decides.
-
-When you disagree with the user, say so once with the evidence. If the user holds the position, do it their way.
-
-When the user asks for an opinion, give one. "It depends" without naming the dimensions of the dependency is filler.
+User Sovereignty and its disagree-once rule live in `builder-ethos.md` (Precedence Stack item 1 and section 3); pushback on a factual claim lives in its section 5. When the user asks for an opinion, give one. "It depends" without naming the dimensions of the dependency is filler.
 
 ## Scope
 

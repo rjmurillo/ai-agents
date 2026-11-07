@@ -1,10 +1,10 @@
 # Diagnosis, Actions, and Persistence
 
 Phase 2 (Diagnosis), Phase 3 (Decide What to Do), Phase 4 (Atomicity Scoring and tagging),
-Root Cause Pattern Management, and the Memory Protocol. The rubrics below are lifted verbatim
-from the canonical source agent body at `.claude/agents/retrospective.md` (the original
-Phase 2, Phase 3, Phase 4, "Root Cause Pattern Management", and "Memory Protocol" sections).
-Keep them byte-for-byte; the SKILL.md orchestration links to the headings here.
+Root Cause Pattern Management, and the Memory Protocol. These rubrics are the canonical home
+of that detail. The agent `.claude/agents/retrospective.md` and its Copilot and VS Code
+variants keep the required gates and load this file when a phase starts. The SKILL.md
+orchestration links to the headings here.
 
 ---
 
@@ -273,7 +273,7 @@ Store root cause entities for future pattern matching:
 
 ```text
 mcp__serena__write_memory
-memory_file_name: "rootcause-{category}-{nnn}"
+memory_file_name: "retrospective/rootcause-{category}-{nnn}"
 content: "# Root Cause: {Category} #{NNN}\n\n**Description**: [What failed and why]\n**Frequency**: [How often this occurs]\n**Impact**: [Severity when it occurs]\n**Detection**: [How to identify this pattern]\n**Prevention**: [How to avoid it]\n**Source**: [PR/Issue/Session reference]\n\n## Related\n- Prevention skill: [skill-file-name]\n- Incident: [incident-ref]\n- Category: [category-name]"
 ```
 
@@ -327,6 +327,16 @@ Add to retrospective artifact when Five Whys identifies root cause:
 - **Supersedes**: [Older patterns this replaces]
 ````
 
+### Integration with Skillbook
+
+After storing root cause patterns, delegate to skillbook for skill persistence:
+
+1. **Extract prevention skill** from root cause analysis
+2. **Validate atomicity** (target: >85%)
+3. **Create relation** between root cause and prevention skill
+4. **Update failure prevention matrix** with new incident count
+5. **Query similar patterns** before creating new entries
+
 ---
 
 ## Memory Protocol
@@ -343,7 +353,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 
 ```text
 mcp__serena__write_memory
-memory_file_name: "{domain}-{description}"
+memory_file_name: "skills/{domain}-{description}"
 content: "# Skill: {Description}\n\n**Statement**: [Skill statement with context and evidence]\n\n**Evidence**: [Source reference]\n\n## Details\n\n..."
 ```
 

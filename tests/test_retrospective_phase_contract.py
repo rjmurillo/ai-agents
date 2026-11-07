@@ -133,3 +133,79 @@ def test_phase_contract_does_not_confuse_phase_50_with_phase_5() -> None:
     )
 
     assert _missing_process_phases(skill_text, mistyped_template) == {5}
+
+
+RECURSIVE = ROOT / ".claude" / "skills" / "retrospective" / "references" / "recursive-extraction.md"
+AGENT_SURFACES = (
+    "templates/agents/retrospective.shared.md",
+    "src/claude/agents/retrospective.md",
+    "src/copilot-cli/agents/retrospective.agent.md",
+    "src/vs-code-agents/retrospective.agent.md",
+)
+RECURSIVE_HEADING = "#### Recursive Learning Extraction"
+ASSEMBLY_RULE = (
+    "Record the Phase 5 result as the `#### Recursive Learning Extraction` block from "
+    "`recursive-extraction.md`, the last block under `### Memory Persistence`."
+)
+
+
+def _fenced_block(text: str, after: str) -> str:
+    """Return the ````markdown block that follows the first occurrence of ``after``."""
+    tail = text.split(after, maxsplit=1)[1]
+    body = tail.split("````markdown\n", maxsplit=1)[1]
+    return body.split("\n````", maxsplit=1)[0]
+
+
+def _assemble_artifact() -> str:
+    """Apply the agent's documented assembly rule to the template and the Phase 5 block."""
+    skeleton = _fenced_block(TEMPLATE.read_text(encoding="utf-8"), "# Learning Extraction Template")
+    recursive = _fenced_block(
+        RECURSIVE.read_text(encoding="utf-8"), "## Documentation Requirements"
+    )
+    head, tail = skeleton.split("\n### +/Delta\n", maxsplit=1)
+    return f"{head.rstrip()}\n\n{recursive.strip()}\n\n### +/Delta\n{tail}"
+
+
+def _headings(text: str, level: int) -> list[str]:
+    prefix = "#" * level + " "
+    return [line for line in text.splitlines() if line.startswith(prefix)]
+
+
+def test_assembled_artifact_has_each_phase_heading_exactly_once() -> None:
+    headings = _headings(_assemble_artifact(), 2)
+    for number in range(6):
+        matching = [h for h in headings if h.startswith(f"## Phase {number}:")]
+        assert len(matching) == 1, (number, matching)
+    assert not [h for h in headings if h.startswith("## Phase 6")]
+    assert len([h for h in headings if h.startswith("## Phase ")]) == 6
+
+
+def test_assembled_artifact_nests_recursive_block_under_phase_5() -> None:
+    artifact = _assemble_artifact()
+    assert artifact.count(RECURSIVE_HEADING) == 1
+    phase_5 = artifact.split("## Phase 5: Persist and Close", maxsplit=1)[1]
+    assert RECURSIVE_HEADING in phase_5
+    assert phase_5.index("### Memory Persistence") < phase_5.index(RECURSIVE_HEADING)
+    assert phase_5.index(RECURSIVE_HEADING) < phase_5.index("### +/Delta")
+
+
+def test_recursive_block_cannot_add_a_phase_heading() -> None:
+    block = _fenced_block(RECURSIVE.read_text(encoding="utf-8"), "## Documentation Requirements")
+    assert not [h for h in _headings(block, 2) if h.startswith("## Phase")]
+
+
+def test_duplicate_phase_heading_is_detected() -> None:
+    # Negative control: the old shape (a second Phase 5 heading) must fail the check.
+    broken = _assemble_artifact().replace(
+        RECURSIVE_HEADING, "## Phase 5: Recursive Learning Extraction"
+    )
+    matching = [h for h in _headings(broken, 2) if h.startswith("## Phase 5:")]
+    assert len(matching) == 2
+
+
+def test_agent_surfaces_carry_the_one_artifact_shape() -> None:
+    for rel in AGENT_SURFACES:
+        prose = " ".join((ROOT / rel).read_text(encoding="utf-8").split())
+        assert ASSEMBLY_RULE in prose, rel
+        assert "there is no Phase 6 heading in the artifact" in prose, rel
+        assert "byte for byte" not in prose, rel
