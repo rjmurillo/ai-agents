@@ -29,6 +29,37 @@ ADR-057's prompt-change scenarios answer a different question than the agent-vs-
 
 A fixture in `evals/security-spike/fixtures/` MUST NOT duplicate a scenario in `tests/evals/security-scenarios.json` verbatim. Where prior public material is reused, it is paraphrased substantially and tagged `provenance: paraphrased-from-public` (REQ-004 AC-4).
 
+## Skill evaluation: how this repo maps to the agentskills.io guide
+
+The agentskills.io guide "Evaluating skill output quality" describes one loop:
+run each case with and without the skill, grade with evidence, aggregate, find
+weak assertions, iterate. The repo already runs that loop. These are the entry
+points, so a new eval extends one of them instead of adding a format.
+
+| Guide step | Where it lives here |
+|---|---|
+| Test cases (prompt, expected output) | `bootstrap_eval.py` cases file: `prompt`, `expected_output`, `grader`. A case without a `grader` is a draft; `bootstrap_eval.py check` validates it |
+| With and without the skill | `bootstrap_eval.py` conditions `baseline` and `with_skill`; `scripts/eval/_claude_skill_harness.py` runs the CLI arm |
+| Previous version as the baseline | `skillopt.py pair-gate` compares an incumbent bundle hash with a candidate; `eval_skill_bootstrap_capability.py` compares `before` and `after` checkouts |
+| Timing and tokens per run | Optional `duration_ms` and `total_tokens` on each `bootstrap_eval.py` results row |
+| Per-assertion evidence | `bootstrap_eval.py score --detail` prints `runs` with an evidence line each |
+| `benchmark.json` mean, spread, delta | The `benchmark` block of `bootstrap_eval.py score` |
+| Pattern analysis | Case `status` (`no_gap`, `flat`, `gain`, `regression`) plus `signals` (`never_passes`, `unstable_*`) |
+
+Where this repo is stricter than the guide, it stays stricter:
+
+- Graders are deterministic and frozen before any run. The guide adds
+  assertions after the first output; here a draft case waits for an observed
+  run, and `freeze` refuses it until it has a grader.
+- A blind LLM judge is not a gate. ADR-058 Option 1 keeps an LLM judge as an
+  advisory sidecar only.
+- Held-out splits, exposed-task refusal, null controls, and the efficiency
+  gate belong to `skillopt`. They have no counterpart in the guide.
+
+Put per-skill cases under `evals/skill-cases/<skill>/cases.json`, not
+inside the skill directory, because the skill tree is mirrored into every
+platform package.
+
 ## Layout
 
 ```text
