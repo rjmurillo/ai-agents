@@ -264,7 +264,10 @@ class TestDocumentedMemoryIndexEntrypoints:
                 match.group("command") for match in _MEMORY_INDEX_ENTRYPOINT.finditer(content)
             )
 
-        assert len(commands) == 25
+        # One command in the implementer prototype plus one per retrospective
+        # surface (six). The retrospective agent kept a single copy of the
+        # command when its Phase 5 templates moved into a skill reference.
+        assert len(commands) == 7
         assert set(commands) == {"uv run --frozen python scripts/validation/memory_index.py --ci"}
 
         result = subprocess.run(

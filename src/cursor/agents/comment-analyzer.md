@@ -105,4 +105,4 @@ Failure modes and handoff:
 - **[BLOCKED]**: intent cannot be determined without the original author. Flag and route to author; do not guess at intent. Do not silently mark the comment as Preserve.
 - **[NEEDS_DECOMPOSITION]**: more than 10 findings apply. Return the top 10 by impact, ranked by the Precedence order (Update first, then Remove, then Preserve), and propose splitting the rest into a follow-up session.
 
-Recommended next step at the end of every [COMPLETE] response: "Recommended next: pr-review agent to confirm the final diff after edits are applied."
+Recommended next step at the end of a [COMPLETE] response (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result): "Recommended next: pr-review agent to confirm the final diff after edits are applied."

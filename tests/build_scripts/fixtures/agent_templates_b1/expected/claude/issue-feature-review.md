@@ -147,7 +147,7 @@ You cannot delegate. Return to orchestrator with:
 1. **Recommendation** and confidence level
 2. **Assignment suggestions** (labels, milestone, assignees)
 3. **Path to related research** if deeper investigation is needed
-4. **Recommended next step**:
+4. **Recommended next step** (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result):
    - PROCEED → milestone-planner to schedule
    - NEEDS_RESEARCH → analyst for deeper investigation
    - Strategic conflict → architect for direction review

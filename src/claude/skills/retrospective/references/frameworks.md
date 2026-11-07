@@ -1,9 +1,10 @@
 # Retrospective Frameworks
 
-Phase 0 (Data Gathering), Phase 1 (Generate Insights), and the closing activities. The
-rubrics below are lifted verbatim from the canonical source agent body at
-`.claude/agents/retrospective.md` (the original Phase 0, Phase 1, and Phase 6 sections).
-Keep them byte-for-byte; the SKILL.md orchestration links to the activity headings here.
+Phase 0 (Data Gathering), Phase 1 (Generate Insights), and the closing activities. These
+rubrics are the canonical home of that detail. The agent `.claude/agents/retrospective.md`
+and its Copilot and VS Code variants keep the required gates and load this file when a
+phase starts. Keep the SKILL.md headings links working; the SKILL.md orchestration links
+to the activity headings here.
 
 ---
 
@@ -49,6 +50,25 @@ Separate observation from interpretation.
 - Process changes: [List]
 - Context to preserve: [List]
 ````
+
+### Bias Guard: Keep Your Identity Small
+
+Source concept: Paul Graham, "Keep Your Identity Small" (Feb 2009) and "How to Think for Yourself" (Nov 2020).
+Wiki sources: `wiki/concepts/Critical Thinking/Keep Your Identity Small.md` and `wiki/concepts/Critical Thinking/How to Think for Yourself.md`.
+
+The Analyze step (Step 3) is where identity-attachment quietly corrupts a retrospective. When a tool, framework, methodology, or prior decision becomes part of "who we are," the question "did this approach fail?" silently becomes "are we wrong about ourselves?" The threat-response that triggers blocks clean analysis. You stop seeing the failure because seeing it costs identity.
+
+The mechanism, not the topic, is the problem. "We are a TDD shop," "this is the agile way," "the orchestrator pattern is how we do things," "I am the person who built this skill": each label spends analytical capacity on the very subject the retrospective needs to examine. The stronger the identity attachment, the more the analysis defends rather than diagnoses.
+
+Apply during analysis and diagnosis (Phase 0 Step 3 and Phase 2):
+
+- **Name the load-bearing identity.** Before assigning a root cause, ask: is any conclusion here protecting a tool, a methodology, or an author's identity rather than following the evidence? If the answer to "did X fail?" feels like "am I an idiot?", an identity is attached.
+- **Run the inversion.** If you wanted to think clearly about whether this approach was the right one, you would not make believing or disbelieving in it part of the team's identity. State the failure as a fact about an approach, not a verdict on a person or a team.
+- **Distinguish identity from execution discipline.** Identity attachment is sometimes load-bearing for consistency ("we are a tests-always team" ships tests reliably). The move is to keep identity small on the questions where analytical clarity matters, and to source execution discipline from systems, habits, and norms that do not require the attachment.
+- **Watch for the meta-identity exception.** Identifying with a process ("we follow the evidence," "we are a learning team") is net positive because it commits to a method, not a conclusion. Identifying with a conclusion ("microservices are correct," "this rewrite was right") shuts the analysis down.
+- **Apply the conformist test.** If every conclusion the retrospective reaches is the conclusion the team was already supposed to reach, the retrospective is conforming, not thinking. A retrospective that never surprises anyone has probably not done its job.
+
+The cost of skipping this guard: a root cause that blames an individual or an uncontrollable instead of naming an approach that an identity was protecting. That root cause is comfortable and wrong, and the same failure recurs.
 
 ### Activity: Execution Trace Analysis
 
@@ -346,6 +366,8 @@ Top items from each quadrant:
 ## Closing Activities
 
 Evaluate the retrospective itself. Continuous improvement.
+
+In the artifact, these activities fill the matching subsections under `## Phase 5: Persist and Close` in `learning-template.md` (`### +/Delta`, `### Delta Triage`, `### ROTI Assessment`, `### Helped, Hindered, Hypothesis`). The templates below show the content of each activity. Use the heading levels of `learning-template.md` in the artifact, which has no separate Phase 6 heading.
 
 ### Activity: +/Delta
 

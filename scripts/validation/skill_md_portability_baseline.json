@@ -21,7 +21,7 @@
     "src/claude/agents/orchestrator.md": 3,
     "src/claude/agents/pr-comment-responder.md": 4,
     "src/claude/agents/qa.md": 7,
-    "src/claude/agents/retrospective.md": 3,
+    "src/claude/agents/retrospective.md": 2,
     "src/claude/agents/security.md": 8,
     "src/claude/agents/task-decomposer.md": 1,
     "src/claude/rules/token-economy.md": 2,
