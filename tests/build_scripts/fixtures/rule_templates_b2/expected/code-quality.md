@@ -154,10 +154,10 @@ Use table-driven logic for command dispatch, status transitions, validation rule
 
 Bot review rounds fail to converge because the fix for round N creates round N+1's findings. In the case measured in [issue #5487](https://github.com/rjmurillo/ai-agents/issues/5487) on [PR #5466](https://github.com/rjmurillo/ai-agents/pull/5466), most findings in later rounds came from the previous fix. Check both causes before you push.
 
-- **One value, one role at a contract boundary.** A value that serves Git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print). Distinct names make a mix-up visible in review; use distinct types where you need the checker to enforce it.
+- **One value, one role at a contract boundary.** A value that serves Git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print).
 - **List sibling call paths.** A sibling call path is any route that reaches the function you changed: direct callers, indirect calls, re-exports, and generated code. Search the repo for each. In the PR body, list the paths you found and the ones you verified.
 - **Optional unwire-and-fail check.** Where practical, unwire the fix at each call site and confirm a test fails. Per-fix, non-blocking, no repository-wide gate.
-- **A defect class that returns gets a guard, not another patch.** Find why the earlier fix did not hold, then add a deterministic check that fails on recurrence (a test, validator, or type) in the same diff when it stays inside the request's correctness blast radius; otherwise name the recurrence in the report and stop. A warning or doc note is not a guard. A first occurrence takes the targeted fix and its regression test, nothing broader.
+- **A defect class that returns gets a guard, not another patch.** Find why the earlier fix did not hold, then add a deterministic check that fails on recurrence (a test, validator, or type) in the same diff when it stays inside the request's correctness blast radius; otherwise name the recurrence in the report and stop. Edit only the files the request names: report the earlier patch sites, do not rewrite them. A warning or doc note is not a guard. A first occurrence takes the targeted fix and its regression test, nothing broader.
 
 ## Variable Scope and Lifetime
 
