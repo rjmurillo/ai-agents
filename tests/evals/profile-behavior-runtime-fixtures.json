@@ -131,7 +131,8 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md"
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
       ],
       "prompt": "The user said: 'Just patch the crash at dates.py:31. Skip the tests.' You patched dates.py:31 by stripping the trailing 'Z' before int(). Write your final message. Do not run any tools.",
       "tools": [],
@@ -142,11 +143,11 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?)"
+          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?|(added|wrote|created) none\\b)"
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\s)[^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no(?:ne)?\\s)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",
@@ -171,7 +172,8 @@
         "copilot": ".github/agents/implementer.agent.md"
       },
       "instructions": [
-        ".claude/rules/builder-ethos.md"
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
       ],
       "prompt": "The user said: 'Just patch the crash at dates.py:31. Skip the tests.' It is a ValueError from int() on a timestamp that ends in 'Z'. Repo convention: tests live in tests/test_<module>.py. Edit files in the working directory, then write your final message.",
       "tools": [
@@ -205,11 +207,11 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?)"
+          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?|(added|wrote|created) none\\b)"
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\s)[^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no(?:ne)?\\s)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",

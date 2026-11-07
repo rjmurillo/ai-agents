@@ -223,3 +223,64 @@ significance claim.
 Files: `codex-luna-2026-10-03-n3/rep0` to `rep2` hold the per-repetition JSONL, `invocations.jsonl` (model, effort,
 tokens per launch), and `run-summary.json`. `current.jsonl`, `reduced.jsonl`, `report-*.json`, `repetitions-*.json`,
 and `comparison.json` come from `eval_durable_outcome.py` and `eval_durable_repetitions.py` over the joined files.
+
+## Reviewer and rollback arms, one paid run on 2026-11-06 (#5768)
+
+Owner decision of 2026-11-06 on #5768: the human correction time clause is dropped,
+`human_correction_minutes` stays `null`, and gate 6 is reported as not shown. This run fills
+`review_findings` and `rollback_events` with the arms merged in PR #6692 (019abf42e5). Base
+commit `3e9f30aaa15f91ff3c67372379768c3e031bf2c8`. Both arms were checked first: the
+`eval_control_ablation.py --dry-run` discrimination check passed (5 of 5 known-good accepted,
+0 of 5 known-bad, rollbacks ran for real), and 682 tests under `tests/eval` passed at 3e9f30aaa1 (2026-11-06).
+
+Run `report.json` files are stored as compact one-line JSON (content unchanged from the driver output).
+
+Launch budget: 100 across all harnesses. Used 86: Claude 62, Codex 24.
+
+### Claude half: `claude-sonnet-5-2026-11-06-reviewer-rollback/`
+
+Driver `eval_control_ablation.py --real-home --reviewer-model claude-sonnet-5`, Claude Code
+2.1.319, 5 tasks x 2 controls x 3 repetitions = 30 runs. The first batch stopped at 13 records
+(exit 3) when two producer launches returned `claude exited 1` after the operator login
+expired. Those 2 launches count against the cap and have no record. The login was renewed and
+the remaining 17 cells ran as `cont-a`, `cont-b`, and `cont-c` with no repeat reused. The
+top-level `report.json` therefore lists 17 cells with no record; the records for them are in
+the `cont-*` directories. All 30 cells have exactly one record. Stored login only, no
+credential file copied or linked. Confound (also in each `report.json`): with `--real-home`,
+the `~/.claude` instructions, rules, and skills load under both controls, so `reduced` is not
+AGENTS-free. Recorded spend 5.03 USD (`spend_unmeasured` is true in the report).
+
+| | full | reduced |
+|---|---|---|
+| First-pass and follow-up pass (formal `ACCEPTED_DURABLE` is 0; all `UNVERIFIED`) | 15 of 15 | 15 of 15 |
+| `review_findings` total (all non-null) | 1 | 3 |
+| `rollback_events` total (all measured) | 0 | 0 |
+| Model cost, USD | 3.154 | 1.851 |
+| Cost per accepted durable task, USD | 0.210 | 0.123 |
+| Wall seconds, summed | 732 | 641 |
+| `human_correction_minutes` | null | null |
+
+### Codex half: `codex-luna-2026-11-06-reviewer-rollback/`
+
+Driver `eval_durable_live.py --harness codex --reviewer-model gpt-5.6-luna`, stored login,
+`gpt-5.6-luna`, effort `low` verified from the backend, 6 tasks x 2 controls x 1 repetition,
+retry budget one, 24 launches, 0 harness failures, 0 reviewer failures. Codex reports no cost
+and the repo has no rate for the model, so cost is 0.0 by absence and not a measurement.
+
+| | current | reduced |
+|---|---|---|
+| First-pass and follow-up pass (formal `ACCEPTED_DURABLE` is 0; all `UNVERIFIED`) | 4 of 6 | 4 of 6 |
+| `review_findings` on accepted runs | 0 | 0 |
+| `review_findings` on unaccepted runs | null (RB-01, RB-06) | null (RB-01, RB-06) |
+| `rollback_events` | 0 | 0 |
+| Wall seconds, summed | 428 | 478 |
+
+### What the data supports
+
+The reviewer arm ran live and returned nonzero findings on 3 Claude runs (1 full, 2 reduced; 4 findings in total).
+The rollback arm ran on every accepted run, but no accepted run failed its follow-up in this
+sample, so no live rollback was exercised; the nonzero rollback path is covered by the
+fixtures and the dry run only. Every record classifies `UNVERIFIED` because
+`human_correction_minutes` is `null` by the owner decision. No non-inferiority and no
+significance claim: 3 repetitions on Claude, 1 on Codex, first-pass and follow-up pass counts tie on both
+harnesses, and the cost gap is confounded by the ambient `~/.claude` load.

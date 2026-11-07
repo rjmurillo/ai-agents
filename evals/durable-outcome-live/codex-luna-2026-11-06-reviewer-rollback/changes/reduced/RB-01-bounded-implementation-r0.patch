@@ -1,0 +1,12 @@
+--- a/slugger/core.py
++++ b/slugger/core.py
+@@ -1,5 +1,8 @@
+ """Text helpers for URL fragments."""
++
++import re
+ 
+ 
+ def slugify(text: str) -> str:
+-    raise NotImplementedError("slugify is not implemented yet")
++    lowered = text.lower()
++    return re.sub(r"[^A-Za-z0-9]+", "-", lowered).strip("-")

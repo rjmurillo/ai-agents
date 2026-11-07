@@ -2,8 +2,8 @@
 
 The ``process-prs`` job switches the workspace to a PR head (the conflict
 scripts run ``git checkout <head_ref>``). Any later step that holds
-``BOT_PAT`` or ``ANTHROPIC_API_KEY`` and runs workspace code would execute
-PR-controlled code with those secrets. The job therefore checks out a trusted
+the write-scoped ``github.token`` or ``ANTHROPIC_API_KEY`` and runs workspace
+code would execute PR-controlled code with those credentials. The job therefore checks out a trusted
 copy at ``.trusted-helper`` and every such step must run from it.
 
 The action side is pinned in ``test_ai_review_action_root.py``.
@@ -22,8 +22,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr-maintenance.yml"
 TRUSTED = ".trusted-helper/"
 TRUSTED_STEP_NAME = "Checkout trusted push helper"
+CREDENTIAL_MARKERS = ("secrets.", "github.token")
 PATH_INPUTS = ("prompt-file", "execute-script")
 SCRIPT_CALL = re.compile(r"\b(?:python3?|uv run\b[^\n]*?\bpython)\s+\"?([^\s\"]+)")
+
+
+def _bears_credential(step: dict[str, Any]) -> bool:
+    dumped = yaml.safe_dump(step)
+    return any(marker in dumped for marker in CREDENTIAL_MARKERS)
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -40,7 +46,7 @@ def untrusted_secret_steps(steps: list[dict[str, Any]]) -> list[str]:
     """Return a reason for each secret-bearing step that runs non-trusted code."""
     problems: list[str] = []
     for step in steps:
-        if "secrets." not in yaml.safe_dump(step):
+        if not _bears_credential(step):
             continue
         name = step.get("name", "<unnamed>")
         uses = step.get("uses")
@@ -63,7 +69,7 @@ def test_secret_bearing_steps_after_trusted_checkout_run_trusted_code() -> None:
 
 def test_the_invariant_covers_every_secret_bearing_step() -> None:
     steps = _steps_after_trusted_checkout(_load(WORKFLOW))
-    secret_steps = [s for s in steps if "secrets." in yaml.safe_dump(s)]
+    secret_steps = [s for s in steps if _bears_credential(s)]
     actions = [s for s in secret_steps if s.get("uses")]
     scripts = [s for s in secret_steps if SCRIPT_CALL.search(s.get("run", ""))]
     assert len(actions) == 2
