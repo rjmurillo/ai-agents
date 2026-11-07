@@ -185,47 +185,21 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
             with patch("scripts.ci.spec_load_content.subprocess.run", return_value=gh) as run:
                 code = spec_load_content.main()
         self.gh_calls = run.call_args_list
-        self.outputs = _read_outputs(out_file) if out_file.exists() else {}
         spec_file = tmp_path / "spec-content-0.md"
         return code, spec_file.read_text(encoding="utf-8") if spec_file.exists() else ""
 
-    def test_ab_only_reports_nothing_loadable_without_calling_gh(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_ab_only_loads_no_stub_and_never_calls_gh(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#123")
 
         assert code == EXIT_OK
         assert self.gh_calls == []
-        assert self.outputs == {"loadable": "false"}
         assert content == ""
-        assert "no requirements were loadable" in capsys.readouterr().err
 
-    def test_multiple_ab_tokens_are_still_nothing_loadable(self, tmp_path: Path) -> None:
+    def test_multiple_ab_tokens_load_no_stub(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#5 AB#900")
 
         assert code == EXIT_OK
-        assert self.outputs == {"loadable": "false"}
         assert content == ""
-
-    def test_ab_plus_pull_request_number_is_nothing_loadable(self, tmp_path: Path) -> None:
-        """A PR number skipped as not-an-issue leaves only the Azure tokens."""
-        out_file = tmp_path / "load-out.txt"
-        env = {
-            "SPEC_REFS": "",
-            "ISSUE_REFS": "99",
-            "AZURE_REFS": "AB#7",
-            "GITHUB_REPOSITORY": "owner/repo",
-            "RUNNER_TEMP": str(tmp_path),
-            "GITHUB_OUTPUT": str(out_file),
-            "GITHUB_RUN_ID": "0",
-        }
-        gh = MagicMock(
-            returncode=1, stdout="", stderr="Could not resolve to an Issue with the number of 99"
-        )
-        with patch.dict(os.environ, env):
-            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=gh):
-                assert spec_load_content.main() == EXIT_OK
-        assert _read_outputs(out_file) == {"loadable": "false"}
 
     def test_mixed_refs_call_gh_only_for_the_github_issue(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#900", issue_refs="42")
@@ -237,7 +211,6 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
         assert not any("AB" in part for part in argv)
         assert "GitHub issue body" in content
         assert "## Azure Boards AB#900" in content
-        assert self.outputs["loadable"] == "true"
 
     @pytest.mark.parametrize("raw", ["AB#0", "AB#12abc", "#123", "123", "AB#1\u200b", "ab#1"])
     def test_malformed_token_is_a_config_error(self, tmp_path: Path, raw: str) -> None:
@@ -252,7 +225,6 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
 
         assert code == EXIT_OK
         assert "Azure Boards" not in content
-        assert self.outputs["loadable"] == "true"
 
     def test_nothing_at_all_is_still_a_config_error(self, tmp_path: Path) -> None:
         code, _ = self._load(tmp_path, "")
@@ -300,13 +272,16 @@ class TestWorkflowWiring:
             step = _step("ai-spec-review.yml", "review-spec", name)
             assert "steps.load-spec.outputs.loadable == 'true'" in step["if"], name
 
-    def test_report_and_comment_run_without_the_loadable_gate(self) -> None:
+    def test_no_loadable_report_replaces_the_full_report_and_the_comment_still_posts(self) -> None:
         """The advisory report must still post when nothing was loadable."""
-        report = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")
+        none = _step("ai-spec-review.yml", "review-spec", "Generate No-Loadable Report")
+        full = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")
         comment = _step("ai-spec-review.yml", "review-spec", "Post PR Comment")
-        assert report["env"]["LOADABLE"] == "${{ steps.load-spec.outputs.loadable }}"
-        assert "loadable" not in report["if"]
+        assert "loadable == 'false'" in none["if"]
+        assert "loadable != 'false'" in full["if"]
         assert "loadable" not in comment["if"]
+        assert none["run"] == "python3 scripts/ci/spec_no_loadable_report.py"
+        assert "report-none.outputs.report_file" in comment["env"]["REPORT_FILE"]
 
     def test_verdict_step_reads_has_specs_from_the_same_extractor(self) -> None:
         step = _step("ai-spec-validation.yml", "validate-spec", "Decide spec coverage verdict")

@@ -3,7 +3,6 @@
 
 Input env vars (used as defaults for CLI args):
     HAS_SPECS              - Whether PR references specs ('true' or other)
-    LOADABLE               - 'false' when no requirement text could be loaded
     SPEC_REFS              - Space-separated spec reference IDs
     ISSUE_REFS             - Space-separated issue references
     TRACE_VERDICT          - Verdict from traceability check
@@ -59,11 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--has-specs",
         default=os.environ.get("HAS_SPECS", ""),
         help="Whether PR references specs ('true' or other)",
-    )
-    parser.add_argument(
-        "--loadable",
-        default=os.environ.get("LOADABLE", ""),
-        help="'false' when the references held no loadable requirement text",
     )
     parser.add_argument(
         "--spec-refs",
@@ -236,37 +230,6 @@ See PR template for full guidance.
 <sub>Powered by [AI Spec Validator](https://github.com/{repository}) workflow</sub>"""
 
 
-def _build_no_loadable_report(issue_refs: str, azure_refs: str, repository: str) -> str:
-    """Build the advisory report when the references name no loadable requirements.
-
-    The model steps were skipped, so nothing here is PASS, FAIL, or WARN.
-    """
-    issue_refs = _cell(issue_refs or "*None*")
-    azure_refs = _cell(azure_refs or "*None*")
-    return f"""\
-<!-- AI-SPEC-VALIDATION -->
-
-## Spec-to-Implementation Validation
-
-> [!WARNING]
-> **No requirements were loadable**
->
-> No requirement text could be loaded for the references below, so the
-> traceability and completeness reviews did not run. This workflow cannot read
-> Azure Boards work items, and a pull request number is not an issue.
-
-| Reference | Value |
-|:----------|:------|
-| **Issues** | {issue_refs} |
-| **Azure Boards** | {azure_refs} |
-
-Link a GitHub issue or a spec file (REQ-*, DESIGN-*, TASK-*) to enable the reviews.
-
----
-
-<sub>Powered by [AI Spec Validator](https://github.com/{repository}) workflow</sub>"""
-
-
 def _cell(value: str) -> str:
     """Return ``value`` as one markdown table cell that opens no HTML, link, or mention.
 
@@ -430,8 +393,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if has_specs != "true":
         report = _build_no_specs_report(repository)
-    elif args.loadable == "false":  # only the literal "false" selects this report
-        report = _build_no_loadable_report(args.issue_refs, args.azure_refs, repository)
     else:
         trace_verdict: str = args.trace_verdict
         completeness_verdict: str = args.completeness_verdict
