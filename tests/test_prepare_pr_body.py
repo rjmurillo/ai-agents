@@ -434,3 +434,70 @@ def test_seed_reads_the_template_from_a_repo_subdirectory(tmp_path: Path) -> Non
     sub.mkdir(parents=True)
 
     assert _MODULE._seed_content(sub) == _PLACEHOLDER_ONLY + "\n## Summary\n"
+
+
+def test_seed_ignores_a_submodule_at_the_template_path(tmp_path: Path) -> None:
+    _git(tmp_path, "checkout", "-q", "-B", "base-work", "main")
+    _git(
+        tmp_path,
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        f"160000,{_git(tmp_path, 'rev-parse', 'HEAD')},{_TEMPLATE}",
+    )
+    _git(tmp_path, "commit", "-q", "-m", "gitlink at the template path")
+    _git(tmp_path, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    assert _MODULE._seed_content(tmp_path.resolve()) == _PLACEHOLDER_ONLY
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        subprocess.TimeoutExpired(cmd="git", timeout=30),
+        FileNotFoundError("git"),
+    ],
+)
+def test_git_that_cannot_run_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    def boom(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(_MODULE.subprocess, "run", boom)
+
+    with pytest.raises(_MODULE.PreparePrBodyError, match="cannot run git"):
+        _MODULE.prepare_pr_body(tmp_path)
+
+
+def test_unreadable_base_listing_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_run = subprocess.run
+
+    def fail_ls_tree(argv: list[str], *args: object, **kwargs: object):
+        if "ls-tree" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", b"fatal: bad object")
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(_MODULE.subprocess, "run", fail_ls_tree)
+
+    with pytest.raises(_MODULE.PreparePrBodyError, match="cannot list"):
+        _MODULE.prepare_pr_body(tmp_path)
+
+
+def test_unreadable_template_blob_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_template(tmp_path, "## Summary\n")
+    real_run = subprocess.run
+
+    def fail_cat_file(argv: list[str], *args: object, **kwargs: object):
+        if "cat-file" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", b"fatal: missing blob")
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(_MODULE.subprocess, "run", fail_cat_file)
+
+    with pytest.raises(_MODULE.PreparePrBodyError, match="cannot read the PR template blob"):
+        _MODULE.prepare_pr_body(tmp_path)
