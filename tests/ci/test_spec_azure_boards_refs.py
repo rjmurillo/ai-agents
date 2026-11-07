@@ -189,13 +189,16 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
         spec_file = tmp_path / "spec-content-0.md"
         return code, spec_file.read_text(encoding="utf-8") if spec_file.exists() else ""
 
-    def test_ab_only_reports_nothing_loadable_without_calling_gh(self, tmp_path: Path) -> None:
+    def test_ab_only_reports_nothing_loadable_without_calling_gh(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         code, content = self._load(tmp_path, "AB#123")
 
         assert code == EXIT_OK
         assert self.gh_calls == []
         assert self.outputs == {"loadable": "false"}
         assert content == ""
+        assert "no requirements were loadable" in capsys.readouterr().err
 
     def test_multiple_ab_tokens_are_still_nothing_loadable(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#5 AB#900")
