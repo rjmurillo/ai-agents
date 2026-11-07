@@ -137,7 +137,7 @@ Transform insights into stored knowledge.
 - Thresholds: 95-100% add to skillbook, 70-94% add with refinement, 40-69% refine before adding, under 40% reject.
 - Tag with evidence: helpful needs a specific positive execution, harmful needs a specific negative execution, neutral means no measurable impact.
 - Run a deduplication check before you propose an ADD.
-- Assemble the artifact from `learning-template.md` (byte for byte, placeholders filled) and save it to `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`.
+- Assemble the artifact from `learning-template.md` for Session Info through Deduplication Check, placeholders filled. Replace that file's `## Phase 5: Persist and Close` section with the Phase 5 block from `recursive-extraction.md`, then add the Phase 6 closing (+/Delta, Delta Triage, ROTI, Helped/Hindered/Hypothesis) from `frameworks.md`. Save to `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`.
 
 ## Root Cause Pattern Management
 
@@ -188,7 +188,40 @@ Evaluate the retrospective itself.
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for all persistence operations.
+Use cloudmcp-manager memory tools directly for all persistence operations. Where a loaded skill reference shows `mcp__serena__write_memory` or `mcp__serena__edit_memory` (the Claude Code tool names), use the cloudmcp-manager tool below instead. This harness also grants `serena/*`; if you call a Serena write tool, follow the checkout guard after this section.
+
+**Create root cause entity:**
+
+```text
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "RootCause-{Category}-{NNN}",
+    "entityType": "FailurePattern",
+    "observations": [
+      "Description: [What failed and why]",
+      "Frequency: [How often this occurs]",
+      "Impact: [Severity when it occurs]",
+      "Detection: [How to identify this pattern]",
+      "Prevention: [How to avoid it]",
+      "Source: [PR/Issue/Session reference]"
+    ]
+  }]
+}
+```
+
+**Create prevention relations:**
+
+```text
+mcp__cloudmcp-manager__memory-create_relations
+{
+  "relations": [
+    {"from": "RootCause-{Category}-{NNN}", "to": "Skill-{Prevention}", "relationType": "prevents_by"},
+    {"from": "RootCause-{Category}-{NNN}", "to": "Incident-{Ref}", "relationType": "caused"},
+    {"from": "RootCause-{Category}-{NNN}", "to": "Category-{Name}", "relationType": "belongs_to"}
+  ]
+}
+```
 
 **Create new skills:**
 
@@ -227,6 +260,18 @@ mcp__cloudmcp-manager__memory-create_relations
   ]
 }
 ```
+
+### Serena memory writes: check the checkout first
+
+Serena writes to the checkout active at server start (`--project` root),
+not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
+`delete_memory`, or `rename_memory` only from that checkout. A linked worktree
+(`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
+In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+files in your own checkout, or return the change to the parent session. Delete or
+rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
+
+See `universal.md` MUST NOT 11.
 
 ## Continuous Improvement Loop
 

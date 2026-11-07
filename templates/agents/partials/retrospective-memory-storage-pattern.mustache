@@ -1,6 +1,39 @@
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for all persistence operations.
+Use cloudmcp-manager memory tools directly for all persistence operations. Where a loaded skill reference shows `mcp__serena__write_memory` or `mcp__serena__edit_memory` (the Claude Code tool names), use the cloudmcp-manager tool below instead. This harness also grants `serena/*`; if you call a Serena write tool, follow the checkout guard after this section.
+
+**Create root cause entity:**
+
+```text
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "RootCause-{Category}-{NNN}",
+    "entityType": "FailurePattern",
+    "observations": [
+      "Description: [What failed and why]",
+      "Frequency: [How often this occurs]",
+      "Impact: [Severity when it occurs]",
+      "Detection: [How to identify this pattern]",
+      "Prevention: [How to avoid it]",
+      "Source: [PR/Issue/Session reference]"
+    ]
+  }]
+}
+```
+
+**Create prevention relations:**
+
+```text
+mcp__cloudmcp-manager__memory-create_relations
+{
+  "relations": [
+    {"from": "RootCause-{Category}-{NNN}", "to": "Skill-{Prevention}", "relationType": "prevents_by"},
+    {"from": "RootCause-{Category}-{NNN}", "to": "Incident-{Ref}", "relationType": "caused"},
+    {"from": "RootCause-{Category}-{NNN}", "to": "Category-{Name}", "relationType": "belongs_to"}
+  ]
+}
+```
 
 **Create new skills:**
 

@@ -146,7 +146,7 @@ Transform insights into stored knowledge.
 - Thresholds: 95-100% add to skillbook, 70-94% add with refinement, 40-69% refine before adding, under 40% reject.
 - Tag with evidence: helpful needs a specific positive execution, harmful needs a specific negative execution, neutral means no measurable impact.
 - Run a deduplication check before you propose an ADD.
-- Assemble the artifact from `learning-template.md` (byte for byte, placeholders filled) and save it to `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`.
+- Assemble the artifact from `learning-template.md` for Session Info through Deduplication Check, placeholders filled. Replace that file's `## Phase 5: Persist and Close` section with the Phase 5 block from `recursive-extraction.md`, then add the Phase 6 closing (+/Delta, Delta Triage, ROTI, Helped/Hindered/Hypothesis) from `frameworks.md`. Save to `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`.
 
 ## Root Cause Pattern Management
 

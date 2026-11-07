@@ -27,7 +27,7 @@ Phase 0 through Phase 5 workflow that gathers evidence, generates insights, diag
 causes, decides actions, scores atomicity, and persists learnings. The long-form rubrics
 live verbatim in `references/`; this file is the orchestration contract.
 
-This skill replaces the former `retrospective` agent (`.claude/agents/retrospective.md`).
+This skill owns the long-form rubrics the retrospective agent loads from `references/`.
 It is callable from `Skill("retrospective")` and from `/retro fill <date>`.
 The Stop hook that once invoked it automatically was deleted, so a
 retrospective is written when someone asks for one.

@@ -162,6 +162,28 @@ def test_agent_surfaces_keep_learning_persistence(rel: str) -> None:
     assert "the `Findings for the owner` table (Blocker rows first) to orchestrator" in handoff
 
 
+SERENA_GUARD_HEADING = "### Serena memory writes: check the checkout first"
+COPILOT_AGENT_FILES = tuple(rel for rel in AGENT_FILES if rel not in CLAUDE_AGENT_FILES)
+
+
+@pytest.mark.parametrize("rel", AGENT_FILES)
+def test_agent_surfaces_keep_serena_checkout_guard(rel: str) -> None:
+    # Every harness grants a Serena write path (serena/* on Copilot, the Serena
+    # tools on Claude). The guard applies before any reference is read, so it
+    # stays in the body of all of them.
+    assert SERENA_GUARD_HEADING in _read(rel)
+
+
+@pytest.mark.parametrize("rel", COPILOT_AGENT_FILES)
+def test_copilot_surfaces_name_one_persistence_backend(rel: str) -> None:
+    # The skill references show Claude Code tool names. The Copilot body tells the
+    # agent which tool to use instead, so it never gets two backends.
+    text = _read(rel)
+    assert "use the cloudmcp-manager tool below instead" in text
+    assert "mcp__cloudmcp-manager__memory-create_entities" in text
+    assert "RootCause-{Category}-{NNN}" in text
+
+
 @pytest.mark.parametrize("rel", CLAUDE_AGENT_FILES)
 def test_structured_handoff_carries_owner_findings(rel: str) -> None:
     text = _read(rel)

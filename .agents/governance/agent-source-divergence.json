@@ -86,7 +86,7 @@
     {"agent": "retrospective", "pair": "claude-shared", "unit": "order", "digest": "df0bbacad7fcc0adde1ce665031fbc782265271ed39076bf8aef15f0f4fcb273"},
     {"agent": "retrospective", "pair": "claude-shared", "unit": "section:Continuous Improvement Loop", "digest": "06bdc931ef49aeeabc0a69fa7b07c46edcf24ec4b75b6ea449d244d40026652c"},
     {"agent": "retrospective", "pair": "claude-shared", "unit": "section:Handoff Options (Recommendations for Orchestrator)", "digest": "04d7e2ad64b4cb0461170e5011dfb4d833ea1bab956e9b2b649d1863b127d58b"},
-    {"agent": "retrospective", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "4ee0672f67e1ca340ce47d5ff6462dae8527e9464a862208d705464245d51954"},
+    {"agent": "retrospective", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "0566ca2165154a5e9cce022ab62f71f4756658d718816da99082256ef40798d7"},
     {"agent": "retrospective", "pair": "claude-shared", "unit": "section:Style Guide Compliance", "digest": "87736752a0766755f27cc84539f839026cda42362da3f25a3ca25b5debf0dd29"},
     {"agent": "roadmap", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "roadmap", "pair": "claude-shared", "unit": "frontmatter:argument-hint", "digest": "ecc58dc7302a193bf3a4fe2cead1cb695d9853e15e7082b4e0a6a36a35a0ada8"},
