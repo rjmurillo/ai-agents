@@ -180,7 +180,7 @@ def capability_units(
     tools at all, because an agent with no tool list inherits every tool. One
     ``<prefix>:<family>`` unit per family holds the sorted, de-duplicated items.
     """
-    if frontmatter.get(key) is None and fallback_key is not None:
+    if key not in frontmatter and fallback_key is not None:
         fallback = frontmatter.get(fallback_key)
         other_platform_key = "tools_vscode" in frontmatter or "tools_copilot" in frontmatter
         # The generator copies a list-valued bare key only when no platform key exists.

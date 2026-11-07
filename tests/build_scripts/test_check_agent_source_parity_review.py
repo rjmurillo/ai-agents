@@ -74,6 +74,15 @@ class TestOneSidedSections:
         right: dict[str, str] = {}
         assert gate.diverged_units(left, right, strict=True)
         assert not gate.diverged_units(
-            left, right, strict=True, one_sided_ok=frozenset({"section:Only Here"})
+            left, right, strict=True, left_only_ok=frozenset({"section:Only Here"})
         )
         assert not gate.diverged_units(left, right, strict=False)
+
+    def test_left_only_exemption_does_not_cover_a_section_only_the_right_has(self) -> None:
+        """A shared section the Claude template dropped must still count."""
+        left: dict[str, str] = {}
+        right: dict[str, str] = {"section:Claude Code Tools": "x"}
+        found = gate.diverged_units(
+            left, right, strict=True, left_only_ok=frozenset({"section:Claude Code Tools"})
+        )
+        assert list(found) == ["section:Claude Code Tools"]

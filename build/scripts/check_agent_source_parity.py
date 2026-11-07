@@ -310,7 +310,7 @@ def _compare_stem(
         (PAIR_CLAUDE, claude_tmpl, True),
         (PAIR_COPILOT, copilot_tmpl, True),
     ):
-        one_sided_ok = CLAUDE_ONLY_SECTIONS if pair == PAIR_CLAUDE else frozenset()
+        left_only_ok = CLAUDE_ONLY_SECTIONS if pair == PAIR_CLAUDE else frozenset()
         spec = CAPABILITY_KEYS[pair]
         text = _render(tmpl, partials, table if pair == PAIR_CLAUDE else None)
         units = extract_units(text, tuple((own, prefix) for own, _, prefix in spec), toolsets)
@@ -320,7 +320,7 @@ def _compare_stem(
             toolsets,
             fallback_key=SHARED_TOOLS_FALLBACK_KEY,
         )
-        diverged = diverged_units(units, shared_units, strict=strict, one_sided_ok=one_sided_ok)
+        diverged = diverged_units(units, shared_units, strict=strict, left_only_ok=left_only_ok)
         diverged.update(section_order_divergence(units, shared_units))
         found.update({(stem, pair, unit): digest for unit, digest in diverged.items()})
     return found

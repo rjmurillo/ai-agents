@@ -20,6 +20,7 @@ def _labels(tmp_path: Path, source: str) -> list[str]:
         ("['push', '--delete', 'origin', 'topic']", "push --delete origin topic"),
         ("['push', 'origin', '--mirror']", "push origin --mirror"),
         ("['push', 'origin', ':topic']", "push origin :topic"),
+        ("['push', '-d', 'origin', 'topic']", "push -d origin topic"),
     ],
 )
 def test_remote_deleting_push_argv_is_reported(tmp_path: Path, argv: str, label: str) -> None:
@@ -46,3 +47,25 @@ def test_plain_push_and_url_colon_are_not_reported(tmp_path: Path) -> None:
         "    git(['push', 'https://example.com/r.git', 'main'])\n"
     )
     assert _labels(tmp_path, source) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(self, u):\n    self.client.delete(u)\n",
+        "def f(s, u):\n    s.client.delete(u)\n",
+    ],
+)
+def test_http_delete_on_an_attribute_receiver_is_reported(tmp_path: Path, source: str) -> None:
+    assert ".delete()" in _labels(tmp_path, source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(run_git, extra):\n    run_git(['push'] + extra)\n",
+        "import subprocess\ndef f(refs):\n    subprocess.run(['git', 'push'] + refs)\n",
+    ],
+)
+def test_concatenated_git_argv_is_reported(tmp_path: Path, source: str) -> None:
+    assert "git argv built by concatenation" in _labels(tmp_path, source)

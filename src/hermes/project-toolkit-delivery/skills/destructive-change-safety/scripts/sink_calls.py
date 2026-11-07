@@ -53,7 +53,7 @@ def http_delete_sink(node: ast.Call) -> str:
     if (
         isinstance(node.func, ast.Attribute)
         and node.func.attr == "delete"
-        and isinstance(node.func.value, ast.Call | ast.Name)
+        and isinstance(node.func.value, ast.Call | ast.Name | ast.Attribute)
     ):
         return ".delete()"
     method_args = [node.args[0]] if node.args else []
@@ -64,12 +64,19 @@ def http_delete_sink(node: ast.Call) -> str:
     return ""
 
 
+def leftmost_operand(node: ast.AST) -> ast.AST:
+    """Return the leftmost operand of a ``a + b + c`` chain, else the node itself."""
+    while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        node = node.left
+    return node
+
+
 def is_git_wrapper(node: ast.Call) -> bool:
     """True for a call to a function named for git, or ``subprocess`` run on ``git``."""
     name = callee_name(node).lower()
     if name == "git" or name.startswith("git_") or name.endswith("_git") or "_git_" in name:
         return True
-    first = node.args[0] if node.args else None
+    first = leftmost_operand(node.args[0]) if node.args else None
     return (
         dotted_name(node.func).split(".")[-1] in SUBPROCESS_CALLS
         and isinstance(first, ast.List | ast.Tuple)
@@ -90,6 +97,8 @@ def variable_git_argv_sink(node: ast.Call) -> str:
     if not node.args or not is_git_wrapper(node):
         return ""
     first = node.args[0]
+    if isinstance(first, ast.BinOp):
+        return "git argv built by concatenation"
     if isinstance(first, ast.Name):
         return "git argv from variable"
     if isinstance(first, ast.Starred):

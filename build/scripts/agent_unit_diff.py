@@ -23,18 +23,19 @@ def diverged_units(
     right: dict[str, str],
     *,
     strict: bool,
-    one_sided_ok: frozenset[str] = frozenset(),
+    left_only_ok: frozenset[str] = frozenset(),
 ) -> dict[str, str]:
     """Return ``{unit: digest}`` for each unit the two members disagree on.
 
-    A section on one side only counts only when ``strict`` is set, and never
-    when it is named in ``one_sided_ok``. The preamble and the frontmatter keys
-    count in every pair.
+    A section on one side only counts only when ``strict`` is set. A unit named
+    in ``left_only_ok`` is exempt only when it sits on the left and is missing
+    from the right, so a shared section the left side dropped still counts. The
+    preamble and the frontmatter keys count in every pair.
     """
     found: dict[str, str] = {}
     for unit in sorted(set(left) | set(right)):
         one_sided = unit not in left or unit not in right
-        if one_sided and unit in one_sided_ok:
+        if unit in left_only_ok and unit in left and unit not in right:
             continue
         if one_sided and not strict and unit.startswith("section:"):
             continue

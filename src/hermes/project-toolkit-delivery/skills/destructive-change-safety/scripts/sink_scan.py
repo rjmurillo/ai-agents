@@ -100,10 +100,10 @@ SQL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 # A destructive push argument: ``--force``, ``--force-with-lease``, a short-flag
-# cluster that holds ``f`` (``-f``, ``-fu``), a ``+ref`` refspec, ``--delete``,
-# ``--mirror``, or a ``:ref`` refspec that deletes the remote ref.
+# cluster that holds ``f`` or ``d`` (``-f``, ``-fu``, ``-d``), a ``+ref`` refspec,
+# ``--delete``, ``--mirror``, or a ``:ref`` refspec that deletes the remote ref.
 FORCE_PUSH_ARG = (
-    r"(?:--force(?:-with-lease)?\b|-[a-zA-Z]*f[a-zA-Z]*(?=\s|$)|\+\S"
+    r"(?:--force(?:-with-lease)?\b|-[a-zA-Z]*[fd][a-zA-Z]*(?=\s|$)|\+\S"
     r"|--delete\b|--mirror\b|:[^\s:]\S*)"
 )
 SHELL_PATTERN = re.compile(
