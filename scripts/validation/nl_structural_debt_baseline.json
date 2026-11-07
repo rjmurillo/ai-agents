@@ -493,7 +493,7 @@
     "templates/agents/partials/retrospective-intro.mustache|templates/agents/retrospective.shared.md": 3,
     "templates/agents/partials/retrospective-intro.mustache|templates/agents/security.shared.md": 2,
     "templates/agents/partials/retrospective-intro.mustache|templates/agents/task-decomposer.shared.md": 2,
-    "templates/agents/partials/retrospective-memory-storage-pattern.mustache|templates/agents/retrospective.shared.md": 1,
+    "templates/agents/partials/retrospective-memory-storage-pattern.mustache|templates/agents/retrospective.shared.md": 4,
     "templates/agents/partials/retrospective-retrospective-flow.mustache|templates/agents/retrospective.shared.md": 26,
     "templates/agents/partials/retrospective-style-guide-compliance.mustache|templates/agents/retrospective.shared.md": 3,
     "templates/agents/partials/roadmap-intro.mustache|templates/agents/roadmap.shared.md": 55,

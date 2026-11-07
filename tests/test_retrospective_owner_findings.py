@@ -182,6 +182,9 @@ def test_copilot_surfaces_name_one_persistence_backend(rel: str) -> None:
     assert "use the cloudmcp-manager tool below instead" in text
     assert "mcp__cloudmcp-manager__memory-create_entities" in text
     assert "RootCause-{Category}-{NNN}" in text
+    # The references run Claude Code commands. The Copilot body keeps its own.
+    assert "scripts/validation/traceability.py --strict" in text
+    assert "mcp__cloudmcp-manager__memory-search_nodes" in text
 
 
 @pytest.mark.parametrize("rel", CLAUDE_AGENT_FILES)

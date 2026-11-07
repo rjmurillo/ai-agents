@@ -72,3 +72,10 @@ mcp__cloudmcp-manager__memory-create_relations
   ]
 }
 ```
+
+### Copilot overrides for loaded references
+
+The skill references were written for Claude Code. Where one differs from this list, follow this list in this harness:
+
+- **Traceability Health** (Phase 2): run `uv run --frozen python scripts/validation/traceability.py --strict`, the CI spec validator, in place of the graph command a reference shows.
+- **Search before you create** (skills and root cause patterns): use `mcp__cloudmcp-manager__memory-search_nodes` with a query such as `RootCause {Category} {Keywords from description}`, in place of `search_memory.py`. If a similar entity exists with more than 70% similarity, UPDATE it instead of creating a new one.

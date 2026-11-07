@@ -142,7 +142,7 @@ Transform insights into stored knowledge.
 - Thresholds: 95-100% add to skillbook, 70-94% add with refinement, 40-69% refine before adding, under 40% reject.
 - Tag with evidence: helpful needs a specific positive execution, harmful needs a specific negative execution, neutral means no measurable impact.
 - Run a deduplication check before you propose an ADD.
-- Assemble the artifact from `learning-template.md`, placeholders filled. It has one heading for each of Phase 0 to Phase 5, and the artifact keeps exactly that. Your Phase 5 (recursive extraction) and Phase 6 (close) are workflow phases, not artifact headings. Record the Phase 5 result as the `#### Recursive Learning Extraction` block from `recursive-extraction.md`, the last block under `### Memory Persistence`. Record the Phase 6 closing in the template's own subsections under `## Phase 5: Persist and Close`: +/Delta, Delta Triage, ROTI Assessment, Helped, Hindered, Hypothesis. Save to `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`.
+- Assemble the artifact from `learning-template.md`, placeholders filled. It has one heading for each of Phase 0 to Phase 5, and the artifact keeps exactly that. Your Phase 5 (recursive extraction) and Phase 6 (close) are workflow phases, not artifact headings. Record the Phase 5 result as the `#### Recursive Learning Extraction` block from `recursive-extraction.md`, the last block under `### Memory Persistence`. Record the Phase 6 closing in the template's own subsections under `## Phase 5: Persist and Close`: +/Delta, Delta Triage, ROTI Assessment, Helped, Hindered, Hypothesis. Save it as `YYYY-MM-DD-[scope].md` in the directory the Handoff Protocol names.
 
 ## Root Cause Pattern Management
 
