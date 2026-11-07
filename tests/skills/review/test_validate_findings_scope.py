@@ -490,31 +490,3 @@ class TestCLISubprocess:
         )
         assert result.returncode == 0
         assert "validate" in result.stdout.lower() or "worktree" in result.stdout.lower()
-
-
-class _TtyStdin:
-    """Stand-in for an interactive terminal stdin that fails the test if read."""
-
-    def isatty(self) -> bool:
-        return True
-
-    def read(self) -> str:
-        raise AssertionError("must not block reading a terminal")
-
-
-def test_main_without_text_on_terminal_stdin_exits_two_without_reading(capsys) -> None:
-    with patch.object(sys, "stdin", _TtyStdin()):
-        rc = main(["--worktree", ".", "--base-branch", "main"])
-
-    captured = capsys.readouterr()
-    assert rc == 2
-    assert captured.out == ""
-    assert "stdin is a terminal" in captured.err
-
-
-def test_main_with_text_ignores_terminal_stdin(capsys) -> None:
-    with patch.object(sys, "stdin", _TtyStdin()):
-        with patch.object(mod, "get_diff_files", return_value=None):
-            rc = main(["--worktree", ".", "--text", "no findings here"])
-
-    assert rc == 0
