@@ -22,19 +22,19 @@
 
 | Quality | Range | Action |
 |---------|-------|--------|
-| **High** | >80% | Process all immediately |
-| **Medium** | 30-80% | Triage carefully |
-| **Low** | <30% | Quick scan |
+| **High** | >80% | Process all comments immediately |
+| **Medium** | 30-80% | Triage carefully, verify before acting |
+| **Low** | <30% | Quick scan, focus on non-duplicate content |
 
 ### Comment Type Analysis
 
-| Type | Actionability |
-|------|---------------|
-| Bug reports | ~90% |
-| Missing coverage | ~70% |
-| Style suggestions | ~20% |
-| Summaries | 0% |
-| Duplicates | 0% |
+| Type | Actionability | Examples |
+|------|---------------|----------|
+| Bug reports | ~90% | cursor[bot] bugs, type errors |
+| Missing coverage | ~70% | Test gaps, edge cases |
+| Style suggestions | ~20% | Formatting, naming |
+| Summaries | 0% | CodeRabbit walkthroughs |
+| Duplicates | 0% | Same issue from multiple bots |
 
 ## Copilot Behavior
 
@@ -129,7 +129,7 @@ After completing each PR comment response session, update the cumulative table a
 
 ## Copilot Follow-Up Handling Detail (Phase 4.5)
 
-Read this when Phase 4.5 finds a follow-up PR. The branch pattern, query, and the three categories are in Copilot Behavior above. This section adds the announcement check, the intent categories with examples, and the full close and merge commands.
+Read this when you run Phase 4.5. The branch pattern and the three categories are in Copilot Behavior above. This section carries the full query with its empty-result exit, the announcement check, the intent categories with examples, and the full close and merge commands.
 
 Copilot follow-up PRs match:
 
@@ -138,6 +138,20 @@ Copilot follow-up PRs match:
 - **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
 
 **Example**: an original PR → its follow-up PR (branch `copilot/sub-pr-{original_pr_number}`)
+
+### Step 4.5.1: Query for Follow-Up PRs
+
+```bash
+# Search for follow-up PR matching pattern
+FOLLOW_UP=$(gh pr list --state=open \
+  --search="head:copilot/sub-pr-${PR_NUMBER}" \
+  --json=number,title,body,headRefName,baseRefName,state,author)
+
+if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
+  echo "No follow-up PRs found. Proceed to Phase 5."
+  exit 0
+fi
+```
 
 ### Step 4.5.2: Verify Copilot Announcement
 
@@ -203,7 +217,9 @@ gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
 gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
 ```
 
-**Handling unnecessary follow-up PRs**:
+## Handling Unnecessary Follow-Up PRs
+
+Use this when a follow-up PR exists after a won't-fix resolution. It is separate from the Phase 4.5 gate above.
 
 ```bash
 # Check if Copilot created a follow-up PR

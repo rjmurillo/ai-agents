@@ -967,7 +967,7 @@ Based on orchestrator analysis, generate a prioritized task list and save it to 
 
 **BLOCKING GATE**: Must complete before Phase 5 begins.
 
-When you reply to Copilot's review comments, Copilot often opens a follow-up PR on branch `copilot/sub-pr-{original_pr_number}` that targets the original PR's base branch. Query for it, then categorize it as DUPLICATE, SUPPLEMENTAL, or INDEPENDENT and close or evaluate it. If no follow-up PR exists, proceed to Phase 5. Read `references/bots.md` (Copilot follow-up handling) for the queries, the announcement check, the categories, and the close and merge commands.
+When you reply to Copilot's review comments, Copilot often opens a follow-up PR on branch `copilot/sub-pr-{original_pr_number}` that targets the original PR's base branch. Query for it, then categorize it as DUPLICATE, SUPPLEMENTAL, or INDEPENDENT and close or evaluate it. If no follow-up PR exists, proceed to Phase 5. Read `references/bots.md` (Copilot Follow-Up Handling Detail) for the query and its empty-result exit, the announcement check, the categories, and the close and merge commands.
 
 ### Phase 5: Immediate Replies
 
