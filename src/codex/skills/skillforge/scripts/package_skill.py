@@ -9,11 +9,14 @@ file (zip format) for distribution.
 Usage:
     python package_skill.py <path/to/skill-folder> [output-directory]
 
+Exit codes: 0 packaged, 1 validation or packaging failed, 2 bad arguments.
+
 Example:
     python package_skill.py ~/.claude/skills/my-skill
     python package_skill.py ~/.claude/skills/my-skill ./dist
 """
 
+import argparse
 import fnmatch
 import os
 import sys
@@ -151,16 +154,31 @@ def package_skill(skill_path, output_dir=None) -> PackageResult:
         return PackageResult(False, f"Error creating .skill file: {e}")
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python package_skill.py <path/to/skill-folder> [output-directory]")
-        print("\nExample:")
-        print("  python package_skill.py ~/.claude/skills/my-skill")
-        print("  python package_skill.py ~/.claude/skills/my-skill ./dist")
-        sys.exit(1)
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="package_skill.py",
+        description=(
+            "Validate a skill with quick_validate.py, then package it as a .skill zip file."
+        ),
+        epilog=(
+            "examples:\n"
+            "  python package_skill.py ~/.claude/skills/my-skill\n"
+            "  python package_skill.py ~/.claude/skills/my-skill ./dist\n\n"
+            "exit codes: 0 packaged, 1 validation or packaging failed, 2 bad arguments."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("skill_folder", help="path to the skill folder")
+    parser.add_argument(
+        "output_directory", nargs="?", default=None, help="where to write the .skill file"
+    )
+    return parser
 
-    skill_path = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else None
+
+def main(argv: list[str] | None = None) -> None:
+    args = _build_parser().parse_args(argv)
+    skill_path = args.skill_folder
+    output_dir = args.output_directory
 
     print(f"📦 Packaging skill: {skill_path}")
     if output_dir:
@@ -173,8 +191,8 @@ def main():
         print(f"\n✅ {result.message}")
         sys.exit(0)
     else:
-        print(f"❌ {result.message}")
-        print("   Please fix the errors before packaging.")
+        print(f"❌ {result.message}", file=sys.stderr)
+        print("   Please fix the errors before packaging.", file=sys.stderr)
         sys.exit(1)
 
 

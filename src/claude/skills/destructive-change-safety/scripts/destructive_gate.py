@@ -81,24 +81,41 @@ def run_gate(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="destructive_gate.py",
+        description=__doc__.splitlines()[0],
+        epilog=(
+            "examples:\n"
+            "  destructive_gate.py scan src/ --base . --changed delete_user\n"
+            "  destructive_gate.py preview-files --root . --pattern 'build/*.tmp'\n"
+            "  destructive_gate.py gate --evidence evidence.json --scan scan.json\n\n"
+            "Every subcommand is read-only and prints one JSON object on stdout.\n"
+            "Exit codes: 0 ok, 1 logic (unknown scan, refused preview, gate BLOCK),\n"
+            "2 config (missing path, unreadable JSON, bad arguments)."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     sub = parser.add_subparsers(dest="command", required=True)
-    scan = sub.add_parser("scan")
-    scan.add_argument("paths", nargs="+")
-    scan.add_argument("--base", default=".")
-    scan.add_argument("--changed", nargs="*", default=[])
+    scan = sub.add_parser("scan", help="find destructive sinks and trace their callers")
+    scan.add_argument("paths", nargs="+", help="files or directories to scan")
+    scan.add_argument("--base", default=".", help="repository root for relative paths (default: .)")
+    scan.add_argument("--changed", nargs="*", default=[], help="names of the functions you edited")
     scan.set_defaults(run=run_scan)
-    files = sub.add_parser("preview-files")
-    files.add_argument("--root", required=True)
-    files.add_argument("--pattern", action="append", required=True)
+    files = sub.add_parser("preview-files", help="list the files a glob would touch")
+    files.add_argument("--root", required=True, help="directory the pattern is relative to")
+    files.add_argument(
+        "--pattern", action="append", required=True, help="glob to preview; repeat for several"
+    )
     files.set_defaults(run=run_preview_files)
-    sql = sub.add_parser("preview-sql")
-    sql.add_argument("--database", required=True)
-    sql.add_argument("--statement", required=True)
+    sql = sub.add_parser(
+        "preview-sql", help="count the rows a DELETE or UPDATE would change, on a SQLite copy"
+    )
+    sql.add_argument("--database", required=True, help="path to the SQLite database file")
+    sql.add_argument("--statement", required=True, help="the DELETE or UPDATE statement to count")
     sql.set_defaults(run=run_preview_sql)
-    gate = sub.add_parser("gate")
-    gate.add_argument("--evidence", required=True)
-    gate.add_argument("--scan", required=True)
+    gate = sub.add_parser("gate", help="fail-closed verdict over an evidence file")
+    gate.add_argument("--evidence", required=True, help="JSON file holding the evidence object")
+    gate.add_argument("--scan", required=True, help="JSON file written by the scan subcommand")
     gate.set_defaults(run=run_gate)
     return parser
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import secrets
@@ -331,14 +332,40 @@ def write_prepared_pr_body(repo_root: Path, relative_path: str, content: str) ->
             os.close(scratch_fd)
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="prepare_pr_body.py",
+        description=(
+            "Create a mode-600 PR body file under .project-toolkit/scratch/ in "
+            "the current repository, seeded with the PR template read from the "
+            "base ref, and print its path on stdout. Fill the file, then pass "
+            "it to new_pr.py with --body-file."
+        ),
+        epilog=(
+            "examples:\n"
+            "  python3 prepare_pr_body.py\n"
+            "  python3 prepare_pr_body.py --base origin/develop\n\n"
+            "Prints a path like .project-toolkit/scratch/pr-body-<token>.md.\n"
+            "exit codes: 0 file created, 2 bad arguments or scratch directory "
+            "unsafe or not writable. Each run creates one new file."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--base",
+        dest="base_ref",
+        metavar="REF",
+        default=None,
+        help="ref to read the PR template from (default: the repository default base)",
+    )
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
-    base_ref = None
-    args = sys.argv[1:] if argv is None else argv
-    if args[:1] == ["--base"] and len(args) == 2:
-        base_ref = args[1]
-    elif args:
-        print("usage: prepare_pr_body.py [--base <ref>]", file=sys.stderr)
-        return 2
+    try:
+        base_ref = _build_parser().parse_args(argv).base_ref
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
     try:
         body_path = prepare_pr_body(Path.cwd(), base_ref)
     except (OSError, PreparePrBodyError) as exc:

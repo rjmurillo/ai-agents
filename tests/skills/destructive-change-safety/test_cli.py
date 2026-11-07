@@ -295,3 +295,41 @@ def test_directory_scan_with_hidden_script_and_workflow_is_unknown(tmp_path: Pat
     report = json.loads(result.stdout)
     assert report["decision"] == "unknown"
     assert report["unscanned"] == [".github/workflows/x.yml", "bin/cleanup"]
+
+
+def _subparsers() -> dict[str, Any]:
+    import argparse
+
+    parser = destructive_gate.build_parser()
+    action = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
+    return dict(action.choices)
+
+
+@pytest.mark.parametrize("subcommand", ["scan", "preview-files", "preview-sql", "gate"])
+def test_every_flag_and_positional_has_help_text(subcommand: str) -> None:
+    missing = [action.dest for action in _subparsers()[subcommand]._actions if action.help is None]
+
+    assert missing == []
+
+
+@pytest.mark.parametrize("subcommand", ["scan", "preview-files", "preview-sql", "gate"])
+def test_subcommand_help_exits_zero_with_empty_stderr(subcommand: str) -> None:
+    result = run(subcommand, "--help")
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_top_level_help_shows_examples_and_exit_codes() -> None:
+    result = run("--help")
+
+    assert result.returncode == 0
+    assert "examples:" in result.stdout
+    assert "Exit codes:" in result.stdout
+
+
+def test_missing_subcommand_exits_two_on_stderr() -> None:
+    result = run()
+
+    assert result.returncode == 2
+    assert result.stdout == ""

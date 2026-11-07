@@ -349,3 +349,43 @@ def test_main_reads_sys_argv_when_argv_none(tmp_path: Path, monkeypatch) -> None
 
     assert metrics_writer.main() == 0
     assert (tmp_path / target).read_text(encoding="utf-8") == _TALLY + "\n"
+
+
+def test_cli_help_lists_examples_and_exit_codes(capsys) -> None:
+    rc = metrics_writer.main(["--help"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "usage: metrics_writer.py" in out
+    assert "example:" in out
+    assert "exit codes" in out
+
+
+def test_cli_unknown_flag_exits_two_on_stderr(capsys) -> None:
+    assert metrics_writer.main(["--nope", "x", "y"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "invalid arguments" in captured.err
+
+
+def test_usage_error_never_echoes_argument_values(capsys) -> None:
+    secret = "ghp_exampleSecretValue1234567890"
+
+    assert metrics_writer.main(["a", "b", secret]) == 2
+
+    assert secret not in capsys.readouterr().err
+
+
+def test_line_starting_with_hyphen_is_accepted_after_double_dash(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = metrics_writer.main(["tally.md", "--", "- a hyphen line"])
+
+    assert rc == 0
+    assert "- a hyphen line" in (tmp_path / "tally.md").read_text(encoding="utf-8")
+
+
+def test_abbreviated_help_flag_is_not_accepted_so_a_line_is_not_swallowed(capsys) -> None:
+    assert metrics_writer.main(["tally.md", "--he"]) == 2
+    assert capsys.readouterr().out == ""

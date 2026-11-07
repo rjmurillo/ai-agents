@@ -23,6 +23,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from dataclasses import dataclass, field
@@ -191,8 +192,32 @@ def validate_file(path: str) -> SpecValidation:
     return validate_fields(path, fields)
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="validate_spec_frontmatter.py",
+        description=(
+            "Validate requirement, design, and task spec frontmatter against the "
+            "canonical enums, required fields, and id patterns. Read-only. "
+            "Prints one [PASS] or [FAIL] line per file on stdout."
+        ),
+        epilog=(
+            "example:\n"
+            "  validate_spec_frontmatter.py .project-toolkit/specs/REQ-001.md\n\n"
+            "exit codes: 0 all valid, 1 one or more validation failures, "
+            "2 no input or an unreadable file."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("files", nargs="*", metavar="FILE", help="spec file to validate")
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
+    parser = _build_parser()
+    try:
+        args = parser.parse_args(argv).files
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
     if not args:
         print("usage: validate_spec_frontmatter.py FILE [FILE ...]", file=sys.stderr)
         return 2

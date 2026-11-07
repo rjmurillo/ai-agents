@@ -142,6 +142,72 @@ class TestSetItemMilestone:
         assert result["Data"]["action"] == "assigned"
         assert result["Data"]["milestone"] == "v1.0.0"
 
+    def test_dry_run_reports_would_assign_and_makes_no_write_call(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("set_item_milestone.assert_gh_authenticated"),
+            patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                side_effect=[make_completed_process(stdout=json.dumps({"milestone": None}))],
+            ) as run,
+        ):
+            rc = mod.main(
+                [
+                    "--item-type",
+                    "pr",
+                    "--item-number",
+                    "42",
+                    "--milestone-title",
+                    "v1.0.0",
+                    "--dry-run",
+                    "--output-format",
+                    "json",
+                ]
+            )
+        result = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert result["Data"]["action"] == "would_assign"
+        assert result["Data"]["dry_run"] is True
+        assert run.call_count == 1
+
+    def test_dry_run_still_skips_an_item_that_has_a_milestone(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("set_item_milestone.assert_gh_authenticated"),
+            patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(
+                    stdout=json.dumps({"milestone": {"title": "v2"}})
+                ),
+            ),
+        ):
+            rc = mod.main(
+                [
+                    "--item-type",
+                    "issue",
+                    "--item-number",
+                    "1",
+                    "--dry-run",
+                    "--output-format",
+                    "json",
+                ]
+            )
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["action"] == "skipped"
+
+    def test_dry_run_without_a_milestone_to_pick_still_exits_2(self, _import_module):
+        mod = _import_module
+        with (
+            patch("set_item_milestone.assert_gh_authenticated"),
+            patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch.object(mod, "_get_latest_semantic_milestone", return_value={"found": False}),
+            patch.object(mod, "_get_item_milestone", return_value=""),
+        ):
+            rc = mod.main(["--item-type", "issue", "--item-number", "1", "--dry-run"])
+        assert rc == 2
+
     def test_assign_milestone_includes_timeout(self, _import_module):
         mod = _import_module
         with patch("subprocess.run", return_value=make_completed_process()) as run:
