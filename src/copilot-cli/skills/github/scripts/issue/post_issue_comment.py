@@ -8,8 +8,7 @@ If a marker exists in existing comments, behavior depends on --update-if-exists:
 
 ``--dry-run`` performs the marker check and reports ``would_post`` or
 ``would_update`` with ``dry_run: true``. A marker hit without
-``--update-if-exists`` is still the normal skip. Nothing is posted and no
-GITHUB_OUTPUT file is written.
+``--update-if-exists`` is still the normal skip. Nothing is posted.
 
 Exit codes follow ADR-035:
     0 - Success (includes idempotent skip)

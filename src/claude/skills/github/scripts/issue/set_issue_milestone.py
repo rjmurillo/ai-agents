@@ -4,8 +4,7 @@
 
 Validates milestone exists before assigning, and optionally clears existing milestone.
 ``--dry-run`` runs the same checks and reports ``would_assign``, ``would_replace``,
-or ``would_clear`` with ``dry_run: true``; it edits nothing and writes no
-GITHUB_OUTPUT file.
+or ``would_clear`` with ``dry_run: true``; it edits nothing.
 
 Exit codes follow ADR-035:
     0 - Success

@@ -7,7 +7,7 @@ Orchestrates milestone assignment:
 3. Assigns the milestone
 
 ``--dry-run`` stops before step 3: it reports ``action: would_assign`` and
-writes neither the assignment nor the GITHUB_OUTPUT / step-summary files.
+makes no assignment.
 
 Exit codes follow ADR-035:
     0 - Success (assigned or skipped)
