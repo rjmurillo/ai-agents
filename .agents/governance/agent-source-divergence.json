@@ -73,7 +73,7 @@
     {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "d7b44b30f87dffbf3189618ebec69c3bdc646f823139082d6472f10f36b94944"},
     {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "section:Triage Heuristics", "digest": "88b55f1defac2bbbb8db56c78ea28543641ed95a8c848d10e4c384a786bcd9d8"},
     {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "section:Verification Gates (BLOCKING)", "digest": "2787e343d1f81db3e3d148c35123ec7a90d34474392692fa5569a6ef35a7a0f1"},
-    {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "section:Workflow Protocol", "digest": "607c7da81b3893b9a90159fe1d7be95c7685d7a52649c3620678013650096a14"},
+    {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "section:Workflow Protocol", "digest": "110be305a237cb88e6a1107a10365c5adf428cb226aae00fd0f2547ad1ccd57b"},
     {"agent": "pr-test-analyzer", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "qa", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Key Responsibilities", "digest": "b1825e023cfaeab488cb7cba768a5f4cf4958395d49844d5c55c69e55a43a001"},

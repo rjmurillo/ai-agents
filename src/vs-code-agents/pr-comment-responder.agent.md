@@ -169,7 +169,7 @@ Before emitting any prose artifact (reply body, comment response, summary, PR or
 Skill references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/`. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
 - `bots.md`: scoring reviewer signal quality or updating its statistics; Phase 4.5 finds a Copilot follow-up PR; a Copilot, CodeRabbit, or cursor[bot] comment needs bot-specific handling.
-- `templates.md`: composing a Won't Fix, Question, Acknowledged, Resolution, or Premise Refuted reply; checking a comment against the security keyword list.
+- `templates.md`: composing a Won't Fix, Question, Clarification Needed, Acknowledged, Resolution, or Premise Refuted reply; posting a reply without `post_pr_comment_reply.py`; checking a comment against the security keyword list or the domain-priority table.
 - `coordinator-detail.md`: building the Step 3.1 context object or the Phase 4 `tasks.md` file; applying the Quick Fix criteria; running the Phase 9 memory update.
 
 ## Workflow Paths Reference
@@ -971,7 +971,7 @@ Reply to comments that need immediate response BEFORE implementation:
 
 #### Reply Guidelines
 
-@ mention the reviewer only when you need their answer or decision. Do not mention on acknowledgment, final resolution, or informational replies: mentioning @copilot triggers a new PR analysis and costs premium requests, and mentioning @coderabbitai triggers a re-review. Reply to review comments in-thread, never through `/issues/{number}/comments`. Read `references/templates.md` when composing a Won't Fix, Question, Acknowledged, Resolution, or Premise Refuted reply.
+@ mention the reviewer only when you need their answer or decision. Do not mention on acknowledgment, final resolution, or informational replies: mentioning @copilot triggers a new PR analysis and costs premium requests, and mentioning @coderabbitai triggers a re-review. Reply to review comments in-thread, never through `/issues/{number}/comments`. Read `references/templates.md` when composing a Won't Fix, Question, Clarification Needed, Acknowledged, Resolution, or Premise Refuted reply.
 
 #### Step 5.1: Record Terminal Outcomes Decided Here
 
@@ -1540,7 +1540,7 @@ echo "[ ] Pushed: $(git status -sb | head -1)"
 
 #### Steps 9.1 to 9.4: Update And Verify The Memory
 
-Count the comments and the actionable comments per reviewer for this PR. Update the Per-Reviewer Performance, Per-PR Breakdown, and Metrics sections of `pr-review/pr-comment-responder-skills` with `edit_memory`, subject to the worktree rule under Memory Protocol. Then read the memory back and confirm this PR appears in all three sections. Read `references/coordinator-detail.md` (Phase 9 detail) for the statistics shape and the edit calls.
+Count the comments and the actionable comments per reviewer for this PR. Update the Per-Reviewer Performance, Per-PR Breakdown, and Metrics sections of `pr-review/pr-comment-responder-skills` with `edit_memory`, subject to the worktree rule under Memory Protocol. Then read the memory back and confirm this PR appears in all three sections: Claude Code uses `Read` on this checkout's `.serena/memories/` file, Copilot CLI and VS Code use `mcp__serena__read_memory`, and in a linked worktree every harness reads this checkout's file directly. Read `references/coordinator-detail.md` (Phase 9 detail) for the statistics shape and the edit calls.
 
 ---
 

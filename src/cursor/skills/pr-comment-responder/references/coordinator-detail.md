@@ -169,11 +169,13 @@ session_stats = {
 
 ### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
-<!-- Formatter off: this block ends in a bare `Read .serena/...` path line in the Claude variant, which ruff would rewrite as a division expression. Both variants keep the original text. -->
+<!-- Formatter off: ruff would add trailing commas to the edit_memory calls in this block. -->
 <!-- fmt:off -->
 ```python
-# Read current memory to get existing statistics
-current = mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
+# Read current memory to get existing statistics.
+# Claude Code: Read this checkout's .serena/memories/pr-review/pr-comment-responder-skills.md
+# Copilot CLI and VS Code: mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
+# In a linked worktree every harness reads this checkout's file directly, because Serena serves another checkout.
 
 # Calculate new cumulative totals from session_stats
 # Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
@@ -229,7 +231,9 @@ Confirm that the `pr-review/pr-comment-responder-skills` memory reflects the new
 
 **Verification Command**:
 
-```bash
-# Read updated memory and verify new PR data appears
-mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
+```text
+# Read updated memory and verify new PR data appears.
+# Claude Code: Read this checkout's .serena/memories/pr-review/pr-comment-responder-skills.md
+# Copilot CLI and VS Code: mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
+# In a linked worktree every harness reads this checkout's file directly.
 ```
