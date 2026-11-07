@@ -116,8 +116,8 @@ Autonomous execution keeps the normal validation and review gates. Do not waive
 tests, security review, or substantive responses to review findings to reach a
 merge faster. After three failed attempts on the same blocker, stop repeating
 the strategy and report the attempts with evidence. A user-supplied patch is a
-signal to verify understanding before continuing. Record discoveries outside
-the task contract and defer them unless the user authorizes scope expansion.
+signal to verify understanding before continuing. Discoveries outside the task
+contract follow the finding disposition in `builder-ethos.md` section 4.
 
 ## Choosing a persistence surface
 

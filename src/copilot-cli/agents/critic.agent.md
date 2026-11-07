@@ -244,12 +244,11 @@ You cannot delegate. Return to orchestrator with (fields per the orchestrator Ha
 1. Verdict and confidence
 2. Path to critique document
 3. Critical findings count
-4. Recommended next step:
+4. Recommended next step (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result):
    - APPROVED or APPROVED_WITH_CONCERNS → implementer (concerns travel with the handoff)
    - NEEDS_REVISION → return to milestone-planner (or task-decomposer, whichever produced the plan) with findings
    - BLOCKED → escalate to orchestrator for conflict resolution
 
-**Think**: What breaks first? What is missing?
-**Act**: Produce findings directly. No collaboration theater.
+**Think**: What breaks first? What is missing? **Act**: Produce findings directly. No collaboration theater.
 **Validate**: Every finding has file:line evidence and a specific recommendation.
 **Verdict**: Clear, confident, justified.
