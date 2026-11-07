@@ -20,6 +20,8 @@ allowed to exist:
                           and never writing over the incumbent file
   - validation gates    : scalar strict-greater, and per-task strict Pareto with
                           unverified-result and null-control checks
+  - efficiency gate     : a pre-declared cost, latency, or token gain at the
+                          accuracy ceiling, with repeats and a null control
   - rejected-edit buffer: stable-signature dedup so known-bad edits are blocked
   - hash                : sha256 byte identity for incumbent, null control, and
                           deployed copy; a directory hashes as a whole bundle
@@ -60,6 +62,7 @@ from _skillopt_bundle import (
     overlaps,
     path_sha256,
 )
+from _skillopt_efficiency import efficiency_gate
 from _skillopt_gates import (
     BAD_TASK_STATUSES,
     _split_task_ids,
@@ -92,6 +95,7 @@ __all__ = [
     "bundle_sha256",
     "edit_budget",
     "edit_signature",
+    "efficiency_gate",
     "file_sha256",
     "gate",
     "is_known_bad",
@@ -186,6 +190,18 @@ def _cmd_pair_gate(args: argparse.Namespace) -> int:
         null_results,
         incumbent_sha256=args.incumbent_sha256,
         null_sha256=args.null_sha256,
+    )
+    print(json.dumps(report, indent=2))
+    return 0 if report["accepted"] else 1
+
+
+def _cmd_efficiency_gate(args: argparse.Namespace) -> int:
+    report = efficiency_gate(
+        _load_object(args.eval, "efficiency-gate eval input"),
+        _load_object(args.incumbent_results, "efficiency-gate incumbent results"),
+        _load_object(args.candidate_results, "efficiency-gate candidate results"),
+        _load_object(args.measurements, "efficiency-gate measurements"),
+        args.split,
     )
     print(json.dumps(report, indent=2))
     return 0 if report["accepted"] else 1
@@ -309,6 +325,17 @@ def _add_gate_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]) 
     p.add_argument("--null-sha256", help="sha256 of the file the null run used (must match)")
     p.add_argument("--split", default="sel")
     p.set_defaults(func=_cmd_pair_gate)
+
+    p = sub.add_parser(
+        "efficiency-gate",
+        help="accept a pre-declared efficiency gain with correctness held and a null control",
+    )
+    p.add_argument("--eval", required=True)
+    p.add_argument("--incumbent-results", required=True)
+    p.add_argument("--candidate-results", required=True)
+    p.add_argument("--measurements", required=True, help="incumbent, candidate, and null arms")
+    p.add_argument("--split", default="sel")
+    p.set_defaults(func=_cmd_efficiency_gate)
 
     p = sub.add_parser("score", help="pass-rate on a held-out split")
     p.add_argument("--eval", required=True)
