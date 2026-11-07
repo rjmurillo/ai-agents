@@ -17,6 +17,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 from tests.validation._placement_fixtures import (
     EVIDENCE_INCIDENT,
     INVALID_SUPPRESSION,
@@ -143,9 +145,56 @@ def test_classify_marker_inside_multiline_html_block_does_not_suppress():
 
 
 def test_classify_standalone_marker_with_leading_indent_suppresses():
-    text = "# Notes\n\n## Constraints\n\n  <!-- placement: evidence; reason: incident record -->\n"
+    text = (
+        "# Notes\n\n## Constraints\n\n"
+        "  <!-- placement: evidence; reason: incident record from the 2026 outage -->\n"
+    )
     result = checker.classify(text)
     assert result.label == "evidence"
+    assert result.suppressed is True
+
+
+_MIN = checker.MIN_SUPPRESSION_REASON_CHARS
+
+
+def _marker(reason: str) -> str:
+    return NORMATIVE_HEADING + f"\n<!-- placement: evidence; reason: {reason} -->\n"
+
+
+def test_min_suppression_reason_is_documented_in_the_module_docstring():
+    assert f"at least {_MIN}" in (checker.__doc__ or "")
+
+
+def test_classify_reason_at_the_minimum_suppresses():
+    result = checker.classify(_marker("x" * _MIN))
+    assert result.label == "evidence"
+    assert result.suppressed is True
+    assert result.invalid_suppression is False
+
+
+def test_classify_reason_one_under_the_minimum_is_invalid_suppression():
+    result = checker.classify(_marker("x" * (_MIN - 1)))
+    assert result.label == "normative"
+    assert result.suppressed is False
+    assert result.invalid_suppression is True
+    assert "invalid-suppression" in result.signals
+
+
+@pytest.mark.parametrize("reason", ["ok", "nested", "see ADR"])
+def test_classify_one_word_reason_is_invalid_suppression(reason):
+    result = checker.classify(_marker(reason))
+    assert result.label == "normative"
+    assert result.invalid_suppression is True
+
+
+def test_classify_padding_does_not_count_toward_the_minimum():
+    result = checker.classify(_marker("   short   " + " " * _MIN))
+    assert result.suppressed is False
+    assert result.invalid_suppression is True
+
+
+def test_classify_multibyte_reason_counts_characters_not_bytes():
+    result = checker.classify(_marker("\u00e9" * _MIN))
     assert result.suppressed is True
 
 

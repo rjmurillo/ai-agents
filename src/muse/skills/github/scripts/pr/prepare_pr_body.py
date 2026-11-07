@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -26,10 +27,11 @@ _BODY_FILE_RULES = (
     "(owner-only); create one with new_pr.py --prepare-body-file"
 )
 _PRIVATE_MASK = 0o077
-# World-write only. Any account could rewrite a world-writable template and plant
-# text in every body seeded from it (#6506). Group-write stays allowed: a umask
-# of 002, common with per-user groups, gives every fresh checkout mode 664.
-_TEMPLATE_WRITE_MASK = 0o002
+# The template is read from the base ref, not the working tree, so a PR cannot
+# edit it to seed its own body text (#6506). Git tree modes for a regular file.
+_REGULAR_BLOB_MODES = frozenset({"100644", "100755"})
+_FALLBACK_BASE_REF = "origin/main"
+_GIT_TIMEOUT_SECONDS = 30
 _HAS_DIRECTORY_FDS = (
     hasattr(os, "O_DIRECTORY")
     and os.open in os.supports_dir_fd
@@ -112,76 +114,106 @@ def _new_body_name() -> str:
     return f"pr-body-{secrets.token_hex(16)}.md"
 
 
-def _open_template_fd(root: Path) -> int:
-    """Open the PR template without following a symlink at any component.
-
-    ``.github`` is opened as a directory with O_NOFOLLOW, then the template is
-    opened relative to that descriptor, so neither component can be swapped for
-    a link that points outside the checkout.
-    """
-    nofollow = getattr(os, "O_NOFOLLOW", 0)
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | nofollow
-    root_fd = os.open(root, directory_flags)
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
     try:
-        github_fd = os.open(_TEMPLATE_PATH.parent, directory_flags, dir_fd=root_fd)
-    finally:
-        os.close(root_fd)
-    try:
-        # O_NONBLOCK keeps a FIFO planted at the template path from hanging.
-        return os.open(
-            _TEMPLATE_PATH.name,
-            os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0),
-            dir_fd=github_fd,
+        return subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
         )
-    finally:
-        os.close(github_fd)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise PreparePrBodyError(f"cannot run git to read the PR template: {exc}") from exc
 
 
-def _read_template_fd(descriptor: int) -> str:
-    """Read an owned, single-link regular file of bounded size from ``descriptor``."""
-    metadata = os.fstat(descriptor)
-    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
-        raise PreparePrBodyError("PR template is not a plain file")
-    if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
-        raise PreparePrBodyError("PR template has another owner")
-    if stat.S_IMODE(metadata.st_mode) & _TEMPLATE_WRITE_MASK:
-        raise PreparePrBodyError("PR template is world-writable")
-    with os.fdopen(descriptor, "rb", closefd=False) as template_file:
-        data = template_file.read(_TEMPLATE_MAX_BYTES + 1)
-    if len(data) > _TEMPLATE_MAX_BYTES:
-        raise PreparePrBodyError("PR template is too large")
-    return data.decode("utf-8")
+def _default_base_ref(root: Path) -> str:
+    """Return ``origin/<default branch>``, falling back to ``origin/main``."""
+    result = _git(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    name = result.stdout.decode("utf-8", "replace").strip()
+    if result.returncode == 0 and name:
+        return name
+    return _FALLBACK_BASE_REF
 
 
-def _seed_content(root: Path) -> str:
-    """Return the placeholder line followed by the repository PR template.
+def _require_base_ref(root: Path, base_ref: str) -> None:
+    """Fail closed when ``base_ref`` is not a commit in this clone.
 
-    A repository without a safe template gets the placeholder alone. Safe means
-    a regular file, one link, owned by the caller, not world-writable,
-    at most 64 KiB, reached without crossing a symlink.
+    Reading the checked-out branch instead would let a PR that edits the
+    template seed its own body text (#6506), so an unfetched base is an error.
     """
-    if not _HAS_DIRECTORY_FDS:
-        return _BODY_PLACEHOLDER
-    try:
-        descriptor = _open_template_fd(root)
-    except OSError:
-        return _BODY_PLACEHOLDER
-    try:
-        return _BODY_PLACEHOLDER + "\n" + _read_template_fd(descriptor)
-    except (OSError, UnicodeError, PreparePrBodyError):
-        return _BODY_PLACEHOLDER
-    finally:
-        os.close(descriptor)
+    if base_ref.startswith("-") or not base_ref.strip():
+        raise PreparePrBodyError(f"invalid base ref for the PR template: {base_ref!r}")
+    result = _git(root, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}")
+    if result.returncode != 0:
+        remote, _, branch = base_ref.partition("/")
+        hint = f"git fetch {remote} {branch}" if branch else f"git fetch origin {base_ref}"
+        raise PreparePrBodyError(
+            f"base ref {base_ref!r} is not available locally, so the PR template cannot "
+            f"be read from it; run `{hint}` or pass --base <ref>"
+        )
 
 
-def prepare_pr_body(repo_root: Path) -> Path:
+def _read_base_template(root: Path, base_ref: str) -> str | None:
+    """Return the template text at ``base_ref``, or None when it is not usable.
+
+    Usable means a regular-file blob (not a symlink or submodule), at most
+    64 KiB, valid UTF-8. A template that is absent at the base is not an error.
+    """
+    listing = _git(
+        root, "ls-tree", "--full-tree", "--long", "-z", base_ref, "--", _TEMPLATE_PATH.as_posix()
+    )
+    if listing.returncode != 0:
+        detail = listing.stderr.decode("utf-8", "replace").strip()
+        raise PreparePrBodyError(f"cannot list {base_ref!r} to read the PR template: {detail}")
+    entry = listing.stdout.split(b"\0", 1)[0].decode("utf-8", "replace")
+    if not entry:
+        return None
+    meta, _, _name = entry.partition("\t")
+    fields = meta.split()
+    if len(fields) != 4:
+        return None
+    mode, kind, sha, size = fields
+    if kind != "blob" or mode not in _REGULAR_BLOB_MODES:
+        return None
+    if not size.isdigit() or int(size) > _TEMPLATE_MAX_BYTES:
+        return None
+    blob = _git(root, "cat-file", "blob", sha)
+    if blob.returncode != 0:
+        raise PreparePrBodyError(f"cannot read the PR template blob at {base_ref!r}")
+    try:
+        return blob.stdout.decode("utf-8")
+    except UnicodeError:
+        return None
+
+
+def _seed_content(root: Path, base_ref: str | None = None) -> str:
+    """Return the placeholder line followed by the PR template at the base ref.
+
+    The template comes from the base ref, never the checked-out branch. An
+    unfetched base ref raises. A base without a usable template gets the
+    placeholder alone.
+    """
+    ref = base_ref if base_ref is not None else _default_base_ref(root)
+    _require_base_ref(root, ref)
+    template = _read_base_template(root, ref)
+    if template is None:
+        return _BODY_PLACEHOLDER
+    return _BODY_PLACEHOLDER + "\n" + template
+
+
+def prepare_pr_body(
+    repo_root: Path, base_ref: str | None = None, *, seed_template: bool = True
+) -> Path:
     """Return a newly created private file below ``.project-toolkit/scratch``.
 
-    The file holds the placeholder line and the repository PR template. Delete
-    the placeholder line once the template sections are filled in.
+    The file holds the placeholder line and the PR template as it exists at
+    ``base_ref`` (default ``origin/<default branch>``). Raises when that ref is
+    not fetched. Delete the placeholder line once the template sections are
+    filled in. A caller that overwrites the whole file at once passes
+    ``seed_template=False`` to get the placeholder alone and skip git.
     """
     root = repo_root.resolve()
-    seed = _seed_content(root)
+    seed = _seed_content(root, base_ref) if seed_template else _BODY_PLACEHOLDER
     scratch_dir, scratch_fd = _open_scratch(root)
     try:
         if scratch_fd is None:
@@ -299,9 +331,16 @@ def write_prepared_pr_body(repo_root: Path, relative_path: str, content: str) ->
             os.close(scratch_fd)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    base_ref = None
+    args = sys.argv[1:] if argv is None else argv
+    if args[:1] == ["--base"] and len(args) == 2:
+        base_ref = args[1]
+    elif args:
+        print("usage: prepare_pr_body.py [--base <ref>]", file=sys.stderr)
+        return 2
     try:
-        body_path = prepare_pr_body(Path.cwd())
+        body_path = prepare_pr_body(Path.cwd(), base_ref)
     except (OSError, PreparePrBodyError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

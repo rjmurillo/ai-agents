@@ -13,6 +13,7 @@ import pytest
 
 from scripts.github_core.api import RepoInfo
 from tests.containment_fixtures import private_dir
+from tests.pr_body_base_repo import prepare_offline
 
 _PR_DIR = Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 _MOCK_REPO = RepoInfo(owner="testowner", repo="testrepo")
@@ -48,7 +49,7 @@ def _run(tmp_path: Path, body_file: str, *extra: str) -> tuple[int, MagicMock, M
 
 
 def _prepared(tmp_path: Path, content: str) -> str:
-    relative = _prepare.prepare_pr_body(tmp_path)
+    relative = prepare_offline(_prepare, tmp_path)
     (tmp_path / relative).write_text(content, encoding="utf-8")
     return relative.as_posix()
 
@@ -139,7 +140,7 @@ def test_group_readable_prepared_file_is_refused(tmp_path: Path) -> None:
 
 
 def test_unreplaced_placeholder_is_refused(tmp_path: Path) -> None:
-    relative = _prepare.prepare_pr_body(tmp_path).as_posix()
+    relative = prepare_offline(_prepare, tmp_path).as_posix()
 
     rc, update, fetch = _run(tmp_path, relative)
 

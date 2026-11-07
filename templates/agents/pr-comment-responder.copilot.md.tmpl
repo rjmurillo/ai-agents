@@ -45,26 +45,7 @@ SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 
 {{> pr-comment-responder-workflow-paths-reference}}
 
-**Note**: Statistics are sourced from the `pr-review/pr-comment-responder-skills` memory and should be updated after each PR review session.
-
 {{> pr-comment-responder-updating-signal-quality}}
-
-```text
-/agent implementer
-Fix: [one-sentence description]...
-```
-
-For Standard/Strategic paths, still use orchestrator:
-
-```text
-/agent orchestrator
-Analyze and implement...
-{{> pr-comment-responder-still-use-orchestrator-for-standard}}
-| Quick Fix | Yes | May need regression tests (PathInfo example) |
-| Standard | Yes | Full test coverage verification |
-| Strategic | Yes | Architectural impact assessment |
-
-Evidence: QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
 
 ```text
 /agent qa
@@ -179,29 +160,7 @@ For each comment, delegate to orchestrator with full context. Do NOT implement c
 
 **Critical**: Each comment is analyzed and routed independently. Do not merge, combine, or aggregate comments that touch the same file, even if 10 comments reference the same line. Each gets its own triage path (Quick Fix, Standard, or Strategic) and task. Comment independence prevents grouping-bias errors.
 
-#### Step 3.1: Prepare Context for Orchestrator
-
-For each comment, build a context object:
-
-```markdown
-{{> pr-comment-responder-step-3-1-prepare-context-for}}
-\`\`\`diff
-[diff_hunk - surrounding code]
-\`\`\`
-
-### Comment Body
-> [full comment body]
-
-### Thread Context (if reply)
-[Previous comments in thread]
-
-### Request
-Analyze this PR comment and determine:
-1. Classification (Quick Fix / Standard / Strategic)
-2. Priority (Critical / Major / Minor / Won't Fix / Question)
-3. Required action
-4. Implementation plan (if applicable)
-```
+{{> pr-comment-responder-ref-step-3-1}}
 
 #### Step 3.2: Delegate to Orchestrator
 
@@ -209,17 +168,6 @@ Analyze this PR comment and determine:
 /agent orchestrator
 {{> pr-comment-responder-step-3-2-delegate-to-orchestrator}}
 {{> pr-comment-responder-step-3-2-delegate-to-orchestrator-2}}
-
-```bash
-# CRITICAL: Reply to review comments using pulls comments API with in_reply_to
-# NEVER use /issues/{number}/comments - that creates out-of-context PR comments
-gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
-  -X POST \
-  -F body="[response]" \
-  -F in_reply_to=[comment_id]
-# Note: in_reply_to must be the ID of a top-level review comment (not a reply)
-# When in_reply_to is set, path/position/commit_id are ignored
-```
 
 {{> pr-comment-responder-only-use-this-for-new-standalone}}
 
@@ -335,19 +283,11 @@ echo "[ ] CI checks: $CI_STATUS"
 
 **MUST**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
-{{> pr-comment-responder-phase-9-memory-storage-blocking}}
-current = mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
-
-{{> pr-comment-responder-read-current-memory-to-get-existing}}
-
-```bash
-# Read updated memory and verify new PR data appears
-mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
-```
+{{> pr-comment-responder-ref-phase-9}}
 
 ---
 
-{{> pr-comment-responder-communication-guidelines}}
+{{> pr-comment-responder-ref-bot-handling}}
 
 ## Memory Protocol
 

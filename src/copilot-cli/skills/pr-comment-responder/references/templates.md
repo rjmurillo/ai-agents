@@ -25,7 +25,7 @@
 **CRITICAL**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # In-thread reply (CORRECT)
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
@@ -132,4 +132,37 @@ symlink          # Symlink attacks
 traversal        # Path traversal
 sanitiz          # Input sanitization
 escap            # Output escaping
+```
+
+## Priority Adjustment by Domain
+
+Read this when classifying a comment as security, bug, or style domain.
+
+| Comment Domain | Keywords | Priority Adjustment | Rationale |
+|----------------|----------|---------------------|-----------|
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage if missed during review |
+| **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
+| **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
+
+Scan each comment body for the patterns in Security Keyword Detection above, case-insensitive. The agent list also matches `authentication`, `authorization`, `TOCTOU`, `symlink`, `traversal`, `sanitiz`, and `escap`.
+
+### Evidence
+
+Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
+
+**Skill Reference**: pr-review-security (atomicity: 94%)
+
+## Raw API Reply Form
+
+Use this only when `post_pr_comment_reply.py` is unavailable. The issue comments endpoint is for a new standalone comment, never for a reply.
+
+```bash
+# CRITICAL: Reply to review comments using pulls comments API with in_reply_to
+# NEVER use /issues/{number}/comments - that creates out-of-context PR comments
+gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
+  -X POST \
+  -F body="[response]" \
+  -F in_reply_to=[comment_id]
+# Note: in_reply_to must be the ID of a top-level review comment (not a reply)
+# When in_reply_to is set, path/position/commit_id are ignored
 ```
