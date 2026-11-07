@@ -677,3 +677,34 @@ class TestCli:
         p = tmp_path / "bad.bin"
         p.write_bytes(b"\xff\xfe leaked Bearer abc123def456ghi789")
         assert main([str(p)]) == 2
+
+    def test_help_prints_usage_with_examples_and_exits_zero(self, capsys):
+        rc = main(["--help"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "usage: redact_secrets.py" in out
+        assert "examples:" in out
+        assert "exit codes" in out
+
+    def test_unknown_flag_is_usage_error(self, capsys):
+        assert main(["--nope"]) == 2
+        assert "unrecognized arguments" in capsys.readouterr().err
+
+    def test_terminal_stdin_without_file_fails_instead_of_blocking(self, capsys):
+        class _Tty(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        with patch.object(sys, "stdin", _Tty("would block on a real terminal")):
+            rc = main([])
+        captured = capsys.readouterr()
+        assert rc == 2
+        assert captured.out == ""
+        assert "no input" in captured.err
+
+    def test_missing_file_is_usage_error_on_stderr(self, tmp_path, capsys):
+        rc = main([str(tmp_path / "absent.txt")])
+        captured = capsys.readouterr()
+        assert rc == 2
+        assert captured.out == ""
+        assert "cannot read input" in captured.err

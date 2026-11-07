@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import secrets
@@ -299,7 +300,31 @@ def write_prepared_pr_body(repo_root: Path, relative_path: str, content: str) ->
             os.close(scratch_fd)
 
 
-def main() -> int:
+def _build_parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog="prepare_pr_body.py",
+        description=(
+            "Create a mode-600 PR body file under .project-toolkit/scratch/ in "
+            "the current repository, seeded with the repository PR template, and "
+            "print its path on stdout. Fill the file, then pass it to new_pr.py "
+            "with --body-file."
+        ),
+        epilog=(
+            "example:\n"
+            "  python3 prepare_pr_body.py\n"
+            "  prints a path like .project-toolkit/scratch/pr-body-<token>.md\n\n"
+            "exit codes: 0 file created, 2 scratch directory unsafe or not writable. "
+            "Each run creates one new file; it takes no flags besides --help."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        _build_parser().parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
     try:
         body_path = prepare_pr_body(Path.cwd())
     except (OSError, PreparePrBodyError) as exc:

@@ -26,6 +26,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from collections.abc import Iterable
@@ -405,13 +406,44 @@ def redact_ci_sink(
     )
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="redact_secrets.py",
+        description=(
+            "Redact secret and PII token shapes from free text. Reads FILE, or "
+            "stdin when FILE is omitted, and writes the redacted text to stdout."
+        ),
+        epilog=(
+            "examples:\n"
+            "  redact_secrets.py notes.txt\n"
+            "  echo 'Bearer abc123def456ghi789' | redact_secrets.py\n\n"
+            "exit codes (ADR-035): 0 success (redactions may or may not have "
+            "occurred), 2 usage or read error."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "file",
+        nargs="?",
+        help="file to read; omit to read stdin (stdin must be piped, not a terminal)",
+    )
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) > 1:
-        print("usage: redact_secrets.py [FILE]", file=sys.stderr)
+    try:
+        args = _build_parser().parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
+    if args.file is None and sys.stdin.isatty():
+        print(
+            "redact_secrets: no input. Pass FILE or pipe text on stdin, "
+            "for example: echo 'text' | redact_secrets.py",
+            file=sys.stderr,
+        )
         return 2
     try:
-        text = open(args[0], encoding="utf-8").read() if args else sys.stdin.read()
+        text = open(args.file, encoding="utf-8").read() if args.file else sys.stdin.read()
     except (OSError, UnicodeDecodeError) as exc:
         print(f"redact_secrets: cannot read input: {exc}", file=sys.stderr)
         return 2

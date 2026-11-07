@@ -328,3 +328,43 @@ def test_reject_unreplaced_placeholder_accepts_a_quoted_marker() -> None:
 
 def test_reject_unreplaced_placeholder_accepts_a_written_body() -> None:
     _MODULE.reject_unreplaced_placeholder("## Summary\n\nDone.\n")
+
+
+def test_help_documents_exit_codes_and_creates_no_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = _MODULE.main(["--help"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "exit codes" in out
+    assert "example" in out
+    assert not (tmp_path / ".project-toolkit").exists()
+
+
+def test_unknown_flag_exits_two_and_creates_no_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = _MODULE.main(["--bogus"])
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert captured.out == ""
+    assert "unrecognized arguments" in captured.err
+    assert not (tmp_path / ".project-toolkit").exists()
+
+
+def test_main_prints_the_created_path_on_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = _MODULE.main([])
+
+    printed = capsys.readouterr().out.strip()
+    assert rc == 0
+    assert (tmp_path / printed).is_file()

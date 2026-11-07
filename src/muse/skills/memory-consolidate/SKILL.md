@@ -251,7 +251,7 @@ Keep memory contents and complete diffs out of every field.
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `memory_git_targets.py` | Validate, restore, and clean a fixed Git target manifest | 0 ok, 1 logic, 2 config, 3 external |
+| `memory_git_targets.py` | Validate, restore, and clean a fixed Git target manifest; `restore` and `cleanup` take `--dry-run`; `--help` lists commands | 0 ok, 1 logic, 2 config, 3 external |
 
 ## Verification Gate
 

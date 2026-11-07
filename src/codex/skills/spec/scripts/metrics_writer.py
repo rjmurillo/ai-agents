@@ -41,6 +41,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -181,14 +182,34 @@ def safe_append_tally(
     return target
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="metrics_writer.py",
+        description=(
+            "Append one tally LINE to the metrics file at PATH. Refuses a "
+            "symlinked target and a path outside the current directory."
+        ),
+        epilog=(
+            "example:\n"
+            "  metrics_writer.py .project-toolkit/metrics/STEP-0-METRICS.md "
+            "'| 2026-01-01 | topic | 6/6 |'\n\n"
+            "exit codes (ADR-035): 0 appended, 1 write refused (symlink, path "
+            "outside the working directory, I/O error), 2 usage error."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("path", help="tally file to append to, relative to the current directory")
+    parser.add_argument("line", help="one tally line to append")
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) != 2:
-        print("usage: metrics_writer.py PATH LINE", file=sys.stderr)
-        return 2
-    path, line = args
     try:
-        safe_append_tally(path, line, base_dir=Path.cwd())
+        args = _build_parser().parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
+    try:
+        safe_append_tally(args.path, args.line, base_dir=Path.cwd())
     except MetricsWriteError as exc:
         print(f"metrics_writer: {exc}", file=sys.stderr)
         return 1

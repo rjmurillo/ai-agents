@@ -349,3 +349,19 @@ def test_main_reads_sys_argv_when_argv_none(tmp_path: Path, monkeypatch) -> None
 
     assert metrics_writer.main() == 0
     assert (tmp_path / target).read_text(encoding="utf-8") == _TALLY + "\n"
+
+
+def test_cli_help_lists_examples_and_exit_codes(capsys) -> None:
+    rc = metrics_writer.main(["--help"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "usage: metrics_writer.py" in out
+    assert "example:" in out
+    assert "exit codes" in out
+
+
+def test_cli_unknown_flag_exits_two_on_stderr(capsys) -> None:
+    assert metrics_writer.main(["--nope", "x", "y"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "unrecognized arguments" in captured.err
