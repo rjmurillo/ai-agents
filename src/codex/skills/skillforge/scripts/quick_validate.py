@@ -259,10 +259,13 @@ def main():
 
     parsed = _parse_args(sys.argv[1:])
     if parsed is None:
-        print("Usage: python quick_validate.py <skill_directory> [--root DIR]")
-        print("\nExample:")
-        print("  python quick_validate.py ~/.claude/skills/my-skill/")
-        print("  python quick_validate.py /other/repo/skills/my-skill --root /other/repo")
+        print("Usage: python quick_validate.py <skill_directory> [--root DIR]", file=sys.stderr)
+        print("\nExample:", file=sys.stderr)
+        print("  python quick_validate.py ~/.claude/skills/my-skill/", file=sys.stderr)
+        print(
+            "  python quick_validate.py /other/repo/skills/my-skill --root /other/repo",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     skill_path, root_arg = parsed
@@ -273,16 +276,16 @@ def main():
     # normcase() makes the containment check case-insensitive on Windows (C:\ vs
     # c:\) while realpath() resolves symlinks so a descendant symlink cannot escape.
     if root_arg is not None and not Path(root_arg).is_dir():
-        print(f"Error: --root is not a directory: {root_arg}")
+        print(f"Error: --root is not a directory: {root_arg}", file=sys.stderr)
         sys.exit(1)
     cwd_root = _resolve_root(root_arg)
     resolved = os.path.normcase(os.path.realpath(skill_path))
     if not _is_within(resolved, cwd_root):
-        print(f"Error: Path traversal detected: {skill_path}")
+        print(f"Error: Path traversal detected: {skill_path}", file=sys.stderr)
         sys.exit(1)
 
     if not Path(skill_path).exists():
-        print(f"Error: Path not found: {skill_path}")
+        print(f"Error: Path not found: {skill_path}", file=sys.stderr)
         sys.exit(1)
 
     valid, message = validate_skill(skill_path, root=cwd_root)

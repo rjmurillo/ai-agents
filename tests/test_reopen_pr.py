@@ -179,6 +179,39 @@ class TestIdempotencyAndRefusal:
         assert fake.reopen_calls() == []
 
 
+class TestDryRun:
+    def test_dry_run_reports_would_reopen_and_does_not_call_reopen(self, capsys):
+        fake = FakeGh()
+        rc = run_main(["--pull-request", "50", "--dry-run"], fake)
+        env = envelope(capsys)
+        assert rc == 0
+        assert env["Data"]["action"] == "would_reopen"
+        assert env["Data"]["dry_run"] is True
+        assert fake.reopen_calls() == []
+
+    def test_dry_run_on_open_pr_is_still_no_op(self, capsys):
+        fake = FakeGh(view=completed(stdout=state_json("OPEN")))
+        rc = run_main(["--pull-request", "50", "--dry-run"], fake)
+        assert rc == 0
+        assert envelope(capsys)["Data"]["action"] == "none"
+        assert fake.reopen_calls() == []
+
+    def test_dry_run_on_merged_pr_still_exits_1(self, capsys):
+        fake = FakeGh(view=completed(stdout=state_json("MERGED")))
+        rc = run_main(["--pull-request", "50", "--dry-run"], fake)
+        assert rc == 1
+        assert envelope(capsys)["Error"]["Type"] == "InvalidParams"
+        assert fake.reopen_calls() == []
+
+    def test_dry_run_human_output_names_the_dry_run(self, capsys):
+        rc = run_main(["--pull-request", "50", "--dry-run"], FakeGh(), fmt="human")
+        assert rc == 0
+        assert "Dry run: would reopen PR #50" in capsys.readouterr().out
+
+    def test_dry_run_flag_defaults_off(self):
+        assert build_parser().parse_args(["--pull-request", "1"]).dry_run is False
+
+
 class TestAuth:
     def test_auth_preflight_failure_exits_4(self, capsys):
         fake = FakeGh()

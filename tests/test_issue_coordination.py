@@ -817,3 +817,67 @@ class TestClaimMain:
             except RuntimeError:
                 raised = True
         assert raised
+
+
+class TestClaimDryRun:
+    """``claim_issue.py --dry-run`` checks the claim and assigns nothing."""
+
+    @staticmethod
+    def _run_main(argv, assignees, capsys):
+        seen: list[list[str]] = []
+
+        def _run(cmd, *args, **kwargs):
+            argv_ = list(cmd)
+            seen.append(argv_)
+            if argv_[:3] == ["gh", "api", "user"]:
+                return _proc(0, "alice\n")
+            if argv_[:3] == ["gh", "issue", "view"]:
+                return _proc(0, json.dumps({"assignees": [{"login": a} for a in assignees]}))
+            raise AssertionError(f"unexpected gh call: {argv_}")
+
+        with (
+            patch.object(_claim, "assert_gh_authenticated", return_value=None),
+            patch.object(_claim, "resolve_repo_params") as resolve,
+            patch.object(_claim, "find_in_flight_branches", return_value=([], [])),
+            patch.object(_claim.subprocess, "run", side_effect=_run),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                rc = _claim.main(argv)
+            except SystemExit as exc:
+                rc = exc.code
+        out = capsys.readouterr().out
+        return rc, seen, out
+
+    def test_unclaimed_issue_reports_would_claim_without_editing(self, capsys):
+        rc, seen, out = self._run_main(
+            ["--issue", "5", "--output-format", "json", "--dry-run"], [], capsys
+        )
+
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["dry_run"] is True
+        assert data["would_claim"] == "alice"
+        assert not [c for c in seen if c[:3] == ["gh", "issue", "edit"]]
+
+    def test_issue_claimed_by_someone_else_still_exits_one(self, capsys):
+        rc, seen, _ = self._run_main(
+            ["--issue", "5", "--output-format", "json", "--dry-run"], ["bob"], capsys
+        )
+
+        assert rc == 1
+        assert not [c for c in seen if c[:3] == ["gh", "issue", "edit"]]
+
+    def test_issue_already_held_by_me_reports_the_hold(self, capsys):
+        rc, _, out = self._run_main(
+            ["--issue", "5", "--output-format", "json", "--dry-run"], ["alice"], capsys
+        )
+
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert data["claimed"] == "alice"
+        assert "dry_run" not in data
+
+    def test_dry_run_flag_defaults_off(self):
+        assert _claim.build_parser().parse_args(["--issue", "5"]).dry_run is False

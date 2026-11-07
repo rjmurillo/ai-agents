@@ -259,6 +259,80 @@ class TestMain:
             assert exc.value.code == 2
 
 
+class TestDryRun:
+    @staticmethod
+    def _run(argv, responses):
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=responses) as mock_run,
+        ):
+            rc = main(argv)
+        return rc, mock_run
+
+    def test_closed_issue_reports_would_reopen_and_makes_no_write_call(self, capsys):
+        rc, mock_run = self._run(
+            ["--issue", "50", "--comment", "why", "--dry-run"], [_state_closed()]
+        )
+
+        data = _envelope(capsys)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_reopen"
+        assert data["dryRun"] is True
+        assert data["wouldComment"] is True
+        assert data["commented"] is False
+        assert mock_run.call_count == 1
+
+    def test_open_issue_with_missing_comment_posts_nothing(self, capsys):
+        rc, mock_run = self._run(
+            ["--issue", "9", "--comment", "new note", "--dry-run"],
+            [_state_open(), _paginated_comments(["unrelated"])],
+        )
+
+        data = _envelope(capsys)["Data"]
+        assert rc == 0
+        assert data["action"] == "already_open"
+        assert data["dryRun"] is True
+        assert data["wouldComment"] is True
+        assert data["commented"] is False
+        assert mock_run.call_count == 2
+
+    def test_open_issue_with_duplicate_comment_would_not_comment(self, capsys):
+        rc, _ = self._run(
+            ["--issue", "9", "--comment", "dup", "--dry-run"],
+            [_state_open(), _paginated_comments(["dup"])],
+        )
+
+        data = _envelope(capsys)["Data"]
+        assert rc == 0
+        assert data["wouldComment"] is False
+        assert data["commentAlreadyPresent"] is True
+
+    def test_dry_run_without_comment_never_would_comment(self, capsys):
+        rc, _ = self._run(["--issue", "50", "--dry-run"], [_state_closed()])
+
+        assert rc == 0
+        assert _envelope(capsys)["Data"]["wouldComment"] is False
+
+    def test_default_run_has_no_dry_run_key(self, capsys):
+        rc, _ = self._run(["--issue", "50"], [_state_closed(), _completed(stdout="ok")])
+
+        assert rc == 0
+        assert "dryRun" not in _envelope(capsys)["Data"]
+
+    def test_dry_run_still_propagates_state_lookup_failure(self, capsys):
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                ["--issue", "50", "--dry-run"],
+                [_completed(stderr="Could not resolve to an Issue", rc=1)],
+            )
+
+        assert exc.value.code == 2
+
+
 class TestCommentFileContainment:
     """--comment-file follows the shared containment rule (issue #6667)."""
 

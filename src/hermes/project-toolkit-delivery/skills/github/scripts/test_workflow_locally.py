@@ -354,15 +354,22 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "[ERROR] act not found. Install act (standalone) or the gh act "
             "extension to enable local workflow testing.",
+            file=sys.stderr,
         )
-        print()
-        print("Installation instructions:")
-        print("  macOS:       brew install act")
-        print("  Windows:     Download from https://github.com/nektos/act/releases")
-        print("  Linux:       Download from https://github.com/nektos/act/releases")
-        print("  GitHub CLI:  gh extension install https://github.com/nektos/gh-act")
-        print()
-        print("See: https://nektosact.com/installation/index.html")
+        print(file=sys.stderr)
+        print("Installation instructions:", file=sys.stderr)
+        print("  macOS:       brew install act", file=sys.stderr)
+        print(
+            "  Windows:     Download from https://github.com/nektos/act/releases", file=sys.stderr
+        )
+        print(
+            "  Linux:       Download from https://github.com/nektos/act/releases", file=sys.stderr
+        )
+        print(
+            "  GitHub CLI:  gh extension install https://github.com/nektos/gh-act", file=sys.stderr
+        )
+        print(file=sys.stderr)
+        print("See: https://nektosact.com/installation/index.html", file=sys.stderr)
         return 2
 
     act_argv, act_name = runner
@@ -377,11 +384,11 @@ def main(argv: list[str] | None = None) -> int:
     # Check for Docker
     docker_path = _check_command_exists("docker")
     if not docker_path:
-        print("[ERROR] Docker not found. act requires Docker to run workflows.")
-        print()
-        print("Install Docker:")
-        print("  macOS/Windows: https://www.docker.com/products/docker-desktop")
-        print("  Linux:         https://docs.docker.com/engine/install/")
+        print("[ERROR] Docker not found. act requires Docker to run workflows.", file=sys.stderr)
+        print(file=sys.stderr)
+        print("Install Docker:", file=sys.stderr)
+        print("  macOS/Windows: https://www.docker.com/products/docker-desktop", file=sys.stderr)
+        print("  Linux:         https://docs.docker.com/engine/install/", file=sys.stderr)
         return 2
 
     docker_result = subprocess.run(
@@ -391,7 +398,7 @@ def main(argv: list[str] | None = None) -> int:
         check=False,
     )
     if docker_result.returncode != 0:
-        print("[ERROR] Docker daemon is not running. Start Docker and try again.")
+        print("[ERROR] Docker daemon is not running. Start Docker and try again.", file=sys.stderr)
         return 2
     print("[SUCCESS] Docker is running")
 
@@ -399,8 +406,10 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = _get_repo_root()
     worktree_error = _unsupported_worktree_gitdir_error(repo_root)
     if worktree_error is not None:
-        print(f"[ERROR] {worktree_error}")
-        print("Re-run from the main worktree or repair the linked worktree metadata.")
+        print(f"[ERROR] {worktree_error}", file=sys.stderr)
+        print(
+            "Re-run from the main worktree or repair the linked worktree metadata.", file=sys.stderr
+        )
         return 2
     workflows_dir = os.path.join(repo_root, ".github", "workflows")
 
@@ -420,14 +429,14 @@ def main(argv: list[str] | None = None) -> int:
         workflow_path = os.path.join(workflows_dir, f"{workflow}.yml")
 
     if not workflow_path or not os.path.exists(workflow_path):
-        print(f"[ERROR] Workflow file not found: {workflow}")
-        print()
-        print("Available workflows:")
+        print(f"[ERROR] Workflow file not found: {workflow}", file=sys.stderr)
+        print(file=sys.stderr)
+        print("Available workflows:", file=sys.stderr)
         for key in sorted(WORKFLOW_MAP.keys()):
-            print(f"  - {key}")
-        print()
-        print("Unsupported workflows (require AI infrastructure or Copilot CLI):")
-        print("  - ai-spec-validation (requires Copilot CLI with BOT_PAT)")
+            print(f"  - {key}", file=sys.stderr)
+        print(file=sys.stderr)
+        print("Unsupported workflows (require AI infrastructure or Copilot CLI):", file=sys.stderr)
+        print("  - ai-spec-validation (requires Copilot CLI with BOT_PAT)", file=sys.stderr)
         return 1
 
     print(f"[INFO] Workflow: {workflow_path}")
@@ -518,19 +527,19 @@ def main(argv: list[str] | None = None) -> int:
         print("[SUCCESS] Workflow execution completed successfully")
         return 0
 
-    print()
-    print(f"[ERROR] Workflow execution failed with exit code {result.returncode}")
-    print()
-    print("Troubleshooting tips:")
-    print("  1. Check Docker logs: docker ps -a | grep act-")
-    print("  2. Run with --verbose for detailed output")
-    print("  3. Use --dry-run to validate workflow syntax")
-    print("  4. Ensure Docker has sufficient resources")
-    print()
-    print("Common issues:")
-    print("  - Missing dependencies: Use catthehacker/ubuntu:act-latest image")
-    print("  - Windows-specific code: act uses Linux containers")
-    print("  - Secrets not available: Pass via --secrets parameter")
+    print(file=sys.stderr)
+    print(f"[ERROR] Workflow execution failed with exit code {result.returncode}", file=sys.stderr)
+    print(file=sys.stderr)
+    print("Troubleshooting tips:", file=sys.stderr)
+    print("  1. Check Docker logs: docker ps -a | grep act-", file=sys.stderr)
+    print("  2. Run with --verbose for detailed output", file=sys.stderr)
+    print("  3. Use --dry-run to validate workflow syntax", file=sys.stderr)
+    print("  4. Ensure Docker has sufficient resources", file=sys.stderr)
+    print(file=sys.stderr)
+    print("Common issues:", file=sys.stderr)
+    print("  - Missing dependencies: Use catthehacker/ubuntu:act-latest image", file=sys.stderr)
+    print("  - Windows-specific code: act uses Linux containers", file=sys.stderr)
+    print("  - Secrets not available: Pass via --secrets parameter", file=sys.stderr)
     return 1
 
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import subprocess
@@ -215,13 +216,22 @@ def check(cwd: Path | None = None) -> int:
     return status
 
 
-def restore(cwd: Path | None = None) -> int:
-    """Restore all targets from the exact starting commit."""
+def restore(cwd: Path | None = None, *, dry_run: bool = False) -> int:
+    """Restore all targets from the exact starting commit.
+
+    With ``dry_run`` the manifest is validated and the targets that would be
+    restored are listed on stdout; the worktree is left untouched.
+    """
     manifest, repo_root, status = _load_valid_manifest(cwd)
     if status != EXIT_OK or manifest is None or repo_root is None:
         return status
 
     targets = [_normalize_target(target) for target in manifest["targets"]]
+    if dry_run:
+        print(f"DRY RUN: would restore {len(targets)} target(s) from {manifest['startingCommit']}")
+        for target in targets:
+            print(target)
+        return EXIT_OK
     result = _run_git(
         repo_root,
         "--literal-pathspecs",
@@ -238,13 +248,18 @@ def restore(cwd: Path | None = None) -> int:
     return EXIT_OK
 
 
-def cleanup(cwd: Path | None = None) -> int:
-    """Remove the manifest."""
+def cleanup(cwd: Path | None = None, *, dry_run: bool = False) -> int:
+    """Remove the manifest. With ``dry_run``, report what would be removed."""
     try:
         path = _manifest_path(cwd)
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_CONFIG
+
+    if dry_run:
+        verb = "would remove" if path.is_file() else "no manifest to remove at"
+        print(f"DRY RUN: {verb} {path}")
+        return EXIT_OK
 
     if path.is_file():
         path.unlink()
@@ -264,27 +279,61 @@ def show_manifest_path(cwd: Path | None = None) -> int:
     return EXIT_OK
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="memory_git_targets.py",
+        description=(
+            "Validate, restore, and clean the fixed git manifest that scopes a "
+            "memory-consolidation run."
+        ),
+        epilog=(
+            "examples:\n"
+            "  memory_git_targets.py path\n"
+            "  memory_git_targets.py check\n"
+            "  memory_git_targets.py restore --dry-run\n\n"
+            "exit codes: 0 ok, 1 logic (invalid manifest), 2 config (usage, "
+            "not in a repository), 3 external (git failed)."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub = parser.add_subparsers(dest="command", metavar="{path,check,restore,cleanup}")
+    sub.add_parser("path", help="print the fixed manifest path")
+    sub.add_parser("check", help="validate the manifest; makes no change")
+    restore_parser = sub.add_parser(
+        "restore", help="restore every manifest target from the starting commit (overwrites edits)"
+    )
+    restore_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="list the targets that would be restored; change nothing",
+    )
+    cleanup_parser = sub.add_parser("cleanup", help="remove the manifest")
+    cleanup_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report whether a manifest would be removed; change nothing",
+    )
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run a manifest command."""
-    args = argv if argv is not None else sys.argv[1:]
-    if not args:
-        print(
-            "Usage: memory_git_targets.py <path|check|restore|cleanup>",
-            file=sys.stderr,
-        )
+    parser = _build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        # argparse exits 2 on a usage error, which is EXIT_CONFIG here; 0 is --help.
+        return exc.code if isinstance(exc.code, int) else EXIT_CONFIG
+    if args.command is None:
+        parser.print_usage(sys.stderr)
         return EXIT_CONFIG
-
-    commands = {
-        "path": show_manifest_path,
-        "check": check,
-        "restore": restore,
-        "cleanup": cleanup,
-    }
-    command = commands.get(args[0])
-    if command is None:
-        print(f"ERROR: unknown command: {args[0]}", file=sys.stderr)
-        return EXIT_CONFIG
-    return command()
+    if args.command == "path":
+        return show_manifest_path()
+    if args.command == "check":
+        return check()
+    if args.command == "restore":
+        return restore(dry_run=args.dry_run)
+    return cleanup(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

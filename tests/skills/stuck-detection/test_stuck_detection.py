@@ -381,3 +381,54 @@ class TestMain:
         with pytest.raises(SystemExit) as excinfo:
             main([])
         assert excinfo.value.code == 2
+
+
+class _TtyStdin:
+    """Stand-in for an interactive terminal stdin that fails the test if read."""
+
+    def isatty(self) -> bool:
+        return True
+
+    def read(self) -> str:
+        raise AssertionError("must not block reading a terminal")
+
+
+class TestTerminalStdin:
+    def test_check_without_text_on_terminal_exits_two_without_reading(
+        self,
+        history_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", _TtyStdin())
+
+        with pytest.raises(SystemExit) as excinfo:
+            main(["--history", str(history_path), "check"])
+
+        captured = capsys.readouterr()
+        assert excinfo.value.code == 2
+        assert captured.out == ""
+        assert "stdin is a terminal" in captured.err
+
+    def test_check_with_text_argument_ignores_terminal_stdin(
+        self, history_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", _TtyStdin())
+
+        assert main(["--history", str(history_path), "check", "fixing the login bug"]) == 0
+
+
+class TestClosedStdin:
+    def test_check_without_text_and_closed_stdin_exits_two(
+        self,
+        history_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", None)
+
+        with pytest.raises(SystemExit) as excinfo:
+            main(["--history", str(history_path), "check"])
+
+        assert excinfo.value.code == 2
+        assert "terminal or closed" in capsys.readouterr().err

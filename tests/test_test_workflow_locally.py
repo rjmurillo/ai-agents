@@ -322,5 +322,34 @@ def test_main_blocks_stale_linked_worktree_gitdir(
     with patch.object(_mod, "_get_repo_root", return_value=str(worktree)):
         rc = main(["--workflow", "pester-tests"])
 
+    captured = capsys.readouterr()
     assert rc == 2
-    assert "gitdir is missing" in capsys.readouterr().out
+    assert "gitdir is missing" in captured.err
+    assert "gitdir is missing" not in captured.out
+
+
+@patch.object(_mod, "_resolve_act_runner", return_value=None)
+def test_missing_act_reports_error_and_install_help_on_stderr(mock_runner, capsys):
+    rc = main(["--workflow", "pester-tests"])
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "[ERROR] act not found" in captured.err
+    assert "Installation instructions:" in captured.err
+    assert "[ERROR]" not in captured.out
+    assert "Installation instructions:" not in captured.out
+
+
+@patch.object(_mod, "_resolve_act_runner", return_value=(["act"], "act"))
+@patch.object(_mod, "_check_command_exists", return_value=None)
+@patch("subprocess.run")
+def test_missing_docker_reports_error_on_stderr(mock_run, mock_exists, mock_runner, capsys):
+    mock_run.return_value = _completed(stdout="act version 0.2.0\n")
+
+    rc = main(["--workflow", "pester-tests"])
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "[ERROR] Docker not found" in captured.err
+    assert "[ERROR]" not in captured.out
+    assert "[SUCCESS] act found" in captured.out

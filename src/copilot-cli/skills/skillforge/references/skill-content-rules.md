@@ -42,3 +42,6 @@ so a trigger phrase listed only in the body never routes.
 
 To measure whether a description change helps, use `skillopt` and its
 `references/description-optimization.md`.
+
+For scripts bundled in a skill, read `references/script-design-rules.md`. It owns
+the rules for prompts, `--help`, streams, exit codes, and `--dry-run`.

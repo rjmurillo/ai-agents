@@ -175,7 +175,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
 | `get_pr_checks.py` | CI check status, polling; REST on rate limit (`DataSource`; REST `--required-only` with no ruleset exits 3) | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks; names the failed step of each Actions job (`FailedSteps`) | `--pull-request`, `--check-name` (repeatable, case-insensitive), `--max-lines`, `--context-lines` |
-| `triage_red_check.py` | CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green) | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
+| `triage_red_check.py` | CI triage step 1: is a failing PR check also red on main? Exit 0 green on main, 1 red on main, 3 cannot determine | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
 | `get_pr_reviews.py` | Review submissions (verdict state and body) | `--pull-request`, `--state`, `--output-format {json,human,auto}` |
@@ -194,17 +194,17 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_thread_by_id.py` | Get single thread by ID | `--thread-id` |
 | `get_thread_conversation_history.py` | Full thread comment history | `--thread-id`, `--include-minimized` |
 | `test_pr_merge_ready.py` | Check merge readiness | `--pull-request`, `--ignore-ci`, `--ignore-threads` |
-| `why_pr_blocked.py` | Diagnose a `mergeable_state`/`mergeStateStatus: blocked` PR: decomposes it into missing/failing/pending required checks, unresolved review threads, or merge conflicts, and says explicitly when none of those hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
+| `why_pr_blocked.py` | Decompose a `blocked` PR into missing, failing, or pending checks, unresolved threads, or conflicts; says so when none hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
-| `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id` |
+| `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id`, `--dry-run` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
-| `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment` |
+| `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment`, `--dry-run` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
-| `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies body (Markdown) and commit/override (plain-text) context; flags a claim unsupported when it can reach the squash commit without a matching active body claim (exit 1). Needs a token with administration read (GitHub hides `squash_merge_commit_message` otherwise); without it the audit exits 3 instead of reporting a clean fleet | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
+| `audit_closing_claims.py` | Fleet audit of open-PR closing claims; exit 1 on an unsupported claim, exit 3 without an administration-read token (full text: `references/script-catalog.md`) | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
 | `edit_pr_body.py` | PR body edit, SHA-256 guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 
 ### Issue Operations (`scripts/issue/`)
@@ -216,10 +216,10 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
 | `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
-| `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment` |
+| `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment`, `--dry-run` |
 | `set_issue_labels.py` | Labels | `--issue`, `--labels`, `--remove-labels`, `--priority` |
-| `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone` |
-| `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker` |
+| `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone`, `--dry-run` |
+| `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker`, `--dry-run` |
 | `invoke_copilot_assignment.py` | Synthesize context for Copilot | `--issue-number`, `--what-if` |
 | `set_issue_assignee.py` | Assign users to issues | `--issue`, `--assignees` |
 | `get_issue_relationships.py` | Native parent, sub-issues, blocked-by, blocking, relates-to | `--issue` |
@@ -230,19 +230,19 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `get_latest_semantic_milestone.py` | Detect latest semantic version milestone | `--owner`, `--repo` |
-| `set_item_milestone.py` | Assign milestone to PR/issue (auto-detect) | `--item-type`, `--item-number`, `--milestone-title` |
+| `set_item_milestone.py` | Assign milestone to PR/issue (auto-detect) | `--item-type`, `--item-number`, `--milestone-title`, `--dry-run` |
 
 ### Repository Settings (`repo/` scripts)
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `manage_squash_merge_message.py` | Read or update the `squash_merge_commit_message` repository setting with an expected-current-value guard; reports a real before/after re-read. Needs a token with administration read: GitHub omits merge settings for anyone else, and the script exits 3 rather than assuming a value | `--set`, `--expected-current`, `--dry-run`, `--output-format {json,human,auto}` |
+| `manage_squash_merge_message.py` | Read or update the `squash_merge_commit_message` setting behind an expected-value guard; needs an administration-read token, else exit 3 | `--set`, `--expected-current`, `--dry-run`, `--output-format {json,human,auto}` |
 
 ### Reactions (`scripts/reactions/`)
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `add_comment_reaction.py` | Add emoji reactions (batch support) | `--comment-id`, `--reaction`, `--comment-type`, `--pull-request` |
+| `add_comment_reaction.py` | Add emoji reactions (batch support) | `--comment-id`, `--reaction`, `--comment-type`, `--pull-request`, `--dry-run` |
 
 ### Notifications (`scripts/notifications/`)
 
@@ -256,6 +256,10 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `extract_github_context.py` | Extract issue/PR references from text | `--text`, `--require-pr`, `--require-issue` |
 | `check_github_transport.py` | Report whether this session should use gh or the MCP tools | `--output-format` |
+
+### More Scripts
+
+Parameters are in `references/script-catalog.md`. PR: `check_pr_live_state.py`, `check_pr_round_cap.py`, `run_completion_gate.py`, `check_review_thread_resolution_shas.py`, `check_suppressed_review_findings.py`, `detect_stale_pr_comments.py`, `get_pr_comments_by_reviewer.py`, `prepare_pr_body.py`. Issue: `check_existing_pr_for_issue.py`, `claim_issue.py`, `edit_issue_body.py`, `redact_secrets.py`.
 
 ### Workflow Testing (`scripts/`)
 

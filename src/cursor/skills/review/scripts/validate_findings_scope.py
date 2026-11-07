@@ -27,6 +27,7 @@ orchestrator re-derives it from the counted findings.
 EXIT CODES (ADR-035):
     0 - All locations are in scope, or the diff list is empty or unavailable.
     1 - One or more locations are out of scope.
+    2 - No input: no --text and stdin is a terminal (nothing to read).
 """
 
 from __future__ import annotations
@@ -349,6 +350,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.text is None and (sys.stdin is None or sys.stdin.isatty()):
+        print(
+            "validate_findings_scope: no --text given and stdin is a terminal or closed. "
+            "Pass --text or pipe the axis output in.",
+            file=sys.stderr,
+        )
+        return 2
     text = args.text if args.text is not None else sys.stdin.read()
 
     worktree = str(Path(args.worktree).resolve())
