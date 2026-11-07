@@ -314,9 +314,14 @@ def test_seed_ignores_a_symlinked_template(tmp_path: Path) -> None:
     link = tmp_path / _TEMPLATE
     link.parent.mkdir(parents=True)
     (tmp_path / "outside-target.txt").write_text("do not copy", encoding="utf-8")
-    link.symlink_to(tmp_path / "outside-target.txt")
+    try:
+        link.symlink_to(tmp_path / "outside-target.txt")
+    except (OSError, NotImplementedError):
+        pytest.skip("platform cannot create symlinks")
     _git(tmp_path, "checkout", "-q", "-B", "base-work", "main")
     _git(tmp_path, "add", "-f", _TEMPLATE)
+    if not _git(tmp_path, "ls-files", "-s", _TEMPLATE).startswith("120000"):
+        pytest.skip("git did not record the link as a symlink (core.symlinks off)")
     _git(tmp_path, "commit", "-q", "-m", "symlink template")
     _git(tmp_path, "update-ref", "refs/remotes/origin/main", "HEAD")
 
