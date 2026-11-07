@@ -5,7 +5,7 @@
       "skill": "skillforge",
       "source": "outcome:#6772",
       "prompt": "which skill handles retrospectives?",
-      "expected_output": "Points to the existing retrospective skill and asks the user to confirm it fits. Does not start creating a new retrospective skill."
+      "expected_output": "Scans the installed skills. When a retrospective skill is installed, points to it and asks the user to confirm it fits, and does not start creating a duplicate. When none is installed, says so and proceeds through Phase 0 triage instead of claiming one exists."
     },
     {
       "id": "skillforge-pasted-error",
