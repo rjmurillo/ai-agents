@@ -68,6 +68,7 @@ PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     "tests/e2e/copilot_hook_probe.py",
     "tests/e2e/smoke_skip_policy.py",
     ".github/workflows/plugin-cli-smoke.yml",
+    ".github/cli-smoke/**",
     "scripts/validation/cli_smoke_paths.py",
     "scripts/validation/assert_smoke_ran.py",
     "scripts/validation/smoke_quota_report.py",

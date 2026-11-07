@@ -21,9 +21,8 @@ from tests.lib.cli_smoke_workflow import (
     CLIS,
     INSTALL_STEP,
     OPERATING_SYSTEMS,
-    PACKAGE_VERSION_ENV,
+    PACKAGE_DIR,
     SECRET_NAMES,
-    SEMVER,
     WORKFLOW,
     _step_by_name,
 )
@@ -57,37 +56,15 @@ def test_job_scope_contains_no_smoke_credentials(smoke_job: dict[str, Any]) -> N
 
 
 @pytest.mark.parametrize("cli", CLIS)
-def test_cli_install_uses_exact_version_for_its_own_cli_only(
+def test_cli_install_uses_npm_ci_on_its_own_lockfile_only(
     smoke_job: dict[str, Any], cli: str
 ) -> None:
-    """Positive: each install step resolves one reviewed package version, on its leg."""
+    """Positive: each leg installs from the committed lockfile, for its own CLI only."""
     install = _step_by_name(smoke_job, INSTALL_STEP[cli])
     package = CLI_PACKAGE[cli]
-    env_name = PACKAGE_VERSION_ENV[package]
 
     assert install["if"] == f"matrix.cli == '{cli}'"
-    assert SEMVER.fullmatch(smoke_job["env"][env_name])
-    assert f"{package}@${{{env_name}}}" in install["run"]
+    assert install["working-directory"] == f".github/cli-smoke/{PACKAGE_DIR[package]}"
+    assert "npm ci" in install["run"]
     other = next(p for p in CLI_PACKAGE.values() if p != package)
-    assert other not in install["run"]
-
-
-def test_cli_pins_receive_renovate_updates(renovate_config: dict[str, Any]) -> None:
-    """Edge: vendor updates stay visible without restoring floating installs."""
-    workflow_text = WORKFLOW.read_text(encoding="utf-8")
-    for package, env_name in PACKAGE_VERSION_ENV.items():
-        marker = f"# renovate: datasource=npm depName={package}"
-        assert f"{marker}\n      {env_name}: '" in workflow_text
-
-    managers = renovate_config["customManagers"]
-    patterns = [" ".join(manager["managerFilePatterns"]) for manager in managers]
-    assert any("plugin-cli-smoke" in joined for joined in patterns)
-    assert not any("nightly" in joined for joined in patterns)
-    package_rule = next(
-        rule
-        for rule in renovate_config["packageRules"]
-        if set(rule.get("matchPackageNames") or {}) == set(PACKAGE_VERSION_ENV)
-    )
-    assert package_rule["automerge"] is True
-    assert package_rule["minimumReleaseAge"] == "7 days"
-    assert set(package_rule["matchUpdateTypes"]) == {"major", "minor", "patch"}
+    assert other not in str(install)
