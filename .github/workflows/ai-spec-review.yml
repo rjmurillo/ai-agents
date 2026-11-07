@@ -111,7 +111,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/ci/spec_load_content.py"
 
       - name: Prepare Spec Context
-        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable == 'true'
         id: prepare-context
         env:
           SPEC_FILE: ${{ steps.load-spec.outputs.spec_file }}
@@ -123,7 +123,7 @@ jobs:
         run: python3 scripts/ci/spec_prepare_context.py
 
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
-        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable == 'true'
         id: trace
         # Stays advisory because the "[STATE] spec-traceability-check" log line and report comment show a failure.
         continue-on-error: true
@@ -148,7 +148,7 @@ jobs:
           --detail "analyst agent crash or timeout"
 
       - name: ✅ Completeness Check (Critic Agent)
-        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable == 'true'
         id: completeness
         # Stays advisory because the "[STATE] spec-completeness-check" log line and report comment show a failure.
         continue-on-error: true
@@ -177,6 +177,7 @@ jobs:
         id: report
         env:
           HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
+          LOADABLE: ${{ steps.load-spec.outputs.loadable }}
           SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
           ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
           AZURE_REFS: ${{ steps.spec-ref.outputs.azure_refs }}

@@ -14,10 +14,15 @@ ENV:
   GITHUB_OUTPUT     - path to step output file
 
 Outputs:
-  spec_file - absolute path to the spec content markdown file
+  loadable  - "true" when at least one spec file or GitHub issue body loaded,
+              "false" when the references held only Azure Boards tokens or
+              pull request numbers (issue #6506 fail-open-27)
+  spec_file - absolute path to the spec content markdown file; written only
+              when loadable is "true"
 
 EXIT CODES (ADR-035):
-  0 - content loaded
+  0 - content loaded, or nothing loadable (loadable=false; the caller skips
+      the model steps and reports it, so the advisory job stays green)
   2 - referenced spec content is missing
   3 - a GitHub issue lookup failed for a reason other than the reference
       not being an issue
@@ -288,6 +293,7 @@ def run(_argv: list[str] | None = None) -> int:
         return EXIT_AUTH
     external_failure, issue_parts = _load_issue_refs(issue_refs, repository)
     parts.extend(issue_parts)
+    loadable = bool(parts)
     parts.extend(_azure_traceability_parts(azure_refs))
 
     # Fail closed on a genuine lookup failure even when other content loaded.
@@ -310,8 +316,22 @@ def run(_argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
+    if not loadable:
+        # Only Azure Boards tokens: there is no requirement text for a model to
+        # judge. Exit 0 so the advisory job still posts its report; the
+        # workflow gates the model steps on this output.
+        print(
+            "::notice::no requirements were loadable: the references name only "
+            f"Azure Boards work items ({' '.join(azure_refs)}), whose content "
+            "this workflow cannot read",
+            file=sys.stderr,
+        )
+        write_github_output("loadable", "false")
+        return EXIT_OK
+
     spec_file = Path(runner_temp) / f"spec-content-{os.environ.get('GITHUB_RUN_ID', '0')}.md"
     spec_file.write_text(spec_content, encoding="utf-8")
+    write_github_output("loadable", "true")
     write_github_output("spec_file", str(spec_file))
 
     return EXIT_OK

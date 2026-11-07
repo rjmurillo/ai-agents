@@ -185,24 +185,44 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
             with patch("scripts.ci.spec_load_content.subprocess.run", return_value=gh) as run:
                 code = spec_load_content.main()
         self.gh_calls = run.call_args_list
+        self.outputs = _read_outputs(out_file) if out_file.exists() else {}
         spec_file = tmp_path / "spec-content-0.md"
         return code, spec_file.read_text(encoding="utf-8") if spec_file.exists() else ""
 
-    def test_ab_only_records_traceability_without_calling_gh(self, tmp_path: Path) -> None:
+    def test_ab_only_reports_nothing_loadable_without_calling_gh(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#123")
 
         assert code == EXIT_OK
         assert self.gh_calls == []
-        assert "AB#123" in content
-        assert "not loaded" in content
-        assert "GitHub issue body" not in content
+        assert self.outputs == {"loadable": "false"}
+        assert content == ""
 
-    def test_multiple_tokens_each_get_a_traceability_part(self, tmp_path: Path) -> None:
+    def test_multiple_ab_tokens_are_still_nothing_loadable(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#5 AB#900")
 
         assert code == EXIT_OK
-        assert "## Azure Boards AB#5" in content
-        assert "## Azure Boards AB#900" in content
+        assert self.outputs == {"loadable": "false"}
+        assert content == ""
+
+    def test_ab_plus_pull_request_number_is_nothing_loadable(self, tmp_path: Path) -> None:
+        """A PR number skipped as not-an-issue leaves only the Azure tokens."""
+        out_file = tmp_path / "load-out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "99",
+            "AZURE_REFS": "AB#7",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        gh = MagicMock(
+            returncode=1, stdout="", stderr="Could not resolve to an Issue with the number of 99"
+        )
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=gh):
+                assert spec_load_content.main() == EXIT_OK
+        assert _read_outputs(out_file) == {"loadable": "false"}
 
     def test_mixed_refs_call_gh_only_for_the_github_issue(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#900", issue_refs="42")
@@ -214,6 +234,7 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
         assert not any("AB" in part for part in argv)
         assert "GitHub issue body" in content
         assert "## Azure Boards AB#900" in content
+        assert self.outputs["loadable"] == "true"
 
     @pytest.mark.parametrize("raw", ["AB#0", "AB#12abc", "#123", "123", "AB#1\u200b", "ab#1"])
     def test_malformed_token_is_a_config_error(self, tmp_path: Path, raw: str) -> None:
@@ -228,6 +249,7 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
 
         assert code == EXIT_OK
         assert "Azure Boards" not in content
+        assert self.outputs["loadable"] == "true"
 
     def test_nothing_at_all_is_still_a_config_error(self, tmp_path: Path) -> None:
         code, _ = self._load(tmp_path, "")
@@ -263,12 +285,25 @@ class TestWorkflowWiring:
 
         assert step["env"]["AZURE_REFS"] == "${{ steps.spec-ref.outputs.azure_refs }}"
 
-    def test_loader_and_judges_run_whenever_has_specs_is_true(self) -> None:
-        """The guard is `has_specs` alone, so an AB-only pull request is not skipped."""
-        for name in ("Load Spec Content", "Prepare Spec Context"):
+    def test_loader_runs_on_has_specs_and_model_steps_need_loadable(self) -> None:
+        """An AB-only body loads (and reports) but never reaches a model step."""
+        loader = _step("ai-spec-review.yml", "review-spec", "Load Spec Content")
+        assert "steps.spec-ref.outputs.has_specs == 'true'" in loader["if"]
+        for name in (
+            "Prepare Spec Context",
+            "\U0001f517 Requirements Traceability Check (Analyst Agent)",
+            "\u2705 Completeness Check (Critic Agent)",
+        ):
             step = _step("ai-spec-review.yml", "review-spec", name)
-            assert "steps.spec-ref.outputs.has_specs == 'true'" in step["if"]
-            assert "azure" not in step["if"].lower()
+            assert "steps.load-spec.outputs.loadable == 'true'" in step["if"], name
+
+    def test_report_and_comment_run_without_the_loadable_gate(self) -> None:
+        """The advisory report must still post when nothing was loadable."""
+        report = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")
+        comment = _step("ai-spec-review.yml", "review-spec", "Post PR Comment")
+        assert report["env"]["LOADABLE"] == "${{ steps.load-spec.outputs.loadable }}"
+        assert "loadable" not in report["if"]
+        assert "loadable" not in comment["if"]
 
     def test_verdict_step_reads_has_specs_from_the_same_extractor(self) -> None:
         step = _step("ai-spec-validation.yml", "validate-spec", "Decide spec coverage verdict")
@@ -294,7 +329,7 @@ class TestWorkflowWiring:
             with patch("scripts.ci.spec_load_content.subprocess.run") as run:
                 assert spec_load_content.main() == EXIT_OK
         run.assert_not_called()
-        assert "AB#123" in Path(_read_outputs(out_file)["spec_file"]).read_text(encoding="utf-8")
+        assert _read_outputs(out_file) == {"loadable": "false"}
 
     def test_ab_only_body_is_graded_by_the_required_verdict_check(self, tmp_path: Path) -> None:
         """The required check no longer passes an AB-only pull request as 'no linked spec'."""
