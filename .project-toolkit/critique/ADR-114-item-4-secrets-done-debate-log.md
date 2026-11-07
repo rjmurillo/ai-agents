@@ -33,6 +33,10 @@ reasoning.
 - Item 4 keeps "the gate is spend control, not a trust boundary" (item 10) and
   the `copilot-context-synthesis.yml` stanza-only caveat.
 
+## Security axis (post-panel)
+
+The /review security axis returned PASS with two Low wording items. Both are fixed: item 4 now says `TRUNK_API_TOKEN` is not behind the gate, and the amendment bullet drops its stale tail.
+
 ## Dissent
 
 None. Both seats committed after the resolutions.
