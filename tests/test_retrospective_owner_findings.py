@@ -13,15 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 AGENT_SURFACES = (
     "templates/agents/retrospective.shared.md",
-    "templates/agents/partials/retrospective-integration-with-skillbook.mustache",
     ".claude/agents/retrospective.md",
     "src/claude/agents/retrospective.md",
     ".github/agents/retrospective.agent.md",
     "src/copilot-cli/agents/retrospective.agent.md",
     "src/vs-code-agents/retrospective.agent.md",
 )
-# The partial is a fragment; learning persistence lives in sibling partials.
-AGENT_FILES = tuple(rel for rel in AGENT_SURFACES if not rel.endswith(".mustache"))
+AGENT_FILES = AGENT_SURFACES
 # Only the Claude template carries the mandatory structured handoff block.
 CLAUDE_AGENT_FILES = (
     "templates/agents/retrospective.claude.md.tmpl",
@@ -43,10 +41,9 @@ SKILL_FILES = (
 SKILL_SURFACES = ("templates/skills/retrospective.SKILL.md.tmpl",) + tuple(
     f"{tree}/{name}" for tree in SKILL_TREES for name in SKILL_FILES
 )
-# Surfaces that carry the Delta Triage activity prose, not only the artifact skeleton.
-TRIAGE_PROSE_SURFACES = AGENT_SURFACES + tuple(
-    f"{tree}/references/frameworks.md" for tree in SKILL_TREES
-)
+# The full Delta Triage activity prose lives in the skill reference. The agents keep the
+# compact gate and load the reference (see test_agent_keeps_delta_triage_gate).
+TRIAGE_PROSE_SURFACES = tuple(f"{tree}/references/frameworks.md" for tree in SKILL_TREES)
 ARTIFACT_SURFACES = tuple(f"{tree}/references/learning-template.md" for tree in SKILL_TREES)
 
 FORBIDDEN_ROUTING = (
@@ -76,7 +73,8 @@ BLOCKER_BEFORE_FILTER = (
     "Check for a Blocker before filtering. If evidence falsifies a frozen acceptance "
     "criterion or mandatory policy, keep it as a Blocker."
 )
-LEARNING_PERSISTENCE_ANCHORS = ("### Memory Storage Pattern", "## Memory Protocol")
+LEARNING_PERSISTENCE_ANCHORS = ("## Memory Protocol",)
+MEMORY_WRITE_TOOLS = ("mcp__serena__write_memory", "memory-create_entities")
 
 SCRIPT = ROOT / ".claude/skills/retrospective/scripts/run_retrospective.py"
 MODULE_NAME = f"retrospective_owner_findings_{sha1(str(SCRIPT).encode()).hexdigest()[:12]}"
@@ -138,16 +136,55 @@ def test_triage_prose_emits_owner_table_with_four_classes(rel: str) -> None:
 
 
 @pytest.mark.parametrize("rel", AGENT_FILES)
+def test_agent_keeps_delta_triage_gate(rel: str) -> None:
+    text = _read(rel)
+    prose = " ".join(text.split())
+    for cls in CLASSES:
+        assert f"**{cls}**" in text
+    assert BLOCKER_RULE in prose
+    assert prose.count(OPTIONAL_RULE) == 2
+    assert EMPTY_RULE in prose
+    assert OWNER_DECIDES in prose
+    assert BLOCKER_BEFORE_FILTER in prose.replace("**", "")
+    assert "references/" in text and "frameworks.md" in text
+
+
+@pytest.mark.parametrize("rel", AGENT_FILES)
 def test_agent_surfaces_keep_learning_persistence(rel: str) -> None:
     text = _read(rel)
     for anchor in LEARNING_PERSISTENCE_ANCHORS:
         assert anchor in text
-    storage = text.split("### Memory Storage Pattern", maxsplit=1)[1]
-    storage = storage.split("### Failure Prevention Matrix", maxsplit=1)[0]
-    assert "mcp__serena__write_memory" in storage
+    storage = text.split("## Memory Protocol", maxsplit=1)[1]
+    storage = storage.split("## Continuous Improvement Loop", maxsplit=1)[0]
+    assert any(tool in storage for tool in MEMORY_WRITE_TOOLS)
     assert "backlog/" not in storage
     handoff = " ".join(text.split("## Handoff Protocol", maxsplit=1)[1].split())
     assert "the `Findings for the owner` table (Blocker rows first) to orchestrator" in handoff
+
+
+SERENA_GUARD_HEADING = "### Serena memory writes: check the checkout first"
+COPILOT_AGENT_FILES = tuple(rel for rel in AGENT_FILES if rel not in CLAUDE_AGENT_FILES)
+
+
+@pytest.mark.parametrize("rel", AGENT_FILES)
+def test_agent_surfaces_keep_serena_checkout_guard(rel: str) -> None:
+    # Every harness grants a Serena write path (serena/* on Copilot, the Serena
+    # tools on Claude). The guard applies before any reference is read, so it
+    # stays in the body of all of them.
+    assert SERENA_GUARD_HEADING in _read(rel)
+
+
+@pytest.mark.parametrize("rel", COPILOT_AGENT_FILES)
+def test_copilot_surfaces_name_one_persistence_backend(rel: str) -> None:
+    # The skill references show Claude Code tool names. The Copilot body tells the
+    # agent which tool to use instead, so it never gets two backends.
+    text = _read(rel)
+    assert "use the cloudmcp-manager tool below instead" in text
+    assert "mcp__cloudmcp-manager__memory-create_entities" in text
+    assert "RootCause-{Category}-{NNN}" in text
+    # The references run Claude Code commands. The Copilot body keeps its own.
+    assert "scripts/validation/traceability.py --strict" in text
+    assert "mcp__cloudmcp-manager__memory-search_nodes" in text
 
 
 @pytest.mark.parametrize("rel", CLAUDE_AGENT_FILES)
