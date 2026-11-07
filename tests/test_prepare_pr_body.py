@@ -7,7 +7,6 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -182,6 +181,7 @@ def _git(root: Path, *args: str) -> str:
         ],
         capture_output=True,
         text=True,
+        errors="replace",
         check=True,
     )
     return completed.stdout.strip()
@@ -471,34 +471,22 @@ def test_git_that_cannot_run_fails_closed(
         _MODULE.prepare_pr_body(tmp_path)
 
 
-def test_unreadable_base_listing_fails_closed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    real_run: Any = subprocess.run
-
-    def fail_ls_tree(argv: list[str], *args: Any, **kwargs: Any) -> Any:
-        if "ls-tree" in argv:
-            return subprocess.CompletedProcess(argv, 128, b"", b"fatal: bad object")
-        return real_run(argv, *args, **kwargs)
-
-    monkeypatch.setattr(_MODULE.subprocess, "run", fail_ls_tree)
-
-    with pytest.raises(_MODULE.PreparePrBodyError, match="cannot list"):
-        _MODULE.prepare_pr_body(tmp_path)
-
-
-def test_unreadable_template_blob_fails_closed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("failing_verb", "message"),
+    [("ls-tree", "cannot list"), ("cat-file", "cannot read the PR template blob")],
+)
+def test_failing_git_read_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failing_verb: str, message: str
 ) -> None:
     _write_template(tmp_path, "## Summary\n")
-    real_run: Any = subprocess.run
+    real_git = _MODULE._git
 
-    def fail_cat_file(argv: list[str], *args: Any, **kwargs: Any) -> Any:
-        if "cat-file" in argv:
-            return subprocess.CompletedProcess(argv, 128, b"", b"fatal: missing blob")
-        return real_run(argv, *args, **kwargs)
+    def fail_verb(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        if failing_verb in args:
+            return subprocess.CompletedProcess(args, 128, b"", b"fatal: unreadable")
+        return real_git(root, *args)
 
-    monkeypatch.setattr(_MODULE.subprocess, "run", fail_cat_file)
+    monkeypatch.setattr(_MODULE, "_git", fail_verb)
 
-    with pytest.raises(_MODULE.PreparePrBodyError, match="cannot read the PR template blob"):
+    with pytest.raises(_MODULE.PreparePrBodyError, match=message):
         _MODULE.prepare_pr_body(tmp_path)
