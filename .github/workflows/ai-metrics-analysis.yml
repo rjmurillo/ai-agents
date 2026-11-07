@@ -21,6 +21,7 @@ concurrency:
 permissions:
   contents: read
   issues: write
+  pull-requests: read
 
 jobs:
   analyze-metrics:
@@ -34,20 +35,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # Issue #4607 / ADR-026 Decision 5: report which account BOT_PAT
-      # resolves to before the first API call so a mis-issued secret is
-      # visible in the run log. Non-blocking until the secret is rotated.
-      - name: Report BOT_PAT identity
-        env:
-          IDENTITY_TOKEN: ${{ secrets.BOT_PAT }}
-          EXPECTED_BOT_ID: '250269933'
-          EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
-        run: python3 scripts/ci/check_bot_identity.py
-
       - name: Install gh-metrics extension
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           echo "Installing gh-metrics extension..."
@@ -58,7 +49,7 @@ jobs:
         id: metrics
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           WEEKS: ${{ inputs.weeks || '4' }}
           GH_REPOSITORY: ${{ github.repository }}
         run: |
@@ -78,7 +69,6 @@ jobs:
           additional-context: |
             Analysis Period: ${{ steps.metrics.outputs.start_date }} to ${{ steps.metrics.outputs.end_date }}
             Repository: ${{ github.repository }}
-          bot-pat: ${{ secrets.BOT_PAT }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Build issue body
@@ -137,7 +127,7 @@ jobs:
         if: steps.ai-analysis.outputs.verdict != 'PASS'
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           START_DATE: ${{ steps.metrics.outputs.start_date }}
           END_DATE: ${{ steps.metrics.outputs.end_date }}
         run: |

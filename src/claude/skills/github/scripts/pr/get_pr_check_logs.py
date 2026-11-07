@@ -700,6 +700,7 @@ def _write_no_failing_output(
     merge_ref_unusable: bool,
     merge_ref_payload: dict[str, object],
     fmt: str,
+    check_names: list[str] | None = None,
 ) -> int:
     if merge_ref_unusable:
         _write_merge_ref_error(merge_ref_payload, fmt)
@@ -710,13 +711,18 @@ def _write_no_failing_output(
         "Repo": repo,
         "PullRequest": pr_number,
         "FailingChecks": 0,
+        "CheckNames": check_names or [],
         "Message": "No failing checks found",
         "CheckLogs": [],
     }
+    if check_names:
+        summary = f"No failing checks among the named checks: {', '.join(check_names)}"
+    else:
+        summary = "No failing checks to analyze"
     write_skill_output(
         output,
         output_format=fmt,
-        human_summary="No failing checks to analyze",
+        human_summary=summary,
         status="PASS",
         script_name="get_pr_check_logs.py",
     )
@@ -779,7 +785,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # No failing checks
     if not failing_checks:
-        return _write_no_failing_output(owner, repo, pr_number, merge_ref_unusable, payload, fmt)
+        return _write_no_failing_output(
+            owner, repo, pr_number, merge_ref_unusable, payload, fmt, args.check_name
+        )
 
     # Fetch logs
     check_logs = get_check_logs(
@@ -795,7 +803,7 @@ def main(argv: list[str] | None = None) -> int:
         "Repo": repo,
         "PullRequest": pr_number,
         "FailingChecks": len(failing_checks),
-        "CheckNames": args.check_name,
+        "CheckNames": args.check_name or [],
         "CheckLogs": check_logs,
     }
     if merge_ref_warning:

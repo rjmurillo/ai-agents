@@ -123,8 +123,8 @@ jobs:
 
       - name: Configure git
         run: |
-          git config user.name "rjmurillo-bot"
-          git config user.email "rjmurillo-bot@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Checkout trusted push helper
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -138,7 +138,7 @@ jobs:
         id: auto-resolve
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ matrix.number }}
           HEAD_REF: ${{ matrix.headRefName }}
           BASE_REF: ${{ matrix.baseRefName }}
@@ -150,7 +150,7 @@ jobs:
         id: conflict-context
         if: steps.auto-resolve.outputs.needs_ai == 'true'
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ matrix.headRefName }}
           BASE_REF: ${{ matrix.baseRefName }}
           BLOCKED_FILES_JSON: ${{ steps.auto-resolve.outputs.blocked_files }}
@@ -173,13 +173,12 @@ jobs:
             ${{ steps.conflict-context.outputs.conflict_context }}
           prompt-file: .trusted-helper/.github/prompts/merge-conflict-analysis.md
           timeout-minutes: 5
-          bot-pat: ${{ secrets.BOT_PAT }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Apply AI conflict resolution
         if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict == 'PASS'
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           AI_FINDINGS: ${{ steps.ai-analysis.outputs.findings }}
           PR_NUMBER: ${{ matrix.number }}
           HEAD_REF: ${{ matrix.headRefName }}
@@ -211,7 +210,7 @@ jobs:
           steps.auto-resolve.outputs.needs_ai != 'true' ||
           steps.ai-analysis.outputs.verdict == 'PASS'
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ matrix.number }}
         run: python3 .trusted-helper/scripts/ci/detect_human_changes_requested.py
 
@@ -231,7 +230,6 @@ jobs:
           prompt-file: .trusted-helper/.github/prompts/pr-comment-triage.md
           execute-script: .trusted-helper/.claude/skills/github/scripts/pr/invoke_pr_comment_processing.py
           timeout-minutes: 10
-          bot-pat: ${{ secrets.BOT_PAT }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Comment processing result
