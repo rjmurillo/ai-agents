@@ -115,10 +115,11 @@ def _change(inc: object, cand: object) -> str:
     return "same"
 
 
-def _delta(base: dict[str, Any], other: dict[str, Any]) -> float | None:
-    if base["mean"] is None or other["mean"] is None:
+def mean_delta(base: Sequence[float], other: Sequence[float]) -> float | None:
+    """Mean of `other` minus mean of `base`, rounded once from the raw values."""
+    if not base or not other:
         return None
-    return round(other["mean"] - base["mean"], ROUND_PLACES)
+    return round(statistics.fmean(other) - statistics.fmean(base), ROUND_PLACES)
 
 
 def _pass_rates(task_ids: list[str], results: dict[str, Any]) -> list[float]:
@@ -131,19 +132,17 @@ def _benchmark(
     measured: dict[str, list[float]] | None,
     metric: str | None,
 ) -> dict[str, Any]:
-    stats = {arm: {"pass_rate": spread(_pass_rates(task_ids, results[arm]))} for arm in ARMS}
+    rates = {arm: _pass_rates(task_ids, results[arm]) for arm in ARMS}
+    stats = {arm: {"pass_rate": spread(rates[arm])} for arm in ARMS}
     bench: dict[str, Any] = {
         **stats,
-        "delta": {
-            "pass_rate": _delta(stats["incumbent"]["pass_rate"], stats["candidate"]["pass_rate"])
-        },
+        "delta": {"pass_rate": mean_delta(rates["incumbent"], rates["candidate"])},
     }
     if measured is not None:
-        spreads = {arm: spread(measured[arm]) for arm in ARMS}
         bench["measurements"] = {
             "metric": metric,
-            **spreads,
-            "delta": _delta(spreads["incumbent"], spreads["candidate"]),
+            **{arm: spread(measured[arm]) for arm in ARMS},
+            "delta": mean_delta(measured["incumbent"], measured["candidate"]),
         }
     return bench
 

@@ -203,7 +203,7 @@ frozen cases. Build it in every run.
    check --cases FILE` validates drafts and lists the ones still waiting;
    `freeze` refuses them. Run the draft once, read the output, then write the
    grader from what you saw and what the repository says is true.
-3. **Freeze** with `bootstrap_eval.py freeze` before you run anything. The
+3. **Freeze** with `bootstrap_eval.py freeze` before any scored run. The
    hash makes a later edit to a case visible.
 4. **Run** each case at least twice per condition (protocol advice; `score`
    does not enforce it), in fresh agent contexts
