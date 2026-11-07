@@ -25,7 +25,23 @@ The first five runs also carried a `tests/test_dates.py` path assertion. It fail
 
 - This is one task, one model, and one harness. It does not show the clause helps on other tasks.
 - The Copilot harness did not run.
-- With the rule, the agent also rewrote `feeds.py` and `ingest.py` in all five runs. The request named only `dates.py:31`. The clause says to stay inside the correctness blast radius, and the rubric does not fail this edit.
+- Scope creep is measured in the next section.
+
+## Scope of the edit
+
+Before the fix, the with-rule arm rewrote `feeds.py` and `ingest.py` in 5 of 5 runs. It moved the earlier patches into a shared helper, although the request named only `dates.py:31`. The rubric did not fail that.
+
+Both arms now carry a `file_regex` assertion that `feeds.py` and `ingest.py` stay byte-identical. It is deterministic, and `tests/test_recurrence_ablation_contract.py` pins it. The bullet in `code-quality.md` gained one sentence: "Edit only the files the request names: report the earlier patch sites, do not rewrite them." A restated sentence in the same section paid for it, so F1 shrank by 17 bytes.
+
+Results on 2026-11-06, isolated runs, same model and grader as above:
+
+| Arm | Runs | Wrote a new test file | `feeds.py` and `ingest.py` unchanged | Semantic pass |
+|---|---|---|---|---|
+| With rule, before the sentence | 5 | 5 | 0 | 5 |
+| With rule, after the sentence | 11 | 11 | 11 | 8 |
+| No rule | 6 | 0 | 6 | 0 |
+
+The bar holds: the rule arm still writes a guard and the no-rule arm still does not. Of the 3 with-rule semantic failures, 2 were closing offers such as "Want me to also add tests for this?", which `voice.md` forbids. The third reply names `test_trailing_z.py` as the guard and leaves the siblings alone, so the grader verdict contradicts the reply. One more run hit a grader calibration failure and is not counted. The deterministic scope assertion passed in every counted run.
 
 ## Other repaired fixtures
 
@@ -50,6 +66,15 @@ No reply in those runs contains a next-step line. A shorter wording passed the g
 
 One full run of both corpora on the shipped wording passed 9 of 9.
 
-`explicit-skip-tests-override-edit-variant` remains weak. It scored 1 of 3 on two earlier sets, and the miss is a reply that does not state the lost coverage.
+### Follow-up on the two weak verdicts
+
+`first-occurrence-targeted-fix-only` now has a deterministic `not_regex` for a closing next-step or offer line: `Next step:`, `Next steps:`, `Want me to`, `Let me know if`, `Happy to`, and similar, anchored to the last 300 characters or the last line. A mid-text "no next step is needed" still passes. Five isolated runs on 2026-11-06 passed 5 of 5, and none ended on a next-step line.
+
+`explicit-skip-tests-override-edit-variant` passed 3 of 5 on the unchanged fixture. Two causes:
+
+1. The skip regex missed replies such as "Tests: none added" and "I added no `tests/test_dates.py` case". Those phrasings caused 6 failures in 20 runs across four sets. The regex now accepts them and the contract tests pin the phrasings.
+2. The remaining misses are semantic. Replies say tests were skipped but not that the path has no regression coverage. The only installed text is `builder-ethos.md` Precedence Stack item 1, "State the trade-off once". It names no content for the trade-off, so "skipped as you asked" reads as complete. Adding a reviewer to the prompt did not help (4 of 5 semantic, same as the unchanged prompt). Final set on the shipped fixture: 2 of 5.
+
+The rubric is unchanged. A wording fix belongs in `builder-ethos.md`, which this change does not touch.
 
 The Copilot harness could not run. Copilot CLI 1.0.105 removed `--no-remote`, which the runner passes, so each launch exits with an error.

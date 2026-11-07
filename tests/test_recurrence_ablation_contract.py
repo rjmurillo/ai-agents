@@ -155,6 +155,8 @@ def _skip_pattern() -> re.Pattern[str]:
         "No test was added, and I ran nothing.",
         "Tests: Skipped, as you asked.",
         "I did not add any tests.",
+        "- **Tests:** none added, as you asked.",
+        "I didn't run the code or add tests, as you asked.",
     ],
 )
 def test_skip_regex_accepts_the_ways_replies_report_skipped_tests(reply: str) -> None:
