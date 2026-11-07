@@ -54,9 +54,12 @@ import functools
 import os
 from collections import defaultdict
 from collections.abc import Callable, Collection
+from pathlib import Path
 from typing import Protocol, cast
 
 import pytest
+
+from scripts.validation import testmon_data_inputs
 
 _WRAPPED_MARKER = "_ai_agents_scoped_sync"
 _SELECT_PLUGIN = "TestmonSelect"
@@ -89,6 +92,9 @@ class _Config(Protocol):
 
     @property
     def pluginmanager(self) -> _PluginManager: ...
+
+    @property
+    def rootpath(self) -> Path: ...
 
 
 class _Node(Protocol):
@@ -234,6 +240,7 @@ class _SelectionBroadcast:
         select = cast(_Selection | None, self._config.pluginmanager.get_plugin(_SELECT_PLUGIN))
         if workerinput is None or select is None:
             return
+        self._reselect_data_readers(select)
         workerinput[WORKERINPUT_KEY] = selection_payload(
             select.deselected_files, select.deselected_tests
         )
@@ -242,9 +249,22 @@ class _SelectionBroadcast:
         """Worker side, before collection: adopt the controller's deselection."""
         workerinput = getattr(self._config, "workerinput", None)
         select = cast(_Selection | None, self._config.pluginmanager.get_plugin(_SELECT_PLUGIN))
-        if workerinput is None or select is None:
+        if select is None:
+            return
+        if workerinput is None:
+            self._reselect_data_readers(select)
             return
         adopt_payload(select, workerinput.get(WORKERINPUT_KEY))
+
+    def _reselect_data_readers(self, select: _Selection) -> None:
+        """Run the tests that read a changed eval corpus, which testmon cannot see.
+
+        Runs on the xdist controller (before the payload is built) and in a
+        single-process run. A worker adopts the controller's result instead.
+        """
+        root = getattr(self._config, "rootpath", None)
+        if root is not None:
+            testmon_data_inputs.reselect(select, Path(root))
 
 
 def pytest_configure(config: _Config) -> None:
