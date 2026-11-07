@@ -1061,7 +1061,7 @@ Reply to comments that need immediate response BEFORE implementation:
 
 #### Reply Guidelines
 
-@ mention the reviewer only when you need their answer or decision. Do not mention on acknowledgment, final resolution, or informational replies: mentioning @copilot triggers a new PR analysis and costs premium requests, and mentioning @coderabbitai triggers a re-review. Reply to review comments in-thread, never through `/issues/{number}/comments`. Read `references/templates.md` when composing a Won't Fix, Question, Acknowledged, or Resolution reply.
+@ mention the reviewer only when you need their answer or decision. Do not mention on acknowledgment, final resolution, or informational replies: mentioning @copilot triggers a new PR analysis and costs premium requests, and mentioning @coderabbitai triggers a re-review. Reply to review comments in-thread, never through `/issues/{number}/comments`. Read `references/templates.md` when composing a Won't Fix, Question, Acknowledged, Resolution, or Premise Refuted reply.
 
 #### Step 5.1: Record Terminal Outcomes Decided Here
 
