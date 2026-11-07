@@ -188,21 +188,18 @@ class TestLoaderNeverAsksGithubAboutAzureWorkItems:
         spec_file = tmp_path / "spec-content-0.md"
         return code, spec_file.read_text(encoding="utf-8") if spec_file.exists() else ""
 
-    def test_ab_only_records_traceability_without_calling_gh(self, tmp_path: Path) -> None:
+    def test_ab_only_loads_no_stub_and_never_calls_gh(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#123")
 
         assert code == EXIT_OK
         assert self.gh_calls == []
-        assert "AB#123" in content
-        assert "not loaded" in content
-        assert "GitHub issue body" not in content
+        assert content == ""
 
-    def test_multiple_tokens_each_get_a_traceability_part(self, tmp_path: Path) -> None:
+    def test_multiple_ab_tokens_load_no_stub(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#5 AB#900")
 
         assert code == EXIT_OK
-        assert "## Azure Boards AB#5" in content
-        assert "## Azure Boards AB#900" in content
+        assert content == ""
 
     def test_mixed_refs_call_gh_only_for_the_github_issue(self, tmp_path: Path) -> None:
         code, content = self._load(tmp_path, "AB#900", issue_refs="42")
@@ -263,12 +260,28 @@ class TestWorkflowWiring:
 
         assert step["env"]["AZURE_REFS"] == "${{ steps.spec-ref.outputs.azure_refs }}"
 
-    def test_loader_and_judges_run_whenever_has_specs_is_true(self) -> None:
-        """The guard is `has_specs` alone, so an AB-only pull request is not skipped."""
-        for name in ("Load Spec Content", "Prepare Spec Context"):
+    def test_loader_runs_on_has_specs_and_model_steps_need_loadable(self) -> None:
+        """An AB-only body loads (and reports) but never reaches a model step."""
+        loader = _step("ai-spec-review.yml", "review-spec", "Load Spec Content")
+        assert "steps.spec-ref.outputs.has_specs == 'true'" in loader["if"]
+        for name in (
+            "Prepare Spec Context",
+            "\U0001f517 Requirements Traceability Check (Analyst Agent)",
+            "\u2705 Completeness Check (Critic Agent)",
+        ):
             step = _step("ai-spec-review.yml", "review-spec", name)
-            assert "steps.spec-ref.outputs.has_specs == 'true'" in step["if"]
-            assert "azure" not in step["if"].lower()
+            assert "steps.load-spec.outputs.loadable == 'true'" in step["if"], name
+
+    def test_no_loadable_report_replaces_the_full_report_and_the_comment_still_posts(self) -> None:
+        """The advisory report must still post when nothing was loadable."""
+        none = _step("ai-spec-review.yml", "review-spec", "Generate No-Loadable Report")
+        full = _step("ai-spec-review.yml", "review-spec", "Generate Validation Report")
+        comment = _step("ai-spec-review.yml", "review-spec", "Post PR Comment")
+        assert "loadable == 'false'" in none["if"]
+        assert "loadable != 'false'" in full["if"]
+        assert "loadable" not in comment["if"]
+        assert none["run"] == "python3 scripts/ci/spec_no_loadable_report.py"
+        assert "report-none.outputs.report_file" in comment["env"]["REPORT_FILE"]
 
     def test_verdict_step_reads_has_specs_from_the_same_extractor(self) -> None:
         step = _step("ai-spec-validation.yml", "validate-spec", "Decide spec coverage verdict")
@@ -294,7 +307,7 @@ class TestWorkflowWiring:
             with patch("scripts.ci.spec_load_content.subprocess.run") as run:
                 assert spec_load_content.main() == EXIT_OK
         run.assert_not_called()
-        assert "AB#123" in Path(_read_outputs(out_file)["spec_file"]).read_text(encoding="utf-8")
+        assert _read_outputs(out_file) == {"loadable": "false"}
 
     def test_ab_only_body_is_graded_by_the_required_verdict_check(self, tmp_path: Path) -> None:
         """The required check no longer passes an AB-only pull request as 'no linked spec'."""

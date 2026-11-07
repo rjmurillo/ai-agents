@@ -111,7 +111,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/ci/spec_load_content.py"
 
       - name: Prepare Spec Context
-        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable == 'true'
         id: prepare-context
         env:
           SPEC_FILE: ${{ steps.load-spec.outputs.spec_file }}
@@ -123,7 +123,7 @@ jobs:
         run: python3 scripts/ci/spec_prepare_context.py
 
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
-        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable == 'true'
         id: trace
         # Stays advisory because the "[STATE] spec-traceability-check" log line and report comment show a failure.
         continue-on-error: true
@@ -148,7 +148,7 @@ jobs:
           --detail "analyst agent crash or timeout"
 
       - name: ✅ Completeness Check (Critic Agent)
-        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable == 'true'
         id: completeness
         # Stays advisory because the "[STATE] spec-completeness-check" log line and report comment show a failure.
         continue-on-error: true
@@ -172,8 +172,20 @@ jobs:
           --failure-reason script.failed
           --detail "critic agent crash or timeout"
 
+      # Issue #6506 fail-open-27: when the loader found no requirement text, the
+      # model steps above were skipped. This step writes the advisory report
+      # saying so, and the comment steps below still run.
+      - name: Generate No-Loadable Report
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable == 'false'
+        id: report-none
+        env:
+          ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+          AZURE_REFS: ${{ steps.spec-ref.outputs.azure_refs }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/ci/spec_no_loadable_report.py
+
       - name: Generate Validation Report
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.load-spec.outputs.loadable != 'false'
         id: report
         env:
           HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
@@ -205,7 +217,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
-          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file || steps.report-none.outputs.report_file }}
         run: |
           python3 .github/scripts/run_with_retry.py -- \
             python3 .github/scripts/post_issue_comment.py \
@@ -227,6 +239,6 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
-          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file || steps.report-none.outputs.report_file }}
         run: |
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY

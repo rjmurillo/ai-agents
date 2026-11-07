@@ -14,10 +14,15 @@ ENV:
   GITHUB_OUTPUT     - path to step output file
 
 Outputs:
-  spec_file - absolute path to the spec content markdown file
+  loadable  - "true" when at least one spec file or GitHub issue body loaded,
+              "false" when the only references left are Azure Boards tokens
+              (issue #6506 fail-open-27)
+  spec_file - absolute path to the spec content markdown file; written only
+              when loadable is "true"
 
 EXIT CODES (ADR-035):
-  0 - content loaded
+  0 - content loaded, or nothing loadable (loadable=false; the caller skips
+      the model steps and reports it, so the advisory job stays green)
   2 - referenced spec content is missing
   3 - a GitHub issue lookup failed for a reason other than the reference
       not being an issue
@@ -288,7 +293,9 @@ def run(_argv: list[str] | None = None) -> int:
         return EXIT_AUTH
     external_failure, issue_parts = _load_issue_refs(issue_refs, repository)
     parts.extend(issue_parts)
-    parts.extend(_azure_traceability_parts(azure_refs))
+    # Loadable means real requirement text: a spec file or an issue body. The
+    # Azure traceability parts are context only, so they are added afterwards.
+    loadable = bool(parts)
 
     # Fail closed on a genuine lookup failure even when other content loaded.
     # Proceeding would hand the judge a subset of the requirements and let the
@@ -301,17 +308,30 @@ def run(_argv: list[str] | None = None) -> int:
         )
         return external_failure
 
-    spec_content = "\n\n".join(parts)
-    if not spec_content:
+    if not loadable:
+        if not azure_refs:
+            # Only non-issue numbers, such as pull requests: the pinned config
+            # error stands (see test_every_ref_is_not_an_issue_reports_config_not_external).
+            print(
+                f"::error::no spec content found for references: {spec_refs_raw} {issue_refs_raw}",
+                file=sys.stderr,
+            )
+            return EXIT_CONFIG
+        # Azure Boards tokens are the only references left, so there is no
+        # requirement text for a model to judge. Exit 0 so the advisory job still
+        # posts its report; the workflow gates the model steps on this output.
         print(
-            "::error::no spec content found for references: "
-            f"{spec_refs_raw} {issue_refs_raw} {' '.join(azure_refs)}",
+            "::notice::no requirements were loadable: Azure Boards work items "
+            f"({' '.join(azure_refs)}) cannot be read by this workflow",
             file=sys.stderr,
         )
-        return EXIT_CONFIG
+        write_github_output("loadable", "false")
+        return EXIT_OK
 
+    spec_content = "\n\n".join([*parts, *_azure_traceability_parts(azure_refs)])
     spec_file = Path(runner_temp) / f"spec-content-{os.environ.get('GITHUB_RUN_ID', '0')}.md"
     spec_file.write_text(spec_content, encoding="utf-8")
+    write_github_output("loadable", "true")
     write_github_output("spec_file", str(spec_file))
 
     return EXIT_OK
