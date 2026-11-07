@@ -182,3 +182,32 @@ class TestDryRun:
         assert "Would update: test-index.md" in out
         assert "Dry run complete. Would modify 1 files." in out
         assert index.read_text(encoding="utf-8") == "| keyword | test-memory |\n"
+
+
+def test_json_dry_run_marks_the_stats_so_a_preview_is_not_a_write(tmp_path, capsys):
+    (tmp_path / "test-memory.md").write_text("# T", encoding="utf-8")
+    (tmp_path / "test-index.md").write_text("| keyword | test-memory |\n", encoding="utf-8")
+
+    rc = convert_index_table_links.main(
+        ["--memories-path", str(tmp_path), "--skip-path-validation", "--dry-run", "--output-json"]
+    )
+
+    import json
+
+    stats = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert stats["DryRun"] is True
+    assert stats["FilesModified"] == 1
+
+
+def test_json_real_run_has_no_dry_run_key(tmp_path, capsys):
+    (tmp_path / "test-memory.md").write_text("# T", encoding="utf-8")
+    (tmp_path / "test-index.md").write_text("| keyword | test-memory |\n", encoding="utf-8")
+
+    convert_index_table_links.main(
+        ["--memories-path", str(tmp_path), "--skip-path-validation", "--output-json"]
+    )
+
+    import json
+
+    assert "DryRun" not in json.loads(capsys.readouterr().out)

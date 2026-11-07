@@ -79,7 +79,7 @@ Phase 6: Structure         (Sonnet agent, 1-2m)  -> structure-findings.json
 | Script | Purpose |
 |--------|---------|
 | `scripts/doc_accuracy.py` | Phases 1-3: Assessment, claim extraction, compilability check |
-| `pr_snapshot.py` | Capture an immutable head and base snapshot of a PR for review, or re-check it with `--check-stale`. Exit 0 ok, 1 verification or stale, 2 config, 3 external, 4 auth. Flags: `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--identity-file`, `--run-scanner` |
+| `pr_snapshot.py` (same directory as the row above) | Capture an immutable head and base snapshot of a PR for review, or re-check it with `--check-stale`. Exit 0 ok, 1 verification or stale, 2 config, 3 external, 4 auth. Flags: `--owner`, `--repo`, `--pull-request`, `--output-dir`, `--identity-file`, `--run-scanner` |
 
 ## Invocation
 

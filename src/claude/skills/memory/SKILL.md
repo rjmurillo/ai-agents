@@ -335,7 +335,7 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 | `measure_memory_performance.py` | Serena search benchmark, by phase | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
 | `convert_index_table_links.py` | Index table link conversion; `--dry-run` previews | 0=success, 1=error |
-| `convert_memory_references.py` | Convert backtick memory references to Markdown links; `--dry-run` previews | 0=success, 1=error, 2=invalid path |
+| `convert_memory_references.py` | Convert backtick memory references to Markdown links; `--dry-run` previews | 0=success, 1=error |
 | `invoke_memory_cross_reference.py` | Cross-reference memories | 0=success, 1=error |
 
 Invoke via the portable root form:

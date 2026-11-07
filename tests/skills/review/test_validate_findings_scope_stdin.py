@@ -45,3 +45,11 @@ def test_main_with_text_ignores_terminal_stdin(capsys) -> None:
             rc = main(["--worktree", ".", "--text", "no findings here"])
 
     assert rc == 0
+
+
+def test_main_without_text_and_closed_stdin_exits_two(capsys) -> None:
+    with patch.object(sys, "stdin", None):
+        rc = main(["--worktree", ".", "--base-branch", "main"])
+
+    assert rc == 2
+    assert "terminal or closed" in capsys.readouterr().err

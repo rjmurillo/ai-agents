@@ -1,7 +1,8 @@
 # Script Catalog
 
-Scripts the `SKILL.md` tables do not carry (the first eight are PR scripts, the last four are issue scripts), plus the full text of rows that were
-shortened there. Paths are relative to the skill root. Run every script with
+Scripts the `SKILL.md` tables do not carry, plus the full text of rows that
+were shortened there. The first eight scripts below sit in the `pr` subdirectory
+of the skill's script directory, the last four in `issue`. Run every script with
 `python3` and read `--help` first. Mutating scripts take `--dry-run` where the
 `SKILL.md` table lists it.
 

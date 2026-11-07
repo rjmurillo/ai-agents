@@ -152,6 +152,8 @@ def process_files(
             if not output_json:
                 print(f"WARNING: {msg}", file=sys.stderr)
 
+    if dry_run:
+        stats["DryRun"] = True
     return stats
 
 

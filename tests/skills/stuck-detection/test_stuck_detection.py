@@ -416,3 +416,19 @@ class TestTerminalStdin:
         monkeypatch.setattr(sys, "stdin", _TtyStdin())
 
         assert main(["--history", str(history_path), "check", "fixing the login bug"]) == 0
+
+
+class TestClosedStdin:
+    def test_check_without_text_and_closed_stdin_exits_two(
+        self,
+        history_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", None)
+
+        with pytest.raises(SystemExit) as excinfo:
+            main(["--history", str(history_path), "check"])
+
+        assert excinfo.value.code == 2
+        assert "terminal or closed" in capsys.readouterr().err

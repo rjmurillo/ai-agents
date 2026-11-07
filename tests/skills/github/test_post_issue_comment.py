@@ -454,3 +454,34 @@ class TestBodyFileContainment:
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--body-file", str(tmp_path / "missing.md")])
         assert exc.value.code == 2
+
+
+def test_dry_run_update_prints_no_updating_progress_line(capsys):
+    mod = import_skill_script("post_issue_comment", "issue")
+    comments = [{"id": 50, "body": "<!-- M -->\nold"}]
+    with (
+        patch("post_issue_comment.assert_gh_authenticated"),
+        patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+        patch("post_issue_comment.update_issue_comment") as update,
+        patch("subprocess.run", return_value=make_completed_process(stdout=json.dumps(comments))),
+    ):
+        rc = mod.main(
+            [
+                "--issue",
+                "1",
+                "--body",
+                "new",
+                "--marker",
+                "M",
+                "--update-if-exists",
+                "--dry-run",
+                "--output-format",
+                "human",
+            ]
+        )
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Updating..." not in out
+    assert "Dry run: would update comment 50" in out
+    assert update.call_count == 0

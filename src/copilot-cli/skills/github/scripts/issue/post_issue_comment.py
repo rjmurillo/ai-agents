@@ -263,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
 
             if existing is not None:
                 if args.update_if_exists:
-                    if fmt != "json":
+                    if fmt != "json" and not args.dry_run:
                         print(f"Comment with marker '{args.marker}' exists. Updating...")
                     body = _prepend_marker(body, marker_html)
                     if args.dry_run:

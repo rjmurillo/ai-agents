@@ -350,9 +350,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.text is None and sys.stdin.isatty():
+    if args.text is None and (sys.stdin is None or sys.stdin.isatty()):
         print(
-            "validate_findings_scope: no --text given and stdin is a terminal. "
+            "validate_findings_scope: no --text given and stdin is a terminal or closed. "
             "Pass --text or pipe the axis output in.",
             file=sys.stderr,
         )
