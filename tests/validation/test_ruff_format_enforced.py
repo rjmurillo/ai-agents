@@ -101,11 +101,24 @@ def test_ci_format_step_is_blocking() -> None:
     assert all("continue-on-error" not in step for step in format_steps)
 
 
-def test_force_exclude_keeps_staged_excludes_out_of_the_hook() -> None:
-    """The lefthook hook passes explicit paths; ruff skips excludes for those unless forced."""
+def test_force_exclude_is_scoped_to_the_format_hook_not_to_lint() -> None:
+    """A top-level force-exclude would make `ruff check` skip explicit files silently."""
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    hook = (REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8")
 
-    assert re.search(r"(?m)^force-exclude\s*=\s*true\s*$", pyproject)
+    assert not re.search(r"(?m)^force-exclude\s*=", pyproject)
+    format_lines = _invocations(hook)
+    assert format_lines
+    assert all("--force-exclude" in line for line in format_lines)
+
+
+def test_documented_format_command_forces_the_format_excludes() -> None:
+    """Without a top-level force-exclude, a named excluded fixture gets rewritten."""
+    rule = (REPO_ROOT / "templates" / "rules" / "python.md").read_text(encoding="utf-8")
+
+    commands = re.findall(r"`(uv run [^`]*ruff format(?! --check)[^`]*)`", rule)
+    assert commands
+    assert all("--force-exclude" in command for command in commands)
 
 
 def test_scanner_flags_a_shell_invocation_negative_control() -> None:
@@ -191,7 +204,7 @@ def test_python_rule_still_carries_the_instruction_this_module_backs() -> None:
     """
     text = " ".join(PYTHON_RULE.read_text(encoding="utf-8").split())
 
-    assert "`uv run --frozen --extra dev ruff format <files>`" in text
+    assert "`uv run --frozen --extra dev ruff format --force-exclude <files>`" in text
     assert "`ruff format --check` is a blocking gate" in text
     assert Path(__file__).name in text, (
         "python.md should point at this module so a reader who changes the rule "
