@@ -174,7 +174,7 @@ class _CopilotCLIProvider:
        same context the eval is measuring, and they add latency for no signal
        on a text-completion eval.
     4. `--available-tools=` removes every tool from model context. Redundant
-       no-remote, no-bash-env, and temp-directory controls close ambient effect
+       session-sync-off, no-bash-env, and temp-directory controls close ambient effect
        paths if a future CLI changes one filter.
     5. The prompt travels in ACP JSON-RPC over stdin, never in process argv.
        The child receives an allowlisted environment rather than inherited
@@ -409,8 +409,9 @@ class _CopilotCLIProvider:
             "--disable-builtin-mcps",
             "--disallow-temp-dir",
             "--no-bash-env",
-            "--no-remote",
-            "--no-remote-export",
+            # Copilot CLI 1.0.103 removed --no-remote and renamed --no-remote-export
+            # to --sync-session. Remote control is off unless settings enable it.
+            "--sync-session=off",
             "--no-color",
             "--log-level",
             "none",
