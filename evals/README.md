@@ -40,6 +40,7 @@ points, so a new eval extends one of them instead of adding a format.
 |---|---|
 | Test cases (prompt, expected output) | `bootstrap_eval.py` cases file: `prompt`, `expected_output`, `grader`. A case without a `grader` is a draft; `bootstrap_eval.py check` validates it |
 | With and without the skill | `bootstrap_eval.py` conditions `baseline` and `with_skill`; `scripts/eval/_claude_skill_harness.py` runs the CLI arm |
+| Skill optimization loop (incumbent vs candidate, held-out split) | `skillopt.py`. `skillopt.py report` supplies evidence, benchmark spread, and signals for a result pair; `bootstrap_eval.py score` supplies the same for with-skill vs baseline. Incumbent maps to baseline, candidate to with-skill |
 | Previous version as the baseline | `skillopt.py pair-gate` compares an incumbent bundle hash with a candidate; `eval_skill_bootstrap_capability.py` compares `before` and `after` checkouts |
 | Timing and tokens per run | Optional `duration_ms` and `total_tokens` on each `bootstrap_eval.py` results row |
 | Per-assertion evidence | `bootstrap_eval.py score --detail` prints `runs` with an evidence line each |

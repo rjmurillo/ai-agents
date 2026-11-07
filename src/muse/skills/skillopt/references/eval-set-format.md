@@ -414,3 +414,48 @@ one. A smaller worsening passes, so still read `per_task_gain` before you
 promote. If one task got worse and you are unsure it is noise, do not promote.
 Tell the user which task and by how much. Do not edit the manifest to make it
 pass.
+
+## Run report
+
+`skillopt.py report` explains a result pair. It never gates, and `pair-gate`
+stays the acceptance decision. It maps onto the agentskills.io evaluation
+guide: incumbent is the baseline, candidate is the edited skill, and
+`bootstrap_eval.py score` in `skill-bootstrap` plays the same part for
+with-skill against without-skill runs. The two share the `n`, `mean`, `stdev`
+spread, the `never_passes` signal, and the candidate-minus-baseline delta.
+
+```bash
+python3 "$SKILLOPT_DIR/skillopt.py" report --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json [--split sel] [--null-results null_results.json] [--evidence evidence.json] [--measurements measurements.json]
+```
+
+`--evidence` is one line per task and arm, written by the runner who graded it:
+
+```json
+{ "incumbent": { "t7": "exit 1, one finding on line 12" }, "candidate": { "t7": "exit 0, no finding" } }
+```
+
+`--measurements` is the file `efficiency-gate` reads (section 4). The report
+uses the `incumbent` and `candidate` arms, pools every repeat of every task in
+the split, and names the metric from the manifest's `efficiency.metric`.
+
+The output has a `tasks` list and a `benchmark` object.
+
+- `tasks[].change`: `gain`, `regression`, `same`, or `unverified`.
+- `tasks[].evidence`: the line you supplied for each arm, or null.
+- `tasks[].signals`:
+  - `always_passes`: both arms pass. It cannot discriminate. When it holds
+    for the whole `sel` split, expect `REJECT_CEILING`.
+  - `never_passes`: both arms fail. Suspect the verifier or the task before the
+    edit.
+  - `unstable`: the null control flipped the task. Needs `--null-results`.
+  - `unverified`: a result is missing or not a boolean in either arm.
+  - `pass_without_evidence_incumbent` and `pass_without_evidence_candidate`: a
+    pass with no evidence line. Treat it as unproven.
+- `benchmark`: pass-rate `n`, `mean`, and sample `stdev` per arm (one value
+  per verified task), a `delta` of candidate minus incumbent, and, when
+  `--measurements` is given, the same spread for the measured metric. An
+  absent measurement gives a null, never zero. With one observation `stdev` is
+  null.
+
+The same split checks as `pair-gate` apply: an exposed or invalid task in the
+`sel` split exits 2. A `train` report can include exposed tasks.
