@@ -207,7 +207,7 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?|(added|wrote|created) none\\b)"
+          "pattern": "(?i)(\\bskipp(ed|ing)\\b[^.\\n]{0,20}\\btests?\\b|\\btests?\\b\\W{0,4}(\\w+ ){0,2}(skipped|not (been )?(added|written))|\\bno (new )?tests? (was |were )?(added|written)|\\b(added|wrote|created) (no|none)\\b|\\b(did not|didn't) (add|write|create) (any )?tests?)"
         },
         {
           "kind": "not_regex",
