@@ -587,6 +587,25 @@ def _scoped_pattern_indexes(regions: list[tuple[int, int]]) -> frozenset[int]:
     return _ALL_PATTERN_INDEXES if regions else _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES
 
 
+def scoping_note(description: str) -> str:
+    """Return a note when a change heading limits which path mentions are checked.
+
+    With a change-claim heading present, only paths under it can raise the
+    "mentioned but not in diff" error. A path cited elsewhere is a reference, not
+    a claim, but it still counts toward the "significant file not mentioned"
+    warning (#6506).
+    """
+    if not description:
+        return ""
+    if not _change_claim_regions(_strip_informational_sections(description)):
+        return ""
+    return (
+        "Note: the description has a change heading, so only paths under it can "
+        "raise a 'mentioned but not in diff' error; paths mentioned elsewhere only "
+        "count toward the 'significant file not mentioned' warning."
+    )
+
+
 def extract_mentioned_files(description: str) -> list[str]:
     """Extract unique file paths mentioned in PR description text.
 
@@ -989,6 +1008,86 @@ _CLOSING_REFERENCES_QUERY = (
 )
 
 
+def _hidden_ranges(body: str) -> list[tuple[int, int]]:
+    """Ranges GitHub does not scan for closing keywords: fences, code spans, comments."""
+    fenced_ranges = _fenced_code_block_ranges(body)
+    code_span_ranges = _code_spans_outside_fences(body, fenced_ranges)
+    return (
+        fenced_ranges
+        + code_span_ranges
+        + _html_comments_outside_code(body, fenced_ranges, code_span_ranges)
+    )
+
+
+# A negation GitHub does not understand. GitHub's closing-keyword scan reads
+# "does not close #N" as "close #N" and closes the issue on merge (PR #7126
+# closed #5410 with a criterion unmet). The tail of the text before a keyword
+# is tested against this pattern. Fillers such as "yet" or "going to" may sit
+# between the negator and the keyword. "closing" is not a GitHub keyword, so
+# "not closing #N" closes nothing and is not matched here.
+_NEGATION_BEFORE_KW: re.Pattern[str] = re.compile(
+    r"(?:\bnot|\b\w+n['\u2019]t|\bnever|\bcannot|\bno\s+longer)"
+    r"(?:\s+(?:yet|fully|actually|really|automatically|also|going|intend|intended|meant|to|be)){0,3}"
+    r"\s+$",
+    re.IGNORECASE,
+)
+
+# A sentence or paragraph end. A negator before one of these does not reach the
+# keyword. A single newline is not one: GitHub reads it as whitespace, so a
+# wrapped "does not\nclose #N" still closes the issue.
+_SENTENCE_END: re.Pattern[str] = re.compile(r"[.!?;:]|\n[ \t]*\n")
+
+# Emphasis and inline HTML that can sit around a negator ("does **not** close").
+# GitHub strips them when it renders the body and still reads "close #N".
+_EMPHASIS_MARKUP: re.Pattern[str] = re.compile(
+    r"[*~]+|(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])|</?(?:b|i|em|strong|u|s|del|ins)>",
+    re.IGNORECASE,
+)
+
+# How far back from a keyword to look for its negator.
+_NEGATION_LOOKBACK = 60
+
+
+def _is_negated(body: str, keyword_start: int) -> bool:
+    """Return whether a negator directly governs the keyword at ``keyword_start``."""
+    window = body[max(0, keyword_start - _NEGATION_LOOKBACK) : keyword_start]
+    ends = list(_SENTENCE_END.finditer(window))
+    if ends:
+        window = window[ends[-1].end() :]
+    window = _EMPHASIS_MARKUP.sub("", window)
+    return _NEGATION_BEFORE_KW.search(window) is not None
+
+
+def validate_negated_closing_keywords(body: str) -> list[Issue]:
+    """Flag a negated closing keyword, which GitHub still honors.
+
+    "This PR does not close #N" closes #N on merge. Rephrase with ``Refs #N``
+    or a word that is not a closing keyword. Keywords inside fences, code
+    spans, and HTML comments are skipped: GitHub does not scan them.
+    """
+    body = body.replace("\r\n", "\n").replace("\r", "\n")
+    hidden = _hidden_ranges(body)
+    issues: list[Issue] = []
+    for m in _AUTO_CLOSE_KW.finditer(body):
+        if _in_any_range(m.start(), hidden) or not _is_negated(body, m.start()):
+            continue
+        issue_ref = f"{m.group('repo') or ''}#{m.group('number')}"
+        issues.append(
+            Issue(
+                severity="CRITICAL",
+                issue_type="Negated closing keyword",
+                file="<pr-body>",
+                message=(
+                    f"'{m.group(0)}' is written as a negation, but GitHub ignores the "
+                    f"negation and will close issue {issue_ref} on merge. "
+                    f"Use 'Refs {issue_ref}' or reword without close, fix, or resolve "
+                    "next to the issue number."
+                ),
+            )
+        )
+    return issues
+
+
 def extract_active_closing_claims(body: str, owner: str, repo: str) -> dict[ClosingTarget, str]:
     """Map each closing claim GitHub should honor to the reference the author wrote.
 
@@ -997,13 +1096,7 @@ def extract_active_closing_claims(body: str, owner: str, repo: str) -> dict[Clos
     GitHub renders the third as nothing. A bare `#N` targets ``owner/repo``.
     """
     body = body.replace("\r\n", "\n").replace("\r", "\n")
-    fenced_ranges = _fenced_code_block_ranges(body)
-    code_span_ranges = _code_spans_outside_fences(body, fenced_ranges)
-    hidden = (
-        fenced_ranges
-        + code_span_ranges
-        + _html_comments_outside_code(body, fenced_ranges, code_span_ranges)
-    )
+    hidden = _hidden_ranges(body)
     default_repo = f"{owner}/{repo}".lower()
     claims: dict[ClosingTarget, str] = {}
     for m in _AUTO_CLOSE_KW.finditer(body):
@@ -1326,6 +1419,8 @@ def run_local(body_file: str, base: str) -> int:
     mentioned_files = extract_mentioned_files(description)
     all_mentioned = extract_all_mentioned_files(description)
     print(f"Description mentions {len(mentioned_files)} files")
+    if note := scoping_note(description):
+        print(note)
 
     issues = validate_pr_description(pr_files, mentioned_files, all_mentioned_files=all_mentioned)
     return print_results(issues, ci=True)
@@ -1436,6 +1531,8 @@ def main(argv: list[str] | None = None) -> int:
     mentioned_files = extract_mentioned_files(description)
     all_mentioned = extract_all_mentioned_files(description)
     print(f"Description mentions {len(mentioned_files)} files")
+    if note := scoping_note(description):
+        print(note)
 
     # Validate: file mentions vs diff
     issues = validate_pr_description(pr_files, mentioned_files, all_mentioned_files=all_mentioned)
@@ -1452,6 +1549,7 @@ def main(argv: list[str] | None = None) -> int:
     base_branch: str = pr_data.get("base_ref", "") or ""
     default_branch: str = pr_data.get("default_branch", "main") or "main"
     issues.extend(validate_closing_links(description, base_branch, default_branch))
+    issues.extend(validate_negated_closing_keywords(description))
     issues.extend(
         validate_closing_links_against_github(
             args.pr_number, owner, repo, description, base_branch, default_branch

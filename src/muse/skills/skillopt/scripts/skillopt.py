@@ -79,6 +79,7 @@ from _skillopt_patching import (
     edit_budget,
     protected_ranges,
 )
+from _skillopt_report import run_report
 from _skillopt_runner import UNVERIFIED, run_bundle
 
 RESULT_ROLES = ("incumbent", "candidate", "null")
@@ -205,6 +206,23 @@ def _cmd_efficiency_gate(args: argparse.Namespace) -> int:
     )
     print(json.dumps(report, indent=2))
     return 0 if report["accepted"] else 1
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    def optional(path: str | None, what: str) -> dict | None:
+        return _load_object(path, what) if path else None
+
+    report = run_report(
+        _load_object(args.eval, "report eval input"),
+        _load_object(args.incumbent_results, "report incumbent results"),
+        _load_object(args.candidate_results, "report candidate results"),
+        args.split,
+        null_results=optional(args.null_results, "report null results"),
+        evidence=optional(args.evidence, "report evidence"),
+        measurements=optional(args.measurements, "report measurements"),
+    )
+    print(json.dumps(report, indent=2))
+    return 0
 
 
 def _cmd_score(args: argparse.Namespace) -> int:
@@ -336,6 +354,22 @@ def _add_gate_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]) 
     p.add_argument("--measurements", required=True, help="incumbent, candidate, and null arms")
     p.add_argument("--split", default="sel")
     p.set_defaults(func=_cmd_efficiency_gate)
+
+    p = sub.add_parser(
+        "report",
+        help="explain a result pair: evidence, benchmark spread, signals (never gates)",
+    )
+    p.add_argument("--eval", required=True)
+    p.add_argument("--incumbent-results", required=True)
+    p.add_argument("--candidate-results", required=True)
+    p.add_argument("--null-results")
+    p.add_argument("--evidence", help='{"incumbent": {task: "line"}, "candidate": {...}}')
+    p.add_argument(
+        "--measurements",
+        help="efficiency-gate measurements.json shape; incumbent and candidate arms",
+    )
+    p.add_argument("--split", default="sel")
+    p.set_defaults(func=_cmd_report)
 
     p = sub.add_parser("score", help="pass-rate on a held-out split")
     p.add_argument("--eval", required=True)

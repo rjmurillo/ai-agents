@@ -9,6 +9,7 @@ the preflight itself delenv ``EVAL_SKIP_MODEL_PREFLIGHT`` explicitly.
 from __future__ import annotations
 
 import importlib
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -44,16 +45,17 @@ def _hermetic_credential_sources(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture(autouse=True)
 def _parity_runs_have_a_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Give isolated parity runs a credential.
+    """Give isolated Claude runs (parity, control ablation) a credential.
 
-    The inert sources report a login with no token, and `_fixture_env` refuses
-    that state. Tests about credential resolution override this fixture.
+    The inert sources report a login with no token, and `add_claude_login`
+    refuses that state. Tests about credential resolution override this fixture.
     """
+    from tests.eval import _runtime_parity_test_support  # noqa: F401  (loads the sibling modules)
     from tests.eval._credential_test_support import _cli_credentials
-    from tests.eval._runtime_parity_test_support import parity
 
+    login_module = sys.modules["_isolated_claude_login"]
     credential = _cli_credentials.ResolvedCredential(_cli_credentials.STEP_DISK, "inert-test-token")
-    monkeypatch.setattr(parity, "resolve_cached", lambda _spec, *, executable: credential)
+    monkeypatch.setattr(login_module, "resolve_cached", lambda _spec, *, executable: credential)
 
 
 def import_runtime_harness(monkeypatch: pytest.MonkeyPatch) -> ModuleType:

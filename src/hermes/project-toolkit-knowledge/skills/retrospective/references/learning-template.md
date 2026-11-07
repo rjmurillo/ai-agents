@@ -1,8 +1,8 @@
 # Learning Extraction Template
 
-The byte-exact retrospective artifact structure. Phases 0 through 4 were lifted verbatim
-from the canonical source agent body at `.claude/agents/retrospective.md` (Phase 4,
-"Learning Extraction Template", original lines 696-789). Phase 5 records the persistence
+The byte-exact retrospective artifact structure. Phases 0 through 4 follow the Learning
+Extraction Template that the agent `.claude/agents/retrospective.md` once carried inline;
+this file is now the canonical home and the agent loads it when it assembles the artifact. Phase 5 records the persistence
 and closing outputs required by [SKILL.md](../SKILL.md), using the memory
 protocol in `diagnosis-and-actions.md` and the closing activities in `frameworks.md`. The
 output artifact MUST match this template, modulo filled placeholders. Do not reword the
