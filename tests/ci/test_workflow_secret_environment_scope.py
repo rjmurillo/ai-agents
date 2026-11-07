@@ -136,7 +136,6 @@ def test_a_job_that_does_not_read_the_secret_is_not_reported(tmp_path: Path) -> 
     assert set(jobs_reaching(wf, "EXAMPLE_TOKEN")) == {"a"}
 
 
-AGENT_ENVIRONMENTS = frozenset({"agent-claude", "agent-codex", "agent-copilot", "agent-droid"})
 RETIRED_ENVIRONMENT = "bot-secrets"
 
 
@@ -147,14 +146,15 @@ def _environment_name(environment: object) -> str:
     return environment if isinstance(environment, str) else ""
 
 
-def bot_pat_outside_agent_environments(paths: list[Path]) -> list[str]:
-    """Every ``workflow:job`` reaching BOT_PAT outside an ``agent-*`` environment."""
+def bot_pat_readers(paths: list[Path]) -> list[str]:
+    """Every ``workflow:job`` that can read BOT_PAT, in any environment.
+
+    Issue #4607: BOT_PAT is retired. Jobs use the per-run ``github.token``.
+    """
     offenders: list[str] = []
     for path in paths:
         for job_id, environment in jobs_reaching(path, "BOT_PAT").items():
-            name = _environment_name(environment)
-            if name not in AGENT_ENVIRONMENTS:
-                offenders.append(f"{path.name}:{job_id} environment={name!r}")
+            offenders.append(f"{path.name}:{job_id} environment={_environment_name(environment)!r}")
     return sorted(offenders)
 
 
@@ -171,10 +171,10 @@ def jobs_in_retired_environment(paths: list[Path]) -> list[str]:
     return sorted(offenders)
 
 
-def test_bot_pat_is_read_only_by_agent_environment_jobs() -> None:
-    """Positive: BOT_PAT is unprovisioned outside agent-* environments."""
-    offenders = bot_pat_outside_agent_environments(workflow_paths())
-    assert not offenders, "BOT_PAT reached outside agent-* environments:\n" + "\n".join(offenders)
+def test_no_job_reads_the_retired_bot_pat() -> None:
+    """Positive: no real workflow job can read BOT_PAT (issue #4607)."""
+    offenders = bot_pat_readers(workflow_paths())
+    assert not offenders, "BOT_PAT is retired, use github.token:\n" + "\n".join(offenders)
 
 
 def test_bot_pat_scan_flags_a_job_with_no_environment(tmp_path: Path) -> None:
@@ -185,45 +185,35 @@ def test_bot_pat_scan_flags_a_job_with_no_environment(tmp_path: Path) -> None:
         "      - run: echo\n        env:\n          T: ${{ secrets.BOT_PAT }}\n",
         encoding="utf-8",
     )
-    assert bot_pat_outside_agent_environments([wf]) == ["w.yml:a environment=''"]
+    assert bot_pat_readers([wf]) == ["w.yml:a environment=''"]
 
 
-def test_bot_pat_scan_flags_a_non_agent_environment(tmp_path: Path) -> None:
-    """Control: a job reading BOT_PAT in another environment is reported."""
-    wf = tmp_path / "w.yml"
-    wf.write_text(
-        "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n"
-        "    environment: release\n    steps:\n"
-        "      - run: echo\n        env:\n          T: ${{ secrets.BOT_PAT }}\n",
-        encoding="utf-8",
-    )
-    assert bot_pat_outside_agent_environments([wf]) == ["w.yml:a environment='release'"]
-
-
-def test_bot_pat_scan_flags_bracket_form_and_unknown_agent_name(tmp_path: Path) -> None:
-    """Control: bracket syntax and an unreviewed agent-x name are reported."""
-    wf = tmp_path / "w.yml"
-    wf.write_text(
-        "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n"
-        "    environment: agent-x\n    steps:\n"
-        "      - run: echo\n        env:\n          T: ${{ secrets['BOT_PAT'] }}\n",
-        encoding="utf-8",
-    )
-    assert bot_pat_outside_agent_environments([wf]) == ["w.yml:a environment='agent-x'"]
-
-
-def test_bot_pat_scan_accepts_an_agent_environment(tmp_path: Path) -> None:
-    """Negative control: an agent-* environment, string or mapping form, passes."""
+def test_bot_pat_scan_flags_an_agent_environment(tmp_path: Path) -> None:
+    """Control: an agent-* environment no longer excuses a BOT_PAT read."""
     wf = tmp_path / "w.yml"
     wf.write_text(
         "name: x\non: push\njobs:\n"
         "  a:\n    runs-on: ubuntu-latest\n    environment: agent-claude\n    steps:\n"
         "      - run: echo\n        env:\n          T: ${{ secrets.BOT_PAT }}\n"
         "  b:\n    runs-on: ubuntu-latest\n    environment:\n      name: agent-copilot\n"
-        "    steps:\n      - run: echo\n        env:\n          T: ${{ secrets.BOT_PAT }}\n",
+        "    steps:\n      - run: echo\n        env:\n          T: ${{ secrets['BOT_PAT'] }}\n",
         encoding="utf-8",
     )
-    assert bot_pat_outside_agent_environments([wf]) == []
+    assert bot_pat_readers([wf]) == [
+        "w.yml:a environment='agent-claude'",
+        "w.yml:b environment='agent-copilot'",
+    ]
+
+
+def test_bot_pat_scan_accepts_github_token(tmp_path: Path) -> None:
+    """Negative control: a job on github.token is not a BOT_PAT reader."""
+    wf = tmp_path / "w.yml"
+    wf.write_text(
+        "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n"
+        "      - run: echo\n        env:\n          T: ${{ github.token }}\n",
+        encoding="utf-8",
+    )
+    assert bot_pat_readers([wf]) == []
 
 
 def test_no_job_declares_the_retired_bot_secrets_environment() -> None:

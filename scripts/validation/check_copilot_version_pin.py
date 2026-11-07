@@ -2,10 +2,12 @@
 """Guard the pinned ``@github/copilot`` CLI version (Issue #2630).
 
 REQ-047 (issue #6069) removed the Copilot CLI from the ``ai-review`` action.
-The only remaining pin lives in the CLI smoke workflow, as a Renovate-managed
-env entry of the form::
+The only remaining pin lives in ``.github/cli-smoke/copilot/package.json``, which
+Renovate maintains with its lockfile and the smoke installs with ``npm ci``::
 
-    COPILOT_CLI_VERSION: '<version>'
+    "@github/copilot": "<version>"
+
+The guard also accepts the earlier workflow env form ``COPILOT_CLI_VERSION: '<version>'``.
 
 The guard also accepts the older shell form ``COPILOT_VERSION="<version>"`` so
 the same denylist can scan any file that pins the CLI.
@@ -48,7 +50,7 @@ EXIT_CONFIG = 2
 # was once defective stays defective. Seed entry is the Issue #2630 defect.
 KNOWN_BAD_VERSIONS: frozenset[str] = frozenset({"0.0.397"})
 
-# The pin: COPILOT_VERSION="x.y.z" (shell) or COPILOT_CLI_VERSION: 'x.y.z' (YAML
+# The legacy text pin: COPILOT_VERSION="x.y.z" (shell) or COPILOT_CLI_VERSION: 'x.y.z' (YAML
 # env), single or double quoted.
 # Anchored to a non-comment line start via ``^`` with ``re.MULTILINE``.
 # Leading whitespace and an optional ``export`` keyword are accepted so the
@@ -60,17 +62,25 @@ _PIN_RE = re.compile(
     re.MULTILINE,
 )
 
+# The package.json pin: "@github/copilot": "x.y.z" under dependencies. This is a text
+# match, not a JSON parse: a file without that key yields no match and fails the guard,
+# and a "@github/copilot" key anywhere else in the file (for example devDependencies)
+# also matches, so the exactly-one-pin check below still applies.
+_MANIFEST_PIN_RE = re.compile(r"""\"@github/copilot\"[ \t]*:[ \t]*\"([^\"]+)\"""")
+
 # Accept semver-ish versions: x.y.z with an optional -prerelease suffix
 # (npm publishes tags such as 1.0.62-2). Match the shapes this action pins.
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
 
+# The default target is the Copilot CLI manifest (the name predates the move out of the
+# workflow); ``check_action`` accepts a manifest, a workflow, or an action file.
 _DEFAULT_ACTION = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "plugin-cli-smoke.yml"
+    Path(__file__).resolve().parents[2] / ".github" / "cli-smoke" / "copilot" / "package.json"
 )
 
 
 class VersionPinError(ValueError):
-    """Raised when no ``COPILOT_VERSION`` pin is found in the action file."""
+    """Raised when the Copilot CLI pin is missing or ambiguous in the target file."""
 
 
 def is_parseable(version: str) -> bool:
@@ -84,24 +94,25 @@ def is_known_bad(version: str) -> bool:
 
 
 def extract_pinned_version(action_path: Path) -> str:
-    """Extract the pinned ``COPILOT_VERSION`` from the action file.
+    """Extract the pinned Copilot CLI version from a manifest, workflow, or action file.
 
     Raises ``VersionPinError`` when no pin is present so a silently dropped pin
     fails the guard rather than passing vacuously.
 
-    Also raises ``VersionPinError`` when multiple pins are found. Bash executes
-    the last assignment before ``npm install``, so if this guard only checked
-    the first match, a later known-bad pin could pass validation yet still be
-    installed. Requiring exactly one pin avoids this ambiguity.
+    Also raises ``VersionPinError`` when multiple pins are found. In a shell file the
+    last assignment wins, and in a manifest a duplicate key is ambiguous, so checking
+    only the first match could pass a known-bad pin that is still installed.
+    Requiring exactly one pin avoids this ambiguity.
     """
     text = action_path.read_text(encoding="utf-8")
-    matches = _PIN_RE.findall(text)
+    pin_re = _MANIFEST_PIN_RE if action_path.suffix == ".json" else _PIN_RE
+    matches = pin_re.findall(text)
     if not matches:
-        raise VersionPinError(f"no COPILOT_VERSION pin found in {action_path}")
+        raise VersionPinError(f"no Copilot CLI pin found in {action_path}")
     if len(matches) > 1:
         raise VersionPinError(
-            f"multiple COPILOT_VERSION pins found in {action_path}: {matches}. "
-            f"Remove duplicates to avoid ambiguity (bash uses the last assignment)."
+            f"multiple Copilot CLI pins found in {action_path}: {matches}. "
+            f"Remove duplicates to avoid ambiguity."
         )
     # re.Pattern.findall returns list[Any]; the single capture group is a str.
     # Cast keeps mypy's no-any-return happy once MYPYPATH lets this module be
@@ -136,7 +147,7 @@ def check_action(action_path: Path) -> int:
 
     if not is_parseable(version):
         print(
-            f"::error::COPILOT_VERSION '{version}' is not a parseable version "
+            f"::error::Copilot CLI pin '{version}' is not a parseable version "
             f"(expected x.y.z[-prerelease])",
             file=sys.stderr,
         )
@@ -144,13 +155,13 @@ def check_action(action_path: Path) -> int:
 
     if is_known_bad(version):
         print(
-            f"::error::COPILOT_VERSION '{version}' is on the known-bad list "
+            f"::error::Copilot CLI pin '{version}' is on the known-bad list "
             f"(Issue #2630: invalid session id defect). Bump to a fixed release.",
             file=sys.stderr,
         )
         return EXIT_LOGIC
 
-    print(f"COPILOT_VERSION pin OK: {version}")
+    print(f"Copilot CLI pin OK: {version}")
     return EXIT_OK
 
 

@@ -36,9 +36,6 @@ inputs:
     description: 'Maximum diff lines before switching to summary mode'
     required: false
     default: '500'
-  bot-pat:
-    description: 'GitHub PAT for GitHub CLI operations (gh commands). Can be classic or fine-grained PAT with repo access.'
-    required: true
   github-token:
     description: 'Runner-scoped GitHub token for GitHub API reads'
     required: false
@@ -80,7 +77,7 @@ outputs:
     description: 'Exit code (0=pass, 1=fail)'
     value: ${{ steps.parse.outputs.exit_code }}
   # Retry/infrastructure failure tracking (Issue #328)
-  # Falls back to 'true' when context build fails (e.g., missing BOT_PAT for first-time contributor PRs)
+  # Falls back to 'true' when context build fails (e.g., a restricted token on first-time contributor PRs)
   infrastructure-failure:
     description: 'Whether failure was infrastructure-related (true/false)'
     value: ${{ steps.invoke_claude.outputs.infrastructure_failure || steps.infra_gate.outputs.infrastructure_failure || 'false' }}
@@ -122,29 +119,12 @@ runs:
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
       run: python3 "$AI_REVIEW_ROOT/scripts/ci/establish_ai_review_deadline.py"
 
-    # Issue #4607: BOT_PAT was configured per ADR-026 Decision 5 but resolved
-    # to the human account, so CI shared one API budget with every agent
-    # session and no run log could show it. This step runs unconditionally
-    # so every run log reports which identity bot-pat resolves to. Non-blocking: a MISMATCH warns
-    # loudly instead of turning every review red before the owner rotates
-    # the secret. Set IDENTITY_STRICT=true here once the secret is rotated
-    # to make the identity a hard gate.
-    - name: Report bot-pat identity
-      id: bot_identity
-      shell: bash
-      env:
-        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
-        IDENTITY_TOKEN: ${{ inputs.bot-pat }}
-        EXPECTED_BOT_ID: '250269933'
-        EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
-      run: python3 "$AI_REVIEW_ROOT/scripts/ci/check_bot_identity.py"
-
     - name: Build context
       id: context
       shell: bash
       env:
         AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
-        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token }}
         CONTEXT_TYPE: ${{ inputs.context-type }}
         PR_NUMBER: ${{ inputs.pr-number }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -182,7 +162,7 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
         REVIEW_AGENT: ${{ inputs.agent }}
-        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token }}
         AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
         ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
@@ -204,7 +184,7 @@ runs:
       shell: bash
       env:
         AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
-        GH_TOKEN: ${{ inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token }}
         AI_VERDICT: ${{ steps.parse.outputs.verdict }}
         AI_FINDINGS: ${{ steps.invoke_claude.outputs.raw_output }}
         AI_LABELS: ${{ steps.parse.outputs.labels }}

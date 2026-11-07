@@ -88,6 +88,9 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # it, entirely from ADR-109 B3 adding a third scanned skills root
     # (src/claude/skills/), not from new debt in any one entry.
     ("scripts", "validation"),
+    # .github/cli-smoke/*/package-lock.json: npm-generated lockfiles. `npm ci`
+    # needs them byte-exact, so they cannot be sharded or edited by hand.
+    (".github", "cli-smoke"),
 )
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (

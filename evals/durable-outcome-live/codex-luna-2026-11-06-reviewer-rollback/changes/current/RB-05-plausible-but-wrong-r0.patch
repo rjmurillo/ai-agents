@@ -1,0 +1,18 @@
+--- a/phrases/detect.py
++++ b/phrases/detect.py
+@@ -1,4 +1,6 @@
+ """Detect evidence text that contradicts a claim of completed work."""
++
++import re
+ 
+ CONTRADICTION_PHRASES = (
+     "not available",
+@@ -14,4 +16,7 @@
+ 
+ 
+ def has_contradiction(text: str) -> bool:
+-    raise NotImplementedError("has_contradiction is not implemented yet")
++    pattern = r"(?<!\w)(?:" + "|".join(
++        re.escape(phrase) for phrase in CONTRADICTION_PHRASES
++    ) + r")(?!\w)"
++    return re.search(pattern, text, re.IGNORECASE) is not None

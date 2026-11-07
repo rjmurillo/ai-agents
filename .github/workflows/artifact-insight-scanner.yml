@@ -35,9 +35,6 @@ concurrency:
   group: artifact-insight-scanner
   cancel-in-progress: true
 
-env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
-
 jobs:
   scan-artifacts:
     name: Scan Artifacts for Insights
@@ -70,6 +67,7 @@ jobs:
         if: steps.collect.outputs.artifact_count > 0
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           ARTIFACT_FILE: ${{ steps.collect.outputs.artifact_file }}
         run: python3 scripts/ci/artifact_build_context.py
 
@@ -83,7 +81,6 @@ jobs:
           context-path: ${{ steps.context.outputs.context_file }}
           prompt-file: .github/prompts/artifact-insight-scan.md
           timeout-minutes: 10
-          bot-pat: ${{ secrets.BOT_PAT }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Parse findings
@@ -101,7 +98,7 @@ jobs:
           inputs.dry-run != true
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           FINDINGS_JSON: ${{ steps.parse.outputs.findings_json }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
