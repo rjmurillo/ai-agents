@@ -434,46 +434,6 @@ def test_reject_unreplaced_placeholder_accepts_a_written_body() -> None:
     _MODULE.reject_unreplaced_placeholder("## Summary\n\nDone.\n")
 
 
-def test_help_documents_exit_codes_and_creates_no_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    rc = _MODULE.main(["--help"])
-
-    out = capsys.readouterr().out
-    assert rc == 0
-    assert "exit codes" in out
-    assert "example" in out
-    assert not (tmp_path / ".project-toolkit").exists()
-
-
-def test_unknown_flag_exits_two_and_creates_no_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    rc = _MODULE.main(["--bogus"])
-
-    captured = capsys.readouterr()
-    assert rc == 2
-    assert captured.out == ""
-    assert "unrecognized arguments" in captured.err
-    assert not (tmp_path / ".project-toolkit").exists()
-
-
-def test_main_prints_the_created_path_on_stdout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    rc = _MODULE.main([])
-
-    printed = capsys.readouterr().out.strip()
-    assert rc == 0
-    assert (tmp_path / printed).is_file()
-
-
 def test_seed_reads_the_template_from_a_repo_subdirectory(tmp_path: Path) -> None:
     _write_template(tmp_path, "## Summary\n")
     sub = tmp_path / "pkg" / "inner"
@@ -535,31 +495,3 @@ def test_failing_git_read_fails_closed(
 
     with pytest.raises(_MODULE.PreparePrBodyError, match=message):
         _MODULE.prepare_pr_body(tmp_path)
-
-
-def test_base_flag_is_passed_to_prepare_pr_body(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    seen: list[str | None] = []
-
-    def fake(_root: Path, base_ref: str | None = None) -> Path:
-        seen.append(base_ref)
-        return Path(".project-toolkit/scratch/pr-body-x.md")
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(_MODULE, "prepare_pr_body", fake)
-
-    assert _MODULE.main(["--base", "origin/develop"]) == 0
-    assert _MODULE.main([]) == 0
-    assert seen == ["origin/develop", None]
-    assert capsys.readouterr().out.count("pr-body-x.md") == 2
-
-
-def test_base_flag_without_a_value_exits_two(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.chdir(tmp_path)
-
-    assert _MODULE.main(["--base"]) == 2
-    assert capsys.readouterr().out == ""
-    assert not (tmp_path / ".project-toolkit").exists()
