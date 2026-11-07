@@ -69,3 +69,19 @@ def test_http_delete_on_an_attribute_receiver_is_reported(tmp_path: Path, source
 )
 def test_concatenated_git_argv_is_reported(tmp_path: Path, source: str) -> None:
     assert "git argv built by concatenation" in _labels(tmp_path, source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(self, run_git):\n    run_git(self.args)\n",
+        "def f(run_git, build_argv):\n    run_git(build_argv())\n",
+        "def f(run_git, ref):\n    run_git(f'push origin {ref}')\n",
+    ],
+)
+def test_other_opaque_git_argv_forms_are_reported(tmp_path: Path, source: str) -> None:
+    assert "git argv from non-literal expression" in _labels(tmp_path, source)
+
+
+def test_literal_string_git_argument_is_not_opaque(tmp_path: Path) -> None:
+    assert _labels(tmp_path, "def f(run_git):\n    run_git('status')\n") == []
