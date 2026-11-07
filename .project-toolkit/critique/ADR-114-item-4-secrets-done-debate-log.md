@@ -37,6 +37,10 @@ reasoning.
 
 The /review security axis returned PASS with two Low wording items. Both are fixed: item 4 now says `TRUNK_API_TOKEN` is not behind the gate, and the amendment bullet drops its stale tail.
 
+## PR review (round 1)
+
+Two threads: the closing sentence of item 4 pointed at an amendment that now says done, and the frontmatter `date` was stale. Both fixed. The architecture index was regenerated.
+
 ## Dissent
 
 None. Both seats committed after the resolutions.
