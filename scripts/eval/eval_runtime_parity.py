@@ -239,8 +239,9 @@ def build_argv(
         *([] if custom else ["--no-custom-instructions"]),
         *(["--no-ask-user"] if "question" not in fixture.tools else []),
         "--disable-builtin-mcps",
-        "--no-remote",
-        "--no-remote-export",
+        # --no-remote was removed in Copilot CLI 1.0.103; remote control is off
+        # unless settings enable it, and runtime_env isolates COPILOT_HOME.
+        "--sync-session=off",
         "--no-auto-update",
         "--allow-all-tools",
         "--output-format",
