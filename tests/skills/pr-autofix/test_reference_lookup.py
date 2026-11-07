@@ -15,11 +15,11 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SKILL_TREES = (
-    "src/claude/skills/pr-autofix",
-    "src/codex/skills/pr-autofix",
-    "src/copilot-cli/skills/pr-autofix",
-    "src/cursor/skills/pr-autofix",
+SKILL_TREES = tuple(
+    sorted(
+        str(skill.parent.relative_to(REPO_ROOT))
+        for skill in REPO_ROOT.glob("src/**/skills/pr-autofix/SKILL.md")
+    )
 )
 REFERENCES = (
     "post-merge-cleanup.md",
@@ -29,10 +29,32 @@ REFERENCES = (
 NEXT_TO_SKILL = "1. `references/` next to this `SKILL.md`"
 
 
+def _missing_references(skill_dir: Path) -> list[str]:
+    return [name for name in REFERENCES if not (skill_dir / "references" / name).is_file()]
+
+
+def test_discovery_finds_every_rendered_tree() -> None:
+    """Discovery must not silently shrink: the canonical tree and each mirror are found."""
+    assert "src/claude/skills/pr-autofix" in SKILL_TREES
+    assert "src/codex/skills/pr-autofix" in SKILL_TREES
+    assert len(SKILL_TREES) >= 6
+
+
 @pytest.mark.parametrize("tree", SKILL_TREES)
 def test_every_reference_ships_next_to_each_skill(tree: str) -> None:
-    for name in REFERENCES:
-        assert (REPO_ROOT / tree / "references" / name).is_file()
+    assert _missing_references(REPO_ROOT / tree) == []
+
+
+@pytest.mark.parametrize("tree", SKILL_TREES)
+def test_a_tree_that_loses_its_references_is_reported(tree: str, tmp_path: Path) -> None:
+    """Negative control: dropping references/ from a copy of any tree goes red."""
+    target = tmp_path / "pr-autofix"
+    shutil.copytree(REPO_ROOT / tree, target)
+    shutil.rmtree(target / "references")
+    assert _missing_references(target) == list(REFERENCES)
+    (target / "references").mkdir()
+    (target / "references" / REFERENCES[0]).write_text("x", encoding="utf-8")
+    assert _missing_references(target) == list(REFERENCES[1:])
 
 
 @pytest.mark.parametrize("tree", SKILL_TREES)
