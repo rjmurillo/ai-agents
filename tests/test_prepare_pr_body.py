@@ -7,6 +7,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -473,9 +474,9 @@ def test_git_that_cannot_run_fails_closed(
 def test_unreadable_base_listing_fails_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    real_run = subprocess.run
+    real_run: Any = subprocess.run
 
-    def fail_ls_tree(argv: list[str], *args: object, **kwargs: object):
+    def fail_ls_tree(argv: list[str], *args: Any, **kwargs: Any) -> Any:
         if "ls-tree" in argv:
             return subprocess.CompletedProcess(argv, 128, b"", b"fatal: bad object")
         return real_run(argv, *args, **kwargs)
@@ -490,9 +491,9 @@ def test_unreadable_template_blob_fails_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _write_template(tmp_path, "## Summary\n")
-    real_run = subprocess.run
+    real_run: Any = subprocess.run
 
-    def fail_cat_file(argv: list[str], *args: object, **kwargs: object):
+    def fail_cat_file(argv: list[str], *args: Any, **kwargs: Any) -> Any:
         if "cat-file" in argv:
             return subprocess.CompletedProcess(argv, 128, b"", b"fatal: missing blob")
         return real_run(argv, *args, **kwargs)
