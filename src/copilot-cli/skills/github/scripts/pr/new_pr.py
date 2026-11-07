@@ -265,7 +265,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--base",
         default="",
-        help="Target branch (default: repository default branch)",
+        help=(
+            "Target branch (default: repository default branch). With "
+            "--prepare-body-file the PR template is read from origin/<base>."
+        ),
     )
     parser.add_argument(
         "--validation-base",
@@ -289,10 +292,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _prepare_body_file(repo_root: str) -> int:
+def _prepare_body_file(repo_root: str, base_ref: str | None = None) -> int:
     """Create a secure prepared-body path and print it."""
     try:
-        print(prepare_pr_body(Path(repo_root)).as_posix())
+        print(prepare_pr_body(Path(repo_root), base_ref or None).as_posix())
     except (OSError, PreparePrBodyError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -517,7 +520,10 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = get_repo_root()
 
     if args.prepare_body_file:
-        return _prepare_body_file(repo_root)
+        base = args.base
+        if base and not base.startswith("origin/"):
+            base = f"origin/{base}"
+        return _prepare_body_file(repo_root, base or None)
 
     if args.preflight:
         return _preflight(args, repo_root)
