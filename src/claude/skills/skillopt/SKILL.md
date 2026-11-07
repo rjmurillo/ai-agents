@@ -134,6 +134,7 @@ Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
 | `skillopt.py budget`, `apply`, `score`, `buffer-add` | 0 success, 2 usage or validation error |
 | `skillopt.py gate`, `pair-gate` | 0 accept, 1 reject, 2 usage or validation error |
 | `skillopt.py efficiency-gate` | 0 `ACCEPT_EFFICIENCY`, 1 reject, 2 usage or validation error |
+| `skillopt.py report` | 0 report printed, 2 usage or validation error. Never gates |
 | `skillopt.py run` | 0 results written, 1 results written with a task `UNVERIFIED`, 2 refused or invalid (no results written) |
 | `skillopt.py hash PATH...` | 0 digests printed; a directory hashes as one whole bundle |
 | `skillopt.py hash PATH --expect SHA` | 0 match, 1 `MISMATCH`, 2 usage or validation error |
@@ -258,6 +259,8 @@ semantic regression, because `pair-gate` rejects any regression.
    `REJECT_NULL_CONTROL`.
 3. **Evidence.** Keep incumbent, candidate, patches, every results file, the
    pair report, hashes, `rejected.jsonl`, and one line of evidence per task.
+   `skillopt.py report` lays out the evidence, benchmark spread, and case
+   signals (`references/eval-set-format.md`, Run report). It explains, never gates.
 
 ## Promotion
 
