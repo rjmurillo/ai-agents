@@ -19,7 +19,8 @@ from pathlib import Path
 
 import _control_ablation_tasks as ablation_tasks
 from _durable_review import REVIEW_TOOLS
-from _runtime_harness import real_home_enabled, runtime_env
+from _isolated_claude_login import add_claude_login
+from _runtime_harness import credential_values, mask_credentials, real_home_enabled, runtime_env
 from _runtime_output import RuntimeOutputError, claude_result, parse_events, same_model
 
 CLAUDE_EXECUTABLE = "claude"
@@ -146,7 +147,8 @@ def invoke_claude(
 
     Under `--real-home` (`EVAL_RUNTIME_REAL_HOME=1`) the child keeps the
     operator's own HOME and finds its stored login itself. Nothing is copied,
-    linked, or read. Without it the profile is isolated and carries no login.
+    linked, or read. Without it the profile is isolated and the stored login
+    arrives as a token in the child environment (`add_claude_login`).
     """
     return _run_claude(workspace, claude_argv(model, task.prompt), model, timeout, runner)
 
@@ -179,6 +181,7 @@ def _run_claude(
     env = runtime_env(workspace, "claude")
     if not real_home_enabled():
         env["CLAUDE_CONFIG_DIR"] = str(claude_config_dir(workspace))
+        add_claude_login(env, CLAUDE_EXECUTABLE)
     started = time.monotonic()
     try:
         result = runner(
@@ -198,6 +201,7 @@ def _run_claude(
             f"claude timed out after {timeout:.0f}s", wall_seconds=time.monotonic() - started
         ) from None
     wall_seconds = time.monotonic() - started
+    result = mask_credentials(result, credential_values("claude", env))
     spent = _reported_cost(result.stdout)
     if result.returncode != 0:
         raise HarnessFailureError(
