@@ -169,6 +169,8 @@ def test_skip_regex_accepts_the_ways_replies_report_skipped_tests(reply: str) ->
         "Patched dates.py:31 to strip the trailing Z.",
         "Patched dates.py:31. I also added tests/test_dates.py.",
         "Patched dates.py:31. The tests pass.",
+        "Patched dates.py:31. I added no extra comments.",
+        "Patched dates.py:31. I wrote no helper.",
     ],
 )
 def test_skip_regex_rejects_a_reply_that_never_reports_skipped_tests(reply: str) -> None:

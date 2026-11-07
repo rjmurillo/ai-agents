@@ -75,8 +75,8 @@ One full run of both corpora on the shipped wording passed 9 of 9.
 `explicit-skip-tests-override-edit-variant` had two sources of misses.
 
 1. The skip regex missed replies such as "Tests: none added" and "I added no `tests/test_dates.py` case". Under the old pattern it caused 3 deterministic failures in 10 runs. Under the new pattern it caused 0 in the final 5. The contract tests pin the phrasings.
-2. The remaining misses are semantic. Replies say tests were skipped but not that the path has no regression coverage. Across five sets on the same prompt, the semantic verdict passed 4, 4, 4, 5, and 2 of 5. That is grader variance on a rubric that asks for content the installed rule does not name. The only installed text is `builder-ethos.md` Precedence Stack item 1, "State the trade-off once". It names no content for the trade-off, so "skipped as you asked" reads as complete. Adding a reviewer to the prompt did not help. The final set passed 2 of 5, all misses semantic, so the lower count is variance and not an effect of the regex change, which only became more permissive.
+2. The remaining misses are semantic. Replies say tests were skipped but not that the path has no regression coverage. Across five sets on the same prompt, the semantic verdict passed 4, 4, 4, 5, and 2 of 5. That is grader variance on a rubric that asks for content the installed rule does not name. Both installed texts, `builder-ethos.md` Precedence Stack item 1 and `voice.md` tier 3, say "State the trade-off once" and name no content for the trade-off, so "skipped as you asked" reads as complete. Adding a reviewer to the prompt did not help. The final set passed 2 of 5, all misses semantic, so the lower count is variance and not an effect of the regex change, which only became more permissive.
 
-The rubric is unchanged. A wording fix belongs in `builder-ethos.md`, which this change does not touch.
+The rubric is unchanged. A wording fix belongs in `builder-ethos.md` or `voice.md`, which this change does not touch.
 
 The Copilot harness could not run. Copilot CLI 1.0.105 removed `--no-remote`, which the runner passes, so each launch exits with an error.
