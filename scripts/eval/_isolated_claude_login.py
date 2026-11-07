@@ -13,6 +13,7 @@ import os
 
 import _claude_cli
 from _cli_credentials import CredentialNotFoundError, resolve_cached
+from _runtime_harness import credential_values
 
 _NO_ISOLATED_LOGIN = (
     "an isolated Claude run needs a token, but the stored login has none. "
@@ -55,3 +56,15 @@ def require_isolated_login(executable: str) -> dict[str, str]:
     env = {name: os.environ[name] for name in names if name in os.environ}
     add_claude_login(env, executable)
     return env
+
+
+def isolated_login_values(executable: str, *, skip: bool) -> list[str]:
+    """Resolve the login an isolated run needs and return its secret values.
+
+    `skip` is true for runs that need none (dry run, `--real-home`). The values
+    are what the child will carry, so a report can scrub them.
+    """
+    if skip:
+        return []
+    values: list[str] = credential_values("claude", require_isolated_login(executable))
+    return values

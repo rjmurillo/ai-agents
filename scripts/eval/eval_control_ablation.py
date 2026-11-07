@@ -12,8 +12,7 @@ model call. A live run writes one `OutcomeRecord` per run to
 Exit codes follow AGENTS.md and DESIGN-044: 0 ok; 1 dry-run discrimination
 failure; 2 config (bad task file, unknown control, budget exceeded,
 unisolated workspace root); 3 external (CLI missing, timeout, unparsable
-stream, missing cost, model mismatch); 4 auth (an isolated run finds no Claude
-login; pass `--real-home` or run `claude setup-token`).
+stream, missing cost, model mismatch); 4 auth (an isolated run finds no Claude login).
 """
 
 from __future__ import annotations
@@ -44,14 +43,10 @@ import _control_ablation_history as history  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _durable_review as durable_review  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
-from _isolated_claude_login import (  # noqa: E402
-    IsolatedLoginError,
-    require_isolated_login,
-)
+from _isolated_claude_login import IsolatedLoginError, isolated_login_values  # noqa: E402
 from _run_changes import path_safe, write_patch  # noqa: E402
 from _runtime_harness import (  # noqa: E402
     REAL_HOME_ENV,
-    credential_values,
     probe_version,
     real_home_enabled,
 )
@@ -392,25 +387,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _isolated_login_values(args: argparse.Namespace) -> list[str]:
-    """Resolve the login an isolated live run needs; no workspace exists yet.
-
-    Dry runs and `--real-home` runs need none. The returned values are the
-    credentials the child will carry, so the report can scrub them.
-    """
-    if args.dry_run or args.real_home or real_home_enabled():
-        return []
-    env = require_isolated_login(claude_run.CLAUDE_EXECUTABLE)
-    values: list[str] = credential_values("claude", env)
-    return values
-
-
 def _run(
-    args: argparse.Namespace,
-    workspace_root: Path,
-    output_dir: Path,
-    runner: claude_run.Runner,
-    login_values: Sequence[str],
+    args: argparse.Namespace, workspace_root: Path, output_dir: Path, runner: claude_run.Runner
 ) -> tuple[dict[str, object], int]:
     tasks_file = args.tasks.resolve()
     payload, loaded, sources, control_root = history.load_corpus(
@@ -476,7 +454,10 @@ def _run(
         reviewer_model=args.reviewer_model,
         withheld_markers=history.withheld_markers(sources, REPO_ROOT),
         max_cost_usd=args.max_cost_usd,
-        secret_literals=[*batch.secret_literals(pass_env, os.environ), *login_values],
+        secret_literals=[
+            *batch.secret_literals(pass_env, os.environ),
+            *isolated_login_values(claude_run.CLAUDE_EXECUTABLE, skip=real_home_enabled()),
+        ],
     )
     report["provenance"] = provenance
     return report, code
@@ -485,13 +466,14 @@ def _run(
 def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subprocess.run) -> int:
     args = _parser().parse_args(argv)
     try:
-        login_values = _isolated_login_values(args)
+        skip = args.dry_run or args.real_home or real_home_enabled()
+        isolated_login_values(claude_run.CLAUDE_EXECUTABLE, skip=skip)
         workspace_root = batch.resolve_workspace_root(args.workspace_root)
         output_dir = (
             args.output_dir.resolve() if args.output_dir else batch.default_output_dir(REPO_ROOT)
         )
         output_dir.mkdir(parents=True, exist_ok=True)
-        report, code = _run(args, workspace_root, output_dir, runner, login_values)
+        report, code = _run(args, workspace_root, output_dir, runner)
     except (ablation_tasks.ControlAblationConfigError, ParityConfigError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG

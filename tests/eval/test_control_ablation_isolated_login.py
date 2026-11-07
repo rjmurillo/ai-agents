@@ -47,10 +47,10 @@ def _disk_login(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class SpyRunner(FakeClaudeRunner):
-    """Record each Claude call's env and optionally leak a string into the reply."""
+    """Record each Claude call's env."""
 
-    def __init__(self, tasks: list[ablation_tasks.Task], **kwargs: object) -> None:
-        super().__init__(tasks, **kwargs)  # type: ignore[arg-type]
+    def __init__(self, tasks: list[ablation_tasks.Task]) -> None:
+        super().__init__(tasks)
         self.envs: list[dict[str, str]] = []
 
     def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
