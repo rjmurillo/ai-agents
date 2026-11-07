@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from memory_placement_git import (  # noqa: E402
+    MEMORY_PATHSPEC,
     ConfigError,
     DiffEntry,
     index_paths,
@@ -29,24 +31,49 @@ from memory_placement_git import (  # noqa: E402
 IndexMap = dict[str, tuple[str, str] | None]
 
 
-def is_skippable(path: Path) -> bool:
-    """True for README.md, any *-index.md, and anything that is not .md."""
-    if path.suffix.lower() != ".md":
+# Domain indexes are lookup tables written beside the memories, one directory
+# level under the root, named ``<domain>-index.md`` (``memory_index.py`` finds
+# them with the same pattern). They hold no policy to classify.
+_GENERATED_INDEX_RE = re.compile(r"^[a-z][\w-]*-index\.md$")
+_MEMORY_SUFFIXES = frozenset({".md", ".markdown", ".txt"})
+_MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
+
+
+def is_skippable(path: Path, repo_root: Path) -> bool:
+    """True when ``path`` is not a memory the placement check should classify.
+
+    Decided by location first. Under ``.serena/memories`` a file is skipped only
+    when it is the root ``README.md`` guide, is a generated domain index directly
+    under the root, or is not a text document. A ``README.md`` or ``*-index.md``
+    in a subdirectory, a ``.txt`` memory, and a text file in a dot-directory or
+    with a dot-name are classified, so a hidden path cannot hide policy. Outside
+    the memory root a file is classified only when it is Markdown.
+    """
+    suffix = path.suffix.lower()
+    memory_root = repo_root / MEMORY_PATHSPEC
+    if not path.is_relative_to(memory_root):
+        return suffix not in _MARKDOWN_SUFFIXES
+    relative = path.relative_to(memory_root)
+    if len(relative.parts) == 1 and (
+        relative.name == "README.md" or _GENERATED_INDEX_RE.match(relative.name)
+    ):
         return True
-    if path.name == "README.md":
-        return True
-    return path.name.endswith("-index.md")
+    return suffix not in _MEMORY_SUFFIXES
 
 
 def walk_directory(directory: Path, repo_root: Path) -> list[Path]:
-    """Return every ``.md`` file under ``directory``, which must sit in the repo."""
+    """Return every file under ``directory`` that is a memory candidate.
+
+    ``directory`` must sit in the repo. Non-candidates are dropped later by
+    ``is_skippable``, so the walk does not decide by extension.
+    """
     base_dir = directory if directory.is_absolute() else repo_root / directory
     base_dir = base_dir.resolve()
     if not base_dir.is_relative_to(repo_root):
         raise ConfigError(f"--path is outside the repository: {directory}")
     if not base_dir.is_dir():
         raise ConfigError(f"--path is not a directory: {directory}")
-    return sorted(base_dir.rglob("*.md"))
+    return sorted(path for path in base_dir.rglob("*") if not path.is_dir())
 
 
 def _check_staged_entry(relpath: str, raw: Path, index: IndexMap) -> None:
@@ -78,7 +105,7 @@ def resolve_candidates(
 ) -> list[tuple[str, Path]]:
     """Resolve caller-supplied paths to (repo-relative posix path, absolute path).
 
-    Applies the README/``*-index.md``/non-``.md`` skip and rejects (raises
+    Applies the location-based skip (``is_skippable``) and rejects (raises
     ``ConfigError``) any path that resolves outside the repository root.
     """
     candidates: list[tuple[str, Path]] = []
@@ -92,7 +119,7 @@ def resolve_candidates(
             raise ConfigError(f"path is outside the repository: {raw}")
         if index is None and abspath.is_dir():
             raise ConfigError(f"positional path is a directory, use --path: {raw}")
-        if is_skippable(abspath):
+        if is_skippable(abspath, repo_root):
             continue
         relpath = abspath.relative_to(repo_root).as_posix()
         if index is not None:

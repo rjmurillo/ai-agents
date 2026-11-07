@@ -78,7 +78,7 @@ CLAUDE = (
     "description: Applies widget changes.\n"
     "metadata:\n  role: executor\n"
     "argument-hint: Describe the widget change\n"
-    "tools: Read, Grep\n"
+    "tools: Read, Glob, Grep\n"
     "---\n" + SHARED_BODY + "\n## Claude Code Tools\n\n- Read, Grep\n"
 )
 
@@ -125,12 +125,14 @@ class TestAgreement:
 
     def test_tree_specific_frontmatter_is_dropped(self, tmp_path: Path) -> None:
         claude = mutate(
-            CLAUDE, "tools: Read, Grep", "tools: Grep, Read\nmodel: opus\nisolation_required: true"
+            CLAUDE,
+            "tools: Read, Glob, Grep",
+            "tools: Grep, Glob, Read\nmodel: opus\nisolation_required: true",
         )
         build_repo(tmp_path, claude=claude)
         assert run_gate(tmp_path) == gate.EXIT_OK
 
-    def test_claude_only_section_is_skipped(self, tmp_path: Path) -> None:
+    def test_claude_only_tools_section_is_exempt(self, tmp_path: Path) -> None:
         build_repo(tmp_path)
         found, missing = gate.collect_divergence(tmp_path)
         assert found == {}

@@ -1,0 +1,87 @@
+"""Remote-deleting push forms that the sink scan must report (issue #6506)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+import sink_scan
+
+
+def _labels(tmp_path: Path, source: str) -> list[str]:
+    (tmp_path / "mod.py").write_text(source, encoding="utf-8")
+    report = sink_scan.scan([tmp_path], tmp_path, [])
+    return [s["label"] for s in report["sinks"]]
+
+
+@pytest.mark.parametrize(
+    ("argv", "label"),
+    [
+        ("['push', '--delete', 'origin', 'topic']", "push --delete origin topic"),
+        ("['push', 'origin', '--mirror']", "push origin --mirror"),
+        ("['push', 'origin', ':topic']", "push origin :topic"),
+        ("['push', '-d', 'origin', 'topic']", "push -d origin topic"),
+    ],
+)
+def test_remote_deleting_push_argv_is_reported(tmp_path: Path, argv: str, label: str) -> None:
+    assert label in _labels(tmp_path, f"def f(git):\n    git({argv})\n")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push --delete origin topic",
+        "git push origin --mirror",
+        "git push origin :topic",
+    ],
+)
+def test_remote_deleting_push_shell_text_is_reported(tmp_path: Path, command: str) -> None:
+    labels = _labels(tmp_path, f"import os\ndef f():\n    os.system({command!r})\n")
+    assert command in labels
+
+
+def test_plain_push_and_url_colon_are_not_reported(tmp_path: Path) -> None:
+    source = (
+        "def f(git):\n"
+        "    git(['push', 'origin', 'main'])\n"
+        "    git(['push', 'https://example.com/r.git', 'main'])\n"
+    )
+    assert _labels(tmp_path, source) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(self, u):\n    self.client.delete(u)\n",
+        "def f(s, u):\n    s.client.delete(u)\n",
+    ],
+)
+def test_http_delete_on_an_attribute_receiver_is_reported(tmp_path: Path, source: str) -> None:
+    assert ".delete()" in _labels(tmp_path, source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(run_git, extra):\n    run_git(['push'] + extra)\n",
+        "import subprocess\ndef f(refs):\n    subprocess.run(['git', 'push'] + refs)\n",
+    ],
+)
+def test_concatenated_git_argv_is_reported(tmp_path: Path, source: str) -> None:
+    assert "git argv built by concatenation" in _labels(tmp_path, source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(self, run_git):\n    run_git(self.args)\n",
+        "def f(run_git, build_argv):\n    run_git(build_argv())\n",
+        "def f(run_git, ref):\n    run_git(f'push origin {ref}')\n",
+    ],
+)
+def test_other_opaque_git_argv_forms_are_reported(tmp_path: Path, source: str) -> None:
+    assert "git argv from non-literal expression" in _labels(tmp_path, source)
+
+
+def test_literal_string_git_argument_is_not_opaque(tmp_path: Path) -> None:
+    assert _labels(tmp_path, "def f(run_git):\n    run_git('status')\n") == []

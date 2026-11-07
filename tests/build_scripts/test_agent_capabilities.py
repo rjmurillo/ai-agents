@@ -21,32 +21,52 @@ TOOLSETS = {
 
 class TestClassify:
     @pytest.mark.parametrize(
-        "claude,other,family,item",
+        "claude,other,items",
         [
-            ("Read", "read", "builtin", "read"),
-            ("Glob", "search", "builtin", "search"),
-            ("Grep", "search", "builtin", "search"),
-            ("Write", "edit", "builtin", "write"),
-            ("Edit", "edit", "builtin", "write"),
-            ("Bash", "shell", "builtin", "execute"),
-            ("Bash", "execute", "builtin", "execute"),
-            ("WebFetch", "web", "builtin", "network"),
-            ("WebSearch", "web", "builtin", "network"),
-            ("Task", "agent", "builtin", "delegate"),
-            ("TodoWrite", "todo", "builtin", "track"),
+            ("Read", "read", ("read",)),
+            ("Bash", "shell", ("execute",)),
+            ("Bash", "execute", ("execute",)),
+            ("Task", "agent", ("delegate",)),
+            ("TodoWrite", "todo", ("track",)),
         ],
     )
     def test_harness_spellings_share_one_capability(
-        self, claude: str, other: str, family: str, item: str
+        self, claude: str, other: str, items: tuple[str, ...]
     ) -> None:
-        assert caps.classify(claude) == (family, item)
-        assert caps.classify(other) == (family, item)
+        assert caps.classify(claude) == ("builtin", items)
+        assert caps.classify(other) == ("builtin", items)
+
+    @pytest.mark.parametrize(
+        "claude_names,other",
+        [
+            (["Glob", "Grep"], "search"),
+            (["Write", "Edit"], "edit"),
+            (["WebFetch", "WebSearch"], "web"),
+        ],
+    )
+    def test_grouped_vscode_name_equals_its_claude_tools(
+        self, claude_names: list[str], other: str
+    ) -> None:
+        items = {i for n in claude_names for i in caps.classify(n)[1]}
+        assert set(caps.classify(other)[1]) == items
+        assert len(items) == len(claude_names)
+
+    @pytest.mark.parametrize(
+        "name",
+        ["Glob", "Grep", "Write", "Edit", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"],
+    )
+    def test_each_claude_grant_is_its_own_item(self, name: str) -> None:
+        family, items = caps.classify(name)
+        assert family == "builtin"
+        assert len(items) == 1
+        others = {n for n in ("Glob", "Grep", "Write", "Edit", "MultiEdit", "NotebookEdit")}
+        assert all(caps.classify(n)[1] != items for n in others - {name} if n != name)
 
     def test_mcp_spellings_match(self) -> None:
         assert caps.classify("mcp__github__issue_read") == caps.classify("github/issue_read")
 
     def test_server_alias_and_tool_separator(self) -> None:
-        assert caps.classify("cognitionai/deepwiki/*") == ("mcp:deepwiki", "*")
+        assert caps.classify("cognitionai/deepwiki/*") == ("mcp:deepwiki", ("*",))
         assert caps.classify("mcp__context7__resolve_library_id") == caps.classify(
             "context7/resolve-library-id"
         )
@@ -55,10 +75,10 @@ class TestClassify:
         assert caps.classify("serena/*") != caps.classify("serena/find_symbol")
 
     def test_unknown_name_stays_literal(self) -> None:
-        assert caps.classify("Teleport") == ("unmapped", "Teleport")
+        assert caps.classify("Teleport") == ("unmapped", ("Teleport",))
 
     def test_vscode_host_tool_is_its_own_capability(self) -> None:
-        assert caps.classify("vscode") == ("builtin", "host:vscode")
+        assert caps.classify("vscode") == ("builtin", ("host:vscode",))
 
 
 class TestExpand:
@@ -90,15 +110,15 @@ class TestCapabilityUnits:
         assert units == {"capability:declaration": "unrestricted"}
 
     def test_comma_string_and_list_agree(self) -> None:
-        as_text = caps.capability_units({"tools": "Read, Grep"}, "tools", "capability", {})
+        as_text = caps.capability_units({"tools": "Read, Glob, Grep"}, "tools", "capability", {})
         as_list = caps.capability_units({"tools": ["read", "search"]}, "tools", "capability", {})
         assert as_text == as_list
         assert as_text["capability:declaration"] == "restricted"
-        assert as_text["capability:builtin"] == "read\nsearch"
+        assert as_text["capability:builtin"] == "glob\ngrep\nread"
 
     def test_duplicates_and_order_do_not_matter(self) -> None:
         one = caps.capability_units({"tools": ["Grep", "Read", "Glob"]}, "tools", "c", {})
-        two = caps.capability_units({"tools": ["Read", "Grep"]}, "tools", "c", {})
+        two = caps.capability_units({"tools": ["Read", "Grep", "Glob", "Read"]}, "tools", "c", {})
         assert one == two
 
     def test_each_server_gets_its_own_unit(self) -> None:
@@ -125,25 +145,71 @@ class TestCapabilityUnits:
             caps.capability_units({"tools": ["read", 3]}, "tools", "c", {})
 
 
-class TestDropFamiliesOnMismatch:
-    def test_mismatched_declaration_drops_families(self) -> None:
-        left = {"c:declaration": "unrestricted"}
-        right = {"c:declaration": "restricted", "c:builtin": "read"}
-        caps.drop_families_on_declaration_mismatch(left, right)
-        assert right == {"c:declaration": "restricted"}
+class TestGrantsAreCompared:
+    def test_dropping_one_grant_in_a_group_shows(self) -> None:
+        both = caps.capability_units({"tools": ["Glob", "Grep"]}, "tools", "c", {})
+        one = caps.capability_units({"tools": ["Glob"]}, "tools", "c", {})
+        assert both != one
 
-    def test_matching_declaration_keeps_families(self) -> None:
-        left = {"c:declaration": "restricted", "c:builtin": "read"}
-        right = {"c:declaration": "restricted", "c:builtin": "write"}
-        caps.drop_families_on_declaration_mismatch(left, right)
-        assert left["c:builtin"] == "read"
-        assert right["c:builtin"] == "write"
+    def test_adding_multiedit_to_write_edit_shows(self) -> None:
+        base = caps.capability_units({"tools": ["Write", "Edit"]}, "tools", "c", {})
+        wider = caps.capability_units({"tools": ["Write", "Edit", "MultiEdit"]}, "tools", "c", {})
+        assert base != wider
 
-    def test_other_units_are_untouched(self) -> None:
-        left = {"c:declaration": "unrestricted", "preamble": "x"}
-        right = {"c:declaration": "restricted", "c:builtin": "read", "preamble": "y"}
-        caps.drop_families_on_declaration_mismatch(left, right)
-        assert right == {"c:declaration": "restricted", "preamble": "y"}
+    def test_websearch_alone_differs_from_web(self) -> None:
+        one = caps.capability_units({"tools": ["WebSearch"]}, "tools", "c", {})
+        both = caps.capability_units({"tools": ["web"]}, "tools", "c", {})
+        assert one != both
+
+    def test_vscode_group_equals_claude_pair(self) -> None:
+        claude = caps.capability_units(
+            {"tools": ["Glob", "Grep", "Write", "Edit"]}, "tools", "c", {}
+        )
+        vscode = caps.capability_units({"tools": ["search", "edit"]}, "tools", "c", {})
+        assert claude == vscode
+
+    def test_drop_helper_is_gone(self) -> None:
+        assert not hasattr(caps, "drop_families_on_declaration_mismatch")
+
+    def test_restricted_list_keeps_its_family_units(self) -> None:
+        units = caps.capability_units({"tools": ["Read", "Bash"]}, "tools", "c", {})
+        assert units == {"c:declaration": "restricted", "c:builtin": "execute\nread"}
+
+
+class TestFallbackKey:
+    def test_absent_key_falls_back_to_bare_tools(self) -> None:
+        fm = {"tools": ["read", "shell"]}
+        units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units == {"c:declaration": "restricted", "c:builtin": "execute\nread"}
+
+    def test_platform_key_wins_over_fallback(self) -> None:
+        fm = {"tools_copilot": ["read"], "tools": ["read", "shell"]}
+        units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units["c:builtin"] == "read"
+
+    def test_no_fallback_key_keeps_unrestricted(self) -> None:
+        fm = {"tools": ["read"]}
+        units = caps.capability_units(fm, "tools_copilot", "c", {})
+        assert units == {"c:declaration": "unrestricted"}
+
+    def test_neither_key_is_unrestricted(self) -> None:
+        units = caps.capability_units({}, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units == {"c:declaration": "unrestricted"}
+
+    def test_list_fallback_ignored_when_other_platform_key_present(self) -> None:
+        fm = {"tools_vscode": ["read"], "tools": ["read", "shell"]}
+        units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units == {"c:declaration": "unrestricted"}
+
+    def test_string_fallback_kept_when_other_platform_key_present(self) -> None:
+        fm = {"tools_vscode": ["read"], "tools": "read, shell"}
+        units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units == {"c:declaration": "restricted", "c:builtin": "execute\nread"}
+
+    def test_platform_placeholder_is_ignored_like_the_generator(self) -> None:
+        fm = {"tools": "{{PLATFORM_TOOLS}}"}
+        units = caps.capability_units(fm, "tools_copilot", "c", {}, fallback_key="tools")
+        assert units == {"c:declaration": "unrestricted"}
 
 
 class TestLoadToolsets:

@@ -94,6 +94,59 @@ def test_module_level_sink_has_unknown_callers(
             "push origin --force main",
         ),
         (
+            "def f(git):\n    git(['push', '-f', 'origin', 'main'])\n",
+            "push -f origin main",
+        ),
+        (
+            "def f(git):\n    git(['push', 'origin', '--force-with-lease'])\n",
+            "push origin --force-with-lease",
+        ),
+        (
+            "def f(git):\n    git(['push', 'origin', '+main'])\n",
+            "push origin +main",
+        ),
+        (
+            "import os\ndef f():\n    os.system('git push -f origin main')\n",
+            "git push -f origin main",
+        ),
+        (
+            "import os\ndef f():\n    os.system('git push origin +main:main')\n",
+            "git push origin +main:main",
+        ),
+        (
+            "import requests\ndef f(u):\n    requests.delete(u)\n",
+            "requests.delete()",
+        ),
+        (
+            "import httpx\ndef f(u):\n    httpx.delete(u)\n",
+            "httpx.delete()",
+        ),
+        (
+            "import requests\ndef f(u):\n    requests.request('delete', u)\n",
+            "requests.request(DELETE)",
+        ),
+        (
+            "import urllib.request\ndef f(u):\n"
+            "    urllib.request.urlopen(urllib.request.Request(u, method='DELETE'))\n",
+            "urllib.request.Request(DELETE)",
+        ),
+        (
+            "def f(run_git, args):\n    run_git(args)\n",
+            "git argv from variable",
+        ),
+        (
+            "def f(run_git, rest):\n    run_git(['push', *rest])\n",
+            "git argv with starred elements",
+        ),
+        (
+            "def f(run_git, args):\n    run_git(*args)\n",
+            "git argv from starred argument",
+        ),
+        (
+            "import subprocess\ndef f(sub):\n    subprocess.run(['git', sub, 'x'])\n",
+            "git argv with non-literal subcommand",
+        ),
+        (
             "def f(cur):\n    cur.execute('DELETE FROM users WHERE id = 1')\n",
             "DELETE FROM users WHERE id = 1",
         ),
@@ -124,6 +177,15 @@ def test_detects_each_sink_family(tmp_path: Path, source: str, label: str) -> No
         "def f(run_git):\n    run_git(['worktree', 'list'])\n    run_git(['status'])\n",
         "def f(run_git):\n    run_git(['clean'])\n    run_git([])\n",
         "def f(run_git):\n    run_git('worktree remove x')\n",
+        "def f(git):\n    git(['push', 'origin', 'main'])\n    git(['push', '-u', 'o', 'x'])\n",
+        "import os\ndef f():\n    os.system('git push origin main')\n",
+        "import requests\ndef f(u):\n    requests.get(u)\n    requests.request('GET', u)\n",
+        "def f(run_git, path):\n    run_git(['add', path])\n",
+        "def f(args, runner):\n    runner(args)\n",
+        "def f(args, runner):\n    runner(*args)\n",
+        "def f(s, pats):\n    s.isdigit(s)\n    load_gitignore(pats)\n",
+        "def f(x):\n    delete(x)\n",
+        "def f(run_git):\n    run_git(['push', 'origin', 'main'])\n",
     ],
 )
 def test_benign_code_is_not_a_sink(tmp_path: Path, source: str) -> None:
@@ -407,3 +469,30 @@ def test_unreadable_extensionless_file_is_unscanned(tmp_path: Path) -> None:
         locked.chmod(0o644)
     assert report["decision"] == "unknown"
     assert report["unscanned"] == ["locked"]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def f(run_git, remote, ref):\n    run_git(['push', remote, ref])\n",
+        "import subprocess\n"
+        "def f(remote, ref):\n    subprocess.run(['git', 'push', remote, ref])\n",
+        "def f(run_git, ref):\n    run_git(['push', 'origin', f'+{ref}'])\n",
+        "def f(run_git, o):\n    run_git(['push', o.remote, 'main'])\n",
+    ],
+)
+def test_push_with_non_literal_refspec_is_a_sink(tmp_path: Path, source: str) -> None:
+    labels = sink_labels(scan_source(tmp_path, source))
+    assert "git push argv with non-literal refspec" in labels
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import requests\ndef f(u):\n    requests.Session().delete(u)\n",
+        "def f(client, url):\n    client.delete(url)\n",
+        "import httpx\ndef f(url):\n    httpx.Client().delete(url)\n",
+    ],
+)
+def test_client_delete_method_is_a_sink(tmp_path: Path, source: str) -> None:
+    assert ".delete()" in sink_labels(scan_source(tmp_path, source))

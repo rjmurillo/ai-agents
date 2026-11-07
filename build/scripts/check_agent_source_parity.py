@@ -20,15 +20,17 @@ authoritative statement is the "Agent source equivalence" section of
 
 Pairs compared, each against ``<stem>.shared.md``:
 
-- ``claude-shared``: the rendered Claude template.
-- ``copilot-shared``: the rendered Copilot template. Strict: an H2 section on
-  one side only is a divergence, because both feed the same platform family.
+- ``claude-shared``: the rendered Claude template. Strict: an H2 section on
+  one side only is a divergence, so a section added to or dropped from one
+  side cannot go uncompared. The Claude-only ``Claude Code Tools`` section is
+  the one exemption (``CLAUDE_ONLY_SECTIONS``).
+- ``copilot-shared``: the rendered Copilot template. Strict as well, because
+  both feed the same platform family.
 
 Tree-specific, dropped from comparison: every frontmatter key outside
 ``SHARED_FRONTMATTER_KEYS`` and the tool lists (``name``, ``model``,
 ``model_tier``, ``isolation_required``, ``metadata`` other than
-``metadata.role``), and for the Claude pair an H2 section present on only one
-side (section inventory stays with ``detect_agent_drift.py``).
+``metadata.role``).
 
 Shared, compared exactly after ``detect_agent_drift.normalize_content``: the
 frontmatter keys ``description``, ``argument-hint`` and ``role`` (Claude spells
@@ -82,7 +84,6 @@ EXIT CODES (ADR-035)
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
@@ -107,6 +108,11 @@ from agent_source_report import (  # noqa: E402
     print_text,
     reconcile,
 )
+from agent_unit_diff import (  # noqa: E402
+    CLAUDE_ONLY_SECTIONS,
+    diverged_units,
+    section_order_divergence,
+)
 from detect_agent_drift import (  # noqa: E402
     get_markdown_section_list,
     normalize_content,
@@ -122,11 +128,19 @@ EXIT_CONFIG = 2
 BASELINE_RELATIVE_PATH = Path(".agents") / "governance" / "agent-source-divergence.json"
 BASELINE_SCHEMA_VERSION = "1"
 # Pinned divergences at the time the gate landed: 62 in prose and 47 in the
-# capability set. Raising this needs a code edit, so growth is a reviewed change
-# and not a quiet re-record.
-BASELINE_CEILING = 109
+# capability set. Issue #6506 (detection-gaps-02, -03) then pinned the restricted
+# side's tool list when the declarations disagree and each built-in grant
+# separately, which exposed 110 more capability units: 219 in total. Raising this
+# needs a code edit, so growth is a reviewed change and not a quiet re-record.
+# Issue #6506 (detection-gaps-05) made the Claude pair strict, which pinned the
+# 34 sections that exist on one side only, apart from the Claude-only
+# "Claude Code Tools" section: 253 in total.
+BASELINE_CEILING = 253
 
 SHARED_FRONTMATTER_KEYS: tuple[str, ...] = ("description", "argument-hint", "role")
+# The generator reads the bare ``tools`` key of a shared source when the
+# platform key (``tools_copilot``, ``tools_vscode``) is absent.
+SHARED_TOOLS_FALLBACK_KEY = "tools"
 PAIR_CLAUDE = "claude-shared"
 PAIR_COPILOT = "copilot-shared"
 PAIRS: tuple[str, ...] = (PAIR_CLAUDE, PAIR_COPILOT)
@@ -147,10 +161,6 @@ _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 
 class ConfigError(Exception):
     """The gate could not run: a tree, template, or baseline is unusable."""
-
-
-def _digest(left: str, right: str) -> str:
-    return hashlib.sha256(f"{left}\0{right}".encode()).hexdigest()
 
 
 def _frontmatter(text: str) -> dict[str, object]:
@@ -187,11 +197,16 @@ def _capability_units(
     frontmatter: dict[str, object],
     capabilities: tuple[tuple[str, str], ...],
     toolsets: dict[str, dict[str, object]],
+    fallback_key: str | None = None,
 ) -> dict[str, str]:
     units: dict[str, str] = {}
     try:
         for key, prefix in capabilities:
-            units.update(agent_capabilities.capability_units(frontmatter, key, prefix, toolsets))
+            units.update(
+                agent_capabilities.capability_units(
+                    frontmatter, key, prefix, toolsets, fallback_key
+                )
+            )
     except agent_capabilities.CapabilityError as exc:
         raise ConfigError(str(exc)) from exc
     return units
@@ -201,14 +216,17 @@ def extract_units(
     text: str,
     capabilities: tuple[tuple[str, str], ...] = (),
     toolsets: dict[str, dict[str, object]] | None = None,
+    fallback_key: str | None = None,
 ) -> dict[str, str]:
     """Return ``{unit: normalized text}`` for every shared unit in one member.
 
     ``capabilities`` lists ``(frontmatter key, unit prefix)`` tool lists to
     reduce to abstract capability units (``agent_capabilities.py``).
+    ``fallback_key`` is the key the generator reads when a list's own key is
+    absent; the shared source passes ``tools`` so it reads like the generator.
     """
     frontmatter = _frontmatter(text)
-    units = _capability_units(frontmatter, capabilities, toolsets or {})
+    units = _capability_units(frontmatter, capabilities, toolsets or {}, fallback_key)
     for key in SHARED_FRONTMATTER_KEYS:
         value = _shared_value(frontmatter, key)
         if value:
@@ -224,37 +242,6 @@ def extract_units(
         unit = "preamble" if name == "preamble" else f"section:{name}"
         units[unit] = _normalize(body)
     return units
-
-
-def diverged_units(
-    left: dict[str, str],
-    right: dict[str, str],
-    *,
-    strict: bool,
-) -> dict[str, str]:
-    """Return ``{unit: digest}`` for each unit the two members disagree on.
-
-    A section on one side only counts only when ``strict`` is set. The
-    preamble and the frontmatter keys count in every pair.
-    """
-    found: dict[str, str] = {}
-    for unit in sorted(set(left) | set(right)):
-        one_sided = unit not in left or unit not in right
-        if one_sided and not strict and unit.startswith("section:"):
-            continue
-        a, b = left.get(unit, ""), right.get(unit, "")
-        if one_sided or a != b:
-            found[unit] = _digest(a, b)
-    return found
-
-
-def section_order_divergence(left: dict[str, str], right: dict[str, str]) -> dict[str, str]:
-    """Return ``{"order": digest}`` when shared sections appear in a different order."""
-    both = [u for u in left if u.startswith("section:") and u in right]
-    in_right = [u for u in right if u in set(both)]
-    if both == in_right:
-        return {}
-    return {"order": _digest("\n".join(both), "\n".join(in_right))}
 
 
 def _read(path: Path) -> str:
@@ -320,17 +307,20 @@ def _compare_stem(
     """Return the divergences between one agent's shared source and its templates."""
     found: dict[Key, str] = {}
     for pair, tmpl, strict in (
-        (PAIR_CLAUDE, claude_tmpl, False),
+        (PAIR_CLAUDE, claude_tmpl, True),
         (PAIR_COPILOT, copilot_tmpl, True),
     ):
+        left_only_ok = CLAUDE_ONLY_SECTIONS if pair == PAIR_CLAUDE else frozenset()
         spec = CAPABILITY_KEYS[pair]
         text = _render(tmpl, partials, table if pair == PAIR_CLAUDE else None)
         units = extract_units(text, tuple((own, prefix) for own, _, prefix in spec), toolsets)
         shared_units = extract_units(
-            shared_text, tuple((theirs, prefix) for _, theirs, prefix in spec), toolsets
+            shared_text,
+            tuple((theirs, prefix) for _, theirs, prefix in spec),
+            toolsets,
+            fallback_key=SHARED_TOOLS_FALLBACK_KEY,
         )
-        agent_capabilities.drop_families_on_declaration_mismatch(units, shared_units)
-        diverged = diverged_units(units, shared_units, strict=strict)
+        diverged = diverged_units(units, shared_units, strict=strict, left_only_ok=left_only_ok)
         diverged.update(section_order_divergence(units, shared_units))
         found.update({(stem, pair, unit): digest for unit, digest in diverged.items()})
     return found

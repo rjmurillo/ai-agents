@@ -27,9 +27,11 @@ rename is read against its old path.
 ``<!-- placement: evidence; reason: ... -->`` with a reason of at least 20
 characters (after trimming) downgrades to evidence (reported ``suppressed``);
 a shorter or empty reason is reported ``invalid-suppression`` and does not
-downgrade (#6506). Route: (d) to an
-agent, (c) without (a) >= 5 to a skill, else to a rule. README.md,
-``*-index.md``, and non-``.md`` files are skipped.
+downgrade (#6506). Route: (d) to an agent, (c) without (a) >= 5 to a skill,
+else to a rule. Skipped by location only: the root ``README.md``, generated
+``<domain>-index.md`` files directly under the root, and files that are not
+text documents. A README or index name elsewhere, and a text file in a
+dot-directory or with a dot-name, are classified.
 
 EXIT CODES (ADR-035): 0 clean or warnings only; 1 a new, risen, or term-growing normative file under
 ``--ci``; 2 usage error, not a git repository, bad ``--base``, or a path

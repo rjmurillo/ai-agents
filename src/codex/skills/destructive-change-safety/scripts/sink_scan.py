@@ -34,9 +34,22 @@ from __future__ import annotations
 
 import ast
 import re
+import sys
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from sink_calls import (  # noqa: E402
+    SUBPROCESS_CALLS,
+    callee_name,
+    dotted_name,
+    http_delete_sink,
+    variable_git_argv_sink,
+)
 
 MODULE_SCOPE = "<module>"
 MAX_CHAINS = 20
@@ -80,16 +93,22 @@ ATTRIBUTE_SINKS: dict[str, str] = {
     "write_bytes": "overwrite",
     "truncate": "overwrite",
 }
-SUBPROCESS_CALLS = {"run", "call", "check_call", "check_output", "Popen", "system"}
 
 SQL_PATTERN = re.compile(
     r"\b(DELETE\s+FROM|TRUNCATE\s+TABLE|DROP\s+(?:TABLE|DATABASE|INDEX|SCHEMA|VIEW)"
     r"|UPDATE\s+\w+\s+SET)\b",
     re.IGNORECASE,
 )
+# A destructive push argument: ``--force``, ``--force-with-lease``, a short-flag
+# cluster that holds ``f`` or ``d`` (``-f``, ``-fu``, ``-d``), a ``+ref`` refspec,
+# ``--delete``, ``--mirror``, or a ``:ref`` refspec that deletes the remote ref.
+FORCE_PUSH_ARG = (
+    r"(?:--force(?:-with-lease)?\b|-[a-zA-Z]*[fd][a-zA-Z]*(?=\s|$)|\+\S"
+    r"|--delete\b|--mirror\b|:[^\s:]\S*)"
+)
 SHELL_PATTERN = re.compile(
     r"(?:^|[\s;&|(])(rm|rmdir|shred|truncate)\s"
-    r"|git\s+(?:clean|reset\s+--hard|branch\s+-D|push\s+(?:\S+\s+)*--force)"
+    r"|git\s+(?:clean|reset\s+--hard|branch\s+-D|push\s+(?:\S+\s+)*" + FORCE_PUSH_ARG + r")"
     r"|kubectl\s+delete|terraform\s+destroy|docker\s+(?:rm|rmi|system\s+prune)"
     r"|gh\s+\w+\s+delete",
 )
@@ -100,7 +119,7 @@ SHELL_PATTERN = re.compile(
 # and the ``git`` word, so the list head is matched on its own.
 GIT_ARGV_PATTERN = re.compile(
     r"^(?:git\s+)?(?:worktree\s+(?:remove|prune)|clean\s+-|reset\s+--hard|branch\s+-D"
-    r"|update-ref\s+-d|stash\s+(?:drop|clear)|gc\s+--prune|push\b.*--force)"
+    r"|update-ref\s+-d|stash\s+(?:drop|clear)|gc\s+--prune|push\b(?:.*\s)?" + FORCE_PUSH_ARG + r")"
 )
 
 
@@ -138,28 +157,6 @@ class Graph:
             for callee in callees:
                 reverse[callee].add(caller)
         return reverse
-
-
-def dotted_name(node: ast.AST) -> str:
-    """Return ``a.b.c`` for a Name or Attribute chain, else an empty string."""
-    parts: list[str] = []
-    while isinstance(node, ast.Attribute):
-        parts.append(node.attr)
-        node = node.value
-    if isinstance(node, ast.Name):
-        parts.append(node.id)
-        return ".".join(reversed(parts))
-    return ""
-
-
-def callee_name(node: ast.Call) -> str:
-    """Return the simple name a call resolves to in the name-based graph."""
-    func = node.func
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return ""
 
 
 def string_parts(node: ast.AST) -> list[str]:
@@ -208,6 +205,12 @@ def call_sink(node: ast.Call) -> tuple[str, str] | None:
     argv = git_argv_sink(node)
     if argv:
         return "command", argv
+    http = http_delete_sink(node)
+    if http:
+        return "delete", http
+    variable = variable_git_argv_sink(node)
+    if variable:
+        return "command", variable
     if open_write_mode(node):
         return "overwrite", "open(..., 'w')"
     name = callee_name(node)

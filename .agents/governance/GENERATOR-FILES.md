@@ -129,7 +129,7 @@ the required `Python Tests` run on every pull request.
 
 | Pair | Compared | Section on one side only |
 |------|----------|--------------------------|
-| `claude-shared` | rendered Claude template against `<stem>.shared.md` | Skipped. `detect_agent_drift.py` owns the section inventory |
+| `claude-shared` | rendered Claude template against `<stem>.shared.md` | Divergence, except the Claude-only `Claude Code Tools` section. Each existing case is pinned in the baseline |
 | `copilot-shared` | rendered Copilot template against `<stem>.shared.md` | Fails. Both feed the same platform family |
 
 Tree-specific, dropped from comparison: every frontmatter key except
@@ -162,17 +162,23 @@ and compares those units:
 | `copilot-shared` | `tools_copilot` | `tools_copilot` | `capability:*` |
 | `copilot-shared` | `tools_vscode` | `tools_vscode` | `capability-vscode:*` |
 
-- Spellings that name one capability are equal: `Read` and `read`, `Grep` and
-  `search`, `Bash` and `shell` and `execute`, `WebFetch` and `web`,
-  `mcp__github__issue_read` and `github/issue_read`. The mapping table is
-  `_BUILTIN` in that module.
+- Spellings that name one capability are equal: `Read` and `read`, `Bash` and
+  `shell` and `execute`, `mcp__github__issue_read` and `github/issue_read`.
+  Each built-in grant is its own item, so `Glob` and `Grep` differ. A VS Code
+  name that stands for several Claude tools expands to them: `search` is `Glob`
+  and `Grep`, `edit` is `Write` and `Edit`, `web` is `WebFetch` and
+  `WebSearch`. `MultiEdit` and `NotebookEdit` have no VS Code spelling. The
+  mapping table is `_BUILTIN` in that module.
+- A shared source with no `tools_copilot` or `tools_vscode` key reads its bare
+  `tools` list, as the generator does.
 - `$toolset:<name>` references expand through `templates/toolsets.yaml`, the
   platform variant first, as the generator does. An unknown toolset is a
   configuration error (exit 2).
 - Units are one `declaration` unit (`restricted` or `unrestricted`), then one
   unit per family: `builtin`, `mcp:<server>`, and `unmapped`. A member with no
   tool list is `unrestricted`, because Claude Code gives such an agent every
-  tool. Restricted against unrestricted is one divergence, the declaration.
+  tool. Restricted against unrestricted diverges on the declaration, and the
+  restricted side's family units stay in the comparison so its list stays pinned.
 - A name the module does not know stays a literal `unmapped` item. A wildcard
   such as `serena/*` is not an explicit `serena/<tool>` list. Neither can hide
   a difference.
