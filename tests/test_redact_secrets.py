@@ -729,3 +729,8 @@ class TestCli:
         captured = capsys.readouterr()
         assert captured.out == ""
         assert "cannot read input" in captured.err
+
+    def test_closed_stdin_is_an_error_not_a_traceback(self, capsys):
+        with patch.object(sys, "stdin", None):
+            assert main([]) == 2
+        assert "no input" in capsys.readouterr().err

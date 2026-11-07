@@ -449,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
         args = _build_parser().parse_args(argv)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 2
-    if args.file is None and sys.stdin.isatty():
+    if args.file is None and (sys.stdin is None or sys.stdin.isatty()):
         print(
             "redact_secrets: no input. Pass FILE or pipe text on stdin, "
             "for example: echo 'text' | redact_secrets.py",

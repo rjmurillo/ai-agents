@@ -45,6 +45,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 # Cross-platform exclusive file locking. POSIX uses fcntl.flock; Windows uses
 # msvcrt.locking on byte 0 (a fixed contention point for append-mode files).
@@ -182,8 +183,17 @@ def safe_append_tally(
     return target
 
 
+class _QuietParser(argparse.ArgumentParser):
+    """Parser whose usage errors never echo argv values (a LINE may hold a secret)."""
+
+    def error(self, message: str) -> NoReturn:
+        self.print_usage(sys.stderr)
+        print("metrics_writer.py: invalid arguments (values not echoed)", file=sys.stderr)
+        raise SystemExit(2)
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _QuietParser(
         prog="metrics_writer.py",
         description=(
             "Append one tally LINE to the metrics file at PATH. Refuses a "
@@ -193,6 +203,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "example:\n"
             "  metrics_writer.py .project-toolkit/metrics/STEP-0-METRICS.md "
             "'| 2026-01-01 | topic | 6/6 |'\n\n"
+            "A LINE that starts with '-' needs '--' before it.\n"
             "exit codes (ADR-035): 0 appended, 1 write refused (symlink, path "
             "outside the working directory, I/O error), 2 usage error."
         ),
