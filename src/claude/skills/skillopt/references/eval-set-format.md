@@ -452,7 +452,7 @@ The output has a `tasks` list and a `benchmark` object.
   - `pass_without_evidence_incumbent` and `pass_without_evidence_candidate`: a
     pass with no evidence line. Treat it as unproven.
 - `benchmark`: pass-rate `n`, `mean`, and sample `stdev` per arm (one value
-  per verified task), a `delta` of candidate minus incumbent, and, when
+  per task verified in both arms), a `delta` of candidate minus incumbent, and, when
   `--measurements` is given, the same spread for the measured metric. An
   absent measurement gives a null, never zero. With one observation `stdev` is
   null.

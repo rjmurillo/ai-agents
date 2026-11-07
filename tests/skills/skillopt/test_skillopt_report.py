@@ -177,3 +177,15 @@ def test_delta_is_rounded_once_from_raw_values():
 
     assert delta == 0.3333
     assert report_mod.mean_delta([1 / 3], [2 / 3]) == 0.3333
+
+
+def test_pass_rate_delta_pairs_the_arms_when_one_side_is_unverified():
+    eval_set = {"splits": {"sel": ["a", "b", "c"]}}
+    inc = {"a": False, "b": "UNVERIFIED", "c": False}
+    cand = {"a": True, "b": True, "c": False}
+
+    bench = report_mod.run_report(eval_set, inc, cand)["benchmark"]
+
+    assert bench["incumbent"]["pass_rate"]["n"] == 2
+    assert bench["candidate"]["pass_rate"] == {"n": 2, "mean": 0.5, "stdev": 0.7071}
+    assert bench["delta"]["pass_rate"] == 0.5
