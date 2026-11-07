@@ -1,8 +1,9 @@
 """Tests for the Copilot CLI version-pin guard (Issue #2630).
 
-The guard reads the pinned Copilot CLI version (``COPILOT_CLI_VERSION`` in the
-CLI smoke workflow, or the shell form ``COPILOT_VERSION``) and fails when the pin is missing,
-unparseable, or on the known-bad list. ``0.0.397`` is the seed known-bad entry:
+The guard reads the pinned Copilot CLI version (``@github/copilot`` in
+``.github/cli-smoke/copilot/package.json``, or the older env and shell forms) and
+fails when the pin is missing, unparseable, or on the known-bad list.
+``0.0.397`` is the seed known-bad entry:
 npm flags it deprecated for "invalid session id errors", which broke the
 PR-comment-processing step of the PR Maintenance workflow.
 """
@@ -91,7 +92,7 @@ def test_repo_action_pin_is_clean() -> None:
     version (e.g. reverts to 0.0.397) before the change reaches CI.
     """
     repo_action = (
-        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "plugin-cli-smoke.yml"
+        Path(__file__).resolve().parents[1] / ".github" / "cli-smoke" / "copilot" / "package.json"
     )
     assert mod.check_action(repo_action) == mod.EXIT_OK
 
@@ -160,7 +161,7 @@ def test_multiple_pins_raises(tmp_path: Path) -> None:
         '        COPILOT_VERSION="0.0.397"\n',
         encoding="utf-8",
     )
-    with pytest.raises(mod.VersionPinError, match="multiple COPILOT_VERSION pins"):
+    with pytest.raises(mod.VersionPinError, match="multiple Copilot CLI pins"):
         mod.extract_pinned_version(action)
 
 
