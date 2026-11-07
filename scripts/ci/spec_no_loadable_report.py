@@ -33,7 +33,9 @@ EXIT_CONFIG = 2
 
 # The extractor emits plain reference tokens. Anything else is dropped rather
 # than escaped, so a hostile value can never open markup, a link, or a mention.
-_SAFE_REF = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?#?[0-9]*")
+# Dots stay out of the owner segment so `www.example.com/x#1` is not a token.
+_SAFE_REF = re.compile(r"AB#[1-9][0-9]*|[1-9][0-9]*|[A-Za-z0-9-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*")
+_SAFE_REPO = re.compile(r"[A-Za-z0-9-]+/[A-Za-z0-9_.-]+")
 _MARKER = "<!-- AI-SPEC-VALIDATION -->"
 
 
@@ -45,7 +47,11 @@ def _cell(raw: str) -> str:
 
 def build_report(issue_refs: str, azure_refs: str, repository: str) -> str:
     """Build the report body. It never names a verdict."""
-    repository = repository if _SAFE_REF.fullmatch(repository) else "this repository"
+    footer = (
+        f"Powered by [AI Spec Validator](https://github.com/{repository}) workflow"
+        if _SAFE_REPO.fullmatch(repository)
+        else "Powered by AI Spec Validator workflow"
+    )
     return f"""\
 {_MARKER}
 
@@ -67,7 +73,7 @@ Link a GitHub issue or a spec file (REQ-*, DESIGN-*, TASK-*) to enable the revie
 
 ---
 
-<sub>Powered by [AI Spec Validator](https://github.com/{repository}) workflow</sub>
+<sub>{footer}</sub>
 """
 
 

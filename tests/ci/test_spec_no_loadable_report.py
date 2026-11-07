@@ -70,7 +70,9 @@ def test_empty_issue_list_reads_none(tmp_path):
     assert "| **Issues** | *None* |" in report
 
 
-@pytest.mark.parametrize("hostile", ["<b>x</b>", "a|b", "@team", "[x](http://e.example)", "x\ny"])
+@pytest.mark.parametrize(
+    "hostile", ["<b>x</b>", "a|b", "@team", "[x](http://e.example)", "www.example.com/x#1"]
+)
 def test_hostile_reference_text_is_dropped(tmp_path, hostile):
     _, report, _ = _run(tmp_path, AZURE_REFS=f"AB#1 {hostile}")
 
@@ -79,10 +81,33 @@ def test_hostile_reference_text_is_dropped(tmp_path, hostile):
         assert fragment not in report
 
 
-def test_unsafe_repository_name_falls_back(tmp_path):
+def test_unsafe_repository_name_drops_the_link(tmp_path):
     _, report, _ = _run(tmp_path, GITHUB_REPOSITORY="evil](http://e.example)")
 
     assert "e.example" not in report
+    assert "<sub>Powered by AI Spec Validator workflow</sub>" in report
+
+
+def test_safe_repository_name_links_the_footer(tmp_path):
+    _, report, _ = _run(tmp_path, GITHUB_REPOSITORY="owner/repo.name")
+
+    assert "(https://github.com/owner/repo.name)" in report
+
+
+def test_newline_separated_text_cannot_add_a_row(tmp_path):
+    _, report, _ = _run(tmp_path, ISSUE_REFS="99\n| injected | row |")
+
+    assert "injected" not in report
+    assert "| **Issues** | 99 |" in report
+
+
+def test_missing_github_output_prints_the_path(tmp_path, capsys):
+    env = {"RUNNER_TEMP": str(tmp_path), "GITHUB_RUN_ID": "3", "AZURE_REFS": "AB#1"}
+    with patch.dict(os.environ, env):
+        os.environ.pop("GITHUB_OUTPUT", None)
+        assert spec_no_loadable_report.main() == EXIT_OK
+
+    assert f"report_file={tmp_path / 'spec-no-loadable-report-3.md'}" in capsys.readouterr().out
 
 
 def test_unwritable_report_path_returns_nonzero(tmp_path, capsys):
