@@ -19,7 +19,7 @@
       "skill": "skillify",
       "source": "lens:destination",
       "prompt": "make this proper. We just finished a 9-step, repeatable procedure for rotating an API key across three services, with a rollback branch when the second service rejects the new key. I am in a scratch directory with no skills folder, and I have not told you where skills go.",
-      "expected_output": "The gate passes, but the destination does not resolve. Stops all writes and asks the user for a directory path. Does not guess a path. Keeps the rollback branch and any approval gates for external actions in the planned skill."
+      "expected_output": "The gate passes, but the destination does not resolve. Stops all writes and asks the user for a directory path. Does not guess a path, and does not draft the skill file before the destination resolves."
     }
   ]
 }

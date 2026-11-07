@@ -24,7 +24,7 @@ ADR-057's prompt-change scenarios answer a different question than the agent-vs-
 | `evals/security-spike/fixtures/` | Held-out agent-vs-baseline corpus | `scripts/eval/eval-agent-vs-baseline.py` |
 | `evals/adr-review-catch-rate/` | Seeded-defect corpus and results for the adr-review per-role catch rate (#5248) | `scripts/eval/eval_adr_review_catch_rate.py` |
 | `evals/skill-bootstrap-capability/fixtures/` | Before/after capability tasks (gold at `acff1d0a1`, 2026-10-17) and results for skill-bootstrap | `scripts/eval/eval_skill_bootstrap_capability.py` |
-| `evals/skill-cases/<skill>/cases.json` | Draft test cases (prompt plus expected output, no grader) for `skillopt`, `skillify`, `skillforge`. Graders wait for an observed run | `skill-bootstrap/scripts/bootstrap_eval.py check` |
+| `evals/skill-cases/<skill>/cases.json` | Draft test cases (prompt plus expected output, no grader) for `skillopt`, `skillify`, `skillforge`. Graders wait for an observed run | `src/claude/skills/skill-bootstrap/scripts/bootstrap_eval.py check` |
 | `evals/longitudinal-pilot/fixtures/` | Frozen five-task sequence, vendor-only vs vendor plus validated local context, with a stale-fact trap (#6993); live runs need an explicit `--ceiling-usd` | `scripts/eval/eval_longitudinal_pilot.py` |
 | `evals/agent-slimming-spike/reports/` | Legacy agent-slimming experiment outputs from 2026-04 | `scripts/eval/eval-agents.py`, `scripts/eval/eval-knowledge-integration.py` |
 
@@ -86,4 +86,4 @@ evals/
 
 `evals/skill-cases/` holds 9 draft cases, 3 each for `skillopt`, `skillify`, and `skillforge` (counted at commit time of this change). Each `source` is `outcome:<ref>` for a defect the repo already fixed, or `lens:<name>` for a documented rule. The `outcome` prompts come from the quoted repro in the fixing PR or its test. No case has a `grader`: no model run has produced an output to read yet, so none is written. After a run, read the outputs, add a grader for each case from what the repository says is true, then `bootstrap_eval.py freeze`.
 
-Cost and command for a live run, by another session: 9 cases times 2 conditions times at least 2 reps is 36 CLI runs. Use the `with_skill` arm of `scripts/eval/_claude_skill_harness.py` and a bare control. This session ran none.
+Cost and command for a live run, by another session: 9 cases times 2 conditions times at least 2 reps is 36 CLI runs. Use `scripts/eval/_claude_skill_harness.py` for the skill-installed arm and its bare control (map those outputs to `bootstrap_eval.py` conditions `with_skill` and `baseline`). This session ran none.
