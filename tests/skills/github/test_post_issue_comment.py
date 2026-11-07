@@ -67,6 +67,68 @@ class TestPostIssueComment:
         assert result["Data"]["comment_id"] == 100
         assert result["Data"]["skipped"] is False
 
+    def _dry_run(self, mod, argv, comments=None):
+        stdout = json.dumps(comments if comments is not None else [])
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("post_issue_comment.update_issue_comment", return_value={"id": 50}) as update,
+            patch("subprocess.run", return_value=make_completed_process(stdout=stdout)) as run,
+        ):
+            rc = mod.main([*argv, "--dry-run"])
+        return rc, run, update
+
+    def test_dry_run_new_comment_posts_nothing(self, _import_module, capsys):
+        rc, run, update = self._dry_run(_import_module, ["--issue", "1", "--body", "hello"])
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_post"
+        assert data["dry_run"] is True
+        assert run.call_count == 0
+        assert update.call_count == 0
+
+    def test_dry_run_with_marker_and_no_hit_would_post_after_listing_comments(
+        self, _import_module, capsys
+    ):
+        rc, run, _ = self._dry_run(
+            _import_module, ["--issue", "1", "--body", "hello", "--marker", "M"], comments=[]
+        )
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_post"
+        assert run.call_count == 1  # the read-only comment listing
+
+    def test_dry_run_marker_hit_with_update_flag_would_update(self, _import_module, capsys):
+        comments = [{"id": 50, "body": "<!-- M -->\nold"}]
+        rc, _, update = self._dry_run(
+            _import_module,
+            ["--issue", "1", "--body", "new", "--marker", "M", "--update-if-exists"],
+            comments=comments,
+        )
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_update"
+        assert data["comment_id"] == 50
+        assert update.call_count == 0
+
+    def test_dry_run_marker_hit_without_update_flag_is_still_the_skip(self, _import_module, capsys):
+        comments = [{"id": 50, "body": "<!-- M -->\nold"}]
+        rc, _, update = self._dry_run(
+            _import_module,
+            ["--issue", "1", "--body", "new", "--marker", "M"],
+            comments=comments,
+        )
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["skipped"] is True
+        assert "dry_run" not in data
+        assert update.call_count == 0
+
+    def test_dry_run_still_rejects_an_empty_body(self, _import_module):
+        with pytest.raises(SystemExit) as exc:
+            self._dry_run(_import_module, ["--issue", "1", "--body", ""])
+        assert exc.value.code == 2
+
     def test_skip_when_marker_exists(self, _import_module, capsys):
         mod = _import_module
         marker_html = "<!-- TEST-MARKER -->"

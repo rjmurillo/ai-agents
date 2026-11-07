@@ -4,6 +4,9 @@
 Supports batch operations for improved performance.
 Common use: eyes to acknowledge receipt of review comments.
 
+``--dry-run`` runs the read-only checks (PR ownership of review comments) and
+reports ``would_add`` with ``dry_run: true``; it posts no reaction.
+
 Exit codes follow ADR-035:
     0 - All succeeded
     1 - Invalid parameters / logic error
@@ -106,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="pull_request",
         type=int,
         help="Expected PR number. Review comments from another PR are skipped.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run the read-only checks and report each reaction that would be added; add none",
     )
     add_output_format_arg(parser)
     return parser
@@ -321,6 +329,7 @@ def _process_comment(
     pull_request: int | None,
     reaction: str,
     emoji: str,
+    dry_run: bool = False,
 ) -> dict[str, object]:
     if comment_type == "review":
         skipped = _skipped_review_reaction(
@@ -336,6 +345,17 @@ def _process_comment(
         endpoint = f"repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
     else:
         endpoint = f"repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
+    if dry_run:
+        return {
+            "action": "ACT",
+            "reason": "dry_run",
+            "success": True,
+            "comment_id": comment_id,
+            "comment_type": comment_type,
+            "reaction": reaction,
+            "emoji": emoji,
+            "error": None,
+        }
     return _add_reaction(endpoint, comment_id, comment_type, reaction, emoji)
 
 
@@ -360,6 +380,9 @@ def _reaction_summary(
         "comment_type": args.comment_type,
         "results": results,
     }
+    if args.dry_run:
+        summary["dry_run"] = True
+        summary["would_add"] = attempted
     return summary, succeeded, skipped
 
 
@@ -386,13 +409,20 @@ def _write_reaction_result(
             extra=summary,
         )
         return 3
+    if args.dry_run:
+        human = (
+            f"Dry run: would apply '{args.reaction}' to {summary['would_add']} comment(s); "
+            f"skipped {skipped}; nothing changed"
+        )
+    else:
+        human = (
+            f"Applied '{args.reaction}' to {succeeded} comment(s); "
+            f"skipped {skipped}; {failed} failed"
+        )
     write_skill_output(
         summary,
         output_format=fmt,
-        human_summary=(
-            f"Applied '{args.reaction}' to {succeeded} comment(s); "
-            f"skipped {skipped}; {failed} failed"
-        ),
+        human_summary=human,
         script_name="add_comment_reaction.py",
     )
     return 0
@@ -426,6 +456,7 @@ def main(argv: list[str] | None = None) -> int:
             args.pull_request,
             args.reaction,
             emoji,
+            args.dry_run,
         )
         for comment_id in args.comment_id
     ]

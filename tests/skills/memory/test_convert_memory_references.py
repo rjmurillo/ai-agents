@@ -86,3 +86,62 @@ class TestCountMdLinks:
     def test_counts_correctly(self):
         assert convert_memory_references._count_md_links("[a](a.md)") == 1
         assert convert_memory_references._count_md_links("no links") == 0
+
+
+class TestDryRun:
+    """--dry-run reports the conversions and writes nothing."""
+
+    def _setup(self, tmp_path):
+        (tmp_path / "target.md").write_text("# Target", encoding="utf-8")
+        source = tmp_path / "source.md"
+        source.write_text("See `target` for info.", encoding="utf-8")
+        return source
+
+    def test_dry_run_counts_changes_but_leaves_files_untouched(self, tmp_path):
+        source = self._setup(tmp_path)
+
+        stats = convert_memory_references.process_files(tmp_path, None, True, dry_run=True)
+
+        assert stats["FilesModified"] == 1
+        assert stats["LinksAdded"] == 1
+        assert source.read_text(encoding="utf-8") == "See `target` for info."
+
+    def test_real_run_still_writes_the_link(self, tmp_path):
+        source = self._setup(tmp_path)
+
+        stats = convert_memory_references.process_files(tmp_path, None, True)
+
+        assert stats["FilesModified"] == 1
+        assert "[target](target.md)" in source.read_text(encoding="utf-8")
+
+    def test_dry_run_with_nothing_to_convert_modifies_zero_files(self, tmp_path):
+        (tmp_path / "only.md").write_text("plain text", encoding="utf-8")
+
+        stats = convert_memory_references.process_files(tmp_path, None, True, dry_run=True)
+
+        assert stats["FilesModified"] == 0
+
+    def test_cli_dry_run_prints_would_update_and_keeps_file(self, tmp_path, capsys):
+        source = self._setup(tmp_path)
+
+        rc = convert_memory_references.main(
+            ["--memories-path", str(tmp_path), "--skip-path-validation", "--dry-run"]
+        )
+
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Would update: source.md" in out
+        assert "Dry run complete. Would modify 1 files." in out
+        assert source.read_text(encoding="utf-8") == "See `target` for info."
+
+    def test_cli_without_dry_run_says_updated(self, tmp_path, capsys):
+        self._setup(tmp_path)
+
+        rc = convert_memory_references.main(
+            ["--memories-path", str(tmp_path), "--skip-path-validation"]
+        )
+
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Updated: source.md" in out
+        assert "Would update" not in out

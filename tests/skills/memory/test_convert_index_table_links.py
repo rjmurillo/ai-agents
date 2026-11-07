@@ -136,3 +136,49 @@ class TestProcessFiles:
         stats = convert_index_table_links.process_files(tmp_path, None, True)
         assert stats["FilesProcessed"] == 0
         assert stats["Errors"] == []
+
+
+class TestDryRun:
+    """--dry-run reports the conversions and writes nothing."""
+
+    def _setup(self, tmp_path):
+        (tmp_path / "test-memory.md").write_text("# Test Memory", encoding="utf-8")
+        index = tmp_path / "test-index.md"
+        index.write_text("| keyword | test-memory |\n", encoding="utf-8")
+        return index
+
+    def test_dry_run_counts_changes_but_leaves_the_index_untouched(self, tmp_path):
+        index = self._setup(tmp_path)
+
+        stats = convert_index_table_links.process_files(tmp_path, None, True, dry_run=True)
+
+        assert stats["FilesModified"] == 1
+        assert stats["LinksAdded"] >= 1
+        assert index.read_text(encoding="utf-8") == "| keyword | test-memory |\n"
+
+    def test_real_run_still_writes_the_link(self, tmp_path):
+        index = self._setup(tmp_path)
+
+        convert_index_table_links.process_files(tmp_path, None, True)
+
+        assert "[test-memory](test-memory.md)" in index.read_text(encoding="utf-8")
+
+    def test_dry_run_with_nothing_to_convert_modifies_zero_files(self, tmp_path):
+        (tmp_path / "plain-index.md").write_text("no table here\n", encoding="utf-8")
+
+        stats = convert_index_table_links.process_files(tmp_path, None, True, dry_run=True)
+
+        assert stats["FilesModified"] == 0
+
+    def test_cli_dry_run_prints_would_update_and_keeps_file(self, tmp_path, capsys):
+        index = self._setup(tmp_path)
+
+        rc = convert_index_table_links.main(
+            ["--memories-path", str(tmp_path), "--skip-path-validation", "--dry-run"]
+        )
+
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Would update: test-index.md" in out
+        assert "Dry run complete. Would modify 1 files." in out
+        assert index.read_text(encoding="utf-8") == "| keyword | test-memory |\n"

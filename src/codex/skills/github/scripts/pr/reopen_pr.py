@@ -9,6 +9,8 @@ Behavior:
 - A PR that is already OPEN is success with ``action: none`` (idempotent).
 - A MERGED PR, or one in an unknown state, cannot be reopened and exits 1.
 - A CLOSED PR is reopened. ``--comment`` is posted with the reopen in one call.
+- ``--dry-run`` reads the state and reports ``action: would_reopen`` without
+  calling ``gh pr reopen``. Merged and unknown states still exit 1.
 
 Output uses the standard skill envelope (ADR-056). Exit codes follow ADR-035:
     0 - Success (reopened, or already open)
@@ -79,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Pull request number",
     )
     parser.add_argument("--comment", default="", help="Comment to post with the reopen")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the PR state and report what would happen; reopen nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -222,6 +229,18 @@ def main(argv: list[str] | None = None) -> int:
             ctx.output_format,
             ctx.pr,
             state=state or None,
+        )
+
+    if args.dry_run:
+        return _emit_result(
+            ctx,
+            {
+                "state": "CLOSED",
+                "action": "would_reopen",
+                "dry_run": True,
+                "message": "Dry run: PR would be reopened; nothing changed",
+            },
+            f"Dry run: would reopen PR #{ctx.pr}",
         )
 
     _reopen(ctx, args.comment)

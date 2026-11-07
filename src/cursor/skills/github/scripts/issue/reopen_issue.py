@@ -11,6 +11,10 @@ The inverse of ``close_issue.py``; the helper structure mirrors that script so
 the two stay symmetric. Triage that closes an issue can be reversed through the
 skill layer instead of falling back to raw ``gh`` (Issue #2475).
 
+``--dry-run`` reads the issue state (and the existing comments) and reports
+``action: would_reopen`` or ``already_open`` with ``dryRun: true`` and
+``wouldComment``. It posts no comment and calls no ``gh issue reopen``.
+
 Exit codes follow ADR-035:
     0 - Success (issue reopened, or already open)
     1 - Invalid parameters / logic error
@@ -87,6 +91,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to a file containing the comment body",
     )
 
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the issue state and report what would happen; reopen and comment nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -349,9 +358,12 @@ def main(argv: list[str] | None = None) -> int:
         # Idempotent: already open. Still post a missing comment if requested.
         commented = False
         comment_already_present = False
+        would_comment = False
         if body and body.strip():
             comment_already_present = _comment_exists(owner, repo, issue, body, fmt)
-            if not comment_already_present:
+            if not comment_already_present and args.dry_run:
+                would_comment = True
+            elif not comment_already_present:
                 _post_comment(owner, repo, issue, body, fmt)
                 commented = True
         data = {
@@ -363,10 +375,32 @@ def main(argv: list[str] | None = None) -> int:
             "commentAlreadyPresent": comment_already_present,
             "action": "already_open",
         }
+        if args.dry_run:
+            data["dryRun"] = True
+            data["wouldComment"] = would_comment
         write_skill_output(
             data,
             output_format=fmt,
             human_summary=f"Issue #{issue} is already open",
+            status="PASS",
+            script_name=_SCRIPT,
+        )
+        return 0
+
+    if args.dry_run:
+        write_skill_output(
+            {
+                "issue": issue,
+                "owner": owner,
+                "repo": repo,
+                "state": state,
+                "commented": False,
+                "wouldComment": bool(body and body.strip()),
+                "dryRun": True,
+                "action": "would_reopen",
+            },
+            output_format=fmt,
+            human_summary=f"Dry run: would reopen issue #{issue}; nothing changed",
             status="PASS",
             script_name=_SCRIPT,
         )

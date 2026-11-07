@@ -13,6 +13,10 @@ Those are reported in ``in_flight_branches`` as a warning, never a refusal, so a
 worker resuming its own branch is not blocked (issue #5428). A failed probe
 degrades to a named ``warnings`` entry.
 
+``--dry-run`` runs the same checks and reports ``would_claim`` with
+``dry_run: true``; it never calls ``gh issue edit``. A different assignee
+still exits 1.
+
 Exit codes follow ADR-035:
     0 - Claimed (now assigned to the current user) or already held by current user
     1 - Already claimed by a different login (do not start; coordinate)
@@ -360,6 +364,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument("--issue", type=int, required=True, help="Issue number")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Check the assignees and remote branches and report the outcome; assign nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -393,6 +402,20 @@ def main(argv: list[str] | None = None) -> int:
         write_claim_success(
             {"issue": args.issue, "assignees": assignees, "claimed": me},
             f"Issue #{args.issue} already held by {me}.",
+            find_in_flight_branches(owner, repo, args.issue),
+            fmt,
+        )
+        return 0
+
+    if args.dry_run:
+        write_claim_success(
+            {
+                "issue": args.issue,
+                "assignees": assignees,
+                "would_claim": me or "@me",
+                "dry_run": True,
+            },
+            f"Dry run: would claim issue #{args.issue} for {me or '@me'}; nothing changed.",
             find_in_flight_branches(owner, repo, args.issue),
             fmt,
         )

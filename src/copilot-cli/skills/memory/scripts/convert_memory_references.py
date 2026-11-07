@@ -99,8 +99,12 @@ def process_files(
     memories_path: Path,
     files_to_process: list[Path] | None = None,
     output_json: bool = False,
+    dry_run: bool = False,
 ) -> dict:
     """Process memory files and convert backtick references to links.
+
+    With ``dry_run`` no file is written; FilesModified counts the files that
+    would change.
 
     Returns statistics dict with FilesProcessed, FilesModified, LinksAdded, Errors.
     """
@@ -134,9 +138,10 @@ def process_files(
             content = _convert_backtick_refs(content, memory_names)
 
             if content != original_content:
-                file_path.write_text(content, encoding="utf-8")
+                if not dry_run:
+                    file_path.write_text(content, encoding="utf-8")
                 if not output_json:
-                    print(f"Updated: {file_path.name}")
+                    print(f"{'Would update' if dry_run else 'Updated'}: {file_path.name}")
                 stats["FilesModified"] += 1
                 original_count = _count_md_links(original_content)
                 new_count = _count_md_links(content)
@@ -169,6 +174,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output machine-parseable JSON instead of human-readable text.",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report which files would change and how many links would be added; write nothing.",
+    )
+    parser.add_argument(
         "--skip-path-validation",
         action="store_true",
         help="Skip CWE-22 path validation (for testing only).",
@@ -191,12 +201,15 @@ def main(argv: list[str] | None = None) -> int:
 
     files_to_process = [Path(f) for f in args.files] if args.files else None
 
-    stats = process_files(memories_path, files_to_process, output_json=args.output_json)
+    stats = process_files(
+        memories_path, files_to_process, output_json=args.output_json, dry_run=args.dry_run
+    )
 
     if args.output_json:
         print(json.dumps(stats, separators=(",", ":")))
     else:
-        print(f"\nConversion complete. Modified {stats['FilesModified']} files.")
+        verb = "Dry run complete. Would modify" if args.dry_run else "Conversion complete. Modified"
+        print(f"\n{verb} {stats['FilesModified']} files.")
 
     return 1 if stats["Errors"] else 0
 
