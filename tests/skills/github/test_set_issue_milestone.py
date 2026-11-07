@@ -73,6 +73,67 @@ class TestSetIssueMilestone:
         assert result["Data"]["action"] == "assigned"
         assert result["Data"]["milestone"] == "v1.0.0"
 
+    def _dry_run(self, mod, argv, responses):
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=responses) as run,
+        ):
+            rc = mod.main([*argv, "--dry-run"])
+        return rc, run
+
+    def test_dry_run_assign_reports_would_assign_without_editing(self, _import_module, capsys):
+        rc, run = self._dry_run(
+            _import_module,
+            ["--issue", "1", "--milestone", "v1.0.0"],
+            [make_completed_process(stdout="null"), make_completed_process(stdout="v1.0.0")],
+        )
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_assign"
+        assert data["dry_run"] is True
+        assert run.call_count == 2
+
+    def test_dry_run_replace_reports_would_replace(self, _import_module, capsys):
+        rc, run = self._dry_run(
+            _import_module,
+            ["--issue", "1", "--milestone", "v2.0.0", "--force"],
+            [make_completed_process(stdout="v1.0.0"), make_completed_process(stdout="v2.0.0")],
+        )
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_replace"
+        assert run.call_count == 2
+
+    def test_dry_run_clear_reports_would_clear_without_patching(self, _import_module, capsys):
+        rc, run = self._dry_run(
+            _import_module,
+            ["--issue", "1", "--clear"],
+            [make_completed_process(stdout="v1.0.0")],
+        )
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_clear"
+        assert run.call_count == 1
+
+    def test_dry_run_still_rejects_an_unknown_milestone(self, _import_module):
+        with pytest.raises(SystemExit) as exc:
+            self._dry_run(
+                _import_module,
+                ["--issue", "1", "--milestone", "nope"],
+                [make_completed_process(stdout="null"), make_completed_process(stdout="v1.0.0")],
+            )
+        assert exc.value.code == 2
+
+    def test_dry_run_still_refuses_replace_without_force(self, _import_module):
+        with pytest.raises(SystemExit) as exc:
+            self._dry_run(
+                _import_module,
+                ["--issue", "1", "--milestone", "v2.0.0"],
+                [make_completed_process(stdout="v1.0.0")],
+            )
+        assert exc.value.code == 1
+
     def test_all_gh_calls_include_timeout(self, _import_module):
         mod = _import_module
         with patch(

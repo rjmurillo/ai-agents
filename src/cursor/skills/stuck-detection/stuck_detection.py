@@ -393,6 +393,14 @@ def get_status(history_path: Path) -> dict[str, Any]:
 def _read_text(positional: list[str]) -> str:
     if positional:
         return " ".join(positional)
+    if sys.stdin is None or sys.stdin.isatty():
+        print(
+            "stuck-detection: no text given and stdin is a terminal or closed. "
+            "Pass the text as arguments or pipe it in, for example: "
+            "echo 'text' | stuck_detection.py check",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     return sys.stdin.read()
 
 

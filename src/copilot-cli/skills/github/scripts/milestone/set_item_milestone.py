@@ -6,6 +6,9 @@ Orchestrates milestone assignment:
 2. Auto-detects latest semantic version milestone (unless --milestone-title provided)
 3. Assigns the milestone
 
+``--dry-run`` stops before step 3: it reports ``action: would_assign`` and
+makes no assignment.
+
 Exit codes follow ADR-035:
     0 - Success (assigned or skipped)
     2 - Config error (no milestone found, detection failed)
@@ -226,6 +229,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Specific milestone to assign (auto-detects if omitted)",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Resolve the milestone and report it; assign nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -275,6 +283,25 @@ def main(argv: list[str] | None = None) -> int:
             _write_result(False, item_type, item_number, "", "failed", msg)
             return 2
         milestone_title = str(detection["title"])
+
+    if args.dry_run:
+        msg = f"Dry run: would assign milestone '{milestone_title}'; nothing changed."
+        write_skill_output(
+            {
+                "item_type": item_type,
+                "item_number": item_number,
+                "milestone": milestone_title,
+                "action": "would_assign",
+                "dry_run": True,
+                "message": msg,
+            },
+            output_format=fmt,
+            human_summary=(
+                f"Dry run: would assign milestone '{milestone_title}' to {item_type} #{item_number}"
+            ),
+            script_name="set_item_milestone.py",
+        )
+        return 0
 
     # Assign
     print(f"Assigning milestone '{milestone_title}' to {item_type} #{item_number}", file=sys.stderr)

@@ -3,6 +3,8 @@
 """Assign a milestone to a GitHub Issue.
 
 Validates milestone exists before assigning, and optionally clears existing milestone.
+``--dry-run`` runs the same checks and reports ``would_assign``, ``would_replace``,
+or ``would_clear`` with ``dry_run: true``; it edits nothing.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -172,6 +174,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Replace existing milestone",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run every check and report the change that would be made; change nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -260,6 +267,12 @@ def main(argv: list[str] | None = None) -> int:
                     "action": "no_change",
                 }
             )
+            return 0
+
+        if args.dry_run:
+            output["action"] = "would_clear"
+            output["dry_run"] = True
+            _emit(output, fmt)
             return 0
 
         try:
@@ -364,6 +377,13 @@ def main(argv: list[str] | None = None) -> int:
             output | {"milestone": args.milestone, "action": "failed"},
         )
         raise SystemExit(2)
+
+    if args.dry_run:
+        output["milestone"] = args.milestone
+        output["action"] = "would_replace" if current_milestone else "would_assign"
+        output["dry_run"] = True
+        _emit(output, fmt)
+        return 0
 
     try:
         result = subprocess.run(

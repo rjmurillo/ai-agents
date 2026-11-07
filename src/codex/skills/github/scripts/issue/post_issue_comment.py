@@ -6,6 +6,10 @@ If a marker exists in existing comments, behavior depends on --update-if-exists:
 - Without flag: skips posting (write-once idempotency)
 - With flag: updates existing comment (upsert behavior)
 
+``--dry-run`` performs the marker check and reports ``would_post`` or
+``would_update`` with ``dry_run: true``. A marker hit without
+``--update-if-exists`` is still the normal skip. Nothing is posted.
+
 Exit codes follow ADR-035:
     0 - Success (includes idempotent skip)
     1 - Invalid parameters / logic error
@@ -161,6 +165,17 @@ def _prepend_marker(body: str, marker_html: str) -> str:
     return body
 
 
+def _emit_dry_run(
+    fmt: str, issue: int, action: str, summary: str, comment_id: object = None
+) -> int:
+    """Report the write that ``--dry-run`` skipped. Writes no GITHUB_OUTPUT file."""
+    data: dict[str, object] = {"issue": issue, "action": action, "dry_run": True}
+    if comment_id is not None:
+        data["comment_id"] = comment_id
+    write_skill_output(data, output_format=fmt, human_summary=summary, script_name=_SCRIPT_NAME)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Post a comment to a GitHub issue with idempotency support.",
@@ -178,6 +193,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--update-if-exists",
         action="store_true",
         help="Update existing comment instead of skipping when marker found",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run the marker check and report whether a comment would be posted or updated; "
+        "post nothing",
     )
     add_output_format_arg(parser)
     return parser
@@ -242,9 +263,17 @@ def main(argv: list[str] | None = None) -> int:
 
             if existing is not None:
                 if args.update_if_exists:
-                    if fmt != "json":
+                    if fmt != "json" and not args.dry_run:
                         print(f"Comment with marker '{args.marker}' exists. Updating...")
                     body = _prepend_marker(body, marker_html)
+                    if args.dry_run:
+                        return _emit_dry_run(
+                            fmt,
+                            issue,
+                            "would_update",
+                            f"Dry run: would update comment {existing['id']} on issue #{issue}",
+                            comment_id=existing["id"],
+                        )
                     response = update_issue_comment(owner, repo, existing["id"], body)
                     write_skill_output(
                         {
@@ -293,6 +322,11 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
 
         body = _prepend_marker(body, marker_html)
+
+    if args.dry_run:
+        return _emit_dry_run(
+            fmt, issue, "would_post", f"Dry run: would post a comment to issue #{issue}"
+        )
 
     # Post new comment
     payload = json.dumps({"body": body})

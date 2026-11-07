@@ -334,7 +334,8 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 | `migrate_causal_version.py` | One-shot migration: stamps `causal_order_version=2` on legacy episodes; `--dry-run` previews counts without writing | 0=all stamped, 1=some skipped, 2=bad path |
 | `measure_memory_performance.py` | Serena search benchmark, by phase | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
-| `convert_index_table_links.py` | Index table link conversion | 0=success, 1=error |
+| `convert_index_table_links.py` | Index table link conversion; `--dry-run` previews | 0=success, 1=error |
+| `convert_memory_references.py` | Convert backtick memory references to Markdown links; `--dry-run` previews | 0=success, 1=error |
 | `invoke_memory_cross_reference.py` | Cross-reference memories | 0=success, 1=error |
 
 Invoke via the portable root form:

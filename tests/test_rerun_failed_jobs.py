@@ -274,3 +274,43 @@ class TestRunId:
         )
         assert run_main(["--run-id", "42", "--job-id", "77"], client) == 1
         assert client.post_calls == []
+
+
+class TestDryRun:
+    def test_pr_dry_run_lists_planned_reruns_and_posts_nothing(self, capsys):
+        runs = [run_obj(1), run_obj(2, conclusion="success"), run_obj(3, conclusion="timed_out")]
+        client = pr_fake([runs_page(runs)])
+        rc = run_main(["--pull-request", "7", "--dry-run"], client)
+        env = envelope(capsys)
+        assert rc == 0
+        assert env["Data"]["reason"] == "dry_run"
+        assert env["Data"]["dry_run"] is True
+        assert [r["run_id"] for r in env["Data"]["would_rerun"]] == [1, 3]
+        assert client.post_calls == []
+
+    def test_dry_run_with_no_failed_runs_reports_an_empty_plan(self, capsys):
+        client = pr_fake([runs_page([run_obj(1, conclusion="success")])])
+        rc = run_main(["--pull-request", "7", "--dry-run"], client)
+        env = envelope(capsys)
+        assert rc == 0
+        assert env["Data"]["would_rerun"] == []
+        assert client.post_calls == []
+
+    def test_dry_run_still_exits_one_when_only_in_progress_runs_exist(self, capsys):
+        client = pr_fake([runs_page([run_obj(5, status="in_progress", conclusion=None)])])
+        rc = run_main(["--pull-request", "7", "--dry-run"], client)
+        assert rc == 1
+        assert envelope(capsys)["Data"]["reason"] == "run_in_progress"
+        assert client.post_calls == []
+
+    def test_dry_run_still_requires_exactly_one_target(self, capsys):
+        client = pr_fake([])
+        rc = run_main(["--dry-run"], client)
+        assert rc == 2
+        assert client.post_calls == []
+
+    def test_default_run_has_no_dry_run_key(self, capsys):
+        client = pr_fake([runs_page([run_obj(1)])], rerun_ok(1))
+        rc = run_main(["--pull-request", "7"], client)
+        assert rc == 0
+        assert "dry_run" not in envelope(capsys)["Data"]

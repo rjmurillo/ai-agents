@@ -26,6 +26,9 @@ Behavior:
   ``rerun-failed-jobs`` covers cancelled jobs. An explicit ``--job-id`` reruns
   that job whatever the run conclusion, and then ``skipped_cancelled`` is empty.
 - ``--job-id`` is checked against ``--run-id`` first (exit 1, ``job_run_mismatch``).
+- ``--dry-run`` does every read (PR state, run list, job check) and the same
+  filtering, then reports the planned reruns in ``Data.would_rerun`` with
+  ``reason: dry_run`` and makes no POST.
 - A run that is not ``completed`` cannot be rerun. With only such runs the
   script exits 1 with ``reason: run_in_progress`` and the run status. With both
   failed and in-progress runs it reruns the failed ones and lists the others in
@@ -138,6 +141,7 @@ class _Ctx:
     output_format: str
     pull_request: int | None
     run_id: int | None
+    dry_run: bool = False
 
 
 @dataclass
@@ -167,6 +171,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pull-request", type=int, help="Pull request number")
     parser.add_argument("--run-id", type=int, help="Workflow run ID")
     parser.add_argument("--job-id", type=int, help="Rerun only this job (requires --run-id)")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Resolve the runs and report what would be rerun in Data.would_rerun; rerun nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -483,6 +492,8 @@ def _run(client: GitHubClient, ctx: _Ctx, job_id: int | None) -> int:
         )
     cancelled_view = [_run_summary(r) for r in cancelled]
     extra = {**extra, "skipped_in_progress": active_view, "skipped_cancelled": cancelled_view}
+    if ctx.dry_run:
+        return _emit_dry_run(ctx, [_rerun_request(ctx, r, job_id)[1] for r in targets], extra)
     batch = _rerun_all(client, ctx, targets, job_id, extra)
     if batch.failed or batch.refused:
         _report_batch_errors(ctx, batch, extra)
@@ -502,6 +513,25 @@ def _run(client: GitHubClient, ctx: _Ctx, job_id: int | None) -> int:
         output_format=ctx.output_format,
         human_summary=summary,
         status="WARNING" if skipped else "PASS",
+        script_name=_SCRIPT_NAME,
+    )
+    return 0
+
+
+def _emit_dry_run(ctx: _Ctx, planned: list[dict[str, Any]], extra: dict[str, Any]) -> int:
+    """Report the reruns ``--dry-run`` skipped. No POST has been made."""
+    data = {
+        "reason": "dry_run",
+        "dry_run": True,
+        "pull_request": ctx.pull_request,
+        "run_id": ctx.run_id,
+        "would_rerun": planned,
+        **extra,
+    }
+    write_skill_output(
+        data,
+        output_format=ctx.output_format,
+        human_summary=f"Dry run: would request a rerun of {len(planned)} run(s); nothing changed",
         script_name=_SCRIPT_NAME,
     )
     return 0
@@ -530,7 +560,11 @@ def main(argv: list[str] | None = None, client: GitHubClient | None = None) -> i
     assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
     ctx = _Ctx(
-        f"{resolved.owner}/{resolved.repo}", args.output_format, args.pull_request, args.run_id
+        f"{resolved.owner}/{resolved.repo}",
+        args.output_format,
+        args.pull_request,
+        args.run_id,
+        args.dry_run,
     )
     return _run(client or GhCliClient(), ctx, args.job_id)
 

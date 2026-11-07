@@ -317,3 +317,17 @@ class TestHeldOutGeneralization:
         )
         assert not result.ok
         assert any("status" in e and "wip" in e for e in result.errors)
+
+
+def test_help_lists_example_and_exit_codes_and_exits_zero(capsys) -> None:
+    assert main(["--help"]) == 0
+    out = capsys.readouterr().out
+    assert "example:" in out
+    assert "exit codes:" in out
+
+
+def test_unknown_flag_is_not_treated_as_a_file(capsys) -> None:
+    assert main(["--bogus"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "unrecognized arguments" in captured.err
