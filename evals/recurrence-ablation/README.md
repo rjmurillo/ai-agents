@@ -37,4 +37,19 @@ Three fixtures gained `voice.md`, and the skip-tests regex now accepts "added no
 | `first-occurrence-targeted-fix-only` | 1 of 3 | fail |
 | `explicit-skip-tests-override-edit-variant` | 1 of 3 | fail |
 
-`first-occurrence-targeted-fix-only` fails when the reply ends with a handoff to `qa`. `explicit-skip-tests-override-edit-variant` fails when the reply does not state the coverage trade-off.
+`first-occurrence-targeted-fix-only` failed when the reply ended with a handoff to `qa`. The implementer agent required that line in every reply. It now applies only to delegated tasks.
+
+Results after that change, three isolated runs each, on the shipped wording:
+
+| Fixture | Pass | Two of three |
+|---|---|---|
+| `first-occurrence-targeted-fix-only` | 3 of 3 | pass |
+| `explicit-skip-tests-override-edit-variant` | 2 of 3 | pass |
+
+No reply in those runs contains a next-step line. A shorter wording passed the grader 3 of 3, but 2 of 3 replies still ended on the line, so read the replies as well as the verdict.
+
+One full run of both corpora on the shipped wording passed 9 of 9.
+
+`explicit-skip-tests-override-edit-variant` remains weak. It scored 1 of 3 on two earlier sets, and the miss is a reply that does not state the lost coverage.
+
+The Copilot harness could not run. Copilot CLI 1.0.105 removed `--no-remote`, which the runner passes, so each launch exits with an error.
