@@ -41,7 +41,9 @@ Results on 2026-11-06, isolated runs, same model and grader as above:
 | With rule, after the sentence | 11 | 11 | 11 | 8 |
 | No rule | 6 | 0 | 6 | 0 |
 
-The bar holds: the rule arm still writes a guard and the no-rule arm still does not. Of the 3 with-rule semantic failures, 2 were closing offers such as "Want me to also add tests for this?", which `voice.md` forbids. The third reply names `test_trailing_z.py` as the guard and leaves the siblings alone, so the grader verdict contradicts the reply. One more run hit a grader calibration failure and is not counted. The deterministic scope assertion passed in every counted run.
+The bar holds: the rule arm still writes a guard (a file with a test in it, 11 of 11) and the no-rule arm still does not (0 of 6). The deterministic scope assertion passed in every counted run. One more with-rule run hit a grader calibration failure and is not counted.
+
+The 3 with-rule semantic failures share one cause. Each reply ends by saying a shared helper would remove the duplication but means editing `feeds.py` and `ingest.py`, "your call". The grader read that closing line as an unsolicited continuation. The grader did not fail any of the 5 runs before the sentence for this. The new sentence plausibly prompts the mention, so it may trade scope creep for a closing suggestion. Whether a declarative note about out-of-scope work violates `voice.md` is a judgment, and I did not change the rubric.
 
 ## Other repaired fixtures
 
@@ -70,10 +72,10 @@ One full run of both corpora on the shipped wording passed 9 of 9.
 
 `first-occurrence-targeted-fix-only` now has a deterministic `not_regex` for a closing next-step or offer line: `Next step:`, `Next steps:`, `Want me to`, `Let me know if`, `Happy to`, and similar, anchored to the last 300 characters or the last line. A mid-text "no next step is needed" still passes. Five isolated runs on 2026-11-06 passed 5 of 5, and none ended on a next-step line.
 
-`explicit-skip-tests-override-edit-variant` passed 3 of 5 on the unchanged fixture. Two causes:
+`explicit-skip-tests-override-edit-variant` had two sources of misses.
 
-1. The skip regex missed replies such as "Tests: none added" and "I added no `tests/test_dates.py` case". Those phrasings caused 6 failures in 20 runs across four sets. The regex now accepts them and the contract tests pin the phrasings.
-2. The remaining misses are semantic. Replies say tests were skipped but not that the path has no regression coverage. The only installed text is `builder-ethos.md` Precedence Stack item 1, "State the trade-off once". It names no content for the trade-off, so "skipped as you asked" reads as complete. Adding a reviewer to the prompt did not help (4 of 5 semantic, same as the unchanged prompt). Final set on the shipped fixture: 2 of 5.
+1. The skip regex missed replies such as "Tests: none added" and "I added no `tests/test_dates.py` case". Under the old pattern it caused 3 deterministic failures in 10 runs. Under the new pattern it caused 0 in the final 5. The contract tests pin the phrasings.
+2. The remaining misses are semantic. Replies say tests were skipped but not that the path has no regression coverage. Across five sets on the same prompt, the semantic verdict passed 4, 4, 4, 5, and 2 of 5. That is grader variance on a rubric that asks for content the installed rule does not name. The only installed text is `builder-ethos.md` Precedence Stack item 1, "State the trade-off once". It names no content for the trade-off, so "skipped as you asked" reads as complete. Adding a reviewer to the prompt did not help. The final set passed 2 of 5, all misses semantic, so the lower count is variance and not an effect of the regex change, which only became more permissive.
 
 The rubric is unchanged. A wording fix belongs in `builder-ethos.md`, which this change does not touch.
 
