@@ -367,6 +367,8 @@ Top items from each quadrant:
 
 Evaluate the retrospective itself. Continuous improvement.
 
+In the artifact, these activities fill the matching subsections under `## Phase 5: Persist and Close` in `learning-template.md` (`### +/Delta`, `### Delta Triage`, `### ROTI Assessment`, `### Helped, Hindered, Hypothesis`). The templates below show the content of each activity. Use the heading levels of `learning-template.md` in the artifact, which has no separate Phase 6 heading.
+
 ### Activity: +/Delta
 
 Quick self-assessment of the retrospective process.

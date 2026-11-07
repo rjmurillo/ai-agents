@@ -199,12 +199,12 @@ Phase 4 identifies and scores learnings. Phase 5 persists them:
 
 ## Documentation Requirements
 
-After Phase 5 completes, document in retrospective artifact:
+After Phase 5 completes, record the result in the retrospective artifact as the last block under `### Memory Persistence` in `## Phase 5: Persist and Close` of `learning-template.md`. The artifact keeps one heading per phase, so this block is a subsection, not a second Phase 5:
 
 ````markdown
-## Phase 5: Recursive Learning Extraction
+#### Recursive Learning Extraction
 
-### Extraction Summary
+##### Extraction Summary
 
 - **Iterations**: [N]
 - **Learnings Identified**: [Total count]
@@ -213,7 +213,7 @@ After Phase 5 completes, document in retrospective artifact:
 - **Duplicates Rejected**: [N]
 - **Vague Learnings Rejected**: [N]
 
-### Skills Persisted
+##### Skills Persisted
 
 | Iteration | Skill ID | File | Operation | Atomicity |
 |-----------|----------|------|-----------|-----------|
@@ -221,13 +221,13 @@ After Phase 5 completes, document in retrospective artifact:
 | 1 | Skill-Test-003 | pester-test-isolation.md | UPDATE | 88% |
 | 2 | Skill-Memory-005 | memory-index-keywords.md | ADD | 90% |
 
-### Recursive Insights
+##### Recursive Insights
 
 **Iteration 1**: Identified 3 PR security skills
 **Iteration 2**: Pattern emerged about keyword selection for memory indexes
 **Iteration 3**: No new learnings - TERMINATED
 
-### Validation
+##### Validation
 
 [PASS] the memory index validation command from the agent's Phase 5 termination rule
 ````

@@ -137,7 +137,7 @@ Transform insights into stored knowledge.
 - Thresholds: 95-100% add to skillbook, 70-94% add with refinement, 40-69% refine before adding, under 40% reject.
 - Tag with evidence: helpful needs a specific positive execution, harmful needs a specific negative execution, neutral means no measurable impact.
 - Run a deduplication check before you propose an ADD.
-- Assemble the artifact from `learning-template.md` for Session Info through Deduplication Check, placeholders filled. Replace that file's `## Phase 5: Persist and Close` section with the Phase 5 block from `recursive-extraction.md`, then add the Phase 6 closing (+/Delta, Delta Triage, ROTI, Helped/Hindered/Hypothesis) from `frameworks.md`. Save to `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`.
+- Assemble the artifact from `learning-template.md`, placeholders filled. It has one heading for each of Phase 0 to Phase 5, and the artifact keeps exactly that. Your Phase 5 (recursive extraction) and Phase 6 (close) are workflow phases, not artifact headings. Record the Phase 5 result as the `#### Recursive Learning Extraction` block from `recursive-extraction.md`, the last block under `### Memory Persistence`. Record the Phase 6 closing in the template's own subsections under `## Phase 5: Persist and Close`: +/Delta, Delta Triage, ROTI Assessment, Helped, Hindered, Hypothesis. Save to `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`.
 
 ## Root Cause Pattern Management
 
@@ -165,11 +165,11 @@ Turn session learnings into persistent Serena memories. Continue until every nov
 - [ ] Validation script passes
 - [ ] Extracted learnings count documented
 
-Record the result in the artifact: iterations, learnings identified, skills created, skills updated, duplicates rejected, vague learnings rejected, a Skills Persisted table, recursive insights per iteration, and the validation result. The exact block is in `recursive-extraction.md`.
+Record the result in the artifact: iterations, learnings identified, skills created, skills updated, duplicates rejected, vague learnings rejected, a Skills Persisted table, recursive insights per iteration, and the validation result. The exact block is in `recursive-extraction.md`; it goes under `### Memory Persistence` in the artifact, not under a new Phase 5 heading.
 
 ## Phase 6: Close the Retrospective
 
-Evaluate the retrospective itself.
+Evaluate the retrospective itself. Write the results into the artifact's closing subsections under `## Phase 5: Persist and Close`; there is no Phase 6 heading in the artifact.
 
 - **+/Delta**: what worked in the analysis, and what to change.
 - **Delta Triage**: process Delta items into findings for the owner. Retrospectives recommend; the owner decides what becomes tracked work. Do not file a GitHub issue or write a backlog memory file from a retrospective.
