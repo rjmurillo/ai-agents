@@ -1,30 +1,36 @@
 name: anthropic-wif-test
-on: push
+on:
+  push:
+    branches:
+      - feat/anthropic-wif
+  workflow_dispatch:
 permissions:
-  id-token: write
   contents: read
 jobs:
   call-claude:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Fetch GitHub OIDC token
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0
         with:
           script: |
             const token = await core.getIDToken('https://api.anthropic.com');
             core.setSecret(token);
             core.exportVariable('JWT', token);
       - name: Exchange for an Anthropic access token
+        env:
+          TOKEN_URL: https://api.anthropic.com/v1/oauth/token
+          GRANT_TYPE: urn:ietf:params:oauth:grant-type:jwt-bearer
+          FEDERATION_RULE_ID: fdrl_0179ep5m3S7uPDYZA9mihmTr
+          ORGANIZATION_ID: 815a339b-222f-4a28-9505-3ee254e7679f
+          SERVICE_ACCOUNT_ID: svac_01C4TV3XyYNRxLh8qWKyCDDU
+          WORKSPACE_ID: wrkspc_01Eh6Y3bPi9V1Xniz6P9cUph
         run: |
-          curl -sS https://api.anthropic.com/v1/oauth/token \
-            -H "content-type: application/json" \
-            --data @- <<JSON | jq 'with_entries(if (.key | test("token$")) then .value = "<redacted>" else . end)'
-          {
-            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            "assertion": "$JWT",
-            "federation_rule_id": "fdrl_0179ep5m3S7uPDYZA9mihmTr",
-            "organization_id": "815a339b-222f-4a28-9505-3ee254e7679f",
-            "service_account_id": "svac_01C4TV3XyYNRxLh8qWKyCDDU",
-            "workspace_id": "wrkspc_01Eh6Y3bPi9V1Xniz6P9cUph"
-          }
-          JSON
+          set -euo pipefail; jq -n --arg jwt "$JWT" '{grant_type:env.GRANT_TYPE,assertion:$jwt,
+            federation_rule_id:env.FEDERATION_RULE_ID,organization_id:env.ORGANIZATION_ID,
+            service_account_id:env.SERVICE_ACCOUNT_ID,workspace_id:env.WORKSPACE_ID}' \
+            | curl -sS --fail-with-body --connect-timeout 10 --max-time 30 -H "content-type: application/json" \
+            --data @- "$TOKEN_URL" | jq 'with_entries(if (.key | test("token$")) then .value = "<redacted>" else . end)'
