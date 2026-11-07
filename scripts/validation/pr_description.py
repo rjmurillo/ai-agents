@@ -590,16 +590,19 @@ def _scoped_pattern_indexes(regions: list[tuple[int, int]]) -> frozenset[int]:
 def scoping_note(description: str) -> str:
     """Return a note when a change heading limits which path mentions are checked.
 
-    With a change-claim heading present, paths outside it are references, not
-    claims, so a path cited elsewhere is never compared with the diff (#6506).
+    With a change-claim heading present, only paths under it can raise the
+    "mentioned but not in diff" error. A path cited elsewhere is a reference, not
+    a claim, but it still counts toward the "significant file not mentioned"
+    warning (#6506).
     """
     if not description:
         return ""
     if not _change_claim_regions(_strip_informational_sections(description)):
         return ""
     return (
-        "Note: the description has a change heading, so only paths under it are "
-        "checked against the diff; paths mentioned elsewhere are not."
+        "Note: the description has a change heading, so only paths under it can "
+        "raise a 'mentioned but not in diff' error; paths mentioned elsewhere only "
+        "count toward the 'significant file not mentioned' warning."
     )
 
 
