@@ -71,6 +71,10 @@ seen every verifier, so list them under `exposed` and keep them in `train`.
 They still catch regressions. They count as `sel` only when a different
 author or session wrote them and kept them from the candidate author.
 
+Read `references/target-selection.md` before you fund rollouts for a target,
+and when a patch fails to apply. It covers confirming the defect, splitting
+after baseline, anchor rules, and library-wide passes.
+
 ## Scripts
 
 Every subcommand takes explicit file paths, so it runs from any working
@@ -110,6 +114,8 @@ Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
 |---------|------------|
 | `skillopt.py budget`, `apply`, `score`, `buffer-add` | 0 success, 2 usage or validation error |
 | `skillopt.py gate`, `pair-gate` | 0 accept, 1 reject, 2 usage or validation error |
+| `skillopt.py efficiency-gate` | 0 `ACCEPT_EFFICIENCY`, 1 reject, 2 usage or validation error |
+| `skillopt.py report` | 0 report printed, 2 usage or validation error. Never gates |
 | `skillopt.py run` | 0 results written, 1 results written with a task `UNVERIFIED`, 2 refused or invalid (no results written) |
 | `skillopt.py hash PATH...` | 0 digests printed; a directory hashes as one whole bundle |
 | `skillopt.py hash PATH --expect SHA` | 0 match, 1 `MISMATCH`, 2 usage or validation error |
@@ -126,7 +132,8 @@ two entry scripts import. Do not call them directly.
 
 One optimization step:
 
-1. **Baseline.** Split the roles first. The candidate author sees only
+1. **Baseline.** Read `references/rollout-validity.md` before the first
+   rollout. Split the roles first. The candidate author sees only
    `train` tasks and their results. A separate runner, such as a fresh
    subagent or another session (Precondition 4), holds the `sel` prompts,
    verifiers, and results in every step, and reports only the verdict back.
@@ -196,6 +203,13 @@ One optimization step:
      fresh candidate. Never re-gate this candidate on tasks written after it.
      For a first draft whose `sel` tasks came from its own requirements, hand
      back to `skillforge`.
+   - Cost, latency, or token claim at the ceiling: when the incumbent passes
+     every `sel` task and the claim is a gain declared in the frozen manifest
+     before authoring, run `skillopt.py efficiency-gate --eval eval.json
+     --incumbent-results incumbent_results.json --candidate-results
+     candidate_results.json --measurements measurements.json`. Read
+     `references/eval-set-format.md` (Efficiency measurements, Efficiency
+     gate) first. It never replaces `pair-gate` for a claim of better behavior.
 8. **Repeat** until the budget reaches its floor and several steps reject, or
    the step budget runs out.
 
@@ -226,6 +240,8 @@ semantic regression, because `pair-gate` rejects any regression.
    `REJECT_NULL_CONTROL`.
 3. **Evidence.** Keep incumbent, candidate, patches, every results file, the
    pair report, hashes, `rejected.jsonl`, and one line of evidence per task.
+   `skillopt.py report` lays out the evidence, benchmark spread, and case
+   signals (`references/eval-set-format.md`, Run report). It explains, never gates.
 
 ## Promotion
 
@@ -277,6 +293,15 @@ A correction nominates a candidate. It is not a gold label. Confirm the
 defect in the target and in two distinct sessions before funding rollouts.
 Workflow: `references/cross-machine-mining.md`.
 
+## Description changes
+
+Read `references/description-optimization.md` before you edit a `description`
+field or claim a skill triggers better. Output-quality rollouts do not measure
+activation, so score a description candidate on trigger rate instead.
+
+When a candidate patch adds or rewrites skill prose, read
+`../skillforge/references/skill-content-rules.md` first.
+
 ## Limits
 
 The gate needs tasks with checkable pass or fail outcomes. A style guide or
@@ -325,6 +350,9 @@ class-level guidance; do not add an incident-named reference.
 ## References
 
 - `references/eval-set-format.md`: eval manifest, patch, and results schemas.
+- `references/description-optimization.md`: trigger-rate eval for `description` edits.
+- `references/rollout-validity.md`: preflight, grading, and audit rules for rollouts.
+- `references/target-selection.md`: defect confirmation, split timing, anchors, cohorts.
 - `references/slow-section-convention.md`: protected-fence contract.
 - `references/mechanism.md`: the training analogy and paper citation.
 - `references/cross-machine-mining.md`: session sources and the handoff.

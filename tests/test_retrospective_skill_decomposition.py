@@ -15,8 +15,8 @@ gate, and the canonical-source-mirror rule depend on:
 - A Success Criteria (Verification) section with checkboxes exists (SkillForge
   `validate_verification` contract).
 - The three reference files exist and are linked from SKILL.md.
-- The rubrics in the references are byte-faithful to the source agent body
-  (`.claude/agents/retrospective.md`), per the canonical-source-mirror rule.
+- The references are the canonical home of the rubrics; the agent
+  (`.claude/agents/retrospective.md`) loads them and no longer carries a copy.
 - No file carries an em-dash (U+2014) or en-dash (U+2013) per universal.md.
 - The `scripts/` directory ships the PR 2 atomicity/evidence/orchestration scripts.
 """
@@ -36,6 +36,9 @@ FRAMEWORKS = REFERENCES_DIR / "frameworks.md"
 LEARNING_TEMPLATE = REFERENCES_DIR / "learning-template.md"
 DIAGNOSIS_ACTIONS = REFERENCES_DIR / "diagnosis-and-actions.md"
 SOURCE_AGENT = PROJECT_ROOT / ".claude" / "agents" / "retrospective.md"
+REFERENCES_ROOT_FORM = (
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/retrospective/references/"
+)
 
 # U+2014 em-dash, U+2013 en-dash. Banned by .claude/rules/universal.md.
 _DASH_PATTERN = re.compile("[\\u2013\\u2014]")
@@ -153,11 +156,10 @@ class TestReferenceLinks:
 
 
 class TestCanonicalSourceFidelity:
-    """The references claim to lift rubrics verbatim from the source agent body.
+    """The references own the rubrics; the agent loads them instead of copying them.
 
-    Each anchor below is a load-bearing string that must appear identically in the
-    source agent and in the reference that claims to mirror it. A drift here is the
-    confident-incorrectness failure the canonical-source-mirror rule guards against.
+    Each anchor below is a load-bearing string that must appear in the reference and
+    must not reappear in the agent body, where a second copy would drift.
     """
 
     def test_source_agent_exists(self) -> None:
@@ -172,8 +174,25 @@ class TestCanonicalSourceFidelity:
             "Redis cache with 5-min TTL reduced API calls by 73% for user profiles",
         ],
     )
-    def test_anchor_present_in_source(self, anchor: str) -> None:
-        assert anchor in SOURCE_AGENT.read_text(encoding="utf-8")
+    def test_anchor_moved_out_of_agent(self, anchor: str) -> None:
+        # The references are the canonical home now. The agent body must not carry a
+        # second copy, or the two drift (nl_structural_debt ratchet).
+        assert anchor not in SOURCE_AGENT.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize(
+        "ref_name",
+        [
+            "frameworks.md",
+            "diagnosis-and-actions.md",
+            "learning-template.md",
+            "recursive-extraction.md",
+            "handoff-example.md",
+        ],
+    )
+    def test_agent_loads_each_reference(self, ref_name: str) -> None:
+        text = SOURCE_AGENT.read_text(encoding="utf-8")
+        assert REFERENCES_ROOT_FORM in text
+        assert f"`{ref_name}`" in text
 
     def test_frameworks_mirror_anchors_verbatim(self) -> None:
         text = FRAMEWORKS.read_text(encoding="utf-8")

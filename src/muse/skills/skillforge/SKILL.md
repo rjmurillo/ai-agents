@@ -221,6 +221,10 @@ hybrid design with the Design Selection section of the script integration
 framework. Record that choice in the generated skill only where it changes the
 workflow. Reuse an existing tool before adding a script.
 
+Read [references/skill-content-rules.md](references/skill-content-rules.md)
+before you write or review a `SKILL.md` body or `description`. It owns the
+content rules and the description rules that `skillify` and `skillopt` cite.
+
 See [references/phase3-generation-deep-dive.md](references/phase3-generation-deep-dive.md),
 [references/output-structure.md](references/output-structure.md),
 [references/script-integration-framework.md](references/script-integration-framework.md),
@@ -320,6 +324,7 @@ After creation:
 - [ ] Frontmatter valid with only allowed properties
 - [ ] Name is hyphen-case and <=64 chars
 - [ ] Description <=1024 chars, with no `<` or `>`
+- [ ] `SKILL.md` under 500 lines and 5,000 tokens, or the overage is stated
 - [ ] 3-5 trigger phrases defined
 - [ ] Timelessness score >=7
 - [ ] `python "$FORGE/quick_validate.py" skills/my-skill/` passes
@@ -376,6 +381,7 @@ See [references/script-integration-framework.md](references/script-integration-f
 | [Phase 4 Deep Dive](references/phase4-synthesis-deep-dive.md) | Panel composition, script agent, evaluation format, consensus loop |
 | [Synthesis Protocol](references/synthesis-protocol.md) | Multi-agent panel execution details |
 | [Evolution Scoring](references/evolution-scoring.md) | Timelessness scoring and evolution rubric |
+| [Skill Content Rules](references/skill-content-rules.md) | Authoring content rules and description rules; read before writing a body or description |
 | [Skill Development Conventions](references/skill-development-conventions.md) | Repository skill conventions: frontmatter schema, size ceilings, Triggers and Process sections |
 | [Evolution Timelessness](references/evolution-timelessness.md) | Temporal projection and anti-obsolescence patterns |
 | [Architecture Patterns](references/architecture-patterns.md) | Pattern selection guide and decision tree |

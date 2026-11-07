@@ -368,7 +368,7 @@ silent guess.
 
 ### Codex login in isolated probes
 
-Isolated codex probes carry no login, so they cannot make paid calls. The repo never copies or links a credential file. Use the stored login through the real CODEX_HOME in drivers that do not isolate it.
+Isolated codex probes carry no login, so they cannot make paid calls. The capability probe and `eval_runtime_parity.py` never copy or link a credential file. Use the stored login through the real CODEX_HOME in drivers that do not isolate it. The `codex-cli` grader is the exception: it copies the plan login into a private `CODEX_HOME` it creates for the run (see Credential resolution order for subscription cells).
 
 ### Copilot: the client-label finding and BYOK
 
@@ -1628,14 +1628,21 @@ unisolated `--workspace-root`. `3` external: the Claude CLI is missing or
 times out, its stream-json output does not parse, its result event carries
 no `total_cost_usd`, or its resolved model differs from the one requested;
 no record is written for that run, and the batch continues with the
-remaining runs.
+remaining runs. `4` auth: an isolated run finds no Claude login.
 
 Claude auth: `runtime_env` points `CLAUDE_CONFIG_DIR` at an isolated profile
 with no login, and passes only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN`
 from the operator's environment. This CLI moves `CLAUDE_CONFIG_DIR` to a
 sibling of the workspace, outside the agent's working tree, and the seed
-excludes `.parity-profile/` from the workspace's git. The isolated profile
-carries no login, so a subscription login needs `--real-home`. It sets
+excludes `.parity-profile/` from the workspace's git. An isolated run resolves
+the stored login the way the `claude-cli` grader does (`_cli_credentials`) and
+passes it to the child as `CLAUDE_CODE_OAUTH_TOKEN`; `runtime_env` itself stays
+login-free. An exported `ANTHROPIC_API_KEY` or token wins over the stored login.
+No credential file is copied or linked. The token is masked in the child's
+captured output and scrubbed from recorded replies and patches. When no login
+reaches the isolated profile (for example the stored login holds no token), the
+run exits `4` before any workspace exists: run `claude setup-token` and export
+`CLAUDE_CODE_OAUTH_TOKEN`, or pass `--real-home`. `--real-home` sets
 `EVAL_RUNTIME_REAL_HOME=1`: the CLI keeps your HOME and finds its own stored
 login. Nothing is copied, linked, or read. The cost is a confound the report
 records (`real_home` and `confound`): your `~/.claude` instructions, rules, and

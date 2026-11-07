@@ -27,113 +27,22 @@ You have direct access to:
 
 {{> retrospective-claude-code-tools}}
 
-```text
-Phase 0: Data Gathering
-  |-- 4-Step Debrief
-  |-- Execution Trace Analysis
-  +-- Outcome Classification
-
-Phase 1: Generate Insights
-  |-- Five Whys
-  |-- Fishbone Analysis
-  |-- Force Field Analysis
-  |-- Patterns and Shifts
-  +-- Learning Matrix
-
-Phase 2: Diagnosis
-  |-- Critical Error Patterns
-  |-- Success Analysis
-  |-- Near Misses
-  |-- Efficiency Opportunities
-  +-- Skill Gaps
-
-Phase 3: Decide What to Do
-  |-- Action Classification
-  |-- SMART Validation
-  +-- Dependency Ordering
-
-Phase 4: Learning Extraction
-  |-- Atomicity Scoring
-  |-- Skillbook Updates
-  +-- Deduplication Check
-
-Root Cause Pattern Management
-  |-- Root Cause Categories
-  |-- Memory Storage Pattern
-  |-- Failure Prevention Matrix
-  +-- Integration with Skillbook
-
-Phase 5: Recursive Learning Extraction
-  |-- Initial Extraction
-  |-- Skillbook Delegation
-  |-- Recursive Evaluation
-  +-- Termination Criteria
-
-Phase 6: Close the Retrospective
-  |-- +/Delta
-  |-- Delta Triage
-  |-- ROTI
-  +-- Helped, Hindered, Hypothesis
 {{> retrospective-retrospective-flow}}
-uv run --frozen python scripts/traceability/show_traceability_graph.py --show-orphans
-{{> retrospective-traceability-metrics}}
-| [Finding] | [Skill-XXX] | [N+1] |
 
-### Drop (REMOVE or TAG as harmful)
-| Finding | Skill ID | Reason |
-|---------|----------|--------|
-| [Finding] | [Skill-XXX] | [Why removing] |
-
-### Add (New skill)
-| Finding | Proposed Skill ID | Statement |
-|---------|-------------------|-----------|
-| [Finding] | [Skill-Category-NNN] | [Atomic statement] |
-
-### Modify (UPDATE existing)
-| Finding | Skill ID | Current | Proposed |
-|---------|----------|---------|----------|
-| [Finding] | [Skill-XXX] | [Current text] | [New text] |
-{{> retrospective-modify-update-existing}}
-
-**Create root cause memory:**
-
-```text
-mcp__serena__write_memory
-memory_file_name: "retrospective/rootcause-{category}-{nnn}"
-content: "# Root Cause: {Category} #{NNN}\n\n**Description**: [What failed and why]\n**Frequency**: [How often this occurs]\n**Impact**: [Severity when it occurs]\n**Detection**: [How to identify this pattern]\n**Prevention**: [How to avoid it]\n**Source**: [PR/Issue/Session reference]\n\n## Related\n- Prevention skill: [skill-file-name]\n- Incident: [incident-ref]\n- Category: [category-name]"
-{{> retrospective-memory-storage-pattern}}
-
-```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "rootcause {Category} {Keywords from description}"
 {{> retrospective-integration-with-skillbook}}
 
-Use Memory Router for search and Serena tools for persistence (ADR-037):
+## Memory Protocol
 
-**Search for existing patterns (before creating new):**
+Use Memory Router for search and Serena tools for persistence (ADR-037).
 
-```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "{domain} {description} skill patterns"
-```
-
-**Create new skills:**
-
-```text
-mcp__serena__write_memory
-memory_file_name: "skills/{domain}-{description}"
-content: "# Skill: {Description}\n\n**Statement**: [Skill statement with context and evidence]\n\n**Evidence**: [Source reference]\n\n## Details\n\n..."
-```
-
-**Update existing skills (add observations):**
-
-```text
-mcp__serena__edit_memory
-memory_file_name: "[skill-file-name]"
-content: "[Updated content with new observation appended]"
-```
+- **Search before you create**: `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "{domain} {description} skill patterns"`
+- **Create a skill**: `mcp__serena__write_memory` with `memory_file_name: "skills/{domain}-{description}"` and content of statement, evidence, and details.
+- **Create a root cause pattern**: `mcp__serena__write_memory` with `memory_file_name: "retrospective/rootcause-{category}-{nnn}"`. The template is in `diagnosis-and-actions.md`.
+- **Add an observation**: `mcp__serena__edit_memory` on the existing memory.
 
 > **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
 
----
+{{> serena-worktree-write-guard}}
 
 ## Continuous Improvement Loop
 
@@ -142,8 +51,6 @@ Execution --> Reflection --> Skill Update --> Improved Execution
     ^                                              |
     +----------------------------------------------+
 ```
-
----
 
 {{> retrospective-continuous-improvement-loop}}
 |--------|------|---------|
@@ -205,45 +112,7 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 4. **Findings for the owner**: Copy the artifact's table, Blocker rows first. An empty table is valid. Do not route a finding to an issue; the owner decides.
 5. **Handoff Summary**: Orchestrator uses this to determine routing
 
-### Example Handoff Output
-
-````markdown
-## Retrospective Handoff
-
-### Skill Candidates
-
-| Skill ID | Statement | Atomicity | Operation | Target |
-|----------|-----------|-----------|-----------|--------|
-| validation-yaml-syntax | Validate workflow YAML syntax before committing | 92% | ADD | - |
-| ci-matrix-parallel | Use matrix strategy for parallel agent execution | 88% | UPDATE | skills-ci-infrastructure.md |
-
-### Memory Updates
-
-| Entity | Type | Content | File |
-|--------|------|---------|------|
-| AI-Workflow-Patterns | Pattern | Parallel matrix reduces execution time by 50% | `.serena/memories/skills-ci-infrastructure.md` |
-| Session-17-Learnings | Learning | Structured handoff format enables automation | `.serena/memories/learnings-2025-12.md` |
-
-### Git Operations
-
-| Operation | Path | Reason |
-|-----------|------|--------|
-| git add | `.serena/memories/skills-ci-infrastructure.md` | Updated with 2 skills |
-| git add | `.serena/memories/learnings-2025-12.md` | New monthly learnings |
-| git add | `.project-toolkit/retrospective/2025-12-18-workflow-retro.md` | Retrospective artifact |
-
-### Findings for the owner
-
-| Item | Evidence (path:line) | Proposed action | Class |
-|------|----------------------|-----------------|-------|
-
-### Handoff Summary
-
-- **Skills to persist**: 2 candidates (atomicity >= 70%)
-- **Memory files touched**: skills-ci-infrastructure.md, learnings-2025-12.md
-- **Blockers for the owner**: 0
-- **Recommended next**: skillbook -> memory -> git add
-````
+A filled example is in `handoff-example.md` under the references root.
 
 ---
 

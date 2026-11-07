@@ -108,4 +108,4 @@ Failure modes and handoff:
 - **[NEEDS_DECOMPOSITION]**: more than 10 high-impact refactors apply. Return the top 10 and propose splitting the rest into a follow-up session.
 - **[SECURITY_FLAG]**: a refactor would alter authentication, authorization, secret handling, or input validation. Stop and hand off to security agent.
 
-Recommended next step at the end of every [COMPLETE] response: "Recommended next: qa agent to validate that touched files still pass their test suites."
+Recommended next step at the end of a [COMPLETE] response (only when an orchestrator delegated this task; when you report to the user directly, omit this item and end on the result): "Recommended next: qa agent to validate that touched files still pass their test suites."

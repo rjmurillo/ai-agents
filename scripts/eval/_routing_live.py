@@ -87,17 +87,9 @@ from _routing_config import HANDOFF_ARTIFACT
 from _routing_grader import GradeResult, grade, materialize
 from _routing_result import SESSION_MARKER_FRESH, FailureKind, InvocationRequest, Observation
 from _routing_scenario import Scenario
-from _runtime_harness import HARNESS_AUTH_ENV, probe_version, runtime_env
+from _runtime_harness import HARNESS_AUTH_ENV, NON_CREDENTIAL_ENV, probe_version, runtime_env
 
 DEFAULT_TIMEOUT_SECONDS = 900.0
-_NON_CREDENTIAL_ENV = frozenset(
-    {
-        "COPILOT_PROVIDER_TYPE",
-        "COPILOT_PROVIDER_BASE_URL",
-        "COPILOT_PROVIDER_MODEL_ID",
-        "COPILOT_PROVIDER_WIRE_MODEL",
-    }
-)
 _SANDBOX_LABEL = {
     "codex": "codex:-s workspace-write",
     "copilot": "copilot:--allow-all-tools",
@@ -163,7 +155,7 @@ def credential_names(harness: str) -> tuple[str, ...]:
     """Environment variables that count as a credential for `harness`."""
     if harness not in _SANDBOX_LABEL:
         raise LiveGateError(f"no live backend exists for harness {harness!r}")
-    return tuple(sorted(HARNESS_AUTH_ENV[harness] - _NON_CREDENTIAL_ENV))
+    return tuple(sorted(HARNESS_AUTH_ENV[harness] - NON_CREDENTIAL_ENV))
 
 
 def _missing_credential(harness: str, env: Mapping[str, str], real_home: bool) -> str | None:

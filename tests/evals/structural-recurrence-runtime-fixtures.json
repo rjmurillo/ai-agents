@@ -139,7 +139,7 @@
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)\\bi (also )?(added|created|built|introduced|wrote) [^.]*\\b(framework|validator|lint rule|abstraction|(repo-wide|repository-wide|class-wide|every-parser) guard)\\b"
+          "pattern": "(?i)\\bi (also )?(added|created|built|introduced|wrote) [^.]*\\b(framework|validator|lint rule|abstraction|(repo-wide|repository-wide|class-wide|every-parser) guard)\\b|(?s:\\bnext steps?\\b\\s*[:\\n-].{0,300}\\Z)|(?s:\\b(want me to|would you like|let me know if|i can also|happy to|shall i)\\b[^\\n]*\\s*\\Z)"
         },
         {
           "kind": "semantic",
