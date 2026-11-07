@@ -311,7 +311,8 @@ def _signals(capsys, tmp_path, baseline: list[str], with_skill: list[str]) -> li
     rows = [_row("C1", "baseline", o) for o in baseline]
     rows += [_row("C1", "with_skill", o) for o in with_skill]
     _, payload = _score(capsys, tmp_path, [_case()], rows)
-    return payload["cases"][0]["signals"]
+    signals: list[str] = payload["cases"][0]["signals"]
+    return signals
 
 
 def test_a_case_that_never_passes_in_either_condition_is_flagged(capsys, tmp_path):

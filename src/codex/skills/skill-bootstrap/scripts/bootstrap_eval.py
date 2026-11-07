@@ -871,17 +871,12 @@ def _rounded(rows: list[Payload]) -> list[Payload]:
     ]
 
 
-def score(args: argparse.Namespace) -> tuple[int, Payload]:
-    cases = load_frozen(args.frozen)
-    tally, runs = grade_results(args.results, cases)
-    rows = [_case_row(case, tally) for case in cases]
-    skills = {
-        name: _summary([row for row in rows if row["skill"] == name])
-        for name in sorted({row["skill"] for row in rows})
-    }
-    overall = _summary(rows)
+def _failing_cases(
+    rows: list[Payload], skills: dict[str, Payload], mode: str
+) -> tuple[list[str], list[str]]:
+    """Return the ids that fail the gate and the skills whose every case is flat."""
     failing_cases = [row["id"] for row in rows if row["status"] in WORKFLOW_FAILING]
-    if args.mode == "knowledge":
+    if mode == "knowledge":
         # A lens passes when one frozen case fails at baseline, so only a skill whose
         # cases are all no_gap fails; one no_gap case among gains does not.
         for name in skills:
@@ -897,6 +892,19 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
     ]
     for name in flat_skills:
         failing_cases += [row["id"] for row in rows if row["skill"] == name]
+    return failing_cases, flat_skills
+
+
+def score(args: argparse.Namespace) -> tuple[int, Payload]:
+    cases = load_frozen(args.frozen)
+    tally, runs = grade_results(args.results, cases)
+    rows = [_case_row(case, tally) for case in cases]
+    skills = {
+        name: _summary([row for row in rows if row["skill"] == name])
+        for name in sorted({row["skill"] for row in rows})
+    }
+    overall = _summary(rows)
+    failing_cases, flat_skills = _failing_cases(rows, skills, args.mode)
     failing = bool(failing_cases)
     payload: Payload = {
         "mode": args.mode,
