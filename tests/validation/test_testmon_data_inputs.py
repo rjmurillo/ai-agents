@@ -251,6 +251,24 @@ def test_the_controller_sends_workers_a_selection_that_includes_the_readers(tmp_
     assert node.workerinput[sync.WORKERINPUT_KEY]["files"] == ["tests/test_other.py"]
 
 
+def test_the_controller_reselects_once_for_many_workers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _project(tmp_path)
+    calls: list[Path] = []
+
+    def record(_select: Any, path: Path) -> set[str]:
+        calls.append(path)
+        return set()
+
+    monkeypatch.setattr(inputs, "reselect", record)
+    hook = _broadcast(_Config(_Select([READER], []), root, None))
+    for _ in range(3):
+        hook.pytest_configure_node(_Node())
+    hook.pytest_sessionstart(object())
+    assert calls == [root]
+
+
 def test_a_single_process_run_reselects_at_session_start(tmp_path: Path) -> None:
     root = _project(tmp_path)
     _write(root, CORPUS, '{"a": 1}\n')

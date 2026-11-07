@@ -232,6 +232,7 @@ class _SelectionBroadcast:
 
     def __init__(self, config: _Config) -> None:
         self._config = config
+        self._reselected = False
 
     @pytest.hookimpl(optionalhook=True)
     def pytest_configure_node(self, node: _Node) -> None:
@@ -263,8 +264,10 @@ class _SelectionBroadcast:
         single-process run. A worker adopts the controller's result instead.
         """
         root = getattr(self._config, "rootpath", None)
-        if root is not None:
-            testmon_data_inputs.reselect(select, Path(root))
+        if root is None or self._reselected:
+            return
+        self._reselected = True
+        testmon_data_inputs.reselect(select, Path(root))
 
 
 def pytest_configure(config: _Config) -> None:
