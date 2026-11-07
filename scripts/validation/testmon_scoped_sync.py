@@ -247,7 +247,7 @@ class _SelectionBroadcast:
         )
 
     def pytest_sessionstart(self, session: object) -> None:
-        """Worker side, before collection: adopt the controller's deselection."""
+        """Before collection: re-select data readers, or on a worker adopt the controller's pick."""
         workerinput = getattr(self._config, "workerinput", None)
         select = cast(_Selection | None, self._config.pluginmanager.get_plugin(_SELECT_PLUGIN))
         if select is None:
