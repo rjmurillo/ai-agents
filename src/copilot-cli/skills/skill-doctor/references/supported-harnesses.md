@@ -63,7 +63,7 @@ Project skills are discovered from:
 - `.codex/skills`
 - `.github/skills`
 
-The standard Codex repository skill directory is also scanned.
+Other repository skill directories require an explicit `--skills-dir PATH`.
 Global discovery includes each harness's standard skill directory when
 `--include-global-skills` is set.
 This includes Claude Code, Codex, Pi, Grok Build, ZCode, and Hermes homes.
@@ -71,6 +71,24 @@ The collector's `discover_skills` function defines the exact search roots.
 
 Copilot also scans `<copilot-home>/skills` and
 `<copilot-home>/installed-plugins/*/*/skills` when global discovery is enabled.
+
+Identical definitions are deduplicated using their content hashes.
+Different same-name definitions are excluded from grading and edit targets.
+The inventory records `ambiguous_skills` under `collection_issues`.
+Resolve conflicting definitions before requesting improvements for that name.
+
+## Project boundaries and collection losses
+
+Project filtering requires native absolute paths inside explicitly selected repositories.
+Matching checkout names never grants access to another checkout.
+Select each authorized checkout using another `--repo PATH`.
+Foreign-platform paths cannot match a native project selection.
+An all-conversation run requires separate user authorization.
+
+Malformed records, unreadable sources, and schema failures increment `collection_issues`.
+Nonempty counters mark `collection_status` as `partial` and produce one stderr summary.
+Healthy records remain available; partial collection is not evidence of absent usage.
+Replay, child-session, scope, and sampling exclusions are not collection failures.
 
 ## Copilot event handling
 

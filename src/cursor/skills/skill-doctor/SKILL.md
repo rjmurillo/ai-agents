@@ -38,28 +38,21 @@ If Windows exposes only the Python launcher, substitute `py -3` for `python`.
 Quote script, project, and report paths, including paths with spaces or Unicode.
 
 Let `SKILL_ROOT` be the directory containing this SKILL.md.
-Resolve it from the installed plugin, never the user's working directory.
+Set its absolute path from the loaded skill's actual file location.
+Do this before either example, even when plugin environment variables are unset.
+Never derive it from the user's working directory or require a Git checkout.
 
 ```bash
-PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-if [ "$PLUGIN_ROOT" = ".claude" ]; then
-  REPO_ROOT="$(git rev-parse --show-toplevel)" || exit 1
-  PLUGIN_ROOT="$REPO_ROOT/.claude"
-fi
-SKILL_ROOT="$PLUGIN_ROOT/skills/skill-doctor"
+: "${SKILL_ROOT:?Set SKILL_ROOT from the absolute path of the loaded SKILL.md}"
+test -f "$SKILL_ROOT/scripts/collect_sessions.py" || exit 1
 ```
 
-In PowerShell, use the matching plugin variable and native temporary directory:
+In PowerShell, set the same loaded-skill path and use native temporary storage:
 
 ```powershell
-$pluginRoot = $env:COPILOT_PLUGIN_ROOT
-if (-not $pluginRoot) { $pluginRoot = $env:CLAUDE_PLUGIN_ROOT }
-if (-not $pluginRoot) {
-    $repoRoot = git rev-parse --show-toplevel
-    if ($LASTEXITCODE -ne 0) { throw 'No installed plugin root or repository root.' }
-    $pluginRoot = Join-Path $repoRoot '.claude'
+if (-not $SKILL_ROOT -or -not (Test-Path (Join-Path $SKILL_ROOT 'scripts\collect_sessions.py'))) {
+    throw 'Set SKILL_ROOT from the absolute path of the loaded SKILL.md.'
 }
-$SKILL_ROOT = Join-Path $pluginRoot 'skills\skill-doctor'
 $REPORT_DIR = Join-Path ([System.IO.Path]::GetTempPath()) ("skill-doctor-" + [guid]::NewGuid())
 ```
 
@@ -174,7 +167,12 @@ Useful flags:
 - `--skills-dir PATH` - nonstandard skill locations.
 - `--include-subagents` - include child or sidechain sessions.
 
-Read `$REPORT_DIR/inventory.json`. If `sessions_sampled` is 0, tell the user there is nothing recent to score in the selected conversation scope (suggest raising `--days` or choosing different projects) and stop. If `skills_found` is 0, continue - the report becomes a case for creating skills, and `skill_coverage` is 0.
+Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
+Disclose partial collection before interpreting usage or recommending changes.
+Ambiguous same-name definitions are excluded, never selected as edit targets.
+If `sessions_sampled` is 0, report no scoreable conversations and stop.
+If `skills_found` is 0, continue with `skill_coverage` set to 0.
+Recommend creation only when a failed conversation demonstrates a capability gap.
 
 For skill discovery, pass the inventory to `skill-bootstrap` as an initial candidate seed.
 In a bootstrap child run, return it to the caller instead of starting another run.
@@ -208,6 +206,9 @@ Instructions: For each transcript in `$REPORT_DIR/transcripts/`, read it and jud
 - `verbosity = curve(raw_verbosity)`.
 - `skill_coverage` = fraction of sampled sessions where at least one installed skill was detected. If `skills_found` is 0, coverage is 0.
 - `overall = 0.25 * efficiency + 0.25 * code_quality + 0.2 * procedure_compliance + 0.15 * verbosity + 0.15 * skill_coverage.`
+
+These upstream weights reward skill adoption independently of accepted outcomes.
+Skill coverage does not prove that skills improved those outcomes.
 
 Then, define `failed_conversations` from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable efficiency, code-quality, procedure-compliance, or verbosity score is below `0.5`. An `insufficient_evidence` result does not make a conversation fail. Use only `failed_conversations` as evidence for skill-improvement suggestions and draft skill edits.
 

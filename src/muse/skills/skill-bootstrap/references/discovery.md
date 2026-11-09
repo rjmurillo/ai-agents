@@ -90,6 +90,12 @@ stats, meta, file and modified time as provenance. It never opens `file`.
 This is the collector's scoreable-window inventory, not exhaustive history.
 Transcript sampling does not mean the inventory sessions were sampled.
 Qualitative model grades are not deterministic signals and are not imported.
+Optional `collection_status` and `collection_issues` must appear together.
+Issue counts must be nonnegative integers, excluding booleans.
+Status must be `partial` when any count is positive, otherwise `complete`.
+Both fields survive in the input provenance.
+Legacy inventories without them remain valid, with collection completeness unreported.
+Partial inventories provide observed signals, not evidence that omitted sessions lacked friction.
 Session containment is lexical, not a filesystem traversal. It does not open
 recorded directories, resolve historical symlinks or prove that recorded paths
 and context history are truthful or exhaustive. It never uses Git remotes or

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -199,9 +198,7 @@ class TestGstackAttribution:
         plugins = load_marketplace_config(PROJECT_ROOT)
         shipped_paths = get_shipped_source_paths(PROJECT_ROOT, plugins)
         notices = format_notices(find_forked_components(PROJECT_ROOT, shipped_paths), [])
-        gstack_entry = re.split(
-            r"^\d+\. gstack \(\(fork\)\)", notices, maxsplit=1, flags=re.MULTILINE
-        )[1]
+        gstack_entry = notices.split("gstack ((fork))", maxsplit=1)[1]
         rendered_license = "\n".join(
             f"   {line}" if line else "" for line in GSTACK_MIT_LICENSE_TEXT.strip().splitlines()
         )

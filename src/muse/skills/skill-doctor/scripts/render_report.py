@@ -15,8 +15,9 @@ import base64
 import html
 import json
 import re
+import subprocess
 import sys
-import webbrowser
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,7 @@ DIFFS_BUNDLE_PATH = Path(__file__).resolve().parent.parent / "assets" / "pierre-
 
 # Collapsed height of a diff before the "show more" toggle takes over.
 DIFF_CLAMP_PX = 320
+BROWSER_TIMEOUT_SECONDS = 5
 
 
 def grade_for(score: float) -> str:
@@ -76,9 +78,31 @@ def format_generated_at(value: Any) -> str:
 
 
 def open_report(report_path: Path) -> bool:
+    """Bound the browser controller without forwarding its output to the CLI."""
+    command = [
+        sys.executable,
+        "-I",
+        "-X",
+        "utf8",
+        "-c",
+        "import sys, webbrowser; sys.exit(0 if webbrowser.open(sys.argv[1], new=2) else 1)",
+        report_path.absolute().as_uri(),
+    ]
     try:
-        return bool(webbrowser.open(report_path.absolute().as_uri(), new=2))
-    except (OSError, webbrowser.Error):
+        # A file, rather than a pipe, keeps inherited browser handles from
+        # holding up pipe draining after the controller times out.
+        with tempfile.TemporaryFile(encoding="utf-8", mode="w+") as output:
+            result = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=output,
+                errors="replace",
+                timeout=BROWSER_TIMEOUT_SECONDS,
+                check=False,
+            )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
         return False
 
 
@@ -332,7 +356,7 @@ def render_page(r: Any) -> str:
     <div class="stamp-name">{esc(STAMP_NAME)}</div>
     <div class="stamp-sub">{esc(STAMP_SUB)}</div>
   </div></div>
-  <a class="cta-button" href="{esc(r.get("cta_url", "https://warp.dev/factories/request-access"))}">Request access</a>
+  <a class="cta-button" href="https://warp.dev/factories/request-access">Request access</a>
 </div>
 <script>{embedded_diffs_script()}</script>
 <script>{page_script(card_data)}</script>

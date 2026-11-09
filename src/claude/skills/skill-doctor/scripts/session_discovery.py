@@ -6,12 +6,15 @@ Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import subprocess
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PureWindowsPath
 from typing import Any
+
+from session_common import record_collection_issue
 
 CLAUDE_DIRECTORY = ".claude"
 PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github")
@@ -65,18 +68,20 @@ def _skill_roots(
 
 def _skill_metadata(skill_md: Path) -> dict[str, Any] | None:
     try:
-        text = skill_md.read_text(encoding="utf-8", errors="replace")
+        content = skill_md.read_bytes()
+        text = content.decode("utf-8", errors="replace")
+        stat = skill_md.stat()
     except OSError:
+        record_collection_issue("skill_read_failures")
         return None
     match = re.search(r"^description:\s*(.+)$", text, re.MULTILINE)
     return {
         "name": skill_md.parent.name,
         "path": str(skill_md),
         "description": match.group(1).strip().strip("\"'")[:300] if match else "",
-        "bytes": skill_md.stat().st_size,
-        "modified_at": datetime.fromtimestamp(
-            skill_md.stat().st_mtime, tz=timezone.utc
-        ).isoformat(),
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
     }
 
 
@@ -106,17 +111,24 @@ def discover_skills(
         ),
         copilot_home,
     )
-    skills = {}
+    skills: dict[str, dict[str, Any]] = {}
+    ambiguous: set[str] = set()
     for root in roots:
         if not root.is_dir():
             continue
         for skill_md in sorted(root.glob("*/SKILL.md")):
             name = skill_md.parent.name
-            if name in skills:
+            if name in ambiguous:
                 continue
             metadata = _skill_metadata(skill_md)
             if metadata is not None:
-                skills[name] = metadata
+                previous = skills.get(name)
+                if previous is not None and previous["sha256"] != metadata["sha256"]:
+                    del skills[name]
+                    ambiguous.add(name)
+                    record_collection_issue("ambiguous_skills")
+                else:
+                    skills.setdefault(name, metadata)
     return skills
 
 
@@ -253,16 +265,10 @@ def session_cwd_within_repo(cwd: Any, repo: Path) -> bool:
 
 
 def session_matches_repo(cwd: Any, repo: Path) -> bool:
-    """Include same-name imported checkouts and worktrees as well as native descendants."""
+    """Admit only native descendants of an explicitly selected repository."""
     if isinstance(cwd, os.PathLike):
         cwd = os.fspath(cwd)
-    if not isinstance(cwd, str) or not cwd:
-        return False
-    if session_cwd_within_repo(cwd, repo):
-        return True
-    recorded = PureWindowsPath(cwd)
-    path = recorded if recorded.drive else PurePosixPath(cwd)
-    return any(type(path)(part) == type(path)(repo.name) for part in path.parts)
+    return session_cwd_within_repo(cwd, repo)
 
 
 def session_matches_repos(cwd: Any, repos: Any) -> bool:
@@ -271,10 +277,8 @@ def session_matches_repos(cwd: Any, repos: Any) -> bool:
 
 def copilot_session_matches_repos(meta: dict[str, Any], repos: Any) -> bool:
     history = meta["cwd_history"]
-    return any(
-        session_matches_repo(meta.get("cwd"), repo)
-        and (len(history) <= 1 or all(session_cwd_within_repo(cwd, repo) for cwd in history))
-        for repo in repos
+    return session_matches_repos(meta.get("cwd"), repos) and all(
+        session_matches_repos(cwd, repos) for cwd in history
     )
 
 

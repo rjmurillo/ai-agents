@@ -3,6 +3,7 @@
 
 import json
 import os
+import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
@@ -16,6 +17,8 @@ from collect_sessions import (
     parse_hermes_session,
     resolve_hermes_home,
 )
+from session_common import collect_diagnostics, collection_issue_counts
+from session_test_helpers import run_collector
 
 
 class HermesCollectorTests(unittest.TestCase):
@@ -338,6 +341,142 @@ class HermesCollectorTests(unittest.TestCase):
                     os.environ["HERMES_HOME"] = old_hermes_home
 
             self.assertEqual(resolved, dot_hermes.resolve())
+
+    def test_skill_view_malformed_args_preserve_valid_calls(self):
+        arguments = [
+            "[]",
+            "[1]",
+            "42",
+            "null",
+            '"private-transcript"',
+            "{",
+            '{"name":[]}',
+            [],
+            [1],
+            42,
+            False,
+            None,
+        ]
+        with tempfile.TemporaryDirectory() as tmp, closing(self._make_db(Path(tmp))) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("INSERT INTO sessions VALUES ('args','cli','/tmp',NULL,NULL,NULL,1,2,2)")
+            calls = [{"function": {"name": "skill_view", "arguments": args}} for args in arguments]
+            calls.append({"name": "skill_view", "arguments": '{"name":"my-skill"}'})
+            calls.append({"name": "skill_view", "arguments": '{"name":"uninstalled"}'})
+            conn.execute(
+                "INSERT INTO messages VALUES ('args','assistant','ok',?,2)",
+                (json.dumps(calls),),
+            )
+            row = conn.execute("SELECT * FROM sessions").fetchone()
+            with collect_diagnostics():
+                parsed = parse_hermes_session(conn, row, {"my-skill"}, False)
+                self.assertEqual(collection_issue_counts(), {"malformed_records": len(arguments)})
+            self.assertIsNotNone(parsed)
+            self.assertEqual(parsed[1]["tool_calls"], len(calls))
+            self.assertEqual(parsed[3], ["my-skill"])
+
+    def test_hermes_cli_reports_bad_args_without_losing_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with closing(self._make_db(root)) as conn:
+                ts = datetime.now(timezone.utc).timestamp()
+                conn.execute(
+                    "INSERT INTO sessions VALUES ('args','cli',?,NULL,NULL,NULL,?,?,?)",
+                    (str(root), ts, ts, ts),
+                )
+                calls = [{"name": "skill_view", "arguments": "[42]"}]
+                conn.execute(
+                    "INSERT INTO messages VALUES ('args','assistant','ok',?,?)",
+                    (json.dumps(calls), ts),
+                )
+                conn.commit()
+            result = run_collector(
+                root,
+                root / "unused",
+                "--harness",
+                "hermes",
+                "--hermes-home",
+                str(root),
+                "--all-conversations",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            inventory = json.loads((root / "report" / "inventory.json").read_text())
+            self.assertEqual(inventory["collection_issues"], {"malformed_records": 1})
+            self.assertEqual(inventory["collection_status"], "partial")
+            self.assertEqual(inventory["stats"]["sessions_considered"], 1)
+
+    def test_hermes_schema_failures_are_diagnostic(self):
+        statements = [
+            "DROP TABLE sessions",
+            "ALTER TABLE sessions DROP COLUMN cwd",
+            "ALTER TABLE sessions DROP COLUMN source",
+            "ALTER TABLE messages DROP COLUMN tool_calls",
+        ]
+        for statement in statements:
+            with self.subTest(statement=statement), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                with closing(self._make_db(root)) as conn:
+                    conn.execute(statement)
+                    conn.commit()
+                with collect_diagnostics():
+                    found = find_hermes_sessions([root / "state.db"], datetime.now(timezone.utc))
+                    self.assertEqual(found, ([], 0))
+                    self.assertEqual(collection_issue_counts(), {"schema_failures": 1})
+
+    def test_hermes_database_failure_preserves_next_database(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with closing(self._make_db(root)) as conn:
+                ts = datetime.now(timezone.utc).timestamp()
+                conn.execute(
+                    "INSERT INTO sessions VALUES ('ok','cli','/tmp',NULL,NULL,NULL,?,?,?)",
+                    (ts, ts, ts),
+                )
+                conn.commit()
+            broken = root / "broken.db"
+            broken.write_text("not sqlite: private-transcript")
+            with collect_diagnostics():
+                records, scanned = find_hermes_sessions(
+                    [broken, root / "state.db"], datetime.fromtimestamp(ts - 60, timezone.utc)
+                )
+                self.assertEqual(scanned, 1)
+                self.assertEqual(records[0][1]["id"], "ok")
+                self.assertEqual(collection_issue_counts(), {"database_failures": 1})
+
+    def test_hermes_message_read_failure_records_issue(self):
+        with tempfile.TemporaryDirectory() as tmp, closing(self._make_db(Path(tmp))) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("INSERT INTO sessions VALUES ('read','cli','/tmp',NULL,NULL,NULL,1,2,2)")
+            row = conn.execute("SELECT * FROM sessions").fetchone()
+            conn.close()
+            with collect_diagnostics():
+                self.assertIsNone(parse_hermes_session(conn, row, set(), False))
+                self.assertEqual(collection_issue_counts(), {"database_failures": 1})
+
+    def test_hermes_os_failure_is_diagnostic(self):
+        with patch("session_databases.open_warp_database", side_effect=OSError("unreadable")):
+            with collect_diagnostics():
+                found = find_hermes_sessions([Path("/unreadable")], datetime.now(timezone.utc))
+                self.assertEqual(found, ([], 0))
+                self.assertEqual(collection_issue_counts(), {"database_failures": 1})
+
+    def test_hermes_malformed_tool_calls_are_diagnostic(self):
+        raw_calls = ["{", "42", "{}", json.dumps([1, {"function": [1]}])]
+        for raw in raw_calls:
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as tmp:
+                with closing(self._make_db(Path(tmp))) as conn:
+                    conn.row_factory = sqlite3.Row
+                    conn.execute(
+                        "INSERT INTO sessions VALUES ('bad','cli','/tmp',NULL,NULL,NULL,1,2,2)"
+                    )
+                    conn.execute("INSERT INTO messages VALUES ('bad','assistant','ok',?,2)", (raw,))
+                    row = conn.execute("SELECT * FROM sessions").fetchone()
+                    with collect_diagnostics():
+                        self.assertIsNone(parse_hermes_session(conn, row, set(), False))
+                        self.assertEqual(
+                            collection_issue_counts(),
+                            {"malformed_records": 2 if raw.startswith("[") else 1},
+                        )
 
 
 if __name__ == "__main__":

@@ -381,22 +381,22 @@ def test_cli_missing_empty_override_and_argument_conflict(tmp_path):
 @pytest.mark.parametrize(
     "recorded,expected",
     [
-        (r"C:\Users\someone\Project\src", True),
-        ("C:/Users/someone/Project/src", True),
-        (r"\\server\share\Project\src", True),
-        (r"D:\worktrees\PROJECT\src", True),
-        ("/home/someone/Project/src", True),
-        ("/Users/someone/Project/src", True),
+        (r"C:\Users\someone\Project\src", False),
+        ("C:/Users/someone/Project/src", False),
+        (r"\\server\share\Project\src", False),
+        (r"D:\worktrees\PROJECT\src", False),
+        ("/home/someone/Project/src", False),
+        ("/Users/someone/Project/src", False),
         ("/home/someone/project/src", False),
         (r"C:\Users\someone\Other\src", False),
         ("/home/someone/Other/src", False),
         ("", False),
     ],
 )
-def test_repository_filter_preserves_recorded_os_path_rules(
+def test_repository_filter_rejects_unselected_imported_checkout(
     tmp_path, monkeypatch, recorded, expected
 ):
-    """AC-P1: Imported journals retain their source OS's path semantics."""
+    """Same checkout names do not authorize an unrelated recorded path."""
     repo = tmp_path / "Project"
     repo.mkdir()
     monkeypatch.chdir(repo)

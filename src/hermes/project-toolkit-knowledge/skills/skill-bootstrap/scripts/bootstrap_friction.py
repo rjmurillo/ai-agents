@@ -224,6 +224,17 @@ def _session_rows(data: Payload, provenance: Payload) -> list[Payload]:
     return rows
 
 
+def _collection_metadata(data: Payload) -> Payload:
+    if "collection_status" not in data and "collection_issues" not in data:
+        return {}
+    status = _text(data.get("collection_status"))
+    issues = _object(data.get("collection_issues"))
+    counts = [_count(value) for value in issues.values()]
+    expected = "partial" if any(counts) else "complete"
+    _require(status == expected, "inconsistent collection status")
+    return {"collection_status": status, "collection_issues": issues}
+
+
 def _sessions(path: str, root: Path) -> tuple[list[Payload], Payload, int]:
     data, provenance = _read(path)
     _require(data.get("conversation_scope") == "projects", "requires projects conversation_scope")
@@ -251,6 +262,7 @@ def _sessions(path: str, root: Path) -> tuple[list[Payload], Payload, int]:
             "stats",
         )
     }
+    metadata.update(_collection_metadata(data))
     return _session_rows(data, provenance), {**provenance, "metadata": metadata}, len(sessions)
 
 

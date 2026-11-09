@@ -8,8 +8,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections import deque
+import sys
+from collections import Counter, deque
 from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +39,28 @@ GENERIC_EDIT_TOOLS = {
     "str_replace",
     "search_replace",
 }
+_COLLECTION_ISSUES: ContextVar[Counter[str] | None] = ContextVar("collection_issues", default=None)
+
+
+@contextmanager
+def collect_diagnostics() -> Iterator[None]:
+    token = _COLLECTION_ISSUES.set(Counter())
+    try:
+        yield
+    finally:
+        _COLLECTION_ISSUES.reset(token)
+
+
+def record_collection_issue(kind: str, count: int = 1) -> None:
+    issues = _COLLECTION_ISSUES.get()
+    if issues is not None:
+        issues[kind] += count
+    else:
+        print(f"warning: collection {kind}: {count}", file=sys.stderr)
+
+
+def collection_issue_counts() -> dict[str, int]:
+    return dict(_COLLECTION_ISSUES.get() or {})
 
 
 def truncate(text: str, limit: int) -> str:
@@ -61,17 +86,33 @@ def extract_text(content: Any) -> str:
 
 def iter_jsonl_records(path: Path) -> Iterator[dict[str, Any]]:
     """Open eagerly so callers can catch missing files before iteration."""
-    stream = path.open("r", encoding="utf-8", errors="replace")
+    try:
+        stream = path.open("r", encoding="utf-8", errors="replace")
+    except OSError:
+        record_collection_issue("read_failures")
+        raise
 
     def records() -> Iterator[dict[str, Any]]:
+        malformed = 0
         with stream:
-            for line in stream:
-                try:
-                    record = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(record, dict):
-                    yield record
+            try:
+                for line in stream:
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except (json.JSONDecodeError, ValueError):
+                        malformed += 1
+                        continue
+                    if isinstance(record, dict):
+                        yield record
+                    else:
+                        malformed += 1
+            except OSError:
+                record_collection_issue("read_failures")
+            finally:
+                if malformed:
+                    record_collection_issue("malformed_records", malformed)
 
     return records()
 

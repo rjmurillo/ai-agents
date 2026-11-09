@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,10 +19,15 @@ from session_common import (
     assistant_tool_calls,
     detect_skill_candidates,
     looks_injected,
+    record_collection_issue,
 )
 from warp_decoder import ProtobufDecodeError, decode_task
 
 MAX_WARP_CONVERSATION_BYTES = 32 * 1024 * 1024
+
+
+class _SchemaError(sqlite3.DatabaseError):
+    """A required table or column is absent."""
 
 
 def parse_sqlite_timestamp(value: Any) -> Any:
@@ -73,12 +77,20 @@ def sqlite_table_columns(connection: Any, table: Any) -> Any:
     return {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
 
 
+def _require_columns(connection: Any, table: str, required: set[str]) -> None:
+    if not required.issubset(sqlite_table_columns(connection, table)):
+        raise _SchemaError("incompatible database schema")
+
+
 def _warp_rows(database: Any, cutoff: Any) -> Any:
     connection = None
     try:
         connection = open_warp_database(database)
-        if not warp_database_has_sessions(connection):
-            return []
+        _require_columns(
+            connection,
+            "agent_conversations",
+            {"conversation_id", "conversation_data", "last_modified_at"},
+        )
         columns = sqlite_table_columns(connection, "agent_conversations")
         summary = "summary" if "summary" in columns else "NULL"
         return connection.execute(
@@ -89,8 +101,11 @@ def _warp_rows(database: Any, cutoff: Any) -> Any:
             """,
             (cutoff.strftime("%Y-%m-%d %H:%M:%S"),),
         ).fetchall()
-    except sqlite3.Error as exc:
-        print(f"warning: could not read Warp database {database}: {exc}", file=sys.stderr)
+    except _SchemaError:
+        record_collection_issue("schema_failures")
+        return []
+    except (OSError, sqlite3.Error):
+        record_collection_issue("database_failures")
         return []
     finally:
         if connection is not None:
@@ -105,7 +120,10 @@ def find_warp_conversations(databases: Any, cutoff: Any) -> Any:
         scanned += len(rows)
         for row in rows:
             modified_at = parse_sqlite_timestamp(row["last_modified_at"])
-            if modified_at is None or modified_at < cutoff:
+            if modified_at is None:
+                record_collection_issue("malformed_records")
+                continue
+            if modified_at < cutoff:
                 continue
             record = {
                 "conversation_id": row["conversation_id"],
@@ -125,17 +143,24 @@ def _hermes_rows(database: Any, cutoff: Any) -> Any:
     connection = None
     try:
         connection = open_warp_database(database)
-        if not hermes_database_has_sessions(connection):
-            return []
-        if "cwd" not in sqlite_table_columns(connection, "sessions"):
-            return []
-        required = {"session_id", "role", "content", "tool_calls", "timestamp"}
-        if not required.issubset(sqlite_table_columns(connection, "messages")):
-            print(
-                f"warning: skipping Hermes database {database}: incompatible messages schema",
-                file=sys.stderr,
-            )
-            return []
+        _require_columns(
+            connection,
+            "sessions",
+            {
+                "id",
+                "source",
+                "cwd",
+                "title",
+                "display_name",
+                "parent_session_id",
+                "started_at",
+                "last_activity_at",
+                "ended_at",
+            },
+        )
+        _require_columns(
+            connection, "messages", {"session_id", "role", "content", "tool_calls", "timestamp"}
+        )
         return connection.execute(
             """
             SELECT id, source, cwd, title, display_name, parent_session_id,
@@ -145,8 +170,11 @@ def _hermes_rows(database: Any, cutoff: Any) -> Any:
             """,
             (cutoff.timestamp(),),
         ).fetchall()
-    except sqlite3.Error as exc:
-        print(f"warning: could not read Hermes database {database}: {exc}", file=sys.stderr)
+    except _SchemaError:
+        record_collection_issue("schema_failures")
+        return []
+    except (OSError, sqlite3.Error):
+        record_collection_issue("database_failures")
         return []
     finally:
         if connection is not None:
@@ -170,9 +198,23 @@ def find_hermes_sessions(databases: Any, cutoff: Any) -> Any:
 def _hermes_calls(state: SessionState, raw: Any, skill_names: Any) -> None:
     try:
         calls = json.loads(raw)
-    except ValueError:
-        calls = []
-    for name, args in assistant_tool_calls({"tool_calls": calls}):
+    except (ValueError, TypeError):
+        record_collection_issue("malformed_records")
+        return
+    if not isinstance(calls, list):
+        record_collection_issue("malformed_records")
+        return
+    valid_calls = []
+    for call in calls:
+        if not isinstance(call, dict):
+            record_collection_issue("malformed_records")
+            continue
+        function = call.get("function")
+        if function is not None and not isinstance(function, dict):
+            record_collection_issue("malformed_records")
+            continue
+        valid_calls.append(call)
+    for name, args in assistant_tool_calls({"tool_calls": valid_calls}):
         state.tool(name, args, hints=False)
         state.edits |= name in CODE_EDIT_HINTS or name in GENERIC_EDIT_TOOLS
         if name == "skill_view":
@@ -182,11 +224,15 @@ def _hermes_calls(state: SessionState, raw: Any, skill_names: Any) -> None:
 def _hermes_skill_view(state: SessionState, args: str, skill_names: Any) -> None:
     try:
         payload = json.loads(args)
-        name: Any = (payload or {}).get("name")
-        if name in skill_names:
-            state.skills.add(name)
     except (ValueError, TypeError):
-        pass
+        record_collection_issue("malformed_records")
+        return
+    if not isinstance(payload, dict) or not isinstance(payload.get("name"), str):
+        record_collection_issue("malformed_records")
+        return
+    name = payload["name"]
+    if name in skill_names:
+        state.skills.add(name)
 
 
 def _hermes_message(state: SessionState, row: Any, skill_names: Any) -> None:
@@ -225,11 +271,15 @@ def parse_hermes_session(
     }
     state = SessionState()
     state.skills = detect_skill_candidates(session_row["cwd"] or "")
-    rows = connection.execute(
-        """SELECT role, content, tool_calls, timestamp FROM messages
-        WHERE session_id = ? ORDER BY timestamp""",
-        (session_row["id"],),
-    ).fetchall()
+    try:
+        rows = connection.execute(
+            """SELECT role, content, tool_calls, timestamp FROM messages
+            WHERE session_id = ? ORDER BY timestamp""",
+            (session_row["id"],),
+        ).fetchall()
+    except (OSError, sqlite3.Error):
+        record_collection_issue("database_failures")
+        return None
     for row in rows:
         _hermes_message(state, row, skill_names)
     if state.stats["assistant_turns"] < 1 or state.stats["tool_calls"] < 1:
@@ -254,12 +304,15 @@ def parse_hermes_session(
 def load_warp_conversation_data(record: Any) -> Any:
     connection = open_warp_database(record["database"])
     try:
+        _require_columns(connection, "agent_tasks", {"id", "conversation_id", "task"})
         tasks = connection.execute(
             "SELECT task FROM agent_tasks WHERE conversation_id = ? ORDER BY id",
             (record["conversation_id"],),
         ).fetchall()
         columns = sqlite_table_columns(connection, "ai_queries")
         queries = []
+        if columns and not {"conversation_id", "start_ts"}.issubset(columns):
+            raise _SchemaError("incompatible query schema")
         if {"conversation_id", "start_ts"}.issubset(columns):
             cwd = "working_directory" if "working_directory" in columns else "NULL"
             queries = connection.execute(
@@ -269,7 +322,9 @@ def load_warp_conversation_data(record: Any) -> Any:
             ).fetchall()
     finally:
         connection.close()
-    blobs = [bytes(row["task"]) for row in tasks]
+    if any(not isinstance(row["task"], bytes) for row in tasks):
+        raise ProtobufDecodeError("task snapshot contains a non-blob value")
+    blobs = [row["task"] for row in tasks]
     total_bytes = sum(len(blob) for blob in blobs)
     if total_bytes > MAX_WARP_CONVERSATION_BYTES:
         raise ProtobufDecodeError(
@@ -334,11 +389,18 @@ def _warp_message(state: SessionState, message: Any, cwd: Any, skill_names: Any)
     return cwd
 
 
-def _json_metadata(value: Any) -> Any:
-    try:
-        return json.loads(value or "{}")
-    except (json.JSONDecodeError, TypeError):
+def _json_metadata(value: Any) -> dict[str, Any] | None:
+    if value is None or value == "":
         return {}
+    try:
+        payload = json.loads(value)
+    except (ValueError, TypeError):
+        record_collection_issue("malformed_records")
+        return None
+    if not isinstance(payload, dict):
+        record_collection_issue("malformed_records")
+        return None
+    return payload
 
 
 def _warp_messages(tasks: Any) -> list[Any]:
@@ -359,19 +421,25 @@ def _warp_messages(tasks: Any) -> list[Any]:
 
 def parse_warp_conversation(record: Any, skill_names: Any, include_subagents: Any) -> Any:
     conversation = _json_metadata(record["conversation_data"])
+    if conversation is None:
+        return None
     child = bool(conversation.get("parent_agent_id") or conversation.get("parent_conversation_id"))
     if child and not include_subagents:
         return None
     summary = _json_metadata(record["summary"])
+    if summary is None:
+        return None
     try:
         blobs, first_query_at, query_cwd = load_warp_conversation_data(record)
         tasks = [decode_task(blob) for blob in blobs]
-    except (OSError, sqlite3.Error, ProtobufDecodeError) as exc:
-        print(
-            f"warning: could not decode Warp conversation "
-            f"{record['conversation_id']} from {record['channel']}: {exc}",
-            file=sys.stderr,
-        )
+    except _SchemaError:
+        record_collection_issue("schema_failures")
+        return None
+    except (OSError, sqlite3.Error):
+        record_collection_issue("database_failures")
+        return None
+    except ProtobufDecodeError:
+        record_collection_issue("decode_failures")
         return None
     state = SessionState(bounded=False)
     cwd = summary.get("initial_working_directory") or query_cwd

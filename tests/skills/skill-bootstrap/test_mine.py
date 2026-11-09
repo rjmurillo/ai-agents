@@ -1837,7 +1837,7 @@ def hosted_for(repo: Path, kind: str = "github_pull_request") -> dict[str, Any]:
     scope = "https://github.com/acme/widget"
     if kind.startswith("azure"):
         scope = "https://dev.azure.com/acme/project"
-    result = {
+    result: dict[str, Any] = {
         "schema_version": 1,
         "repo": str(repo),
         "scope": scope,
@@ -1881,8 +1881,14 @@ def test_offline_absent_preserves_legacy_payload(capsys, repo):
     assert not any(key.startswith("seed_") for key in payload["examined"])
 
 
-def test_offline_inventory_seeds_never_open_journal(capsys, repo, tmp_path, monkeypatch):
+@pytest.mark.parametrize("partial", [None, False, True])
+def test_offline_inventory_seeds_never_open_journal(capsys, repo, tmp_path, monkeypatch, partial):
     data = inventory_for(repo)
+    if partial is not None:
+        data.update(
+            collection_status="partial" if partial else "complete",
+            collection_issues={"read_failures": 1} if partial else {},
+        )
     path = friction_file(tmp_path, data)
     original = Path.open
 
@@ -1903,7 +1909,26 @@ def test_offline_inventory_seeds_never_open_journal(capsys, repo, tmp_path, monk
     assert seeds[0]["sources"][0]["locator"] == "/sessions/0"
     assert seeds[0]["sources"][0]["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     assert payload["seed_inputs"][0]["metadata"]["stats"] == data["stats"]
+    if partial is not None:
+        metadata = payload["seed_inputs"][0]["metadata"]
+        assert metadata["collection_status"] == data["collection_status"]
+        assert metadata["collection_issues"] == data["collection_issues"]
     assert payload["examined"]["seed_sessions"] == 1
+
+
+@pytest.mark.parametrize(
+    "status,issues",
+    [("complete", {"read_failures": 1}), ("partial", {}), ("complete", {"read_failures": -1})],
+)
+def test_offline_inventory_rejects_inconsistent_collection_status(
+    capsys, repo, tmp_path, status, issues
+):
+    data = inventory_for(repo)
+    data.update(collection_status=status, collection_issues=issues)
+    path = friction_file(tmp_path, data)
+    code, payload = cand(capsys, repo, "--sessions-json", str(path))
+    assert code == 2
+    assert "candidate_seeds" not in payload
 
 
 @pytest.mark.parametrize("kind", HOSTED_RECORDS)

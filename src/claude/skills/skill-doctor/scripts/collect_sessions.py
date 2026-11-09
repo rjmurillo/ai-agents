@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
 from io import TextIOWrapper
@@ -35,11 +36,14 @@ from session_common import (
     TRANSCRIPT_TAIL,
     TranscriptBuffer,
     assistant_tool_calls,
+    collect_diagnostics,
+    collection_issue_counts,
     detect_skill_candidates,
     detect_skills_from_entries,
     extract_text,
     iter_jsonl_records,
     looks_injected,
+    record_collection_issue,
     render_transcript,
     truncate,
 )
@@ -257,13 +261,17 @@ class Collection:
         }
         self.scanned += scanned
         for database, row in records:
-            connection = open_warp_database(database)
             try:
-                parsed = parse_hermes_session(
-                    connection, row, self.skills.keys(), self.args.include_subagents
-                )
-            finally:
-                connection.close()
+                connection = open_warp_database(database)
+                try:
+                    parsed = parse_hermes_session(
+                        connection, row, self.skills.keys(), self.args.include_subagents
+                    )
+                finally:
+                    connection.close()
+            except (OSError, sqlite3.Error):
+                record_collection_issue("database_failures")
+                continue
             if parsed is not None:
                 self.add("hermes", parsed, str(database), parsed[0]["timestamp"])
 
@@ -382,6 +390,8 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
     if args.all_conversations:
         scope_name = "all-conversations"
     inventory = {
+        "collection_issues": collection_issue_counts(),
+        "collection_status": "partial" if collection_issue_counts() else "complete",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "harness": next(iter(collection.sources)) if len(collection.sources) == 1 else "mixed",
         "sources": collection.sources,
@@ -416,6 +426,11 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
 
 
 def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
+    if inventory["collection_issues"]:
+        issues = ", ".join(
+            f"{key}={value}" for key, value in inventory["collection_issues"].items()
+        )
+        print(f"warning: partial collection: {issues}", file=sys.stderr)
     stats = inventory["stats"]
     scope = (
         "all conversations" if args.all_conversations else ", ".join(str(repo) for repo in repos)
@@ -431,7 +446,7 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
     print(f"inventory:         {out / 'inventory.json'}")
 
 
-def main() -> None:
+def _run() -> None:
     args = parse_args()
     if args.all_conversations and args.repo:
         print("error: --all-conversations cannot be combined with --repo", file=sys.stderr)
@@ -465,6 +480,11 @@ def main() -> None:
     inventory = _inventory(collection, homes, sampled)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")
     _print_summary(inventory, args, collection.repos, out)
+
+
+def main() -> None:
+    with collect_diagnostics():
+        _run()
 
 
 if __name__ == "__main__":

@@ -211,7 +211,7 @@ def _pi_block(state: SessionState, role: Any, block: Any) -> bool:
     return False
 
 
-def parse_pi_session(path: Path, skill_names: Any, _include_subagents: bool) -> Any:
+def parse_pi_session(path: Path, _skill_names: Any, _include_subagents: bool) -> Any:
     try:
         records = iter_jsonl_records(path)
     except OSError:
@@ -243,7 +243,6 @@ def parse_pi_session(path: Path, skill_names: Any, _include_subagents: bool) -> 
             "originator": "pi",
             "thread_source": None,
         }
-    state.skills.intersection_update(skill_names)
     return state.finish(meta, GENERIC_EDIT_TOOLS)
 
 
@@ -264,7 +263,7 @@ def _openai_message(
         state.output(text)
 
 
-def parse_grok_session(path: Path, skill_names: Any, _include_subagents: bool) -> Any:
+def parse_grok_session(path: Path, _skill_names: Any, _include_subagents: bool) -> Any:
     try:
         records = iter_jsonl_records(path)
     except OSError:
@@ -281,7 +280,6 @@ def parse_grok_session(path: Path, skill_names: Any, _include_subagents: bool) -
         "originator": "grok",
         "thread_source": None,
     }
-    state.skills.intersection_update(skill_names)
     return state.finish(meta, GENERIC_EDIT_TOOLS)
 
 

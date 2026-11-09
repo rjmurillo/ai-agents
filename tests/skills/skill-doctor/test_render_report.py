@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Tests for skill-doctor report rendering."""
 
+import base64
+import html
+import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,10 +21,19 @@ SKILL_ROOT = Path(__file__).resolve().parents[3] / "src" / "claude" / "skills" /
 from render_report import (
     embedded_diffs_script,
     format_generated_at,
+    main,
     open_report,
     parse_args,
     render_page,
 )
+
+
+def _run_with_browser_stub(command, *, expression, run=subprocess.run, **kwargs):
+    command = list(command)
+    command[-2] = (
+        f"import webbrowser; webbrowser.open = lambda url, new: {expression}; " + command[-2]
+    )
+    return run(command, **kwargs)
 
 
 class ReportRendererTests(unittest.TestCase):
@@ -220,22 +235,142 @@ class ReportRendererTests(unittest.TestCase):
         self.assertEqual(format_generated_at("not-a-date"), "not-a-date")
 
     def test_open_report_uses_default_browser_with_file_uri(self):
-        report_path = Path("/tmp/skill doctor/report.html")
+        report_path = Path("/tmp/skill 日本語 #1/report.html")
         args = parse_args([str(report_path), "--open"])
 
         self.assertEqual(args.report_path, str(report_path))
         self.assertTrue(args.open_browser)
 
-        with patch("render_report.webbrowser.open", return_value=True) as browser_open:
+        with patch("render_report.subprocess.run") as launch:
+            launch.return_value.returncode = 0
             self.assertTrue(open_report(report_path))
 
-        browser_open.assert_called_once_with(
-            report_path.absolute().as_uri(),
-            new=2,
-        )
+        command = launch.call_args.args[0]
+        self.assertEqual(command[:5], [sys.executable, "-I", "-X", "utf8", "-c"])
+        self.assertEqual(command[-1], report_path.absolute().as_uri())
+        self.assertIn("new=2", command[-2])
+        options = launch.call_args.kwargs
+        self.assertGreater(options["timeout"], 0)
+        self.assertLessEqual(options["timeout"], 5)
+        self.assertEqual(options["stdin"], subprocess.DEVNULL)
+        self.assertIs(options["stdout"], options["stderr"])
+        self.assertNotEqual(options["stdout"], subprocess.PIPE)
+        self.assertEqual(options["stdout"].encoding, "utf-8")
+        self.assertTrue(options["stdout"].closed)
+        self.assertEqual(options["errors"], "replace")
+        self.assertFalse(options.get("shell", False))
 
-        with patch("render_report.webbrowser.open", side_effect=OSError):
-            self.assertFalse(open_report(report_path))
+    def test_open_report_returns_false_for_launch_failures(self):
+        failures = [
+            OSError("launch failed"),
+            subprocess.TimeoutExpired("browser", 5),
+        ]
+        for failure in failures:
+            with (
+                self.subTest(failure=failure),
+                patch("render_report.subprocess.run", side_effect=failure),
+            ):
+                self.assertFalse(open_report(Path("report.html")))
+        with patch("render_report.subprocess.run") as launch:
+            launch.return_value.returncode = 1
+            self.assertFalse(open_report(Path("report.html")))
+
+    def test_real_browser_child_is_bounded_and_output_is_isolated(self):
+        report_path = Path("日本語 #1/report.html")
+        expressions = [
+            (f"url == {report_path.absolute().as_uri()!r} and new == 2", True),
+            ("(print('日本語 🧪'), print('café', file=__import__('sys').stderr), True)[2]", True),
+            ("False", False),
+            ("(_ for _ in ()).throw(__import__('webbrowser').Error('failed'))", False),
+            ("__import__('time').sleep(30)", False),
+        ]
+        for expression, expected in expressions:
+            stdout, stderr = io.StringIO(), io.StringIO()
+            started = time.monotonic()
+            with (
+                self.subTest(expression=expression),
+                patch("render_report.BROWSER_TIMEOUT_SECONDS", 0.5),
+                patch(
+                    "render_report.subprocess.run",
+                    side_effect=partial(_run_with_browser_stub, expression=expression),
+                ),
+                patch("sys.stdout", stdout),
+                patch("sys.stderr", stderr),
+            ):
+                self.assertEqual(open_report(report_path), expected)
+            self.assertLess(time.monotonic() - started, 3)
+            self.assertEqual((stdout.getvalue(), stderr.getvalue()), ("", ""))
+
+    def test_cli_warns_only_for_requested_failed_launch(self):
+        cases = [
+            (False, 1),
+            (True, 1),
+            (True, 0),
+            (True, OSError("launch failed")),
+            (True, subprocess.TimeoutExpired("browser", 5)),
+        ]
+        for requested, code in cases:
+            with self.subTest(requested=requested, code=code), tempfile.TemporaryDirectory() as tmp:
+                report_path = Path(tmp) / "report.json"
+                report_path.write_text('{"scores": {"overall": 0.9}}', encoding="utf-8")
+                stdout, stderr = io.StringIO(), io.StringIO()
+                argv = [str(report_path)] + (["--open"] if requested else [])
+                with (
+                    patch("render_report.subprocess.run") as launch,
+                    patch("sys.stdout", stdout),
+                    patch("sys.stderr", stderr),
+                ):
+                    launch.return_value.returncode = code
+                    launch.side_effect = code if isinstance(code, Exception) else None
+                    self.assertIsNone(main(argv))
+                self.assertEqual(launch.call_count, int(requested))
+                self.assertTrue((Path(tmp) / "report.html").is_file())
+                self.assertIn("report:", stdout.getvalue())
+                self.assertEqual("warning:" in stderr.getvalue(), requested and code != 0)
+                self.assertEqual("opened in" in stdout.getvalue(), requested and code == 0)
+
+    def test_cta_destination_cannot_be_overridden_by_report_data(self):
+        destinations = [
+            "javascript:alert(1)",
+            "JaVaScRiPt:alert(1)",
+            "\tjavascript:alert(1)",
+            "data:text/html,<script>alert(1)</script>",
+            "//evil.example",
+            "https://warp.dev.evil.example/factories/request-access",
+            "https://warp.dev@evil.example/",
+            "https://warp.dev/factories/request-access",
+            None,
+        ]
+        for destination in destinations:
+            with self.subTest(destination=destination):
+                page = render_page({"scores": {"overall": 0.9}, "cta_url": destination})
+                links = re.findall(r'<a class="cta-button" href="([^"]+)">', page)
+                self.assertEqual(links, ["https://warp.dev/factories/request-access"])
+
+    def test_nonempty_unicode_proposal_diff_round_trips_and_escapes(self):
+        diff = (
+            "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -1 +1 @@\n"
+            "-古い手順\n+新しい手順 🧪 <script>alert('x')</script> & café\n"
+        )
+        page = render_page(
+            {
+                "scores": {"overall": 0.9},
+                "suggestions": [
+                    {
+                        "skill": "日本語",
+                        "change": "更新",
+                        "diff": diff,
+                        "proposed_path": 'proposals/日本語 "test".md',
+                    }
+                ],
+            }
+        )
+        encoded = re.search(r'data-diff="([^"]+)"', page).group(1)
+        self.assertEqual(base64.b64decode(encoded).decode("utf-8"), diff)
+        fallback = re.search(r'<pre class="diff-fallback">(.*?)</pre>', page, re.S).group(1)
+        self.assertEqual(html.unescape(fallback), diff)
+        self.assertNotIn("<script>", fallback)
+        self.assertIn('data-filename="日本語 &quot;test&quot;.md"', page)
 
     def test_share_card_uses_skill_doctor_attribution(self):
         page = render_page(

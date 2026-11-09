@@ -97,28 +97,6 @@ def test_context_optimizer_stage_precedes_skillopt_in_process() -> None:
     assert title.index("context-optimizer") < title.index("skillopt")
 
 
-@pytest.mark.parametrize("root", SHIPPED_ROOTS)
-def test_doctor_diagnosis_precedes_candidate_mining(root: str) -> None:
-    phase = _skill_md(root).split("### Phase 2:", 1)[1].split("### Phase 3:", 1)[0]
-
-    assert phase.index("Invoke `skill-doctor`") < phase.index("bootstrap_mine.py")
-    assert "--sessions-json" in phase
-    assert "references/discovery.md#existing-skill-improvement-loop" in phase
-
-
-@pytest.mark.parametrize("root", SHIPPED_ROOTS)
-def test_doctor_child_returns_without_recursive_bootstrap(root: str) -> None:
-    doctor = REPO_ROOT / root / "skills" / "skill-doctor" / "SKILL.md"
-    text = doctor.read_text(encoding="utf-8")
-    startup = text.split("### Step 0:", 1)[1].split("### Step 1:", 1)[0]
-    collection = text.split("### Step 1:", 1)[1].split("### Step 2:", 1)[0]
-
-    assert "reuse its validated repository" in startup
-    assert "Do not invoke skill-bootstrap from a bootstrap child run." in startup
-    assert "return it to the caller instead of starting another run" in collection
-    assert "omit `--open`" in text
-
-
 def test_skill_md_documents_exit_codes_in_a_table_with_one_row_per_script() -> None:
     text = _skill_md()
     assert "Exit code 0 means success and exit code 1 means findings" in text

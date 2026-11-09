@@ -51,7 +51,7 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 11. Hermes exclusion in `templates/platforms/hermes.yaml`, due to its per-file size limit.
 12. Cohesive collector, browser-script, and test modules within repository complexity limits.
 13. Explicit annotations for dynamic parser data, without disabling strict type checks.
-14. Recorded OS path semantics, including Windows case-insensitive repository matching.
+14. Native path containment, including Windows case-insensitive repository matching.
 15. Explicit UTF-8 Git output decoding and escaped legacy-console diagnostics.
 16. Python 3.10+ requirements and POSIX and PowerShell rendering instructions.
 17. Unicode filesystem, read-only SQLite URI, and OS discovery regression tests.
@@ -62,6 +62,12 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 22. Existing-skill updates with authorization, frozen cases, and old-versus-updated comparisons.
 23. Harness-root defaults, with other skill directories supplied through `--skills-dir`.
 24. Resolved Claude-home overrides and rejection of non-object JSONL records.
+25. Same-name definition exclusion, with identical-content copies deduplicated.
+26. Partial-collection counters, including bootstrap provenance and source failure isolation.
+27. Deferred Pi/Grok skill matching until project discovery finishes.
+28. Bounded browser launch and a fixed upstream HTTPS report destination.
+29. Loaded-skill startup paths independent of plugin variables or the working directory.
+30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.
