@@ -33,7 +33,8 @@ def _run_with_browser_stub(command, *, expression, run=subprocess.run, **kwargs)
     command[-2] = (
         f"import webbrowser; webbrowser.open = lambda url, new: {expression}; " + command[-2]
     )
-    return run(command, **kwargs)
+    kwargs.pop("errors", None)
+    return run(command, errors="replace", **kwargs)
 
 
 class ReportRendererTests(unittest.TestCase):
