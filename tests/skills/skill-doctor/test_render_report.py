@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+"""Tests for skill-doctor report rendering."""
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+SKILL_ROOT = Path(__file__).resolve().parents[3] / "src" / "claude" / "skills" / "skill-doctor"
+
+from render_report import (
+    embedded_diffs_script,
+    format_generated_at,
+    open_report,
+    parse_args,
+    render_page,
+)
+
+
+class ReportRendererTests(unittest.TestCase):
+    def test_cli_renders_utf8_from_an_unrelated_directory(self):
+        for platform in ("claude", "copilot-cli"):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as tmp:
+                work = Path(tmp) / "report \u65e5\u672c\u8a9e #1"
+                work.mkdir()
+                report_path = work / "report.json"
+                report_path.write_text(
+                    json.dumps(
+                        {
+                            "handle": "\u65e5\u672c\u8a9e",
+                            "scores": {"overall": 0.9},
+                            "top_findings": ["\u65e5\u672c\u8a9e: Escape <not-a-tag>."],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                script = (
+                    SKILL_ROOT.parents[2]
+                    / platform
+                    / "skills"
+                    / "skill-doctor"
+                    / "scripts"
+                    / "render_report.py"
+                )
+                result = subprocess.run(
+                    [sys.executable, str(script), str(report_path)],
+                    cwd=work,
+                    env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=30,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn((work / "report.html").as_uri(), result.stdout)
+                html = (work / "report.html").read_text(encoding="utf-8")
+                self.assertTrue("\u65e5\u672c\u8a9e" in html, "Unicode finding missing.")
+                self.assertTrue("&lt;not-a-tag&gt;" in html, "Finding was not escaped.")
+                self.assertTrue('class="grade">A-' in html, "Computed grade missing.")
+                self.assertTrue("<script src=" not in html, "External script dependency.")
+
+    def test_skill_startup_contract_is_centralized(self):
+        skill_root = SKILL_ROOT
+        skill_text = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        harness_text = (skill_root / "references" / "supported-harnesses.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            "$SKILL_ROOT/references/supported-harnesses.md",
+            skill_text,
+        )
+        self.assertIn("Conversations in this repository", skill_text)
+        self.assertIn("All conversations", skill_text)
+        self.assertIn("Choose projects to analyze", skill_text)
+        self.assertIn(
+            "Project skills + global skills",
+            skill_text,
+        )
+        self.assertIn("Project skills only", skill_text)
+        self.assertIn(
+            "Process datasets of 50 transcripts or fewer in a single batch",
+            skill_text,
+        )
+        self.assertIn(
+            "For datasets with more than 50 transcripts, use parallel batches "
+            "(20 transcripts per batch recommended)",
+            skill_text,
+        )
+        self.assertNotIn("--harness claude|codex|warp", skill_text)
+        self.assertNotIn("--claude-home PATH", skill_text)
+        self.assertIn("| Warp | `warp` |", harness_text)
+        self.assertIn("| Claude Code | `claude` |", harness_text)
+        self.assertIn("| Codex | `codex` |", harness_text)
+        self.assertIn("stop before creating a report directory", harness_text)
+
+    def test_skill_scores_verbosity_and_procedure_compliance(self):
+        skill_root = SKILL_ROOT
+        skill_text = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        procedure_text = (skill_root / "scorers" / "procedure-compliance.md").read_text(
+            encoding="utf-8"
+        )
+        verbosity_text = (skill_root / "scorers" / "verbosity.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "$SKILL_ROOT/scorers/procedure-compliance.md",
+            skill_text,
+        )
+        self.assertIn("$SKILL_ROOT/scorers/verbosity.md", skill_text)
+        self.assertIn("raw_procedure_compliance", skill_text)
+        self.assertIn("raw_verbosity", skill_text)
+        self.assertIn(
+            "A conversation fails when at least one applicable efficiency, "
+            "code-quality, procedure-compliance, or verbosity score is below "
+            "`0.5`",
+            skill_text,
+        )
+        self.assertIn("name: Procedure Compliance", procedure_text)
+        self.assertIn("name: Verbosity", verbosity_text)
+
+        page = render_page(
+            {
+                "scores": {
+                    "efficiency": 1.0,
+                    "code_quality": 0.9,
+                    "procedure_compliance": 0.8,
+                    "verbosity": 0.7,
+                    "skill_coverage": 0.6,
+                    "overall": 0.83,
+                },
+            }
+        )
+        self.assertIn("Procedure Compliance", page)
+        self.assertIn("Verbosity", page)
+
+    def test_code_diffs_follow_os_theme(self):
+        bundle = embedded_diffs_script()
+
+        self.assertIn('themeType:"system"', bundle)
+        self.assertIn(
+            'theme:{dark:"pierre-dark",light:"pierre-light"}',
+            bundle,
+        )
+
+    def test_report_follows_os_theme(self):
+        page = render_page(
+            {
+                "scores": {
+                    "efficiency": 1.0,
+                    "code_quality": 1.0,
+                    "skill_coverage": 1.0,
+                    "overall": 1.0,
+                },
+            }
+        )
+
+        self.assertIn('<meta name="color-scheme" content="light dark">', page)
+        self.assertIn("@media (prefers-color-scheme: dark)", page)
+        self.assertIn("--page-bg: #0f0d14", page)
+        self.assertIn("background: var(--surface)", page)
+        self.assertIn(
+            "--mono-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            page,
+        )
+        self.assertIn("--diffs-font-family: var(--mono-font)", page)
+        self.assertIn("--diffs-header-font-family: var(--mono-font)", page)
+
+    def test_factories_footer_is_sticky_and_contains_inline_cta(self):
+        report = {
+            "title": "Agent Skill Report",
+            "generated_at": "2026-08-25T00:00:00Z",
+            "harness": "codex",
+            "handle": "example",
+            "stats": {
+                "sessions_analyzed": 1,
+                "sessions_scanned": 1,
+                "skills_found": 1,
+                "skills_used": 1,
+                "window_days": 45,
+            },
+            "scores": {
+                "efficiency": 1.0,
+                "code_quality": 1.0,
+                "skill_coverage": 1.0,
+                "overall": 1.0,
+            },
+            "top_findings": ["No material waste detected."],
+            "suggestions": [],
+            "cta_url": "https://warp.dev/factories/request-access",
+        }
+
+        page = render_page(report)
+
+        self.assertNotIn("Do this automatically with Warp Factories", page)
+        self.assertIn('<div class="stamp-row row factories-footer">', page)
+        self.assertIn(
+            '<div class="stamp-name">Automatically improve your skills with Warp Factories</div>',
+            page,
+        )
+        self.assertIn(">Request access</a>", page)
+        self.assertIn(".factories-footer { position: sticky; bottom: 16px;", page)
+        self.assertNotIn("all analysis ran locally", page)
+        self.assertIn(
+            "Generated August 25, 2026 at 12:00 AM UTC &middot; harness: codex",
+            page,
+        )
+
+    def test_generated_timestamp_formatting(self):
+        self.assertEqual(
+            format_generated_at("2026-08-27T22:06:10.421941+00"),
+            "August 27, 2026 at 10:06 PM UTC",
+        )
+        self.assertEqual(format_generated_at("not-a-date"), "not-a-date")
+
+    def test_open_report_uses_default_browser_with_file_uri(self):
+        report_path = Path("/tmp/skill doctor/report.html")
+        args = parse_args([str(report_path), "--open"])
+
+        self.assertEqual(args.report_path, str(report_path))
+        self.assertTrue(args.open_browser)
+
+        with patch("render_report.webbrowser.open", return_value=True) as browser_open:
+            self.assertTrue(open_report(report_path))
+
+        browser_open.assert_called_once_with(
+            report_path.absolute().as_uri(),
+            new=2,
+        )
+
+        with patch("render_report.webbrowser.open", side_effect=OSError):
+            self.assertFalse(open_report(report_path))
+
+    def test_share_card_uses_skill_doctor_attribution(self):
+        page = render_page(
+            {
+                "scores": {
+                    "efficiency": 1.0,
+                    "code_quality": 1.0,
+                    "skill_coverage": 1.0,
+                    "overall": 1.0,
+                },
+            }
+        )
+
+        self.assertIn(
+            '"stamp": ["Get your report with /skill-doctor", "warp.dev/skill-doctor"]',
+            page,
+        )
+        self.assertIn('"eyebrow": "skill-doctor"', page)
+        self.assertIn("text('# ' + CARD.eyebrow", page)
+
+    def test_report_metric_lines_animate_like_skill_doctor_landing_page(self):
+        page = render_page(
+            {
+                "scores": {
+                    "efficiency": 0.75,
+                    "code_quality": 0.93,
+                    "procedure_compliance": 0.88,
+                    "verbosity": 0.81,
+                    "skill_coverage": 0.74,
+                    "overall": 0.82,
+                },
+            }
+        )
+
+        self.assertIn(
+            "animation: skill-doctor-fill 700ms "
+            "cubic-bezier(0.22, 1, 0.36, 1) var(--metric-delay) both",
+            page,
+        )
+        self.assertIn("@keyframes skill-doctor-fill", page)
+        self.assertIn("from { transform: scaleX(0); }", page)
+        self.assertIn("to { transform: scaleX(1); }", page)
+        self.assertIn("width:75%;--metric-delay:180ms", page)
+        self.assertIn("width:93%;--metric-delay:290ms", page)
+        self.assertIn("width:88%;--metric-delay:400ms", page)
+        self.assertIn("width:81%;--metric-delay:510ms", page)
+        self.assertIn("width:74%;--metric-delay:620ms", page)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", page)
+        self.assertIn(".bar-fill { animation: none; }", page)
+        self.assertIn(
+            "gap = CARD.bars.length > 3 ? 12 : 28",
+            page,
+        )
+        self.assertIn(
+            "CARD.bars.length * rowH + (CARD.bars.length - 1) * gap",
+            page,
+        )
+
+    def test_skill_output_links_report_without_automatic_edit_prompt(self):
+        skill_path = SKILL_ROOT / "SKILL.md"
+        skill_text = skill_path.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'render_report.py" "$REPORT_DIR/report.json" --open',
+            skill_text,
+        )
+        self.assertIn(
+            "Finish with the absolute path to `REPORT_DIR/report.html`.",
+            skill_text,
+        )
+        self.assertIn(
+            "Do not apply suggested edits without the user's explicit instruction.", skill_text
+        )
+        self.assertNotIn("[View in browser]", skill_text)
+
+    def test_skill_edits_only_use_failed_conversations(self):
+        skill_path = SKILL_ROOT / "SKILL.md"
+        skill_text = skill_path.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "`raw_efficiency` = mean of efficiency scores across all scored sessions",
+            skill_text,
+        )
+        self.assertIn(
+            "`curve(score) = 0.5 + 0.5 * score`",
+            skill_text,
+        )
+        self.assertIn(
+            "`overall = 0.25 * efficiency + 0.25 * code_quality + "
+            "0.2 * procedure_compliance + 0.15 * verbosity + "
+            "0.15 * skill_coverage.`",
+            skill_text,
+        )
+        self.assertIn(
+            "from each conversation's raw, uncurved scorer results",
+            skill_text,
+        )
+        self.assertIn(
+            "Use only `failed_conversations` as evidence for "
+            "skill-improvement suggestions and draft skill edits",
+            skill_text,
+        )
+
+    def test_report_renders_letter_grade(self):
+        page = render_page(
+            {
+                "scores": {
+                    "efficiency": 0.7,
+                    "code_quality": 0.7,
+                    "skill_coverage": 0.8,
+                    "overall": 0.7,
+                },
+            }
+        )
+
+        self.assertIn('<div class="grade">C-</div>', page)
+        self.assertIn('<div class="grade-label">overall 70</div>', page)
+
+
+if __name__ == "__main__":
+    unittest.main()

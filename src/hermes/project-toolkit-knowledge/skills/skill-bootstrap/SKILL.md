@@ -1,7 +1,7 @@
 ---
 name: skill-bootstrap
 version: 1.0.0
-description: Build project-specific skills from verified repository, tracker, session, and memory evidence. Backs each computable claim with a script and scores each skill against a no-skill baseline. Use when you say `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, or `project skill library`. Do NOT use for one skill (use skillforge) or for scored tuning (use skillopt).
+description: Use for `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, or `project skill library`, including existing-skill improvements. Do NOT use for one skill (use skillforge), scored tuning (use skillopt), or session diagnosis (use skill-doctor).
 license: MIT
 user-invocable: true
 ---
@@ -42,19 +42,20 @@ skill does nothing; only an explicit request starts a run.
 | Improve a skill against a scored eval set | `skillopt` |
 | Decide placement or compress a skill without an eval | `context-optimizer` |
 | Scaffold README or architecture templates | `codebase-documenter` |
-| Refresh an existing library | This skill: run [drift](#maintenance-drift-loop), then pass each failing skill as `--update` |
+| Refresh an existing library | This skill: run [drift](#maintenance-drift-loop) and Phase 2 diagnosis; pass verified improvements as `--update` |
 
 ## Prerequisites
 
 `skillforge` (Phase 4) and `context-optimizer` (Phase 5) are required.
-`skillopt` is optional (Phase 5); its `mine_sessions.py` is the session
-source (Phase 2). Record each missing one as `UNAVAILABLE` in the report.
+`skill-doctor` diagnoses existing skills (Phase 2). `skillopt` tunes scored
+skills (Phase 5); its `mine_sessions.py` also probes session sources.
+Record each missing one as `UNAVAILABLE` in the report.
 
 ## Process
 
 ```mermaid
 flowchart TD
-    A[1. Scope, mode, outcomes, boundary snapshot] --> B[2. Mine candidates, then discover]
+    A[1. Scope, mode, outcomes, boundary snapshot] --> B[2. Diagnose existing skills, mine, discover]
     B --> C[3. Select skills and sort each item by tool form]
     C --> D[4. skillforge authors scripts and prose, claims check]
     D --> E[5. context-optimizer, capability eval, then skillopt]
@@ -90,17 +91,31 @@ PowerShell, see [Scripts](#scripts).
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
    ```
 
-**Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot, plan, `bootstrap_mine.py --out` file, frozen eval cases file, eval cases, and eval results are the only writes outside the repository. Run no mutating git command, deployment, publication, tracker mutation, or platform-setting change. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
+**Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot, plan, doctor artifacts, `bootstrap_mine.py --out` file, frozen eval cases file, eval cases, and eval results are the only writes outside the repository. Run no mutating git command, deployment, publication, tracker mutation, or platform-setting change. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
 
 ### Phase 2: Mine candidates, then discover
 
-1. Mine before you browse. The script lists reverts and ranks churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
+1. Invoke `skill-doctor` once to diagnose the existing project skills.
+   Reuse matching artifacts when doctor supplied this run's initial seed.
+   Follow the [existing-skill improvement loop](references/discovery.md#existing-skill-improvement-loop)
+   for scope, artifact reuse, unavailable evidence, and recursion prevention.
+   Pass its inventory through `--sessions-json`; treat proposed edits as
+   candidates for Phase 3, not permission to apply them.
+
+2. Mine before you browse. The script lists reverts and ranks churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" candidates --repo . --top 10 --exclude <generated-prefix>
    ```
 
-2. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring. In `knowledge` mode, freeze the baseline cases with `bootstrap_eval.py freeze` before the baseline run, so the hash covers them before any result exists. Cases carry skill names, so check each name with `bootstrap_boundary.py plan` before the freeze; see [Knowledge mode](references/discovery.md#knowledge-mode) for what a later rename costs.
+   Optionally add `--sessions-json <inventory.json>` for deterministic
+   skill-doctor repeated-tool/error counts, or repeat `--hosted-json <export.json>`
+   for offline GitHub PR/issue and Azure DevOps PR/work-item observations.
+   Follow the [offline friction-input reference](references/discovery.md#offline-friction-input-reference).
+   Imports are `candidate_unverified`, not verified friction. Do not import
+   qualitative report grades or bypass verification, authoring or evaluation.
+
+3. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring. In `knowledge` mode, freeze the baseline cases with `bootstrap_eval.py freeze` before the baseline run, so the hash covers them before any result exists. Cases carry skill names, so check each name with `bootstrap_boundary.py plan` before the freeze; see [Knowledge mode](references/discovery.md#knowledge-mode) for what a later rename costs.
 
 ### Phase 3: Select skills and sort by tool form
 
@@ -174,7 +189,9 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 ## Scripts
 
-Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
+Each CLI uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows.
+
+`bootstrap_friction.py` is the miner's imported offline-evidence validator, not a separate CLI.
 
 Exit code 0 means success and exit code 1 means findings that need action, for every script. Exit codes 2 and 3 differ by script:
 

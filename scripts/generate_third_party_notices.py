@@ -69,6 +69,16 @@ _MIT_PERMISSION_TEXT = (
 # Forked or vendored components shipped in plugin source paths.
 # Each entry must include the license text or a path to a LICENSE file.
 FORKED_COMPONENTS: dict[str, dict[str, str]] = {
+    "Warp skill-doctor": {
+        "license": "MIT",
+        "url": "https://github.com/warpdotdev/common-skills",
+        "author": "warpdotdev / Denver Technologies, Inc.",
+        "local_path": "src/claude/skills/skill-doctor",
+        "license_text": (
+            "MIT License\n\nCopyright (c) 2026 Denver Technologies, Inc.\n\n" + _MIT_PERMISSION_TEXT
+        ),
+        "license_blank_line_prefix": "",
+    },
     "SkillForge": {
         "license": "MIT",
         "url": "https://github.com/tripleyak/SkillForge",

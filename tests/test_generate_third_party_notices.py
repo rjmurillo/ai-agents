@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -198,7 +199,9 @@ class TestGstackAttribution:
         plugins = load_marketplace_config(PROJECT_ROOT)
         shipped_paths = get_shipped_source_paths(PROJECT_ROOT, plugins)
         notices = format_notices(find_forked_components(PROJECT_ROOT, shipped_paths), [])
-        gstack_entry = notices.split("2. gstack ((fork))", maxsplit=1)[1]
+        gstack_entry = re.split(
+            r"^\d+\. gstack \(\(fork\)\)", notices, maxsplit=1, flags=re.MULTILINE
+        )[1]
         rendered_license = "\n".join(
             f"   {line}" if line else "" for line in GSTACK_MIT_LICENSE_TEXT.strip().splitlines()
         )
@@ -217,9 +220,25 @@ class TestSkillForgeNotice:
         shipped_paths = get_shipped_source_paths(PROJECT_ROOT, plugins)
         notices = format_notices(find_forked_components(PROJECT_ROOT, shipped_paths), [])
         start = notices.index("1. SkillForge ((fork))")
-        end = notices.index("2. gstack ((fork))")
+        assert notices[start:].encode("utf-8").startswith(SKILLFORGE_NOTICE_BLOCK.encode("utf-8"))
 
-        assert notices[start:end].encode("utf-8") == SKILLFORGE_NOTICE_BLOCK.encode("utf-8")
+
+class TestWarpAttribution:
+    """The shipped fork must retain the complete upstream permission notice."""
+
+    def test_notice_matches_the_bundled_upstream_license(self) -> None:
+        plugins = load_marketplace_config(PROJECT_ROOT)
+        shipped_paths = get_shipped_source_paths(PROJECT_ROOT, plugins)
+        components = find_forked_components(PROJECT_ROOT, shipped_paths)
+        notices = format_notices(components, [])
+        license_path = PROJECT_ROOT / "src" / "claude" / "skills" / "skill-doctor" / "LICENSE"
+        license_text = license_path.read_text(encoding="utf-8")
+        assert (
+            FORKED_COMPONENTS["Warp skill-doctor"]["license_text"].strip() == license_text.strip()
+        )
+        assert "Warp skill-doctor ((fork))" in notices
+        assert "warpdotdev / Denver Technologies, Inc." in notices
+        assert "Copyright (c) 2026 Denver Technologies, Inc." in notices
 
 
 class TestCommittedNotice:
