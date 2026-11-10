@@ -47,7 +47,7 @@ def test_cli_collects_only_sessions_inside_the_repo(tmp_path, root):
     )
 
     assert result.returncode == 0, result.stderr
-    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text())
+    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text(encoding="utf-8"))
     assert inventory["sources"]["droid"]["records_in_window"] == 2
     assert [s["meta"]["id"] for s in inventory["sessions"]] == ["in-scope"]
     assert inventory["sessions"][0]["harness"] == "droid"
@@ -70,7 +70,7 @@ def test_cli_all_conversations_collects_every_droid_session(tmp_path, root):
     )
 
     assert result.returncode == 0, result.stderr
-    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text())
+    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text(encoding="utf-8"))
     assert {s["meta"]["id"] for s in inventory["sessions"]} == {"in-scope", "out-of-scope"}
 
 
@@ -102,7 +102,7 @@ def test_cli_auto_includes_droid_when_default_sessions_directory_exists(tmp_path
     result = run_collector(tmp_path, tmp_path / "no-copilot", "--repo", str(repo), root=root)
 
     assert result.returncode == 0, result.stderr
-    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text())
+    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text(encoding="utf-8"))
     assert "droid" in inventory["sources"]
     assert [s["meta"]["id"] for s in inventory["sessions"]] == ["auto"]
 
@@ -141,7 +141,7 @@ def test_cli_auto_skips_droid_when_no_factory_home(tmp_path, root):
     )
 
     assert result.returncode == 0, result.stderr
-    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text())
+    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text(encoding="utf-8"))
     assert "droid" not in inventory["sources"]
     assert inventory["droid_home"] is None
 
@@ -151,10 +151,12 @@ def test_cli_discovers_droid_skills_from_the_factory_home(tmp_path, root):
     home, repo = _factory_home(tmp_path)
     skill = home / "skills" / "droid-only" / "SKILL.md"
     skill.parent.mkdir(parents=True)
-    skill.write_text("---\nname: droid-only\ndescription: Droid skill\n---\n")
+    skill.write_text("---\nname: droid-only\ndescription: Droid skill\n---\n", encoding="utf-8")
     project_skill = repo / ".factory" / "skills" / "repo-droid" / "SKILL.md"
     project_skill.parent.mkdir(parents=True)
-    project_skill.write_text("---\nname: repo-droid\ndescription: Repo Droid skill\n---\n")
+    project_skill.write_text(
+        "---\nname: repo-droid\ndescription: Repo Droid skill\n---\n", encoding="utf-8"
+    )
 
     result = run_collector(
         tmp_path,
@@ -170,7 +172,7 @@ def test_cli_discovers_droid_skills_from_the_factory_home(tmp_path, root):
     )
 
     assert result.returncode == 0, result.stderr
-    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text())
+    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text(encoding="utf-8"))
     assert {skill["name"] for skill in inventory["skills"]} == {"droid-only", "repo-droid"}
 
 
