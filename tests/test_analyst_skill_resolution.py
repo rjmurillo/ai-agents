@@ -203,19 +203,48 @@ def test_prompt_routes_execution_to_an_execution_agent() -> None:
     assert "Issue #3918 tracks adding structured read-only tooling" not in shared
 
 
+ANALYST_HANDOFF_REFERENCE = (
+    REPO_ROOT
+    / "src"
+    / "claude"
+    / "skills"
+    / "autoplan"
+    / "references"
+    / "orchestrator-analyst-handoff.md"
+)
+
+
+def test_analyst_handoff_reference_holds_the_full_contract() -> None:
+    """The numbered procedure moved to a reference; it must keep every contract string."""
+    text = ANALYST_HANDOFF_REFERENCE.read_text(encoding="utf-8")
+    assert "Put the exact output, repository identity, branch, and head SHA" in text
+    # Orchestrator prefetches only shell/build/git/web, not GitHub/CI
+    assert "shell/git/build output and unrestricted web evidence" in text
+    assert "Do not prefetch GitHub/CI" in text
+    # Analyst retrieves GitHub/CI directly
+    assert "analyst retrieves structured GitHub and CI data directly" in text
+    assert "no shell or unrestricted web access" in text
+    assert "retrieve the named" in text
+    assert "evidence and re-delegate once" in text
+
+
 def test_orchestrator_supplies_analyst_execution_context() -> None:
+    """Every surface keeps a working inline rule and names the reference.
+
+    VS Code has no skill tree, so the inline rule must stand alone: it carries
+    what the orchestrator retrieves, what it must not prefetch, and the single
+    re-delegation after a [BLOCKED] return.
+    """
     for contract in ORCHESTRATOR_CONTRACTS:
-        text = contract.read_text(encoding="utf-8")
+        text = " ".join(contract.read_text(encoding="utf-8").split())
         assert "### Analyst evidence handoff" in text, contract
-        assert "Put the exact output, repository identity, branch, and head SHA" in text, contract
-        # Orchestrator prefetches only shell/build/git/web, not GitHub/CI
-        assert "shell/git/build output and unrestricted web evidence" in text, contract
-        assert "Do not prefetch GitHub/CI" in text, contract
-        # Analyst retrieves GitHub/CI directly
-        assert "analyst retrieves structured GitHub and CI data directly" in text, contract
+        assert "orchestrator-analyst-handoff.md" in text, contract
+        assert "the exact output, repository identity, branch, and head SHA" in text, contract
+        assert "shell output, git history, builds, or unrestricted web research" in text, contract
+        assert "Do not prefetch GitHub or CI context" in text, contract
+        assert "the analyst retrieves it directly" in text, contract
         assert "no shell or unrestricted web access" in text, contract
-        assert "retrieve the named" in text, contract
-        assert "evidence and re-delegate once" in text, contract
+        assert "retrieve the named evidence and re-delegate once" in text, contract
 
 
 @pytest.mark.parametrize(

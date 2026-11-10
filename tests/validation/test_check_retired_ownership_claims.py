@@ -223,7 +223,12 @@ class TestFindRetiredClaims:
     def test_a_hand_maintained_reference_copy_under_the_agent_dir_is_not_the_claim(
         self, tmp_path: Path
     ) -> None:
-        """Security references under .github/agents/ are a real hand-maintained byte copy."""
+        """A path below a subdirectory of an agent tree is not an agent file.
+
+        The fixture names a historical sidecar directory that no longer exists.
+        It still pins the exclusion in the regex: a row naming a subdirectory
+        path is not the retired claim.
+        """
         repo = _git_repo(tmp_path)
         _add(
             repo,

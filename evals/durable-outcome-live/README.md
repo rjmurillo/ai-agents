@@ -284,3 +284,40 @@ fixtures and the dry run only. Every record classifies `UNVERIFIED` because
 `human_correction_minutes` is `null` by the owner decision. No non-inferiority and no
 significance claim: 3 repetitions on Claude, 1 on Codex, first-pass and follow-up pass counts tie on both
 harnesses, and the cost gap is confounded by the ambient `~/.claude` load.
+
+## Non-inferiority rerun, 2026-11-10 (#5456 gate 6)
+
+Claude only. Rule fixed before the first launch in the "Gate 6 pre-registration,
+2026-11-10" section of `.project-toolkit/metrics/control-plane-dispositions-v0.7.0.md`.
+Output: `claude-sonnet-5-2026-11-10-noninferiority/`, two batches by repeat index
+(`repeats-3-9`, `repeats-10-16`), each with `records-full.jsonl`, `records-reduced.jsonl`,
+`report.json` (re-serialized without indentation, same JSON values), and `changes/`.
+
+Instrument: `scripts/eval/eval_control_ablation.py`, default 5-task corpus, `claude-sonnet-5`,
+Claude Code 2.1.319, `--real-home` with the stored login (no API key, no credential file
+copied or linked), no reviewer arm, runner commit `85da0f42aa`. Repeats 0 to 2 are the
+2026-11-06 run above. Launches: 140 of the 150 cap, 0 harness failures.
+
+| Arm | Runs | Success (acceptance and follow-up) | Defect runs | Model cost, USD at CLI list price | Wall seconds, summed |
+|---|---|---|---|---|---|
+| `full` | 70 | 70 | 0 | 11.54 | 1,989 |
+| `reduced` | 70 | 69 | 0 | 5.42 | 1,701 |
+
+Difference in success (reduced minus full): -0.0143, Newcombe 95 percent interval -0.0766
+to +0.0390, against a margin of -0.10. Difference in defect rate: 0, interval -0.0520 to
++0.0520, against +0.10. Largest per-task gap: 1 run. Verdict under the pre-registered rule:
+SHOWN, for this corpus, model, and harness.
+
+The one `reduced` miss is `duration-hours` repeat 9. The task states the unit spelling is
+undecided, and the agent asked which spelling to support and changed nothing. The cost gap
+is confounded by the ambient `~/.claude` load, which applies under both controls, so
+`reduced` is not AGENTS-free. Both arms passed nearly every run, so the corpus may not
+exercise the controls. Every record classifies `UNVERIFIED` while `human_correction_minutes`
+is `null` by owner decision.
+
+Recompute from the records: a run succeeds when `execution.deterministic_acceptance` and
+`durable.followup_validation` are both `PASS`. A run is a defect run when acceptance is
+`PASS` and follow-up is not `PASS`, `execution.scope_violations` is above 0, or
+`durable.residual_defects` is above 0. For arms 1 (reduced) and 2 (full) with Wilson
+bounds `l`, `u` at z = 1.959964, the Newcombe interval for `p1 - p2` is
+`d - sqrt((p1 - l1)^2 + (u2 - p2)^2)` to `d + sqrt((u1 - p1)^2 + (p2 - l2)^2)`.

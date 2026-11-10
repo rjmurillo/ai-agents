@@ -1,0 +1,10 @@
+diff --git a/units/duration.py b/units/duration.py
+index ec28e67..922e526 100644
+--- a/units/duration.py
++++ b/units/duration.py
+@@ -1,4 +1,4 @@
+-UNITS = {"s": 1, "m": 60}
++UNITS = {"s": 1, "m": 60, "h": 3600}
+ 
+ 
+ def parse_duration(text):

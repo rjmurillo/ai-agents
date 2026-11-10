@@ -1,0 +1,7 @@
+## Reference Loading
+
+Security references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/references/`. They serve this agent; the `security-scan` skill is the CWE-78 scanner and owns the files. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `security-cwe-catalog.md`, when you scan for CWEs and need a name or description; `security-impact-analysis.md`, when milestone-planner requests impact analysis.
+- `security-piv-ci-checks.md`, when you write the CI check request in PIV; `powershell-security-checklist.md`, when the diff touches PowerShell.
+- `dependency-risk-scoring.md`, when a diff adds a package; `threat-model-template.md`, when you write a threat model.

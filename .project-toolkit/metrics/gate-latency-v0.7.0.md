@@ -174,6 +174,9 @@ machine they are not: the cost is `pre-pr-validation`.
   the largest single contributor to the declared pre-push figure and remains
   entirely unmeasured. This is the one job of the five that #5318 item 1 asks
   about and this record cannot answer.
+  Update 2026-11-10: the full act path was timed on one workflow, n=20, p95 84.86s,
+  and n=20 hook captures were taken at `5fbdfd238b`. See `gate-latency-2026-11-10/`.
+  The figures in this record stand as written.
 - **No paired measurement at the pinned baseline SHA.** See the next section.
 - **p95 is not reported.** n=2 and n=3 cannot support a tail estimate.
 

@@ -1,0 +1,8 @@
+diff --git a/docsite/render.py b/docsite/render.py
+index 8520d24..c4faaa7 100644
+--- a/docsite/render.py
++++ b/docsite/render.py
+@@ -1,2 +1,2 @@
+ def page_title(name):
+-    return f"{name.title} | Docs"
++    return f"{name.title()} | Docs"

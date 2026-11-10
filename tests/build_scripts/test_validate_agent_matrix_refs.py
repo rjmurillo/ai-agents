@@ -1513,8 +1513,9 @@ class TestNestedAgentDefinitions:
     repository ships an agent that no host loads.
 
     Frontmatter, not location, is what separates a misplaced agent from sidecar
-    prose. ``agents/security/references/`` already ships three markdown files,
-    and a location-only rule would report all three and break the build.
+    prose. A sidecar directory under an agent tree (``agents/<name>/references/``)
+    can hold plain markdown, and a location-only rule would report it and break
+    the build.
     """
 
     @staticmethod
@@ -1565,7 +1566,7 @@ class TestNestedAgentDefinitions:
         assert f"{tree_root.as_posix()}/*.md" in found[0]
 
     def test_nested_prose_without_frontmatter_stays_silent(self, tmp_path):
-        """The shipped ``security/references/*.md`` sidecars must not trip this."""
+        """Prose sidecars under an agent subdirectory must not trip this."""
         self._write(tmp_path, "references/threat-model.md", "# Threat model\n\nProse.\n")
         assert vamr.nested_agent_definitions(tmp_path, ".md") == []
 

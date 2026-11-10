@@ -9,7 +9,6 @@
     ".github/agents/qa.agent.md": 6,
     ".github/agents/retrospective.agent.md": 3,
     ".github/agents/security.agent.md": 6,
-    ".github/agents/security/references/threat-model-template.md": 1,
     ".github/agents/task-decomposer.agent.md": 2,
     "src/claude/agents/architect.md": 12,
     "src/claude/agents/critic.md": 4,

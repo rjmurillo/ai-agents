@@ -355,7 +355,7 @@ def test_every_github_agent_file_is_a_link_and_only_known_entries_are_real() -> 
     github_agents = _REPO_ROOT / ".github" / "agents"
     real = sorted(entry.name for entry in github_agents.iterdir() if not entry.is_symlink())
 
-    assert real == ["security"]
+    assert real == []
     for entry in github_agents.glob("*.agent.md"):
         assert os.readlink(entry) == f"../../src/copilot-cli/agents/{entry.name}", entry.name
 

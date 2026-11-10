@@ -269,6 +269,9 @@ completeness scoring, and writing-style mechanics. Read
 terminal) that used to live in the always-on builder-ethos rule.
 `references/golden-age.md` holds the task-compression table behind Boil the
 Lake; read it when sizing a build-vs-skip call.
+The five `references/orchestrator-*.md` files serve the `orchestrator` agent, not this
+router: analyst handoff, anti-patterns, resume and drift, hook feedback,
+and routing evidence.
 
 ### Phase 4: Final gate
 

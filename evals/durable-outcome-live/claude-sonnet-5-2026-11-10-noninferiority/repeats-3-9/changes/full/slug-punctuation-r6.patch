@@ -1,0 +1,12 @@
+diff --git a/textkit/slug.py b/textkit/slug.py
+index cba1303..6d93ab5 100644
+--- a/textkit/slug.py
++++ b/textkit/slug.py
+@@ -1,2 +1,6 @@
++import re
++
++
+ def slugify(text):
+-    return "-".join(text.lower().split())
++    words = re.findall(r"[a-z0-9]+", text.lower())
++    return "-".join(words)

@@ -48,7 +48,6 @@ Every other file below is kept in sync by hand and guarded by `check_surface_par
 
 | Path | Role | Guard |
 |------|------|-------|
-| `.github/agents/security/references/*.md` | Byte copy of `src/claude/security/references/` | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
 | `src/copilot-cli/lib/*.py` (top-level modules) | Hand-maintained translation of the `.claude/lib/*.py` top-level modules (`translated`; `paths.py` is listed in `divergent` for the `.agents` root) | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
 
 `templates/platforms/surface-parity.yaml` is the machine-readable inventory of
@@ -92,7 +91,6 @@ There is no `byte` value. Byte equality is `derived` with an identity transform.
 | `hooks` | `src/claude/hooks/`, `.claude/hooks/`, `.claude/settings.json`, `src/copilot-cli/hooks/`, `.github/hooks/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
 | `pr-quality-prompts` | `.github/prompts/pr-quality-gate-*.md` | `derived` | `build/scripts/run_drift_check_ci.py` (runs the generator with `--dry-run`) | - | - |
 | `agent-sources` | `templates/agents/<stem>.shared.md`, `.claude.md.tmpl`, `.copilot.md.tmpl` | `normalized` | `build/scripts/check_agent_source_parity.py` (pre-PR gate Agent Source Parity) | - | - |
-| `security-references` | `.github/agents/security/references/*.md` | `derived` | `build/scripts/check_surface_parity.py` (hand-maintained byte copy, identity transform) | - | - |
 | `copilot-lib-modules` | `src/copilot-cli/lib/*.py` top-level modules | `derived` | `build/scripts/check_surface_parity.py` (identity transform; `paths.py` is the one `divergent` file the manifest excuses) | - | - |
 
 ADR-107 expected a `none` baseline for three hand-maintained agent trees

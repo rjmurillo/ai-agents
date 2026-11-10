@@ -32,7 +32,6 @@ BUILD_ALL_CHECK = "build/scripts/build_all.py --check"
 # Hand-maintained copies no generator writes. Losing either row would let a stale
 # runtime copy ship while every generator-owned check stays green.
 HAND_MAINTAINED = {
-    "github-agents-security-references",
     "lib-copilot-modules",
     "lib-claude-dispatch-copies",
 }
@@ -69,8 +68,14 @@ def test_every_shipped_surface_holds(manifest: sm.Manifest) -> None:
     assert [f.render() for f in found] == []
 
 
-def test_manifest_distinguishes_all_five_relations(manifest: sm.Manifest) -> None:
-    assert {s.relation for s in manifest.surfaces} == sm.RELATIONS
+# `mirrored` has no live surface since the security sidecar copies were retired.
+# The synthetic cases in test_check_surface_parity.py still exercise it, so the
+# vocabulary keeps it; the live manifest must use every other relation.
+UNUSED_RELATIONS = {"mirrored"}
+
+
+def test_manifest_distinguishes_every_live_relation(manifest: sm.Manifest) -> None:
+    assert {s.relation for s in manifest.surfaces} == sm.RELATIONS - UNUSED_RELATIONS
 
 
 def test_hand_maintained_surfaces_are_declared(manifest: sm.Manifest) -> None:
