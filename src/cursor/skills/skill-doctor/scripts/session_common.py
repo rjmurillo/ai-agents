@@ -13,7 +13,7 @@ from collections import Counter, deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -225,6 +225,14 @@ def parse_session_timestamp(value: Any) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def is_live_session(stats: Any, min_idle_minutes: float) -> bool:
+    """A session whose last record is inside the quiet window may still be running."""
+    last = parse_session_timestamp(stats.get("last_ts"))
+    if last is None or min_idle_minutes <= 0:
+        return False
+    return datetime.now(timezone.utc) - last < timedelta(minutes=min_idle_minutes)
 
 
 class SessionState:

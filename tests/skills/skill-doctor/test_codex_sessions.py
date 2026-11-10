@@ -304,11 +304,10 @@ def test_idle_window_skips_live_session_by_default_and_counts_it(tmp_path, root)
     _write_rollout(tmp_path / "codex", "live", timedelta(minutes=1), build)
     _write_rollout(tmp_path / "codex", "done", timedelta(hours=2), build)
 
-    result, inventory = _collect(tmp_path, root)
+    _, inventory = _collect(tmp_path, root)
 
     assert inventory["stats"]["sessions_considered"] == 1
     assert inventory["stats"]["sessions_skipped_idle"] == 1
-    assert "skipped" in result.stdout
 
 
 @pytest.mark.parametrize("root", ROOTS)
@@ -337,7 +336,6 @@ def test_terminated_session_is_reported_in_inventory_and_transcript(tmp_path, ro
 
     _, inventory = _collect(tmp_path, root)
 
-    assert inventory["stats"]["sessions_terminated"] == 1
     session = inventory["sessions"][0]
     assert session["stats"]["terminated_by"] == "usage_limit_exceeded"
     transcript = Path(session["transcript_path"]).read_text()
@@ -351,3 +349,32 @@ def test_negative_min_idle_minutes_is_a_usage_error(tmp_path):
     )
 
     assert result.returncode == 2
+
+
+@pytest.mark.parametrize(
+    ("last_ts", "expected"),
+    [
+        (None, False),
+        ("not a timestamp", False),
+        (True, False),
+        (_iso(timedelta(minutes=1)), True),
+        (_iso(timedelta(hours=1)), False),
+        (_iso(timedelta(minutes=1)).replace("Z", ".123456789Z"), True),
+        ((datetime.now(timezone.utc) - timedelta(minutes=2)).timestamp(), True),
+        ((datetime.now(timezone.utc) - timedelta(hours=2)).timestamp() * 1000, False),
+        (
+            (datetime.now(timezone.utc) - timedelta(minutes=2)).replace(tzinfo=None).isoformat(),
+            True,
+        ),
+    ],
+)
+def test_is_live_session_handles_timestamp_shapes(last_ts, expected):
+    from session_common import is_live_session
+
+    assert is_live_session({"last_ts": last_ts}, 15.0) is expected
+
+
+def test_is_live_session_never_skips_when_window_is_zero():
+    from session_common import is_live_session
+
+    assert is_live_session({"last_ts": _iso(timedelta(seconds=1))}, 0) is False

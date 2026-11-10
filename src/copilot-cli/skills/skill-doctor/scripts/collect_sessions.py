@@ -41,9 +41,9 @@ from session_common import (
     detect_skill_candidates,
     detect_skills_from_entries,
     extract_text,
+    is_live_session,
     iter_jsonl_records,
     looks_injected,
-    parse_session_timestamp,
     record_collection_issue,
     render_transcript,
     truncate,
@@ -170,8 +170,7 @@ class Collection:
         self.sessions: list[dict[str, Any]] = []
         self.sources: dict[str, Any] = {}
         self.scanned = 0
-        self.in_scope = 0
-        self.skipped_idle = 0
+        self.in_scope = self.skipped_idle = 0
         self.warp_databases: list[Path] = []
 
     def add(self, harness: str, parsed: Any, file: str, modified_at: str) -> None:
@@ -183,7 +182,7 @@ class Collection:
         self.in_scope += 1
         if stats["assistant_turns"] < 1 or stats["tool_calls"] < 1:
             return
-        if self.is_live(stats):
+        if is_live_session(stats, self.args.min_idle_minutes):
             self.skipped_idle += 1
             return
         self.sessions.append(
@@ -197,13 +196,6 @@ class Collection:
                 "_entries": entries,
             }
         )
-
-    def is_live(self, stats: Any) -> bool:
-        """A session whose last record is inside the quiet window may still be running."""
-        last = parse_session_timestamp(stats.get("last_ts"))
-        if last is None or self.args.min_idle_minutes <= 0:
-            return False
-        return datetime.now(timezone.utc) - last < timedelta(minutes=self.args.min_idle_minutes)
 
     def matches(self, harness: str, meta: Any) -> bool:
         if harness == "copilot":
@@ -424,10 +416,6 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
             "sessions_in_scope": collection.in_scope,
             "sessions_considered": len(collection.sessions),
             "sessions_skipped_idle": collection.skipped_idle,
-            "sessions_terminated": sum(
-                1 for session in collection.sessions if session["stats"].get("terminated_by")
-            ),
-            "min_idle_minutes": args.min_idle_minutes,
             "sessions_sampled": len(sampled),
             "skills_found": len(skills),
             "skills_used": sum(1 for count in usage.values() if count > 0),
@@ -459,11 +447,6 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
     print(
         f"sessions in window: {stats['session_records_in_window']} records, "
         f"{stats['sessions_in_scope']} in scope, {stats['sessions_considered']} scoreable"
-    )
-    print(
-        f"sessions skipped:  {stats['sessions_skipped_idle']} active within "
-        f"{args.min_idle_minutes:g} min (--min-idle-minutes), "
-        f"{stats['sessions_terminated']} scoreable ended by a provider error"
     )
     print(f"sessions sampled:  {stats['sessions_sampled']} -> {out / 'transcripts'}")
     print(f"inventory:         {out / 'inventory.json'}")

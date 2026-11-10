@@ -202,6 +202,14 @@ def _codex_turn_role(payload: Any) -> str | None:
     return None
 
 
+def _codex_event(state: SessionState, payload: dict[str, Any], events: dict[str, int]) -> None:
+    event_roles = {"user_message": "user", "agent_message": "assistant"}
+    if payload.get("type") in event_roles:
+        events[event_roles[payload["type"]]] += 1
+    elif payload.get("type") == "task_complete":
+        _codex_completion(state, payload)
+
+
 def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
     try:
         records = iter_jsonl_records(path)
@@ -235,11 +243,7 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
             if child and not include_subagents:
                 return None
         elif kind == "event_msg":
-            event_roles = {"user_message": "user", "agent_message": "assistant"}
-            if payload.get("type") in event_roles:
-                events[event_roles[payload["type"]]] += 1
-            elif payload.get("type") == "task_complete":
-                _codex_completion(state, payload)
+            _codex_event(state, payload, events)
         elif kind == "response_item":
             role = _codex_turn_role(payload)
             if role:
