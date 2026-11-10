@@ -314,7 +314,7 @@ class TestContractPasses:
         assert _contract_findings(tmp_path, agent) == []
 
     @pytest.mark.parametrize("field", ["acceptance_owner", "escalation_owner"])
-    @pytest.mark.parametrize("owner", ["user", "pr-comment-responder"])
+    @pytest.mark.parametrize("owner", ["user", "orchestrator"])
     def test_owner_is_user_or_an_agent(self, tmp_path: Path, field: str, owner: str) -> None:
         agent = _delegator(_with_contract(**{field: owner}))
         assert _contract_findings(tmp_path, agent) == []

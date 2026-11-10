@@ -68,11 +68,6 @@ surfaces:
     generator: build/scripts/binplace_manifest.py
     include: ["*.agent.md"]
     owner: build_all.py --check; agent-drift-detection.yml
-  - id: github-agents-prompt
-    path: .github/agents
-    relation: independent
-    include: ["pr-comment-responder.prompt.md"]
-    reason: Authored in place; the generator emits only *.agent.md.
   - id: github-agents-security-references
     path: .github/agents/security/references
     relation: mirrored

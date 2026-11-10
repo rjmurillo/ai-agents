@@ -411,6 +411,9 @@ def test_cli_exits_0_on_a_clean_repo(tmp_path: Path, monkeypatch: pytest.MonkeyP
     # The shipped allowances name files of this repository; a synthetic repo has none
     # of them, and a stale allowance now fails the run (issue #6506).
     monkeypatch.setattr("scripts.validation.check_plugin_root_interpreter._YAML_ALLOWANCES", {})
+    monkeypatch.setattr(
+        "scripts.validation.check_plugin_root_interpreter._SINGLE_ROOT_ALLOWANCES", {}
+    )
     repo = make_repo(
         tmp_path,
         {

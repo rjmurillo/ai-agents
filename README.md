@@ -1,6 +1,6 @@
 # AI Agents: Multi-Agent Toolkit for Claude Code and GitHub Copilot CLI
 
-AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 30 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
+AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 29 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
 
 Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in both CLIs, run as slash commands in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. MIT licensed.
 
@@ -444,7 +444,6 @@ Both bundles include every agent. `spec-generator` is now a skill (issue #2001),
 | **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria | both |
 | **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO | both |
 | **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives | both |
-| **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking | both |
 | **pr-test-analyzer** | Assess behavioral test coverage in pull requests | Ranked coverage gaps and recommendation | both |
 | **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps | both |
 | **janitor** | Code and documentation cleanup | Refactoring and cleanup suggestions | both |
