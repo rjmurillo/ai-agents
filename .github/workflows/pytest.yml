@@ -1150,7 +1150,7 @@ jobs:
       # every pull request. The scan covers this repo's code, so it runs anyway.
       # Bandit was replaced by ruff's equivalent rules: the --select list below
       # covers every bandit test that can report HIGH severity (the bar the old gate
-      # used), plus S301 and S313 (see pyproject.toml).
+      # used), plus S301, S313, S503 and S504 (see pyproject.toml).
       # tests/ci/test_ruff_security_codes.py fails when this list drifts
       # from [tool.ruff.lint] select in pyproject.toml.
       - name: Run ruff security rules

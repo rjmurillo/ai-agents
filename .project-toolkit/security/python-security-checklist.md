@@ -392,16 +392,17 @@ ruff check --select S staged_files.py
 
 ## Quick Reference
 
-Only the codes listed in `[tool.ruff.lint] select` in `pyproject.toml` block CI.
+The CI column says whether the rule is in `[tool.ruff.lint] select` in
+`pyproject.toml`. Only those rules block CI. The others are review guidance.
 
-| Vulnerability | Check | Tool |
-|--------------|-------|------|
-| Path traversal (CWE-22) | Use validate_safe_path() | ruff S108 |
-| Command injection (CWE-78) | No shell=True | ruff S602 |
-| Hardcoded secrets (CWE-798) | No literals | ruff S105 |
-| SQL injection (CWE-89) | Parameterized queries | ruff S608 |
-| Unsafe deserialization (CWE-502) | Use JSON, not unsafe formats | ruff S301 |
-| Weak crypto (CWE-327) | No MD5/SHA1 for security | ruff S324 |
+| Vulnerability | Check | Tool | CI |
+|--------------|-------|------|----|
+| Path traversal (CWE-22) | Use validate_safe_path() | ruff S108 | no |
+| Command injection (CWE-78) | No shell=True | ruff S602 | yes |
+| Hardcoded secrets (CWE-798) | No literals | ruff S105 | no |
+| SQL injection (CWE-89) | Parameterized queries | ruff S608 | no |
+| Unsafe deserialization (CWE-502) | Use JSON, not unsafe formats | ruff S301 | yes |
+| Weak crypto (CWE-327) | No MD5/SHA1 for security | ruff S324 | yes |
 
 ---
 

@@ -171,9 +171,10 @@ exclude = [
 # ruff gates.
 #
 # The S and PLE2502 codes cover ruff's equivalent of every bandit test that can
-# report HIGH severity, the bar the retired CI bandit gate used. S301 and S313
-# are bandit MEDIUM checks kept because they report nothing today. The S4xx
-# import checks stay off because ruff ships them as preview-only.
+# report HIGH severity, the bar the retired CI bandit gate used. Four extras
+# fall below that bar in bandit 1.9.4: S301, S313 and S503 (MEDIUM) and S504
+# (LOW). They stay because they report nothing today. The S4xx import checks
+# stay off because ruff ships them as preview-only.
 select = [
     "E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90",
     "S103", "S201", "S202", "S301", "S304", "S312", "S313", "S321",
