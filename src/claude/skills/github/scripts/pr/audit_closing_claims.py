@@ -315,8 +315,10 @@ examples:
   %(prog)s --output-format json
 
 exit codes:
-  0  success
+  0  no unsupported closing claim can reach a squash commit
+  1  an unsupported closing claim can reach a squash commit
   2  invalid owner or repo, or plugin lib missing
+  3  repository setting or open-PR listing failed (needs an administration-read token)
   4  not authenticated with gh
 """
 
