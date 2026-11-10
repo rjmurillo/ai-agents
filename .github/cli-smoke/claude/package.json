@@ -4,6 +4,6 @@
   "private": true,
   "description": "Pinned @anthropic-ai/claude-code for plugin-cli-smoke.yml. Renovate bumps the version and the lockfile together.",
   "dependencies": {
-    "@anthropic-ai/claude-code": "2.1.316"
+    "@anthropic-ai/claude-code": "2.1.317"
   }
 }
