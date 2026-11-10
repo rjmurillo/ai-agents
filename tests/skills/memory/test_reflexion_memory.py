@@ -11,6 +11,8 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
@@ -259,3 +261,43 @@ class TestGetReflexionMemoryStatus:
     def test_counts_episode_files(self, sample_episode: dict) -> None:
         status = rm.get_reflexion_memory_status()
         assert status["Episodes"]["Count"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Stdlib-only import (plugin-self-containment.md MUST 4)
+# ---------------------------------------------------------------------------
+
+
+class TestWithoutJsonschema:
+    """The module loads under a bare ``python3``; only validation needs jsonschema."""
+
+    def test_module_imports_and_reads_with_jsonschema_blocked(self) -> None:
+        skill_dir = Path(rm.__file__).resolve().parent.parent
+        code = (
+            "import sys; sys.modules['jsonschema'] = None; "
+            f"sys.path.insert(0, {str(skill_dir)!r}); "
+            "import memory_core.reflexion_memory as m; "
+            "print(m.get_episode('no-such-session-for-this-test'))"
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "None"
+
+    def test_write_fails_loudly_instead_of_skipping_validation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setitem(sys.modules, "jsonschema", None)
+
+        with pytest.raises(ImportError):
+            rm.new_episode(session_id="no-validator", task="Test task", outcome="success")
+
+        assert not (rm.EPISODES_PATH / "episode-no-validator.json").exists()

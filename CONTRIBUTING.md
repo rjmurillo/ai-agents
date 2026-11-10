@@ -875,8 +875,9 @@ Each contract enforces a rule the repository already states:
 - `scripts` and `memory_enhancement` never import `tests`, which is not part of the installed package.
 
 The gate shares the topic with two older validators and does not repeat them.
+`check_plugin_root_interpreter.py` also runs two scans that start from files, not invocations. Rule 4 flags a single-root `CLAUDE_PLUGIN_ROOT` in any tracked file under `templates/`, `src/`, `.claude/`, `scripts/`, `build/`, or `packages/`. Rule 5 flags an unguarded third-party import at module level in `src/claude/skills/` and `src/claude/lib/`; a `try`/`except ImportError` import whose handler neither re-raises nor exits counts as guarded. Allowed Claude-only files live in `plugin_root_interpreter_allowances.py`.
 `scripts/validation/check_plugin_root_interpreter.py` and `check_doc_interpreter_portability.py` start from an invocation: a documented or plugin-root `python3 <script>` command. They walk that script's module-level imports for anything outside the standard library.
-A lib module that no invoked script reaches at import time goes unchecked by both. Both treat an import of another tracked repository module as allowed, so neither catches a sibling or `scripts/` import.
+A lib module that no invoked script reaches at import time goes unchecked by both invocation scans; rule 5 still checks it when it lives under `src/claude/lib/` or `src/claude/skills/`. Both treat an import of another tracked repository module as allowed, so neither catches a sibling or `scripts/` import.
 `lint-imports` starts from the four packages: it checks every module in them, including imports inside functions, which the module-level walk of those validators skips. It also flags imports inside `try` blocks, which those validators walk but this gate cannot excuse as guarded.
 A guarded import that complies with MUST 4, such as `bot_config -> yaml`, still needs an `ignore_imports` entry.
 

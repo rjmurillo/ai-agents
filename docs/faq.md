@@ -10,7 +10,7 @@ AI Agents is an open-source multi-agent toolkit for software development. It run
 
 ### How many agents does it include?
 
-30 agents. The README [Agent Catalog](../README.md#agent-catalog) lists each one with its purpose and output. [docs/agent-catalog.md](agent-catalog.md) links each agent to its template.
+29 agents. The README [Agent Catalog](../README.md#agent-catalog) lists each one with its purpose and output. [docs/agent-catalog.md](agent-catalog.md) links each agent to its template.
 
 ### How do agents review each other's work?
 

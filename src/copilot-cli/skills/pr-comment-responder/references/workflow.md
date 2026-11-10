@@ -63,7 +63,7 @@ Extract PR number and repository context from the user prompt before any API cal
 ### Step -1.1: Extract GitHub Context
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Extract PR numbers, issue numbers, owner/repo from user prompt
 python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr
@@ -80,7 +80,7 @@ python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --
 ### Step -1.2: Validate Context
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 context=$(python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr)
 # Exit code 1 if no PR found (fail fast, no user prompt)
 
@@ -116,7 +116,7 @@ When running autonomously (no user interaction possible):
 - Error message must be actionable: include what patterns are supported
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Autonomous execution - fail if context missing
 python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
@@ -145,7 +145,7 @@ Verify core memory loaded:
 ### Step 1.0: Session State Check
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 SESSION_DIR=".project-toolkit/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
@@ -162,14 +162,14 @@ fi
 ### Step 1.1: Fetch PR Metadata
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number]
 ```
 
 ### Step 1.2: Enumerate All Reviewers
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 ```
 
@@ -189,11 +189,15 @@ for reviewer in ALL_REVIEWERS:
 ### Step 1.3: Retrieve ALL Comments
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries
 python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 ```
+
+Then run the Phase 1 Recording fence in [gates.md](gates.md). It writes `total_comments.txt` and `comment_ids.txt`, the two artifacts every gate reads. Skip it and the gates block.
+
+Label comments on code that no longer exists by adding `--detect-stale` to the same command. Do not add `--exclude-stale` here: Phase 1 Recording counts every comment, so a stale comment stays in the comment map and needs a terminal status recorded through Gate 3. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). Use `--detect-stale --only-stale` during PR cleanup to find stale threads to resolve, and to spot bots that reviewed an outdated commit.
 
 ### Step 1.4: Confirm the PR is still actionable
 
@@ -213,7 +217,7 @@ returns `Data.action=SKIP` without mutation.
 ### Step 2.1: Acknowledge All Comments (Batch)
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Review and issue comments use different endpoints. Keep the batches separate.
 comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
@@ -222,20 +226,34 @@ issue_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Issu
 
 # Review reactions requery each target thread and reject resolved, missing,
 # or wrong-PR comments before mutation.
+# Gate 0 created this log. Gate 1 counts its `reaction eyes` records.
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
+
 if [ -n "$review_ids" ]; then
   python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
-    --pull-request [number] --comment-id $review_ids --reaction eyes
+    --pull-request [number] --comment-id $review_ids --reaction eyes || exit 1
+  for id in $review_ids; do
+    printf 'reaction eyes review %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
 fi
 
 if [ -n "$issue_ids" ]; then
   python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
-    --comment-type issue --comment-id $issue_ids --reaction eyes
+    --comment-type issue --comment-id $issue_ids --reaction eyes || exit 1
+  for id in $issue_ids; do
+    printf 'reaction eyes issue %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
 fi
 ```
+
+Run Gate 0 in [gates.md](gates.md) before this step so the log exists. A helper
+failure stops the step before any record is written for that batch.
 
 ### Step 2.2: Generate Comment Map
 
 Save to: `.project-toolkit/pr-comments/PR-[number]/comments.md`
+
+Render it from the Comment Map Template in [gates.md](gates.md). The gates parse that shape.
 
 Each comment gets:
 
@@ -329,6 +347,8 @@ Priority groups:
 
 ## Phase 4.5: Copilot Follow-Up Handling
 
+**BLOCKING**: finish this phase before Phase 5 begins. If no follow-up PR exists, go straight to Phase 5. Read [bots.md](bots.md) (Copilot Follow-Up Handling Detail) first, because the query and its empty-result exit are there.
+
 Detect Copilot follow-up PRs:
 
 - Branch: `copilot/sub-pr-{original_pr_number}`
@@ -349,13 +369,27 @@ Fix: the finding's claim about the code was false, not merely undesirable to
 act on.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # In-thread reply. The thread helper requeries the target immediately before
 # posting and again before an optional resolve mutation.
 python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
   --pull-request [number] --thread-id [thread-id] --body "[response]"
 ```
+
+### Step 5.1: Record Terminal Outcomes Decided Here
+
+A Won't Fix, a Duplicate, and a Deferred are terminal, and none of them reaches
+Phase 6. Their comments never pass through Step 6.5, so record them now: run
+Gate 3 ([gates.md](gates.md)) for each with the matching `TERMINAL_STATUS`
+(`[WONTFIX]`, `[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`). Gate 3 writes both
+`tasks.md` and that comment's `**Status**:` line in `comments.md`.
+
+Skipping this leaves a decided comment pending in the comment map, and Phase 8
+blocks on it exactly as it would on an unworked one.
+
+A Question or a Clarification is not terminal. Leave its status alone until the
+reviewer answers.
 
 ## Phase 6: Implementation
 
@@ -387,6 +421,20 @@ its generated status stays pending and blocks Phase 8 on finished work.
 
 Phase 5 outcomes never reach this phase. Record a Won't Fix, a Duplicate, or a
 Deferred through Gate 3 when you decide it, not here.
+
+### Step 6.5: Record the Terminal Status
+
+Run Gate 3 with `TERMINAL_STATUS="[COMPLETE]"`. It marks the task in `tasks.md`
+and writes that comment's `**Status**:` line in `comments.md` in the same step.
+
+Marking only the task list is the failure this step exists to prevent. The
+comment map is the artifact Gate 4, Gate 5, and Phase 8.1 count, so a fix that
+is committed and pushed while the map still reads its starting status stays
+pending forever.
+
+A comment that is genuinely still open, waiting on a reviewer reply or carrying
+`Action: Clarify`, keeps its non-terminal status. Phase 8 blocking on that one
+is the gate working; do not route around it by writing a terminal status.
 
 ## Phase 7: PR Description Update
 

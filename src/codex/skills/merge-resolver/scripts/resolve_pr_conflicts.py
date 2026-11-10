@@ -123,10 +123,11 @@ def _is_own_plugin(lib_dir: str) -> bool:
     cannot name a foreign plugin in the first place. This is also the real
     production path for this repository's own dogfood sessions: when
     ``CLAUDE_PLUGIN_ROOT=.claude`` (set by Claude Code when it loads this
-    repository's project plugin), that candidate is tried first and fails its
-    own manifest check (ADR-109 B6 deleted
-    ``.claude/.claude-plugin/plugin.json``), but resolution falls through to
-    this same directory again as the self-relative candidate, which succeeds.
+    repository's project plugin; the Copilot CLI sets ``COPILOT_PLUGIN_ROOT``
+    instead), that candidate is tried first and fails its own manifest check
+    (ADR-109 B6 deleted ``.claude/.claude-plugin/plugin.json``), but resolution
+    falls through to this same directory again as the self-relative candidate,
+    which succeeds.
 
     No sibling-manifest fallback for an environment-selected ``.claude``
     root: an attacker who controls ``CLAUDE_PLUGIN_ROOT`` (or
@@ -189,9 +190,9 @@ def _resolve_lib_dir() -> str:
 
     Each candidate is validated before use, so a plugin root belonging to
     another plugin falls through to the next candidate instead of ending the
-    run. Issue #4961: under the Copilot CLI, ``CLAUDE_PLUGIN_ROOT`` can name
-    the context-mode plugin, and taking it as authoritative exits 2 while a
-    valid root sits later in the list.
+    run. Issue #4961: under the Copilot CLI, ``CLAUDE_PLUGIN_ROOT`` (next to
+    ``COPILOT_PLUGIN_ROOT``) can name the context-mode plugin, and taking it
+    as authoritative exits 2 while a valid root sits later in the list.
 
     Fail-closed is preserved: when no candidate carries the module, the
     process exits 2 (config error per ADR-035) naming every candidate tried
