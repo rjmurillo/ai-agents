@@ -14,6 +14,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -53,7 +54,7 @@ def test_script_starts_with_pyyaml_blocked(tree: str) -> None:
 
 @pytest.mark.parametrize("tree", _TREES)
 class TestFailsClosedWithoutPyYaml:
-    def _without_yaml(self, tree: str, monkeypatch: pytest.MonkeyPatch) -> object:
+    def _without_yaml(self, tree: str, monkeypatch: pytest.MonkeyPatch) -> Any:
         detector = import_skill_script(tree)
         monkeypatch.setattr(detector, "_HAVE_YAML", False)
         return detector
