@@ -418,7 +418,24 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _non_negative_minutes(value: str) -> float:
+    try:
+        minutes = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {value!r}") from None
+    if minutes < 0 or minutes != minutes:
+        raise argparse.ArgumentTypeError("must be 0 or greater")
+    return minutes
+
+
 def _add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--min-idle-minutes",
+        type=_non_negative_minutes,
+        default=15.0,
+        help="skip sessions whose last record is newer than N minutes, because they may "
+        "still be running (default: 15; 0 keeps every session)",
+    )
     parser.add_argument(
         "--days", type=int, default=45, help="only consider sessions modified in the last N days"
     )

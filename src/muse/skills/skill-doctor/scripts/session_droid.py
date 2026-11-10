@@ -98,5 +98,5 @@ def parse_droid_session(path: Path, _skill_names: Any, include_subagents: bool) 
     meta = meta or {"id": path.stem, "cwd": None, "originator": "droid", "thread_source": None}
     meta["started_at"] = state.first_ts
     if ending:
-        state.stats["terminated_by"] = ending
+        state.terminate(ending)
     return state.finish(meta, DROID_EDIT_TOOLS)

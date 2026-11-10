@@ -70,10 +70,15 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
 31. Content fingerprints with path aliases per definition, `skill_variants`, and unresolved historical attribution (issue 7185).
 32. Namespace-qualified invocations such as `project-toolkit:skill-doctor` counted as usage of the installed name, with `skill_attribution` evidence (issue 7190).
-33. Factory Droid collector: `droid` harness ID, `--factory-home`, `session_droid.py`, and `droid_home` in the inventory.
-34. Project skill discovery now includes `<repo>/.factory/skills`, and global discovery includes `<factory-home>/skills`.
-35. `stats.terminated_by` for Droid sessions that end on `model_usage_exhausted` or a short usage-limit message.
-36. Devin CLI and Antigravity listed as known and unsupported in `supported-harnesses.md`, with no collector.
+33. Codex turn counts from `response_item` messages by role when the rollout has no `event_msg` turns, with no double count in older rollouts (issue 7184).
+34. Codex `response_item/agent_message` text rendered in transcripts as `child-agent` entries (issue 7189).
+35. `stats.terminated_by` from Codex `task_complete.error.codex_error_info` and Claude `isApiErrorMessage` records, shown in the transcript header and as its last entry. Droid matching moves to issue 7188 (issue 7189).
+36. `--min-idle-minutes` (default 15) quiet window on `stats.last_ts`, counted as `sessions_skipped_idle` (issue 7189).
+37. `failed_conversations` leaves out failures caused only by provider termination, and the report states how many (issue 7189).
+38. Factory Droid collector: `droid` harness ID, `--factory-home`, `session_droid.py`, and `droid_home` in the inventory.
+39. Project skill discovery now includes `<repo>/.factory/skills`, and global discovery includes `<factory-home>/skills`.
+40. `stats.terminated_by` for Droid sessions that end on `model_usage_exhausted` or a short usage-limit message.
+41. Devin CLI and Antigravity listed as known and unsupported in `supported-harnesses.md`, with no collector.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

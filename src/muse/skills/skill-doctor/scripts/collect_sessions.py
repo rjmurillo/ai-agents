@@ -41,11 +41,13 @@ from session_common import (
     detect_skill_candidates,
     detect_skills_from_entries,
     extract_text,
+    is_live_session,
     iter_jsonl_records,
     looks_injected,
     record_collection_issue,
     render_transcript,
     resolve_session_usage,
+    session_record,
     skill_variants,
     truncate,
 )
@@ -173,7 +175,7 @@ class Collection:
         self.sessions: list[dict[str, Any]] = []
         self.sources: dict[str, Any] = {}
         self.scanned = 0
-        self.in_scope = 0
+        self.in_scope = self.skipped_idle = 0
         self.warp_databases: list[Path] = []
 
     def add(self, harness: str, parsed: Any, file: str, modified_at: str) -> None:
@@ -185,17 +187,10 @@ class Collection:
         self.in_scope += 1
         if stats["assistant_turns"] < 1 or stats["tool_calls"] < 1:
             return
-        self.sessions.append(
-            {
-                "harness": harness,
-                "meta": meta,
-                "stats": stats,
-                "skills_used": skills_used,
-                "file": file,
-                "modified_at": modified_at,
-                "_entries": entries,
-            }
-        )
+        if is_live_session(stats, self.args.min_idle_minutes):
+            self.skipped_idle += 1
+            return
+        self.sessions.append(session_record(harness, parsed, file, modified_at))
 
     def matches(self, harness: str, meta: Any) -> bool:
         if harness == "copilot":
@@ -419,6 +414,7 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
             "sessions_in_repo": collection.in_scope,
             "sessions_in_scope": collection.in_scope,
             "sessions_considered": len(collection.sessions),
+            "sessions_skipped_idle": collection.skipped_idle,
             "sessions_sampled": len(sampled),
             "skills_found": len(skills),
             "ambiguous_skills": len(variants),
