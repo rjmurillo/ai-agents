@@ -19,6 +19,7 @@ from session_common import (
     detect_skills_from_entries,
     extract_text,
     iter_jsonl_records,
+    logical_skill_name,
     looks_injected,
 )
 
@@ -69,8 +70,9 @@ def _claude_block(state: SessionState, block: Any, role: str) -> bool:
     elif kind == "tool_use":
         name, args = str(block.get("name") or "unknown"), block.get("input") or {}
         state.tool(name, _arguments(args))
-        if name == "Skill" and isinstance(args, dict) and args.get("skill"):
-            state.skills.add(args["skill"])
+        invoked = args.get("skill") if isinstance(args, dict) else None
+        if name == "Skill" and invoked and isinstance(invoked, str):
+            state.skills.add(logical_skill_name(invoked))
     elif kind == "tool_result":
         state.output(extract_text(block.get("content")), bool(block.get("is_error")))
     return False
@@ -462,7 +464,7 @@ def _copilot_event(state: SessionState, meta: Any, obj: Any) -> None:
     elif kind == "tool.execution_complete":
         _copilot_tool_complete(state, data)
     elif kind == "skill.invoked" and isinstance(data.get("name"), str):
-        state.skills.add(data["name"])
+        state.skills.add(logical_skill_name(data["name"]))
         state.entries.append(("skill", json.dumps({"skill": data["name"]})))
 
 

@@ -150,8 +150,24 @@ def snapshot(repo: Path) -> tuple[dict[str, Any], int]:
     return result, (1 if unreadable else 0)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo .
+
+exit codes:
+  0  every instrument produced numbers
+  1  an instrument ran but its output could not be read
+  2  bad arguments or not a repository
+  3  git or an instrument failed to start
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p = argparse.ArgumentParser(
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--repo", default=".", help="repository root (default: .)")
     a = p.parse_args(argv)
     repo = Path(a.repo).resolve()

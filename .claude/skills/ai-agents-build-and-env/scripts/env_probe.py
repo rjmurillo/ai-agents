@@ -154,9 +154,24 @@ def run_smoke(repo: Path) -> dict[str, Any]:
     return {"results": results, "examined": len(results)}
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . pins
+  %(prog)s --repo . envfile
+
+exit codes:
+  0  ok
+  1  findings
+  2  configuration or bad arguments
+  3  git or uv missing or failed
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     parser.add_argument("--repo", default=".", help="repository root (default: .)")
     parser.add_argument("command", choices=["pins", "envfile", "smoke"])

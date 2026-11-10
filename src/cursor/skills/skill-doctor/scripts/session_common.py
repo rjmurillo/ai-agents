@@ -143,29 +143,101 @@ class TranscriptBuffer:
         return self._entries + [("note", f"[... {omitted} entries omitted ...]")] + list(self._tail)
 
 
+_QUALIFIED_SKILL = re.compile(r"^[\w.-]+:([\w.-]+)$")
+_SKILL_KEY = r'"(?:skill|name|bundled_skill_id)"\s*:\s*"'
+# Only these keys name an invocation. Generic "name" values such as "area:review" are labels.
+_INVOKE_KEY = r'"(?:skill|bundled_skill_id)"\s*:\s*"'
+
+
+def logical_skill_name(candidate: Any) -> Any:
+    """Return the bare name of a `namespace:name` invocation, else the input.
+
+    The namespace is not checked against any definition. Callers record that
+    through `skill_evidence`, never as proof of which definition ran.
+    """
+    match = _QUALIFIED_SKILL.match(candidate) if isinstance(candidate, str) else None
+    return match.group(1) if match else candidate
+
+
+def logical_skill_names(candidates: Any) -> set[str]:
+    return {name for name in map(logical_skill_name, candidates) if isinstance(name, str)}
+
+
 def detect_skill_candidates(text: str) -> set[str]:
     normalized = text.replace("\\", "/")
     candidates = set(re.findall(r"(?:^|/)skills/+([^/]+)/+", normalized))
-    candidates.update(re.findall(r'"(?:skill|name|bundled_skill_id)"\s*:\s*"([^"]+)"', normalized))
-    return candidates
+    candidates.update(re.findall(_SKILL_KEY + r'([^"]+)"', normalized))
+    return candidates | logical_skill_names(re.findall(_INVOKE_KEY + r'([^"]+)"', normalized))
+
+
+def _tool_text(entries: Any) -> str:
+    return "\n".join(
+        text for role, text in entries if role == "skill" or role.startswith("tool:")
+    ).replace("\\", "/")
 
 
 def detect_skills_from_entries(entries: Any, skill_names: Any) -> set[str]:
-    tool_text = "\n".join(
-        text for role, text in entries if role == "skill" or role.startswith("tool:")
-    ).replace("\\", "/")
-    detected = set()
+    tool_text = _tool_text(entries)
+    detected = detect_skill_candidates(tool_text) & set(skill_names)
     for name in skill_names:
-        markers = (
-            f"skills/{name}/",
-            f"{name}/SKILL.md",
-            f'"skill": "{name}"',
-            f'"name": "{name}"',
-            f'"bundled_skill_id": "{name}"',
-        )
-        if any(marker in tool_text for marker in markers):
+        if f"skills/{name}/" in tool_text or f"{name}/SKILL.md" in tool_text:
             detected.add(name)
     return detected
+
+
+def skill_evidence(entries: Any, name: str) -> str:
+    """Rank how a transcript names a skill: path, bare_name, qualified_name, or unrecorded."""
+    tool_text = _tool_text(entries)
+    if f"skills/{name}/" in tool_text or f"{name}/SKILL.md" in tool_text:
+        return "path"
+    quoted = re.escape(name)
+    if re.search(_SKILL_KEY + quoted + '"', tool_text):
+        return "bare_name"
+    if re.search(_INVOKE_KEY + r"[\w.-]+:" + quoted + '"', tool_text):
+        return "qualified_name"
+    return "unrecorded"
+
+
+def skill_variants(skills: Any) -> dict[str, Any]:
+    """Name every content-distinct definition. Only the edit target is a current claim."""
+    return {
+        name: {
+            "edit_target": {"path": skill["path"], "sha256": skill["sha256"]},
+            "definitions": skill["definitions"],
+            "historical_attribution": "unresolved",
+        }
+        for name, skill in sorted(skills.items())
+        if len(skill["definitions"]) > 1
+    }
+
+
+def _attribution(entries: Any, used: Any, variants: Any) -> dict[str, Any]:
+    """Flag usage whose executed definition cannot be known from the transcript."""
+    notes = {}
+    for name in used:
+        evidence = skill_evidence(entries, name)
+        reasons = ["conflicting_definitions"] if name in variants else []
+        if evidence == "qualified_name":
+            reasons.append("namespace_unverified")
+        elif evidence == "unrecorded":
+            reasons.append("evidence_not_in_transcript")
+        if reasons:
+            notes[name] = {"evidence": evidence, "unresolved_because": reasons}
+    return notes
+
+
+def resolve_session_usage(sessions: Any, skills: Any) -> None:
+    """Set logical usage per session, independent of which definition is the edit target."""
+    installed = set(skills)
+    variants = skill_variants(skills)
+    for session in sessions:
+        entries = session["_entries"]
+        detected = detect_skills_from_entries(entries, installed)
+        used = (set(session["skills_used"]) | detected) & installed
+        session["skills_used"] = sorted(used)
+        notes = _attribution(entries, session["skills_used"], variants)
+        if notes:
+            session["skill_attribution"] = notes
 
 
 def looks_injected(text: str) -> bool:

@@ -175,9 +175,23 @@ def _add_source_args(p: argparse.ArgumentParser) -> None:
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s sources
+  %(prog)s rank --top 10
+
+exit codes:
+  0  ok
+  2  usage or validation error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="mine_sessions", description=(__doc__ or "").splitlines()[0]
+        prog="mine_sessions",
+        description=(__doc__ or "").splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 

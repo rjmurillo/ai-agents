@@ -112,24 +112,33 @@ def discover_skills(
         copilot_home,
     )
     skills: dict[str, dict[str, Any]] = {}
-    ambiguous: set[str] = set()
     for root in roots:
         if not root.is_dir():
             continue
         for skill_md in sorted(root.glob("*/SKILL.md")):
-            name = skill_md.parent.name
-            if name in ambiguous:
-                continue
             metadata = _skill_metadata(skill_md)
             if metadata is not None:
-                previous = skills.get(name)
-                if previous is not None and previous["sha256"] != metadata["sha256"]:
-                    del skills[name]
-                    ambiguous.add(name)
-                    record_collection_issue("ambiguous_skills")
-                else:
-                    skills.setdefault(name, metadata)
+                _add_definition(skills, metadata)
     return skills
+
+
+def _add_definition(skills: dict[str, dict[str, Any]], metadata: dict[str, Any]) -> None:
+    """Keep the first-seen copy as the edit target and group every copy by content.
+
+    Roots are visited in `--repo` order, then global homes, so the first copy is
+    the current checkout's. Usage detection never depends on that choice.
+    """
+    chosen = skills.setdefault(metadata["name"], metadata)
+    if chosen is metadata:
+        metadata["definitions"] = []
+    for definition in chosen["definitions"]:
+        if definition["sha256"] == metadata["sha256"]:
+            break
+    else:
+        definition = {"sha256": metadata["sha256"], "paths": []}
+        chosen["definitions"].append(definition)
+    if metadata["path"] not in definition["paths"]:
+        definition["paths"].append(metadata["path"])
 
 
 def _recent_files(paths: Any, cutoff: datetime) -> list[tuple[datetime, Path]]:

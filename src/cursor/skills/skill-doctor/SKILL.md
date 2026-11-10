@@ -171,7 +171,12 @@ Useful flags:
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
 Note `stats.sessions_skipped_idle`: sessions whose last record is newer than `--min-idle-minutes` (default 15) are skipped because they may still be running; disclose the count.
 Disclose partial collection before interpreting usage or recommending changes.
-Ambiguous same-name definitions are excluded, never selected as edit targets.
+Same-name definitions with different content stay in usage and coverage.
+`skill_variants` in `inventory.json` lists each one with its paths and `sha256`, and names the current edit target.
+`stats.ambiguous_skills` counts these names. It is information, not a collection failure.
+Historical attribution for these names is `unresolved`: the transcript does not record which bytes ran.
+Never present a fingerprint as the version a past conversation executed.
+A session's `skill_attribution` marks usage whose definition is unresolved, with `evidence` of `path`, `bare_name`, `qualified_name`, or `unrecorded`.
 If `sessions_sampled` is 0, report no scoreable conversations and stop.
 If `skills_found` is 0, continue with `skill_coverage` set to 0.
 Recommend creation only when a failed conversation demonstrates a capability gap.
@@ -223,7 +228,7 @@ Then derive the substance:
 
 Follow `$SKILL_ROOT/references/skill-improvements.md` to propose improvements to project skills based only on `failed_conversations`.
 
-1. Read the skill's current file (path is in `inventory.json`).
+1. Read the skill's current file: `path` in its `skills` entry of `inventory.json`, the current edit target. Draft only against that path. When the name is in `skill_variants`, refuse to draft against any other path, and never against a global-home copy while a repository copy exists. State the exact source path and its `sha256` in the suggestion's `change` text.
 2. Write the full improved version to `$REPORT_DIR/proposed/<skill-name>/SKILL.md`, changing only what the evidence justifies. Improve the parts the sessions actually exercised: the trigger description that failed to fire, the missing preflight check, the step the agent had to figure out by trial and error.
 3. Produce a unified diff with Python's `difflib.unified_diff`, reading both files as UTF-8. Store it in the suggestion's `diff` field so it renders in the report.
 

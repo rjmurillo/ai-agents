@@ -218,16 +218,22 @@ def generate_threat_matrix(scope: str, output_path: Path) -> int:
     return 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --scope "Payment API" --output matrix.md
+
+exit codes:
+  0  matrix written
+  1  generation failed
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Generate a structured threat matrix document",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python generate_threat_matrix.py --scope "Auth Service" --output auth-threats.md
-  python generate_threat_matrix.py --scope "Payment API" --output ./threat-models/payment.md
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(
