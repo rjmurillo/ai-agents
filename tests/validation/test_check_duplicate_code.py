@@ -4,7 +4,9 @@ import json
 import shutil
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -111,6 +113,152 @@ def _run(repo: Path, runner: str, *args: str, monkeypatch: pytest.MonkeyPatch) -
     return gate.main([str(repo), *args])
 
 
+def _diagnostic_runner(
+    report: str | Exception | None, cmd: list[str], **_kwargs: object
+) -> subprocess.CompletedProcess[str]:
+    output = Path(cmd[cmd.index("-o") + 1]) / "jscpd-report.json"
+    if "--update-baseline" in cmd:
+        Path(cmd[cmd.index("--baseline") + 1]).write_text(
+            gate.render_baseline({"new": 1}), encoding="utf-8"
+        )
+        output.write_text('{"statistics": {"total": {"sources": 2}}}', encoding="utf-8")
+    elif isinstance(report, Exception):
+        raise report
+    elif report is not None:
+        output.write_text(report, encoding="utf-8")
+    return subprocess.CompletedProcess(cmd, 0, "", "")
+
+
+def _diagnostic_clone(**overrides: object) -> dict[str, object]:
+    clone: dict[str, object] = {
+        "isNew": True,
+        "firstFile": {"name": "first.py", "start": 1, "end": 12},
+        "secondFile": {"name": "second.py", "start": 20, "end": 31},
+        "lines": 12,
+    }
+    clone.update(overrides)
+    return clone
+
+
+BAD_CLONE_FIELDS: list[tuple[str, object]] = [
+    ("isNew", "true"),
+    ("isNew", None),
+    ("lines", True),
+    ("lines", 0),
+    ("firstFile", None),
+    ("secondFile", []),
+    ("firstFile", {"name": "x", "start": 1}),
+    ("firstFile", {"name": " ", "start": 1, "end": 2}),
+    ("firstFile", {"name": 5, "start": 1, "end": 2}),
+    ("firstFile", {"name": "x", "start": True, "end": 2}),
+    ("firstFile", {"name": "x", "start": 0, "end": 2}),
+    ("secondFile", {"name": "x", "start": 3, "end": 2}),
+    ("secondFile", {"name": "x", "start": 1, "end": None}),
+]
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        "{bad",
+        "null",
+        "[]",
+        "1",
+        '""',
+        "{}",
+        '{"duplicates": null}',
+        '{"duplicates": {}}',
+        '{"duplicates": [null]}',
+        '{"duplicates": [[]]}',
+        '{"duplicates": [{}]}',
+        *[
+            json.dumps({"duplicates": [_diagnostic_clone(**{field: value})]})
+            for field, value in BAD_CLONE_FIELDS
+        ],
+        *[
+            json.dumps(
+                {"duplicates": [{k: v for k, v in _diagnostic_clone().items() if k != field}]}
+            )
+            for field in ("isNew", "firstFile", "secondFile", "lines")
+        ],
+    ],
+)
+def test_bad_diagnostics_preserve_duplication_failure(
+    report: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """AC3: Optional diagnostic corruption cannot replace the primary verdict."""
+    repo = _repo(tmp_path, {})
+    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, report))
+
+    assert gate.main([str(repo)]) == 1
+
+    captured = capsys.readouterr()
+    assert "FAIL: 1 duplicated block(s) are new" in captured.out
+    assert "WARNING: clone diagnostics unavailable" in captured.err
+    assert "OK:" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        None,
+        '{"duplicates": []}',
+        '{"duplicates": ' + json.dumps([_diagnostic_clone(isNew=False)]) + "}",
+    ],
+)
+def test_absent_or_old_diagnostics_preserve_failure_without_corruption_warning(
+    report, tmp_path, monkeypatch, capsys
+) -> None:
+    repo = _repo(tmp_path, {})
+    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, report))
+    assert gate.main([str(repo)]) == 1
+    captured = capsys.readouterr()
+    assert "FAIL:" in captured.out
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize("error", [OSError("unavailable"), subprocess.TimeoutExpired("jscpd", 1)])
+def test_diagnostic_process_errors_preserve_primary_failure(error, tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, {})
+    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, error))
+    assert gate.main([str(repo)]) == 1
+    captured = capsys.readouterr()
+    assert "FAIL:" in captured.out
+    assert "WARNING: clone diagnostics unavailable" in captured.err
+
+
+@pytest.mark.parametrize("count", [1, gate.MAX_REPORTED + 1])
+def test_valid_diagnostics_render_bounded_locations(count, tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, {})
+    report = json.dumps({"duplicates": [_diagnostic_clone()] * count})
+    monkeypatch.setenv("JSCPD_BIN", "fake-jscpd")
+    monkeypatch.setattr(gate.subprocess, "run", partial(_diagnostic_runner, report))
+    assert gate.main([str(repo)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.count("first.py:1-12 <-> second.py:20-31 (12 lines)") == min(
+        count, gate.MAX_REPORTED
+    )
+    assert "FAIL:" in captured.out
+    assert captured.err == ""
+
+
+def test_setup_command_installs_required_locked_scanner_before_testing() -> None:
+    """AC2: A contributor following setup installs the hard-gated Node tool."""
+    guide = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    setup = guide.split("### Setup Steps", 1)[1].split("```bash\n", 1)[1].split("```", 1)[0]
+    commands = setup.strip().split(" && ")
+    assert "npm ci --ignore-scripts" in commands
+    assert commands.index("npm ci --ignore-scripts") < next(
+        i for i, command in enumerate(commands) if "pytest " in command
+    )
+    prerequisites = guide.split("**Required Versions:**", 1)[1].split("### Setup Steps", 1)[0]
+    assert "Node.js LTS" in prerequisites and "npm" in prerequisites
+
+
 class TestEntryPoint:
     def test_missing_locked_runner_is_config_error_without_download(
         self, tmp_path, monkeypatch, capsys
@@ -118,11 +266,10 @@ class TestEntryPoint:
         repo = _repo(tmp_path, {})
         monkeypatch.delenv("JSCPD_BIN", raising=False)
 
-        def unexpected_run(*_args, **_kwargs):
-            pytest.fail("a missing scanner must not launch an installer")
-
-        monkeypatch.setattr(gate.subprocess, "run", unexpected_run)
+        runner = Mock(side_effect=AssertionError("a missing scanner must not launch an installer"))
+        monkeypatch.setattr(gate.subprocess, "run", runner)
         assert gate.main([str(repo)]) == 2
+        runner.assert_not_called()
         assert "npm ci --ignore-scripts" in capsys.readouterr().err
 
     def test_locked_runner_is_resolved_locally(self, tmp_path, monkeypatch) -> None:

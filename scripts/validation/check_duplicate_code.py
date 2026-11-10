@@ -40,7 +40,6 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict
 
 CONFIG_NAME = ".jscpd.json"
 BASELINE_NAME = ".jscpd-baseline.json"
@@ -49,12 +48,6 @@ RUN_TIMEOUT_SECONDS = 600
 MAX_REPORTED = 40
 
 Fingerprints = dict[str, int]
-
-
-class CloneLocation(TypedDict):
-    name: str
-    start: int
-    end: int
 
 
 class GateError(Exception):
@@ -184,6 +177,38 @@ def scan(root: Path, runner: list[str], ceiling: Fingerprints) -> tuple[Fingerpr
         return fingerprints, sources
 
 
+def _clone_location(side: object) -> str:
+    if not isinstance(side, dict):
+        raise ValueError("clone location must be an object")
+    name, start, end = (side.get(key) for key in ("name", "start", "end"))
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("clone location name must be a nonempty string")
+    if type(start) is not int or type(end) is not int:
+        raise ValueError("clone location bounds must be integers")
+    if start <= 0 or end < start:
+        raise ValueError("clone location bounds must be positive and ordered")
+    return f"{name}:{start}-{end}"
+
+
+def _clone_row(clone: object) -> str:
+    if not isinstance(clone, dict) or type(clone.get("isNew")) is not bool:
+        raise ValueError("clone must be an object with a boolean isNew")
+    lines = clone.get("lines")
+    if type(lines) is not int or lines <= 0:
+        raise ValueError("clone lines must be a positive integer")
+    first, second = (_clone_location(clone.get(key)) for key in ("firstFile", "secondFile"))
+    return f"  {first} <-> {second} ({lines} lines)" if clone["isNew"] else ""
+
+
+def _clone_report(text: str) -> str:
+    report = json.loads(text)
+    clones = report.get("duplicates") if isinstance(report, dict) else None
+    if not isinstance(clones, list):
+        raise ValueError("clone report must contain a duplicates array")
+    rows = [row for clone in clones if (row := _clone_row(clone))]
+    return "\n".join(["New or grown clones:", *rows[:MAX_REPORTED]]) if rows else ""
+
+
 def show_new_clones(root: Path, runner: list[str], ceiling: Fingerprints) -> str:
     """List only clones jscpd marks new against the gate's effective ceiling."""
     with tempfile.TemporaryDirectory(prefix="jscpd-gate-") as tmp:
@@ -207,17 +232,17 @@ def show_new_clones(root: Path, runner: list[str], ceiling: Fingerprints) -> str
         report = Path(tmp) / "jscpd-report.json"
         if result.returncode != 0 or not report.is_file():
             return ""
-        clones = json.loads(report.read_text(encoding="utf-8")).get("duplicates", [])
+        return _clone_report(report.read_text(encoding="utf-8"))
 
-    def where(side: CloneLocation) -> str:
-        return f"{side['name']}:{side['start']}-{side['end']}"
 
-    hits = [c for c in clones if c.get("isNew")]
-    rows = [
-        f"  {where(c['firstFile'])} <-> {where(c['secondFile'])} ({c['lines']} lines)"
-        for c in hits[:MAX_REPORTED]
-    ]
-    return "\n".join(["New or grown clones:", *rows]) if rows else ""
+def _print_new_clones(root: Path, runner: list[str], ceiling: Fingerprints) -> None:
+    try:
+        details = show_new_clones(root, runner, ceiling)
+        if details:
+            print(details)
+    except (GateError, OSError, ValueError) as exc:
+        # Diagnostics cannot replace the already-established duplication failure.
+        print(f"WARNING: clone diagnostics unavailable: {exc}", file=sys.stderr)
 
 
 def base_ref_baseline(root: Path, ref: str) -> Fingerprints | None:
@@ -300,9 +325,7 @@ def run_gate(root: Path, args: argparse.Namespace) -> int:
         return 0
 
     if delta.grown:
-        details = show_new_clones(root, runner, ceiling)
-        if details:
-            print(details)
+        _print_new_clones(root, runner, ceiling)
     if inflated:
         print(
             f"FAIL: {inflated} baseline entr(ies) are absent from or higher than the "
