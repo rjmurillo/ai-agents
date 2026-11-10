@@ -223,27 +223,16 @@ def fast_fail_check(result: Result) -> tuple[bool, str]:
 # ===========================================================================
 
 
-_HELP_EPILOG = """\
-examples:
-  %(prog)s input.json
-  %(prog)s input.json --verbose
-  %(prog)s input.json --output result.json --json
-
-exit codes:
-  0  success
-  1  general failure
-  2  invalid arguments
-  3  file not found
-  10  validation failure
-  11  fast-fail check failure
-"""
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="{{BRIEF_DESCRIPTION}}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=_HELP_EPILOG,
+        epilog="""
+Examples:
+  %(prog)s input.json
+  %(prog)s input.json --verbose
+  %(prog)s input.json --output result.json --json
+        """,
     )
 
     # ----- Required Arguments -----

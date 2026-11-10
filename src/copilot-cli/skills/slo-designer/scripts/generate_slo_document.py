@@ -423,28 +423,18 @@ alerts:
 """
 
 
-_HELP_EPILOG = """\
-YAML config files need PyYAML (pip install pyyaml).
-
-examples:
-  %(prog)s --sample-config
-  %(prog)s --config slo-config.yaml
-  %(prog)s --config slo-config.yaml --output slo.md
-
-exit codes:
-  0  document generated
-  1  invalid arguments
-  2  configuration error
-  3  generation error
-"""
-
-
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Generate SLO document from configuration",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=_HELP_EPILOG,
+        epilog="""
+Examples:
+  %(prog)s --config slo-config.yaml --output docs/slo-user-api.md
+  %(prog)s --sample-config > slo-config.yaml
+
+Note: Requires PyYAML for YAML config files (pip install pyyaml)
+        """,
     )
 
     parser.add_argument(
