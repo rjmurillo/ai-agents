@@ -128,9 +128,22 @@ def _render_human(stats: ProseStats) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s draft.md
+  %(prog)s draft.md --json
+
+exit codes:
+  0  analyzed (with or without a flat-rhythm warning)
+  2  missing file or unreadable path
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Layer 3 burstiness/concreteness proxy for prose-self-check."
+        description="Layer 3 burstiness/concreteness proxy for prose-self-check.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("file", help="path to the prose artifact to analyze")
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
