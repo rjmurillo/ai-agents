@@ -333,16 +333,23 @@ Tips:
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s my-skill
+  %(prog)s my-skill --path skills --dry-run
+
+exit codes:
+  0  skill created (or previewed with --dry-run)
+  1  general failure
+  2  invalid arguments
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Scaffold a new skill for Codex or Claude Code",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s code-reviewer
-  %(prog)s deploy-helper --path ~/my-skills
-  %(prog)s test-generator --path ~/.codex/skills
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

@@ -830,9 +830,23 @@ def resolve_pr_conflicts(
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pr-number 123 --branch-name feature/retry --dry-run
+  %(prog)s --pr-number 123 --branch-name feature/retry --target-branch main
+
+exit codes:
+  0  no conflicts, or conflicts auto-resolved
+  1  conflicts could not be auto-resolved, a git command failed, or repo info lookup failed
+  2  no plugin lib directory carries github_core
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Resolve merge conflicts for a PR branch with auto-resolution.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

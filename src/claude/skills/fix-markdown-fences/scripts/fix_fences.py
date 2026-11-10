@@ -382,10 +382,24 @@ def _report(
         print(f"Refused {name}: {reason}")
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s docs
+  %(prog)s docs --write
+
+exit codes:
+  0  no defects, or --write repaired every defect
+  1  report mode: at least one defect found
+  2  a requested path does not exist or a file could not be read
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(
         description="Detect and repair malformed markdown code fence closings",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "paths",

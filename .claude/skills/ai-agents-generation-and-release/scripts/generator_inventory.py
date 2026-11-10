@@ -359,9 +359,23 @@ def cmd_gates(repo: Path) -> tuple[dict[str, Any], int]:
     return {"gates": results, "unwired": bad, "examined": examined}, 1 if bad else 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . generators
+  %(prog)s --repo . path src/claude/rules/voice.md
+
+exit codes:
+  0  ok
+  1  unmapped path, or a gate with missing wiring
+  2  configuration or bad arguments
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     parser.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = parser.add_subparsers(dest="cmd", required=True)

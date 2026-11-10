@@ -109,9 +109,22 @@ def _extract_context(text: str) -> dict:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --text "Fixes #123 see https://github.com/octo-org/octo-repo/pull/45"
+  %(prog)s --text "Review PR #45" --require-pr
+
+exit codes:
+  0  success
+  1  required context not found
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Extract GitHub context from text and URLs.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--text", required=True, help="Text to parse for GitHub context")
     parser.add_argument(

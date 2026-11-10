@@ -325,7 +325,7 @@ def test_top_level_help_shows_examples_and_exit_codes() -> None:
 
     assert result.returncode == 0
     assert "examples:" in result.stdout
-    assert "Exit codes:" in result.stdout
+    assert "exit codes:" in result.stdout
 
 
 def test_missing_subcommand_exits_two_on_stderr() -> None:
