@@ -226,6 +226,21 @@ def exit_code_for_score(score: float) -> int:
 
 
 _HELP_EPILOG = """\
+Example vendor data file format (JSON):
+{
+  "years_in_business": 8,
+  "funding_status": "series_c_plus",
+  "ma_risk": "low",
+  "market_position": "challenger",
+  "customer_count": 500,
+  "public_roadmap": true,
+  "pricing_transparency": "public",
+  "pricing_model": "per_seat",
+  "lock_in_cost": "low",
+  "core_feature_coverage_percent": 85,
+  "customization_options": "api"
+}
+
 examples:
   %(prog)s --vendor-data vendor.json
 

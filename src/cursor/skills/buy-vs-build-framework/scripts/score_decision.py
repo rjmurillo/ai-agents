@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- main() was 11 branches all along; its column-0 epilog string hid the count
 """
 Calculate weighted decision scores with sensitivity analysis.
 
@@ -107,6 +108,24 @@ def sensitivity_analysis(
 
 
 _HELP_EPILOG = """\
+Example criteria file format (JSON):
+{
+  "weights": {
+    "strategic": 40.0,
+    "operational": 30.0,
+    "risk": 30.0
+  },
+  "options": {
+    "build": {
+      "strategic": {"alignment": 9, "optionality": 8, "upside": 9},
+      "operational": {"time_to_value": 5, "team_fit": 8, "integration": 7},
+      "risk": {"vendor": 10, "execution": 6, "regulatory": 8}
+    },
+    "buy": { ... },
+    "partner": { ... }
+  }
+}
+
 examples:
   %(prog)s --criteria-file criteria.json
 
