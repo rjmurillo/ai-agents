@@ -48,7 +48,6 @@ against your PIV checklist. Treat a missing or failed run as an unmet PIV item
 and say so in the verdict rather than assuming it passed. The block is recorded
 in a reference so the request names exact commands rather than a vague ask. **Take the security test command from the target repository**: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. It is mandatory: if none names one, record `UNRESOLVED EVIDENCE: no security test command found in <sources checked>` as an unmet PIV item. The hook and secrets steps in that block apply only when the target has that capability: use its own command, or if it has none record `NOT APPLICABLE: <step>, checked <sources>`, which is not an unmet item. Reuse what you find; do not re-ask. Ask the caller to run each. Never invent a command, skip an item silently, or report it as passed. The commands are in `security-piv-ci-checks.md` (see Reference Loading). If it is unavailable, ask the caller for the target repository's own hook-manager validation, a staged-diff scan for hardcoded secrets, and a scan for hardcoded environment-variable assignments, and record each as unresolved until the caller returns output.
 
-
 4. **PIV Report Template**
 
 Save to: `.project-toolkit/security/PIV-[feature].md`

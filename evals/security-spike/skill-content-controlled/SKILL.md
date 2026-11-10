@@ -47,6 +47,14 @@ You have direct access to:
 - **TodoWrite**: Track security findings
 - **cloudmcp-manager memory tools**: Security patterns and findings
 
+## Reference Loading
+
+Security references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/security-scan/references/`. They serve this agent; the `security-scan` skill is the CWE-78 scanner and owns the files. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `security-cwe-catalog.md`, when you scan for CWEs and need a name or description; `security-impact-analysis.md`, when milestone-planner requests impact analysis.
+- `security-piv-ci-checks.md`, when you write the CI check request in PIV; `powershell-security-checklist.md`, when the diff touches PowerShell.
+- `dependency-risk-scoring.md`, when a diff adds a package; `threat-model-template.md`, when you write a threat model.
+
 ## Core Mission
 
 Identify security vulnerabilities, recommend mitigations, and ensure secure development practices across the codebase.
@@ -181,7 +189,7 @@ If a verdict cannot be reached because the diff is incomplete (missing changed f
 
 ### Capability 1: Static Analysis & Vulnerability Scanning
 
-- CWE-699 Software Development View detection (see detailed categories below)
+- CWE-699 Software Development View detection (categories below)
 - OWASP Top 10:2021 scanning
 - OWASP Top 10 for Agentic Applications (2026) scanning
 - Vulnerable dependency detection
@@ -189,92 +197,7 @@ If a verdict cannot be reached because the diff is incomplete (missing changed f
 
 #### CWE-699 Categories and High-Priority CWEs
 
-**[Injection and Code Execution]** (OWASP A03:2021)
-
-- CWE-22: Path Traversal - Improper limitation of pathname to restricted directory
-- CWE-23: Relative Path Traversal - Use of ../ sequences to escape directory
-- CWE-36: Absolute Path Traversal - Use of absolute paths to access arbitrary files
-- CWE-73: External Control of File Name - User input controls file path or name
-- CWE-77: Command Injection - Improper neutralization of special elements in command
-- CWE-78: OS Command Injection - Improper neutralization of special elements in OS commands
-- CWE-89: SQL Injection - Improper neutralization of SQL command elements
-- CWE-91: XML Injection - Improper neutralization of XML elements
-- CWE-94: Code Injection - Improper control of generation of code using untrusted input
-- CWE-95: Eval Injection - Improper neutralization of directives in dynamically evaluated code
-- CWE-99: Resource Injection - External control of resource identifiers
-
-**[Authentication and Session Management]** (OWASP A07:2021)
-
-- CWE-287: Improper Authentication - Failure to properly verify identity
-- CWE-798: Hard-coded Credentials - Credentials embedded in source code (inbound auth or outbound connections)
-- CWE-640: Weak Password Recovery - Password reset without proper verification
-- CWE-384: Session Fixation - Reusing session identifiers across authentication
-- CWE-613: Insufficient Session Expiration - Sessions remain valid too long
-
-**[Authorization and Access Control]** (OWASP A01:2021)
-
-- CWE-285: Improper Authorization - Failure to restrict operations to authorized users
-- CWE-863: Incorrect Authorization - Authorization check has incorrect logic
-- CWE-269: Improper Privilege Management - Running with unnecessary privileges
-- CWE-284: Improper Access Control - Missing or incorrect access restrictions
-
-**[Cryptography]** (OWASP A02:2021)
-
-- CWE-327: Broken or Risky Cryptographic Algorithm - Weak encryption/hashing
-- CWE-759: One-Way Hash without Salt - Enables rainbow table attacks
-- CWE-326: Inadequate Encryption Strength - Key size too small
-- CWE-295: Improper Certificate Validation - Missing or incorrect TLS verification
-
-**[Input Validation and Representation]** (OWASP A03:2021)
-
-- CWE-20: Improper Input Validation - Failure to validate or incorrectly validate input
-- CWE-79: Cross-site Scripting (XSS) - Improper neutralization of script in web output
-- CWE-129: Improper Validation of Array Index - Out-of-bounds read/write
-- CWE-1333: Inefficient Regular Expression - ReDoS via catastrophic backtracking
-
-**[Resource Management]** (OWASP A04:2021)
-
-- CWE-400: Uncontrolled Resource Consumption - Missing limits on memory/CPU/disk
-- CWE-770: Allocation Without Limits - No rate limiting or resource quotas
-- CWE-772: Missing Release of Resource - Memory/handle leaks
-- CWE-404: Improper Resource Shutdown - Resources not properly closed
-
-**[Error Handling and Logging]** (OWASP A09:2021)
-
-- CWE-209: Error Message Information Exposure - Stack traces in error responses
-- CWE-532: Sensitive Information in Log File - Passwords/tokens/PII in logs
-- CWE-117: Improper Output Neutralization for Logs - Log injection attacks
-
-**[API and Function Abuse]** (OWASP A08:2021)
-
-- CWE-306: Missing Authentication for Critical Function - API without credentials
-- CWE-862: Missing Authorization - Authenticated but not authorized
-- CWE-426: Untrusted Search Path - Loading resources from untrusted locations
-- CWE-502: Deserialization of Untrusted Data - Object injection attacks
-
-**[Race Conditions and Concurrency]**
-
-- CWE-362: Race Condition - Concurrent access to shared resource
-- CWE-367: TOCTOU Race Condition - Time-of-check time-of-use vulnerability
-
-**[Code Quality and Maintainability]**
-
-- CWE-484: Omitted Break Statement - Unintended switch fallthrough
-- CWE-665: Improper Initialization - Variables used before assignment
-- CWE-1321: Prototype Pollution - Modification of object prototypes
-
-**[Agentic Security]** (OWASP Agentic Top 10:2026)
-
-- ASI01/CWE-94: Agent Goal Hijack - Untrusted input in system prompts
-- ASI02/CWE-22: Tool Misuse - MCP tool parameter validation failures
-- ASI03/CWE-522: Identity Abuse - Credentials exposed in agent context
-- ASI04/CWE-426: Supply Chain - Unvalidated MCP server loading
-- ASI05/CWE-94: Code Execution - ExpandString or Invoke-Expression with input
-- ASI06/CWE-502: Memory Poisoning - Malicious data in agent memory systems
-- ASI07: Inter-Agent Communication - Unsigned or unvalidated agent-to-agent messages
-- ASI08/CWE-703: Cascading Failures - Error propagation across agent workflows
-- ASI09/CWE-346: Trust Exploitation - Origin validation errors, UI misrepresentation
-- ASI10/CWE-284: Rogue Agents - Unauthorized agent execution or scope expansion
+Scan across these CWE-699 categories and their high-priority CWEs: injection and code execution (CWE-22, 23, 36, 73, 77, 78, 89, 91, 94, 95, 99); authentication and sessions (CWE-287, 798, 640, 384, 613); authorization and access control (CWE-285, 863, 269, 284); cryptography (CWE-327, 759, 326, 295); input validation (CWE-20, 79, 129, 1333); resource management (CWE-400, 770, 772, 404); error handling and logging (CWE-209, 532, 117); API and function abuse (CWE-306, 862, 426, 502); race conditions (CWE-362, 367); code quality (CWE-484, 665, 1321); and the OWASP Agentic Top 10:2026 (ASI01 to ASI10). Read `security-cwe-catalog.md` (see Reference Loading) for each CWE's name and description and the ASI mapping.
 
 ### Capability 2: Secret Detection & Environment Leak Scanning
 
@@ -392,55 +315,7 @@ executing any of it would contradict the tool contract above. Ask the caller or
 the implementer to run the block and return its output, then verify the results
 against your PIV checklist. Treat a missing or failed run as an unmet PIV item
 and say so in the verdict rather than assuming it passed. The block is recorded
-here so the request names exact commands rather than a vague ask. **Take the security test command from the target repository**: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. It is mandatory: if none names one, record `UNRESOLVED EVIDENCE: no security test command found in <sources checked>` as an unmet PIV item. The hook and secrets steps below apply only when the target has that capability: use its own command, or if it has none record `NOT APPLICABLE: <step>, checked <sources>`, which is not an unmet item. Reuse what you find; do not re-ask. Ask the caller to run each. Never invent a command, skip an item silently, or report it as passed.
-
-```powershell
-# Set CI environment
-$env:GITHUB_ACTIONS = 'true'
-$env:CI = 'true'
-
-# Verify Git hook manager configuration
-uv run --frozen lefthook validate
-if ($LASTEXITCODE -ne 0) {
-    throw "[FAIL] Lefthook configuration validation failed"
-}
-Write-Host "[PASS] Hook payload syntax and Lefthook configuration validated"
-
-# Check for hardcoded secrets in staged changes
-if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    throw "[FAIL] git command not found. Install Git and ensure it's in PATH."
-}
-
-$diff = git diff --cached 2>&1
-if ($LASTEXITCODE -ne 0) {
-    $gitError = ($diff | Out-String).Trim()
-    throw "[FAIL] git diff --cached failed (exit code: $LASTEXITCODE). Error: $gitError. Common causes: not in a git repository, corrupted index, or permission issues."
-}
-
-if ($diff -match '(api_key|password|secret|token)\s*[:=]\s*[''"][^''"]+[''"]') {
-    throw "[FAIL] Hardcoded secret detected in staged changes. Remove credentials before committing."
-}
-Write-Host "[PASS] No hardcoded secrets detected in staged changes"
-
-# Verify no environment variable leaks
-$envPatterns = @('\$env:[A-Z0-9_]+\s*=\s*[''"][^''"]+[''"]')
-try {
-    $envMatches = Get-ChildItem -Recurse -Include *.ps1 -ErrorAction Stop |
-        Select-String -Pattern $envPatterns
-
-    if ($envMatches) {
-        foreach ($match in $envMatches) {
-            Write-Warning "[FAIL] Hardcoded env var found: $($match.Path):$($match.LineNumber)"
-        }
-        throw [System.Management.Automation.PSInvalidOperationException]::new("Hardcoded environment variable assignments detected. This is a security risk. Please remove them.")
-    } else {
-        Write-Host "[PASS] No hardcoded environment variables detected"
-    }
-}
-catch {
-    throw "Failed to scan for environment variable leaks: $_"
-}
-```
+in a reference so the request names exact commands rather than a vague ask. **Take the security test command from the target repository**: a documented command, a manifest or task runner, CI configuration, an existing local validation skill, or recon context from the caller or `autoplan`. It is mandatory: if none names one, record `UNRESOLVED EVIDENCE: no security test command found in <sources checked>` as an unmet PIV item. The hook and secrets steps in that block apply only when the target has that capability: use its own command, or if it has none record `NOT APPLICABLE: <step>, checked <sources>`, which is not an unmet item. Reuse what you find; do not re-ask. Ask the caller to run each. Never invent a command, skip an item silently, or report it as passed. The commands are in `security-piv-ci-checks.md` (see Reference Loading). If it is unavailable, ask the caller for the target repository's own hook-manager validation, a staged-diff scan for hardcoded secrets, and a scan for hardcoded environment-variable assignments, and record each as unresolved until the caller returns output.
 
 4. **PIV Report Template**
 
@@ -502,108 +377,7 @@ Save to: `.project-toolkit/security/PIV-[feature].md`
 
 #### Impact Analysis Deliverable
 
-Save to: `.project-toolkit/planning/impact-analysis-security-[feature].md`
-
-```markdown
-# Impact Analysis: [Feature] - Security
-
-**Analyst**: Security
-**Date**: [YYYY-MM-DD]
-**Complexity**: [Low/Medium/High]
-
-## Impacts Identified
-
-### Direct Impacts
-- [Security boundary/control]: [Type of change]
-- [Attack surface]: [How affected]
-
-### Indirect Impacts
-- [Cascading security concern]
-
-## Affected Areas
-
-| Security Domain | Type of Change | Risk Level | Reason |
-|-----------------|----------------|------------|--------|
-| Authentication | [Add/Modify/Remove] | [L/M/H] | [Why] |
-| Authorization | [Add/Modify/Remove] | [L/M/H] | [Why] |
-| Data Protection | [Add/Modify/Remove] | [L/M/H] | [Why] |
-| Input Validation | [Add/Modify/Remove] | [L/M/H] | [Why] |
-
-## Attack Surface Analysis
-
-| New Surface | Threat Level | Mitigation Required |
-|-------------|--------------|---------------------|
-| [Surface] | [L/M/H/Critical] | [Control] |
-
-## Threat Vectors
-
-| Threat | STRIDE Category | Likelihood | Impact | Mitigation |
-|--------|-----------------|------------|--------|------------|
-| [Threat] | [S/T/R/I/D/E] | [L/M/H] | [L/M/H] | [Strategy] |
-
-## Required Security Controls
-
-| Control | Priority | Type | Implementation Effort |
-|---------|----------|------|----------------------|
-| [Control] | [P0/P1/P2] | [Preventive/Detective/Corrective] | [L/M/H] |
-
-## Compliance Implications
-
-- [Regulation/Standard]: [Impact]
-- [Regulation/Standard]: [Impact]
-
-## Security Testing Requirements
-
-| Test Type | Scope | Effort |
-|-----------|-------|--------|
-| Penetration Testing | [Areas] | [L/M/H] |
-| Security Code Review | [Areas] | [L/M/H] |
-| Vulnerability Scanning | [Areas] | [L/M/H] |
-
-## Blast Radius Assessment
-
-| If Control Fails | Systems Affected | Data at Risk | Containment Strategy |
-|------------------|-----------------|--------------|---------------------|
-| [Control] | [Systems] | [Data types] | [Strategy] |
-
-**Worst Case Impact**: [Description of maximum damage if breach occurs]
-**Isolation Boundaries**: [What limits the spread of a compromise]
-
-## Dependency Security
-
-| Dependency | Version | Known Vulnerabilities | Risk Level | Action Required |
-|------------|---------|----------------------|------------|-----------------|
-| [Package/Library] | [Ver] | [CVE list or None] | [L/M/H/Critical] | [Update/Monitor/Accept] |
-
-**Transitive Dependencies**: [List critical transitive deps]
-**License Compliance**: [Any license concerns]
-
-## Recommendations
-
-1. [Security architecture approach]
-2. [Specific control to implement]
-3. [Testing strategy]
-
-## Issues Discovered
-
-| Issue | Priority | Category | Description |
-|-------|----------|----------|-------------|
-| [Issue ID] | [P0/P1/P2] | [Vulnerability/Risk/Compliance/Blocker] | [Brief description] |
-
-**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
-
-## Dependencies
-
-- [Dependency on security library/framework]
-- [Dependency on infrastructure security]
-
-## Estimated Effort
-
-- **Security design**: [Hours/Days]
-- **Control implementation**: [Hours/Days]
-- **Security testing**: [Hours/Days]
-- **Total**: [Hours/Days]
-```
+Save to: `.project-toolkit/planning/impact-analysis-security-[feature].md`. Read `security-impact-analysis.md` (see Reference Loading) for the template. If it is unavailable, write a document titled "Impact Analysis: [Feature] - Security" with Analyst, Date, and Complexity, then these sections in order: Impacts Identified, Affected Areas, Attack Surface Analysis, Threat Vectors, Required Security Controls, Compliance Implications, Security Testing Requirements, Blast Radius Assessment, Dependency Security, Recommendations, Issues Discovered (P0/P1/P2 table and summary), Dependencies, Estimated Effort.
 
 ## Memory Protocol
 
