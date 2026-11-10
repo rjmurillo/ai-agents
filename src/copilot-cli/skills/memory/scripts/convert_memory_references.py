@@ -16,62 +16,21 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
+import subprocess as subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-def _find_project_root(fallback_dir: Path | None = None) -> Path:
-    """Find project root via git or directory traversal."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-common-dir"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            git_common = Path(result.stdout.strip())
-            if not git_common.is_absolute():
-                git_common = (Path.cwd() / git_common).resolve()
-            else:
-                git_common = git_common.resolve()
-            return git_common.parent
-    except FileNotFoundError:
-        pass
-
-    search = fallback_dir or Path(__file__).resolve().parent
-    while search != search.parent:
-        if (search / ".git").exists():
-            return search
-        search = search.parent
-    raise SystemExit("Could not find project root (no .git directory found)")
-
-
-def _validate_path_within_project(memories_path: str, project_root: Path) -> Path:
-    """Validate that a path is within the project root (CWE-22 mitigation)."""
-    resolved = Path(memories_path).resolve()
-    root_resolved = project_root.resolve()
-    if not resolved.is_relative_to(root_resolved):
-        raise SystemExit(
-            f"Security: MemoriesPath must be within project directory. "
-            f"Provided: {resolved}, Project root: {root_resolved}"
-        )
-    return resolved
-
-
-def _build_memory_names(memories_path: Path) -> dict[str, bool]:
-    """Build lookup of memory file base names (without .md extension)."""
-    names: dict[str, bool] = {}
-    for md_file in memories_path.glob("*.md"):
-        names[md_file.stem] = True
-    return names
-
-
-def _count_md_links(content: str) -> int:
-    """Count markdown links ending in .md."""
-    return len(re.findall(r"\[[^\]]+\]\([^)]+\.md\)", content))
+from memory_link_processing import (
+    ConversionOptions,
+    _build_memory_names,
+    _find_project_root,
+    _validate_path_within_project,
+    process_link_files,
+)
+from memory_link_processing import _count_md_links as _count_md_links
 
 
 def _convert_backtick_refs(content: str, memory_names: dict[str, bool]) -> str:
@@ -100,7 +59,7 @@ def process_files(
     files_to_process: list[Path] | None = None,
     output_json: bool = False,
     dry_run: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Process memory files and convert backtick references to links.
 
     With ``dry_run`` no file is written; FilesModified counts the files that
@@ -120,41 +79,14 @@ def process_files(
     if not output_json:
         print(f"Found {len(all_memory_files)} memory files")
 
-    stats: dict[str, Any] = {
-        "FilesProcessed": 0,
-        "FilesModified": 0,
-        "LinksAdded": 0,
-        "Errors": [],
-    }
-
-    for file_path in target_files:
-        stats["FilesProcessed"] += 1
-        try:
-            content = file_path.read_text(encoding="utf-8")
-            if not content:
-                continue
-
-            original_content = content
-            content = _convert_backtick_refs(content, memory_names)
-
-            if content != original_content:
-                if not dry_run:
-                    file_path.write_text(content, encoding="utf-8")
-                if not output_json:
-                    print(f"{'Would update' if dry_run else 'Updated'}: {file_path.name}")
-                stats["FilesModified"] += 1
-                original_count = _count_md_links(original_content)
-                new_count = _count_md_links(content)
-                stats["LinksAdded"] += new_count - original_count
-        except Exception as exc:
-            msg = f"Error processing {file_path.name}: {exc}"
-            stats["Errors"].append(msg)
-            if not output_json:
-                print(f"WARNING: {msg}", file=sys.stderr)
-
-    if dry_run:
-        stats["DryRun"] = True
-    return stats
+    return cast(
+        dict[str, Any],
+        process_link_files(
+            target_files,
+            memory_names,
+            ConversionOptions((_convert_backtick_refs,), output_json, dry_run),
+        ),
+    )
 
 
 _HELP_EPILOG = """\
