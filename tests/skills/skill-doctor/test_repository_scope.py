@@ -40,7 +40,14 @@ def git(cwd, *args):
 
 def git_out(cwd, *args):
     return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True, timeout=30
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
     ).stdout
 
 
