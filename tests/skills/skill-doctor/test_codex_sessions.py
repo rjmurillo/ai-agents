@@ -351,27 +351,34 @@ def test_negative_min_idle_minutes_is_a_usage_error(tmp_path):
     assert result.returncode == 2
 
 
-@pytest.mark.parametrize(
-    ("last_ts", "expected"),
-    [
-        (None, False),
-        ("not a timestamp", False),
-        (True, False),
-        (_iso(timedelta(minutes=1)), True),
-        (_iso(timedelta(hours=1)), False),
-        (_iso(timedelta(minutes=1)).replace("Z", ".123456789Z"), True),
-        ((datetime.now(timezone.utc) - timedelta(minutes=2)).timestamp(), True),
-        ((datetime.now(timezone.utc) - timedelta(hours=2)).timestamp() * 1000, False),
-        (
-            (datetime.now(timezone.utc) - timedelta(minutes=2)).replace(tzinfo=None).isoformat(),
-            True,
-        ),
-    ],
-)
-def test_is_live_session_handles_timestamp_shapes(last_ts, expected):
+def _now_minus(**kwargs):
+    return datetime.now(timezone.utc) - timedelta(**kwargs)
+
+
+# Factories keep the parametrize ids stable, so xdist workers collect identical test ids.
+_TIMESTAMP_CASES = {
+    "missing": (lambda: None, False),
+    "garbage-string": (lambda: "not a timestamp", False),
+    "boolean": (lambda: True, False),
+    "recent-iso-z": (lambda: _iso(timedelta(minutes=1)), True),
+    "old-iso-z": (lambda: _iso(timedelta(hours=1)), False),
+    "recent-nine-digit-fraction": (
+        lambda: _now_minus(minutes=1).strftime("%Y-%m-%dT%H:%M:%S.123456789Z"),
+        True,
+    ),
+    "recent-epoch-seconds": (lambda: _now_minus(minutes=2).timestamp(), True),
+    "old-epoch-milliseconds": (lambda: _now_minus(hours=2).timestamp() * 1000, False),
+    "recent-naive-iso": (lambda: _now_minus(minutes=2).replace(tzinfo=None).isoformat(), True),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_TIMESTAMP_CASES))
+def test_is_live_session_handles_timestamp_shapes(case):
     from session_common import is_live_session
 
-    assert is_live_session({"last_ts": last_ts}, 15.0) is expected
+    build, expected = _TIMESTAMP_CASES[case]
+
+    assert is_live_session({"last_ts": build()}, 15.0) is expected
 
 
 def test_is_live_session_never_skips_when_window_is_zero():
