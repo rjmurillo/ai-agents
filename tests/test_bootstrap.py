@@ -70,6 +70,7 @@ def test_resolve_uses_claude_plugin_root_env_var(
 ) -> None:
     plugin_root = tmp_path / "plugin"
     plugin_root.mkdir()
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
 
     result = bootstrap_module.resolve_plugin_lib_dir(hook_file=str(tmp_path / "x.py"))
@@ -77,10 +78,51 @@ def test_resolve_uses_claude_plugin_root_env_var(
     assert result == str(plugin_root.resolve() / "lib")
 
 
+def test_resolve_uses_copilot_plugin_root_env_var(
+    bootstrap_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Copilot CLI sets COPILOT_PLUGIN_ROOT; a Claude-only read would miss it."""
+    plugin_root = tmp_path / "copilot-plugin"
+    plugin_root.mkdir()
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(plugin_root))
+
+    result = bootstrap_module.resolve_plugin_lib_dir(hook_file=str(tmp_path / "x.py"))
+
+    assert result == str(plugin_root.resolve() / "lib")
+
+
+def test_resolve_prefers_copilot_plugin_root_over_claude(
+    bootstrap_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    copilot_root = tmp_path / "copilot-plugin"
+    claude_root = tmp_path / "claude-plugin"
+    monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(copilot_root))
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
+
+    result = bootstrap_module.resolve_plugin_lib_dir(hook_file=str(tmp_path / "x.py"))
+
+    assert result == str(copilot_root.resolve() / "lib")
+
+
+def test_resolve_falls_through_an_empty_copilot_plugin_root(
+    bootstrap_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty COPILOT_PLUGIN_ROOT must not shadow a valid CLAUDE_PLUGIN_ROOT."""
+    claude_root = tmp_path / "claude-plugin"
+    monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
+
+    result = bootstrap_module.resolve_plugin_lib_dir(hook_file=str(tmp_path / "x.py"))
+
+    assert result == str(claude_root.resolve() / "lib")
+
+
 def test_resolve_walks_up_to_plugin_marker(
     bootstrap_module, fake_plugin_tree: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
     hook_file = fake_plugin_tree / "hooks" / "fake_hook.py"
 
     result = bootstrap_module.resolve_plugin_lib_dir(hook_file=str(hook_file))
@@ -92,6 +134,7 @@ def test_resolve_returns_none_when_walk_up_exhausted(
     bootstrap_module, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
     # tmp_path has no .claude-plugin/plugin.json anywhere up the tree, so the
     # walk should reach the filesystem root and return None.
     isolated = tmp_path / "no_marker_here"
@@ -121,6 +164,7 @@ def test_resolve_uses_caller_file_when_hook_file_none(
 ) -> None:
     """When hook_file is None the resolver falls back to inspect.currentframe."""
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
 
     # Write a tiny script that imports the bootstrap module and calls
     # resolve_plugin_lib_dir() with no arguments, then prints the result.
@@ -146,7 +190,11 @@ print(m.resolve_plugin_lib_dir())
         capture_output=True,
         text=True,
         encoding="utf-8",
-        env={k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"},
+        env={
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT")
+        },
     )
 
     assert proc.stdout.strip() == str(fake_plugin_tree / "lib")
@@ -156,6 +204,7 @@ def test_setup_hook_lib_path_adds_lib_to_sys_path(
     bootstrap_module, fake_plugin_tree: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
     lib_dir = str(fake_plugin_tree / "lib")
     # Ensure we start clean in case a prior test added the path.
     while lib_dir in sys.path:
@@ -177,6 +226,7 @@ def test_setup_hook_lib_path_exits_when_lib_missing(
 ) -> None:
     """If the resolver returns a path that does not exist, exit with the
     requested code rather than continuing into an ImportError."""
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path / "nonexistent_plugin"))
 
     hook_file = tmp_path / "fake_hook.py"
@@ -193,6 +243,7 @@ def test_setup_hook_lib_path_is_idempotent(
 ) -> None:
     """Calling setup_hook_lib_path twice must not duplicate the entry in sys.path."""
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
     lib_dir = str(fake_plugin_tree / "lib")
     while lib_dir in sys.path:
         sys.path.remove(lib_dir)

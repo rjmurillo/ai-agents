@@ -32,7 +32,7 @@ rows:
   - class: agents-github
     # ADR-119: .github/agents/<name>.agent.md links to the shipped Copilot
     # render, so the repository's own Copilot agents are the shipped ones.
-    # pr-comment-responder.prompt.md and security/ stay hand-maintained.
+    # security/ stays hand-maintained.
     source: templates/agents
     plugin_tree: src/copilot-cli/agents
     install_tree: .github/agents
