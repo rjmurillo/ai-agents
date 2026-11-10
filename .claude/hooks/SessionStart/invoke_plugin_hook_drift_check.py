@@ -11,8 +11,7 @@ thing which blocked them came from a stale install.
 This hook states it. At session start it compares the hooks each shipped
 manifest actually enforces against each active installed copy of the same plugin
 (the installs Claude Code lists in `installed_plugins.json`, or every copy on
-disk when no record is readable or the harness keeps none), and names what
-diverges.
+disk when no record is readable or the harness keeps none), and names what diverges.
 
 "Actually enforces" is the load-bearing part. A Claude registration usually
 names `invoke_dispatch_claude.py --group <id>` rather than a hook script, and
@@ -385,9 +384,8 @@ def _installs_to_compare(
 
 
 def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
-    """Compare each active installed copy against its shipped source.
-
-    See :func:`_installs_to_compare` for which copies count as active.
+    """Compare each active installed copy against its shipped source (see
+    :func:`_installs_to_compare`).
 
     ``notes`` carries per-surface problems that are not a specific install's
     fault, such as a source manifest this checkout cannot read. ``incomplete``
