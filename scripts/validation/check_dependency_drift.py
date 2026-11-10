@@ -40,6 +40,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import re
 import sys
@@ -56,9 +57,7 @@ from packaging.version import InvalidVersion, Version
 try:
     from scripts.validation import python_dependency_constraints as constraints
 except ModuleNotFoundError:
-    import python_dependency_constraints
-
-    constraints = python_dependency_constraints
+    constraints = importlib.import_module("python_dependency_constraints")
 
 satisfiable = constraints.satisfiable
 
