@@ -279,3 +279,7 @@ See [zimmermann-review-guidance.md](references/zimmermann-review-guidance.md) fo
 | [artifacts.md](references/artifacts.md) | Output formats and templates |
 | [agent-prompts.md](references/agent-prompts.md) | Detailed agent prompt templates |
 | [zimmermann-review-guidance.md](references/zimmermann-review-guidance.md) | Review practices, 7 anti-patterns, checklist, reviewer pledge (Zimmermann 2023) |
+| [architect-impact-analysis.md](references/architect-impact-analysis.md) | For the `architect` agent, not used by the debate: impact analysis deliverable |
+| [architect-code-organization-review.md](references/architect-code-organization-review.md) | For the `architect` agent, not used by the debate: directory structure review |
+| [architect-vendor-lock-in.md](references/architect-vendor-lock-in.md) | For the `architect` agent, not used by the debate: vendor lock-in section template |
+| [architect-strategic-principles.md](references/architect-strategic-principles.md) | For the `architect` agent, not used by the debate: strategic principles and legacy patterns |
