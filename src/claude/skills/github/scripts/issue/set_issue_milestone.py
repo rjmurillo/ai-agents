@@ -156,9 +156,25 @@ def _get_milestone_titles(owner: str, repo: str) -> list[str]:
     return [t.strip() for t in result.stdout.strip().splitlines() if t.strip()]
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123 --milestone "v1.2.0"
+  %(prog)s --issue 123 --milestone "v1.3.0" --force --dry-run
+
+exit codes:
+  0  success
+  1  logic/precondition error (includes: milestone already set without --force)
+  2  usage/config error (invalid arguments, milestone not found)
+  3  external error (API failure, including a failed milestone query)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Assign a milestone to a GitHub Issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

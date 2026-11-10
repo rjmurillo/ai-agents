@@ -130,12 +130,24 @@ def get_applicable_steering(
     return applicable
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --files src/app.py
+  %(prog)s --files src/app.py docs/guide.md --steering-path steering --json
+
+exit codes:
+  0  steering match completed
+"""
+
+
 def main() -> int:
     """Entry point."""
     import argparse
 
     parser = argparse.ArgumentParser(
         description="Match file paths against steering file glob patterns",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--files",

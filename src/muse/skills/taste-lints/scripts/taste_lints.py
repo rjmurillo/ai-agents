@@ -1165,9 +1165,23 @@ def parse_rules(rules_str: str) -> tuple[str, ...]:
     return rules
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --git-staged
+  %(prog)s --diff-scope origin/main --format json
+
+exit codes:
+  0  clean
+  1  script error
+  10  violations detected
+"""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Taste invariant linter with agent-readable remediation",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "files",

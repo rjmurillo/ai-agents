@@ -225,9 +225,23 @@ def get_memory_router_status(
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s "session protocol"
+  %(prog)s "git hooks" --max-results 5 --format table
+
+exit codes:
+  0  search ran (results may be empty)
+  1  query failed validation (1-500 characters)
+  2  a store path contains '..', or AI_AGENTS_REPO_ROOT is not a directory
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Unified memory search across Serena and episodes.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "query",

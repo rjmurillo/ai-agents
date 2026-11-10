@@ -83,6 +83,18 @@ def expand_target(target: Path) -> list[Path]:
     return files
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s my-skill
+  %(prog)s skills/review skills/build
+
+exit codes:
+  0  no unsafe patterns found
+  1  unsafe patterns found
+  2  unreadable path, or a directory with no SKILL.md
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build argument parser."""
     parser = argparse.ArgumentParser(
@@ -91,10 +103,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Flag unquoted $TOOL_INPUT or $TOOL_OUTPUT in markdown command "
             "examples. With no argument, scans this skill's default docs."
         ),
-        epilog=(
-            "Exit codes: 0 no unsafe patterns found, 1 unsafe patterns found, "
-            "2 bad input (unreadable path or a directory with no SKILL.md)."
-        ),
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "paths",

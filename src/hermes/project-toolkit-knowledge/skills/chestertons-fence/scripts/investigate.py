@@ -326,17 +326,23 @@ def _generate_findings_appendix(result: InvestigationResult) -> str:
     return "\n".join(lines) + "\n"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --target app/validate.py --change "remove unused validation"
+  %(prog)s --target docs/adr-005.md --change "allow bash scripts" --format json
+
+exit codes:
+  0  investigation report printed
+  1  target path contains '..', or the target is not readable text
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Investigate historical context before changing existing systems",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python3 investigate.py --target scripts/validate.py --change "remove unused validation"
-  python3 investigate.py --target docs/architecture/ADR-005.md --change "allow bash scripts"
-  python3 investigate.py --target scripts/validate.py --change "refactor" --format json
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

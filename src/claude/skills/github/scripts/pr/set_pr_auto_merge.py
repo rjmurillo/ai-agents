@@ -307,9 +307,25 @@ def enable_auto_merge(
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123 --enable --merge-method SQUASH
+  %(prog)s --pull-request 123 --enable --commit-headline "fix(api): handle empty body"
+
+exit codes:
+  0  success
+  1  operation failed or invalid parameters
+  2  PR not found
+  3  external error (API failure)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Enable or disable auto-merge for a GitHub PR.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

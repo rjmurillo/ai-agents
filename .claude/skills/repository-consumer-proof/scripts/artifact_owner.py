@@ -124,9 +124,22 @@ def _normalize(repo: Path, raw: str) -> str | None:
     return norm
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . src/claude/rules/voice.md
+
+exit codes:
+  0  a row covers the path
+  1  no row covers the path
+  2  bad arguments or an unreadable manifest
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     parser.add_argument("--repo", default=".")
     parser.add_argument("path", help="repo-relative path to classify")

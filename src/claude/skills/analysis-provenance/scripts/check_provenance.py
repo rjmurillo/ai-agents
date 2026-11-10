@@ -378,10 +378,23 @@ def format_text_output(result: ProvenanceResult) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --target app/check.py
+  %(prog)s --target app/check.py --format json --verbose
+
+exit codes:
+  0  provenance determined
+  1  target not found
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Check code provenance for ownership determination."
+        description="Check code provenance for ownership determination.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--target", required=True, help="File or directory to analyze")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
