@@ -871,6 +871,49 @@ class TestTruncatedFlag:
         assert data["count"] == 30
         assert data["truncated"] is True
 
+    def test_search_at_max_limit_does_not_request_past_the_search_cap(self):
+        _, mock_run = self._run(["--limit", "1000", "--search", "is:issue"], [_issue(1, "a")])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--limit") + 1] == "1000"
+
+    def test_search_below_the_cap_still_asks_for_one_extra_row(self):
+        _, mock_run = self._run(["--limit", "999", "--search", "is:issue"], [_issue(1, "a")])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--limit") + 1] == "1000"
+
+    def test_without_search_max_limit_still_asks_for_one_extra_row(self):
+        _, mock_run = self._run(["--limit", "1000"], [_issue(1, "a")])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--limit") + 1] == "1001"
+
+    def test_search_that_fills_the_cap_reports_truncated(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 1001)]
+        self._run(["--limit", "1000", "--search", "is:issue"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 1000
+        assert data["truncated"] is True
+
+    def test_search_returning_the_cap_for_a_lower_limit_reports_truncated(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 1001)]
+        self._run(["--limit", "999", "--search", "is:issue"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 999
+        assert data["truncated"] is True
+
+    def test_search_under_the_cap_is_not_truncated(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 4)]
+        self._run(["--limit", "1000", "--search", "is:issue"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 3
+        assert data["truncated"] is False
+
+    def test_max_limit_without_search_is_judged_by_the_extra_row(self, capsys):
+        issues = [_issue(n, f"i{n}") for n in range(1, 1001)]
+        self._run(["--limit", "1000"], issues)
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 1000
+        assert data["truncated"] is False
+
     def test_human_summary_mentions_truncation(self, capsys):
         issues = [_issue(n, f"i{n}") for n in range(1, 4)]
         self._run(["--limit", "2", "--output-format", "human"], issues)
