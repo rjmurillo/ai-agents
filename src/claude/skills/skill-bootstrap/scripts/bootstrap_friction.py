@@ -14,10 +14,11 @@ import json
 import math
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 Payload = dict[str, Any]
 MAX_INPUT_BYTES = 5 * 1024 * 1024
+PAGINATION_QUERY_KEYS = frozenset({"page", "per_page", "$top", "$skip"})
 HOSTED_SIGNALS = {
     "github_pull_request": ("changes_requested", "state"),
     "github_issue": ("reopened", "event"),
@@ -129,12 +130,23 @@ def _session_scope(meta: Payload, declared: PurePosixPath | PureWindowsPath) -> 
         )
 
 
-def _url(value: Any) -> str:
+def _url(value: Any, *, page: bool = False) -> str:
+    """Accept a credential-free HTTPS URL; only page URLs may carry pagination keys.
+
+    Seeds retain these URLs as provenance, so a signed or tokenized query would
+    leak into the miner's output. Page URLs keep plain page counters only.
+    """
     text = _text(value)
     parsed = urlsplit(text)
     _require(
         parsed.scheme == "https" and bool(parsed.hostname) and _safe_url_text(text),
         "source URL must be credential-free HTTPS without a fragment",
+    )
+    keys = {key for key, _ in parse_qsl(parsed.query, keep_blank_values=True)}
+    allowed = PAGINATION_QUERY_KEYS if page else frozenset()
+    _require(
+        keys <= allowed and (bool(keys) or not parsed.query),
+        "source URL query may hold only page counters on page URLs",
     )
     return text
 
@@ -153,8 +165,8 @@ def _safe_url_text(text: str) -> bool:
     )
 
 
-def _scoped_url(value: Any, scope: str) -> str:
-    text = _url(value)
+def _scoped_url(value: Any, scope: str, *, page: bool = False) -> str:
+    text = _url(value, page=page)
     target, base = urlsplit(text), urlsplit(scope)
     _require(
         target.netloc == base.netloc
@@ -342,13 +354,13 @@ def _collection(item: Payload) -> tuple[Payload, int, int]:
     for page in pages:
         page = _object(page)
         _successful(page)
-        request = _scoped_url(page.get("request"), item["scope"])
+        request = _scoped_url(page.get("request"), item["scope"], page=True)
         _require(request == expected and request not in requests, "broken or cyclic page chain")
         requests.add(request)
         _require("next" in page, "page needs explicit next, null at termination")
         expected = page["next"]
         if expected is not None:
-            expected = _scoped_url(expected, item["scope"])
+            expected = _scoped_url(expected, item["scope"], page=True)
         records, signals = _page_records(page, item, seen)
         count += signals
         normalized_page = {"request": request, "next": expected, "records": records}

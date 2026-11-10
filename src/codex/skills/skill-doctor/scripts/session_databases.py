@@ -256,6 +256,8 @@ def _hermes_skill_view(state: SessionState, args: str, skill_names: Any) -> None
 def _hermes_message(state: SessionState, row: Any, skill_names: Any) -> None:
     state.timestamp(parse_epoch_timestamp(row["timestamp"]))
     role, content = row["role"], row["content"] or ""
+    if not isinstance(content, str):
+        raise _SchemaError("Hermes message content is not text")
     if role == "user" and content.strip():
         if state.text("user", content):
             state.stats["user_turns"] += 1
@@ -298,8 +300,12 @@ def parse_hermes_session(
     except (OSError, sqlite3.Error):
         record_collection_issue("database_failures")
         return None
-    for row in rows:
-        _hermes_message(state, row, skill_names)
+    try:
+        for row in rows:
+            _hermes_message(state, row, skill_names)
+    except _SchemaError:
+        record_collection_issue("schema_failures")
+        return None
     if state.stats["assistant_turns"] < 1 or state.stats["tool_calls"] < 1:
         return None
     first = state.first_ts or parse_epoch_timestamp(session_row["started_at"])

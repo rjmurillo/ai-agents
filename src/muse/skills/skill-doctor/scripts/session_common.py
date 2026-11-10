@@ -229,7 +229,7 @@ class SessionState:
         self, name: str, text: str, *, hints: bool = True, skill_candidates: bool = True
     ) -> None:
         self.stats["tool_calls"] += 1
-        key = hashlib.sha1((name + text).encode()).hexdigest()
+        key = hashlib.sha256((name + text).encode()).hexdigest()
         self.stats["repeated_tool_calls"] += int(key in self.calls)
         self.calls.add(key)
         self.tools.add(name)

@@ -174,7 +174,7 @@ If `sessions_sampled` is 0, report no scoreable conversations and stop.
 If `skills_found` is 0, continue with `skill_coverage` set to 0.
 Recommend creation only when a failed conversation demonstrates a capability gap.
 
-For skill discovery, pass the inventory to `skill-bootstrap` as an initial candidate seed.
+When the run covered exactly one repository (`conversation_scope` is `projects` and `repos` has one entry), you can pass the inventory to `skill-bootstrap` as an initial candidate seed. Bootstrap rejects all-conversations and multi-project inventories.
 In a bootstrap child run, return it to the caller instead of starting another run.
 Its discovery miner also accepts offline hosted PR, issue, and work-item observations.
 Use deterministic inventory counters, not the qualitative grades from Step 2.
@@ -191,7 +191,7 @@ Scoring is based on efficiency, code quality, procedure compliance, and verbosit
 - `$SKILL_ROOT/scorers/procedure-compliance.md`
 - `$SKILL_ROOT/scorers/verbosity.md`
 
-Instructions: For each transcript in `$REPORT_DIR/transcripts/`, read it and judge it against all four rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1-3 sentence reason citing specifics from the transcript. Apply the code-quality scorer only where the transcript shows code changes; otherwise record `insufficient_evidence` and exclude that result from the code-quality average and failed-conversation filter.
+Instructions: For each session in `inventory.json` with `sampled: true`, read its `transcript_path`. Ignore other files in `$REPORT_DIR/transcripts/`, which can be left over from an earlier run. Read each transcript and judge it against all four rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1-3 sentence reason citing specifics from the transcript. Apply the code-quality scorer only where the transcript shows code changes; otherwise record `insufficient_evidence` and exclude that result from the code-quality average and failed-conversation filter.
 
 ### Step 3: Aggregate
 

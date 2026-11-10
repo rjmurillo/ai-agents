@@ -349,11 +349,12 @@ def _sample(sessions: Any, skills: Any, args: Any) -> set[str]:
     for session in sessions:
         if len(sampled) >= args.max_sessions:
             break
-        for name in session["skills_used"]:
-            if counts.get(name, 0) < args.per_skill:
+        used = session["skills_used"]
+        if any(counts.get(name, 0) < args.per_skill for name in used):
+            sampled.add(session["_key"])
+            # Count every skill the session used, so a multi-skill session fills each quota.
+            for name in used:
                 counts[name] = counts.get(name, 0) + 1
-                sampled.add(session["_key"])
-                break
     no_skill = 0
     for session in sessions:
         if len(sampled) >= args.max_sessions or no_skill >= args.no_skill:

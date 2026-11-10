@@ -2048,6 +2048,22 @@ def break_hosted_identity(data, mutation, tmp_path):
         item["url"] = "https://github.com/acme/widget-evil/items/1"
 
 
+def break_hosted_urls(data, mutation):
+    if not mutation.startswith("signed_"):
+        return
+    item = data["items"][0]
+    collection = item["collection"]
+    page = collection["pages"][0]
+    if mutation == "signed_item_url":
+        item["url"] += "?token=secret"
+    elif mutation == "signed_collection_url":
+        collection["url"] += "?sig=secret"
+        page["request"] = collection["url"]
+    elif mutation == "signed_page_url":
+        page["next"] = collection["url"] + "?page=2&sig=secret"
+        collection["pages"].append({**page, "request": page["next"], "next": None})
+
+
 def break_hosted_collection(data, mutation):
     item = data["items"][0]
     collection = item["collection"]
@@ -2094,12 +2110,16 @@ def break_hosted_collection(data, mutation):
         "negative_id",
         "missing_mapping",
         "outside_url",
+        "signed_item_url",
+        "signed_collection_url",
+        "signed_page_url",
     ],
 )
 def test_offline_hosted_rejects_bad_evidence(capsys, repo, tmp_path, mutation):
     data = hosted_for(repo)
     break_hosted_identity(data, mutation, tmp_path)
     break_hosted_collection(data, mutation)
+    break_hosted_urls(data, mutation)
     path = friction_file(tmp_path, data)
 
     code, payload = cand(capsys, repo, "--hosted-json", str(path))
