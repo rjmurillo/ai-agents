@@ -82,46 +82,55 @@ def _report_text(report: dict[str, Any]) -> list[tuple[str, str]]:
     return [(where, text) for where, text in texts if isinstance(text, str)]
 
 
+def _suggestion_errors(index: int, suggestion: dict[str, Any], optimization: str) -> list[str]:
+    """Claims one suggestion makes that its recorded evidence does not support."""
+    where = f"suggestions[{index}] ({suggestion.get('skill') or 'unnamed'})"
+    status = suggestion_status(suggestion)
+    if status not in SUGGESTION_STATUSES:
+        return [f"{where}: status must be one of {SUGGESTION_STATUSES}, got {status!r}"]
+    errors = []
+    owner = suggestion.get("owner")
+    if owner is not None and owner not in OWNER_KINDS:
+        errors.append(f"{where}: owner must be one of {OWNER_KINDS}, got {owner!r}")
+    if status in MEASURED_STATUSES and optimization != "run":
+        errors.append(f"{where}: status {status!r} needs evaluation.optimization 'run'")
+    if status in MEASURED_STATUSES and not _has_evidence(suggestion):
+        errors.append(
+            f"{where}: status {status!r} needs evaluation.baseline and evaluation.candidate evidence"
+        )
+    if suggestion.get("variants") and not suggestion.get("target") and suggestion.get("diff"):
+        errors.append(
+            f"{where}: unresolved variants carry a drafted diff; the user must select an edit target first"
+        )
+    return errors
+
+
+def _verdict_errors(report: dict[str, Any], optimization: str) -> list[str]:
+    """No-change verdicts in prose that no scored evaluation supports."""
+    suggestions = report.get("suggestions") or []
+    measured = any(
+        suggestion_status(s) in MEASURED_STATUSES and _has_evidence(s) for s in suggestions
+    )
+    if optimization == "run" and measured:
+        return []
+    return [
+        f"{where}: claims a measured no-change verdict without scored evaluation evidence"
+        for where, text in _report_text(report)
+        if _UNSUPPORTED_VERDICT.search(text)
+    ]
+
+
 def validate_report(report: dict[str, Any]) -> list[str]:
     """Return every claim the recorded evaluation stages do not support."""
+    optimization = evaluation_of(report)["optimization"]
     errors = []
-    evaluation = evaluation_of(report)
-    optimization = evaluation["optimization"]
     if optimization not in OPTIMIZATION_STAGES:
         errors.append(
             f"evaluation.optimization must be one of {OPTIMIZATION_STAGES}, got {optimization!r}"
         )
     for index, suggestion in enumerate(report.get("suggestions") or []):
-        where = f"suggestions[{index}] ({suggestion.get('skill') or 'unnamed'})"
-        status = suggestion_status(suggestion)
-        if status not in SUGGESTION_STATUSES:
-            errors.append(f"{where}: status must be one of {SUGGESTION_STATUSES}, got {status!r}")
-            continue
-        owner = suggestion.get("owner")
-        if owner is not None and owner not in OWNER_KINDS:
-            errors.append(f"{where}: owner must be one of {OWNER_KINDS}, got {owner!r}")
-        if status in MEASURED_STATUSES:
-            if optimization != "run":
-                errors.append(f"{where}: status {status!r} needs evaluation.optimization 'run'")
-            if not _has_evidence(suggestion):
-                errors.append(
-                    f"{where}: status {status!r} needs evaluation.baseline and evaluation.candidate evidence"
-                )
-        if suggestion.get("variants") and not suggestion.get("target") and suggestion.get("diff"):
-            errors.append(
-                f"{where}: unresolved variants carry a drafted diff; the user must select an edit target first"
-            )
-    measured = any(
-        suggestion_status(s) in MEASURED_STATUSES and _has_evidence(s)
-        for s in report.get("suggestions") or []
-    )
-    if optimization != "run" or not measured:
-        for where, text in _report_text(report):
-            if _UNSUPPORTED_VERDICT.search(text):
-                errors.append(
-                    f"{where}: claims a measured no-change verdict without scored evaluation evidence"
-                )
-    return errors
+        errors += _suggestion_errors(index, suggestion, optimization)
+    return errors + _verdict_errors(report, optimization)
 
 
 def evaluation_summary(report: dict[str, Any]) -> str:

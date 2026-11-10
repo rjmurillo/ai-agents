@@ -127,7 +127,7 @@ def counters(monkeypatch):
     state = {"registrations": 0, "resolved": [], "git_runs": 0}
     real_registrations = repository_scope._registrations
     real_resolve = Path.resolve
-    real_run = subprocess.run
+    real_git_root = session_discovery._git_root
 
     def registrations(common):
         state["registrations"] += 1
@@ -137,13 +137,13 @@ def counters(monkeypatch):
         state["resolved"].append(str(self))
         return real_resolve(self, *args, **kwargs)
 
-    def run(*args, **kwargs):
+    def git_root(path):
         state["git_runs"] += 1
-        return real_run(*args, **kwargs)
+        return real_git_root(path)
 
     monkeypatch.setattr(repository_scope, "_registrations", registrations)
     monkeypatch.setattr(Path, "resolve", resolve)
-    monkeypatch.setattr(session_discovery.subprocess, "run", run)
+    monkeypatch.setattr(session_discovery, "_git_root", git_root)
     return state
 
 
