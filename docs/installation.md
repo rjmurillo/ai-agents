@@ -141,7 +141,7 @@ npx @rjmurillo/ai-agents init --pack business
 ```
 
 The `@rjmurillo/ai-agents` package is not on npm yet, so this command fails today.
-Install the full toolkit from the plugin marketplace, as described at the top of this guide.
+The [marketplace install](#fastest-start) already includes `business-strategy`.
 
 | Pack | Installs | Purpose |
 |------|----------|---------|
