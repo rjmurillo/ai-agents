@@ -42,11 +42,11 @@ from session_common import (
     detect_skills_from_entries,
     extract_text,
     iter_jsonl_records,
-    logical_skill_names,
     looks_injected,
     record_collection_issue,
     render_transcript,
-    skill_evidence,
+    resolve_session_usage,
+    skill_variants,
     truncate,
 )
 from session_databases import (
@@ -383,54 +383,13 @@ def _write_transcripts(sessions: Any, sampled: set[str], directory: Path) -> Non
         del session["_key"]
 
 
-def _skill_variants(skills: Any) -> dict[str, Any]:
-    """Name every content-distinct definition. Only the edit target is a current claim."""
-    return {
-        name: {
-            "edit_target": {"path": skill["path"], "sha256": skill["sha256"]},
-            "definitions": skill["definitions"],
-            "historical_attribution": "unresolved",
-        }
-        for name, skill in sorted(skills.items())
-        if len(skill["definitions"]) > 1
-    }
-
-
-def _attribution(entries: Any, used: Any, variants: Any) -> dict[str, Any]:
-    """Flag usage whose executed definition cannot be known from the transcript."""
-    notes = {}
-    for name in used:
-        evidence = skill_evidence(entries, name)
-        reasons = (["conflicting_definitions"] if name in variants else []) + (
-            ["namespace_unverified"] if evidence == "qualified_name" else []
-        )
-        if reasons:
-            notes[name] = {"evidence": evidence, "unresolved_because": reasons}
-    return notes
-
-
-def _resolve_usage(collection: Collection) -> None:
-    """Set logical usage per session, independent of which definition is the edit target."""
-    installed = set(collection.skills)
-    variants = _skill_variants(collection.skills)
-    for session in collection.sessions:
-        entries = session["_entries"]
-        detected = detect_skills_from_entries(entries, installed)
-        used = (logical_skill_names(session["skills_used"]) | detected) & installed
-        session["skills_used"] = sorted(used)
-        notes = _attribution(entries, session["skills_used"], variants)
-        if notes:
-            session["skill_attribution"] = notes
-        session["_key"] = f"{session['harness']}:{session['meta']['id']}"
-
-
 def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
     args, repos, skills = collection.args, collection.repos, collection.skills
     usage = dict.fromkeys(skills, 0)
     for session in collection.sessions:
         for name in session["skills_used"]:
             usage[name] += 1
-    variants = _skill_variants(skills)
+    variants = skill_variants(skills)
     scope_name = repos[0].name if len(repos) == 1 else "multiple-projects"
     if args.all_conversations:
         scope_name = "all-conversations"
@@ -516,7 +475,9 @@ def _run() -> None:
     if args.all_conversations:
         collection.repos = infer_session_repos(collection.sessions)
         collection.skills = _discover(args, collection.repos, homes)
-    _resolve_usage(collection)
+    resolve_session_usage(collection.sessions, collection.skills)
+    for session in collection.sessions:
+        session["_key"] = f"{session['harness']}:{session['meta']['id']}"
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
     sampled = _sample(collection.sessions, collection.skills, args)
     _write_transcripts(collection.sessions, sampled, out / "transcripts")

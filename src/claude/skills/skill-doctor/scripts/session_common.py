@@ -195,6 +195,46 @@ def skill_evidence(entries: Any, name: str) -> str:
     return "unrecorded"
 
 
+def skill_variants(skills: Any) -> dict[str, Any]:
+    """Name every content-distinct definition. Only the edit target is a current claim."""
+    return {
+        name: {
+            "edit_target": {"path": skill["path"], "sha256": skill["sha256"]},
+            "definitions": skill["definitions"],
+            "historical_attribution": "unresolved",
+        }
+        for name, skill in sorted(skills.items())
+        if len(skill["definitions"]) > 1
+    }
+
+
+def _attribution(entries: Any, used: Any, variants: Any) -> dict[str, Any]:
+    """Flag usage whose executed definition cannot be known from the transcript."""
+    notes = {}
+    for name in used:
+        evidence = skill_evidence(entries, name)
+        reasons = (["conflicting_definitions"] if name in variants else []) + (
+            ["namespace_unverified"] if evidence == "qualified_name" else []
+        )
+        if reasons:
+            notes[name] = {"evidence": evidence, "unresolved_because": reasons}
+    return notes
+
+
+def resolve_session_usage(sessions: Any, skills: Any) -> None:
+    """Set logical usage per session, independent of which definition is the edit target."""
+    installed = set(skills)
+    variants = skill_variants(skills)
+    for session in sessions:
+        entries = session["_entries"]
+        detected = detect_skills_from_entries(entries, installed)
+        used = (logical_skill_names(session["skills_used"]) | detected) & installed
+        session["skills_used"] = sorted(used)
+        notes = _attribution(entries, session["skills_used"], variants)
+        if notes:
+            session["skill_attribution"] = notes
+
+
 def looks_injected(text: str) -> bool:
     head = text.lstrip()[:80]
     return head.startswith("<") and any(
