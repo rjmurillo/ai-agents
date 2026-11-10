@@ -447,3 +447,15 @@ def test_inferred_basis_on_a_project_run_is_rejected(family):
     errors = am.validate_manifest(restamp(manifest))
 
     assert any("requires conversation_scope all" in e for e in errors)
+
+
+def test_timeline_supplement_is_a_declared_cap_in_the_fingerprint(family):
+    base = am.build_manifest(
+        inventory_for([family["main"]]), {**RUN_INPUTS, "timeline_supplement": 0}
+    )
+    changed = am.build_manifest(
+        inventory_for([family["main"]]), {**RUN_INPUTS, "timeline_supplement": 5}
+    )
+
+    assert changed["evidence_caps"]["timeline_supplement"] == 5
+    assert changed["fingerprint"] != base["fingerprint"]

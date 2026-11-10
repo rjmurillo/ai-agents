@@ -61,7 +61,14 @@ _REQUIRED_KEYS = (
     "catalog",
     "attribution",
 )
-_CAP_KEYS = ("max_sessions", "per_skill", "no_skill", "min_idle_minutes", "include_subagents")
+_CAP_KEYS = (
+    "max_sessions",
+    "per_skill",
+    "no_skill",
+    "min_idle_minutes",
+    "include_subagents",
+    "timeline_supplement",
+)
 _REMOTE_HEADER = re.compile(r'^\s*\[\s*remote\s+"([^"]*)"\s*\]')
 _ANY_HEADER = re.compile(r"^\s*\[")
 _URL_LINE = re.compile(r"^\s*url\s*=\s*(.*?)\s*$", re.IGNORECASE)
@@ -79,6 +86,7 @@ def inputs_from_args(args: Any) -> dict[str, Any]:
         "no_skill": args.no_skill,
         "min_idle_minutes": args.min_idle_minutes,
         "include_subagents": bool(args.include_subagents),
+        "timeline_supplement": max(int(getattr(args, "timeline_supplement", 0) or 0), 0),
     }
 
 

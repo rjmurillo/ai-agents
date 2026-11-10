@@ -25,6 +25,7 @@ from typing import Any
 
 import report_audit
 import report_evaluation
+from audit_scores import write_atomic
 from render_report import grade_for
 
 NON_PROBABILITY_NOTE = (
@@ -231,9 +232,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     try:
-        Path(args.out).expanduser().write_text(
-            json.dumps(export, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        write_atomic(Path(args.out).expanduser(), export)
     except OSError as exc:
         print(f"error: cannot write {args.out}: {exc}", file=sys.stderr)
         return 2
