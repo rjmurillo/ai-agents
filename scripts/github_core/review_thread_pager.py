@@ -18,8 +18,8 @@ REVIEW_THREADS_MAX_PAGES = 50
 class ReviewThreadsIncompleteError(RuntimeError):
     """Raised when a review-thread read cannot reach the last page.
 
-    The read stopped on a missing connection, a missing cursor, or the page
-    cap. The message states how many threads were read, so a caller reports
+    The read stopped on a missing connection, missing page metadata, a missing
+    cursor, or the page cap. The message states how many threads were read, so a caller reports
     an incomplete read and never presents it as the full set
     (``lossless-queue-reads.md``).
     """
@@ -37,7 +37,8 @@ def collect_all_review_threads(
     dict. The caller owns the query, so each script keeps the node fields it
     needs. Unlike ``get_unresolved_review_threads``, which warns and returns
     what it has, this raises ``ReviewThreadsIncompleteError`` for a missing
-    ``reviewThreads`` connection, ``hasNextPage`` with no ``endCursor``, and
+    ``reviewThreads`` connection, a missing or non-boolean ``pageInfo.hasNextPage``
+    (the last page cannot be proven), ``hasNextPage`` with no ``endCursor``, and
     more than ``max_pages`` pages. A transport failure raised by
     ``fetch_page`` (``RuntimeError``) propagates unchanged.
 
@@ -56,8 +57,13 @@ def collect_all_review_threads(
                 f"on page {page}; read {len(nodes)} thread(s) before it stopped"
             )
         nodes.extend(connection["nodes"])
-        page_info = connection.get("pageInfo") or {}
-        if not page_info.get("hasNextPage"):
+        page_info = connection.get("pageInfo")
+        if not isinstance(page_info, dict) or not isinstance(page_info.get("hasNextPage"), bool):
+            raise ReviewThreadsIncompleteError(
+                f"pageInfo.hasNextPage missing or not a boolean for PR #{pull_request} "
+                f"on page {page}; read {len(nodes)} thread(s) before it stopped"
+            )
+        if not page_info["hasNextPage"]:
             return nodes
         cursor = page_info.get("endCursor")
         if not cursor:

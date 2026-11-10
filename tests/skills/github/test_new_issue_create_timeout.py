@@ -25,7 +25,7 @@ def _iso(delta_seconds: float) -> str:
     return when.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _row(number=77, title="Exact title", age=20.0):
+def _row(number=77, title="Exact title", age=0.0):
     return {
         "number": number,
         "title": title,
@@ -56,7 +56,8 @@ class TestCreateTimeoutLookup:
             "url": "https://github.com/owner/repo/issues/77",
         }
         assert "#77" in payload["Error"]["Message"]
-        assert "Do not retry" in payload["Error"]["Message"]
+        assert "Check it before you retry" in payload["Error"]["Message"]
+        assert "Do not retry" not in payload["Error"]["Message"]
 
     def test_lookup_is_read_only_scoped_to_current_user_and_run_once(self):
         gh = _gh(_make_proc(stdout="[]"))
@@ -93,8 +94,16 @@ class TestCreateTimeoutLookup:
             [_row(title="Exact title with more words")],
             [_row(title="exact title")],
             [_row(age=7200)],
+            [_row(age=20)],
+            [_row(age=120)],
         ],
-        ids=["different-title", "different-case", "too-old"],
+        ids=[
+            "different-title",
+            "different-case",
+            "hours-old",
+            "before-start",
+            "minutes-before-start",
+        ],
     )
     def test_non_matching_rows_are_ignored(self, rows, capsys):
         gh = _gh(_make_proc(stdout=json.dumps(rows)))
@@ -105,7 +114,34 @@ class TestCreateTimeoutLookup:
         assert "existing_issue" not in (_payload(capsys)["Data"] or {})
 
     def test_newest_match_wins(self, capsys):
-        rows = [_row(number=10, age=300), _row(number=11, age=15)]
+        rows = [_row(number=10, age=3), _row(number=11, age=0)]
+        gh = _gh(_make_proc(stdout=json.dumps(rows)))
+
+        _run(BASE, gh)
+
+        assert _payload(capsys)["Data"]["existing_issue"]["number"] == 11
+
+    def test_earlier_issue_with_the_same_title_does_not_suppress_a_retry(self, capsys):
+        """An issue filed two minutes before the request is not this request's issue."""
+        gh = _gh(_make_proc(stdout=json.dumps([_row(number=10, age=120)])))
+
+        rc, _ = _run(BASE, gh)
+
+        payload = _payload(capsys)
+        assert rc == 3
+        assert "existing_issue" not in (payload["Data"] or {})
+        assert payload["Error"]["Message"] == "gh issue create timed out after 30s"
+        assert "retry" not in payload["Error"]["Message"]
+
+    def test_issue_within_the_clock_skew_allowance_is_a_possible_match(self, capsys):
+        gh = _gh(_make_proc(stdout=json.dumps([_row(number=12, age=3)])))
+
+        _run(BASE, gh)
+
+        assert _payload(capsys)["Data"]["existing_issue"]["number"] == 12
+
+    def test_issue_created_before_start_is_skipped_for_a_later_one(self, capsys):
+        rows = [_row(number=10, age=120), _row(number=11, age=0)]
         gh = _gh(_make_proc(stdout=json.dumps(rows)))
 
         _run(BASE, gh)

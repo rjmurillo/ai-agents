@@ -123,6 +123,60 @@ class TestCollectAllReviewThreads:
         with pytest.raises(ReviewThreadsIncompleteError, match="reviewThreads missing"):
             collect_all_review_threads(lambda cursor: data, 7)
 
+    @pytest.mark.parametrize(
+        "page_info",
+        [
+            None,
+            {},
+            {"endCursor": "CUR1"},
+            {"hasNextPage": None},
+            {"hasNextPage": "false"},
+            {"hasNextPage": 0},
+            "not-a-mapping",
+        ],
+        ids=["null", "empty", "no-flag", "null-flag", "string-flag", "int-flag", "not-mapping"],
+    )
+    def test_missing_or_invalid_page_info_raises_with_count_read(self, page_info):
+        data = {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "pageInfo": page_info,
+                        "nodes": [{"id": "t0", "isResolved": True}],
+                    }
+                }
+            }
+        }
+
+        with pytest.raises(ReviewThreadsIncompleteError, match="hasNextPage") as exc:
+            collect_all_review_threads(lambda cursor: data, 7)
+
+        assert "page 1" in str(exc.value)
+        assert "read 1 thread(s)" in str(exc.value)
+
+    def test_missing_page_info_without_the_key_raises(self):
+        data = {
+            "repository": {
+                "pullRequest": {"reviewThreads": {"nodes": [{"id": "t0", "isResolved": True}]}}
+            }
+        }
+
+        with pytest.raises(ReviewThreadsIncompleteError, match="hasNextPage"):
+            collect_all_review_threads(lambda cursor: data, 7)
+
+    def test_missing_page_info_on_page_two_reports_progress(self):
+        page_two = {
+            "repository": {
+                "pullRequest": {"reviewThreads": {"nodes": [{"id": "t1", "isResolved": False}]}}
+            }
+        }
+        pages = _Pages([_page(["t0"], next_cursor="CUR1", has_next=True), page_two])
+
+        with pytest.raises(ReviewThreadsIncompleteError, match="page 2") as exc:
+            collect_all_review_threads(pages, 7)
+
+        assert "read 2 thread(s)" in str(exc.value)
+
     def test_missing_connection_on_page_two_reports_progress(self):
         pages = _Pages([_page(["t0"], next_cursor="CUR1", has_next=True), {}])
 

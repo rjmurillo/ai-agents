@@ -45,7 +45,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -383,32 +383,36 @@ def _resolve_auth_and_repo(
 
 
 _CREATE_TIMEOUT_SECONDS = 30
-#: How far back a title match counts as "just created" after a create timeout.
-_JUST_CREATED_WINDOW_SECONDS = 600
-#: Tolerated clock skew between this host and GitHub, in seconds.
-_CLOCK_SKEW_SECONDS = 60
+#: Tolerated clock skew between this host and GitHub, in seconds. An issue
+#: created this far before the create started still counts as a possible match.
+_CLOCK_SKEW_SECONDS = 5
 
 
-def _seconds_since(timestamp: object) -> float | None:
-    """Return seconds since an ISO 8601 UTC timestamp, or None when unparseable."""
+def _parse_timestamp(timestamp: object) -> datetime | None:
+    """Return an ISO 8601 UTC timestamp as an aware datetime, or None when unparseable."""
     if not isinstance(timestamp, str):
         return None
     try:
-        created = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     except ValueError:
         return None
-    if created.tzinfo is None:
-        created = created.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - created).total_seconds()
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
-def _find_just_created_issue(owner: str, repo: str, title: str) -> dict[str, object] | None:
-    """Look up an issue the current user created with this exact title moments ago.
+def _find_just_created_issue(
+    owner: str, repo: str, title: str, started_at: datetime
+) -> dict[str, object] | None:
+    """Look up an issue the current user may have created with this exact title.
 
     Read-only and run once after a ``gh issue create`` timeout. GitHub may have
     created the issue before the client gave up, and a caller that retries then
-    files a duplicate. This never retries the create. Any lookup failure returns
-    None, so the caller reports the timeout alone.
+    files a duplicate. Only an issue created at or after ``started_at`` (less the
+    clock-skew allowance) can be the one this request made, so an older issue with
+    the same title is ignored. A title is not a unique identifier, so a match is a
+    possible result, never a proven one. This never retries the create. Any lookup
+    failure returns None, so the caller reports the timeout alone.
     """
     # The search text is a hint. The exact title match below decides.
     search = '"' + title.replace('"', " ") + '" in:title'
@@ -444,28 +448,32 @@ def _find_just_created_issue(owner: str, repo: str, title: str) -> dict[str, obj
         return None
     if not isinstance(rows, list):
         return None
-    matches: list[tuple[float, dict[str, object]]] = []
+    earliest = started_at - timedelta(seconds=_CLOCK_SKEW_SECONDS)
+    matches: list[tuple[datetime, dict[str, object]]] = []
     for row in rows:
         if not isinstance(row, dict) or row.get("title") != title:
             continue
-        age = _seconds_since(row.get("createdAt"))
-        if age is not None and -_CLOCK_SKEW_SECONDS <= age <= _JUST_CREATED_WINDOW_SECONDS:
-            matches.append((age, row))
+        created = _parse_timestamp(row.get("createdAt"))
+        if created is not None and created >= earliest:
+            matches.append((created, row))
     if not matches:
         return None
-    _, newest = min(matches, key=lambda pair: pair[0])
+    _, newest = max(matches, key=lambda pair: pair[0])
     return {"number": newest.get("number"), "url": newest.get("url")}
 
 
-def _report_create_timeout(owner: str, repo: str, title: str, fmt: str) -> int:
+def _report_create_timeout(
+    owner: str, repo: str, title: str, fmt: str, started_at: datetime
+) -> int:
     """Write the timeout envelope, naming an issue the timed-out create may have made."""
-    existing = _find_just_created_issue(owner, repo, title)
+    existing = _find_just_created_issue(owner, repo, title, started_at)
     message = f"gh issue create timed out after {_CREATE_TIMEOUT_SECONDS}s"
     extra: dict[str, object] | None = None
     if existing is not None:
         message += (
-            f". An issue with this exact title already exists: #{existing['number']} "
-            f"{existing['url']}. Do not retry the create."
+            f". An issue with this exact title was created after the request started: "
+            f"#{existing['number']} {existing['url']}. It may be this request's issue. "
+            f"Check it before you retry the create."
         )
         extra = {"existing_issue": existing}
     write_skill_error(
@@ -514,6 +522,9 @@ def _create_issue(
     if body and body.strip():
         gh_args.extend(["--body", body])
 
+    # Taken immediately before the create so the timeout lookup can tell this
+    # request's issue from an older one with the same title.
+    started_at = datetime.now(timezone.utc)
     try:
         result = subprocess.run(
             gh_args,
@@ -524,7 +535,7 @@ def _create_issue(
             timeout=_CREATE_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
-        return _report_create_timeout(owner, repo, title, fmt)
+        return _report_create_timeout(owner, repo, title, fmt, started_at)
     except FileNotFoundError:
         write_skill_error(
             "GitHub CLI (gh) is not installed or not on PATH. Run 'gh auth login' first.",
