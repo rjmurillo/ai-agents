@@ -16,6 +16,7 @@ from session_common import (
     detect_skills_from_entries,
 )
 from session_discovery import discover_skills
+from session_json import parse_claude_session
 from session_test_helpers import run_collector, write_jsonl
 
 ROOTS = ["claude", "copilot-cli"]
@@ -57,10 +58,68 @@ def test_qualified_names_that_do_not_resolve_to_an_installed_name_are_ignored(ar
     assert recognized(argument) == set()
 
 
-def test_non_string_candidates_do_not_raise():
+def test_logical_names_tolerate_non_string_values():
+    assert session_common.logical_skill_name(7) == 7
+    assert session_common.logical_skill_names(["ns:x", 7, None, ("a",), "y"]) == {"x", "y"}
+
+
+@pytest.mark.parametrize("key", ["name", "label"])
+def test_generic_keys_do_not_turn_a_label_into_skill_usage(key):
     state = SessionState()
-    state.tool("skill", json.dumps({"skill": 7, "name": None}))
-    assert state.skills == set()
+    state.tool("view", json.dumps({key: "area:review"}))
+    entries = state.entries.finish()
+    installed = {"review"}
+    assert (state.skills | detect_skills_from_entries(entries, installed)) & installed == set()
+
+
+def test_bundled_skill_id_accepts_a_qualified_name():
+    assert recognized("project-toolkit:skill-doctor", template='{"bundled_skill_id": "%s"}') == {
+        "skill-doctor"
+    }
+
+
+def _claude_journal(path, skill):
+    write_jsonl(
+        path,
+        [
+            {
+                "type": "assistant",
+                "sessionId": "s1",
+                "cwd": "/synthetic",
+                "message": {
+                    "id": "m1",
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": skill}}],
+                },
+            }
+        ],
+    )
+    return parse_claude_session(path, (), False)
+
+
+def test_claude_skill_tool_records_the_logical_name_for_a_qualified_call(tmp_path):
+    parsed = _claude_journal(tmp_path / "s1.jsonl", "project-toolkit:skill-doctor")
+    assert "skill-doctor" in parsed[3]
+
+
+@pytest.mark.parametrize("skill", [["a"], 5, {"b": 1}, "", None])
+def test_claude_skill_tool_ignores_a_non_string_skill_argument(tmp_path, skill):
+    parsed = _claude_journal(tmp_path / "s1.jsonl", skill)
+    assert parsed[3] == []
+
+
+def test_usage_without_transcript_evidence_is_flagged_not_dropped():
+    padding = [("assistant", "filler")] * 200
+    session = {"skills_used": ["x"], "_entries": padding}
+    session_common.resolve_session_usage([session], {"x": _installed("x")})
+    assert session["skills_used"] == ["x"]
+    assert session["skill_attribution"] == {
+        "x": {"evidence": "unrecorded", "unresolved_because": ["evidence_not_in_transcript"]}
+    }
+
+
+def _installed(name):
+    return {"name": name, "path": f"/{name}", "sha256": "0", "definitions": [{"sha256": "0"}]}
 
 
 @pytest.mark.parametrize(

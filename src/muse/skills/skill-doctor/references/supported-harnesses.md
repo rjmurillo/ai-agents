@@ -104,6 +104,9 @@ Skill names come from `skill.invoked` and tool arguments, not catalog descriptio
 Only discovered installed skills enter the final usage inventory.
 A `namespace:name` invocation counts as usage of installed `name`.
 The namespace is not matched to a definition, so the session's `skill_attribution` records `namespace_unverified`.
+Only the `skill` and `bundled_skill_id` keys count as a qualified invocation. A generic `name` value such as `area:review` does not.
+`skill_attribution` lists `unresolved_because` as `conflicting_definitions`, `namespace_unverified`, or `evidence_not_in_transcript`.
+The last one means the bounded transcript no longer shows how the skill was named.
 
 Events marked with `agentId` or `data.parentToolCallId` are treated as child events.
 They are excluded unless `--include-subagents` is passed.

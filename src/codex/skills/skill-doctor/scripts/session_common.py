@@ -144,6 +144,8 @@ class TranscriptBuffer:
 
 _QUALIFIED_SKILL = re.compile(r"^[\w.-]+:([\w.-]+)$")
 _SKILL_KEY = r'"(?:skill|name|bundled_skill_id)"\s*:\s*"'
+# Only these keys name an invocation. Generic "name" values such as "area:review" are labels.
+_INVOKE_KEY = r'"(?:skill|bundled_skill_id)"\s*:\s*"'
 
 
 def logical_skill_name(candidate: Any) -> Any:
@@ -164,7 +166,7 @@ def detect_skill_candidates(text: str) -> set[str]:
     normalized = text.replace("\\", "/")
     candidates = set(re.findall(r"(?:^|/)skills/+([^/]+)/+", normalized))
     candidates.update(re.findall(_SKILL_KEY + r'([^"]+)"', normalized))
-    return candidates | logical_skill_names(candidates)
+    return candidates | logical_skill_names(re.findall(_INVOKE_KEY + r'([^"]+)"', normalized))
 
 
 def _tool_text(entries: Any) -> str:
@@ -190,7 +192,7 @@ def skill_evidence(entries: Any, name: str) -> str:
     quoted = re.escape(name)
     if re.search(_SKILL_KEY + quoted + '"', tool_text):
         return "bare_name"
-    if re.search(_SKILL_KEY + r"[\w.-]+:" + quoted + '"', tool_text):
+    if re.search(_INVOKE_KEY + r"[\w.-]+:" + quoted + '"', tool_text):
         return "qualified_name"
     return "unrecorded"
 
@@ -213,9 +215,11 @@ def _attribution(entries: Any, used: Any, variants: Any) -> dict[str, Any]:
     notes = {}
     for name in used:
         evidence = skill_evidence(entries, name)
-        reasons = (["conflicting_definitions"] if name in variants else []) + (
-            ["namespace_unverified"] if evidence == "qualified_name" else []
-        )
+        reasons = ["conflicting_definitions"] if name in variants else []
+        if evidence == "qualified_name":
+            reasons.append("namespace_unverified")
+        elif evidence == "unrecorded":
+            reasons.append("evidence_not_in_transcript")
         if reasons:
             notes[name] = {"evidence": evidence, "unresolved_because": reasons}
     return notes
@@ -228,7 +232,7 @@ def resolve_session_usage(sessions: Any, skills: Any) -> None:
     for session in sessions:
         entries = session["_entries"]
         detected = detect_skills_from_entries(entries, installed)
-        used = (logical_skill_names(session["skills_used"]) | detected) & installed
+        used = (set(session["skills_used"]) | detected) & installed
         session["skills_used"] = sorted(used)
         notes = _attribution(entries, session["skills_used"], variants)
         if notes:
