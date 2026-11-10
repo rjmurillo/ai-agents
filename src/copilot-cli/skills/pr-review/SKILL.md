@@ -1,7 +1,7 @@
 ---
 name: pr-review
 version: 1.0.0
-description: Respond to review comments on one or more pull requests. Clusters the threads, fixes and pushes, then runs the dispatchable completion gate for a verdict. Use when you say `respond to PR review comments`, `pr-review 1234`, or `address the review feedback`. Do NOT use to fix a red check that carries no review comments (use pr-autofix), and do NOT use to work one PR's threads as a step inside another workflow (use pr-comment-responder).
+description: Respond to review comments on one or more pull requests, then run the completion gate for a verdict. Runs pr-comment-responder per PR. Use when you say `pr-review 1234`, `pr-review 12 15 --parallel`, or `respond to review comments and tell me if it can merge`. Do NOT use to fix a red check with no review comments (use pr-autofix), or to work one PR's threads with no gate verdict (use pr-comment-responder).
 license: MIT
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep, github/pull_request_read, github/list_pull_requests, github/issue_read, github/get_check_run, github/get_job_logs, github/add_issue_comment, github/add_reply_to_pull_request_comment, github/resolve_review_thread, github/unresolve_review_thread
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
@@ -9,7 +9,7 @@ user-invocable: true
 metadata:
   capability:
     kind: orchestrator
-    depends-on: [review-conversation]
+    depends-on: [review-conversation, review-thread-closure]
     status: active
   routing:
     role: conditional-adjunct
