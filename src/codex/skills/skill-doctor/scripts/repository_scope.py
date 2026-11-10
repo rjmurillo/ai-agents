@@ -34,6 +34,7 @@ _REMOVED = (
 )
 _NOT_POINTING_BACK = "directory exists but its .git does not point back to the registration"
 _BAD_REGISTRATION = "registration gitdir file is empty, unreadable, or not a valid path"
+_UNREADABLE = "registered worktree directory is unreadable (permission or I/O error)"
 
 
 @dataclass(frozen=True)
@@ -177,9 +178,16 @@ def _admit_main(scope: RepositoryScope, common: Path) -> None:
 def _admit_worktree(scope: RepositoryScope, registration: Path, worktree: Path | None) -> None:
     if worktree is None:
         scope.reject(registration, _BAD_REGISTRATION)
-    elif not worktree.is_dir():
+        return
+    try:
+        exists = worktree.is_dir()
+        points_back = exists and git_dir_of(worktree) == registration
+    except OSError:
+        scope.reject(worktree, _UNREADABLE)
+        return
+    if not exists:
         scope.reject(worktree, _REMOVED)
-    elif git_dir_of(worktree) != registration:
+    elif not points_back:
         scope.reject(worktree, _NOT_POINTING_BACK)
     else:
         scope.add(ScopeRoot(worktree, "worktree", "registered linked worktree"))

@@ -448,3 +448,22 @@ def test_nested_worktree_is_attributed_to_the_deepest_root(world):
 
     assert counts[str(nested.resolve())] == 1
     assert counts[str(world["main"].resolve())] == 1
+
+
+def test_unreadable_worktree_is_rejected_without_aborting_the_scope(world, monkeypatch):
+    blocked = {world["feature"], world["feature"].resolve()}
+    real_is_dir = Path.is_dir
+
+    def is_dir(path, *args, **kwargs):
+        if path in blocked:
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_is_dir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+
+    scope = resolve_repository_scope([world["main"].resolve()])
+
+    assert [root.kind for root in scope.included] == ["selected"]
+    rejected = {item.path: item.reason for item in scope.rejected}
+    feature = next(path for path in rejected if path in blocked)
+    assert "unreadable" in rejected[feature]
