@@ -230,12 +230,11 @@ common SLO targets:
 examples:
   %(prog)s --target 99.9
   %(prog)s --target 99.9 --period weekly
-  %(prog)s --target 99.95 --period monthly --format json
 
 exit codes:
   0  budget calculated
-  1  invalid arguments
-  2  calculation error
+  1  --target is outside 0 to 100
+  2  invalid command-line arguments, or a calculation error
 """
 
 

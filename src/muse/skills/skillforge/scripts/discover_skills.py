@@ -667,7 +667,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --json
   %(prog)s --output skill-index.json
-  %(prog)s --extra-root extra-skills --verbose
 
 exit codes:
   0  index written

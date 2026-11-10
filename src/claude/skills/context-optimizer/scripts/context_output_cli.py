@@ -15,8 +15,7 @@ from context_output_report import print_manifest_report, print_regeneration_hint
 _EXAMPLES = """\
 examples:
   %(prog)s -i AGENTS.md -d detail -r detail -o index.md
-  %(prog)s -i AGENTS.md -d detail -r detail -o index.md --check
-  %(prog)s --manifest manifest.json --staged
+  %(prog)s --manifest manifest.json --check
 """
 
 

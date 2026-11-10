@@ -502,7 +502,7 @@ examples:
 
 exit codes:
   0  grading complete, report generated
-  2  invalid domain config
+  2  --repo-root has no .claude directory, or no domains were detected
 """
 
 

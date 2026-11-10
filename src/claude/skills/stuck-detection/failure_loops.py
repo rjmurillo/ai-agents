@@ -284,8 +284,8 @@ def read_events(path: Path | None) -> list[FailureEvent]:
 
 _HELP_EPILOG = """\
 examples:
-  %(prog)s --events events.jsonl
-  %(prog)s --events events.jsonl --repeat 3 --window 20
+  %(prog)s --events events.json
+  %(prog)s --events events.json --repeat 3 --window 20
 
 exit codes:
   0  ran (regardless of stuck or not stuck)

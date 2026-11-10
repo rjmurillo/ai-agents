@@ -661,7 +661,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --target .
   %(prog)s --git-staged
-  %(prog)s --format json --output violations.json
 
 exit codes:
   0  all files compliant

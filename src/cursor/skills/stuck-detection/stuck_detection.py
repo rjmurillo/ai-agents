@@ -425,7 +425,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s check
   %(prog)s status
-  %(prog)s reset
 
 exit codes:
   0  ran (regardless of stuck or not stuck)

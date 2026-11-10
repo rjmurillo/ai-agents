@@ -1150,7 +1150,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --git-staged
   %(prog)s --diff-scope origin/main --format json
-  %(prog)s --directory src
 
 exit codes:
   0  clean

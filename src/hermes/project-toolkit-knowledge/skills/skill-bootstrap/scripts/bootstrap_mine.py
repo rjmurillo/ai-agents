@@ -754,7 +754,7 @@ def _out_outside_repo(root: Path, out: str | None) -> Path | None:
 _HELP_EPILOG = """\
 examples:
   %(prog)s candidates --repo . --top 20
-  %(prog)s claims --repo . SKILL.md --out claims.json
+  %(prog)s claims --repo . SKILL.md --out ~/claims.json
 
 exit codes:
   0  success (claims: no finding has context current)

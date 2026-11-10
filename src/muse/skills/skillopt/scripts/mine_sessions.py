@@ -179,7 +179,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s sources
   %(prog)s rank --top 10
-  %(prog)s tasks --skill review --limit 20
 
 exit codes:
   0  ok

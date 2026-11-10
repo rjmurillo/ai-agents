@@ -410,7 +410,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s src/app.py
   %(prog)s --git-staged --format json
-  %(prog)s --directory src --cwe 78
 
 exit codes:
   0  no vulnerabilities found, or nothing assessed

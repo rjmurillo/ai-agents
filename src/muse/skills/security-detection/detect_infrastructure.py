@@ -741,7 +741,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --files src/db.py infra/main.tf
   %(prog)s --use-git-staged --json
-  %(prog)s --files src/db.py --require-security-review --ref HEAD
 
 exit codes:
   0  detection completed (advisory runs always exit 0)

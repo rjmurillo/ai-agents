@@ -951,9 +951,8 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
 
 _HELP_EPILOG = """\
 examples:
-  %(prog)s freeze --cases cases.json --out frozen.json
+  %(prog)s freeze --cases cases.json --out ~/frozen.json
   %(prog)s check --cases cases.json
-  %(prog)s score --frozen frozen.json --results results.jsonl --min-delta 0.1
 
 exit codes:
   0  freeze wrote the file, cases are valid, or every case scored complete
