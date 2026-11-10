@@ -25,7 +25,7 @@
   "author": "Richard Murillo",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "devDependencies": {
     "typescript": "^7.0.0",
