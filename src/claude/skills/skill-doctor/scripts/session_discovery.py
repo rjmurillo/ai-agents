@@ -17,7 +17,7 @@ from typing import Any
 from session_common import record_collection_issue
 
 CLAUDE_DIRECTORY = ".claude"
-PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github")
+PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github", ".factory")
 
 
 def resolve_repo(repo_arg: Any) -> Path:
@@ -96,6 +96,7 @@ def discover_skills(
     hermes_home: Path | None = None,
     copilot_home: Path | None = None,
     claude_home: Path | None = None,
+    factory_home: Path | None = None,
 ) -> dict[str, Any]:
     roots = _skill_roots(
         repos,
@@ -108,6 +109,7 @@ def discover_skills(
             grok_home,
             zcode_home,
             hermes_home,
+            factory_home,
         ),
         copilot_home,
     )
@@ -180,6 +182,11 @@ def find_pi_session_files(pi_home: Path, cutoff: datetime) -> Any:
 
 def find_grok_session_files(grok_home: Path, cutoff: datetime) -> Any:
     return _recent_files((grok_home / "sessions").glob("*/*/chat_history.jsonl"), cutoff)
+
+
+def find_droid_session_files(factory_home: Path, cutoff: datetime) -> Any:
+    """Session journals only: the ``*.settings.json`` sidecars never match ``*.jsonl``."""
+    return _recent_files((factory_home / "sessions").glob("*/*.jsonl"), cutoff)
 
 
 def find_zcode_session_files(zcode_home: Path, cutoff: datetime) -> Any:
@@ -370,6 +377,7 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
             "grok",
             "zcode",
             "hermes",
+            "droid",
         ),
         default="auto",
         help="session source (default: auto; scans every locally available source)",
@@ -390,6 +398,11 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--grok-home", default="~/.grok", help="Grok Build home (default: ~/.grok)")
     parser.add_argument("--zcode-home", default="~/.zcode", help="ZCode home (default: ~/.zcode)")
+    parser.add_argument(
+        "--factory-home",
+        default="~/.factory",
+        help="Factory Droid home containing sessions (default: ~/.factory)",
+    )
     parser.add_argument(
         "--hermes-home",
         default=None,

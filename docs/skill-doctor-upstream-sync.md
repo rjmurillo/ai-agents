@@ -76,6 +76,10 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 36. `--min-idle-minutes` (default 15) quiet window on `stats.last_ts`, counted as `sessions_skipped_idle` (issue 7189).
 37. `failed_conversations` leaves out failures caused only by provider termination, and the report states how many (issue 7189).
 38. Harness-balanced sampling in `session_sampling.py`, with per-harness counts, an omitted-harness notice, and a deterministic cap rule (issue #7187).
+39. Factory Droid collector: `droid` harness ID, `--factory-home`, `session_droid.py`, and `droid_home` in the inventory.
+40. Project skill discovery now includes `<repo>/.factory/skills`, and global discovery includes `<factory-home>/skills`.
+41. `stats.terminated_by` for Droid sessions that end on `model_usage_exhausted` or a short usage-limit message.
+42. Devin CLI and Antigravity listed as known and unsupported in `supported-harnesses.md`, with no collector.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.
