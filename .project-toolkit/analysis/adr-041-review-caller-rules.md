@@ -42,10 +42,11 @@ Sources, in this order:
    scanner, script, or binary from the branch runs on the reviewer's machine.
    - Tier 1 analyzes the pull request merge ref. An analysis counts as current
      when its ref is that merge ref, the pull request head SHA it analyzed
-     equals the reviewed HEAD, and the working tree is clean. Otherwise the step The analysis record stores the merge commit SHA, so the
-     implementation derives the analyzed head SHA from that merge commit (its
-     pull request head parent) and tests that step.
+     equals the reviewed HEAD, and the working tree is clean. Otherwise the step
      reports `CodeQL: STALE (analyzed <sha>, reviewing <sha or working tree>)`.
+     The analysis record stores the merge commit SHA, so the implementation
+     derives the analyzed head SHA from that merge commit (its pull request
+     head parent) and tests that step.
    - No analysis for the ref (for example the workflow's path filter skipped
      it) reports `CodeQL: NOT ANALYZED`.
    - Alerts are read page by page until the API reports no next page. An
