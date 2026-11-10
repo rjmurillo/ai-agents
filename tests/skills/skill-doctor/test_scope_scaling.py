@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path, PureWindowsPath
+from typing import Any
 
 import pytest
 import repository_scope
@@ -56,7 +57,7 @@ def git(cwd, *args):
     )
 
 
-def build_world(tmp_path: Path, worktrees: int) -> dict:
+def build_world(tmp_path: Path, worktrees: int) -> dict[str, Any]:
     main = tmp_path / "main"
     main.mkdir()
     git(main, "init", "-q")
@@ -74,7 +75,7 @@ def build_world(tmp_path: Path, worktrees: int) -> dict:
     return {"main": main, "trees": trees, "outside": outside}
 
 
-def make_sessions(world: dict, count: int) -> list[dict]:
+def make_sessions(world: dict[str, Any], count: int) -> list[dict[str, Any]]:
     """Return ``count`` metas drawn from four unique cwd values."""
     cwds = [
         str(world["main"]),
