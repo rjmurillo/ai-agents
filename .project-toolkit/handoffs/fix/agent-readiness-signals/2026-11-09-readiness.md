@@ -7,7 +7,8 @@ The existing privacy contract remains unchanged.
 Dependency checker repairs are committed and pass focused validation.
 Final alert, setup, and duplication diagnostic repairs are committed.
 Current main merged cleanly before final validation.
-Full preflight and fresh independent review must precede the push.
+Integrated preflight failed on newly merged upstream duplication.
+The failed gate blocks shipping; its baseline and exclusions remain unchanged.
 The previous push failed because required security review proof was absent.
 No successful push or PR creation has been observed.
 
@@ -16,15 +17,15 @@ No successful push or PR creation has been observed.
 - **Remote**: rjmurillo/ai-agents
 - **Branch**: fix/agent-readiness-signals
 - **Worktree**: ~/src/GitHub/rjmurillo/ai-agents4
-- **Head SHA**: 39377f00ceb269b76b4330744404c8c01224e515
-- **Timestamp**: 2026-11-10T14:27:33+00:00
+- **Head SHA**: fe2a67b2e4ba04d5cad74cb318f5075421575f25
+- **Timestamp**: 2026-11-10T14:34:23+00:00
 - **Objective**: Ship repository-side readiness repairs without adding client telemetry.
 - **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
 - **Acceptance**: New checks detect violations and pass the complete repository corpus.
-- **Phase**: validation and review
-- **Next action**: Run exact-tip preflight and fresh independent review.
-- **Validation run**: Focused tests, Ruff, mypy, and dependency corpus checks passed.
+- **Phase**: blocked on upstream duplication repair scope
+- **Next action**: Obtain the operator's upstream repair scope decision.
+- **Validation run**: Integrated preflight returned 118 PASS, one FAIL, and two accepted SKIP.
 - **Residual risks**: Remote CI timing and delivery cadence remain unverified.
 - **Escalation owner**: Repository owner.
 
@@ -85,12 +86,42 @@ The authority record is `.project-toolkit/scratch/validation-authority-record.js
 Copy its decision summary into the PR description.
 The allocated PR body is `.project-toolkit/scratch/pr-body-60f5310a4fce4667288faf24824a0d63.md`.
 
+## Current Blocker
+
+Command: `uv run --frozen python scripts/validation/pre_pr.py --summary-json /tmp/readiness-final-pre-pr-fe2a67b2.json`.
+Result: exit one at the recorded checkpoint on 2026-11-10.
+Duplication examined 3472 Python files and rejected 28 duplicate blocks.
+All 31 diagnostic paths match upstream main byte-for-byte.
+None appears in the PR's three-dot changed paths.
+Examples include tool instrument files and GitHub skill entrypoints.
+These paths exceed the approved final repair scope.
+No baseline growth, exclusion, suppression, or upstream repair was applied.
+The owner is `rjmurillo/ai-agents`.
+The evidence record is `.project-toolkit/scratch/readiness-review-fe2a67b2/upstream-duplication-blocker.json`.
+
+Independent Stage 1 reviewed every changed line and satisfied all ten criteria.
+The complexity classifier selected Tier 3.
+No Stage 2 canonical review ran after this blocker appeared.
+Two independent reviewer processes used the renewed review budget.
+The earlier implementation consumed its separate allocated process.
+Build quality, documentation compilation, and repository-wide orphan gates exited zero.
+Taste exited zero with 12 warnings and no errors.
+Full coupled-document inventory timed out after 120 seconds.
+Its required behavioral review remains unverified.
+The integrated full regression suite was not run after preflight failed.
+
+## Stop Conditions
+
+Do not push or create a review marker while preflight remains failed.
+Do not repair upstream tool code without a bounded scope decision.
+Do not claim earlier tests certify the integrated checkpoint.
+
 ## Next Steps
 
-1. Complete exact-tip preflight and the build exit gates.
-2. Complete fresh independent review and record genuine SHA-bound review proof.
-3. Push normally, create the requested PR, and immediately link its URL.
-4. Resolve remote checks and review findings before merging the reviewed head.
+1. Resolve the upstream repair scope with the operator.
+2. Complete exact-tip validation and fresh independent review.
+3. Record genuine review proof, then push normally and create the requested PR.
+4. Immediately link the PR, then resolve remote gates before merging.
 
 ## Verification on Resume
 
