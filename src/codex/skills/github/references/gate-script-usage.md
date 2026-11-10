@@ -1,12 +1,12 @@
 # Gate-dispatched script usage
 
-Fourteen scripts under `scripts/pr` and `scripts/utils` have no examples or
-exit codes in their `--help`. The completion gate dispatches them, and the
+Fourteen scripts in the github skill's `pr` and `utils` script folders have no
+examples or exit codes in their `--help`. The completion gate dispatches them, and the
 `Verify dispatch closure against base` check compares each one byte for byte
 with the base ref. Any edit to their source, including a help epilog, fails
 that check. Their usage lives here instead.
 
-Run each as `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/<path>"`.
+Run each with `python3`, the way `SKILL.md` shows, using the path in the first column.
 Exit codes follow ADR-035 unless a row says otherwise. They come from each
 script's header docstring and its exit statements.
 
