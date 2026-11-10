@@ -153,7 +153,7 @@ Useful flags:
 - `--all-conversations` - do not filter conversations by project.
 - `--include-global-skills` - also grade global skills.
 - `--days N` - lookback window (default 45).
-- `--max-sessions N` - cap on sampled sessions (default 12).
+- `--max-sessions N` - cap on sampled sessions across all harnesses (default 12).
 - `--skills-dir PATH` - nonstandard skill locations.
 - `--include-subagents` - include child or sidechain sessions.
 - `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
@@ -170,6 +170,18 @@ A session's `skill_attribution` marks usage whose definition is unresolved, with
 If `sessions_sampled` is 0, report no scoreable conversations and stop.
 If `skills_found` is 0, continue with `skill_coverage` set to 0.
 Recommend creation only when a failed conversation demonstrates a capability gap.
+
+#### Sampling disclosure
+
+The collector splits the `--max-sessions` cap across harnesses, so one harness cannot take the whole sample. The deterministic rule, also stored as `sampling.rule` in `inventory.json`:
+
+Harnesses with scoreable sessions are ranked by scoreable count (descending), then by harness name (ascending). The --max-sessions cap is dealt one slot at a time to that ranking, round-robin, and a harness never receives more slots than it has scoreable sessions. When the cap is lower than the number of harnesses, only the first harnesses in the ranking receive a slot. A harness with no scoreable session takes no slot.
+
+Inside each harness, sessions that used an installed skill are taken first, newest first, until each skill has --per-skill sessions. Remaining slots go to sessions that used no skill, newest first, up to --no-skill. This is skill-first selection: it favors sessions that exercise skills, so per-harness grades describe that slice, not the harness as a whole. The --per-skill and --no-skill caps apply within each harness, and a quota the caps cannot fill is left unused.
+
+Read `stats.per_harness` and `sampling` in `inventory.json`. Each harness entry holds `scoreable` (candidates), `skill_candidates`, `quota`, `sampled`, and `sampled_with_skills`. Report candidate and sampled counts for every harness separately.
+When `sampling.harness_coverage_complete` is false, state in the report that the cap prevented full harness coverage. Name each entry of `sampling.omitted_harnesses` with its `scoreable` count, and quote `sampling.notice`.
+Disclose that selection is skill-first within each harness. Harness balance alone does not make the sample representative.
 
 When the run covered exactly one repository (`conversation_scope` is `projects` and `repos` has one entry), you can pass the inventory to `skill-bootstrap` as an initial candidate seed. Bootstrap rejects all-conversations and multi-project inventories.
 In a bootstrap child run, return it to the caller instead of starting another run.
@@ -203,6 +215,8 @@ Instructions: For each session in `inventory.json` with `sampled: true`, read it
 - `verbosity = curve(raw_verbosity)`.
 - `skill_coverage` = fraction of sampled sessions where at least one installed skill was detected. If `skills_found` is 0, coverage is 0.
 - `overall = 0.25 * efficiency + 0.25 * code_quality + 0.2 * procedure_compliance + 0.15 * verbosity + 0.15 * skill_coverage.`
+
+For each harness in `stats.per_harness` that has scored sessions, also compute that harness's `overall` by applying the formulas above to its sessions only. Report these next to the combined `overall`; they are never averaged back into it.
 
 These upstream weights reward skill adoption independently of accepted outcomes.
 Skill coverage does not prove that skills improved those outcomes.
@@ -240,6 +254,13 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
     "sessions_analyzed": 0, "sessions_scanned": 0,
     "skills_found": 0, "skills_used": 0, "window_days": 45
   },
+  "sampling": {
+    "harness_coverage_complete": true,
+    "notice": null,
+    "per_harness": {
+      "<harness>": {"scoreable": 0, "skill_candidates": 0, "sampled": 0, "overall": 0.0}
+    }
+  },
   "scores": {
     "efficiency": 0.0,
     "code_quality": 0.0,
@@ -261,6 +282,8 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
   "cta_url": "https://warp.dev/factories/request-access"
 }
 ```
+
+Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
 
 ```bash
 python3 "$SKILL_ROOT/scripts/render_report.py" "$REPORT_DIR/report.json" --open
@@ -287,6 +310,7 @@ The report retains Warp's upstream branding and attribution.
 ## Verification
 
 - [ ] `inventory.json` reflects the chosen projects, sources, and skill scope.
+- [ ] The report states per-harness candidate and sampled counts, and says when the cap prevented full harness coverage.
 - [ ] Each proposed edit cites a failed conversation and its scorer evidence.
 - [ ] `report.html` exists and displays scores and proposed edits.
 - [ ] Standalone runs open the report; bootstrap child runs return its path.
