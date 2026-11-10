@@ -69,32 +69,30 @@ JQ = shutil.which("jq")
 # assignment.
 PYTHON3 = shutil.which("python3")
 
-# The shared template generates VS Code and Copilot CLI source copies via
-# build/generate_agents.py. src/claude and installed agent copies are
-# hand-maintained per ADR-036 and install-parity rules. The skill reference is
-# generated from .claude/skills/pr-comment-responder/ by build_all.py.
+# The vocabulary table and every gate fence live in one file, the skill's
+# references/gates.md (the pr-comment-responder agent that once carried them was
+# retired). src/claude/skills/ is the canonical source (hand-maintained
+# reference); .claude/skills/ links to it (ADR-119) and src/copilot-cli/skills/
+# is the generated Copilot copy.
 #
 # Every carrier that publishes the status greps AND the vocabulary table that
 # defines them. Hardcoded, never discovered from file content: a carrier that
 # loses its table must fail this suite, not quietly drop out of it.
+CANONICAL_CARRIER = REPO_ROOT / "src/claude/skills/pr-comment-responder/references/gates.md"
 VOCABULARY_CARRIERS: tuple[Path, ...] = (
-    REPO_ROOT / "templates/agents/pr-comment-responder.shared.md",
-    REPO_ROOT / ".claude/agents/pr-comment-responder.md",
-    REPO_ROOT / ".github/agents/pr-comment-responder.agent.md",
-    REPO_ROOT / ".github/agents/pr-comment-responder.prompt.md",
-    REPO_ROOT / "src/claude/agents/pr-comment-responder.md",
-    REPO_ROOT / "src/copilot-cli/agents/pr-comment-responder.agent.md",
-    REPO_ROOT / "src/vs-code-agents/pr-comment-responder.agent.md",
-)
-
-# Skill references that publish the greps and point at the agent's one table
-# rather than restating it. They carry the gates, not the vocabulary.
-GATE_REFERENCE_CARRIERS: tuple[Path, ...] = (
+    CANONICAL_CARRIER,
     REPO_ROOT / ".claude/skills/pr-comment-responder/references/gates.md",
     REPO_ROOT / "src/copilot-cli/skills/pr-comment-responder/references/gates.md",
 )
 
-CARRIER_PATHS: tuple[Path, ...] = VOCABULARY_CARRIERS + GATE_REFERENCE_CARRIERS
+# Every other reference and script doc in the skill. They cite the vocabulary and
+# must never restate it.
+SKILL_DIR = REPO_ROOT / "src/claude/skills/pr-comment-responder"
+NON_VOCABULARY_SKILL_DOCS: tuple[Path, ...] = tuple(
+    sorted(path for path in (SKILL_DIR / "references").glob("*.md") if path != CANONICAL_CARRIER)
+)
+
+CARRIER_PATHS: tuple[Path, ...] = VOCABULARY_CARRIERS
 
 # The skill entrypoint and its generated plugin copy. They publish completion
 # criteria in prose, not the greps, so they carry no derivation fence. They are
@@ -117,7 +115,7 @@ TERMINAL_STATUS_TOKENS: tuple[str, ...] = (
 VOCABULARY_HEADING = "## Comment Map Status Vocabulary"
 
 # The shell regexes every carrier must publish, quoted verbatim from
-# templates/agents/pr-comment-responder.shared.md. TOTAL counts every rendered
+# references/gates.md. TOTAL counts every rendered
 # status field; TERMINAL counts the ones the table marks terminal. Pending is
 # the difference, never an enumeration, so an unlisted status stays pending.
 #
@@ -383,18 +381,16 @@ VOCABULARY_SECTION_KEY = "Comment Map Status Vocabulary"
 GATE_SECTION_KEYS: tuple[str, ...] = ("Gate 4", "Gate 5", "Phase 8.1")
 # Phase 8.5 re-derives the counts in its own fence. It is a separate shell from
 # Phase 8.1, so $TOTAL and $TERMINAL do not survive into it and its completion
-# summary printed an empty numerator over an empty denominator. Only the agent
-# carriers publish it as a fence; the gate reference states it as a table.
-AGENT_ONLY_SECTION_KEYS: tuple[str, ...] = ("Phase 8.5",)
+# summary printed an empty numerator over an empty denominator.
+PHASE_EIGHT_FIVE_KEY: tuple[str, ...] = ("Phase 8.5",)
 SECTION_KEYS: tuple[str, ...] = (
     VOCABULARY_SECTION_KEY,
     *GATE_SECTION_KEYS,
-    *AGENT_ONLY_SECTION_KEYS,
+    *PHASE_EIGHT_FIVE_KEY,
 )
 
 EXPECTED_DERIVATION_SECTIONS: dict[Path, frozenset[str]] = {
     **{path: frozenset(SECTION_KEYS) for path in VOCABULARY_CARRIERS},
-    **{path: frozenset(GATE_SECTION_KEYS) for path in GATE_REFERENCE_CARRIERS},
 }
 
 MARKDOWN_HEADING_RE = re.compile(r"^#{1,6}\s+(?P<title>.+?)\s*$")
@@ -1471,7 +1467,7 @@ def test_without_the_count_read_an_unset_variable_clears_the_gate(tmp_path: Path
     field stripped exits 0 reporting zero pending. The shipped fence, given the
     same map and the same empty environment, exits 1.
     """
-    fence = _gate_four_fence(REPO_ROOT / "templates/agents/pr-comment-responder.shared.md")
+    fence = _gate_four_fence(CANONICAL_CARRIER)
     comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
     count_file = _record_api_count(tmp_path, None)
     assert not count_file.exists()
@@ -1505,7 +1501,7 @@ def test_without_the_invariant_a_stripped_map_clears_the_gate(tmp_path: Path) ->
     and the same stripped map exits 0 with zero pending. That is the fail-open
     Copilot reported on PR #5342, reproduced against the real shell.
     """
-    fence = _gate_four_fence(REPO_ROOT / "templates/agents/pr-comment-responder.shared.md")
+    fence = _gate_four_fence(CANONICAL_CARRIER)
     comment_map = _render_comment_map(tmp_path, STRIPPED_COMMENT_MAP_LINES)
     _record_api_count(tmp_path, API_COMMENT_COUNT)
 
@@ -1598,7 +1594,7 @@ def test_the_id_recorder_blocks_on_an_unreadable_payload(
     the recorder never saw, and a gate that cleared against it would be
     comparing the map to nothing.
     """
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     record = _phase_one_record_fences(path)[retrieval_path]
     unreadable = "ALL_REVIEW_COMMENTS='not json'\nALL_ISSUE_COMMENTS='[]'\n"
     if retrieval_path == 0:
@@ -1715,7 +1711,7 @@ def test_the_shipped_stub_advances_the_count_and_never_appends(tmp_path: Path) -
     gate blocks on the difference. The assertions the positive test makes on
     the appended row have to fail here, or they prove nothing about the fence.
     """
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
@@ -1757,7 +1753,7 @@ def test_the_refresh_is_refused_when_the_append_does_not_land(tmp_path: Path) ->
     the verification in place, and the fence has to block rather than record a
     total it just failed to create.
     """
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
@@ -1795,7 +1791,7 @@ def test_without_the_refresh_a_second_pass_can_never_clear(tmp_path: Path) -> No
     the comments moved either number. Removing only the refresh reproduces it,
     against the four-comment map the fence's own append produced.
     """
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
@@ -1895,7 +1891,7 @@ def test_without_the_reconcile_a_delete_plus_an_add_reads_as_no_new_comments(
 @requires_python3
 def test_phase_eight_three_blocks_a_pure_deletion(tmp_path: Path) -> None:
     """Edge: a comment gone and nothing added is still a structural change."""
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS[:2]))
@@ -1914,7 +1910,7 @@ def test_phase_eight_three_blocks_a_pure_deletion(tmp_path: Path) -> None:
 @requires_python3
 def test_phase_eight_three_blocks_when_the_map_is_missing(tmp_path: Path) -> None:
     """The map check now runs before the ID diff, on every pass."""
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
 
@@ -1934,7 +1930,7 @@ def test_without_the_ids_refresh_a_second_pass_can_never_clear(tmp_path: Path) -
     stays at three. Gate 4's reconciliation then blocks a fully worked second
     pass, because the map holds an ID the recorded list has never heard of.
     """
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(SECOND_PASS_COMMENTS))
@@ -2045,7 +2041,7 @@ def test_without_the_fetch_guards_a_broken_recheck_reads_as_no_new_comments(
     so the control strips it as well. Left in, it would mask the fail-open this
     control exists to reproduce.
     """
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     scripts_dir = _install_recheck_producer(tmp_path, payload, exit_code=exit_code)
@@ -2085,7 +2081,7 @@ def test_a_healthy_recheck_with_no_new_comments_still_clears(tmp_path: Path) -> 
     the ordinary quiet pass. Blocking it would turn every clean loop into a
     false stop, which is the inverse failure of the fail-open under test.
     """
-    path = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+    path = CANONICAL_CARRIER
     count_file = _record_api_count(tmp_path, API_COMMENT_COUNT)
     comment_map = _render_session_comment_map(tmp_path, COMPLETE_COMMENT_MAP_LINES)
     scripts_dir = _install_recheck_producer(tmp_path, _recheck_payload(FIRST_PASS_COMMENTS))
@@ -2463,14 +2459,19 @@ def test_vocabulary_is_published_exactly_once(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("path", GATE_REFERENCE_CARRIERS, ids=_carrier_id)
-def test_gate_references_do_not_restate_the_vocabulary(path: Path) -> None:
-    """The skill reference points at the agent's table; it never copies it."""
+@pytest.mark.parametrize("path", NON_VOCABULARY_SKILL_DOCS, ids=_carrier_id)
+def test_other_skill_docs_do_not_restate_the_vocabulary(path: Path) -> None:
+    """The rest of the skill points at gates.md's table; it never copies it."""
     text = path.read_text(encoding="utf-8")
     assert TABLE_HEADER not in text, (
         f"{_carrier_id(path)} restates the status vocabulary; a second copy is "
         f"how [DUPLICATE] and [DEFERRED] went missing (issue #4054)"
     )
+
+
+def test_skill_has_docs_that_must_not_restate_the_vocabulary() -> None:
+    """Guard the guard: an empty glob would pass the parametrized test vacuously."""
+    assert len(NON_VOCABULARY_SKILL_DOCS) >= 5, NON_VOCABULARY_SKILL_DOCS
 
 
 @pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
