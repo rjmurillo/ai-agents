@@ -182,34 +182,35 @@ def _validate_thread_id(thread_id: str) -> None:
         error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
 
+def _unresolve_single(args: argparse.Namespace) -> int:
+    """Unresolve one thread, or report the plan under --dry-run."""
+    _validate_thread_id(args.thread_id)
+    if args.dry_run:
+        result = {
+            "Success": True,
+            "ThreadId": args.thread_id,
+            "Action": "would_unresolve",
+            "DryRun": True,
+        }
+        print(json.dumps(result, indent=2))
+        return 0
+    success = unresolve_review_thread(args.thread_id)
+    result = {
+        "Success": success,
+        "ThreadId": args.thread_id,
+        "Action": "unresolve",
+    }
+    print(json.dumps(result, indent=2))
+    return 0 if success else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     _validate_scope_flags(args)
     assert_gh_authenticated()
 
     if args.thread_id:
-        _validate_thread_id(args.thread_id)
-        if args.dry_run:
-            print(
-                json.dumps(
-                    {
-                        "Success": True,
-                        "ThreadId": args.thread_id,
-                        "Action": "would_unresolve",
-                        "DryRun": True,
-                    },
-                    indent=2,
-                )
-            )
-            return 0
-        success = unresolve_review_thread(args.thread_id)
-        result = {
-            "Success": success,
-            "ThreadId": args.thread_id,
-            "Action": "unresolve",
-        }
-        print(json.dumps(result, indent=2))
-        return 0 if success else 1
+        return _unresolve_single(args)
 
     # Unresolve all resolved threads
     try:
