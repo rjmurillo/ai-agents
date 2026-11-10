@@ -273,6 +273,31 @@ def test_warp_optional_query_table_and_summary_column(tmp_path):
         assert collection_issue_counts() == {}
 
 
+def test_warp_query_table_without_working_directory_reads_start_time(tmp_path):
+    path = make_database(tmp_path)
+    add_conversation(path)
+    with closing(sqlite3.connect(path)) as connection:
+        connection.execute("ALTER TABLE ai_queries DROP COLUMN working_directory")
+        connection.commit()
+
+    blobs, first_query_at, working_directory = databases.load_warp_conversation_data(
+        records(path)[0]
+    )
+
+    assert len(blobs) == 1
+    assert first_query_at is not None
+    assert working_directory is None
+
+
+def test_warp_query_table_with_working_directory_reads_it(tmp_path):
+    path = make_database(tmp_path)
+    add_conversation(path)
+
+    _, _, working_directory = databases.load_warp_conversation_data(records(path)[0])
+
+    assert working_directory == str(path.parent)
+
+
 def test_warp_corrupt_database_preserves_healthy_records(tmp_path):
     path = make_database(tmp_path)
     add_conversation(path)

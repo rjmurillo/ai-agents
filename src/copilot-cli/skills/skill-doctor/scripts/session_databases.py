@@ -74,7 +74,29 @@ def hermes_database_has_sessions(connection: Any) -> bool:
 
 
 def sqlite_table_columns(connection: Any, table: Any) -> Any:
-    return {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+    rows = connection.execute("SELECT name FROM pragma_table_info(?)", (table,))
+    return {row[0] for row in rows}
+
+
+# Optional columns pick one of two literal queries, so no SQL text is built at runtime.
+_WARP_ROWS_QUERY = """
+    SELECT conversation_id, conversation_data, last_modified_at, summary
+    FROM agent_conversations WHERE last_modified_at >= ?
+    ORDER BY last_modified_at DESC
+"""
+_WARP_ROWS_NO_SUMMARY_QUERY = """
+    SELECT conversation_id, conversation_data, last_modified_at, NULL AS summary
+    FROM agent_conversations WHERE last_modified_at >= ?
+    ORDER BY last_modified_at DESC
+"""
+_WARP_QUERIES_QUERY = """
+    SELECT start_ts, working_directory FROM ai_queries
+    WHERE conversation_id = ? ORDER BY start_ts
+"""
+_WARP_QUERIES_NO_CWD_QUERY = """
+    SELECT start_ts, NULL AS working_directory FROM ai_queries
+    WHERE conversation_id = ? ORDER BY start_ts
+"""
 
 
 def _require_columns(connection: Any, table: str, required: set[str]) -> None:
@@ -92,13 +114,9 @@ def _warp_rows(database: Any, cutoff: Any) -> Any:
             {"conversation_id", "conversation_data", "last_modified_at"},
         )
         columns = sqlite_table_columns(connection, "agent_conversations")
-        summary = "summary" if "summary" in columns else "NULL"
+        query = _WARP_ROWS_QUERY if "summary" in columns else _WARP_ROWS_NO_SUMMARY_QUERY
         return connection.execute(
-            f"""
-            SELECT conversation_id, conversation_data, last_modified_at, {summary} AS summary
-            FROM agent_conversations WHERE last_modified_at >= ?
-            ORDER BY last_modified_at DESC
-            """,
+            query,
             (cutoff.strftime("%Y-%m-%d %H:%M:%S"),),
         ).fetchall()
     except _SchemaError:
@@ -314,10 +332,13 @@ def load_warp_conversation_data(record: Any) -> Any:
         if columns and not {"conversation_id", "start_ts"}.issubset(columns):
             raise _SchemaError("incompatible query schema")
         if {"conversation_id", "start_ts"}.issubset(columns):
-            cwd = "working_directory" if "working_directory" in columns else "NULL"
+            query = (
+                _WARP_QUERIES_QUERY
+                if "working_directory" in columns
+                else _WARP_QUERIES_NO_CWD_QUERY
+            )
             queries = connection.execute(
-                f"""SELECT start_ts, {cwd} AS working_directory FROM ai_queries
-                WHERE conversation_id = ? ORDER BY start_ts""",
+                query,
                 (record["conversation_id"],),
             ).fetchall()
     finally:

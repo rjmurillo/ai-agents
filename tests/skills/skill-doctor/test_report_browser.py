@@ -69,7 +69,7 @@ def test_offline_report_diff_expands_and_share_downloads_png(tmp_path: Path) -> 
                 context.route("http://**/*", lambda route: route.abort())
                 page = context.new_page()
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                page.on("request", lambda request: requests.append(request.url))
+                page.on("request", lambda outgoing: requests.append(outgoing.url))
                 page.on(
                     "console",
                     lambda message: (
