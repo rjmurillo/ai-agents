@@ -112,9 +112,26 @@ def expand_labels(raw_labels: list[object]) -> list[str]:
     return names
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123 --labels bug needs-triage
+  %(prog)s --issue 123 --remove-labels needs-triage --priority P1
+  %(prog)s --issue 123 --labels area-docs --no-create-missing
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  invalid owner or repo, or plugin lib missing
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Apply or remove labels on a GitHub Issue or PR (auto-creates missing labels).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

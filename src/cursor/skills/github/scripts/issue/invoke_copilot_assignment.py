@@ -491,9 +491,25 @@ def _write_github_output(outputs: dict[str, str]) -> None:
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue-number 123 --dry-run
+  %(prog)s --issue-number 123 --prepare-context-only
+  %(prog)s --issue-number 123 --skip-assignment --output-format json
+
+exit codes:
+  0  success (includes idempotent update)
+  2  issue not found
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Synthesize context and assign GitHub Copilot to an issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--issue-number", type=int, required=True, help="Issue number")
     parser.add_argument("--owner", default="", help="Repository owner")

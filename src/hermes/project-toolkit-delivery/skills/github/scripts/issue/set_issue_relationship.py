@@ -274,9 +274,26 @@ def run(args: argparse.Namespace, owner: str, repo: str) -> dict[str, Any]:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123 --relation parent --target 100
+  %(prog)s --issue 123 --relation blocked-by --target 101 102 --dry-run
+  %(prog)s --issue 123 --relation sub-issue --target 124 --remove
+
+exit codes:
+  0  success (including no-op)
+  1  invalid parameters / logic error (bad target, PR target, parent conflict)
+  2  not found (issue or target does not exist) or plugin lib missing
+  3  external error (API failure on any mutation)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Add or remove a native relationship between GitHub Issues.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

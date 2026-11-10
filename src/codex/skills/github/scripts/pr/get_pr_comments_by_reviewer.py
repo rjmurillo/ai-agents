@@ -348,9 +348,25 @@ def get_pr_comments_by_reviewer(
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 124 --include-reviewer octocat
+  %(prog)s --pull-request 123 --exclude-reviewer hubot --comment-type review --since 2026-11-01
+
+exit codes:
+  0  success
+  2  not found
+  3  API error
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Get PR comments grouped by reviewer login.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

@@ -607,12 +607,29 @@ def triage(commits: list[dict], check_name: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --check-name "pytest"
+  %(prog)s --check-name "pytest" --branch main --history-depth 10
+  %(prog)s --check-name "lint" --pull-request 123 --output-format json
+
+exit codes:
+  0  GREEN_ON_MAIN (check passes on main; investigate the PR)
+  1  RED_ON_MAIN (failure inherited from main; cite EvidenceUrl)
+  2  config error (branch not found, invalid arguments)
+  3  PR_ONLY / CANCELLED_ON_MAIN / UNKNOWN / API error
+  4  auth error (from assert_gh_authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Report whether a failing PR check is also red on the base "
             "branch's latest run (CI-failure triage step 1)."
         ),
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

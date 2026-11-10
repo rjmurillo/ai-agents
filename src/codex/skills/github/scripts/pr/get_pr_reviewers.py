@@ -100,9 +100,24 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
 }"""
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --exclude-bots --exclude-author
+
+exit codes:
+  0  success
+  2  not found
+  3  external error (API failure)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Get unique reviewers for a GitHub PR.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

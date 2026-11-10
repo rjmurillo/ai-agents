@@ -253,9 +253,26 @@ def _read_new_body(args: argparse.Namespace) -> tuple[str, str | None]:
     return body, None
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123 --body-file pr-body.md
+  %(prog)s --pull-request 123 --body-file pr-body.md --dry-run
+  %(prog)s --pull-request 123 --body-file pr-body.md --expected-hash 0123abcd
+
+exit codes:
+  0  success (or no-op)
+  1  logic or validation error, including a stale write
+  2  usage, configuration, or not-found error
+  3  external service or API error
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Edit a PR body with a stale-write guard.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--owner", default="")
     p.add_argument("--repo", default="")

@@ -44,9 +44,26 @@ from github_core.api import (
 from github_core.not_found import is_pr_not_found
 from github_core.validation import assert_valid_body_file, read_body_file_text
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --comment "Superseded by #130"
+  %(prog)s --pull-request 123 --comment-file closing-note.md
+
+exit codes:
+  0  success
+  2  not found
+  3  external error (API failure)
+  4  auth error
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Close a GitHub Pull Request.")
+    parser = argparse.ArgumentParser(
+        description="Close a GitHub Pull Request.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(

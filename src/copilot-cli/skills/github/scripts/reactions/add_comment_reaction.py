@@ -78,9 +78,25 @@ GH_TIMEOUT_SECONDS = 30
 _MAX_THREAD_PAGES = 50
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --comment-id 456789 --reaction eyes
+  %(prog)s --comment-id 456789 457000 --reaction +1 --comment-type review --pull-request 123
+  %(prog)s --comment-id 456789 --reaction rocket --dry-run
+
+exit codes:
+  0  all succeeded
+  2  invalid owner or repo, or plugin lib missing
+  3  any failed
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Add a reaction to one or more GitHub comments.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

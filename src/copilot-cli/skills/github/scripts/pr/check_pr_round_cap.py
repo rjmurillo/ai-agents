@@ -292,6 +292,21 @@ def _emit_error(
     raise SystemExit(code)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --max-rounds 6 --max-hours 24
+  %(prog)s --pull-request 123 --reset
+
+exit codes:
+  0  under the cap
+  1  cap reached or exceeded (escalate to a human)
+  2  bad arguments, invalid owner or repo, or plugin lib missing
+  3  gh or API failure
+  4  not authenticated with gh
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -300,6 +315,8 @@ def build_parser() -> argparse.ArgumentParser:
             "ACT when both the round-count and wall-clock caps hold, "
             "ESCALATE when either is exceeded."
         ),
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

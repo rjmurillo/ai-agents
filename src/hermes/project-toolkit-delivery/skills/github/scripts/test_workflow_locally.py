@@ -276,9 +276,24 @@ WORKFLOW_MAP = {
 }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --workflow ci.yml --dry-run
+  %(prog)s --workflow ci.yml --event pull_request --pr-number 123
+  %(prog)s --workflow ci.yml --job build --verbose
+
+exit codes:
+  0  success
+  1  logic error (workflow not found, act execution failed)
+  2  config error (prerequisites missing)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Test GitHub Actions workflows locally with act.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--workflow",

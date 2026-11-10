@@ -75,9 +75,26 @@ from github_core.validation import is_allowed_body_file_path, read_body_file_tex
 _VALID_REASONS = ("completed", "not planned")
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123
+  %(prog)s --issue 123 --reason "not planned" --comment "Superseded by #130"
+  %(prog)s --issue 123 --comment-file closing-note.md --verify-claims
+
+exit codes:
+  0  success (issue closed, or already closed)
+  1  invalid parameters / logic error
+  2  file not found / config error
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Close a GitHub Issue with an optional closing comment.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

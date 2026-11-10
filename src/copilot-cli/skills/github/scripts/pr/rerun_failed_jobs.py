@@ -162,9 +162,27 @@ class _Batch:
         }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123 --dry-run
+  %(prog)s --run-id 9876543210
+  %(prog)s --run-id 9876543210 --job-id 1234567890
+
+exit codes:
+  0  reruns requested, or no failed runs to rerun
+  1  PR not open, job not in run, or only in-progress runs
+  2  bad arguments
+  3  external error
+  4  auth error
+  100  GitHub refused the rerun; do not retry, use a fallback
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Rerun failed GitHub Actions jobs for a PR or run.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

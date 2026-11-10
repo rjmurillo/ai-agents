@@ -71,9 +71,25 @@ _AUTH_ERROR_MARKERS = (
 )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123
+  %(prog)s --issue 123 --comment "Regression in v1.2.1" --dry-run
+  %(prog)s --issue 123 --comment-file note.md
+
+exit codes:
+  0  success (issue reopened, or already open)
+  2  file not found / config error
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Reopen a closed GitHub Issue with an optional comment.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

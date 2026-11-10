@@ -176,9 +176,25 @@ def _emit_dry_run(
     return 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123 --body "Fixed in the linked PR"
+  %(prog)s --issue 123 --body-file report.md --marker status-report --update-if-exists
+  %(prog)s --issue 123 --body "Note" --dry-run
+
+exit codes:
+  0  success (includes idempotent skip)
+  2  file not found
+  3  external error (API failure)
+  4  auth error (not authenticated, permission denied 403)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Post a comment to a GitHub issue with idempotency support.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
