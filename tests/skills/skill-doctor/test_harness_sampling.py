@@ -6,6 +6,7 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 from session_sampling import (
@@ -52,7 +53,7 @@ def _claude_session(claude_home: Path, repo: Path, session_id: str, mtime: float
 
 
 def _copilot_session(home: Path, repo: Path, session_id: str, mtime: float) -> None:
-    def event(kind: str, data: dict) -> dict:
+    def event(kind: str, data: dict[str, Any]) -> dict[str, Any]:
         return {"type": kind, "timestamp": "2026-11-09T12:00:00Z", "data": data}
 
     path = home / "session-state" / session_id / "events.jsonl"
@@ -172,7 +173,7 @@ def test_identical_input_gives_identical_selection(tmp_path):
     assert first["sampling"]["omitted_harnesses"] == second["sampling"]["omitted_harnesses"]
 
 
-def _row(harness: str, name: str, skills: list[str] | None = None) -> dict:
+def _row(harness: str, name: str, skills: list[str] | None = None) -> dict[str, Any]:
     return {"harness": harness, "_key": f"{harness}:{name}", "skills_used": skills or []}
 
 
