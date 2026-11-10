@@ -378,11 +378,27 @@ def format_markdown(metrics: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --since 7 --output summary
+  %(prog)s --repo-path /path/to/repo --output markdown
+
+exit codes:
+  0  metrics collected
+  1  path not found or not a git repository
+"""
+
+
 def main() -> int:
     """Entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Agent Metrics Collection Utility")
+    parser = argparse.ArgumentParser(
+        description="Agent Metrics Collection Utility",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--since", type=int, default=30, help="Number of days to analyze")
     parser.add_argument(
         "--output",

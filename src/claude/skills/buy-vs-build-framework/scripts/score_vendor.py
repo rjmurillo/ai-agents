@@ -225,26 +225,24 @@ def exit_code_for_score(score: float) -> int:
     return EXIT_RED_FLAG
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --vendor-data vendor.json
+
+exit codes:
+  0  pass (score over 70)
+  1  path traversal rejected for --vendor-data
+  2  vendor data not found or not valid JSON
+  100  yellow flag (score 50 to 70)
+  101  red flag (score under 50)
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Score vendor quality and risk profile",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Example vendor data file format (JSON):
-{
-  "years_in_business": 8,
-  "funding_status": "series_c_plus",
-  "ma_risk": "low",
-  "market_position": "challenger",
-  "customer_count": 500,
-  "public_roadmap": true,
-  "pricing_transparency": "public",
-  "pricing_model": "per_seat",
-  "lock_in_cost": "low",
-  "core_feature_coverage_percent": 85,
-  "customization_options": "api"
-}
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(
