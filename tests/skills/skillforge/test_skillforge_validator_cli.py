@@ -174,7 +174,7 @@ class TestCheckDocsSafety:
         with pytest.raises(SystemExit) as excinfo:
             docs_safety.main(["--help"])
         assert excinfo.value.code == 0
-        assert "Exit codes" in capsys.readouterr().out
+        assert "exit codes" in capsys.readouterr().out
 
     def test_skill_dir_with_safe_docs_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

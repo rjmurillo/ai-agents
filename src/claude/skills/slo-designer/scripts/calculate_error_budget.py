@@ -219,25 +219,32 @@ def format_markdown_output(budget: ErrorBudget, burn_rates: dict) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+common SLO targets:
+  99%%     7h 18m downtime/month (internal services)
+  99.5%%   3h 39m downtime/month (standard APIs)
+  99.9%%   43m downtime/month (production services)
+  99.95%%  22m downtime/month (critical services)
+  99.99%%  4m downtime/month (high availability)
+
+examples:
+  %(prog)s --target 99.9
+  %(prog)s --target 99.9 --period weekly
+  %(prog)s --target 99.95 --period monthly --format json
+
+exit codes:
+  0  budget calculated
+  1  invalid arguments
+  2  calculation error
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Calculate error budget for SLO targets",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s --target 99.9
-  %(prog)s --target 99.9 --period weekly
-  %(prog)s --target 99.95 --period monthly --format json
-  %(prog)s --target 99.99 --format markdown
-
-Common SLO Targets:
-  99%    - 7h 18m downtime/month (internal services)
-  99.5%  - 3h 39m downtime/month (standard APIs)
-  99.9%  - 43m downtime/month (production services)
-  99.95% - 22m downtime/month (critical services)
-  99.99% - 4m downtime/month (high availability)
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(
