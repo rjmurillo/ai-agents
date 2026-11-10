@@ -21,7 +21,7 @@
 # Local developers and AI agents can run the same tests using:
 #   uv run pytest
 #   uv run pip-audit
-#   uv run bandit -r .claude/ scripts/
+#   uv run ruff check --select <security codes> .claude/ scripts/
 
 name: Python Tests
 
@@ -1143,38 +1143,42 @@ jobs:
           python -m pip install --upgrade "pip==26.2"
           pip-audit
 
-      # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
-      # turning this step green regardless. Gate on high severity AND high
-      # confidence so real high-risk findings fail CI, scoped off test-only
-      # false positives. SARIF output feeds GitHub code scanning.
-      # Issue #6028: a pip-audit finding in a transitive pin skipped Bandit on
-      # every pull request. Bandit scans this repo's code, so it runs anyway.
-      - name: Run Bandit
+      # Issue #2808: `|| true` masked both scanner crashes and genuine findings,
+      # turning this step green regardless. Findings now fail CI, scoped off
+      # test-only false positives. SARIF output feeds GitHub code scanning.
+      # Issue #6028: a pip-audit finding in a transitive pin skipped the scan on
+      # every pull request. The scan covers this repo's code, so it runs anyway.
+      # Bandit was replaced by ruff's equivalent rules: the --select list below
+      # covers every bandit test that can report HIGH severity (the bar the old gate
+      # used), plus S301, S313, S503 and S504 (see pyproject.toml).
+      # tests/ci/test_ruff_security_codes.py fails when this list drifts
+      # from [tool.ruff.lint] select in pyproject.toml.
+      - name: Run ruff security rules
         if: ${{ !cancelled() }}
         run: |
-          bandit -r .claude/ scripts/ \
-            -x '*/tests/*,*/test/*' \
-            -f sarif \
-            -o bandit.sarif \
-            --severity-level high \
-            --confidence-level high
+          uv run --frozen --extra dev ruff check \
+            --select S103,S201,S202,S301,S304,S312,S313,S321,S324,S501,S502,S503,S504,S505,S507,S602,S605,S609,S701,PLE2502 \
+            --extend-exclude '**/tests/**' \
+            --output-format sarif \
+            --output-file ruff-security.sarif \
+            .claude/ scripts/
 
-      - name: Upload Bandit SARIF
+      - name: Upload ruff security SARIF
         if: >-
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4
         with:
-          sarif_file: bandit.sarif
-          category: bandit
+          sarif_file: ruff-security.sarif
+          category: ruff-security
 
-      - name: Upload Bandit results
+      - name: Upload ruff security results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
         with:
-          name: bandit-results
-          path: bandit.sarif
+          name: ruff-security-results
+          path: ruff-security.sarif
           retention-days: 7
 
   # Tests marked @pytest.mark.windows_path exercise behavior that differs between

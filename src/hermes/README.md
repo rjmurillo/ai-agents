@@ -120,5 +120,6 @@ These skills ship in no pack.
 - `security-detection`: Refers to excluded skill(s): review.
 - `security-scan`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
 - `ship`: Refers to excluded skill(s): review.
+- `skill-doctor`: The bundled renderer asset exceeds Hermes' 1 MiB per-file limit.
 - `spec-generator`: Refers to excluded skill(s): review.
 - `stuck-detection`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
