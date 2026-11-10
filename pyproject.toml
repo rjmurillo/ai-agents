@@ -170,12 +170,13 @@ exclude = [
 # selecting ARG here would turn every existing unused argument red in the other
 # ruff gates.
 #
-# The S and PLE2502 codes are ruff's equivalents of every bandit test that can
-# report HIGH severity, the bar the retired CI bandit gate used. The S4xx
+# The S and PLE2502 codes cover ruff's equivalent of every bandit test that can
+# report HIGH severity, the bar the retired CI bandit gate used. S301 and S313
+# are bandit MEDIUM checks kept because they report nothing today. The S4xx
 # import checks stay off because ruff ships them as preview-only.
 select = [
     "E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90",
-    "S103", "S201", "S202", "S301", "S312", "S313",
+    "S103", "S201", "S202", "S301", "S304", "S312", "S313", "S321",
     "S324", "S501", "S502", "S503", "S504", "S505",
     "S507", "S602", "S605", "S609", "S701", "PLE2502",
 ]

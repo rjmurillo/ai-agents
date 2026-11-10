@@ -1156,7 +1156,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           uv run --frozen --extra dev ruff check \
-            --select S103,S201,S202,S301,S312,S313,S324,S501,S502,S503,S504,S505,S507,S602,S605,S609,S701,PLE2502 \
+            --select S103,S201,S202,S301,S304,S312,S313,S321,S324,S501,S502,S503,S504,S505,S507,S602,S605,S609,S701,PLE2502 \
             --extend-exclude '**/tests/**' \
             --output-format sarif \
             --output-file ruff-security.sarif \
