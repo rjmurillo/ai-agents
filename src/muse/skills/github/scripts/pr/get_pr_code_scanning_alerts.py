@@ -24,6 +24,11 @@ Rules this script enforces
   analysis ``commit_sha`` is a merge commit. The analyzed pull request head SHA
   is that merge commit's second parent, read from ``GET commits/{sha}``.
   "Current" means every category's newest analysis resolves to the reviewed HEAD.
+* Origin filter (ADR-041 debate log 4): only analyses whose ``analysis_key`` names
+  ``.github/workflows/codeql-analysis.yml`` under a ``/language:<lang>`` category
+  count, and only alerts whose most recent instance came from one. Every other upload
+  is ignored, whatever tool name its SARIF carries. If only other workflows analyzed
+  the ref, the outcome is NOT ANALYZED.
 * Each alert reaches the caller as rule id, repository-relative path, and line.
   A rule id that fails ``^[A-Za-z0-9/_.-]{1,100}$`` is counted and dropped. No
   message or rule name is passed on.
@@ -92,7 +97,7 @@ if _SCRIPT_DIR not in sys.path:
 
 from code_scanning_errors import EXIT_AUTH, EXIT_EXTERNAL, SkipError
 from code_scanning_sarif import normalize_changed_files, sarif_results_by_alert_number
-from code_scanning_scope import scope_alerts
+from code_scanning_scope import is_origin_analysis, scope_alerts
 from code_scanning_transport import (
     Transport,
     get_all_pages,
@@ -224,6 +229,7 @@ def read_outcome(
     """
     base = f"repos/{owner}/{repo}/code-scanning"
     analyses = get_all_pages(transport, f"{base}/analyses?{_ref_query(pull_request)}")
+    analyses = [a for a in analyses if is_origin_analysis(a)]
     if not analyses:
         return {"outcome": "NOT ANALYZED", "status_line": "CodeQL: NOT ANALYZED"}
     current = newest_analysis_per_category(analyses)

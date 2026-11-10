@@ -189,7 +189,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return skipped("diff could not be computed")
     touched = guard.guarded_paths(files, links)
     if touched:
-        return skipped("scanner inputs modified", guarded_paths=touched[:20])
+        return skipped(
+            "scanner inputs modified", guarded_paths=[guard.display(p) for p in touched[:20]]
+        )
     if args.pull_request is not None:
         return read_tier1(args.pull_request, head, clean, files)
     if is_unattended(args.unattended):

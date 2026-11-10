@@ -39,10 +39,15 @@ def sha(char: str) -> str:
     return char * 40
 
 
+ORIGIN_KEY = ".github/workflows/codeql-analysis.yml:analyze"
+
+
 def analysis(
     identifier: int,
     *,
     category: str = "/language:python",
+    analysis_key: str | None = ORIGIN_KEY,
+    tool: str = "CodeQL",
     commit_sha: str = MERGE_SHA,
     created_at: str = "2026-11-10T04:00:00Z",
     error: str = "",
@@ -53,10 +58,10 @@ def analysis(
         "ref": ref,
         "commit_sha": commit_sha,
         "category": category,
-        "analysis_key": f".github/workflows/codeql-analysis.yml:analyze{category}",
+        "analysis_key": analysis_key,
         "error": error,
         "created_at": created_at,
-        "tool": {"name": "CodeQL"},
+        "tool": {"name": tool},
     }
 
 
@@ -105,17 +110,24 @@ def alert(
     path: str = "src/a.py",
     line: int = 10,
     commit_sha: str = MERGE_SHA,
+    analysis_key: str | None = ORIGIN_KEY,
+    category: str | None = "/language:python",
 ) -> dict[str, Any]:
+    instance: dict[str, Any] = {
+        "ref": "refs/pull/7/merge",
+        "commit_sha": commit_sha,
+        "message": {"text": "free text to ignore"},
+        "location": {"path": path, "start_line": line},
+    }
+    if analysis_key is not None:
+        instance["analysis_key"] = analysis_key
+    if category is not None:
+        instance["category"] = category
     return {
         "number": number,
         "state": "open",
         "rule": {"id": rule_id, "name": "Rule NAME to ignore", "description": "free text"},
-        "most_recent_instance": {
-            "ref": "refs/pull/7/merge",
-            "commit_sha": commit_sha,
-            "message": {"text": "free text to ignore"},
-            "location": {"path": path, "start_line": line},
-        },
+        "most_recent_instance": instance,
     }
 
 

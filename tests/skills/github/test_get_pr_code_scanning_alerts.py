@@ -173,11 +173,10 @@ class TestOutcomes:
         assert caught.value.reason == "the analysis reported an error"
 
     @pytest.mark.parametrize("row", ["x", 3, None, ["id"]])
-    def test_skipped_when_an_analysis_row_is_not_an_object(self, row):
+    def test_a_row_that_is_not_an_object_is_ignored_as_foreign(self, row):
         fake = standard_pr(FakeGitHub())
         fake.analyses([row])
-        with pytest.raises(mod.SkipError, match="unexpected shape"):
-            read(fake)
+        assert read(fake)["outcome"] == "NOT ANALYZED"
 
     def test_skipped_when_the_commit_response_is_not_an_object(self):
         fake = standard_pr(FakeGitHub())
@@ -185,9 +184,9 @@ class TestOutcomes:
         with pytest.raises(mod.SkipError, match="unexpected shape"):
             read(fake)
 
-    def test_skipped_when_an_analysis_row_is_malformed(self):
+    def test_skipped_when_an_origin_analysis_row_lacks_an_integer_id(self):
         fake = standard_pr(FakeGitHub())
-        fake.analyses([{"id": "x", "commit_sha": MERGE_SHA}])
+        fake.analyses([analysis(101) | {"id": "x"}])
         with pytest.raises(mod.SkipError, match="unexpected shape"):
             read(fake)
 

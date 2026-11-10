@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import codeql_scanner_guard as guard
 import pytest
 from codeql_repo_fixture import git, make_repo, write
@@ -16,6 +18,14 @@ class TestIsGuardedPath:
             ".github/codeql/codeql-config.yml",
             ".github/codeql/queries/x.ql",
             ".github/workflows/codeql-analysis.yml",
+            ".github/workflows/codeql-analysis.yaml",
+            ".github/workflows/pytest.yml",
+            ".github/workflows/anything.yaml",
+            ".github/workflows/nested/reusable.yml",
+            ".github/workflows/README.md",
+            ".github/workflows",
+            ".github/workflows/",
+            "./.github/Workflows/Pytest.YML",
             ".github/actions/setup/action.yml",
             "src/claude/skills/codeql-scan/scripts/invoke_codeql_scan.py",
             ".claude/skills/codeql-scan/scripts/CLAUDE.md",
@@ -50,8 +60,9 @@ class TestIsGuardedPath:
             ".codeqlx/a.py",
             "codeql/a.py",
             ".github/codeql-notes.md",
-            ".github/workflows/ci.yml",
-            ".github/workflows/codeql-analysis.yml.bak",
+            ".github/workflowsx/a.yml",
+            ".github/workflow/a.yml",
+            "docs/.github/workflows-notes.md",
             ".github/actionsx/a.yml",
             "src/claude/skills/codeql-scan/SKILL.md",
             "src/claude/skills/codeql-scan/references/a.md",
@@ -78,7 +89,7 @@ class TestLanguagesFor:
     def test_python_files_map_to_python(self):
         assert guard.languages_for(["src/a.py", "b/c.py"]) == ["python"]
 
-    def test_workflow_yaml_maps_to_actions(self):
+    def test_workflow_yaml_still_maps_to_actions(self):
         assert guard.languages_for([".github/workflows/ci.yml"]) == ["actions"]
         assert guard.languages_for([".github/workflows/ci.yaml"]) == ["actions"]
 
@@ -351,5 +362,129 @@ class TestSymlinks:
 
     def test_the_guarded_list_lives_in_named_constants(self):
         assert ".codeql" in guard.GUARDED_DIRS
-        assert ".github/workflows/codeql-analysis.yml" in guard.GUARDED_FILES
+        assert ".github/workflows" in guard.GUARDED_DIRS
         assert guard.GUARDED_SCRIPT_DIR == "skills/codeql-scan/scripts"
+
+
+BAD_NAME = os.fsdecode(b"bad-\xff-name.py")
+
+
+def make_bad_name(repo, directory=""):
+    path = repo / directory / BAD_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.write_text("x\n", encoding="utf-8")
+    except OSError:
+        pytest.skip("file system rejects non-UTF-8 names")
+    return f"{directory}/{BAD_NAME}".lstrip("/")
+
+
+class TestUndecodablePaths:
+    def test_git_output_is_read_as_bytes_not_text(self, tmp_path, monkeypatch):
+        repo = make_repo(tmp_path)
+        seen = {}
+        real = guard.subprocess.run
+
+        def spy(command, **kwargs):
+            seen.update(kwargs)
+            return real(command, **kwargs)  # subprocess-encoding: strict-ok
+
+        monkeypatch.setattr(guard.subprocess, "run", spy)
+        guard.run_git(repo, ["status"])
+        assert "text" not in seen
+        assert "encoding" not in seen
+        assert "errors" not in seen
+        assert "universal_newlines" not in seen
+
+    def test_a_non_utf8_name_round_trips_as_a_surrogate_escape(self, tmp_path):
+        repo = make_repo(tmp_path)
+        name = make_bad_name(repo, "src")
+        files = guard.changed_files(repo, "origin/main")
+        assert name in files
+        assert os.fsencode(name) in [os.fsencode(f) for f in files]
+
+    def test_a_non_utf8_name_is_guarded_even_in_a_benign_directory(self, tmp_path):
+        repo = make_repo(tmp_path)
+        name = make_bad_name(repo, "docs")
+        files = guard.changed_files(repo, "origin/main")
+        assert guard.guarded_paths(files) == [name]
+
+    def test_a_replacement_character_is_guarded(self):
+        assert guard.is_guarded_path("docs/bad�.py") is True
+
+    @pytest.mark.parametrize("char", ["\udc80", "\udcff", "\ud800", "\udfff", "�"])
+    def test_every_surrogate_and_replacement_char_is_unreadable(self, char):
+        assert guard.is_unreadable(f"a{char}b") is True
+        assert guard.is_guarded_path(f"docs/a{char}b.py") is True
+
+    @pytest.mark.parametrize("text", ["", "plain.py", "café/日本.py", "emoji-\U0001f600.py"])
+    def test_valid_unicode_is_not_unreadable(self, text):
+        assert guard.is_unreadable(text) is False
+
+    def test_display_escapes_bad_bytes_for_output(self):
+        shown = guard.display(BAD_NAME)
+        assert "\\udcff" in shown
+        assert shown.isascii() or "�" not in shown
+
+    def test_decode_falls_back_to_the_replacement_char_where_the_codec_raises(self, monkeypatch):
+        def raises(raw):
+            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad")
+
+        monkeypatch.setattr(guard.os, "fsdecode", raises)
+        decoded = guard.decode_path(b"a\xffb")
+        assert "�" in decoded
+        assert guard.is_guarded_path(decoded) is True
+
+
+class TestUnresolvableSymlinks:
+    def test_a_target_that_cannot_be_read_is_guarded(self, tmp_path, monkeypatch):
+        repo = make_repo(tmp_path)
+        symlink(repo, "alias.py", "src/app.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "alias")
+
+        def denied(path):
+            raise PermissionError("no")
+
+        monkeypatch.setattr(guard.os, "readlink", denied)
+        links = guard.changed_symlinks(repo, "origin/main")
+        assert links["alias.py"] == guard.UNRESOLVABLE
+        files = guard.changed_files(repo, "origin/main")
+        assert guard.guarded_paths(files, links) == ["alias.py"]
+
+    def test_a_target_that_cannot_be_resolved_is_guarded(self, tmp_path, monkeypatch):
+        repo = make_repo(tmp_path)
+        symlink(repo, "alias.py", "src/app.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "alias")
+
+        def broken(path, strict=False):
+            raise OSError("loop")
+
+        monkeypatch.setattr(guard.os.path, "realpath", broken)
+        assert guard.changed_symlinks(repo, "origin/main")["alias.py"] == guard.UNRESOLVABLE
+
+    def test_a_target_with_undecodable_bytes_is_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        try:
+            symlink(repo, "alias", os.fsdecode(b"target-\xff"))
+        except OSError:
+            pytest.skip("file system rejects non-UTF-8 names")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "alias")
+        links = guard.changed_symlinks(repo, "origin/main")
+        assert links["alias"] == guard.UNRESOLVABLE
+        assert guard.guarded_paths(["alias"], links) == ["alias"]
+
+    def test_a_deleted_link_is_not_unresolvable_it_is_judged_by_name(self, tmp_path):
+        repo = make_repo(tmp_path)
+        assert guard._symlink_target(repo, "never-existed") is None
+
+    def test_a_readable_link_inside_the_repo_is_not_guarded_by_the_new_rule(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "alias.py", "src/app.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "alias")
+        links = guard.changed_symlinks(repo, "origin/main")
+        assert links["alias.py"] == "src/app.py"
+        assert guard.guarded_paths(["alias.py"], links) == []

@@ -26,10 +26,55 @@ from code_scanning_sarif import (
     sarif_result_locations,
 )
 
-__all__ = ["SkipError", "normalize_changed_files", "scope_alerts", "scope_sarif_results"]
+__all__ = [
+    "SkipError",
+    "is_codeql_origin",
+    "is_origin_analysis",
+    "normalize_changed_files",
+    "scope_alerts",
+    "scope_sarif_results",
+]
+
+#: The one workflow whose uploads count (ADR-041 amendment, "Origin filter"). Another job
+#: with ``security-events: write`` can upload SARIF whose content sets the tool name to
+#: ``CodeQL``, so the tool name is never the filter; the analysis key and category are.
+ORIGIN_WORKFLOW = ".github/workflows/codeql-analysis.yml"
+ORIGIN_CATEGORY_PREFIX = "/language:"
 
 MAX_ATTACHED = 200
 MAX_OTHER_FILES = 50
+
+
+def is_codeql_origin(analysis_key: object, category: object) -> bool:
+    """True when an upload came from ``codeql-analysis.yml`` under ``/language:<lang>``.
+
+    ``analysis_key`` reads ``<workflow file>:<job>`` (observed:
+    ``.github/workflows/codeql-analysis.yml:analyze``), so the file is the part before
+    the first colon and must equal ``ORIGIN_WORKFLOW`` exactly. The category must be
+    ``/language:`` plus a non-empty language. A missing or non-string field is False.
+    """
+    if not isinstance(analysis_key, str) or not isinstance(category, str):
+        return False
+    workflow, sep, job = analysis_key.partition(":")
+    if workflow != ORIGIN_WORKFLOW or not sep or not job:
+        return False
+    return category.startswith(ORIGIN_CATEGORY_PREFIX) and len(category) > len(
+        ORIGIN_CATEGORY_PREFIX
+    )
+
+
+def is_origin_analysis(analysis: object) -> bool:
+    """True when an analysis record came from the CodeQL workflow."""
+    return isinstance(analysis, dict) and is_codeql_origin(
+        analysis.get("analysis_key"), analysis.get("category")
+    )
+
+
+def _is_origin_alert(alert: dict[str, Any]) -> bool:
+    instance = alert.get("most_recent_instance")
+    if not isinstance(instance, dict):
+        return False
+    return is_codeql_origin(instance.get("analysis_key"), instance.get("category"))
 
 
 def _alert_primary_path(alert: dict[str, Any]) -> str | None:
@@ -68,10 +113,18 @@ def scope_alerts(
     """
     attached: dict[tuple[str, str, int], dict[str, Any]] = {}
     other_by_file: dict[str, int] = {}
-    counts = {"open": 0, "invalid_rule_id": 0, "not_in_current_analysis": 0}
+    counts = {
+        "open": 0,
+        "other_origin": 0,
+        "invalid_rule_id": 0,
+        "not_in_current_analysis": 0,
+    }
     for alert in alerts:
         if not isinstance(alert, dict) or _alert_number(alert) is None:
             raise SkipError("alert record had an unexpected shape")
+        if not _is_origin_alert(alert):
+            counts["other_origin"] += 1
+            continue
         counts["open"] += 1
         if _alert_commit_sha(alert) not in current_merge_shas:
             counts["not_in_current_analysis"] += 1

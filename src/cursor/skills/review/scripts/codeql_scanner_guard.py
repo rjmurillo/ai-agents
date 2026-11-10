@@ -15,7 +15,8 @@ Guarded paths (the rules file's list; ``GUARDED_*`` below is the single copy):
 
 * ``.codeql/**`` (and the ``.codeql`` entry itself)
 * ``.github/codeql/**``
-* ``.github/workflows/codeql-analysis.yml``
+* every file under ``.github/workflows/``, ``.yml`` and ``.yaml`` alike (any workflow can
+  upload SARIF; debate log 4)
 * ``.github/actions/**`` (composite actions the workflow calls)
 * the ``codeql-scan`` skill scripts, in any tree that carries them
   (``.claude/skills/``, ``src/*/skills/``, a vendored ``skills/``)
@@ -44,8 +45,7 @@ GIT_TIMEOUT_SECONDS = 20
 #: The guarded paths, in one place. Directories match the directory entry itself and
 #: everything under it. ``GUARDED_SCRIPT_DIR`` matches under any parent (every tree that
 #: carries the ``codeql-scan`` skill). Change the guard here, nowhere else.
-GUARDED_DIRS = (".codeql", ".github/codeql", ".github/actions")
-GUARDED_FILES = frozenset({".github/workflows/codeql-analysis.yml"})
+GUARDED_DIRS = (".codeql", ".github/codeql", ".github/workflows", ".github/actions")
 GUARDED_SCRIPT_DIR = "skills/codeql-scan/scripts"
 SYMLINK_MODE = "120000"
 
@@ -60,8 +60,36 @@ class GitError(RuntimeError):
     """A git call needed by the pre-step failed. The message is safe to show."""
 
 
+def decode_path(raw: bytes) -> str:
+    """Decode git output without losing bytes.
+
+    ``os.fsdecode`` maps an undecodable byte to a surrogate escape, so the path
+    round-trips and ``is_unreadable`` can see it. Where the platform codec raises
+    instead (Windows), fall back to U+FFFD, which ``is_unreadable`` also catches.
+    """
+    try:
+        return os.fsdecode(raw)
+    except UnicodeDecodeError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def is_unreadable(text: str) -> bool:
+    """True when ``text`` holds U+FFFD or a surrogate: a path git gave in bytes we could
+    not read. The guard cannot prove such a path is outside the guarded set, so it
+    fails closed and treats it as guarded."""
+    return any(ch == "\ufffd" or "\ud800" <= ch <= "\udfff" for ch in text)
+
+
+def display(text: str) -> str:
+    """A safe string for output: undecodable bytes shown as escapes."""
+    return text.encode("utf-8", errors="backslashreplace").decode("ascii", errors="replace")
+
+
 def run_git(repo_root: Path, args: Sequence[str]) -> str:
-    """Run ``git -C repo_root args`` and return stdout.
+    """Run ``git -C repo_root args`` and return stdout decoded by ``decode_path``.
+
+    Output is read as bytes, never through ``text=`` or ``errors="replace"``, so a
+    non-UTF-8 path name is not rewritten into a different one.
 
     Raises:
         GitError: git is missing, times out, or exits non-zero.
@@ -70,8 +98,6 @@ def run_git(repo_root: Path, args: Sequence[str]) -> str:
         result = subprocess.run(
             ["git", "-C", str(repo_root), *args],
             capture_output=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=GIT_TIMEOUT_SECONDS,
             check=False,
         )
@@ -79,7 +105,7 @@ def run_git(repo_root: Path, args: Sequence[str]) -> str:
         raise GitError(f"git {args[0]} could not run") from exc
     if result.returncode != 0:
         raise GitError(f"git {args[0]} failed")
-    return result.stdout
+    return decode_path(result.stdout)
 
 
 def repo_toplevel(start: Path) -> Path:
@@ -145,24 +171,37 @@ def is_guarded_path(path: str) -> bool:
     itself (a file or symlink replacing the directory) is a change to the scanner
     input. Case is folded, separators and ``./`` are normalized.
     """
-    folded = posixpath.normpath(path.replace("\\", "/")).casefold().rstrip("/")
-    if folded in GUARDED_FILES:
+    if is_unreadable(path):
         return True
+    folded = posixpath.normpath(path.replace("\\", "/")).casefold().rstrip("/")
     if any(folded == d or folded.startswith(d + "/") for d in GUARDED_DIRS):
         return True
     return f"/{GUARDED_SCRIPT_DIR}/" in f"/{folded}/"
 
 
-def _symlink_target(repo_root: Path, path: str) -> str | None:
-    """Repo-relative POSIX target of the symlink at ``path``, or None.
+UNRESOLVABLE = "\ufffd"
 
-    Resolves chains. None when the link is gone, broken, or points outside the repo.
+
+def _symlink_target(repo_root: Path, path: str) -> str | None:
+    """Repo-relative POSIX target of the symlink at ``path``.
+
+    Resolves chains. Returns None when the link no longer exists in the working tree
+    (a deletion: judged by name only) or points outside the repository. Returns
+    ``UNRESOLVABLE`` when the link exists but its target cannot be read or resolved,
+    or its path or target holds bytes that did not decode: ``is_guarded_path`` treats
+    that as guarded.
     """
     link = repo_root / path
-    if not link.is_symlink():
-        return None
-    real = Path(os.path.realpath(link))
-    relative = os.path.relpath(real, os.path.realpath(repo_root))
+    try:
+        if not link.is_symlink():
+            return None
+        os.readlink(link)
+        real = Path(os.path.realpath(link, strict=False))
+        relative = os.path.relpath(real, os.path.realpath(repo_root))
+    except (OSError, ValueError):
+        return UNRESOLVABLE
+    if is_unreadable(relative):
+        return UNRESOLVABLE
     if relative == ".." or relative.startswith(".." + os.sep):
         return None
     return Path(relative).as_posix()

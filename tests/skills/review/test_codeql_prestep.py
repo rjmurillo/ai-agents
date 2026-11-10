@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -70,6 +71,9 @@ class TestScannerInputGuard:
             ".codeql/scripts/invoke_codeql_scan.py",
             ".github/codeql/codeql-config.yml",
             ".github/workflows/codeql-analysis.yml",
+            ".github/workflows/codeql-analysis.yaml",
+            ".github/workflows/pytest.yml",
+            ".github/workflows/other.yaml",
             ".github/actions/setup/action.yml",
             "src/claude/skills/codeql-scan/scripts/invoke_codeql_scan.py",
         ],
@@ -96,6 +100,37 @@ class TestScannerInputGuard:
         out = pre.run(args(repo, pull_request=7))
         assert out["reason"] == "scanner inputs modified"
         assert out["guarded_paths"] == ["innocent.py"]
+        assert reader.calls == []
+
+    def test_a_non_utf8_path_name_skips_and_reads_nothing(self, repo, monkeypatch):
+        bad = repo / "docs" / os.fsdecode(b"bad-\xff.py")
+        bad.parent.mkdir()
+        try:
+            bad.write_text("x\n", encoding="utf-8")
+        except OSError:
+            pytest.skip("file system rejects non-UTF-8 names")
+        reader = Reader(stdout=envelope(outcome="CURRENT"))
+        monkeypatch.setattr(pre.subprocess, "run", reader)
+        out = pre.run(args(repo, pull_request=7))
+        assert out["outcome"] == "SKIPPED"
+        assert out["reason"] == "scanner inputs modified"
+        assert out["guarded_paths"][0].isascii()
+        assert reader.calls == []
+        json.dumps(out)
+
+    def test_an_unreadable_symlink_target_skips_and_reads_nothing(self, repo, monkeypatch):
+        (repo / "alias.py").symlink_to("src/app.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "alias")
+
+        def denied(path):
+            raise PermissionError("no")
+
+        monkeypatch.setattr(pre.guard.os, "readlink", denied)
+        reader = Reader(stdout=envelope(outcome="CURRENT"))
+        monkeypatch.setattr(pre.subprocess, "run", reader)
+        out = pre.run(args(repo, pull_request=7))
+        assert (out["outcome"], out["reason"]) == ("SKIPPED", "scanner inputs modified")
         assert reader.calls == []
 
     def test_an_uncommitted_guarded_change_also_skips(self, repo, monkeypatch):
