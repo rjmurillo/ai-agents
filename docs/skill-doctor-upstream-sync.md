@@ -68,6 +68,7 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 28. Bounded browser launch and a fixed upstream HTTPS report destination.
 29. Loaded-skill startup paths independent of plugin variables or the working directory.
 30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
+31. Harness-balanced sampling in `session_sampling.py`, with per-harness counts, an omitted-harness notice, and a deterministic cap rule (issue #7187).
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

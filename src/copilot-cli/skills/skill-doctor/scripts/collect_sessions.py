@@ -91,6 +91,7 @@ from session_json import (
     parse_pi_session,
     parse_zcode_session,
 )
+from session_sampling import sample_sessions
 
 __all__ = [
     "CLAUDE_CODE_EDIT_TOOLS",
@@ -343,28 +344,6 @@ def _discover(args: Any, repos: Any, homes: Any) -> Any:
     )
 
 
-def _sample(sessions: Any, skills: Any, args: Any) -> set[str]:
-    sampled: set[str] = set()
-    counts = dict.fromkeys(skills, 0)
-    for session in sessions:
-        if len(sampled) >= args.max_sessions:
-            break
-        used = session["skills_used"]
-        if any(counts.get(name, 0) < args.per_skill for name in used):
-            sampled.add(session["_key"])
-            # Count every skill the session used, so a multi-skill session fills each quota.
-            for name in used:
-                counts[name] = counts.get(name, 0) + 1
-    no_skill = 0
-    for session in sessions:
-        if len(sampled) >= args.max_sessions or no_skill >= args.no_skill:
-            break
-        if not session["skills_used"] and session["_key"] not in sampled:
-            sampled.add(session["_key"])
-            no_skill += 1
-    return sampled
-
-
 def _write_transcripts(sessions: Any, sampled: set[str], directory: Path) -> None:
     for session in sessions:
         session["sampled"] = session["_key"] in sampled
@@ -381,7 +360,9 @@ def _write_transcripts(sessions: Any, sampled: set[str], directory: Path) -> Non
         del session["_key"]
 
 
-def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
+def _inventory(
+    collection: Collection, homes: Any, sampled: set[str], per_harness: Any, sampling: Any
+) -> Any:
     args, repos, skills = collection.args, collection.repos, collection.skills
     usage = dict.fromkeys(skills, 0)
     for session in collection.sessions:
@@ -412,9 +393,11 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
             "sessions_in_scope": collection.in_scope,
             "sessions_considered": len(collection.sessions),
             "sessions_sampled": len(sampled),
+            "per_harness": per_harness,
             "skills_found": len(skills),
             "skills_used": sum(1 for count in usage.values() if count > 0),
         },
+        "sampling": sampling,
         "sessions": collection.sessions,
     }
     inventory.update(
@@ -444,6 +427,13 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
         f"{stats['sessions_in_scope']} in scope, {stats['sessions_considered']} scoreable"
     )
     print(f"sessions sampled:  {stats['sessions_sampled']} -> {out / 'transcripts'}")
+    for harness, counts in stats["per_harness"].items():
+        print(
+            f"  {harness}: {counts['sampled']} sampled of {counts['scoreable']} scoreable "
+            f"({counts['skill_candidates']} used a skill)"
+        )
+    if inventory["sampling"]["notice"]:
+        print(f"warning: {inventory['sampling']['notice']}", file=sys.stderr)
     print(f"inventory:         {out / 'inventory.json'}")
 
 
@@ -476,9 +466,9 @@ def _run() -> None:
         session["skills_used"] = sorted((set(session["skills_used"]) | set(detected)) & installed)
         session["_key"] = f"{session['harness']}:{session['meta']['id']}"
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
-    sampled = _sample(collection.sessions, collection.skills, args)
+    sampled, per_harness, sampling = sample_sessions(collection.sessions, collection.skills, args)
     _write_transcripts(collection.sessions, sampled, out / "transcripts")
-    inventory = _inventory(collection, homes, sampled)
+    inventory = _inventory(collection, homes, sampled, per_harness, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")
     _print_summary(inventory, args, collection.repos, out)
 
