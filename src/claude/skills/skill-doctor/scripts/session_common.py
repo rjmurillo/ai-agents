@@ -13,6 +13,7 @@ from collections import Counter, deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -201,6 +202,31 @@ def assistant_tool_calls(message: Any) -> list[tuple[str, str]]:
     return calls
 
 
+_FRACTION = re.compile(r"\.(\d+)")
+
+
+def parse_session_timestamp(value: Any) -> datetime | None:
+    """Return an aware UTC datetime for an ISO string or epoch number, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        seconds = value / 1000 if value > 1e11 else value
+        try:
+            return datetime.fromtimestamp(seconds, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if not isinstance(value, str) or not value:
+        return None
+    text = value.strip().replace("Z", "+00:00")
+    # Python 3.10 fromisoformat accepts only 3 or 6 fraction digits.
+    text = _FRACTION.sub(lambda m: "." + m.group(1)[:6].ljust(6, "0"), text, count=1)
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
 class SessionState:
     """Accumulate parser-local statistics without sharing mutable state."""
 
@@ -216,6 +242,7 @@ class SessionState:
         self.edits = False
         self.first_ts: Any = None
         self.last_ts: Any = None
+        self.terminated: tuple[str, str] | None = None
 
     def timestamp(self, ts: Any) -> None:
         if ts:
@@ -252,11 +279,26 @@ class SessionState:
         self.append(role, text)
         return True
 
+    def terminate(self, reason: str, message: str = "") -> None:
+        """Record that the provider, not the agent, ended the session.
+
+        Each harness adapter calls this from its own record matcher. A later
+        record that shows the agent still working calls `resume`.
+        """
+        self.terminated = (reason, message.strip())
+
+    def resume(self) -> None:
+        self.terminated = None
+
     def finish(self, meta: Any, edit_tools: Any = ()) -> Any:
+        if self.terminated:
+            reason, message = self.terminated
+            self.append("terminated", f"{reason}: {message}" if message else reason)
         self.stats.update(
             first_ts=self.first_ts,
             last_ts=self.last_ts,
             has_code_edits=self.edits or bool(self.tools & set(edit_tools)),
+            terminated_by=self.terminated[0] if self.terminated else None,
         )
         entries = (
             self.entries.finish() if isinstance(self.entries, TranscriptBuffer) else self.entries
@@ -273,10 +315,10 @@ def render_transcript(meta: Any, stats: Any, skills_used: Any, entries: Any) -> 
         f"- stats: {stats['user_turns']} user turns, {stats['assistant_turns']} assistant turns, "
         f"{stats['tool_calls']} tool calls ({stats['repeated_tool_calls']} repeated), "
         f"{stats['error_outputs']} error-ish outputs, code edits: {stats['has_code_edits']}",
-        "",
-        "## Condensed transcript",
-        "",
     ]
+    if stats.get("terminated_by"):
+        lines.append(f"- terminated by: {stats['terminated_by']} (provider ended the session)")
+    lines.extend(("", "## Condensed transcript", ""))
     shown = entries
     if len(entries) > MAX_TRANSCRIPT_ENTRIES:
         omitted = len(entries) - TRANSCRIPT_HEAD - TRANSCRIPT_TAIL

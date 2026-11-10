@@ -68,6 +68,11 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 28. Bounded browser launch and a fixed upstream HTTPS report destination.
 29. Loaded-skill startup paths independent of plugin variables or the working directory.
 30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
+31. Codex turn counts from `response_item` messages by role when the rollout has no `event_msg` turns, with no double count in older rollouts (issue 7184).
+32. Codex `response_item/agent_message` text rendered in transcripts as `child-agent` entries (issue 7189).
+33. `stats.terminated_by` from Codex `task_complete.error.codex_error_info` and Claude `isApiErrorMessage` records, shown in the transcript header and as its last entry. Droid matching moves to issue 7188 (issue 7189).
+34. `--min-idle-minutes` (default 15) quiet window on `stats.last_ts`, counted as `sessions_skipped_idle` (issue 7189).
+35. `failed_conversations` leaves out failures caused only by provider termination, and the report states how many (issue 7189).
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

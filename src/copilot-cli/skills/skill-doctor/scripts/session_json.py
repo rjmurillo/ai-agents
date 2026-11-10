@@ -19,6 +19,7 @@ from session_common import (
     detect_skills_from_entries,
     extract_text,
     iter_jsonl_records,
+    looks_injected,
 )
 
 
@@ -75,12 +76,32 @@ def _claude_block(state: SessionState, block: Any, role: str) -> bool:
     return False
 
 
+def _claude_termination(obj: Any, message: Any) -> tuple[str, str] | None:
+    """Match Claude Code's synthetic assistant record for a failed API call.
+
+    Real shape: `isApiErrorMessage: true`, `error: "rate_limit"`, and
+    `apiError: "usage_limit_reached"` with the limit text in the content.
+    """
+    if obj.get("isApiErrorMessage") is not True:
+        return None
+    reason = next(
+        (obj[key] for key in ("apiError", "error") if isinstance(obj.get(key), str) and obj[key]),
+        "api_error",
+    )
+    return reason, extract_text(message.get("content"))
+
+
 def _claude_message(state: SessionState, obj: Any, seen: set[Any]) -> None:
     kind, message = obj.get("type"), obj.get("message")
     if kind not in ("user", "assistant") or not isinstance(message, dict):
         return
     role = message.get("role") or kind
     if role == "assistant":
+        termination = _claude_termination(obj, message)
+        if termination:
+            state.terminate(*termination)
+        else:
+            state.resume()
         message_id = message.get("id") or obj.get("uuid")
         if message_id and message_id not in seen:
             seen.add(message_id)
@@ -130,6 +151,11 @@ def _codex_response(state: SessionState, payload: Any) -> None:
             state.text(role, text)
         elif role == "assistant" and text:
             state.append(role, text)
+    elif kind == "agent_message":
+        # Child-agent final answers; distinct from the event_msg record of the same name.
+        text = extract_text(payload.get("content"))
+        if text:
+            state.append("child-agent", text)
     elif kind in ("function_call", "custom_tool_call", "local_shell_call"):
         args = payload.get("arguments") or payload.get("input") or ""
         state.tool(payload.get("name") or kind, args if isinstance(args, str) else json.dumps(args))
@@ -138,12 +164,55 @@ def _codex_response(state: SessionState, payload: Any) -> None:
         state.output(out if isinstance(out, str) else json.dumps(out))
 
 
+def _codex_error_reason(info: Any) -> str:
+    if isinstance(info, str) and info:
+        return info
+    if isinstance(info, dict) and info:
+        return str(next(iter(info)))
+    return "error"
+
+
+def _codex_completion(state: SessionState, payload: dict[str, Any]) -> None:
+    """`task_complete.error.codex_error_info` marks a provider cutoff; a clean one resumes."""
+    error = payload.get("error")
+    if not error:
+        state.resume()
+        return
+    if not isinstance(error, dict):
+        state.terminate("error", str(error))
+        return
+    state.terminate(
+        _codex_error_reason(error.get("codex_error_info")), str(error.get("message") or "")
+    )
+
+
+def _codex_turn_role(payload: Any) -> str | None:
+    """Return the role of a countable response_item message, or None.
+
+    Developer messages carry harness policy and are not turns. User messages
+    that look injected (environment context) are not turns either.
+    """
+    if payload.get("type") != "message":
+        return None
+    role = payload.get("role")
+    if role == "assistant":
+        return role
+    if role == "user" and not looks_injected(extract_text(payload.get("content"))):
+        return role
+    return None
+
+
 def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
     try:
         records = iter_jsonl_records(path)
     except OSError:
         return None
     state, meta = SessionState(), {}
+    # Older rollouts carry event_msg turns and response_item messages for the
+    # same turns. Current rollouts carry only response_item messages. Count both
+    # separately and prefer the event count so no turn is counted twice.
+    events = {"user": 0, "assistant": 0}
+    items = {"user": 0, "assistant": 0}
     for obj in records:
         payload = obj.get("payload") or {}
         if not isinstance(payload, dict):
@@ -166,11 +235,18 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
             if child and not include_subagents:
                 return None
         elif kind == "event_msg":
-            counter = {"user_message": "user_turns", "agent_message": "assistant_turns"}
-            if payload.get("type") in counter:
-                state.stats[counter[payload["type"]]] += 1
+            event_roles = {"user_message": "user", "agent_message": "assistant"}
+            if payload.get("type") in event_roles:
+                events[event_roles[payload["type"]]] += 1
+            elif payload.get("type") == "task_complete":
+                _codex_completion(state, payload)
         elif kind == "response_item":
+            role = _codex_turn_role(payload)
+            if role:
+                items[role] += 1
             _codex_response(state, payload)
+    state.stats["user_turns"] = events["user"] or items["user"]
+    state.stats["assistant_turns"] = events["assistant"] or items["assistant"]
     return state.finish(meta or {"id": path.stem, "cwd": None, "started_at": state.first_ts})
 
 
