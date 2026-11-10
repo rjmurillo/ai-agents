@@ -119,3 +119,22 @@ class TestDryRun:
             )
 
         assert rc == 2
+
+
+class TestDryRunWithPrepareBodyFile:
+    def test_combination_exits_2_and_creates_no_file(self, tmp_path, capsys):
+        with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+            rc = main(["--prepare-body-file", "--dry-run"])
+
+        captured = capsys.readouterr()
+        assert rc == 2
+        assert "Expected: --prepare-body-file alone" in captured.err
+        assert captured.out == ""
+        assert not (tmp_path / ".project-toolkit").exists()
+
+    def test_prepare_body_file_alone_still_works(self, tmp_path):
+        from tests.pr_body_base_repo import init_base_repo
+
+        init_base_repo(tmp_path)
+        with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+            assert main(["--prepare-body-file"]) == 0

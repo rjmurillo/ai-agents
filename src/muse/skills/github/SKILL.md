@@ -99,7 +99,7 @@ Need GitHub data?
    ├─ Unresolve threads → unresolve_pr_review_thread.py
    ├─ Process AI triage → invoke_pr_comment_processing.py
    ├─ Assign Copilot → invoke_copilot_assignment.py
-   ├─ Enable/disable auto-merge → set_pr_auto_merge.py
+   ├─ Toggle auto-merge → set_pr_auto_merge.py
    ├─ Update PR branch with its base (server side) → update_pr_branch.py
    ├─ Rerun failed CI jobs on a PR or run → rerun_failed_jobs.py
    ├─ Close PR → close_pr.py
@@ -161,24 +161,24 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `wait_for_unresolved_zero.py` | Settling gate: poll until unresolved count holds at zero across bot scans | `--pull-request`, `--interval-seconds`, `--max-wait-seconds`, `--strict-pagination` |
 | `test_pr_merged.py` | Check if PR is merged | `--pull-request` |
 | `detect_copilot_followup_pr.py` | Detect Copilot follow-up PRs | `--pr-number`, `--owner`, `--repo` |
-| `new_pr_review_comment.py` | New diff-line comment | `--pull-request`, `--path`, `--line`, `--side` (default RIGHT), `--body` or `--body-file` |
-| `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |
+| `new_pr_review_comment.py` | New diff-line comment | `--pull-request`, `--path`, `--line`, `--side` (default RIGHT), `--body` or `--body-file`, `--dry-run` |
+| `post_pr_comment_reply.py` | Threaded replies | `--pull-request`, `--comment-id`, `--body`, `--dry-run` |
 | `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` (needs one of `--expected-head-sha`, `--expected-base-ref`, `--expected-base-sha`) |
 | `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id --expected-pull-request` or `--pull-request --all` |
-| `unresolve_pr_review_thread.py` | Mark threads unresolved | `--thread-id` or `--pull-request --all` |
+| `unresolve_pr_review_thread.py` | Unresolve threads | `--thread-id` or `--pull-request --all`, `--dry-run` |
 | `get_thread_by_id.py` | Get single thread by ID | `--thread-id` |
 | `get_thread_conversation_history.py` | Full thread comment history | `--thread-id`, `--include-minimized` |
 | `test_pr_merge_ready.py` | Check merge readiness | `--pull-request`, `--ignore-ci`, `--ignore-threads` |
 | `why_pr_blocked.py` | Decompose a `blocked` PR into missing, failing, or pending checks, unresolved threads, or conflicts; says so when none hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
-| `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
-| `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
-| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
+| `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method`, `--dry-run` |
+| `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json`, `--dry-run` |
+| `new_pr.py` | Create PR, validated | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base`, `--dry-run` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
-| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
+| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds`, `--dry-run` |
 | `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id`, `--dry-run` |
-| `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
+| `close_pr.py` | Close PR with comment | `--pull-request`, `--comment`, `--dry-run` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment`, `--dry-run` |
-| `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
+| `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto`, `--dry-run` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims; exit 1 on an unsupported claim, exit 3 without an administration-read token (full text: `references/script-catalog.md`) | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
 | `edit_pr_body.py` | PR body edit, SHA-256 guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 
@@ -189,14 +189,14 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
 | `list_issues.py` | List issues | `--milestone` |
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
-| `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone` |
-| `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
+| `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone`, `--dry-run` |
+| `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims`, `--dry-run` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment`, `--dry-run` |
-| `set_issue_labels.py` | Labels | `--issue`, `--labels`, `--remove-labels`, `--priority` |
+| `set_issue_labels.py` | Labels | `--issue`, `--labels`, `--remove-labels`, `--priority`, `--dry-run` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone`, `--dry-run` |
 | `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker`, `--dry-run` |
 | `invoke_copilot_assignment.py` | Synthesize context for Copilot | `--issue-number`, `--what-if` |
-| `set_issue_assignee.py` | Assign users to issues | `--issue`, `--assignees` |
+| `set_issue_assignee.py` | Assign users to issues | `--issue`, `--assignees`, `--dry-run` |
 | `get_issue_relationships.py` | Native parent, sub-issues, blocked-by, blocking, relates-to | `--issue` |
 | `set_issue_relationship.py` | Add or remove a native issue link (idempotent) | `--issue`, `--relation`, `--target`, `--remove`, `--replace-parent`, `--dry-run` |
 

@@ -330,14 +330,14 @@ class TestNotFound:
 
 class TestDryRun:
     @staticmethod
-    def _run(argv):
+    def _run(argv, target=None):
         with (
             patch("post_pr_comment_reply.assert_gh_authenticated"),
             patch(
                 "post_pr_comment_reply.resolve_repo_params",
                 return_value=RepoInfo(owner="o", repo="r"),
             ),
-            patch("subprocess.run") as run,
+            patch("subprocess.run", return_value=target or _completed(stdout="{}")) as run,
         ):
             rc = main(argv)
         return rc, run
@@ -351,7 +351,8 @@ class TestDryRun:
         assert output["action"] == "would_post"
         assert output["endpoint"] == "repos/o/r/issues/5/comments"
         assert output["body_chars"] == 5
-        run.assert_not_called()
+        assert run.call_args.args[0] == ["gh", "api", "repos/o/r/pulls/5"]
+        assert run.call_count == 1
 
     def test_threaded_reply_reports_reply_endpoint(self, capsys):
         rc, run = self._run(
@@ -362,10 +363,37 @@ class TestDryRun:
         assert rc == 0
         assert output["endpoint"] == "repos/o/r/pulls/5/comments/77/replies"
         assert output["in_reply_to"] == 77
-        run.assert_not_called()
+        assert run.call_args.args[0] == ["gh", "api", "repos/o/r/pulls/comments/77"]
+        assert run.call_count == 1
 
     def test_dry_run_still_rejects_an_empty_body(self):
         with pytest.raises(SystemExit) as exc:
             self._run(["--pull-request", "5", "--body", "", "--dry-run"])
 
         assert exc.value.code == 2
+
+    def test_missing_pull_request_exits_2_like_a_real_run(self, capsys):
+        missing = _completed(rc=1, stderr="gh: Not Found (HTTP 404)")
+        with pytest.raises(SystemExit) as exc:
+            self._run(["--pull-request", "5", "--body", "hi", "--dry-run"], target=missing)
+
+        assert exc.value.code == 2
+        assert "Pull request o/r#5 not found" in capsys.readouterr().err
+
+    def test_missing_comment_exits_2_naming_the_comment(self, capsys):
+        missing = _completed(rc=1, stderr="gh: Not Found (HTTP 404)")
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                ["--pull-request", "5", "--comment-id", "77", "--body", "hi", "--dry-run"],
+                target=missing,
+            )
+
+        assert exc.value.code == 2
+        assert "Comment 77 not found" in capsys.readouterr().err
+
+    def test_api_failure_while_reading_the_target_exits_3(self):
+        broken = _completed(rc=1, stderr="HTTP 502: Bad Gateway")
+        with pytest.raises(SystemExit) as exc:
+            self._run(["--pull-request", "5", "--body", "hi", "--dry-run"], target=broken)
+
+        assert exc.value.code == 3

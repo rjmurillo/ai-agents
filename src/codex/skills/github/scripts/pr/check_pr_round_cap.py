@@ -363,7 +363,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Evaluate the verdict from the recorded state and report it, but "
-            "record no round: post no state marker and no escalation note"
+            "record no round: post no state marker and no escalation note, and fetch "
+            "no git objects"
         ),
     )
     add_output_format_arg(parser)
@@ -564,7 +565,9 @@ def main(argv: list[str] | None = None) -> int:
         (prior_state or {}).get("escalated") is True or result["action"] == "ESCALATE",
         head_sha,
         *scan_args,
-        pr_checkout=bool(args.worktree),
+        # A dry run must not change the repository, so it never fetches a missing
+        # live head; the scan reports it as unverified instead.
+        pr_checkout=bool(args.worktree) and not args.dry_run,
     )
     if orphaned["warning"]:
         logger.warning(

@@ -90,6 +90,26 @@ def _not_found_message(owner: str, repo: str, pr: int, comment_id: int) -> str:
     return f"Pull request {owner}/{repo}#{pr} not found"
 
 
+def _check_target_exists(owner: str, repo: str, pr: int, comment_id: int) -> None:
+    """Read the reply target, so a dry run fails like a real run on a missing PR or comment."""
+    if comment_id:
+        endpoint = f"repos/{owner}/{repo}/pulls/comments/{comment_id}"
+    else:
+        endpoint = f"repos/{owner}/{repo}/pulls/{pr}"
+    result = subprocess.run(
+        ["gh", "api", endpoint],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode == 0:
+        return
+    if _is_not_found(result):
+        error_and_exit(_not_found_message(owner, repo, pr, comment_id), 2)
+    error_and_exit(f"Failed to read the reply target: {result.stderr or result.stdout}", 3)
+
+
 def _resolve_body(args: argparse.Namespace) -> str:
     if args.body_file:
         from github_core.validation import assert_valid_body_file, read_body_file_text
@@ -123,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         endpoint = f"repos/{owner}/{repo}/issues/{pr}/comments"
 
     if args.dry_run:
+        _check_target_exists(owner, repo, pr, args.comment_id)
         print(
             json.dumps(
                 {

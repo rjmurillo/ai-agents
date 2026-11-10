@@ -252,3 +252,66 @@ class TestDryRun:
         ):
             rc = main(["--pull-request", "10", "--all", "--dry-run"])
         assert rc == 3
+
+
+class TestGetResolvedThreadsPagination:
+    """Every page is read; an incomplete read fails loud instead of looking complete."""
+
+    @staticmethod
+    def _page(ids, *, next_cursor=None, resolved=True):
+        return {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "pageInfo": {
+                            "hasNextPage": next_cursor is not None,
+                            "endCursor": next_cursor,
+                        },
+                        "nodes": [{"id": i, "isResolved": resolved} for i in ids],
+                    }
+                }
+            }
+        }
+
+    @staticmethod
+    def _repo():
+        return _completed(stdout=json.dumps({"owner": {"login": "o"}, "name": "r"}))
+
+    def test_reads_every_page_and_passes_the_cursor(self):
+        pages = [self._page(["T1"], next_cursor="c1"), self._page(["T2", "T3"])]
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", side_effect=pages) as graphql,
+        ):
+            threads = get_resolved_threads(10)
+
+        assert [t["id"] for t in threads] == ["T1", "T2", "T3"]
+        assert "cursor" not in graphql.call_args_list[0].args[1]
+        assert graphql.call_args_list[1].args[1]["cursor"] == "c1"
+
+    def test_unresolved_threads_are_filtered_out(self):
+        page = self._page(["T1"], resolved=False)
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=page),
+        ):
+            assert get_resolved_threads(10) == []
+
+    def test_missing_cursor_raises_and_states_what_was_read(self):
+        page = self._page(["T1"], next_cursor="")
+        page["repository"]["pullRequest"]["reviewThreads"]["pageInfo"]["hasNextPage"] = True
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=page),
+        ):
+            with pytest.raises(RuntimeError, match="no cursor; read 1 resolved thread"):
+                get_resolved_threads(10)
+
+    def test_page_cap_raises_instead_of_returning_a_partial_list(self):
+        endless = self._page(["T1"], next_cursor="more")
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=endless),
+        ):
+            with pytest.raises(RuntimeError, match="exceeded 50 pages"):
+                get_resolved_threads(10)

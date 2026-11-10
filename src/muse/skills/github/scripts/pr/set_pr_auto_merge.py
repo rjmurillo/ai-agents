@@ -366,6 +366,14 @@ def _report_dry_run(args: argparse.Namespace, pr_data: dict[str, Any]) -> int:
     if args.disable:
         action = "WouldDisable" if currently_enabled else "NoChange"
     else:
+        state = pr_data.get("state")
+        if state != "OPEN":
+            # GitHub refuses to arm auto-merge on a closed or merged PR (exit 3).
+            error_and_exit(
+                f"Cannot enable auto-merge: PR #{args.pull_request} is {state}. "
+                "Expected an OPEN pull request.",
+                3,
+            )
         action = "WouldEnable"
     output = {
         "Success": True,

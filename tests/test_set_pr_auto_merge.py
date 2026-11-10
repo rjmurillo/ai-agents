@@ -380,8 +380,8 @@ class TestMain:
 
 class TestDryRun:
     @staticmethod
-    def _run(argv, auto_merge_request):
-        pr = {"id": "PR_1", "number": 7, "state": "OPEN", "autoMergeRequest": auto_merge_request}
+    def _run(argv, auto_merge_request, state="OPEN"):
+        pr = {"id": "PR_1", "number": 7, "state": state, "autoMergeRequest": auto_merge_request}
         query_reply = {"repository": {"pullRequest": pr}}
         with (
             patch("set_pr_auto_merge.assert_gh_authenticated"),
@@ -426,3 +426,19 @@ class TestDryRun:
             build_parser().parse_args(["--pull-request", "7", "--dry-run"])
 
         assert exc.value.code == 2
+
+    @pytest.mark.parametrize("state", ["CLOSED", "MERGED"])
+    def test_enable_on_a_closed_or_merged_pr_exits_3_naming_the_state(self, state, capsys):
+        with pytest.raises(SystemExit) as exc:
+            self._run(["--pull-request", "7", "--enable", "--dry-run"], None, state=state)
+
+        assert exc.value.code == 3
+        err = capsys.readouterr().err
+        assert state in err
+        assert "Expected an OPEN pull request" in err
+
+    def test_disable_on_a_merged_pr_is_still_a_no_change(self, capsys):
+        rc, _ = self._run(["--pull-request", "7", "--disable", "--dry-run"], None, state="MERGED")
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["Action"] == "NoChange"

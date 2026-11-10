@@ -80,3 +80,42 @@ class TestEnvironmentDefaults:
 
         assert args.max_rounds == 9
         assert args.max_hours == 2.5
+
+
+class TestDryRunFetchesNothing(MainHarness):
+    def _scan_call(self, extra, capsys):
+        patches = self._patch_common(list_comments_result=[{"body": _escalating_state()}])
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("check_pr_round_cap._post_comment"),
+            patch("check_pr_round_cap.worktree_runner", return_value="RUNNER"),
+            patch(
+                "check_pr_round_cap.scan_if_escalated",
+                return_value={"status": "not_checked", "warning": ""},
+            ) as scan,
+        ):
+            main(
+                ["--pull-request", "7", "--output-format", "json", "--worktree", "/wt/pr-7", *extra]
+            )
+        capsys.readouterr()
+        return scan
+
+    def test_real_run_lets_the_scan_fetch_a_missing_head(self, capsys):
+        scan = self._scan_call([], capsys)
+
+        assert scan.call_args.kwargs["pr_checkout"] is True
+
+    def test_dry_run_never_asks_the_scan_to_fetch(self, capsys):
+        scan = self._scan_call(["--dry-run"], capsys)
+
+        assert scan.call_args.kwargs["pr_checkout"] is False
+        assert scan.call_args.args[2] == "RUNNER"
+
+
+def _escalating_state():
+    now = datetime.now(UTC)
+    return render_state_marker(
+        {"round": 4, "first_seen": now.isoformat(), "last_round_at": now.isoformat()}
+    )

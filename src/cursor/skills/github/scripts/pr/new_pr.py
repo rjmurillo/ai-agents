@@ -530,6 +530,15 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = get_repo_root()
 
+    if args.prepare_body_file and args.dry_run:
+        print(
+            "--dry-run does not apply to --prepare-body-file, which only allocates a "
+            "scratch file and prints its path. Expected: --prepare-body-file alone, or "
+            "--dry-run with --title and --body-file.",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.prepare_body_file:
         base = args.base
         if base and not base.startswith("origin/"):

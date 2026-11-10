@@ -57,10 +57,11 @@ mutation($threadId: ID!) {
 }"""
 
 _THREADS_QUERY = """\
-query($owner: String!, $name: String!, $prNumber: Int!) {
+query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
     repository(owner: $owner, name: $name) {
         pullRequest(number: $prNumber) {
-            reviewThreads(first: 100) {
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
                 nodes {
                     id
                     isResolved
@@ -75,6 +76,9 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
         }
     }
 }"""
+
+
+_MAX_PAGES = 50
 
 
 def unresolve_review_thread(thread_id: str) -> bool:
@@ -115,15 +119,28 @@ def get_resolved_threads(pr_number: int) -> list[dict]:
     owner = repo_info["owner"]["login"]
     name = repo_info["name"]
 
-    data = gh_graphql(
-        _THREADS_QUERY,
-        {"owner": owner, "name": name, "prNumber": pr_number},
+    resolved: list[dict] = []
+    cursor = ""
+    for _ in range(_MAX_PAGES):
+        variables: dict = {"owner": owner, "name": name, "prNumber": pr_number}
+        if cursor:
+            variables["cursor"] = cursor
+        data = gh_graphql(_THREADS_QUERY, variables)
+        threads = data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {})
+        resolved.extend(t for t in threads.get("nodes", []) if t.get("isResolved", False))
+        page_info = threads.get("pageInfo") or {}
+        if not page_info.get("hasNextPage", False):
+            return resolved
+        cursor = page_info.get("endCursor") or ""
+        if not cursor:
+            raise RuntimeError(
+                f"review thread pagination on PR #{pr_number} returned no cursor; "
+                f"read {len(resolved)} resolved thread(s) before it stopped"
+            )
+    raise RuntimeError(
+        f"review thread pagination on PR #{pr_number} exceeded {_MAX_PAGES} pages; "
+        f"read {len(resolved)} resolved thread(s) before it stopped"
     )
-
-    threads = (
-        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
-    )
-    return [t for t in threads if t.get("isResolved", False)]
 
 
 # ---------------------------------------------------------------------------

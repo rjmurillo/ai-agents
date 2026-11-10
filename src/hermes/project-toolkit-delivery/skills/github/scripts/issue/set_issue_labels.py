@@ -377,6 +377,12 @@ def _write_dry_run(
     reconciles_priority = any(
         info["name"].lower().startswith(PRIORITY_PREFIX) for info in all_labels
     )
+    if reconciles_priority:
+        # A real run removes the stale priority labels (Issue #2623). Name them too.
+        incoming = [info["name"] for info in all_labels]
+        stale = compute_priority_removals(_get_issue_labels(owner, repo, issue), incoming)
+        listed = {name.lower() for name in would_remove}
+        would_remove += [name for name in stale if name.lower() not in listed]
     write_skill_output(
         {
             "issue": issue,

@@ -413,12 +413,39 @@ def test_dry_run_with_no_create_missing_skips_absent_labels(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_dry_run_flags_priority_reconciliation(mock_run, capsys):
-    mock_run.side_effect = [*_PRE, _completed(rc=0)]
+    mock_run.side_effect = [*_PRE, _completed(rc=0), _view()]
 
     rc = main(["--issue", "7", "--priority", "P1", "--dry-run"])
 
     assert rc == 0
     assert json.loads(capsys.readouterr().out)["Data"]["reconcilesPriority"] is True
+
+
+@patch("subprocess.run")
+def test_dry_run_names_the_stale_priority_label_a_real_run_removes(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _completed(rc=0), _view("bug", "priority:P3")]
+
+    rc = main(["--issue", "7", "--priority", "P1", "--dry-run"])
+
+    data = json.loads(capsys.readouterr().out)["Data"]
+    assert rc == 0
+    assert data["wouldRemove"] == ["priority:P3"]
+    assert _write_calls(mock_run) == []
+
+
+@patch("subprocess.run")
+def test_dry_run_lists_a_stale_priority_once_when_also_named_in_remove_labels(mock_run, capsys):
+    mock_run.side_effect = [
+        *_PRE,
+        _view("priority:P3"),  # strict fetch for --remove-labels
+        _completed(rc=0),  # priority:P1 exists
+        _view("priority:P3"),  # priority reconciliation read
+    ]
+
+    rc = main(["--issue", "7", "--priority", "P1", "--remove-labels", "priority:P3", "--dry-run"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["Data"]["wouldRemove"] == ["priority:P3"]
 
 
 @patch("subprocess.run")
