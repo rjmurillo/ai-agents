@@ -198,7 +198,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `test_pr_merge_ready.py` | Check merge readiness | `--pull-request`, `--ignore-ci`, `--ignore-threads` |
 | `why_pr_blocked.py` | Decompose a `blocked` PR into missing, failing, or pending checks, unresolved threads, or conflicts; says so when none hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method`, `--dry-run` |
-| `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json`, `--dry-run` |
+| `invoke_pr_comment_processing.py` | Process AI triage | `--pr-number`, `--verdict`, `--findings-json`, `--dry-run` |
 | `new_pr.py` | Create PR, validated | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base`, `--dry-run` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds`, `--dry-run` |
@@ -216,14 +216,14 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
 | `list_issues.py` | List issues | `--milestone` |
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
-| `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone`, `--dry-run` |
+| `new_issue.py` | Create issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone`, `--dry-run` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims`, `--dry-run` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment`, `--dry-run` |
 | `set_issue_labels.py` | Labels | `--issue`, `--labels`, `--remove-labels`, `--priority`, `--dry-run` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone`, `--dry-run` |
 | `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker`, `--dry-run` |
 | `invoke_copilot_assignment.py` | Synthesize context for Copilot | `--issue-number`, `--what-if` |
-| `set_issue_assignee.py` | Assign users to issues | `--issue`, `--assignees`, `--dry-run` |
+| `set_issue_assignee.py` | Assign users | `--issue`, `--assignees`, `--dry-run` |
 | `get_issue_relationships.py` | Native parent, sub-issues, blocked-by, blocking, relates-to | `--issue` |
 | `set_issue_relationship.py` | Add or remove a native issue link (idempotent) | `--issue`, `--relation`, `--target`, `--remove`, `--replace-parent`, `--dry-run` |
 
@@ -231,7 +231,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `get_latest_semantic_milestone.py` | Detect latest semantic version milestone | `--owner`, `--repo` |
+| `get_latest_semantic_milestone.py` | Latest semantic-version milestone | `--owner`, `--repo` |
 | `set_item_milestone.py` | Assign milestone to PR/issue (auto-detect) | `--item-type`, `--item-number`, `--milestone-title`, `--dry-run` |
 
 ### Repository Settings (`repo/` scripts)
@@ -244,13 +244,13 @@ scripts and `github_core` import with the anthropic SDK blocked.
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `add_comment_reaction.py` | Add emoji reactions (batch support) | `--comment-id`, `--reaction`, `--comment-type`, `--pull-request`, `--dry-run` |
+| `add_comment_reaction.py` | Add emoji reactions (batch) | `--comment-id`, `--reaction`, `--comment-type`, `--pull-request`, `--dry-run` |
 
 ### Notifications (`scripts/notifications/`)
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `get_actionable_items.py` | List actionable backlog (reviews, authored PRs, assigned issues) | `--owner`, `--repo`, `--limit` |
+| `get_actionable_items.py` | List actionable backlog (reviews, PRs, issues) | `--owner`, `--repo`, `--limit` |
 
 ### Utilities (`scripts/utils/`)
 
@@ -267,7 +267,7 @@ Parameters are in `references/script-catalog.md`. PR: `check_pr_live_state.py`, 
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `test_workflow_locally.py` | Test GitHub Actions locally with act | `--workflow`, `--event`, `--job`, `--dry-run` |
+| `test_workflow_locally.py` | Test Actions locally with act | `--workflow`, `--event`, `--job`, `--dry-run` |
 
 ---
 
