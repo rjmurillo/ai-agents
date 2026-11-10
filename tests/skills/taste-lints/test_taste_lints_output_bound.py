@@ -69,7 +69,7 @@ class TestFormatTextBound:
 class TestMainBound:
     def _lint(self, tmp_path: Path, extra: list[str], capsys) -> tuple[int, str]:
         for index in range(3):
-            (tmp_path / f"big{index}.py").write_text("x = 1\n" * 501)
+            (tmp_path / f"big{index}.py").write_text("x = 1\n" * 501, encoding="utf-8")
         argv = ["taste_lints.py", *extra, *(str(p) for p in sorted(tmp_path.glob("big*.py")))]
         with patch("sys.argv", argv):
             rc = mod.main()

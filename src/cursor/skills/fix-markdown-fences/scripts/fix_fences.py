@@ -391,8 +391,14 @@ def _report(
     print(f"\n{total} defect(s) in {len(results)} file(s)")
     if wrote:
         print(f"Repaired {len(wrote)} file(s)")
-    for name, reason in refused.items():
+    refusals = list(refused.items())
+    for name, reason in refusals[:max_lines] if max_lines else refusals:
         print(f"Refused {name}: {reason}")
+    if max_lines and len(refusals) > max_lines:
+        print(
+            f"... {len(refusals) - max_lines} more refusal(s) not shown. "
+            "Pass --max-lines 0 to list all, or --json."
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -418,8 +424,9 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=DEFAULT_MAX_LINES,
         help=(
-            f"Text output: list at most this many defect lines (default {DEFAULT_MAX_LINES}; "
-            "0 lists all). The defect total counts every file. --json is never cut."
+            "Text output: list at most this many defect lines, and at most this many "
+            f"refusal lines (default {DEFAULT_MAX_LINES}; 0 lists all). The defect total "
+            "counts every file. --json is never cut."
         ),
     )
     args = parser.parse_args(argv)

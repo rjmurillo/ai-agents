@@ -64,3 +64,32 @@ class TestMaxLines:
 
         assert exc.value.code == 2
         assert "--max-lines must be 0 or greater, got -1" in capsys.readouterr().err
+
+
+class TestRefusalLinesAreBounded:
+    @staticmethod
+    def _refuse_everything(monkeypatch) -> None:
+        monkeypatch.setattr(mod, "refusal_reason", lambda *args, **kwargs: "forced refusal")
+
+    def test_refusals_are_cut_at_the_limit_and_the_rest_is_counted(
+        self, three_defective_files: Path, capsys, monkeypatch
+    ) -> None:
+        self._refuse_everything(monkeypatch)
+
+        rc = main([str(three_defective_files), "--write", "--max-lines", "1"])
+
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert out.count("Refused ") == 1
+        assert "2 more refusal(s) not shown" in out
+
+    def test_zero_lists_every_refusal(
+        self, three_defective_files: Path, capsys, monkeypatch
+    ) -> None:
+        self._refuse_everything(monkeypatch)
+
+        main([str(three_defective_files), "--write", "--max-lines", "0"])
+
+        out = capsys.readouterr().out
+        assert out.count("Refused ") == 3
+        assert "not shown" not in out
