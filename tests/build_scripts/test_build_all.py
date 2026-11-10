@@ -39,6 +39,22 @@ def _stub_surface_parity_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(build_all, "_surface_parity_exit", lambda *_a, **_k: 0)
 
 
+@pytest.fixture(autouse=True)
+def _stub_orphan_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fixture repos here keep hand-written skills with no template (issue #7224).
+
+    The orphan gate flags a skill directory with no template and no declaration,
+    which is exactly what these minimal fixtures write. The gate has its own tests
+    in test_orphan_outputs.py, including `test_run_generators_runs_the_orphan_gate_first`,
+    the guard on the wiring into `_run_generators`.
+    """
+    monkeypatch.setattr(
+        build_all,
+        "_build_orphans",
+        lambda *_a, **_k: build_all.GeneratorResult(artifact="orphans", platform="*"),
+    )
+
+
 def _write_skill(skills_dir: Path, name: str) -> None:
     skill = skills_dir / name
     skill.mkdir(parents=True, exist_ok=True)
