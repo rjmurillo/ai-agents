@@ -18,6 +18,9 @@ than one place and reports four kinds of drift:
 * ``NPM-DRIFT``: one npm package carries different specifiers in different
   ``package.json`` files.
 
+Python comparisons apply only where declaration markers overlap. Unsupported
+marker predicates fail with exit 2, rather than guessing compatibility.
+
 ``requires-python`` is compared as the pseudo-package ``python``. uv
 ``override-dependencies`` and ``constraint-dependencies`` are compared like any
 other declaration, which keeps the duplicated security overrides in step.
@@ -50,6 +53,15 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
+try:
+    from scripts.validation import python_dependency_constraints as constraints
+except ModuleNotFoundError:
+    import python_dependency_constraints
+
+    constraints = python_dependency_constraints
+
+satisfiable = constraints.satisfiable
+
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
@@ -75,6 +87,7 @@ class Declaration:
     package: str
     specifier: str
     origin: str
+    marker: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +109,7 @@ class Drift:
     kind: str
     package: str
     detail: str
+    manifest: str = ""
 
     def render(self) -> str:
         return f"{self.kind} {self.package}: {self.detail}"
@@ -154,14 +168,76 @@ def load_policy(path: Path) -> Policy:
     )
 
 
-def _requirement(text: str, manifest: str, origin: str) -> tuple[str, str]:
+def _requirement(text: str, manifest: str, origin: str) -> Declaration:
     try:
         req = Requirement(text)
     except InvalidRequirement as exc:
         raise DriftConfigError(
             f"{manifest}: invalid requirement {text!r} in {origin}: {exc}"
         ) from exc
-    return normalize(req.name), str(req.specifier)
+    return Declaration(
+        manifest,
+        normalize(req.name),
+        str(req.specifier),
+        origin,
+        str(req.marker) if req.marker else "",
+    )
+
+
+def _dependency_array(
+    texts: object, manifest: str, origin: str, groups: dict[str, Any] | None = None
+) -> list[Declaration]:
+    if not isinstance(texts, list):
+        raise DriftConfigError(f"{manifest}: {origin} must be an array")
+    found = []
+    for text in texts:
+        if isinstance(text, str):
+            found.append(_requirement(text, manifest, origin))
+        elif groups is not None and isinstance(text, dict):
+            _include_group(text, groups, f"{manifest}: {origin}")
+        else:
+            raise DriftConfigError(f"{manifest}: {origin}: expected a requirement string")
+    return found
+
+
+def _include_group(entry: dict[str, Any], groups: dict[str, Any], where: str) -> str:
+    name = entry.get("include-group")
+    if set(entry) != {"include-group"} or not isinstance(name, str) or not name.strip():
+        raise DriftConfigError(f"{where}: invalid include-group table")
+    matches = [key for key in groups if normalize(key) == normalize(name)]
+    if len(matches) != 1:
+        raise DriftConfigError(f"{where}: unknown or ambiguous include-group {name!r}")
+    return matches[0]
+
+
+def _group_declarations(groups: dict[str, Any], manifest: str) -> list[Declaration]:
+    found = []
+    edges: dict[str, set[str]] = {}
+    for group, texts in groups.items():
+        found.extend(_dependency_array(texts, manifest, f"dependency-groups.{group}", groups))
+        edges[group] = {
+            _include_group(text, groups, manifest) for text in texts if isinstance(text, dict)
+        }
+    remaining = dict(edges)
+    while remaining:
+        leaves = {name for name, targets in remaining.items() if not targets & remaining.keys()}
+        if not leaves:
+            raise DriftConfigError(f"{manifest}: cyclic include-group references")
+        remaining = {name: targets for name, targets in remaining.items() if name not in leaves}
+    return found
+
+
+def _python_version(project: dict[str, Any], manifest: str) -> list[Declaration]:
+    requires_python = project.get("requires-python")
+    if requires_python is None:
+        return []
+    try:
+        spec = str(SpecifierSet(requires_python))
+    except (InvalidSpecifier, TypeError) as exc:
+        raise DriftConfigError(
+            f"{manifest}: invalid requires-python {requires_python!r}: {exc}"
+        ) from exc
+    return [Declaration(manifest, PYTHON, spec, "requires-python")]
 
 
 def python_declarations(root: Path, manifest: str) -> list[Declaration]:
@@ -173,37 +249,16 @@ def python_declarations(root: Path, manifest: str) -> list[Declaration]:
     except (OSError, ValueError) as exc:
         raise DriftConfigError(f"manifest unreadable: {path}: {exc}") from exc
 
-    found: list[Declaration] = []
-
-    def add(texts: object, origin: str) -> None:
-        if not isinstance(texts, list):
-            raise DriftConfigError(f"{manifest}: {origin} must be an array")
-        for text in texts:
-            if not isinstance(text, str):
-                continue
-            name, spec = _requirement(text, manifest, origin)
-            found.append(Declaration(manifest, name, spec, origin))
-
     project = _table(data, "project", manifest)
-    add(project.get("dependencies", []), "project.dependencies")
+    found = _dependency_array(project.get("dependencies", []), manifest, "project.dependencies")
     for extra, texts in _table(project, "optional-dependencies", manifest).items():
-        add(texts, f"optional-dependencies.{extra}")
-    for group, texts in _table(data, "dependency-groups", manifest).items():
-        add(texts, f"dependency-groups.{group}")
+        found.extend(_dependency_array(texts, manifest, f"optional-dependencies.{extra}"))
+    found.extend(_group_declarations(_table(data, "dependency-groups", manifest), manifest))
     tool = _table(data, "tool", manifest)
     uv = _table(tool, "uv", f"{manifest}: tool")
-    add(uv.get("override-dependencies", []), "tool.uv.override-dependencies")
-    add(uv.get("constraint-dependencies", []), "tool.uv.constraint-dependencies")
-    requires_python = project.get("requires-python")
-    if requires_python is not None:
-        try:
-            spec = str(SpecifierSet(requires_python))
-        except (InvalidSpecifier, TypeError) as exc:
-            raise DriftConfigError(
-                f"{manifest}: invalid requires-python {requires_python!r}: {exc}"
-            ) from exc
-        found.append(Declaration(manifest, PYTHON, spec, "requires-python"))
-    return found
+    for key in ("override-dependencies", "constraint-dependencies"):
+        found.extend(_dependency_array(uv.get(key, []), manifest, f"tool.uv.{key}"))
+    return found + _python_version(project, manifest)
 
 
 def npm_declarations(root: Path, manifest: str) -> list[Declaration]:
@@ -247,54 +302,57 @@ def lower_bound(spec: str) -> Version | None:
     return max(bounds) if bounds else None
 
 
-def _candidates(specs: list[str]) -> list[Version]:
-    base: set[Version] = {Version("0"), Version("99999")}
-    boundaries = [item for spec in specs for item in SpecifierSet(spec)]
-    depth = max((len(item.version.split(".")) for item in boundaries), default=1) + 1
-    for spec in specs:
-        for item in SpecifierSet(spec):
-            try:
-                version = Version(item.version.rstrip(".*"))
-            except InvalidVersion:
-                continue
-            base.add(version)
-            epoch = f"{version.epoch}!" if version.epoch else ""
-            # Release tuples have arbitrary length. A micro-version bump alone
-            # misses valid versions between adjacent micro-version bounds.
-            padded = [*version.release, *([0] * (depth - len(version.release))), 1]
-            base.add(Version(epoch + ".".join(str(n) for n in padded)))
-            for index in range(len(version.release)):
-                sibling = [*version.release[:index], version.release[index] + 1]
-                base.add(Version(epoch + ".".join(str(n) for n in sibling)))
-            release_text = epoch + ".".join(str(n) for n in version.release)
-            if version.pre:
-                label, number = version.pre
-                base.add(Version(f"{release_text}{label}{number + 1}"))
-            if version.dev is not None:
-                base.add(Version(f"{release_text}.dev{version.dev + 1}"))
-            if version.post is not None:
-                base.add(Version(f"{release_text}.post{version.post + 1}"))
-            release = list(version.release) + [0, 0, 0]
-            base.add(Version(".".join(str(n) for n in release[:3])))
-            bumped = list(version.release)
-            bumped[-1] += 1
-            base.add(Version(".".join(str(n) for n in bumped)))
-            base.add(Version(".".join(str(n) for n in release[:2] + [999])))
-    return sorted(base)
+def _intra_manifest(package: str, declarations: list[Declaration]) -> list[Drift]:
+    plain = [d for d in declarations if not d.origin.startswith("tool.uv")]
+    drifts = []
+    for manifest in sorted({d.manifest for d in plain}):
+        entries = [d for d in plain if d.manifest == manifest]
+        if len({d.specifier for d in entries}) > 1:
+            where = ", ".join(f"{d.origin}={d.specifier or '*'}" for d in entries)
+            drifts.append(Drift("INTRA-MANIFEST", package, f"{manifest}: {where}"))
+    return drifts
 
 
-def satisfiable(specs: list[str]) -> bool:
-    """True when at least one version satisfies every specifier."""
-    sets = [SpecifierSet(s) for s in specs if s]
-    if not sets:
-        return True
-    return any(all(v in s for s in sets) for v in _candidates(specs))
+def _floor_drifts(package: str, declarations: list[Declaration]) -> list[Drift]:
+    floors: dict[str, Version] = {}
+    for declaration in declarations:
+        floor = lower_bound(declaration.specifier)
+        if floor is not None:
+            floors[declaration.manifest] = max(floor, floors.get(declaration.manifest, floor))
+    if len(set(floors.values())) < 2:
+        return []
+    top = max(floors.values())
+    return [
+        Drift(
+            "FLOOR-DRIFT",
+            package,
+            f"{manifest} floor {floor} trails {top}; raise it or add a "
+            "[[drift.allow]] entry with a reason",
+            manifest,
+        )
+        for manifest, floor in sorted(floors.items())
+        if floor != top
+    ]
+
+
+def _environment_drift(package: str, declarations: list[Declaration]) -> list[Drift]:
+    drifts = _intra_manifest(package, declarations)
+    if len({d.manifest for d in declarations}) < 2:
+        return drifts
+    if not satisfiable([d.specifier for d in declarations]):
+        summary = "; ".join(f"{d.manifest} {d.origin}: {d.specifier or '*'}" for d in declarations)
+        return drifts + [Drift("CONFLICT", package, f"no version satisfies all of: {summary}")]
+    return drifts + _floor_drifts(package, declarations)
+
+
+def _allow_key(drift: Drift) -> tuple[str, str]:
+    return drift.package, drift.manifest
 
 
 def find_python_drift(
     declarations: list[Declaration], allow: tuple[Allow, ...]
 ) -> tuple[list[Drift], set[tuple[str, str]], int]:
-    drifts: list[Drift] = []
+    drifts: dict[Drift, None] = {}
     used_allow: set[tuple[str, str]] = set()
     allowed = {(a.package, a.manifest) for a in allow}
 
@@ -304,51 +362,18 @@ def find_python_drift(
 
     shared = 0
     for package, decls in sorted(by_package.items()):
-        manifests = sorted({d.manifest for d in decls})
-
-        # Same manifest, runtime/extras/groups must agree. Overrides and
-        # constraints exist to differ from the declared range, so they are exempt.
-        plain = [d for d in decls if not d.origin.startswith("tool.uv")]
-        for manifest in manifests:
-            specs = {d.specifier for d in plain if d.manifest == manifest}
-            if len(specs) > 1:
-                where = ", ".join(
-                    f"{d.origin}={d.specifier or '*'}" for d in plain if d.manifest == manifest
-                )
-                drifts.append(Drift("INTRA-MANIFEST", package, f"{manifest}: {where}"))
-
-        if len(manifests) < 2:
-            continue
-        shared += 1
-
-        specs_all = [d.specifier for d in decls if d.specifier]
-        if not satisfiable(specs_all):
-            summary = "; ".join(f"{d.manifest} {d.origin}: {d.specifier or '*'}" for d in decls)
-            drifts.append(Drift("CONFLICT", package, f"no version satisfies all of: {summary}"))
-            continue
-
-        floors: dict[str, Version] = {}
-        for manifest in manifests:
-            lows = [lb for d in decls if d.manifest == manifest if (lb := lower_bound(d.specifier))]
-            if lows:
-                floors[manifest] = max(lows)
-        if len(set(floors.values())) > 1:
-            top = max(floors.values())
-            for manifest, floor in sorted(floors.items()):
-                if floor == top:
-                    continue
-                if (package, manifest) in allowed:
-                    used_allow.add((package, manifest))
-                    continue
-                drifts.append(
-                    Drift(
-                        "FLOOR-DRIFT",
-                        package,
-                        f"{manifest} floor {floor} trails {top}; raise it or add a "
-                        "[[drift.allow]] entry with a reason",
-                    )
-                )
-    return drifts, used_allow, shared
+        shared += int(len({d.manifest for d in decls}) > 1)
+        try:
+            groups = constraints.active_groups([d.marker for d in decls])
+        except ValueError as exc:
+            raise DriftConfigError(f"{package}: {exc}") from exc
+        for group in sorted(groups):
+            for drift in _environment_drift(package, [decls[i] for i in group]):
+                if drift.kind == "FLOOR-DRIFT" and _allow_key(drift) in allowed:
+                    used_allow.add(_allow_key(drift))
+                else:
+                    drifts[drift] = None
+    return list(drifts), used_allow, shared
 
 
 def find_npm_drift(declarations: list[Declaration]) -> tuple[list[Drift], int]:
