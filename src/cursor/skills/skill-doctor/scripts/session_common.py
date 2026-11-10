@@ -410,3 +410,17 @@ def render_transcript(meta: Any, stats: Any, skills_used: Any, entries: Any) -> 
     for role, text in shown:
         lines.extend((f"[{role}] {text}", ""))
     return "\n".join(lines)
+
+
+def session_record(harness: str, parsed: Any, file: str, modified_at: str) -> dict[str, Any]:
+    """Build the collector's per-session record from a parser result."""
+    meta, stats, entries, skills_used = parsed
+    return {
+        "harness": harness,
+        "meta": meta,
+        "stats": stats,
+        "skills_used": skills_used,
+        "file": file,
+        "modified_at": modified_at,
+        "_entries": entries,
+    }

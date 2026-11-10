@@ -47,6 +47,7 @@ from session_common import (
     record_collection_issue,
     render_transcript,
     resolve_session_usage,
+    session_record,
     skill_variants,
     truncate,
 )
@@ -187,17 +188,7 @@ class Collection:
         if is_live_session(stats, self.args.min_idle_minutes):
             self.skipped_idle += 1
             return
-        self.sessions.append(
-            {
-                "harness": harness,
-                "meta": meta,
-                "stats": stats,
-                "skills_used": skills_used,
-                "file": file,
-                "modified_at": modified_at,
-                "_entries": entries,
-            }
-        )
+        self.sessions.append(session_record(harness, parsed, file, modified_at))
 
     def matches(self, harness: str, meta: Any) -> bool:
         if harness == "copilot":
