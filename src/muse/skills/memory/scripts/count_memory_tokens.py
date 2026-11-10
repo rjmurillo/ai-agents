@@ -164,13 +164,26 @@ def count_directory(
     return results
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s .serena/memories/skills-index.md
+  %(prog)s .serena/memories --recurse --total
+
+exit codes:
+  0  tokens counted
+  1  tiktoken missing, path not found, or a read failed
+"""
+
+
 def main() -> int:
     if not _HAS_TIKTOKEN:
         print("Error: tiktoken not installed. Run: uv pip install tiktoken", file=sys.stderr)
         return 1
 
     parser = argparse.ArgumentParser(
-        description="Count tokens in Serena memory files using tiktoken"
+        description="Count tokens in Serena memory files using tiktoken",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("path", type=Path, help="Memory file or directory to analyze")
     parser.add_argument(

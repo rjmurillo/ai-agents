@@ -149,7 +149,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
 | `get_pr_checks.py` | CI check status, polling; REST on rate limit (`DataSource`; REST `--required-only` with no ruleset exits 3) | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
-| `get_pr_check_logs.py` | Fetch logs from failing CI checks; names the failed step of each Actions job (`FailedSteps`) | `--pull-request`, `--check-name` (repeatable, case-insensitive), `--max-lines`, `--context-lines` |
+| `get_pr_check_logs.py` | Failing CI check logs; names each failed step (`FailedSteps`) | `--pull-request`, `--check-name` (repeatable, case-insensitive), `--max-lines`, `--context-lines` |
 | `triage_red_check.py` | CI triage step 1: is a failing PR check also red on main? Exit 0 green on main, 1 red on main, 3 cannot determine | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
@@ -174,7 +174,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `invoke_pr_comment_processing.py` | Process AI triage | `--pr-number`, `--verdict`, `--findings-json`, `--dry-run` |
 | `new_pr.py` | Create PR, validated | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base`, `--dry-run` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
-| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds`, `--dry-run` |
+| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass the SHA | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds`, `--dry-run` |
 | `rerun_failed_jobs.py` | Rerun failed Actions jobs. Exit 1 run in progress; exit 100 `cannot_be_retried` (no retry, prints fallbacks). Never use an empty commit | `--pull-request` or `--run-id`, `--job-id`, `--dry-run` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment`, `--dry-run` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment`, `--dry-run` |
@@ -188,14 +188,14 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
 | `list_issues.py` | List issues | `--milestone` |
-| `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
+| `get_issue_comments.py` | Issue comments | `--issue`, `--limit` |
 | `new_issue.py` | Create issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone`, `--dry-run` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims`, `--dry-run` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment`, `--dry-run` |
 | `set_issue_labels.py` | Labels | `--issue`, `--labels`, `--remove-labels`, `--priority`, `--dry-run` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone`, `--dry-run` |
 | `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker`, `--dry-run` |
-| `invoke_copilot_assignment.py` | Synthesize context for Copilot | `--issue-number`, `--what-if` |
+| `invoke_copilot_assignment.py` | Context for Copilot | `--issue-number`, `--what-if` |
 | `set_issue_assignee.py` | Assign users | `--issue`, `--assignees`, `--dry-run` |
 | `get_issue_relationships.py` | Native parent, sub-issues, blocked-by, blocking, relates-to | `--issue` |
 | `set_issue_relationship.py` | Add or remove a native issue link (idempotent) | `--issue`, `--relation`, `--target`, `--remove`, `--replace-parent`, `--dry-run` |
@@ -234,7 +234,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 
 ### More Scripts
 
-Parameters are in `references/script-catalog.md`. PR: `check_pr_live_state.py`, `check_pr_round_cap.py`, `run_completion_gate.py`, `check_review_thread_resolution_shas.py`, `check_suppressed_review_findings.py`, `detect_stale_pr_comments.py`, `get_pr_comments_by_reviewer.py`, `prepare_pr_body.py`. Issue: `check_existing_pr_for_issue.py`, `claim_issue.py`, `edit_issue_body.py`, `redact_secrets.py`.
+Parameters are in `references/script-catalog.md`. Usage and exit codes for the gate-dispatched scripts are in `references/gate-script-usage.md`. PR: `check_pr_live_state.py`, `check_pr_round_cap.py`, `run_completion_gate.py`, `check_review_thread_resolution_shas.py`, `check_suppressed_review_findings.py`, `detect_stale_pr_comments.py`, `get_pr_comments_by_reviewer.py`, `prepare_pr_body.py`. Issue: `check_existing_pr_for_issue.py`, `claim_issue.py`, `edit_issue_body.py`, `redact_secrets.py`.
 
 ### Workflow Testing (`scripts/`)
 

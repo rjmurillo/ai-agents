@@ -950,9 +950,25 @@ def _prioritize_findings(findings: list[Finding]) -> None:
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --targets docs src --output human
+
+exit codes:
+  0  PASS or WARN (no critical findings)
+  1  one or more critical findings
+  2  bad arguments or missing repo root
+  3  external error
+  4  authorization error, including permission denied
+"""
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Detect orphan refs in structured artifacts (REQ-009)."
+        description="Detect orphan refs in structured artifacts (REQ-009).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--targets",

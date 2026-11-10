@@ -77,9 +77,25 @@ _AUTH_ERROR_MARKERS = (
 )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --state CHANGES_REQUESTED --output-format json
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  not found
+  3  external error (API failure)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Fetch submitted reviews for a GitHub Pull Request.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

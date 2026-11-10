@@ -129,9 +129,24 @@ def _classify_gh_failure(message: str) -> tuple[int, str]:
     return 3, "ApiError"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --title "Fix login timeout" --source human --body "Steps to reproduce..."
+  %(prog)s --title "Add retry to sync" --source agent --body-file issue-body.md --labels enhancement
+
+exit codes:
+  0  success
+  2  usage/configuration error
+  3  external error (API failure, milestone query or assignment failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create a new GitHub Issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

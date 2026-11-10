@@ -154,18 +154,25 @@ def package_skill(skill_path, output_dir=None) -> PackageResult:
         return PackageResult(False, f"Error creating .skill file: {e}")
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s my-skill
+  %(prog)s my-skill dist
+
+exit codes:
+  0  packaged
+  1  validation or packaging failed
+  2  bad arguments
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="package_skill.py",
         description=(
             "Validate a skill with quick_validate.py, then package it as a .skill zip file."
         ),
-        epilog=(
-            "examples:\n"
-            "  python package_skill.py ~/.claude/skills/my-skill\n"
-            "  python package_skill.py ~/.claude/skills/my-skill ./dist\n\n"
-            "exit codes: 0 packaged, 1 validation or packaging failed, 2 bad arguments."
-        ),
+        epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("skill_folder", help="path to the skill folder")

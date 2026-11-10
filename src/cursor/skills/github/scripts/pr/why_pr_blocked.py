@@ -580,9 +580,25 @@ def _rerun_hint(blocking_runs: dict[str, list[dict]]) -> str:
     return f"Rerun: {'; '.join(targets)}" if targets else ""
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --base-branch main --output-format json
+
+exit codes:
+  0  no blocking cause found (PR may be mergeable)
+  1  blocking cause found (missing, failing, pending, or unresolved threads)
+  2  PR not found or config error
+  3  API error
+  4  not authenticated with gh
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Diagnose why a PR is blocked from merging.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

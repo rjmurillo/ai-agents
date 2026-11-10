@@ -230,9 +230,24 @@ def write_audit_log(
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --title "fix(api): handle empty body" --body-file pr-body.md
+  %(prog)s --prepare-body-file
+
+exit codes:
+  0  success
+  1  validation failure
+  2  usage/environment error
+  3  external error (API failure)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create a GitHub PR with validation guardrails.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--title", default="", help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")

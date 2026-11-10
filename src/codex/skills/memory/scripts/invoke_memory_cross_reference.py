@@ -40,10 +40,22 @@ from convert_index_table_links import process_files as process_index_links
 from convert_memory_references import process_files as process_backtick_refs
 from improve_memory_graph_density import process_files as process_graph_density
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --output-json
+
+exit codes:
+  0  all three steps ran; step failures print as warnings (fail-open for hooks)
+  1  no project root found, or the memories path is outside the project
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Orchestrate all memory cross-reference scripts.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--files",

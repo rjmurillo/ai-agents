@@ -87,9 +87,24 @@ def _positive_int(value: str) -> int:
     return number
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123 --path src/app.py --line 42 --body "Guard against None here"
+  %(prog)s --pull-request 123 --path src/app.py --line 42 --side LEFT --body-file note.md
+
+exit codes:
+  0  success
+  2  config/usage error
+  3  external error (API failure, rate limit, timeout)
+  4  auth error (not authenticated, permission denied)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create a new inline review comment on a PR diff line.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

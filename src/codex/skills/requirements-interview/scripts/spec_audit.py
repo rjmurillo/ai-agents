@@ -71,8 +71,24 @@ def run_verify(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return result, EXIT_OK if result["status"] == "verified" else EXIT_LOGIC
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s check --source spec.md --ledger ledger.json
+  %(prog)s verify --source spec.md --ledger ledger.json --log log.json --rebuilt rebuilt.md
+
+exit codes:
+  0  ok
+  1  invalid ledger, incomplete question, or failed verification
+  2  unreadable file, or the decision-question engine is missing
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("check", "verify"):
         cmd = sub.add_parser(name)
