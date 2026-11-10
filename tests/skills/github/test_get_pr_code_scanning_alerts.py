@@ -262,23 +262,66 @@ class TestPagingFailsLoud:
         with pytest.raises(mod.SkipError, match="not JSON"):
             transport_mod.get_all_pages(transport, "repos/o/r/code-scanning/alerts")
 
-    def test_the_real_link_shape_names_the_repository_id_and_is_followed(self):
-        query = "tool_name=CodeQL&per_page=100&page=2"
-        url = f"https://api.github.com/repositories/1116049814/code-scanning/analyses?{query}"
+    ANALYSES = "repos/o/r/code-scanning/analyses?ref=refs/pull/7/merge&per_page=100"
+    ALERTS = "repos/o/r/code-scanning/alerts?state=open&per_page=100"
+
+    def _follow(self, url, endpoint=None):
         link = f'<{url}>; rel="next"'
-        assert transport_mod._next_endpoint(link, "/repos/o/r/code-scanning/analyses") == (
-            f"repositories/1116049814/code-scanning/analyses?{query}"
+        return transport_mod._next_endpoint(link, endpoint or self.ANALYSES)
+
+    def test_the_real_link_shape_names_the_repository_id_and_is_followed(self):
+        url = "https://api.github.com/repositories/1116049814/code-scanning/analyses?per_page=100&page=2"
+        assert self._follow(url) == (
+            "repositories/1116049814/code-scanning/analyses?per_page=100&page=2"
         )
 
-    def test_the_enterprise_api_prefix_is_removed_because_gh_adds_it(self):
-        link = '<https://ghe.example/api/v3/repositories/9/code-scanning/alerts?page=2>; rel="next"'
-        assert transport_mod._next_endpoint(link, "/repos/o/r/code-scanning/alerts") == (
-            "repositories/9/code-scanning/alerts?page=2"
+    def test_the_requested_repos_path_is_followed(self):
+        url = "https://api.github.com/repos/o/r/code-scanning/alerts?state=open&after=abc"
+        assert (
+            self._follow(url, self.ALERTS) == "repos/o/r/code-scanning/alerts?state=open&after=abc"
         )
+
+    def test_the_enterprise_shape_needs_gh_host_and_drops_the_api_prefix(self, monkeypatch):
+        monkeypatch.setenv("GH_HOST", "ghe.example")
+        url = "https://ghe.example/api/v3/repositories/9/code-scanning/analyses?page=2"
+        assert self._follow(url) == "repositories/9/code-scanning/analyses?page=2"
+
+    def test_the_api_v3_prefix_on_the_api_host_is_accepted(self):
+        url = "https://api.github.com/api/v3/repos/o/r/code-scanning/analyses?page=2"
+        assert self._follow(url) == "repos/o/r/code-scanning/analyses?page=2"
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://evil.example/repositories/9/code-scanning/analyses?page=2",
+            "https://ghe.example/api/v3/repositories/9/code-scanning/analyses?page=2",
+            "http://api.github.com/repositories/9/code-scanning/analyses?page=2",
+            "https://api.github.com.evil.example/repositories/9/code-scanning/analyses?page=2",
+            "https://api.github.com/repos/x/y/actions/secrets?page=2",
+            "https://api.github.com/repos/o/r/code-scanning/alerts?page=2",
+            "https://api.github.com/repositories/9/code-scanning/alerts?page=2",
+            "https://api.github.com/repos/o/r/code-scanning/../actions/secrets?page=2",
+            "https://api.github.com/repositories/9/../../x/code-scanning/analyses?page=2",
+            "https://api.github.com/repositories/abc/code-scanning/analyses?page=2",
+            "https://api.github.com/-repos/o/r/code-scanning/analyses?page=2",
+            "https://api.github.com/repositories/9/code-scanning/analyses",
+            "https://api.github.com/repositories/9/code-scanning/analyses?page=2&token=x",
+            "https://api.github.com/repositories/9/code-scanning/analyses?--input=x",
+            "https://api.github.com/repositories/9/code-scanning/analyses?state=open",
+        ],
+    )
+    def test_a_link_that_is_not_the_same_list_one_page_on_is_refused(self, url):
+        with pytest.raises(mod.SkipError, match="unusable next link"):
+            self._follow(url)
+
+    def test_a_next_link_cannot_produce_an_endpoint_that_starts_with_a_dash(self):
+        url = "https://api.github.com/-x?page=2"
+        with pytest.raises(mod.SkipError, match="unusable next link"):
+            self._follow(url)
 
     @pytest.mark.parametrize("link", [None, "", '<https://x/y?page=1>; rel="prev"'])
     def test_no_next_relation_means_the_last_page(self, link):
-        assert transport_mod._next_endpoint(link, "/repos/o/r/code-scanning/alerts") is None
+        assert transport_mod._next_endpoint(link, self.ANALYSES) is None
 
 
 class TestScoping:
@@ -425,14 +468,7 @@ class TestTransport:
         with patch.object(transport_mod.subprocess, "run", return_value=self._run()) as run:
             transport_mod.gh_get("repos/o/r/code-scanning/alerts")
         command = run.call_args.args[0]
-        assert command[:6] == [
-            "gh",
-            "api",
-            "--include",
-            "--method",
-            "GET",
-            "repos/o/r/code-scanning/alerts",
-        ]
+        assert command[:5] == ["gh", "api", "--include", "--method", "GET"]
         for flag in (
             "-X",
             "--input",
@@ -445,6 +481,12 @@ class TestTransport:
             "DELETE",
         ):
             assert flag not in command
+
+    def test_the_endpoint_follows_a_double_dash_so_it_cannot_be_read_as_a_flag(self):
+        with patch.object(transport_mod.subprocess, "run", return_value=self._run()) as run:
+            transport_mod.gh_get("repos/o/r/code-scanning/alerts")
+        command = run.call_args.args[0]
+        assert command[-2:] == ["--", "repos/o/r/code-scanning/alerts"]
 
     def test_sends_the_accept_header_when_asked(self):
         with patch.object(transport_mod.subprocess, "run", return_value=self._run()) as run:

@@ -30,11 +30,12 @@ Exit codes (ADR-035) carried on ``SkipError.exit_code``:
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from github_core.api import GhAuthStatus, classify_gh_failure_text
 
@@ -96,7 +97,7 @@ def gh_get(endpoint: str, accept: str | None = None) -> tuple[dict[str, str], st
     command = ["gh", "api", "--include", "--method", "GET"]
     if accept:
         command += ["-H", f"Accept: {accept}"]
-    command.append(endpoint)
+    command += ["--", endpoint]
     try:
         result = subprocess.run(
             command,
@@ -122,18 +123,35 @@ def parse_json(body: str) -> Any:
         raise SkipError("GitHub response was not JSON") from exc
 
 
-def _next_endpoint(link_header: str | None, request_path: str) -> str | None:
+_API_HOST = "api.github.com"
+_CURSOR_KEYS = frozenset({"page", "per_page", "after", "before"})
+_ID_PATH = re.compile(r"repositories/\d+/code-scanning/(?:alerts|analyses)")
+_UNUSABLE_LINK = "paging failed: unusable next link"
+
+
+def _allowed_hosts() -> frozenset[str]:
+    """The API host, plus ``GH_HOST`` for GitHub Enterprise Server."""
+    host = os.environ.get("GH_HOST", "").strip().casefold()
+    return frozenset({_API_HOST, host} if host else {_API_HOST})
+
+
+def _next_endpoint(link_header: str | None, endpoint: str) -> str | None:
     """Return the endpoint named by ``rel="next"``, None when there is none.
 
-    GitHub words the next link with the repository id, for example
-    ``/repositories/1116049814/code-scanning/analyses?...&page=2``, not the
-    ``/repos/{owner}/{repo}/...`` path that was requested (observed on
-    2026-11-09). So the link is checked on its last two path segments
-    (``code-scanning/analyses``) and then followed as given, with a
-    ``/api/v3`` prefix removed because ``gh api`` adds it on GitHub Enterprise.
+    The link is untrusted input to a ``gh api`` call, so it is accepted only when
+    it is the same list again, one page on:
+
+    * the host is the API host (or ``GH_HOST``);
+    * the path, after an optional ``api/v3/`` prefix, is the requested path, or
+      ``repositories/<digits>/...`` ending in the same ``code-scanning/<kind>``.
+      GitHub words the link with the repository id, not ``/repos/{owner}/{repo}``
+      (observed 2026-11-09);
+    * the query keys are the first request's keys plus ``page``, ``per_page``,
+      ``after``, ``before`` (the documented cursors), and the query is not empty;
+    * the result does not start with ``-`` (it is also passed after ``--``).
 
     Raises:
-        SkipError: a next link exists but cannot be followed. That is a paging
+        SkipError: a next link exists but fails any check. That is a paging
             failure, not the end of the list.
     """
     if not link_header:
@@ -142,11 +160,26 @@ def _next_endpoint(link_header: str | None, request_path: str) -> str | None:
     if match is None:
         return None
     parts = urlsplit(match.group(1))
-    tail = "/" + "/".join(request_path.strip("/").split("/")[-2:])
-    if not parts.path.endswith(tail) or not parts.query:
-        raise SkipError("paging failed: unusable next link")
+    request_path, _, request_query = endpoint.partition("?")
+    if (parts.hostname or "").casefold() not in _allowed_hosts() or parts.scheme != "https":
+        raise SkipError(_UNUSABLE_LINK)
     path = parts.path.lstrip("/").removeprefix("api/v3/")
-    return f"{path}?{parts.query}"
+    if path != request_path and not _same_kind_by_id(path, request_path):
+        raise SkipError(_UNUSABLE_LINK)
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
+    allowed = _CURSOR_KEYS | {key for key, _ in parse_qsl(request_query)}
+    if not pairs or any(key not in allowed for key, _ in pairs):
+        raise SkipError(_UNUSABLE_LINK)
+    following = f"{path}?{urlencode(pairs)}"
+    if following.startswith("-"):
+        raise SkipError(_UNUSABLE_LINK)
+    return following
+
+
+def _same_kind_by_id(path: str, request_path: str) -> bool:
+    """True for ``repositories/<id>/code-scanning/<kind>`` matching the request's kind."""
+    kind = "/".join(request_path.split("/")[-2:])
+    return _ID_PATH.fullmatch(path) is not None and path.endswith("/" + kind)
 
 
 def get_all_pages(transport: Transport, endpoint: str) -> list[Any]:
@@ -156,7 +189,6 @@ def get_all_pages(transport: Transport, endpoint: str) -> list[Any]:
         SkipError: any page fails, a next link is unusable or repeats, a page is
             not a JSON list, or more than ``MAX_PAGES`` pages are returned.
     """
-    request_path = "/" + endpoint.split("?", 1)[0]
     items: list[Any] = []
     seen = {endpoint}
     current = endpoint
@@ -166,7 +198,7 @@ def get_all_pages(transport: Transport, endpoint: str) -> list[Any]:
         if not isinstance(page, list):
             raise SkipError("GitHub list response had an unexpected shape")
         items.extend(page)
-        following = _next_endpoint(headers.get("link"), request_path)
+        following = _next_endpoint(headers.get("link"), endpoint)
         if following is None:
             return items
         if following in seen:
