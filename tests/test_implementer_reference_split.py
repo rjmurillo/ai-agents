@@ -158,5 +158,25 @@ def test_impact_stub_names_every_section_without_the_reference(path: Path) -> No
         assert section in stub, f"{path} impact stub lost {section}"
 
 
+def test_every_rendered_implementer_copy_is_pinned() -> None:
+    """Converse of the surface list: a new platform render cannot dodge these pins.
+
+    Compare file names exactly: a case-insensitive glob on Windows would also match
+    unrelated policy files.
+    """
+    names = {"implementer.md", "implementer.agent.md"}
+    on_disk = {
+        p.resolve()
+        for pattern in ("*/agents/*.md", "*/*.agent.md", "*/*.md")
+        for p in (REPO_ROOT / "src").glob(pattern)
+        if p.name in names
+    }
+    listed = {(REPO_ROOT / p).resolve() for p in IMPLEMENTER_PATHS}
+    unpinned = sorted(str(p.relative_to(REPO_ROOT)) for p in on_disk - listed)
+
+    assert on_disk, "the converse found no implementer copies, so its glob is wrong"
+    assert not unpinned, f"implementer copies missing from IMPLEMENTER_PATHS: {unpinned}"
+
+
 def test_negative_control_unrelated_file_has_no_reference_loading() -> None:
     assert LOADING_HEADING not in (REPO_ROOT / "README.md").read_text(encoding="utf-8")
