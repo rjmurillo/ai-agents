@@ -23,6 +23,7 @@
     "src/claude/lib/**",
     "src/claude/hooks/**",
     "src/claude/skills/review/scripts/**",
+    "src/claude/skills/spec/scripts/metrics_writer.py",
     ".claude/lib/ai_review_common/**",
     ".claude/lib/github_core/**",
     ".claude/lib/hook_utilities/**",

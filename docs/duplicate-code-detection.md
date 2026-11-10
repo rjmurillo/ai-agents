@@ -24,6 +24,9 @@ stays in scope: `src/{copilot-cli,codex,hermes,muse,cursor}`,
 `src/claude/{lib,hooks}`, `src/claude/skills/review/scripts`, and `.claude/hooks`.
 The `.claude/lib` package mirrors and linked bootstrap files are excluded.
 Its hand-written dispatcher modules remain in scope.
+The spec skill's bundled `metrics_writer.py` is also excluded.
+Bundle-parity tests require that copy to match `scripts/metrics_writer.py`.
+The canonical script and neighboring authored skill scripts remain scanned.
 See `.agents/governance/GENERATOR-FILES.md`.
 Do not add hand-written paths to the ignore list. Record the debt instead.
 

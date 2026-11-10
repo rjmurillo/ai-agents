@@ -184,43 +184,40 @@ def scan(root: Path, runner: list[str], ceiling: Fingerprints) -> tuple[Fingerpr
         return fingerprints, sources
 
 
-def changed_files(root: Path, base_ref: str | None) -> set[str]:
-    """Paths touched in the working tree and, with a base ref, since its fork point."""
-    git = ["git", "-C", str(root)]
-    names: set[str] = set()
-    status = _run([*git, "status", "--porcelain", "--untracked-files=all"], root)
-    for line in status.stdout.splitlines():
-        names.add(line[3:].split(" -> ")[-1].strip().strip('"'))
-    if base_ref:
-        diff = _run([*git, "diff", "--name-only", f"{base_ref}...HEAD"], root)
-        names.update(ln.strip() for ln in diff.stdout.splitlines() if ln.strip())
-    return names
-
-
-def show_new_clones(root: Path, runner: list[str], base_ref: str | None) -> str:
-    """List clone locations, narrowed to files this change touches.
-
-    jscpd fingerprints carry no location, so new clones are located by the files
-    the change touched. If none match, the first clones are listed unfiltered.
-    """
+def show_new_clones(root: Path, runner: list[str], ceiling: Fingerprints) -> str:
+    """List only clones jscpd marks new against the gate's effective ceiling."""
     with tempfile.TemporaryDirectory(prefix="jscpd-gate-") as tmp:
-        result = _run([*runner, "-c", CONFIG_NAME, "-r", "json", "-o", tmp, "-s"], root)
+        baseline = Path(tmp) / "baseline.json"
+        baseline.write_text(render_baseline(ceiling), encoding="utf-8")
+        result = _run(
+            [
+                *runner,
+                "-c",
+                CONFIG_NAME,
+                "-r",
+                "json",
+                "-o",
+                tmp,
+                "-s",
+                "--baseline",
+                str(baseline),
+            ],
+            root,
+        )
         report = Path(tmp) / "jscpd-report.json"
         if result.returncode != 0 or not report.is_file():
             return ""
         clones = json.loads(report.read_text(encoding="utf-8")).get("duplicates", [])
-    touched = changed_files(root, base_ref)
 
     def where(side: CloneLocation) -> str:
         return f"{side['name']}:{side['start']}-{side['end']}"
 
-    hits = [c for c in clones if {c["firstFile"]["name"], c["secondFile"]["name"]} & touched]
-    note = "Clones touching changed files:" if hits else "Clones (no changed file matched):"
+    hits = [c for c in clones if c.get("isNew")]
     rows = [
         f"  {where(c['firstFile'])} <-> {where(c['secondFile'])} ({c['lines']} lines)"
-        for c in (hits or clones)[:MAX_REPORTED]
+        for c in hits[:MAX_REPORTED]
     ]
-    return "\n".join([note, *rows])
+    return "\n".join(["New or grown clones:", *rows]) if rows else ""
 
 
 def base_ref_baseline(root: Path, ref: str) -> Fingerprints | None:
@@ -258,6 +255,19 @@ def _fail_lines(delta: Delta) -> list[str]:
     return lines
 
 
+def initialize_baseline(root: Path, runner: list[str], baseline_path: Path) -> int:
+    """Bootstrap the baseline once, refusing to overwrite an existing file."""
+    if baseline_path.exists():
+        raise GateError(f"{BASELINE_NAME} already exists; --init only bootstraps", 2)
+    current, sources = scan(root, runner, {})
+    baseline_path.write_text(render_baseline(current), encoding="utf-8")
+    print(
+        f"Wrote {BASELINE_NAME}: {len(current)} existing duplicated block(s) "
+        f"recorded across {sources} Python files."
+    )
+    return 0
+
+
 def run_gate(root: Path, args: argparse.Namespace) -> int:
     if not (root / CONFIG_NAME).is_file():
         raise GateError(f"{CONFIG_NAME} not found under {root}", 2)
@@ -265,15 +275,7 @@ def run_gate(root: Path, args: argparse.Namespace) -> int:
     runner = resolve_runner(root)
 
     if args.init:
-        if baseline_path.exists():
-            raise GateError(f"{BASELINE_NAME} already exists; --init only bootstraps", 2)
-        current, sources = scan(root, runner, {})
-        baseline_path.write_text(render_baseline(current), encoding="utf-8")
-        print(
-            f"Wrote {BASELINE_NAME}: {len(current)} existing duplicated block(s) "
-            f"recorded across {sources} Python files."
-        )
-        return 0
+        return initialize_baseline(root, runner, baseline_path)
 
     if not baseline_path.is_file():
         raise GateError(f"{BASELINE_NAME} not found; bootstrap with --init", 2)
@@ -298,7 +300,7 @@ def run_gate(root: Path, args: argparse.Namespace) -> int:
         return 0
 
     if delta.grown:
-        details = show_new_clones(root, runner, args.base_ref)
+        details = show_new_clones(root, runner, ceiling)
         if details:
             print(details)
     if inflated:

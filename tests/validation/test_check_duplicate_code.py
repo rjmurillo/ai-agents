@@ -70,7 +70,11 @@ class TestRatchetMath:
         assert gate.pruned({"a": 2, "b": 1}, {"a": 1, "c": 5}) == {"a": 1}
 
 
-def _fake_jscpd(tmp_path: Path, fingerprints: dict[str, int]) -> str:
+def _fake_jscpd(
+    tmp_path: Path,
+    fingerprints: dict[str, int],
+    duplicates: list[dict[str, object]] | None = None,
+) -> str:
     """A stand-in runner that rewrites --baseline with fixed fingerprints."""
     script = tmp_path / "fake_jscpd.py"
     script.write_text(
@@ -83,8 +87,12 @@ def _fake_jscpd(tmp_path: Path, fingerprints: dict[str, int]) -> str:
         "    json.dump({'statistics': {'total': {'sources': 2}}}, "
         "open(out + '/jscpd-report.json', 'w'))\n"
         "elif '-r' in a and a[a.index('-r') + 1] == 'json':\n"
+        "    p = a[a.index('--baseline') + 1]\n"
+        "    json.dump(json.load(open(p)), "
+        f"open({str(tmp_path / 'diagnostic-baseline.json')!r}, 'w'))\n"
         "    out = a[a.index('-o') + 1]\n"
-        "    json.dump({'duplicates': []}, open(out + '/jscpd-report.json', 'w'))\n",
+        f"    json.dump({{'duplicates': {duplicates or []!r}}}, "
+        "open(out + '/jscpd-report.json', 'w'))\n",
         encoding="utf-8",
     )
     return f"{sys.executable} {script}"
@@ -137,6 +145,29 @@ class TestEntryPoint:
         code = _run(repo, _fake_jscpd(tmp_path, {"a": 1, "b": 1}), monkeypatch=monkeypatch)
         assert code == 1
         assert "new or occur more often" in capsys.readouterr().out
+
+    def test_diagnostics_show_only_new_clones(self, tmp_path, monkeypatch, capsys) -> None:
+        repo = _repo(tmp_path, {"a": 1})
+        duplicates = [
+            {
+                "firstFile": {"name": name, "start": 1, "end": 12},
+                "secondFile": {"name": "copy.py", "start": 20, "end": 31},
+                "lines": 12,
+                "isNew": is_new,
+            }
+            for name, is_new in [("old.py", False), ("new.py", True)]
+        ]
+        runner = _fake_jscpd(tmp_path, {"a": 1, "b": 1}, duplicates)
+
+        assert _run(repo, runner, monkeypatch=monkeypatch) == 1
+
+        output = capsys.readouterr().out
+        assert "new.py:1-12 <-> copy.py:20-31 (12 lines)" in output
+        assert "old.py" not in output
+        diagnostic_baseline = json.loads(
+            (tmp_path / "diagnostic-baseline.json").read_text(encoding="utf-8")
+        )
+        assert diagnostic_baseline["fingerprints"] == {"a": 1}
 
     def test_fails_on_stale_entry_and_prune_fixes_it(self, tmp_path, monkeypatch) -> None:
         repo = _repo(tmp_path, {"a": 1, "gone": 1})
@@ -202,6 +233,10 @@ class TestBaseRef:
         runner = _fake_jscpd(tmp_path, {"a": 1, "b": 1})
         assert _run(repo, runner, monkeypatch=monkeypatch) == 0
         assert _run(repo, runner, "--base-ref", "main", monkeypatch=monkeypatch) == 1
+        diagnostic_baseline = json.loads(
+            (tmp_path / "diagnostic-baseline.json").read_text(encoding="utf-8")
+        )
+        assert diagnostic_baseline["fingerprints"] == {"a": 1}
 
     def test_unknown_ref_is_external_error(self, tmp_path, monkeypatch) -> None:
         repo = _repo(tmp_path, {"a": 1})
@@ -223,8 +258,11 @@ class TestRealJscpd:
         (repo / "scripts").mkdir(parents=True)
         (repo / "src" / "codex").mkdir(parents=True)
         shutil.copy(REPO_ROOT / ".jscpd.json", repo / ".jscpd.json")
-        (repo / "scripts" / "one.py").write_text(self.BLOCK, encoding="utf-8")
+        (repo / "scripts" / "metrics_writer.py").write_text(self.BLOCK, encoding="utf-8")
         (repo / "src" / "codex" / "mirror.py").write_text(self.BLOCK, encoding="utf-8")
+        bundled = repo / "src" / "claude" / "skills" / "spec" / "scripts"
+        bundled.mkdir(parents=True)
+        (bundled / "metrics_writer.py").write_text(self.BLOCK, encoding="utf-8")
         (repo / "scripts" / "other.py").write_text("print('x')\n" * 3, encoding="utf-8")
         monkeypatch.setenv("JSCPD_BIN", runner)
         assert gate.main([str(repo), "--init"]) == 0
@@ -235,4 +273,7 @@ class TestRealJscpd:
         authored = repo / ".claude" / "lib"
         authored.mkdir(parents=True)
         (authored / "hand_written.py").write_text(self.BLOCK, encoding="utf-8")
+        assert gate.main([str(repo)]) == 1
+        (authored / "hand_written.py").unlink()
+        (bundled / "authored.py").write_text(self.BLOCK, encoding="utf-8")
         assert gate.main([str(repo)]) == 1

@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -161,23 +162,24 @@ def test_step0_evidence_passes_the_issue_hedge_gate(monkeypatch: pytest.MonkeyPa
 
 
 def test_run_publishes_with_derived_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(alert, "publish_issue_alert", lambda **kw: calls.append(kw) or 0)
+    publisher = Mock(return_value=0)
+    monkeypatch.setattr(alert, "publish_issue_alert", publisher)
 
     rc = alert.run(_payload())
 
     assert rc == 0
-    assert calls[0]["title"] == "Workflow failed: Agent Metrics"
-    assert calls[0]["marker"] == "WORKFLOW-FAILURE-AGENT-METRICS"
-    assert calls[0]["labels"] == alert.ALERT_LABELS
+    publisher.assert_called_once()
+    assert publisher.call_args.kwargs["title"] == "Workflow failed: Agent Metrics"
+    assert publisher.call_args.kwargs["marker"] == "WORKFLOW-FAILURE-AGENT-METRICS"
+    assert publisher.call_args.kwargs["labels"] == alert.ALERT_LABELS
 
 
 def test_run_skips_publish_when_nothing_to_alert(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(alert, "publish_issue_alert", lambda **kw: calls.append(kw) or 0)
+    publisher = Mock(return_value=0)
+    monkeypatch.setattr(alert, "publish_issue_alert", publisher)
 
     assert alert.run(_payload(conclusion="success")) == 0
-    assert calls == []
+    publisher.assert_not_called()
 
 
 def test_run_returns_publish_failure_code(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -210,11 +212,12 @@ def test_main_publishes_from_event_file(monkeypatch: pytest.MonkeyPatch, tmp_pat
     event = tmp_path / "event.json"
     event.write_text(json.dumps(_payload()), encoding="utf-8")
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
-    seen: list[str] = []
-    monkeypatch.setattr(alert, "publish_issue_alert", lambda **kw: seen.append(kw["title"]) or 3)
+    publisher = Mock(return_value=3)
+    monkeypatch.setattr(alert, "publish_issue_alert", publisher)
 
     assert alert.main([]) == 3
-    assert seen == ["Workflow failed: Agent Metrics"]
+    publisher.assert_called_once()
+    assert publisher.call_args.kwargs["title"] == "Workflow failed: Agent Metrics"
 
 
 def test_cli_nonzero_when_event_path_missing(tmp_path: Path) -> None:
