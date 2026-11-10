@@ -68,8 +68,8 @@ three manifests above. Adding or raising `version` there fails
 valid version, for example `packages/ai-agents-cli/package.json`, so read the
 file before acting.
 
-Rule files under `.claude/rules/` regenerate into `.github/instructions/` and
-`src/copilot-cli/instructions/`. If cached context contradicts this rule, trust
+This rule is repo-only: `.claude/rules/` regenerates into `.github/instructions/`
+and ships to no plugin tree. If cached context contradicts this rule, trust
 the rule file because CI checks the mirrors, not the cached context.
 
 ## Checking
