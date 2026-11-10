@@ -33,8 +33,8 @@ no tally line is interleaved or lost. The file descriptor is always closed in a
 ``finally`` block.
 
 Exit codes (ADR-035): 0 = success, 1 = logic/validation error (symlink
-rejected, traversal rejected, lock or write failure), 2 = usage error or no
-line supplied.
+rejected, traversal rejected, lock or write failure), 2 = usage error, or a line that
+is empty, spans more than one line, or is not UTF-8.
 
 Usage:
     metrics_writer.py --path PATH --line LINE   # append LINE (one tally record)
@@ -218,8 +218,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "sign) or --stdin. 'metrics_writer.py --line -h' is a usage error "
             "(exit 2), not help.\n"
             "exit codes (ADR-035): 0 appended, 1 write refused (symlink, path "
-            "outside the working directory, I/O error), 2 usage error or no "
-            "line supplied."
+            "outside the working directory, I/O error), 2 usage error or a line "
+            "that is empty, spans more than one line, or is not UTF-8."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -238,31 +238,40 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_stdin_line() -> str | None:
-    """Return the one line piped on stdin, or None after printing why it is unusable.
+def _read_stdin() -> str | None:
+    """Return everything piped on stdin, or None after printing why it is unreadable.
 
-    The caller reports None as exit 2. Only ``--stdin`` reaches this function,
-    so a harness that leaves an open pipe on stdin never blocks a ``--line`` call.
-    One trailing newline (LF or CRLF) is the line terminator and is dropped.
-    Anything left that holds another newline is a second record, and the CLI
-    appends exactly one record per call, so it is rejected, not truncated.
+    Only ``--stdin`` reaches this function, so a harness that leaves an open pipe
+    on stdin never blocks a ``--line`` call.
     """
     try:
-        data = sys.stdin.read()
+        return sys.stdin.read()
     except UnicodeDecodeError:
         print("metrics_writer: stdin is not valid UTF-8", file=sys.stderr)
         return None
+
+
+def _single_line(raw: str, source: str) -> str | None:
+    """Return ``raw`` as exactly one tally line, or None after printing why not.
+
+    Both sources (``--line`` and ``--stdin``) pass through here so they enforce
+    one rule. One trailing newline (LF or CRLF) is the line terminator and is
+    dropped. What remains must be non-empty and hold no CR or LF: the CLI appends
+    exactly one record per call, so a second record is rejected, not truncated,
+    and an empty line is "no line", not a blank record.
+    """
+    line = raw
     for terminator in ("\r\n", "\n"):
-        if data.endswith(terminator):
-            data = data[: -len(terminator)]
+        if line.endswith(terminator):
+            line = line[: -len(terminator)]
             break
-    if data == "":
-        print("metrics_writer: no line on stdin", file=sys.stderr)
+    if line == "":
+        print(f"metrics_writer: no line on {source}", file=sys.stderr)
         return None
-    if "\n" in data or "\r" in data:
-        print("metrics_writer: stdin holds more than one line", file=sys.stderr)
+    if "\n" in line or "\r" in line:
+        print(f"metrics_writer: {source} holds more than one line", file=sys.stderr)
         return None
-    return data
+    return line
 
 
 def _is_utf8_encodable(line: str) -> bool:
@@ -285,7 +294,8 @@ def main(argv: list[str] | None = None) -> int:
         args = _build_parser().parse_args(argv)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 2
-    line = _read_stdin_line() if args.stdin else args.line
+    raw = _read_stdin() if args.stdin else args.line
+    line = None if raw is None else _single_line(raw, "stdin" if args.stdin else "--line")
     if line is None:
         return 2
     if not _is_utf8_encodable(line):

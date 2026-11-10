@@ -365,3 +365,39 @@ def test_stdin_of_only_a_newline_is_no_line(tmp_path: Path, monkeypatch, capsys)
     assert metrics_writer.main(["--path", "tally.md", "--stdin"]) == 2
     assert "no line on stdin" in capsys.readouterr().err
     assert not (tmp_path / "tally.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("", "no line on --line"),
+        ("\n", "no line on --line"),
+        ("a\nb", "--line holds more than one line"),
+        ("a\r\nb", "--line holds more than one line"),
+        ("a\rb", "--line holds more than one line"),
+        ("a\n\n", "--line holds more than one line"),
+    ],
+    ids=["empty", "only-newline", "embedded-lf", "embedded-crlf", "embedded-cr", "trailing-blank"],
+)
+def test_line_flag_enforces_the_same_one_line_rule_as_stdin(
+    value: str, message: str, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert metrics_writer.main(["--path", "tally.md", f"--line={value}"]) == 2
+    assert message in capsys.readouterr().err
+    assert not (tmp_path / "tally.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("a\n", "a\n"), ("a\r\n", "a\n"), ("a", "a\n")],
+    ids=["lf", "crlf", "none"],
+)
+def test_line_flag_drops_one_trailing_terminator(
+    value: str, expected: str, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert metrics_writer.main(["--path", "tally.md", f"--line={value}"]) == 0
+    assert (tmp_path / "tally.md").read_bytes() == expected.encode()
