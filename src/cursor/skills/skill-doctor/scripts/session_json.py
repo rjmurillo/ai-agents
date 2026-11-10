@@ -77,11 +77,7 @@ def _claude_block(state: SessionState, block: Any, role: str) -> bool:
 
 
 def _claude_termination(obj: Any, message: Any) -> tuple[str, str] | None:
-    """Match Claude Code's synthetic assistant record for a failed API call.
-
-    Real shape: `isApiErrorMessage: true`, `error: "rate_limit"`, and
-    `apiError: "usage_limit_reached"` with the limit text in the content.
-    """
+    """Claude Code writes a failed API call as an assistant record with isApiErrorMessage."""
     if obj.get("isApiErrorMessage") is not True:
         return None
     reason = next(
@@ -187,11 +183,7 @@ def _codex_completion(state: SessionState, payload: dict[str, Any]) -> None:
 
 
 def _codex_turn_role(payload: Any) -> str | None:
-    """Return the role of a countable response_item message, or None.
-
-    Developer messages carry harness policy and are not turns. User messages
-    that look injected (environment context) are not turns either.
-    """
+    # Developer messages and injected user context are not turns.
     if payload.get("type") != "message":
         return None
     role = payload.get("role")
@@ -216,9 +208,7 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
     except OSError:
         return None
     state, meta = SessionState(), {}
-    # Older rollouts carry event_msg turns and response_item messages for the
-    # same turns. Current rollouts carry only response_item messages. Count both
-    # separately and prefer the event count so no turn is counted twice.
+    # Older rollouts carry both record kinds for one turn; prefer the event count.
     events = {"user": 0, "assistant": 0}
     items = {"user": 0, "assistant": 0}
     for obj in records:
