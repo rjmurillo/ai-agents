@@ -112,9 +112,9 @@ def _format_reflection(
         lines.append(f"- Decayed: {decayed_count} {verb} the age threshold")
 
     if session_facts is None:
-        lines.append("- Updated this session: unknown (git unavailable)")
+        lines.append("- Uncommitted memory changes: unknown (git unavailable)")
     elif session_facts:
-        lines.append(f"- Updated this session: {len(session_facts)} memories")
+        lines.append(f"- Uncommitted memory changes: {len(session_facts)} memories")
 
     if recommendations:
         lines.append(f"- Recommendations: {'; '.join(recommendations)}")

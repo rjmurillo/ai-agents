@@ -61,7 +61,7 @@ class TestFormatReflection:
         )
         result = _format_reflection(report, session_facts=None)
 
-        assert "Updated this session: unknown (git unavailable)" in result
+        assert "Uncommitted memory changes: unknown (git unavailable)" in result
 
     @pytest.mark.unit
     def test_format_reports_updated_count_from_git(self):
@@ -70,7 +70,7 @@ class TestFormatReflection:
         )
         result = _format_reflection(report, session_facts=["a", "b"])
 
-        assert "Updated this session: 2 memories" in result
+        assert "Uncommitted memory changes: 2 memories" in result
         assert "unknown" not in result
 
     @pytest.mark.unit
@@ -80,7 +80,7 @@ class TestFormatReflection:
         )
         result = _format_reflection(report, session_facts=[])
 
-        assert "Updated this session" not in result
+        assert "Uncommitted memory changes" not in result
 
     @pytest.mark.unit
     def test_format_no_stale(self):

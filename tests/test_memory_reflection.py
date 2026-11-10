@@ -147,7 +147,7 @@ class TestExtractSessionFacts:
     @pytest.mark.unit
     def test_modified_tracked_file_is_reported(self, tmp_path):
         mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
-        (mem_dir / "beta.md").write_text("# beta (2026-01-01)\n\nchanged\n")
+        (mem_dir / "beta.md").write_text("# beta (2026-01-01)\n\nchanged\n", encoding="utf-8")
         assert extract_session_facts(mem_dir) == ["beta"]
 
     @pytest.mark.unit
@@ -185,15 +185,15 @@ class TestExtractSessionFacts:
     @pytest.mark.unit
     def test_ignores_non_md_and_skip_names(self, tmp_path):
         mem_dir = _init_repo_with_memories(tmp_path, ["alpha"])
-        (mem_dir / "data.json").write_text("{}")
-        (mem_dir / "README.md").write_text("readme")
-        (mem_dir / "CLAUDE.md").write_text("claude")
+        (mem_dir / "data.json").write_text("{}", encoding="utf-8")
+        (mem_dir / "README.md").write_text("readme", encoding="utf-8")
+        (mem_dir / "CLAUDE.md").write_text("claude", encoding="utf-8")
         assert extract_session_facts(mem_dir) == []
 
     @pytest.mark.unit
     def test_changes_outside_the_memory_directory_are_ignored(self, tmp_path):
         mem_dir = _init_repo_with_memories(tmp_path, ["alpha"])
-        (mem_dir.parent.parent / "other.md").write_text("elsewhere")
+        (mem_dir.parent.parent / "other.md").write_text("elsewhere", encoding="utf-8")
         assert extract_session_facts(mem_dir) == []
 
     @pytest.mark.unit

@@ -47,9 +47,13 @@ def read_active_installs(
     except (OSError, ValueError):
         return None, f"{INSTALLED_PLUGINS_FILE} unreadable"
     plugins = data.get("plugins") if isinstance(data, dict) else None
+    version = data.get("version") if isinstance(data, dict) else None
+    # A JSON array or object is unhashable, so test the type before membership.
     if (
         not isinstance(data, dict)
-        or data.get("version") not in SUPPORTED_RECORD_VERSIONS
+        or isinstance(version, bool)
+        or not isinstance(version, int)
+        or version not in SUPPORTED_RECORD_VERSIONS
         or not isinstance(plugins, dict)
     ):
         return None, f"{INSTALLED_PLUGINS_FILE} has an unknown schema"

@@ -151,6 +151,10 @@ def test_missing_installed_plugins_json_falls_back_to_every_copy(tmp_path) -> No
         ({"version": 99, "plugins": {}}, "unknown schema"),
         ({"version": 2, "plugins": []}, "unknown schema"),
         ({"plugins": {}}, "unknown schema"),
+        ({"version": [], "plugins": {}}, "unknown schema"),
+        ({"version": {"major": 2}, "plugins": {}}, "unknown schema"),
+        ({"version": True, "plugins": {}}, "unknown schema"),
+        ({"version": "2", "plugins": {}}, "unknown schema"),
         (["not", "an", "object"], "unknown schema"),
     ],
 )
