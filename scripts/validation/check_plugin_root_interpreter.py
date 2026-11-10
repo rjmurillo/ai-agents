@@ -512,9 +512,7 @@ def find_single_root_offenses(
     return [(lineno, f"{rel}:{lineno}: {message}") for lineno in hits[budget:]]
 
 
-def find_import_time_offenses(
-    text: str, rel: str, repo_root: Path, tracked_py: set[str]
-) -> list[tuple[int, str]]:
+def find_import_time_offenses(text: str, rel: str, tracked_py: set[str]) -> list[tuple[int, str]]:
     """Return rule 5 offenses: a third-party import at module level with no fallback."""
 
     def is_repo_module(name: str) -> bool:
@@ -551,7 +549,7 @@ def _scan_new_rules(
             raise ScanError(f"could not read {rel}: {exc}") from exc
         found = find_single_root_offenses(text, rel, used_single_root) if in_single else []
         if in_import:
-            found += find_import_time_offenses(text, rel, repo_root, tracked_py)
+            found += find_import_time_offenses(text, rel, tracked_py)
         offenses.extend((rel, lineno, message) for lineno, message in found)
     return offenses
 

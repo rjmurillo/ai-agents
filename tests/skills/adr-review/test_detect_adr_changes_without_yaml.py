@@ -55,7 +55,7 @@ def test_script_starts_with_pyyaml_blocked(tree: str) -> None:
 class TestFailsClosedWithoutPyYaml:
     def _without_yaml(self, tree: str, monkeypatch: pytest.MonkeyPatch) -> object:
         detector = import_skill_script(tree)
-        monkeypatch.setattr(detector, "yaml", None)
+        monkeypatch.setattr(detector, "_HAVE_YAML", False)
         return detector
 
     def test_parse_reports_cannot_parse(self, tree: str, monkeypatch: pytest.MonkeyPatch) -> None:

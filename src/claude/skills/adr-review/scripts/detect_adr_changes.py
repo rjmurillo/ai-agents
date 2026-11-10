@@ -41,8 +41,10 @@ from pathlib import Path
 # every caller already treats as fail closed: the adr-review gate still fires.
 try:
     import yaml
+
+    _HAVE_YAML = True
 except ImportError:
-    yaml = None  # type: ignore[assignment]
+    _HAVE_YAML = False
 
 ADR_PATTERNS = (
     ".project-toolkit/architecture/ADR-*.md",
@@ -144,7 +146,7 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
     a non-mapping document so callers can fail closed (still trip the gate).
     Also returns ``None`` when PyYAML is not installed: no parse is possible.
     """
-    if yaml is None:
+    if not _HAVE_YAML:
         return None
     try:
         loaded = yaml.safe_load(frontmatter)
@@ -211,7 +213,7 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
     without a parser, and both callers read True as "do not trust this block":
     the exemption is refused and the status is ``unknown``.
     """
-    if yaml is None:
+    if not _HAVE_YAML:
         return True
 
     class _Dup(yaml.YAMLError):

@@ -29,21 +29,21 @@ CLAUDE_VAR = "CLAUDE_PLUGIN_ROOT"
 COPILOT_VAR = "COPILOT_PLUGIN_ROOT"
 
 # The default-chain expansion is the form a command actually runs. It must pair
-# with the Copilot variable on the same logical line: `${COPILOT_PLUGIN_ROOT:-}`
-# and `${CLAUDE_PLUGIN_ROOT:-}` are list entries joined by `\` continuations, and
-# the nested form carries both.
+# with the Copilot variable on the same logical line. Both the nested form and a
+# list of `${COPILOT_PLUGIN_ROOT:-}` then `${CLAUDE_PLUGIN_ROOT:-}` entries joined
+# by `\` continuations satisfy that.
 _DEFAULT_CHAIN = re.compile(r"\$\{" + CLAUDE_VAR + r":-")
 
-# Any other mention (prose, an `os.environ.get("CLAUDE_PLUGIN_ROOT")` read, a
-# wrapped docstring) pairs with the Copilot variable within this many lines.
-# Looser than the default chain on purpose: a resolver reads the two variables on
-# adjacent lines and prose wraps. Known limit: a bare `$CLAUDE_PLUGIN_ROOT/...`
-# next to a sentence that names both passes.
+# Any other mention (prose, a wrapped docstring, a read of COPILOT_PLUGIN_ROOT
+# then CLAUDE_PLUGIN_ROOT from os.environ) pairs with the Copilot variable
+# within this many lines. Looser than the default chain on purpose: a resolver
+# reads the two variables on adjacent lines and prose wraps. Known limit: a bare
+# Claude-variable path next to a sentence that names both passes.
 NAME_PAIRING_WINDOW = 3
 
 
 def single_root_lines(logical_lines: list[str], line_maps: list[list[int]]) -> list[int]:
-    """Return the 1-indexed source lines where ``CLAUDE_PLUGIN_ROOT`` stands alone.
+    """Return the 1-indexed lines where the Claude variable stands without the Copilot one.
 
     ``logical_lines`` and ``line_maps`` come from the checker's
     ``_join_continuations`` (backslash-newline collapsed, each character mapped
@@ -99,7 +99,7 @@ def _handler_gives_up(handler: ast.ExceptHandler) -> bool:
     return False
 
 
-def _provides_fallback(node: ast.Try) -> bool:
+def _provides_fallback(node: ast.Try | ast.TryStar) -> bool:
     """Return whether an ImportError in the try body is survivable.
 
     A handler must catch the import failure and neither re-raise nor exit. What

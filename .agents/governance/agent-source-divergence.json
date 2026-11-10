@@ -139,7 +139,7 @@
     {"agent": "merge-resolver", "pair": "claude-shared", "unit": "section:Handoff Protocol", "digest": "6507a91f3e7978514f161f132fff399bca82a347b34225813e727d1c8e65bef9"},
     {"agent": "merge-resolver", "pair": "claude-shared", "unit": "section:Key Responsibilities", "digest": "f792d113d372b0dc27fb9fa6f5b526078fa764c2c36b01dc8622f8daa40375a7"},
     {"agent": "merge-resolver", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "a7a0b241ed9cd563534771c6473e501febb15c9179332db00c7da1472807c899"},
-    {"agent": "merge-resolver", "pair": "claude-shared", "unit": "section:Resolution Workflow", "digest": "4627e39a4834e3adcf8aa93b9a939f963c8939261c475b870c767fcad3ff72a0"},
+    {"agent": "merge-resolver", "pair": "claude-shared", "unit": "section:Resolution Workflow", "digest": "321df579826caaec2224abd09806c08e1d083e8b64b5eea54b8a5233f673bcb5"},
     {"agent": "milestone-planner", "pair": "claude-shared", "unit": "capability:builtin", "digest": "da229b74eaacecf93708e2236822abb6ad9c359da8db2907aac29b0e841f40c3"},
     {"agent": "milestone-planner", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "milestone-planner", "pair": "claude-shared", "unit": "capability:mcp:cloudmcp-manager", "digest": "587bae728805519c3542d21766295396bd01087b6c47765ae3cadbf679813bbe"},
