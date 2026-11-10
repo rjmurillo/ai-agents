@@ -116,7 +116,6 @@ __all__ = [
     "find_claude_session_files",
     "find_codex_session_files",
     "find_copilot_session_files",
-    "find_droid_session_files",
     "find_grok_session_files",
     "find_hermes_sessions",
     "find_pi_session_files",
@@ -133,7 +132,6 @@ __all__ = [
     "parse_claude_session",
     "parse_codex_session",
     "parse_copilot_session",
-    "parse_droid_session",
     "parse_epoch_timestamp",
     "parse_grok_session",
     "parse_hermes_session",
@@ -322,13 +320,7 @@ def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:
             parse_zcode_session,
             "ZCode model-io rollouts not found at",
         ),
-        (
-            "droid",
-            "sessions",
-            find_droid_session_files,
-            parse_droid_session,
-            "Droid session home not found at",
-        ),
+        ("droid", "sessions", find_droid_session_files, parse_droid_session, "Droid not found at"),
     )
     for name, subdir, finder, parser, message in specs:
         if name == "pi":

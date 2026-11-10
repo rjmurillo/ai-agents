@@ -361,7 +361,7 @@ def test_cli_explicit_droid_harness_fails_when_home_is_missing(tmp_path, root):
     )
 
     assert result.returncode == 1
-    assert "Droid session home not found" in result.stderr
+    assert "Droid not found at" in result.stderr
 
 
 @pytest.mark.parametrize("root", TREES)
