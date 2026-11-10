@@ -83,17 +83,22 @@ def page_script(card_data: str, clamp_px: int) -> str:
 
   // --- print: expand every collapsed section, then restore ----------------
   var reopened = [];
+  var unclamped = [];
   window.addEventListener('beforeprint', function () {
     document.querySelectorAll('details:not([open])').forEach(function (d) {
       d.open = true;
       reopened.push(d);
     });
-    document.querySelectorAll('.diff-wrap').forEach(function (w) { w.dataset.collapsed = 'false'; });
+    document.querySelectorAll('.diff-wrap[data-collapsed="true"]').forEach(function (w) {
+      w.dataset.collapsed = 'false';
+      unclamped.push(w);
+    });
   });
   window.addEventListener('afterprint', function () {
     reopened.forEach(function (d) { d.open = false; });
     reopened = [];
-    document.querySelectorAll('.diff-wrap').forEach(function (w) { w.dataset.collapsed = 'true'; });
+    unclamped.forEach(function (w) { w.dataset.collapsed = 'true'; });
+    unclamped = [];
   });
 
   // --- share image -------------------------------------------------------

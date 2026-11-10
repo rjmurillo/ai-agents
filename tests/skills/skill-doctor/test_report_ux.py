@@ -291,3 +291,29 @@ def test_motion_focus_print_and_narrow_screen_rules_exist() -> None:
     assert "beforeprint" in page and "afterprint" in page
     assert 'name="viewport"' in page
     assert "flex-wrap: wrap" in page
+
+
+def test_field_labels_stay_muted_outside_missing_evidence() -> None:
+    import report_style
+
+    css = report_style.PAGE_CSS
+
+    assert ".missing .field-label { color: inherit; }" in css
+    assert "\n.field-label { color: inherit; }" not in css
+
+
+def test_side_by_side_fields_share_a_top_edge() -> None:
+    import report_style
+
+    assert ".fields > .field + .field { margin-top: 0; }" in report_style.PAGE_CSS
+
+
+def test_print_restore_only_reclamps_diffs_it_expanded() -> None:
+    import report_script
+
+    script = report_script.page_script("{}", 320)
+
+    assert "unclamped.push(w)" in script
+    assert "forEach(function (w) { w.dataset.collapsed = 'true'; })" not in script.replace(
+        "unclamped.forEach(function (w) { w.dataset.collapsed = 'true'; })", ""
+    )

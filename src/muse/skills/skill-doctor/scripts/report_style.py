@@ -116,6 +116,7 @@ button { font: inherit; cursor: pointer; }
 .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.75rem; margin: 0.75rem 0; }
 .field { margin: 0; max-width: 70ch; }
 .field + .field { margin-top: 0.625rem; }
+.fields > .field + .field { margin-top: 0; }
 .field-label { font-size: 0.8125rem; font-weight: 650; color: var(--muted); margin: 0; }
 .field-value { margin: 0.125rem 0 0; }
 .kind { display: inline-block; margin-right: 0.25rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
@@ -124,7 +125,7 @@ button { font: inherit; cursor: pointer; }
 .group-title { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.25rem; }
 .missing { background: var(--notice-bg); color: var(--notice-fg); border-radius: 6px; padding: 0.5rem 0.75rem; }
 .missing .field + .field { margin-top: 0.625rem; }
-.field-label { color: inherit; }
+.missing .field-label { color: inherit; }
 .handoff { border-top: 1px solid var(--line-soft); margin-top: 0.75rem; padding-top: 0.75rem; }
 .handoff-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .handoff-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
