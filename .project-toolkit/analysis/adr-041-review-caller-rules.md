@@ -4,7 +4,8 @@ This file holds the full rule set for the ADR-041 amendment "Let /review read
 CodeQL results as an explicit caller". The ADR states the decision and links
 here, because the record is held to a 500-line cap. The rules below are part of
 that decision. The debate that produced them is in
-`.project-toolkit/critique/ADR-041-debate-log-2.md`.
+`.project-toolkit/critique/ADR-041-debate-log-2.md`, with later changes in
+debate logs 3 and 4.
 
 Changing this file changes the ADR-041 decision. Any edit here goes through the
 same adr-review debate as an edit to the ADR itself, with a new debate log.
@@ -27,12 +28,17 @@ the `security` agent are unchanged.
 
 Scanner-input guard (applies before either source). The diff is merge-base with
 the default branch to HEAD, plus any uncommitted change. If it touches
-`.codeql/**`, `.github/codeql/**`, `.github/workflows/codeql-analysis.yml`,
-`.github/actions/**` (composite actions the workflow calls), or the
-`codeql-scan` skill scripts, the step reports
+`.codeql/**`, `.github/codeql/**`, any file under `.github/workflows/`
+(`.yml` or `.yaml`), `.github/actions/**` (composite actions the workflows
+call), or the `codeql-scan` skill scripts, the step reports
 `CodeQL: SKIPPED (scanner inputs modified)` and reads no result. A branch must not
 be able to change the code that scans it, or the config and queries that decide
 what it reports, and then have that result trusted.
+- Any workflow can upload SARIF, through `upload-sarif`, a reusable workflow, a
+  local action, or a direct API call. A text match on workflow content misses
+  some of these, so the guard covers the whole directory (debate log 4).
+- A change to a guarded directory entry itself, or to a symlink whose path or
+  target falls under a guarded path, counts as touching it.
 
 Sources, in this order:
 
@@ -47,8 +53,26 @@ Sources, in this order:
      The analysis record stores the merge commit SHA, so the implementation
      derives the analyzed head SHA from that merge commit (its pull request
      head parent) and tests that step.
+   - Origin filter. Only alerts whose most recent instance on the merge ref
+     came from an analysis uploaded by `.github/workflows/codeql-analysis.yml`
+     (its `analysis_key` names that file) under a `/language:<lang>` category
+     count. Every other analysis on the ref is ignored. Another workflow job
+     with `security-events: write` runs branch code without any workflow file
+     change (`pytest.yml` job `security` uploads `ruff-security.sarif` under
+     category `ruff-security`), and SARIF content sets the tool name, so the
+     tool name alone is never the filter. An alert missing either field is
+     ignored. The implementation tests the filter against a recorded analysis
+     list that holds a `ruff-security` upload.
+   - Residual risk, recorded and not closed. Branch code in that `pytest.yml`
+     job could read the token that `actions/checkout` persists in
+     `.git/config` and post SARIF straight to the API with a forged
+     `analysis_key`. Whether GitHub validates that field on upload is INFERRED,
+     not verified. The harm is bounded: results are input only, and Tier 1
+     stays the only blocking gate. Setting `persist-credentials: false` on that
+     job's checkout would narrow the path; it is outside this decision.
    - No analysis for the ref (for example the workflow's path filter skipped
-     it) reports `CodeQL: NOT ANALYZED`.
+     it) reports `CodeQL: NOT ANALYZED`. An analysis that only other workflows
+     uploaded also counts as none.
    - Alerts are read page by page until the API reports no next page. An
      authorization or not-found error, or paging that cannot complete, reports
      `CodeQL: SKIPPED (<reason>)`. A partial read is never treated as complete.

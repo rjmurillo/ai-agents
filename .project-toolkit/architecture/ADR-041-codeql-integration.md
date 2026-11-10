@@ -1,7 +1,7 @@
 ---
 id: ADR-041
 status: accepted
-date: 2026-11-09
+date: 2026-11-10
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -61,13 +61,15 @@ Change. `/review` becomes the one new caller of CodeQL results, only when its
 unchanged. In summary:
 
 1. If the diff (merge-base with the default branch to HEAD, plus uncommitted
-   changes) touches `.codeql/**`, `.github/codeql/**`,
-   `.github/workflows/codeql-analysis.yml`, `.github/actions/**`, or the
-   `codeql-scan` skill scripts, the step reads no result and reports `CodeQL: SKIPPED (scanner inputs
-   modified)`.
+   changes) touches `.codeql/**`, `.github/codeql/**`, any file under
+   `.github/workflows/`, `.github/actions/**`, or the `codeql-scan` skill
+   scripts, the step reads no result and reports `CodeQL: SKIPPED (scanner
+   inputs modified)`. Debate log 4 widened the workflow entry from one file.
 2. Preferred source: the pull request's Tier 1 alerts, read with GET requests
-   only and every page read. They count only when the analyzed pull request
-   head SHA equals the reviewed HEAD and the tree is clean; otherwise `STALE`.
+   only and every page read. Only alerts from `codeql-analysis.yml` analyses
+   under its `/language:` categories count. They count only when the analyzed
+   pull request head SHA equals the reviewed HEAD and the tree is clean;
+   otherwise `STALE`.
    No analysis reports `NOT ANALYZED`.
 3. Fallback before a pull request exists: the local Tier 2 wrapper, only under
    the guards in the rules file (clean tree, cache at HEAD, minimal environment,
