@@ -18,7 +18,13 @@ import json
 import os
 import re
 import sys
+from dataclasses import asdict
 from pathlib import Path
+from typing import cast
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+
+from ai_review_common.scan_rules import parse_scan_rules
 
 # Allow sibling-module import of scan_principles_core when this script is run
 # directly or loaded via importlib (tests). The scripts directory is not a
@@ -340,33 +346,14 @@ def format_json(result: ScanResult) -> str:
         "applicable_files": result.applicable_files,
         "error_count": result.error_count,
         "warning_count": result.warning_count,
-        "violations": [
-            {
-                "rule": v.rule,
-                "principle": v.principle,
-                "severity": v.severity,
-                "file": v.file,
-                "line": v.line,
-                "message": v.message,
-                "remediation": v.remediation,
-            }
-            for v in result.violations
-        ],
+        "violations": [asdict(v) for v in result.violations],
     }
     return json.dumps(data, indent=2)
 
 
 def parse_rules(rules_str: str) -> tuple[str, ...]:
     """Parse comma-separated rule names."""
-    if not rules_str:
-        return ALL_RULES
-    rules = tuple(r.strip() for r in rules_str.split(","))
-    invalid = [r for r in rules if r not in ALL_RULES]
-    if invalid:
-        print(f"error: unknown rules: {', '.join(invalid)}", file=sys.stderr)
-        print(f"valid rules: {', '.join(ALL_RULES)}", file=sys.stderr)
-        sys.exit(EXIT_ERROR)
-    return rules
+    return cast(tuple[str, ...], parse_scan_rules(rules_str, ALL_RULES, EXIT_ERROR))
 
 
 def _find_repo_root() -> str | None:

@@ -15,8 +15,13 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import cast
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+
+from ai_review_common.scan_rules import parse_scan_rules
 
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
@@ -1137,15 +1142,7 @@ def format_json(result: LintResult) -> str:
         "error_count": result.error_count,
         "warning_count": result.warning_count,
         "violations": [
-            {
-                "rule": v.rule,
-                "severity": v.severity,
-                "category": v.category,
-                "file": v.file,
-                "line": v.line,
-                "message": v.message,
-                "remediation": v.remediation,
-            }
+            {"rule": v.rule, "severity": v.severity, "category": v.category, **asdict(v)}
             for v in result.violations
         ],
     }
@@ -1154,15 +1151,7 @@ def format_json(result: LintResult) -> str:
 
 def parse_rules(rules_str: str) -> tuple[str, ...]:
     """Parse comma-separated rule names."""
-    if not rules_str:
-        return ALL_RULES
-    rules = tuple(r.strip() for r in rules_str.split(","))
-    invalid = [r for r in rules if r not in ALL_RULES]
-    if invalid:
-        print(f"error: unknown rules: {', '.join(invalid)}", file=sys.stderr)
-        print(f"valid rules: {', '.join(ALL_RULES)}", file=sys.stderr)
-        sys.exit(EXIT_ERROR)
-    return rules
+    return cast(tuple[str, ...], parse_scan_rules(rules_str, ALL_RULES, EXIT_ERROR))
 
 
 _HELP_EPILOG = """\
