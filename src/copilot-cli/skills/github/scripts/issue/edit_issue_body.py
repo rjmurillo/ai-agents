@@ -68,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to file containing new body text",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate the body and report the edit that would happen; edit nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -124,6 +129,20 @@ def main(argv: list[str] | None = None) -> int:
     else:
         stdin_body = None
         gh_args.extend(["--body", args.body])
+
+    if args.dry_run:
+        write_skill_output(
+            {
+                "issue": args.issue,
+                "status": "would_update",
+                "repo": f"{owner}/{repo}",
+                "dryRun": True,
+            },
+            output_format=fmt,
+            human_summary=f"Dry run: would update body of issue #{args.issue}; nothing changed",
+            script_name="edit_issue_body.py",
+        )
+        return 0
 
     try:
         result = subprocess.run(

@@ -113,12 +113,17 @@ def add_comment_reaction(
     repo: str,
     comment_id: int,
     reaction: str = "eyes",
+    *,
+    dry_run: bool = False,
 ) -> bool:
     """Add a reaction to a comment.
 
     Tries PR review comment endpoint first, falls back to issue comment endpoint.
-    Returns True on success.
+    Returns True on success. With ``dry_run`` it reports the reaction and posts nothing.
     """
+    if dry_run:
+        print(f"[dry-run] Would add {reaction} reaction to comment {comment_id}")
+        return True
     base_url = f"repos/{owner}/{repo}"
 
     # Try PR review comment endpoint first
@@ -173,8 +178,16 @@ def reply_to_comment(
     pr_number: int,
     comment_id: int,
     body: str,
+    *,
+    dry_run: bool = False,
 ) -> bool:
-    """Post a reply to a PR review comment. Returns True on success."""
+    """Post a reply to a PR review comment. Returns True on success.
+
+    With ``dry_run`` it reports the reply and posts nothing.
+    """
+    if dry_run:
+        print(f"[dry-run] Would reply to comment {comment_id} on PR #{pr_number}")
+        return True
     payload = json.dumps({"body": body})
     result = subprocess.run(
         [
@@ -213,8 +226,12 @@ def process_comments(
     repo: str,
     pr_number: int,
     findings: dict,
+    *,
+    dry_run: bool = False,
 ) -> dict[str, int]:
     """Process each comment based on its classification.
+
+    With ``dry_run`` the counts describe what would happen and no write call is made.
 
     Returns stats dict with: acknowledged, replied, resolved, skipped, errors.
     """
@@ -237,7 +254,7 @@ def process_comments(
         print(f"Processing comment {comment_id} [{classification}]")
 
         # Always acknowledge with eyes reaction
-        if add_comment_reaction(owner, repo, comment_id):
+        if add_comment_reaction(owner, repo, comment_id, dry_run=dry_run):
             stats["acknowledged"] += 1
         else:
             stats["errors"] += 1
@@ -261,7 +278,7 @@ def process_comments(
                 "we've decided not to implement this change:\n\n"
                 f"{resolution}"
             )
-            if reply_to_comment(owner, repo, pr_number, comment_id, body):
+            if reply_to_comment(owner, repo, pr_number, comment_id, body, dry_run=dry_run):
                 stats["replied"] += 1
             else:
                 stats["errors"] += 1
@@ -311,6 +328,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Classify every comment and report planned reactions and replies; post nothing",
+    )
     return parser
 
 
@@ -355,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolved.owner
     repo = resolved.repo
 
-    stats = process_comments(owner, repo, pr_number, findings)
+    stats = process_comments(owner, repo, pr_number, findings, dry_run=args.dry_run)
 
     print()
     print("=== Processing Summary ===")

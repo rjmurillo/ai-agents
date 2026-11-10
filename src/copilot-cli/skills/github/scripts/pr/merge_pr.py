@@ -133,6 +133,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--subject", default="", help="Custom commit subject")
     parser.add_argument("--body", default="", help="Custom commit body")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run every pre-merge check and report the merge that would be "
+            "attempted; make no merge call. Branch protection and stack "
+            "readiness are evaluated by GitHub at merge time, not here."
+        ),
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -1519,6 +1528,35 @@ def _emit_already_merged(ctx: _MergeContext) -> int:
     return 0
 
 
+def _emit_dry_run(ctx: _MergeContext) -> int:
+    """Report the planned merge after every pre-merge refusal has passed.
+
+    The audit record says no merge call was made, so it cannot be read as a
+    merge approval or a result (ADR-112).
+    """
+    write_skill_output(
+        {
+            "pull_request": ctx.pr,
+            "number": ctx.pr,
+            "action": "would_merge",
+            "dryRun": True,
+            "strategy": ctx.strategy,
+            "auto": ctx.auto,
+            "head_sha": ctx.head_sha,
+            "message": (
+                "Dry run: pre-merge checks passed. Branch protection and stack "
+                "readiness are evaluated by GitHub at merge time."
+            ),
+            "audit": _build_audit(ctx, "none", "dry run; no merge call"),
+        },
+        output_format=ctx.output_format,
+        human_summary=f"Dry run: PR #{ctx.pr} would be merged; nothing changed",
+        status="PASS",
+        script_name=_SCRIPT_NAME,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
@@ -1582,6 +1620,9 @@ def main(argv: list[str] | None = None) -> int:
     # exempt: it hands the merge decision to GitHub's own gate.
     if not args.auto:
         _reject_unknown_merge_state(pr_data, pr, output_format)
+
+    if args.dry_run:
+        return _emit_dry_run(ctx)
 
     approval = _APPROVAL
     try:

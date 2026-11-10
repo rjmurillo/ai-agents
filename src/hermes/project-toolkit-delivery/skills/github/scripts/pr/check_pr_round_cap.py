@@ -292,6 +292,22 @@ def _emit_error(
     raise SystemExit(code)
 
 
+def _env_number(name: str, default: float, cast: type[int] | type[float]) -> float:
+    """Read a numeric default from the environment; exit 2 with the expected form."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return cast(raw)
+    except ValueError:
+        print(
+            f"{_SCRIPT_NAME}: ${name}={raw!r} is not a {cast.__name__}. "
+            f"Expected a number such as {default}. Unset {name} or fix its value.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -312,13 +328,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-rounds",
         type=int,
-        default=int(os.environ.get("PR_AUTOFIX_MAX_ROUNDS", _DEFAULT_MAX_ROUNDS)),
+        default=_env_number("PR_AUTOFIX_MAX_ROUNDS", _DEFAULT_MAX_ROUNDS, int),
         help=(f"Round cap. Default: $PR_AUTOFIX_MAX_ROUNDS or {_DEFAULT_MAX_ROUNDS} if unset."),
     )
     parser.add_argument(
         "--max-hours",
         type=float,
-        default=float(os.environ.get("PR_AUTOFIX_MAX_ROUND_HOURS", _DEFAULT_MAX_HOURS)),
+        default=_env_number("PR_AUTOFIX_MAX_ROUND_HOURS", _DEFAULT_MAX_HOURS, float),
         help=(
             "Wall-clock budget in hours since the first recorded round. "
             f"Default: $PR_AUTOFIX_MAX_ROUND_HOURS or {_DEFAULT_MAX_HOURS} if unset."
@@ -340,6 +356,14 @@ def build_parser() -> argparse.ArgumentParser:
             "Path of the PR's worktree (issue #5447). The orphaned-commit scan "
             "compares the live PR head with this worktree's HEAD, and fetches a "
             "missing live head by SHA. Default: the current directory, with no fetch."
+        ),
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Evaluate the verdict from the recorded state and report it, but "
+            "record no round: post no state marker and no escalation note"
         ),
     )
     add_output_format_arg(parser)
@@ -549,16 +573,18 @@ def main(argv: list[str] | None = None) -> int:
             orphaned["status"],
         )
 
-    escalation_posted = _persist_verdict(
-        owner,
-        repo,
-        pr_number,
-        comments,
-        prior_state,
-        result,
-        args,
-        output_format,
-    )
+    escalation_posted = False
+    if not args.dry_run:
+        escalation_posted = _persist_verdict(
+            owner,
+            repo,
+            pr_number,
+            comments,
+            prior_state,
+            result,
+            args,
+            output_format,
+        )
 
     output = {
         "pull_request": pr_number,
@@ -578,6 +604,8 @@ def main(argv: list[str] | None = None) -> int:
         # key below `.Data` and cannot verify a nested path.
         "orphaned_warning": orphaned["warning"],
     }
+    if args.dry_run:
+        output["dryRun"] = True
 
     duration_ms = int((time.monotonic() - op_start) * 1000)
     logger.info(

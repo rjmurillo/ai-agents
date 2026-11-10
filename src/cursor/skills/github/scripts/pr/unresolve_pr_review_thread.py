@@ -143,14 +143,35 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument(
         "--pull-request",
         type=int,
-        help="PR number (unresolves all resolved threads when used with --all)",
+        help="PR number. Requires --all, which unresolves every resolved thread on the PR",
     )
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Unresolve all resolved threads on the PR",
+        help="Unresolve all resolved threads on the PR (required with --pull-request)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List the threads that would be unresolved; unresolve nothing",
     )
     return parser
+
+
+def _validate_scope_flags(args: argparse.Namespace) -> None:
+    """Require --all for the bulk mode and refuse it for a single thread."""
+    if args.pull_request is not None and not args.all:
+        error_and_exit(
+            "--pull-request unresolves every resolved thread on the PR and needs "
+            "--all. Expected: --pull-request N --all, or --thread-id PRRT_...",
+            2,
+        )
+    if args.thread_id and args.all:
+        error_and_exit(
+            "--all applies to --pull-request only. Expected: --thread-id PRRT_... "
+            "alone, or --pull-request N --all",
+            2,
+        )
 
 
 def _validate_thread_id(thread_id: str) -> None:
@@ -163,10 +184,24 @@ def _validate_thread_id(thread_id: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    _validate_scope_flags(args)
     assert_gh_authenticated()
 
     if args.thread_id:
         _validate_thread_id(args.thread_id)
+        if args.dry_run:
+            print(
+                json.dumps(
+                    {
+                        "Success": True,
+                        "ThreadId": args.thread_id,
+                        "Action": "would_unresolve",
+                        "DryRun": True,
+                    },
+                    indent=2,
+                )
+            )
+            return 0
         success = unresolve_review_thread(args.thread_id)
         result = {
             "Success": success,
@@ -184,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     if not resolved_threads:
-        print(f"No resolved threads on PR #{args.pull_request} to unresolve")
+        print(f"No resolved threads on PR #{args.pull_request} to unresolve", file=sys.stderr)
         result = {
             "TotalResolved": 0,
             "Unresolved": 0,
@@ -194,7 +229,25 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, indent=2))
         return 0
 
-    print(f"Found {len(resolved_threads)} resolved thread(s) on PR #{args.pull_request}")
+    print(
+        f"Found {len(resolved_threads)} resolved thread(s) on PR #{args.pull_request}",
+        file=sys.stderr,
+    )
+
+    if args.dry_run:
+        print(
+            json.dumps(
+                {
+                    "Success": True,
+                    "Action": "would_unresolve",
+                    "DryRun": True,
+                    "TotalResolved": len(resolved_threads),
+                    "ThreadIds": [t["id"] for t in resolved_threads],
+                },
+                indent=2,
+            )
+        )
+        return 0
 
     unresolved_count = 0
     failed_count = 0
@@ -210,15 +263,17 @@ def main(argv: list[str] | None = None) -> int:
             if first.get("databaseId"):
                 comment_id = first["databaseId"]
 
-        print(f"  Unresolving thread {thread['id']} (comment {comment_id} by @{author})...")
+        print(
+            f"  Unresolving thread {thread['id']} (comment {comment_id} by @{author})...",
+            file=sys.stderr,
+        )
 
         if unresolve_review_thread(thread["id"]):
             unresolved_count += 1
         else:
             failed_count += 1
 
-    print()
-    print(f"Summary: {unresolved_count} unresolved, {failed_count} failed")
+    print(f"Summary: {unresolved_count} unresolved, {failed_count} failed", file=sys.stderr)
 
     result = {
         "TotalResolved": len(resolved_threads),

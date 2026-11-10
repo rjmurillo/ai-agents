@@ -351,8 +351,32 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Custom commit body for squash/merge commits",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the PR and report whether auto-merge would change; change nothing",
+    )
     add_output_format_arg(parser)
     return parser
+
+
+def _report_dry_run(args: argparse.Namespace, pr_data: dict[str, Any]) -> int:
+    """Report the planned change from the PR's current auto-merge state; write nothing."""
+    currently_enabled = pr_data.get("autoMergeRequest") is not None
+    if args.disable:
+        action = "WouldDisable" if currently_enabled else "NoChange"
+    else:
+        action = "WouldEnable"
+    output = {
+        "Success": True,
+        "Action": action,
+        "DryRun": True,
+        "PullRequest": args.pull_request,
+        "AutoMergeEnabled": currently_enabled,
+    }
+    human = [f"Dry run: {action} for PR #{args.pull_request}; nothing changed"]
+    _emit_result(output, human, args.output_format)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -364,6 +388,9 @@ def main(argv: list[str] | None = None) -> int:
     repo = resolved.repo
 
     pr_id, pr_data = get_pr_node_id(owner, repo, args.pull_request)
+
+    if args.dry_run:
+        return _report_dry_run(args, pr_data)
 
     if args.disable:
         return disable_auto_merge(

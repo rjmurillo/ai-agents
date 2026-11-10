@@ -129,6 +129,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"Wait bound in seconds, with --wait (default {_DEFAULT_WAIT_SECONDS}).",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run every read check and report whether an update would be requested; request none",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -525,6 +530,19 @@ def main(argv: list[str] | None = None) -> int:
     behind, precheck = _behind_by(ctx, snap)
     if behind == 0:
         return _up_to_date_result(ctx, snap, behind, "Head already contains the base")
+
+    if args.dry_run:
+        data = {
+            "action": "would_update",
+            "dry_run": True,
+            "already_up_to_date": False,
+            "old_head_sha": snap.head_sha,
+            "new_head_sha": None,
+            "behind_by": behind,
+            "precheck": precheck,
+            "message": "Dry run: update not requested",
+        }
+        return _emit_result(ctx, data, f"Dry run: PR #{ctx.pr} would be updated; nothing changed")
 
     up_to_date, message = _request_update(ctx)
     if up_to_date:

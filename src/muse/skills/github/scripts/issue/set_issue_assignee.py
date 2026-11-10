@@ -58,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help='GitHub usernames to assign. Use "@me" for current user.',
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report the assignees that would be added; change nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -73,6 +78,21 @@ def main(argv: list[str] | None = None) -> int:
     assignees: list[str] = args.assignees
     if not assignees:
         print("No assignees to add.", file=sys.stderr)
+        return 0
+
+    if args.dry_run:
+        write_skill_output(
+            {
+                "issue": args.issue,
+                "action": "would_assign",
+                "wouldAssign": list(assignees),
+                "dryRun": True,
+            },
+            output_format=fmt,
+            human_summary=f"Dry run: would assign {len(assignees)} user(s) to issue #{args.issue}",
+            status="PASS",
+            script_name="set_issue_assignee.py",
+        )
         return 0
 
     applied: list[str] = []

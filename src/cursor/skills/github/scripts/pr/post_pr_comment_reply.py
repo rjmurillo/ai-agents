@@ -67,6 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
     body_group = parser.add_mutually_exclusive_group(required=True)
     body_group.add_argument("--body", help="Reply text (inline)")
     body_group.add_argument("--body-file", help="Path to file containing reply")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate the reply and report the target endpoint; post nothing",
+    )
     return parser
 
 
@@ -116,6 +121,23 @@ def main(argv: list[str] | None = None) -> int:
         endpoint = f"repos/{owner}/{repo}/pulls/{pr}/comments/{args.comment_id}/replies"
     else:
         endpoint = f"repos/{owner}/{repo}/issues/{pr}/comments"
+
+    if args.dry_run:
+        print(
+            json.dumps(
+                {
+                    "success": True,
+                    "action": "would_post",
+                    "dryRun": True,
+                    "pull_request": pr,
+                    "in_reply_to": args.comment_id or None,
+                    "endpoint": endpoint,
+                    "body_chars": len(body),
+                },
+                indent=2,
+            )
+        )
+        return 0
 
     result = subprocess.run(
         ["gh", "api", endpoint, "-X", "POST", "-f", f"body={body}"],

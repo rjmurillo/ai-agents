@@ -289,6 +289,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Required when --skip-validation is used. Logged for audit trail.",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run every check a real run runs, then report the PR that would be "
+            "created. Writes no audit log and creates no PR."
+        ),
+    )
     return parser
 
 
@@ -431,8 +439,11 @@ def _run_pre_creation_validations(
                 file=sys.stderr,
             )
             return 2
-        print("WARNING: VALIDATION SKIPPED (audit logged)", file=sys.stderr)
-        write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
+        if args.dry_run:
+            print("WARNING: VALIDATION WOULD BE SKIPPED (dry run, no audit log)", file=sys.stderr)
+        else:
+            print("WARNING: VALIDATION SKIPPED (audit logged)", file=sys.stderr)
+            write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
         print()
         return None
 
@@ -544,6 +555,11 @@ def main(argv: list[str] | None = None) -> int:
     validation_exit = _run_pre_creation_validations(args, repo_root, head, body, preflight_warnings)
     if validation_exit is not None:
         return validation_exit
+
+    if args.dry_run:
+        draft = " (draft)" if args.draft else ""
+        print(f"Dry run: would create PR {head} -> {args.base}{draft}; nothing changed")
+        return 0
 
     return _create_pr(args, head, body)
 
