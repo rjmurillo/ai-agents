@@ -582,24 +582,22 @@ def get_step_guidance(step_number: int, plan_file: str, thoughts: str) -> dict:
         }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --plan-file plan.md --step-number 1 --total-steps 7 --thoughts "Starting milestone 1"
+  %(prog)s --plan-file plan.md --step-number 2 --total-steps 7 --thoughts "Milestone 1 verified"
+
+exit codes:
+  0  step guidance printed
+  1  step number outside 1 to 7
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plan Executor - Execute approved plans through delegation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Start execution
-  python3 executor.py --plan-file plans/auth.md --step-number 1 --total-steps 7 \\
-    --thoughts "Execute the auth implementation plan"
-
-  # Continue milestone execution
-  python3 executor.py --plan-file plans/auth.md --step-number 3 --total-steps 7 \\
-    --thoughts "Completed M1, M2. Executing M3..."
-
-  # After QR finds issues
-  python3 executor.py --plan-file plans/auth.md --step-number 5 --total-steps 7 \\
-    --thoughts "QR found 2 issues: missing error handling, incorrect return type"
-""",
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

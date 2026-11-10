@@ -109,8 +109,27 @@ def cmd_run(repo: Path, instrument_id: str, extra: list[str]) -> int:
         return 3
 
 
+_HELP_EPILOG = """\
+run passes a started child process exit code through unchanged.
+
+examples:
+  %(prog)s --repo . list
+  %(prog)s --repo . run hook-counts
+
+exit codes:
+  0  ok
+  1  a listed instrument file is missing
+  2  bad arguments or unknown id
+  3  the run target failed to start
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list", help="list instruments and whether each exists")

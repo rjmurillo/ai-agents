@@ -211,9 +211,24 @@ def _assign_milestone(owner: str, repo: str, number: int, milestone_title: str) 
         )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --item-type pr --item-number 123
+  %(prog)s --item-type issue --item-number 45 --milestone-title "v1.2.0" --dry-run
+
+exit codes:
+  0  success (assigned or skipped)
+  2  config error (no milestone found, detection failed)
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Assign a milestone to a PR or issue if none exists.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--item-type",

@@ -191,8 +191,22 @@ def render_text(proposals: list[Proposal]) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --root .serena/memories --json
+
+exit codes:
+  0  report printed; always 0 because the sweep proposes and never gates
+"""
+
+
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Supersession sweep for memories.")
+    parser = argparse.ArgumentParser(
+        description="Supersession sweep for memories.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--root",
         default=".serena/memories",

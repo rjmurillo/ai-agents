@@ -162,8 +162,24 @@ def _load_scenario(path: str) -> dict[str, Any]:
     return scenario
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s scenario.json
+  %(prog)s -
+
+exit codes:
+  0  compliant scenario
+  1  a required event is missing or prohibited content is present
+  2  malformed scenario or bad arguments
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "scenario",
         nargs="?",

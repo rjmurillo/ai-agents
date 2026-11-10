@@ -44,10 +44,24 @@ from github_core.api import (
 )
 from github_core.validation import resolved_body_error
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123 --body "Thanks, fixed in abc1234"
+  %(prog)s --pull-request 123 --comment-id 456789 --body-file reply.md
+
+exit codes:
+  0  success
+  2  config/usage error
+  3  external error (API failure)
+  4  auth error
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Post a reply to a PR review comment or top-level comment.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

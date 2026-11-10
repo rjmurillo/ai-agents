@@ -737,12 +737,26 @@ def enforce_security_review(
     return 0 if satisfied else 1
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --files src/db.py infra/main.tf
+  %(prog)s --use-git-staged --json
+
+exit codes:
+  0  detection completed (advisory runs always exit 0)
+  1  --require-security-review and a CRITICAL finding has no valid marker
+  3  --require-security-review and git could not answer
+"""
+
+
 def main() -> int:
     """Entry point."""
     import argparse
 
     parser = argparse.ArgumentParser(
         description="Detect infrastructure and security-critical file changes",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     file_source = parser.add_mutually_exclusive_group()
     file_source.add_argument(

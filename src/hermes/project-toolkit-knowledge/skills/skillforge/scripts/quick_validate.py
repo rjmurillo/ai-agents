@@ -254,6 +254,9 @@ def main():
         print("Usage: python quick_validate.py <skill_directory> [--root DIR]")
         print("\nValidate a skill's frontmatter. The skill directory must be under the")
         print("current directory, or under DIR when --root DIR is given.")
+        print("\nExamples:")
+        print("  python quick_validate.py skills/my-skill")
+        print("  python quick_validate.py /other/repo/skills/my-skill --root /other/repo")
         print("\nExit codes: 0 valid, 1 invalid or bad path.")
         sys.exit(0)
 
