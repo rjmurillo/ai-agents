@@ -93,9 +93,9 @@ surfaces:
     relation: generated
     authority: templates/rules
     generator: build/scripts/rule_templates.py
-    include: ["adr-records.md", "governance.md", "push-lock.md", "secret-redaction.md", "session-logs.md", "tool-use-hook-bar.md"]
+    include: ["adr-records.md", "canonical-source-mirror.md", "ci-scripts.md", "claude-agents.md", "generated-artifacts.md", "governance.md", "knowledge-persistence.md", "plugin-self-containment.md", "plugin-version-bump.md", "push-lock.md", "secret-redaction.md", "session-logs.md", "templates.md", "tool-use-hook-bar.md"]
     owner: build_all.py --check
-    reason: Repo-only rules (scope internal end to end) render here as real files and ship in no plugin tree (ADR-119 decision 13).
+    reason: Repo-only rules (scope internal end to end, or every glob in this repo build and CI layout) render here as real files and ship in no plugin tree (ADR-119 decision 13).
   - id: instructions-copilot-cli
     path: src/copilot-cli/instructions
     relation: translated
@@ -122,7 +122,7 @@ surfaces:
     relation: translated
     authority: .claude/rules
     generator: build/scripts/generate_rules.py
-    include: ["adr-records.instructions.md", "governance.instructions.md", "push-lock.instructions.md", "secret-redaction.instructions.md", "session-logs.instructions.md", "tool-use-hook-bar.instructions.md"]
+    include: ["adr-records.instructions.md", "canonical-source-mirror.instructions.md", "ci-scripts.instructions.md", "claude-agents.instructions.md", "generated-artifacts.instructions.md", "governance.instructions.md", "knowledge-persistence.instructions.md", "plugin-self-containment.instructions.md", "plugin-version-bump.instructions.md", "push-lock.instructions.md", "secret-redaction.instructions.md", "session-logs.instructions.md", "templates.instructions.md", "tool-use-hook-bar.instructions.md"]
     owner: build_all.py --check
     reason: Repo-only rules (scope internal end to end) render here as real files; paths becomes applyTo.
 
