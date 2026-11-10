@@ -131,6 +131,8 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".github",
         ".gitignore",
         ".grok-plugin",
+        ".jscpd-baseline.json",
+        ".jscpd.json",
         ".markdownlint-cli2.yaml",
         ".mcp.json",
         ".project-toolkit",

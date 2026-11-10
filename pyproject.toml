@@ -19,6 +19,8 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "coverage>=7.10.6",
+    "deptry==0.25.1",
     "bandit[sarif]>=1.9.4",
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
@@ -804,6 +806,8 @@ forbidden_modules = ["tests"]
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "coverage>=7.10.6",
+    "deptry==0.25.1",
     "bandit[sarif]>=1.9.4",
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",

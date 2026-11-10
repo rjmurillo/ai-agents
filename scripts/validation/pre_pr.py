@@ -70,6 +70,8 @@ from checks_ci_parity import (
     validate_adr_uniqueness,
     validate_agent_registry,
     validate_agent_skill_discriminator,
+    validate_dependency_drift,
+    validate_duplicate_code,
     validate_hook_contracts,
     validate_import_boundaries,
     validate_passive_context_budget,
@@ -80,6 +82,7 @@ from checks_ci_parity import (
     validate_sha_pinning,
     validate_skillbook,
     validate_tracked_conflict_markers,
+    validate_unused_dependencies,
 )
 from checks_common import (
     MissingScriptSkip,

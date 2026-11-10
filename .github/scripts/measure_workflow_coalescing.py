@@ -55,6 +55,9 @@ WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / "workflows"
 # "pr-validation" never equals the run name "PR Validation".
 # find_unmatched_workflows rejects any entry that is not exactly one workflow.
 DEFAULT_WORKFLOWS: list[str] = [
+    "Duplicate Code Detection",
+    "Dependency Hygiene",
+    "Workflow Failure Alert",
     "Spec-to-Implementation Validation",
     "PR Validation",
     "Label PR",

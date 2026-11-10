@@ -57,6 +57,24 @@ It covers steps 4, 6, and 7 below. Step 5 (Git configuration) stays manual.
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 
+### Duplication and dependency checks
+
+Install the locked copy/paste detector with `npm ci --ignore-scripts`.
+Python development dependencies include the locked `deptry` scanner.
+Pre-PR validation runs these checks, as do their dedicated CI workflows:
+
+```bash
+uv run --frozen python scripts/validation/check_duplicate_code.py --base-ref origin/main
+uv run --frozen --extra dev --extra eval python scripts/validation/check_unused_dependencies.py
+uv run --frozen --extra dev python scripts/validation/check_dependency_drift.py
+```
+
+The [duplication guide](docs/duplicate-code-detection.md) explains the shrink-only baseline.
+Dependency exemptions require named packages, reasons, and evidence in
+`.github/dependency-hygiene/policy.toml`.
+Keep intentional library compatibility floors separate from development-tool versions.
+Unused exemptions fail validation.
+
 ### Dogfood the shipped Copilot base
 
 Copilot CLI runs plugin hooks from an installed plugin directory, not from your
