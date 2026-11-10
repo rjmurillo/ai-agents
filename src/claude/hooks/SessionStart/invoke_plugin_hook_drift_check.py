@@ -50,6 +50,7 @@ References:
 from __future__ import annotations
 
 import io
+import json
 import os
 import sys
 from collections import deque
@@ -132,6 +133,14 @@ HOOK_NAME = "plugin-hook-drift-check"
 # time budget before any bound applied.
 MAX_ENTRIES_PER_DIR = 2000
 
+# Claude Code's record of active installs, beside the plugin cache. Shape
+# (schema version 2): {"version": 2, "plugins": {"<name>@<marketplace>":
+# [{"scope": ..., "installPath": ..., "version": ...}, ...]}}. Superseded cache
+# copies stay on disk after an update but leave this file (Issue #7227).
+INSTALLED_PLUGINS_FILE = "installed_plugins.json"
+SUPPORTED_RECORD_VERSIONS = frozenset({2})
+MAX_RECORD_BYTES = 4 * 1024 * 1024
+
 
 @dataclass(frozen=True, slots=True)
 class PluginSurface:
@@ -141,6 +150,9 @@ class PluginSurface:
     source_rel: Path
     search_roots: tuple[Path, ...]
     schema: str = CLAUDE_SCHEMA
+    # The harness's own record of active installs. None means the harness keeps
+    # no such record, so every copy found on disk is evaluated (Copilot CLI).
+    active_record: Path | None = None
 
 
 def copilot_home(home: Path) -> Path:
@@ -172,6 +184,7 @@ def plugin_surfaces(home: Path) -> tuple[PluginSurface, ...]:
             label="Claude Code",
             source_rel=Path(".claude"),
             search_roots=(home / ".claude" / "plugins",),
+            active_record=home / ".claude" / "plugins" / INSTALLED_PLUGINS_FILE,
         ),
         PluginSurface(
             label="Copilot CLI",
@@ -248,6 +261,62 @@ def find_installed_roots(
                 continue
             queue.append((child, depth + 1))
     return found
+
+
+def read_active_installs(
+    record: Path, plugin_name: str, search_root: Path
+) -> tuple[list[Path] | None, str | None]:
+    """Active install roots of ``plugin_name`` per the harness's own record.
+
+    Returns ``(paths, None)`` when the record is readable and its schema is
+    known; ``paths`` is empty when the plugin is not installed. Returns
+    ``(None, note)`` when the record is missing, unreadable, or of an unknown
+    schema, so the caller can fall back to scanning every copy on disk.
+
+    ``installPath`` is untrusted path text. Only a real directory that resolves
+    under ``search_root`` is kept, which is the same tree the fallback walk is
+    confined to. The note never echoes record content.
+    """
+    try:
+        if record.stat().st_size > MAX_RECORD_BYTES:
+            return None, f"{INSTALLED_PLUGINS_FILE} is too large to read"
+        data = json.loads(record.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, f"{INSTALLED_PLUGINS_FILE} not found"
+    except (OSError, ValueError):
+        return None, f"{INSTALLED_PLUGINS_FILE} unreadable"
+    plugins = data.get("plugins") if isinstance(data, dict) else None
+    if (
+        not isinstance(data, dict)
+        or data.get("version") not in SUPPORTED_RECORD_VERSIONS
+        or not isinstance(plugins, dict)
+    ):
+        return None, f"{INSTALLED_PLUGINS_FILE} has an unknown schema"
+    try:
+        resolved_root = search_root.resolve()
+    except OSError:
+        return None, f"{INSTALLED_PLUGINS_FILE} cannot be matched to the plugin cache"
+    active: list[Path] = []
+    for key, entries in plugins.items():
+        if not isinstance(key, str) or key.split("@", 1)[0] != plugin_name:
+            continue
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            raw = entry.get("installPath") if isinstance(entry, dict) else None
+            if not isinstance(raw, str) or not raw:
+                continue
+            candidate = Path(raw)
+            try:
+                if candidate.is_symlink() or not candidate.is_dir():
+                    continue
+                if not candidate.resolve().is_relative_to(resolved_root):
+                    continue
+            except OSError:
+                continue
+            if candidate not in active:
+                active.append(candidate)
+    return active, None
 
 
 def _describe(triples: set[tuple[str, str, str]]) -> tuple[str, ...]:
@@ -382,6 +451,21 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
             outcome.incomplete.append(f"{surface.label}: not searched (source hooks unreadable)")
             continue
         for search_root in surface.search_roots:
+            active: list[Path] | None = None
+            if surface.active_record is not None and search_root.is_dir():
+                active, fallback_note = read_active_installs(
+                    surface.active_record, plugin_name, search_root
+                )
+                if active is None:
+                    outcome.notes.append(
+                        f"{surface.label}: {fallback_note}; checking every cached copy"
+                    )
+            if active is not None:
+                for install_path in active:
+                    outcome.reports.append(
+                        compare_install(surface.label, install_path, source, surface.schema)
+                    )
+                continue
             budget = ScanBudget()
             for install_path in find_installed_roots(search_root, plugin_name, budget):
                 outcome.reports.append(
