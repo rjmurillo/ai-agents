@@ -43,6 +43,7 @@ def test_script_starts_with_pyyaml_blocked(tree: str) -> None:
         [sys.executable, "-c", _BLOCK_YAML_THEN_RUN, script],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         errors="replace",
         check=False,
     )

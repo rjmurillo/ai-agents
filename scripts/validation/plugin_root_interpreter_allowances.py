@@ -97,9 +97,10 @@ SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
     "templates/skills/agent-harness-reference.SKILL.md.tmpl": (2, _HARNESS_FACT),
     "skills/agent-harness-reference/references/probe-evidence.md": (1, _HARNESS_FACT),
     "skills/github/scripts/pr/run_completion_gate.py": (
-        1,
-        "Expansion table that still recognizes the legacy single-root form in installed "
-        "configs. It reads the form; it never emits it.",
+        2,
+        "A table that still recognizes the legacy single-root form in installed configs, "
+        "and a comment on the root-trust check. Both stay put: any edit to this file "
+        "changes the gate's frozen dispatch closure, which CI compares with the base.",
     ),
 }
 
