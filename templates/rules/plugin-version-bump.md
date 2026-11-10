@@ -3,7 +3,6 @@ paths:
   - ".claude/**"
   - "src/copilot-cli/**"
   - "src/claude/**"
-  - "**/.claude-plugin/plugin.json"
 priority: high
 ---
 

@@ -31,7 +31,7 @@ This rule binds those claims to evidence. It exists because PR #1887 (the M4 evi
 
 ## What this rule binds
 
-This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.project-toolkit/retrospective/` whose contract is derived from another source in the repository. The Copilot-side mirror is one file: `.github/instructions/canonical-source-mirror.instructions.md` links to its `src/copilot-cli/` twin (ADR-119), which ships inside the plugin and narrows to the paths that travel with it (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
+This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.project-toolkit/retrospective/` whose contract is derived from another source in the repository. Every path in its scope names this repository's own tree, so the rule is repo-only (ADR-119 decision 13, issue #7225): it renders to `.claude/rules/` and `.github/instructions/` here and ships to no plugin or Cursor tree. Examples:
 
 - A pre-push hook that "mirrors" a CI validator's regex.
 - A skill helper that "matches" the exit codes of a validator script.

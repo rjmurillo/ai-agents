@@ -3,7 +3,8 @@
 
 A rule whose ``paths:`` scope is internal end to end names only this
 repository's own trees (``.agents/``, ``.claude/``, ``.project-toolkit/``,
-``.serena/``). A consumer may have ``.claude/`` too, but such a rule cites this
+``.serena/``) or its build and CI layout (``PIPELINE_LAYOUT_PREFIXES``, issue
+#7225). A consumer may have ``.claude/`` too, but such a rule cites this
 repository's internals, so it is repo-only (the issue #4317 precedent): it ships in no
 plugin tree, renders straight to ``.claude/rules/<name>.md``, and reaches
 ``.github/instructions/`` as a real file. Every other rule ships, and the
@@ -26,6 +27,32 @@ from typing import Protocol
 from yaml_text_cache import load_yaml_text
 
 INTERNAL_PATH_PREFIXES = (".agents/", ".project-toolkit/", ".claude/", ".serena/")
+
+# This repository's own build and CI layout. A consumer can have a ``tests/`` or
+# ``scripts/`` tree, so these prefixes are never enough to drop a single glob from
+# a shipped rule. ``is_repo_only`` uses them only when EVERY glob of a rule names
+# this layout, so one consumer-shaped glob (``**/tests/**``, ``.github/**``,
+# ``docs/**``) keeps the whole rule shipping. ``generate_rules`` filters globs
+# with ``INTERNAL_PATH_PREFIXES`` alone. A rule that flips here is a reviewed
+# edit: ``tests/build_scripts/test_rule_distribution.py`` pins the set (issue #7225).
+PIPELINE_LAYOUT_PREFIXES = (
+    "build/",
+    "templates/",
+    "scripts/",
+    "tests/",
+    "src/claude/",
+    "src/copilot-cli/",
+    "src/cursor/",
+    ".github/workflows/",
+    ".github/actions/",
+    ".github/scripts/",
+    ".github/agents/",
+    ".github/prompts/",
+    ".github/skills/",
+    ".github/instructions/",
+)
+
+_REPO_ONLY_PREFIXES = INTERNAL_PATH_PREFIXES + PIPELINE_LAYOUT_PREFIXES
 
 
 class _Outcome(Protocol):
@@ -56,9 +83,13 @@ def scope_globs(text: str) -> list[str]:
 
 
 def is_repo_only(text: str) -> bool:
-    """Whether every declared scope glob is internal. An unscoped rule ships."""
+    """Whether every declared scope glob names this repository's own layout.
+
+    Internal trees (``INTERNAL_PATH_PREFIXES``) and the build and CI layout
+    (``PIPELINE_LAYOUT_PREFIXES``) both count. An unscoped rule ships.
+    """
     globs = scope_globs(text)
-    return bool(globs) and all(glob.startswith(INTERNAL_PATH_PREFIXES) for glob in globs)
+    return bool(globs) and all(glob.startswith(_REPO_ONLY_PREFIXES) for glob in globs)
 
 
 def repo_only_rule_names(repo_root: Path) -> frozenset[str]:
