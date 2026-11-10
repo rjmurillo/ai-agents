@@ -383,13 +383,28 @@ def analyze_content(content: str, detailed: bool = False) -> AnalysisResult:
     return result
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s -p skills/review/SKILL.md
+  %(prog)s -c "Always run the linter before commit" -d
+
+exit codes:
+  0  analysis complete
+  1  invalid input or analysis failure
+"""
+
+
 def main() -> int:
     """Main entry point.
 
     Returns:
         Exit code (0 success, 1 error)
     """
-    parser = argparse.ArgumentParser(description="Analyze skill content for optimal placement")
+    parser = argparse.ArgumentParser(
+        description="Analyze skill content for optimal placement",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "-p",

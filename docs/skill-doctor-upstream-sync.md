@@ -62,16 +62,18 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 22. Existing-skill updates with authorization, frozen cases, and old-versus-updated comparisons.
 23. Harness-root defaults, with other skill directories supplied through `--skills-dir`.
 24. Resolved Claude-home overrides and rejection of non-object JSONL records.
-25. Same-name definition exclusion, with identical-content copies deduplicated.
+25. Same-name definitions kept in usage detection, with the first-seen copy as the edit target (issue 7185).
 26. Partial-collection counters, including bootstrap provenance and source failure isolation.
 27. Deferred Pi/Grok skill matching until project discovery finishes.
 28. Bounded browser launch and a fixed upstream HTTPS report destination.
 29. Loaded-skill startup paths independent of plugin variables or the working directory.
 30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
-31. Repository scope from Git metadata: the main checkout plus registered linked worktrees, in `repository_scope.py`.
-32. A `scope_resolution` inventory block and summary that list included roots, rejected roots, and reasons.
-33. Removed worktrees are rejected with a reason, fence off their subtree, and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
-34. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
+31. Content fingerprints with path aliases per definition, `skill_variants`, and unresolved historical attribution (issue 7185).
+32. Namespace-qualified invocations such as `project-toolkit:skill-doctor` counted as usage of the installed name, with `skill_attribution` evidence (issue 7190).
+33. Repository scope from Git metadata: the main checkout plus registered linked worktrees, in `repository_scope.py`.
+34. A `scope_resolution` inventory block and summary that list included roots, rejected roots, and reasons.
+35. Removed worktrees are rejected with a reason, fence off their subtree, and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
+36. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

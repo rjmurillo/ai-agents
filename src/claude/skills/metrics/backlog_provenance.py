@@ -182,9 +182,24 @@ def _absorb_record(
     return True
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --days 30 --output-format json
+
+exit codes:
+  0  report produced from a complete read
+  2  invalid --days, --until, or repository
+  3  GitHub API failure, malformed page, or rate limit
+  4  gh missing or not authenticated
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Report the provenance split of new GitHub issues (read-only).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

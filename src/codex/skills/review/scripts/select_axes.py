@@ -849,8 +849,23 @@ def _default_references_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "references"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --changed-path src/app.py
+  %(prog)s --changed-path src/app.py --changed-path docs/guide.md --deep
+
+exit codes:
+  0  selection emitted on stdout as JSON
+  2  unknown pinned axis name, or the references directory could not be resolved
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--changed-path",
         action="append",

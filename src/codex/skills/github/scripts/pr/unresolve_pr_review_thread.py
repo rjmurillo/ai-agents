@@ -131,9 +131,25 @@ def get_resolved_threads(pr_number: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --thread-id PRRT_kwDOExample
+  %(prog)s --pull-request 123 --all
+
+exit codes:
+  0  success
+  1  operation failed (unresolve returned error)
+  2  config/usage error (invalid parameters)
+  3  API error
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Unresolve PR review threads via GitHub GraphQL API.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(

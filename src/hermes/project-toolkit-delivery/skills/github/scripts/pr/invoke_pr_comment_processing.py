@@ -289,9 +289,22 @@ def process_comments(
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pr-number 123 --verdict PASS --findings-json '{"comments": []}'
+
+exit codes:
+  0  success
+  2  parse error (JSON)
+  3  external error (API/processing errors)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Process PR comments based on AI triage output.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--pr-number",

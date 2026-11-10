@@ -98,9 +98,25 @@ class _Context:
     output_format: str
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --expected-head-sha 0123456789abcdef0123456789abcdef01234567 --wait
+
+exit codes:
+  0  success (update requested, completed, or already up to date)
+  1  invalid parameters / logic error (PR not open, head moved)
+  2  not found
+  3  external error (API failure, wait timeout)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Update a pull request's head branch with its base (server side).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

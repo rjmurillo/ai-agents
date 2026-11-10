@@ -50,10 +50,25 @@ from github_core.validation import (
     read_body_file_text,
 )
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123 --body "Updated description"
+  %(prog)s --issue 123 --body-file new-body.md
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  config/environment error
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Edit a GitHub Issue body. Replaces the entire body."
+        description="Edit a GitHub Issue body. Replaces the entire body.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

@@ -419,9 +419,22 @@ def get_recommended_route(parsed: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --url https://github.com/octo-org/octo-repo/pull/123
+  %(prog)s --url https://github.com/octo-org/octo-repo/issues/45
+
+exit codes:
+  0  URL routed
+  1  invalid URL format
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Parse a GitHub URL and return routing recommendation.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--url",

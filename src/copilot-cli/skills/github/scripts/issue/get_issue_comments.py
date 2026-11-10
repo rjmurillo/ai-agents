@@ -68,9 +68,25 @@ _RETRYABLE_COMMENT_FETCH_ERROR = re.compile(
 )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123
+  %(prog)s --issue 123 --limit 20 --output-format json
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  file not found / config error
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Fetch the comment thread of a GitHub Issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
