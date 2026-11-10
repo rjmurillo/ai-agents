@@ -1,6 +1,6 @@
 # Strategic Principles and Legacy Modernization Patterns
 
-Loaded by the Copilot CLI and VS Code `architect` bodies when an ADR or review touches one of these patterns. The Claude body carries neither section and does not load this file.
+Loaded by the Copilot CLI `architect` body when an ADR or review touches one of these patterns. The VS Code body carries the same sections but has no skill tree, so it uses its inline summaries. The Claude body carries neither section and does not load this file.
 
 ## Strategic Architecture Principles
 
