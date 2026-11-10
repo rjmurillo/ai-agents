@@ -194,7 +194,7 @@ max-complexity = 15
 "scripts/eval/eval-knowledge-integration.py" = ["E501"]
 # Deliberately vulnerable detection benchmarks. Their `# noqa: S...` comments
 # document which bandit-family finding each sample is meant to trigger for the
-# external scanners that grade them. Only the high-severity S codes are in this
+# external scanners that grade them. Only a subset of S codes is in this
 # project's ruff select list, so RUF100 reads every `noqa` for another S code as
 # dead. Removing them would strip the benchmark's own answer key.
 #

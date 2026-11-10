@@ -1149,8 +1149,9 @@ jobs:
       # Issue #6028: a pip-audit finding in a transitive pin skipped the scan on
       # every pull request. The scan covers this repo's code, so it runs anyway.
       # Bandit was replaced by ruff's equivalent rules: the --select list below
-      # is every bandit test that can report HIGH severity (the bar the old gate
-      # used). tests/ci/test_python_security_job.py fails when this list drifts
+      # covers every bandit test that can report HIGH severity (the bar the old gate
+      # used), plus S301 and S313 (see pyproject.toml).
+      # tests/ci/test_python_security_job.py fails when this list drifts
       # from [tool.ruff.lint] select in pyproject.toml.
       - name: Run ruff security rules
         if: ${{ !cancelled() }}

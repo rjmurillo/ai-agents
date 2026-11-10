@@ -219,7 +219,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pip-audit>=2.6.0",  # Security scanning
-    "bandit>=1.7.0",     # Static analysis
+    "ruff>=0.15.16",     # Lint, including the security (S) rules
 ]
 ```
 
@@ -370,10 +370,9 @@ These checks run automatically in `.github/workflows/pytest.yml`:
 
 | Tool | Purpose | Command |
 |------|---------|---------|
-| bandit | Static security analysis | `bandit -r scripts/ .claude/` |
+| ruff | Security rules that block CI (the `S` codes in `[tool.ruff.lint] select`) | `ruff check --select <those codes> .claude/ scripts/` |
 | pip-audit | Dependency vulnerabilities | `pip-audit` |
 | mypy | Type checking | `mypy scripts/` |
-| ruff | Security linting rules | `ruff check --select S` |
 
 ---
 
@@ -393,14 +392,16 @@ ruff check --select S staged_files.py
 
 ## Quick Reference
 
+Only the codes listed in `[tool.ruff.lint] select` in `pyproject.toml` block CI.
+
 | Vulnerability | Check | Tool |
 |--------------|-------|------|
-| Path traversal (CWE-22) | Use validate_safe_path() | bandit B108 |
-| Command injection (CWE-78) | No shell=True | bandit B602 |
-| Hardcoded secrets (CWE-798) | No literals | bandit B105 |
-| SQL injection (CWE-89) | Parameterized queries | bandit B608 |
-| Unsafe deserialization (CWE-502) | Use JSON, not unsafe formats | bandit B301 |
-| Weak crypto (CWE-327) | No MD5/SHA1 for security | bandit B303 |
+| Path traversal (CWE-22) | Use validate_safe_path() | ruff S108 |
+| Command injection (CWE-78) | No shell=True | ruff S602 |
+| Hardcoded secrets (CWE-798) | No literals | ruff S105 |
+| SQL injection (CWE-89) | Parameterized queries | ruff S608 |
+| Unsafe deserialization (CWE-502) | Use JSON, not unsafe formats | ruff S301 |
+| Weak crypto (CWE-327) | No MD5/SHA1 for security | ruff S324 |
 
 ---
 

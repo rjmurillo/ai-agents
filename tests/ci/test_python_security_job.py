@@ -90,6 +90,39 @@ def test_every_pyproject_security_code_is_scanned_by_the_step() -> None:
     assert in_pyproject == _step_select_codes()
 
 
+def test_pyproject_select_names_security_codes_one_by_one() -> None:
+    """A prefix such as "S" or "S6" would bypass the exact-code drift checks above."""
+    prefixes = {c for c in _pyproject_select_codes() if re.fullmatch(r"S\d{0,2}|PLE\d{0,3}", c)}
+
+    assert not prefixes, f"prefix selectors in pyproject select: {sorted(prefixes)}"
+
+
+# Each waiver is reviewed: the CodeQL installer must chmod its skill script
+# 0o755, and tests were outside the retired bandit gate. The inline-suppression
+# push gate does not read pyproject, so this test is what reviews a new waiver.
+_ALLOWED_SECURITY_WAIVERS = {
+    ".codeql/scripts/install_codeql_integration.py": {"S103"},
+    "tests/**/*.py": {"S324", "S605"},
+    "**/tests/**/*.py": {"S324", "S605"},
+}
+
+
+def test_security_codes_are_waived_only_where_reviewed() -> None:
+    """A per-file-ignores entry silences the CI security step, so new ones must be listed."""
+    document = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    ignores = document["tool"]["ruff"]["lint"]["per-file-ignores"]
+    waived = {
+        glob: {c for c in codes if c.startswith(("S", "PLE"))} for glob, codes in ignores.items()
+    }
+    unreviewed = {
+        glob: sorted(codes - _ALLOWED_SECURITY_WAIVERS.get(glob, set()))
+        for glob, codes in waived.items()
+        if codes - _ALLOWED_SECURITY_WAIVERS.get(glob, set())
+    }
+
+    assert not unreviewed, f"unreviewed security waivers in per-file-ignores: {unreviewed}"
+
+
 def test_pip_audit_still_fails_the_job() -> None:
     """Negative: running Bandit anyway must not soften the audit itself."""
     _, audit = _step("Run pip-audit")
