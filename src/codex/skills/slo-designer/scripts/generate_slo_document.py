@@ -424,10 +424,12 @@ alerts:
 
 
 _HELP_EPILOG = """\
+YAML config files need PyYAML (pip install pyyaml).
+
 examples:
   %(prog)s --sample-config
-  %(prog)s --config slo-config.json
-  %(prog)s --config slo-config.json --output slo.md
+  %(prog)s --config slo-config.yaml
+  %(prog)s --config slo-config.yaml --output slo.md
 
 exit codes:
   0  document generated

@@ -417,7 +417,7 @@ exit codes:
   1  scan error (file not found, unsupported --cwe, rejected path)
   2  invalid command-line arguments
   3  git could not list staged files
-  10  vulnerabilities detected
+  10  vulnerabilities detected (CI-blocking)
 """
 
 
