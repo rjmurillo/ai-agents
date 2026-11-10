@@ -71,7 +71,7 @@ def run_git(repo_root: Path, args: Sequence[str]) -> str:
             ["git", "-C", str(repo_root), *args],
             capture_output=True,
             encoding="utf-8",
-            errors="surrogateescape",
+            errors="replace",
             timeout=GIT_TIMEOUT_SECONDS,
             check=False,
         )

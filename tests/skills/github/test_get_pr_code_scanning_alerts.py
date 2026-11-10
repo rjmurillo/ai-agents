@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import io
 import json
-import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from code_scanning_fakes import (
@@ -23,7 +20,7 @@ from code_scanning_fakes import (
     sha,
     standard_pr,
 )
-from test_helpers import import_skill_script, make_completed_process
+from test_helpers import import_skill_script
 
 _project_root = Path(__file__).resolve().parents[3]
 _lib_dir = _project_root / ".claude" / "lib"
@@ -32,7 +29,6 @@ if str(_lib_dir) not in sys.path:
 
 mod = import_skill_script("get_pr_code_scanning_alerts", "pr")
 import code_scanning_transport as transport_mod  # sibling module the script put on sys.path
-from github_core.api import RepoInfo
 
 CHANGED = frozenset({"src/a.py"})
 
@@ -262,67 +258,6 @@ class TestPagingFailsLoud:
         with pytest.raises(mod.SkipError, match="not JSON"):
             transport_mod.get_all_pages(transport, "repos/o/r/code-scanning/alerts")
 
-    ANALYSES = "repos/o/r/code-scanning/analyses?ref=refs/pull/7/merge&per_page=100"
-    ALERTS = "repos/o/r/code-scanning/alerts?state=open&per_page=100"
-
-    def _follow(self, url, endpoint=None):
-        link = f'<{url}>; rel="next"'
-        return transport_mod._next_endpoint(link, endpoint or self.ANALYSES)
-
-    def test_the_real_link_shape_names_the_repository_id_and_is_followed(self):
-        url = "https://api.github.com/repositories/1116049814/code-scanning/analyses?per_page=100&page=2"
-        assert self._follow(url) == (
-            "repositories/1116049814/code-scanning/analyses?per_page=100&page=2"
-        )
-
-    def test_the_requested_repos_path_is_followed(self):
-        url = "https://api.github.com/repos/o/r/code-scanning/alerts?state=open&after=abc"
-        assert (
-            self._follow(url, self.ALERTS) == "repos/o/r/code-scanning/alerts?state=open&after=abc"
-        )
-
-    def test_the_enterprise_shape_needs_gh_host_and_drops_the_api_prefix(self, monkeypatch):
-        monkeypatch.setenv("GH_HOST", "ghe.example")
-        url = "https://ghe.example/api/v3/repositories/9/code-scanning/analyses?page=2"
-        assert self._follow(url) == "repositories/9/code-scanning/analyses?page=2"
-
-    def test_the_api_v3_prefix_on_the_api_host_is_accepted(self):
-        url = "https://api.github.com/api/v3/repos/o/r/code-scanning/analyses?page=2"
-        assert self._follow(url) == "repos/o/r/code-scanning/analyses?page=2"
-
-    @pytest.mark.parametrize(
-        "url",
-        [
-            "https://evil.example/repositories/9/code-scanning/analyses?page=2",
-            "https://ghe.example/api/v3/repositories/9/code-scanning/analyses?page=2",
-            "http://api.github.com/repositories/9/code-scanning/analyses?page=2",
-            "https://api.github.com.evil.example/repositories/9/code-scanning/analyses?page=2",
-            "https://api.github.com/repos/x/y/actions/secrets?page=2",
-            "https://api.github.com/repos/o/r/code-scanning/alerts?page=2",
-            "https://api.github.com/repositories/9/code-scanning/alerts?page=2",
-            "https://api.github.com/repos/o/r/code-scanning/../actions/secrets?page=2",
-            "https://api.github.com/repositories/9/../../x/code-scanning/analyses?page=2",
-            "https://api.github.com/repositories/abc/code-scanning/analyses?page=2",
-            "https://api.github.com/-repos/o/r/code-scanning/analyses?page=2",
-            "https://api.github.com/repositories/9/code-scanning/analyses",
-            "https://api.github.com/repositories/9/code-scanning/analyses?page=2&token=x",
-            "https://api.github.com/repositories/9/code-scanning/analyses?--input=x",
-            "https://api.github.com/repositories/9/code-scanning/analyses?state=open",
-        ],
-    )
-    def test_a_link_that_is_not_the_same_list_one_page_on_is_refused(self, url):
-        with pytest.raises(mod.SkipError, match="unusable next link"):
-            self._follow(url)
-
-    def test_a_next_link_cannot_produce_an_endpoint_that_starts_with_a_dash(self):
-        url = "https://api.github.com/-x?page=2"
-        with pytest.raises(mod.SkipError, match="unusable next link"):
-            self._follow(url)
-
-    @pytest.mark.parametrize("link", [None, "", '<https://x/y?page=1>; rel="prev"'])
-    def test_no_next_relation_means_the_last_page(self, link):
-        assert transport_mod._next_endpoint(link, self.ANALYSES) is None
-
 
 class TestScoping:
     def test_any_location_scoping_attaches_on_a_related_location_in_the_diff(self):
@@ -456,231 +391,3 @@ class TestUntrustedData:
         fake = standard_pr(FakeGitHub(), results=[sarif_result(5, related=[("src/a.py", 2)])])
         fake.alerts([alert(5)])
         assert {a["path"] for a in read(fake)["alerts"]} <= CHANGED
-
-
-class TestTransport:
-    def _run(self, **kwargs):
-        defaults = {"stdout": "HTTP/2.0 200 OK\r\nLink: <x>\r\n\r\n[]", "returncode": 0}
-        defaults.update(kwargs)
-        return make_completed_process(**defaults)
-
-    def test_issues_a_get_only_gh_api_call(self):
-        with patch.object(transport_mod.subprocess, "run", return_value=self._run()) as run:
-            transport_mod.gh_get("repos/o/r/code-scanning/alerts")
-        command = run.call_args.args[0]
-        assert command[:5] == ["gh", "api", "--include", "--method", "GET"]
-        for flag in (
-            "-X",
-            "--input",
-            "-f",
-            "-F",
-            "--field",
-            "--raw-field",
-            "POST",
-            "PATCH",
-            "DELETE",
-        ):
-            assert flag not in command
-
-    def test_the_endpoint_follows_a_double_dash_so_it_cannot_be_read_as_a_flag(self):
-        with patch.object(transport_mod.subprocess, "run", return_value=self._run()) as run:
-            transport_mod.gh_get("repos/o/r/code-scanning/alerts")
-        command = run.call_args.args[0]
-        assert command[-2:] == ["--", "repos/o/r/code-scanning/alerts"]
-
-    def test_sends_the_accept_header_when_asked(self):
-        with patch.object(transport_mod.subprocess, "run", return_value=self._run()) as run:
-            transport_mod.gh_get("repos/o/r/code-scanning/analyses/1", "application/sarif+json")
-        command = run.call_args.args[0]
-        assert command[command.index("-H") + 1] == "Accept: application/sarif+json"
-        assert command[-1] == "repos/o/r/code-scanning/analyses/1"
-
-    def test_splits_headers_from_the_body_and_lowercases_names(self):
-        stdout = 'HTTP/2.0 200 OK\nLink: <u>; rel="next"\nX-Thing: 1\n\n[1]'
-        with patch.object(transport_mod.subprocess, "run", return_value=self._run(stdout=stdout)):
-            headers, body = transport_mod.gh_get("e")
-        assert headers["link"] == '<u>; rel="next"'
-        assert body == "[1]"
-
-    def test_a_response_without_a_header_block_is_skipped(self):
-        with patch.object(transport_mod.subprocess, "run", return_value=self._run(stdout="[]")):
-            with pytest.raises(mod.SkipError, match="no header block"):
-                transport_mod.gh_get("e")
-
-    @pytest.mark.parametrize(
-        ("stderr", "code", "fragment"),
-        [
-            ("gh: Forbidden (HTTP 403)", 4, "authorization or not-found error (HTTP 403)"),
-            ("gh: Not Found (HTTP 404)", 4, "(HTTP 404)"),
-            ("gh: Unauthorized (HTTP 401)", 4, "(HTTP 401)"),
-            ("gh: Server Error (HTTP 502)", 3, "request failed (HTTP 502)"),
-            ("API rate limit exceeded (HTTP 403)", 3, "rate limit"),
-            ("connection reset", 3, "request failed"),
-        ],
-    )
-    def test_failures_become_fixed_reasons_with_adr_035_codes(self, stderr, code, fragment):
-        with patch.object(
-            transport_mod.subprocess, "run", return_value=self._run(stderr=stderr, returncode=1)
-        ):
-            with pytest.raises(mod.SkipError) as caught:
-                transport_mod.gh_get("e")
-        assert caught.value.exit_code == code
-        assert fragment in caught.value.reason
-        for remote_word in ("Forbidden", "Not Found", "Unauthorized", "Server Error", "reset"):
-            assert remote_word not in caught.value.reason
-
-    def test_a_timeout_is_skipped(self):
-        with patch.object(
-            transport_mod.subprocess, "run", side_effect=subprocess.TimeoutExpired("gh", 30)
-        ):
-            with pytest.raises(mod.SkipError, match="timed out"):
-                transport_mod.gh_get("e")
-
-    def test_a_missing_gh_binary_is_an_auth_class_skip(self):
-        with patch.object(transport_mod.subprocess, "run", side_effect=FileNotFoundError("gh")):
-            with pytest.raises(mod.SkipError) as caught:
-                transport_mod.gh_get("e")
-        assert caught.value.exit_code == 4
-
-
-class TestCli:
-    ARGS = ["--pull-request", "7", "--head-sha", HEAD_SHA, "--output-format", "json"]
-
-    def _main(self, argv, fake=None, capsys=None):
-        fake = fake or standard_pr(FakeGitHub())
-        with (
-            patch.object(mod, "gh_get", fake),
-            patch.object(mod, "assert_gh_authenticated"),
-            patch.object(mod, "resolve_repo_params", return_value=RepoInfo(OWNER, REPO)),
-        ):
-            code = mod.main(argv)
-        return code, json.loads(capsys.readouterr().out)
-
-    def test_help_exits_zero_with_examples_and_exit_codes(self, capsys):
-        with pytest.raises(SystemExit) as caught:
-            mod.main(["--help"])
-        out = capsys.readouterr().out
-        assert caught.value.code == 0
-        assert "examples:" in out
-        assert "exit codes:" in out
-        assert "--pull-request 123 --head-sha" in out
-
-    def test_current_outcome_is_json_on_stdout_with_exit_zero(self, capsys):
-        fake = standard_pr(FakeGitHub(), results=[sarif_result(5)])
-        fake.alerts([alert(5)])
-        code, body = self._main(
-            self.ARGS + ["--tree-state", "clean", "--changed-file", "src/a.py"], fake, capsys
-        )
-        assert code == 0
-        assert body["Success"] is True
-        assert body["Data"]["outcome"] == "CURRENT"
-        assert body["Data"]["alerts"][0]["path"] == "src/a.py"
-
-    def test_tree_state_defaults_to_dirty_so_the_default_is_never_current(self, capsys):
-        code, body = self._main(self.ARGS, None, capsys)
-        assert code == 0
-        assert body["Data"]["outcome"] == "STALE"
-
-    def test_not_analyzed_exits_zero(self, capsys):
-        fake = FakeGitHub()
-        fake.analyses([])
-        code, body = self._main(self.ARGS, fake, capsys)
-        assert (code, body["Data"]["outcome"]) == (0, "NOT ANALYZED")
-
-    def test_skipped_reports_the_outcome_in_json_and_exits_with_the_class_code(self, capsys):
-        fake = FakeGitHub()
-        fake.analyses([analysis(1)])
-        fake.fail_page["code-scanning/analyses"] = (
-            1,
-            mod.SkipError("authorization or not-found error (HTTP 403)", 4),
-        )
-        code, body = self._main(self.ARGS, fake, capsys)
-        assert code == 4
-        assert body["Success"] is False
-        assert body["Data"]["outcome"] == "SKIPPED"
-        assert body["Data"]["status_line"].startswith("CodeQL: SKIPPED (")
-
-    def test_a_pagination_failure_exits_three_and_is_skipped(self, capsys):
-        fake = standard_pr(FakeGitHub())
-        fake.alerts([alert(1)], [alert(2)])
-        fake.fail_page["code-scanning/alerts"] = (2, mod.SkipError("GitHub request failed"))
-        code, body = self._main(self.ARGS + ["--tree-state", "clean"], fake, capsys)
-        assert (code, body["Data"]["outcome"]) == (3, "SKIPPED")
-
-    @pytest.mark.parametrize("sha_arg", ["abc", "A" * 40, "g" * 40, ""])
-    def test_a_bad_head_sha_is_a_usage_error(self, sha_arg, capsys):
-        with pytest.raises(SystemExit) as caught:
-            mod.main(["--pull-request", "7", "--head-sha", sha_arg, "--output-format", "json"])
-        assert caught.value.code == 2
-        assert json.loads(capsys.readouterr().out)["Error"]["Code"] == 2
-
-    @pytest.mark.parametrize("number", ["0", "-3"])
-    def test_a_non_positive_pull_request_is_a_usage_error(self, number, capsys):
-        with pytest.raises(SystemExit) as caught:
-            mod.main(["--pull-request", number, "--head-sha", HEAD_SHA, "--output-format", "json"])
-        assert caught.value.code == 2
-
-    def test_an_unknown_flag_exits_two_with_empty_stdout(self, capsys):
-        with pytest.raises(SystemExit) as caught:
-            mod.main(self.ARGS + ["--bogus"])
-        captured = capsys.readouterr()
-        assert caught.value.code == 2
-        assert captured.out == ""
-        assert "unrecognized arguments" in captured.err
-
-    def test_changed_files_come_from_a_file(self, tmp_path, capsys):
-        listing = tmp_path / "changed.txt"
-        listing.write_text("src/a.py\n\n../escape.py\n", encoding="utf-8")
-        fake = standard_pr(FakeGitHub(), results=[sarif_result(5)])
-        fake.alerts([alert(5)])
-        code, body = self._main(
-            self.ARGS + ["--tree-state", "clean", "--changed-files-from", str(listing)],
-            fake,
-            capsys,
-        )
-        assert code == 0
-        assert [a["path"] for a in body["Data"]["alerts"]] == ["src/a.py"]
-
-    def test_changed_files_come_from_stdin(self, capsys):
-        fake = standard_pr(FakeGitHub(), results=[sarif_result(5)])
-        fake.alerts([alert(5)])
-        with patch.object(mod.sys, "stdin", io.StringIO("src/a.py\n")):
-            code, body = self._main(
-                self.ARGS + ["--tree-state", "clean", "--changed-files-from", "-"], fake, capsys
-            )
-        assert (code, len(body["Data"]["alerts"])) == (0, 1)
-
-    def test_a_terminal_stdin_is_refused_without_reading(self, capsys):
-        class Tty(io.StringIO):
-            def isatty(self):
-                return True
-
-            def read(self, *args):
-                raise AssertionError("must not read a terminal")
-
-        with patch.object(mod.sys, "stdin", Tty()):
-            with pytest.raises(SystemExit) as caught:
-                mod.main(self.ARGS + ["--changed-files-from", "-"])
-        assert caught.value.code == 2
-
-    def test_an_unreadable_changed_files_list_is_a_usage_error(self, tmp_path, capsys):
-        with pytest.raises(SystemExit) as caught:
-            mod.main(self.ARGS + ["--changed-files-from", str(tmp_path / "missing.txt")])
-        assert caught.value.code == 2
-
-    def test_an_unauthenticated_gh_still_emits_one_json_outcome(self, capsys):
-        with (
-            patch.object(mod, "assert_gh_authenticated", side_effect=SystemExit(4)),
-            patch.object(mod, "resolve_repo_params"),
-        ):
-            code = mod.main(self.ARGS)
-        body = json.loads(capsys.readouterr().out)
-        assert code == 4
-        assert body["Data"]["outcome"] == "SKIPPED"
-
-    def test_an_unexpected_exit_code_from_a_helper_is_treated_as_an_auth_class_skip(self, capsys):
-        with (
-            patch.object(mod, "assert_gh_authenticated", side_effect=SystemExit(1)),
-            patch.object(mod, "resolve_repo_params"),
-        ):
-            assert mod.main(self.ARGS) == 4

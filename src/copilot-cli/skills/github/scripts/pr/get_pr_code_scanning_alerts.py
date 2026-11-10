@@ -64,13 +64,11 @@ import sys
 from typing import Any, NoReturn
 from urllib.parse import quote
 
-# Plugin-root resolution: same shape as sibling scripts (check_pr_live_state.py).
+# Plugin-root resolution: sibling scripts' shape (check_pr_live_state.py) minus its
+# GITHUB_WORKSPACE branch, which would hard-code an upstream-only lib path.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")

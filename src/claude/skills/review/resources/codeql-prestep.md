@@ -1,8 +1,7 @@
 # CodeQL pre-step (step 4d)
 
-Rules: ADR-041 amendment 2026-11-09 and its rules file
-(`.project-toolkit/analysis/adr-041-review-caller-rules.md`). The script enforces them;
-this page says when to run it and what to do with the output.
+Rules: ADR-041 amendment 2026-11-09 and its rules file, `adr-041-review-caller-rules.md`.
+The script enforces them; this page says when to run it and what to do with the output.
 
 ## When to run
 
@@ -12,7 +11,7 @@ invocation starts it. A hook, an edit event, or a schedule never does.
 
 ## Command
 
-Resolve `scripts/codeql_prestep.py` like `select_axes.py` (the "Path resolution" section).
+Resolve `codeql_prestep.py` like `select_axes.py` (the "Path resolution" section); it sits beside it.
 
 ```bash
 python3 <codeql_prestep.py> --base-branch "$BASE_BRANCH" [--pull-request N] [--unattended]

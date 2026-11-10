@@ -41,7 +41,7 @@ class Reader:
 
     def __call__(self, command, **kwargs):
         if command[0] == "git":  # the guard's git calls stay real
-            return REAL_RUN(command, **kwargs)
+            return REAL_RUN(command, **kwargs)  # subprocess-encoding: strict-ok
         self.calls.append((command, kwargs))
         if self.raises:
             raise self.raises

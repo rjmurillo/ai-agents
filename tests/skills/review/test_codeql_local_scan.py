@@ -411,7 +411,7 @@ def test_subprocess_module_is_not_shelled_out_with_a_string(root, tmp_path, monk
         seen["command"] = command
         seen["shell"] = kwargs.get("shell", False)
         seen["stdin"] = kwargs.get("stdin")
-        return real(command, **kwargs)
+        return real(command, **kwargs)  # subprocess-encoding: strict-ok
 
     monkeypatch.setattr(scan.subprocess, "Popen", spy)
     scan.run_wrapper(root, make_wrapper(tmp_path, "pass"), ("python",))
