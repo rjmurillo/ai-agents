@@ -22,7 +22,9 @@ python3 <codeql_prestep.py> --base-branch "$BASE_BRANCH" [--pull-request N] [--u
 - Pass `--unattended` when no human is present: a headless `/ship`, a scheduled or fleet
   run, or any session where nobody reads `AskUserQuestion`. Unattended means Tier 1 only.
   The script also treats `CI` or `GITHUB_ACTIONS` in the environment as unattended.
-- It always exits 0 with one JSON object on stdout. Exit 2 is a usage error: report
+- It exits 0 with one JSON object on stdout for every outcome, including `SKIPPED` and a
+  directory that is not a git repository. Only a usage error (a bad flag value, such as a
+  non-positive `--pull-request`) exits 2, with nothing on stdout: report
   `CodeQL: SKIPPED (pre-step usage error)`.
 
 ## Read the JSON

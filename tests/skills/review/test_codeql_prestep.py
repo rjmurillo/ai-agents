@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import codeql_prestep as pre
 import pytest
 from codeql_local_scan import LocalScanOutcome
-from codeql_repo_fixture import git, make_repo, write
+from codeql_repo_fixture import commit_symlinks, git, make_repo, make_symlink, write
 from test_codeql_local_scan import RESULT, install_codeql, sarif, writing_wrapper
 
 
@@ -92,9 +92,8 @@ class TestScannerInputGuard:
         assert reader.calls == []
 
     def test_a_symlink_to_a_guarded_file_skips_the_step(self, repo, monkeypatch):
-        (repo / "innocent.py").symlink_to(".codeql/scripts/old.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "link")
+        make_symlink(repo, "innocent.py", ".codeql/scripts/old.py")
+        commit_symlinks(repo, "link")
         reader = Reader(stdout=envelope(outcome="CURRENT"))
         monkeypatch.setattr(pre.subprocess, "run", reader)
         out = pre.run(args(repo, pull_request=7))
@@ -119,9 +118,8 @@ class TestScannerInputGuard:
         json.dumps(out)
 
     def test_an_unreadable_symlink_target_skips_and_reads_nothing(self, repo, monkeypatch):
-        (repo / "alias.py").symlink_to("src/app.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "alias")
+        make_symlink(repo, "alias.py", "src/app.py")
+        commit_symlinks(repo, "alias")
 
         def denied(path):
             raise PermissionError("no")

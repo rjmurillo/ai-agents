@@ -30,7 +30,10 @@ each alert against the diff.
 
 Exit codes (ADR-035):
     0  an outcome was produced, including SKIPPED
-    2  usage or configuration error (bad flag, not a git repository)
+    2  usage error (bad flag value, such as a non-positive --pull-request)
+
+A directory that is not a git repository is not a usage error: the step prints a
+SKIPPED outcome ("diff could not be computed") and exits 0.
 """
 
 from __future__ import annotations
@@ -208,7 +211,7 @@ examples:
 
 exit codes:
   0  an outcome was produced (read "outcome"; SKIPPED is an outcome)
-  2  usage or configuration error
+  2  usage error (bad flag value, such as a non-positive --pull-request)
 
 outcome is CURRENT, CLEAN, FINDINGS, STALE, NOT ANALYZED, or SKIPPED. STALE,
 NOT ANALYZED, and SKIPPED are never clean.

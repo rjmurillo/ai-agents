@@ -151,27 +151,63 @@ def run_wrapper(
     return process.returncode, stderr or ""
 
 
+#: Coarsest mtime step in use (FAT stores 2 seconds; ext4, NTFS, APFS are finer). A file the
+#: run just wrote can carry a timestamp rounded down by up to this much, so "after the run
+#: started" is judged against the start time rounded down by the same step.
+MTIME_GRANULARITY_NS = 2_000_000_000
+
+FileSignature = tuple[int, int, int]
+
+
+def sarif_path(repo_root: Path, language: str) -> Path:
+    return repo_root / _RESULTS_DIR / f"{language}.sarif"
+
+
+def snapshot_sarif(repo_root: Path, languages: tuple[str, ...]) -> dict[str, FileSignature | None]:
+    """Record each language's SARIF file identity before the run, None when absent."""
+    snapshot: dict[str, FileSignature | None] = {}
+    for language in languages:
+        try:
+            stat = sarif_path(repo_root, language).stat()
+        except OSError:
+            snapshot[language] = None
+        else:
+            snapshot[language] = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+    return snapshot
+
+
 def read_fresh_sarif(
-    repo_root: Path, languages: tuple[str, ...], started_ns: int
+    repo_root: Path,
+    languages: tuple[str, ...],
+    started_ns: int,
+    before: dict[str, FileSignature | None],
 ) -> list[list[Any]] | None:
     """Return the results list of each language's SARIF, or None on any gap.
 
-    A file counts only when it exists, was modified at or after ``started_ns``, and
-    parses as SARIF with a ``runs`` list. One missing, stale, or unreadable file
-    returns None: the evidence for "scanned" is incomplete.
+    A file counts only when it exists, parses as SARIF with a ``runs`` list, and the run
+    wrote it: its (mtime, size, inode) differs from the pre-run snapshot, and its mtime
+    is not before the start time rounded down to ``MTIME_GRANULARITY_NS``. The rounding
+    keeps a quick cache-hit run from being judged stale on a coarse-mtime file system.
+    The snapshot comparison keeps an old file from passing because of that rounding. One
+    missing, unchanged, stale, or unreadable file returns None: fail closed.
     """
+    floor_ns = started_ns - started_ns % MTIME_GRANULARITY_NS
     per_language: list[list[Any]] = []
     for language in languages:
-        results = _read_one_sarif(repo_root / _RESULTS_DIR / f"{language}.sarif", started_ns)
+        path = sarif_path(repo_root, language)
+        results = _read_one_sarif(path, floor_ns, before.get(language))
         if results is None:
             return None
         per_language.append(results)
     return per_language
 
 
-def _read_one_sarif(path: Path, started_ns: int) -> list[Any] | None:
+def _read_one_sarif(path: Path, floor_ns: int, before: FileSignature | None) -> list[Any] | None:
     try:
-        if path.stat().st_mtime_ns < started_ns:
+        stat = path.stat()
+        if stat.st_mtime_ns < floor_ns:
+            return None
+        if before == (stat.st_mtime_ns, stat.st_size, stat.st_ino):
             return None
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -227,7 +263,8 @@ def run_local_scan(
     if not languages:
         return _skipped("no scannable languages")
     chosen = tuple(languages)
+    before = snapshot_sarif(repo_root, chosen)
     started_ns = time.time_ns()
     exit_code, stderr = run_wrapper(repo_root, wrapper, chosen)
-    sarif_results = read_fresh_sarif(repo_root, chosen, started_ns)
+    sarif_results = read_fresh_sarif(repo_root, chosen, started_ns, before)
     return classify(exit_code, stderr, chosen, sarif_results)

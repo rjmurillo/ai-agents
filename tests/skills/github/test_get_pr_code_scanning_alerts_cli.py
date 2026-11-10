@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -20,10 +18,6 @@ from code_scanning_fakes import (
     standard_pr,
 )
 from test_helpers import import_skill_script
-
-_lib_dir = Path(__file__).resolve().parents[3] / ".claude" / "lib"
-if str(_lib_dir) not in sys.path:
-    sys.path.insert(0, str(_lib_dir))
 
 mod = import_skill_script("get_pr_code_scanning_alerts", "pr")
 from github_core.api import RepoInfo
@@ -148,6 +142,29 @@ class TestCli:
             with pytest.raises(SystemExit) as caught:
                 mod.main(self.ARGS + ["--changed-files-from", "-"])
         assert caught.value.code == 2
+
+    def test_a_non_utf8_changed_files_list_is_a_usage_error_not_a_crash(self, tmp_path, capsys):
+        listing = tmp_path / "changed.txt"
+        listing.write_bytes(b"src/a.py\n\xff\xfe.py\n")
+        with pytest.raises(SystemExit) as caught:
+            mod.main(self.ARGS + ["--changed-files-from", str(listing)])
+        body = json.loads(capsys.readouterr().out)
+        assert caught.value.code == 2
+        assert body["Error"]["Message"] == "cannot read --changed-files-from: not valid UTF-8"
+
+    def test_non_utf8_bytes_on_stdin_are_a_usage_error_not_a_crash(self, capsys):
+        class Bad(io.StringIO):
+            def isatty(self):
+                return False
+
+            def read(self, *args):
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+        with patch.object(mod.sys, "stdin", Bad()):
+            with pytest.raises(SystemExit) as caught:
+                mod.main(self.ARGS + ["--changed-files-from", "-"])
+        assert caught.value.code == 2
+        assert json.loads(capsys.readouterr().out)["Error"]["Code"] == 2
 
     def test_an_unreadable_changed_files_list_is_a_usage_error(self, tmp_path, capsys):
         with pytest.raises(SystemExit) as caught:

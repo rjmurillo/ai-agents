@@ -2,17 +2,8 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-import pytest
-
-_project_root = Path(__file__).resolve().parents[3]
-_pr_dir = _project_root / ".claude" / "skills" / "github" / "scripts" / "pr"
-if str(_pr_dir) not in sys.path:
-    sys.path.insert(0, str(_pr_dir))
-
 import code_scanning_sarif as sarif_mod
+import pytest
 from code_scanning_fakes import sarif, sarif_result
 
 

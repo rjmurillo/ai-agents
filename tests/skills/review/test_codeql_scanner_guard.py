@@ -6,7 +6,7 @@ import os
 
 import codeql_scanner_guard as guard
 import pytest
-from codeql_repo_fixture import git, make_repo, write
+from codeql_repo_fixture import commit_symlinks, git, make_repo, make_symlink, write
 
 
 class TestIsGuardedPath:
@@ -223,10 +223,7 @@ def test_run_git_reports_a_missing_git_binary(monkeypatch, tmp_path):
         guard.run_git(tmp_path, ["status"])
 
 
-def symlink(repo, name, target):
-    link = repo / name
-    link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(target)
+symlink = make_symlink
 
 
 class TestSymlinks:
@@ -237,23 +234,20 @@ class TestSymlinks:
     def test_a_symlink_with_an_innocent_name_to_a_guarded_file_is_guarded(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "src/innocent.py", "../.codeql/scripts/old.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "link")
+        commit_symlinks(repo, "link")
         assert self._guarded(repo) == ["src/innocent.py"]
 
     def test_a_symlink_to_a_guarded_directory_is_guarded(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "tools", ".codeql/scripts")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "link")
+        commit_symlinks(repo, "link")
         assert self._guarded(repo) == ["tools"]
 
     def test_a_symlink_chain_is_followed_to_the_guarded_target(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "b.link", ".codeql/scripts/old.py")
         symlink(repo, "a.link", "b.link")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "chain")
+        commit_symlinks(repo, "chain")
         assert self._guarded(repo) == ["a.link", "b.link"]
 
     def test_an_untracked_symlink_to_a_guarded_path_is_guarded(self, tmp_path):
@@ -270,54 +264,47 @@ class TestSymlinks:
     def test_a_symlink_to_an_ordinary_file_is_not_guarded(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "alias.py", "src/app.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "alias")
+        commit_symlinks(repo, "alias")
         assert self._guarded(repo) == []
 
     def test_a_symlink_to_a_look_alike_is_not_guarded(self, tmp_path):
         repo = make_repo(tmp_path)
         write(repo, ".codeqlx/a.py")
         symlink(repo, "alias", ".codeqlx/a.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "alias")
+        commit_symlinks(repo, "alias")
         assert self._guarded(repo) == []
 
     def test_a_symlink_pointing_outside_the_repository_has_no_target(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "out", "../../elsewhere")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "out")
+        commit_symlinks(repo, "out")
         assert guard.changed_symlinks(repo, "origin/main")["out"] is None
         assert self._guarded(repo) == []
 
     def test_a_dangling_symlink_to_an_ordinary_path_is_not_guarded(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "dangling", "nothing-here")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "dangling")
+        commit_symlinks(repo, "dangling")
         assert guard.changed_symlinks(repo, "origin/main")["dangling"] == "nothing-here"
         assert self._guarded(repo) == []
 
     def test_a_dangling_symlink_into_a_guarded_directory_is_guarded(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "dangling", ".codeql/not-created-yet.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "dangling")
+        commit_symlinks(repo, "dangling")
         assert self._guarded(repo) == ["dangling"]
 
     def test_a_symlink_named_inside_a_guarded_directory_is_guarded_by_name(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, ".github/actions/setup", "../../src")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "link")
+        commit_symlinks(repo, "link")
         assert ".github/actions/setup" in self._guarded(repo)
 
     def test_a_guarded_directory_replaced_by_a_symlink_is_guarded(self, tmp_path):
         repo = make_repo(tmp_path)
         git(repo, "rm", "-r", "-q", ".codeql")
         symlink(repo, ".codeql", "src")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "swap")
+        commit_symlinks(repo, "swap")
         guarded = self._guarded(repo)
         assert ".codeql" in guarded
         assert ".codeql/scripts/old.py" in guarded
@@ -326,8 +313,7 @@ class TestSymlinks:
         repo = make_repo(tmp_path)
         git(repo, "checkout", "-q", "main")
         symlink(repo, "gone.link", ".codeql/scripts/old.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "add link on main")
+        commit_symlinks(repo, "add link on main")
         git(repo, "push", "-q", "origin", "main")
         git(repo, "checkout", "-q", "feature")
         git(repo, "merge", "-q", "main", "--no-edit")
@@ -341,15 +327,13 @@ class TestSymlinks:
         repo = make_repo(tmp_path)
         git(repo, "checkout", "-q", "main")
         symlink(repo, "was.link", "src/app.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "link on main")
+        commit_symlinks(repo, "link on main")
         git(repo, "push", "-q", "origin", "main")
         git(repo, "checkout", "-q", "feature")
         git(repo, "merge", "-q", "main", "--no-edit")
         (repo / "was.link").unlink()
         write(repo, "was.link", "regular\n")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "swap to file")
+        commit_symlinks(repo, "swap to file")
         assert "was.link" in guard.changed_symlinks(repo, "origin/main")
 
     def test_no_symlinks_gives_an_empty_map(self, tmp_path):
@@ -440,8 +424,7 @@ class TestUnresolvableSymlinks:
     def test_a_target_that_cannot_be_read_is_guarded(self, tmp_path, monkeypatch):
         repo = make_repo(tmp_path)
         symlink(repo, "alias.py", "src/app.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "alias")
+        commit_symlinks(repo, "alias")
 
         def denied(path):
             raise PermissionError("no")
@@ -455,8 +438,7 @@ class TestUnresolvableSymlinks:
     def test_a_target_that_cannot_be_resolved_is_guarded(self, tmp_path, monkeypatch):
         repo = make_repo(tmp_path)
         symlink(repo, "alias.py", "src/app.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "alias")
+        commit_symlinks(repo, "alias")
 
         def broken(path, strict=False):
             raise OSError("loop")
@@ -470,8 +452,7 @@ class TestUnresolvableSymlinks:
             symlink(repo, "alias", os.fsdecode(b"target-\xff"))
         except OSError:
             pytest.skip("file system rejects non-UTF-8 names")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "alias")
+        commit_symlinks(repo, "alias")
         links = guard.changed_symlinks(repo, "origin/main")
         assert links["alias"] == guard.UNRESOLVABLE
         assert guard.guarded_paths(["alias"], links) == ["alias"]
@@ -483,8 +464,7 @@ class TestUnresolvableSymlinks:
     def test_a_readable_link_inside_the_repo_is_not_guarded_by_the_new_rule(self, tmp_path):
         repo = make_repo(tmp_path)
         symlink(repo, "alias.py", "src/app.py")
-        git(repo, "add", "-A")
-        git(repo, "commit", "-m", "alias")
+        commit_symlinks(repo, "alias")
         links = guard.changed_symlinks(repo, "origin/main")
         assert links["alias.py"] == "src/app.py"
         assert guard.guarded_paths(["alias.py"], links) == []

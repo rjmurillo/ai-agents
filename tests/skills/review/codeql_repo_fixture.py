@@ -59,3 +59,33 @@ def make_repo(tmp_path: Path) -> Path:
     git(work, "add", "-A")
     git(work, "commit", "-m", "feature")
     return work
+
+
+def make_symlink(repo: Path, name: str, target: str) -> None:
+    """Create a symlink, or skip the test where the platform cannot make one.
+
+    Windows without Developer Mode raises ``OSError`` or ``NotImplementedError``.
+    ``core.symlinks=false`` makes git store a link as a regular file, so a test that
+    stages it would assert on the wrong mode; ``assert_tracked_as_symlink`` skips then.
+    """
+    import pytest
+
+    link = repo / name
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("platform cannot create symlinks")
+
+
+def commit_symlinks(repo: Path, message: str) -> None:
+    """Stage and commit, then skip unless git stored every on-disk symlink as mode 120000."""
+    import pytest
+
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", message)
+    for line in git(repo, "ls-files", "-s").splitlines():
+        meta, _, path = line.partition("\t")
+        mode = meta.split()[0]
+        if (repo / path).is_symlink() and mode != "120000":
+            pytest.skip("git did not store the link as a symlink (core.symlinks=false)")

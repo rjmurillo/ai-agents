@@ -14,8 +14,6 @@ SARIF content can do.
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 
 import pytest
 from code_scanning_fakes import (
@@ -32,10 +30,6 @@ from code_scanning_fakes import (
     sha,
 )
 from test_helpers import import_skill_script
-
-_lib_dir = Path(__file__).resolve().parents[3] / ".claude" / "lib"
-if str(_lib_dir) not in sys.path:
-    sys.path.insert(0, str(_lib_dir))
 
 mod = import_skill_script("get_pr_code_scanning_alerts", "pr")
 import code_scanning_scope as scope

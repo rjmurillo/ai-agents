@@ -349,8 +349,9 @@ def _collect_changed_files(args: argparse.Namespace) -> frozenset[str]:
     if source is not None:
         try:
             text = sys.stdin.read() if source == "-" else _read_text(source)
-        except OSError as exc:
-            _usage_error(f"cannot read --changed-files-from: {exc.strerror}", args.output_format)
+        except (OSError, UnicodeDecodeError) as exc:
+            detail = exc.strerror if isinstance(exc, OSError) else "not valid UTF-8"
+            _usage_error(f"cannot read --changed-files-from: {detail}", args.output_format)
         paths.extend(text.splitlines())
     return normalize_changed_files(paths)
 

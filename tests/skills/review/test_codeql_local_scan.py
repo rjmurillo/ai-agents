@@ -253,39 +253,76 @@ class TestPrecheck:
 
 
 class TestFreshSarif:
-    def test_a_file_written_after_the_start_counts(self, root):
-        started = time.time_ns()
-        (root / ".codeql" / "results").mkdir()
-        (root / ".codeql" / "results" / "python.sarif").write_text(sarif(RESULT), encoding="utf-8")
-        assert scan.read_fresh_sarif(root, ("python",), started) == [[RESULT]]
+    LANGS = ("python",)
 
-    def test_a_file_from_before_the_run_is_stale(self, root):
+    def _begin(self, root, langs=LANGS):
+        """Snapshot and timestamp the way run_local_scan does, before the wrapper runs."""
+        (root / ".codeql" / "results").mkdir(exist_ok=True)
+        return scan.snapshot_sarif(root, langs), time.time_ns()
+
+    def _write(self, root, text, lang="python"):
+        (root / ".codeql" / "results" / f"{lang}.sarif").write_text(text, encoding="utf-8")
+
+    def test_a_file_written_after_the_start_counts(self, root):
+        before, started = self._begin(root)
+        self._write(root, sarif(RESULT))
+        assert scan.read_fresh_sarif(root, self.LANGS, started, before) == [[RESULT]]
+
+    def test_a_file_from_before_the_run_that_the_run_did_not_touch_is_stale(self, root):
+        (root / ".codeql" / "results").mkdir()
+        self._write(root, sarif())
+        old = time.time() - 3600
+        os.utime(root / ".codeql" / "results" / "python.sarif", (old, old))
+        before, started = self._begin(root)
+        assert scan.read_fresh_sarif(root, self.LANGS, started, before) is None
+
+    def test_an_unchanged_file_is_stale_even_inside_the_rounding_window(self, root):
+        (root / ".codeql" / "results").mkdir()
+        self._write(root, sarif())
+        before, started = self._begin(root)
+        assert scan.read_fresh_sarif(root, self.LANGS, started, before) is None
+
+    def test_a_coarse_mtime_rounded_down_below_the_start_is_still_fresh(self, root):
+        before, started = self._begin(root)
+        self._write(root, sarif(RESULT))
         path = root / ".codeql" / "results" / "python.sarif"
-        path.parent.mkdir()
-        path.write_text(sarif(), encoding="utf-8")
-        assert scan.read_fresh_sarif(root, ("python",), time.time_ns() + 10**10) is None
+        rounded = started - started % 1_000_000_000  # a 1 second mtime file system
+        os.utime(path, ns=(rounded, rounded))
+        assert scan.read_fresh_sarif(root, self.LANGS, started, before) == [[RESULT]]
+
+    def test_a_file_older_than_the_rounding_window_is_stale_even_if_it_changed(self, root):
+        before, started = self._begin(root)
+        self._write(root, sarif(RESULT))
+        path = root / ".codeql" / "results" / "python.sarif"
+        old = started - 10 * scan.MTIME_GRANULARITY_NS
+        os.utime(path, ns=(old, old))
+        assert scan.read_fresh_sarif(root, self.LANGS, started, before) is None
 
     def test_one_missing_language_voids_the_evidence(self, root):
-        started = time.time_ns()
-        (root / ".codeql" / "results").mkdir()
-        (root / ".codeql" / "results" / "python.sarif").write_text(sarif(), encoding="utf-8")
-        assert scan.read_fresh_sarif(root, ("python", "actions"), started) is None
+        langs = ("python", "actions")
+        before, started = self._begin(root, langs)
+        self._write(root, sarif())
+        assert scan.read_fresh_sarif(root, langs, started, before) is None
 
     @pytest.mark.parametrize("text", ["{", "[]", '{"runs": "x"}', '{"version": "2.1.0"}'])
     def test_unparseable_or_shapeless_sarif_is_no_evidence(self, root, text):
-        started = time.time_ns()
-        (root / ".codeql" / "results").mkdir()
-        (root / ".codeql" / "results" / "python.sarif").write_text(text, encoding="utf-8")
-        assert scan.read_fresh_sarif(root, ("python",), started) is None
+        before, started = self._begin(root)
+        self._write(root, text)
+        assert scan.read_fresh_sarif(root, self.LANGS, started, before) is None
 
     def test_results_from_every_run_are_counted(self, root):
-        started = time.time_ns()
-        (root / ".codeql" / "results").mkdir()
+        before, started = self._begin(root)
         doc = {"runs": [{"results": [RESULT]}, {"results": [RESULT, RESULT]}, {}, None]}
-        (root / ".codeql" / "results" / "python.sarif").write_text(
-            json.dumps(doc), encoding="utf-8"
-        )
-        assert len(scan.read_fresh_sarif(root, ("python",), started)[0]) == 3
+        self._write(root, json.dumps(doc))
+        assert len(scan.read_fresh_sarif(root, self.LANGS, started, before)[0]) == 3
+
+    def test_snapshot_is_none_for_an_absent_file_and_a_triple_for_a_present_one(self, root):
+        assert scan.snapshot_sarif(root, self.LANGS) == {"python": None}
+        (root / ".codeql" / "results").mkdir()
+        self._write(root, sarif())
+        signature = scan.snapshot_sarif(root, self.LANGS)["python"]
+        assert signature is not None
+        assert len(signature) == 3
 
 
 class TestClassify:

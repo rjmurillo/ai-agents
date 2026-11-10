@@ -19,7 +19,7 @@ if str(_lib_dir) not in sys.path:
 
 # Add scripts directories to sys.path for direct imports
 _scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
-for subdir in ("issue", "milestone", "reactions", "utils", ""):
+for subdir in ("issue", "milestone", "reactions", "utils", "pr", ""):
     path = str(_scripts_dir / subdir) if subdir else str(_scripts_dir)
     if path not in sys.path:
         sys.path.insert(0, path)
