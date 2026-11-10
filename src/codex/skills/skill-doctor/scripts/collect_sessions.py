@@ -101,7 +101,7 @@ from session_json import (
     parse_pi_session,
     parse_zcode_session,
 )
-from session_sampling import sample_sessions
+from session_sampling import apply_strata, sample_sessions
 
 __all__ = [
     "CLAUDE_CODE_EDIT_TOOLS",
@@ -477,6 +477,7 @@ def _run() -> None:
         session["_key"] = f"{session['harness']}:{session['meta']['id']}"
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
     sampled, per_harness, sampling = sample_sessions(collection.sessions, collection.skills, args)
+    apply_strata(collection.sessions, sampling)
     _write_transcripts(collection.sessions, sampled, out / "transcripts")
     inventory = _inventory(collection, homes, sampled, per_harness, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")

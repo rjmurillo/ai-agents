@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import report_audit
 import report_evaluation
 import report_script
 
@@ -424,6 +425,7 @@ def render_page(r: Any) -> str:
 </div>
 <div class="stats">{stat_cells}</div>
 {render_sampling(r.get("sampling"))}
+{report_audit.render_audit(r, esc)}
 <h2>Findings</h2><ul>{findings}</ul>
 <h2>Evaluation status</h2><p class="evaluation" id="evaluation-status">{esc(report_evaluation.evaluation_summary(r))}</p>
 <h2>Suggested skill changes</h2><ol>{suggestions}</ol>
@@ -468,7 +470,7 @@ def main(argv: Any = None) -> None:
         sys.exit(1)
     r = json.loads(report_path.read_text(encoding="utf-8"))
     r.setdefault("grade", grade_for(r["scores"]["overall"]))
-    errors = report_evaluation.validate_report(r)
+    errors = report_evaluation.validate_report(r) + report_audit.validate_audit(r)
     if errors:
         for error in errors:
             print(f"error: unsupported claim: {error}", file=sys.stderr)

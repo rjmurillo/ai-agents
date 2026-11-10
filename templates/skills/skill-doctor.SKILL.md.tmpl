@@ -75,10 +75,12 @@ Create the report directory only after the startup gate and scope choices.
 | `render_report.py` | Render scored `report.json` into `report.html`; `--open` requests browser launch. |
 | `audit_scores.py` | Validate per-session rubric results in `scores.json` and compute the Step 3 aggregates. |
 | `audit_manifest.py` | Validate an `audit_manifest.json` written by `collect_sessions.py --audit-manifest`. |
+| `audit_batches.py` | `assign` immutable review batches from `inventory.json`; `import` one batch of score rows into an accepted file. |
+| `public_export.py` | Write an aggregate-only summary of `report.json` that is safe to share. |
 | `warp_decoder.py` | Imported Warp protobuf decoder, not a standalone CLI. |
 
 Every CLI accepts `--help`.
-Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, and `render_report.py`: invalid input or an unsupported claim), and 2 means invalid CLI arguments or an unreadable file.
+Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written), and 2 means invalid CLI arguments or an unreadable file.
 Use absolute script paths, as shown below, from any working directory.
 
 ## Process
@@ -174,6 +176,7 @@ Useful flags:
 - `--skills-dir PATH` - nonstandard skill locations.
 - `--include-subagents` - include child or sidechain sessions.
 - `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
+- `--timeline-supplement N` - add up to N no-skill sessions spaced across the window, tagged as their own stratum. The sample stays non-probability; the inventory says so.
 - `--audit-manifest` - also write `audit_manifest.json`: declared inputs and caps, source revision, upstream identity evidence, scope, and the content-aware skill catalog. It exits 1 and writes no manifest when the evidence contradicts the declared scope.
 
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
@@ -224,21 +227,13 @@ Instructions: For each session in `inventory.json` with `sampled: true`, read it
 
 ### Step 3: Aggregate
 
-Write every scored result to `$REPORT_DIR/scores.json`, then compute the aggregates with the script instead of by hand:
-
-```json
-{"sessions": [{"session_id": "", "harness": "", "skills_detected": true, "terminated_by": null,
-  "scores": {"efficiency": {"label": "", "score": 0.0, "reason": "", "evidence_ref": "", "pre_cutoff": true},
-             "code_quality": {}, "procedure_compliance": {}, "verbosity": {}}}]}
-```
+Write every scored result to `$REPORT_DIR/scores.json` in the shape `$SKILL_ROOT/references/audit-workflow.md` defines, then compute the aggregates with the script instead of by hand:
 
 ```bash
 python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$REPORT_DIR/score_artifact.json"
 ```
 
-It exits 1 and writes nothing when a label does not match its rubric value, a reason is missing, or a session id repeats. Fix the scores and rerun.
-When `terminated_by` is set, give every result an explicit `pre_cutoff`: `true` when the score rests on evidence from before the provider cutoff, `false` when it judges only the cut-off ending. A missing `pre_cutoff` on a terminated session counts as `false`, so that session leaves `failed_conversations`.
-Copy each `dimensions.<name>.score` and `overall` from `score_artifact.json` into `report.json`; use its `failed_conversations` and `per_harness` values. The formulas below define what the script computes:
+Copy each `dimensions.<name>.score` and `overall` from `score_artifact.json` into `report.json`; use its `failed_conversations` and `per_harness` values. The reference also covers `pre_cutoff` on terminated sessions and batched reviews. The formulas below define what the script computes:
 
 - `raw_efficiency` = mean of efficiency scores across all scored sessions.
 - `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
@@ -336,6 +331,7 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
 ```
 
 Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`.
+Optional `audit` sections and the shareable aggregate export are in `$SKILL_ROOT/references/audit-workflow.md`.
 Keep `evaluation.optimization` at `not_run` for every skill-doctor run.
 Only a later skillopt result may set `evaluation.optimization` to `run` and a suggestion `status` of `accepted`, `rejected`, or `inconclusive`; that suggestion then needs its own `"evaluation": {"baseline": "<ref>", "candidate": "<ref>"}` object with non-empty references.
 The renderer exits 1 on a measured status without that evidence, a drafted diff for unresolved variants, or a "no beneficial change" verdict without scored evaluation.

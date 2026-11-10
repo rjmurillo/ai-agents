@@ -89,6 +89,8 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 49. `references/skill-improvements.md` has no static change bar. Every supported finding is a visible candidate with an owner, separated fact and hypothesis, and copyable skillopt and skillforge handoff prompts; nothing starts either skill (issue #7247).
 50. `audit_manifest.py` and `collect_sessions.py --audit-manifest`: a versioned, fingerprinted manifest of declared scope, caps, source revision, upstream identity evidence, and a content-aware catalog (issue #7248, M1).
 51. `audit_scores.py` executes Steps 2 and 3: it validates rubric labels against `scorers/*.md`, recomputes pooled applicable means, the quality fallback, weighted shortfalls, and failed conversations (issue #7248, M3).
+52. `audit_batches.py` and `--timeline-supplement`: immutable review assignments with a source digest, atomic all-or-nothing score imports, and an opt-in timeline stratum recorded as non-probability (issue #7248, M2).
+53. `report_audit.py` and `public_export.py`: optional catalog, score, and per-record sections in `report.html`, a scorecard-versus-artifact check, and an allowlist aggregate export that refuses private values (issue #7248, M4).
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

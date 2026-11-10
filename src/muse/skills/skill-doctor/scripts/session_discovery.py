@@ -480,3 +480,11 @@ def _add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-skill", type=int, default=4, help="max sampled sessions that used no skill"
     )
+    parser.add_argument(
+        "--timeline-supplement",
+        type=int,
+        default=0,
+        metavar="N",
+        help="opt-in: add up to N no-skill sessions spaced evenly over the window, tagged "
+        "stratum timeline_supplement (default: 0, off; the sample is not representative)",
+    )
