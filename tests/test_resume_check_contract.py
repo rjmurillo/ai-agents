@@ -18,6 +18,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HEADING = "### Resume Check (fail closed)"
+REFERENCE = Path("src/claude/skills/autoplan/references/orchestrator-resume-and-drift.md")
 SCENARIOS = Path("tests/evals/orchestrator-scenarios.json")
 
 ORCHESTRATOR_PATHS = (
@@ -60,11 +61,22 @@ def _section(path: Path) -> str:
     return rest if boundary is None else rest[: boundary.start()]
 
 
-@pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
-def test_state_record_lists_every_required_field(path: Path) -> None:
-    section = _section(path)
+def _reference_text() -> str:
+    return " ".join((REPO_ROOT / REFERENCE).read_text(encoding="utf-8").split())
 
-    assert STATE_RECORD in " ".join(section.split()), f"{path} state record drifted"
+
+def test_reference_lists_every_required_state_record_field() -> None:
+    """The field list moved out of the agent body; the reference must hold it verbatim."""
+    assert STATE_RECORD in _reference_text(), f"{REFERENCE} state record drifted"
+
+
+@pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
+def test_body_stub_names_the_state_record_reference(path: Path) -> None:
+    """Every surface, VS Code included, points at the reference where the fields live."""
+    section = " ".join(_section(path).split())
+
+    assert REFERENCE.name in section, f"{path} Resume Check does not name {REFERENCE.name}"
+    assert "see Reference Loading" in section, f"{path} Resume Check has no load pointer"
 
 
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
