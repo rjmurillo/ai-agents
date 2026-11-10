@@ -117,13 +117,36 @@ def _is_type_checking(test: ast.expr) -> bool:
     return name == "TYPE_CHECKING"
 
 
+def _try_imports(node: ast.Try | ast.TryStar, guarded: bool) -> Iterator[tuple[ast.stmt, bool]]:
+    """Walk a ``try``: its body is guarded by a surviving handler, the rest keep the state."""
+    yield from _import_time_imports(node.body, guarded or _provides_fallback(node))
+    for handler in node.handlers:
+        yield from _import_time_imports(handler.body, guarded)
+    yield from _import_time_imports(node.orelse, guarded)
+    yield from _import_time_imports(node.finalbody, guarded)
+
+
+def _nested_bodies(node: ast.stmt) -> Iterator[list[ast.stmt]]:
+    """Yield each statement list that runs when ``node`` runs at import time."""
+    if isinstance(node, ast.Match):
+        yield from (case.body for case in node.cases)
+        return
+    if isinstance(node, ast.If) and _is_type_checking(node.test):
+        yield node.orelse
+        return
+    for field in ("body", "orelse", "finalbody"):
+        nested = getattr(node, field, None)
+        if isinstance(nested, list):
+            yield nested
+
+
 def _import_time_imports(body: list[ast.stmt], guarded: bool) -> Iterator[tuple[ast.stmt, bool]]:
     """Yield ``(import node, guarded)`` for every import that runs at import time.
 
     Function bodies are skipped: their imports run when called. An ``if
     TYPE_CHECKING`` body is skipped: it never runs. A ``try`` body is guarded when
     a handler survives the import failing; its handlers and ``else`` and
-    ``finally`` blocks keep the surrounding state.
+    ``finally`` blocks keep the surrounding state. Every ``match`` case body runs.
     """
     for node in body:
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
@@ -131,21 +154,10 @@ def _import_time_imports(body: list[ast.stmt], guarded: bool) -> Iterator[tuple[
         if isinstance(node, ast.Import | ast.ImportFrom):
             yield node, guarded
         elif isinstance(node, ast.Try | ast.TryStar):
-            yield from _import_time_imports(node.body, guarded or _provides_fallback(node))
-            for handler in node.handlers:
-                yield from _import_time_imports(handler.body, guarded)
-            yield from _import_time_imports(node.orelse, guarded)
-            yield from _import_time_imports(node.finalbody, guarded)
-        elif isinstance(node, ast.If) and _is_type_checking(node.test):
-            yield from _import_time_imports(node.orelse, guarded)
-        elif isinstance(node, ast.Match):
-            for case in node.cases:
-                yield from _import_time_imports(case.body, guarded)
+            yield from _try_imports(node, guarded)
         else:
-            for field in ("body", "orelse", "finalbody"):
-                nested = getattr(node, field, None)
-                if isinstance(nested, list):
-                    yield from _import_time_imports(nested, guarded)
+            for nested in _nested_bodies(node):
+                yield from _import_time_imports(nested, guarded)
 
 
 def _imported_roots(node: ast.stmt) -> list[str]:

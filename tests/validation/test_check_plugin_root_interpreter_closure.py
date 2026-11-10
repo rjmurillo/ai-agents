@@ -192,6 +192,7 @@ def test_symlinked_copy_is_not_scanned_twice(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
     ).stdout
     if not staged.startswith("120000"):

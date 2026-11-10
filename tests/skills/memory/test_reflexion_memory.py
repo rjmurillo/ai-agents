@@ -281,7 +281,11 @@ class TestWithoutJsonschema:
         )
 
         result = subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True, check=False
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
         )
 
         assert result.returncode == 0, result.stderr
