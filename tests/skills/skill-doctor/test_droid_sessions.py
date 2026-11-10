@@ -8,7 +8,6 @@ Fixtures are synthetic. Record shapes follow the on-disk Droid store layout:
 import json
 import os
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 from collect_sessions import find_droid_session_files, parse_droid_session
@@ -93,7 +92,7 @@ def test_parses_meta_stats_skills_and_edits(tmp_path):
     assert stats["last_ts"] == "2026-11-01T10:00:03Z"
     assert skills == ["alpha"]
     assert ("user", "Improve the skill") in entries
-    assert "terminated_by" not in stats
+    assert stats.get("terminated_by") is None
 
 
 def test_tool_name_alone_marks_apply_patch_as_code_edit(tmp_path):
@@ -211,7 +210,7 @@ def test_usage_exhausted_turn_followed_by_completed_turn_is_not_terminated(tmp_p
 
     _meta, stats, _entries, _skills = _parse(tmp_path, records)
 
-    assert "terminated_by" not in stats
+    assert stats.get("terminated_by") is None
 
 
 @pytest.mark.parametrize(
@@ -233,8 +232,9 @@ def test_limit_message_as_final_message_sets_terminated_by(tmp_path, text):
     assert stats["terminated_by"] == "usage_limit_exceeded"
 
 
-def test_limit_wording_in_a_long_final_report_is_not_termination(tmp_path):
-    report = "Verified the quota and weekly limit handling. " + "Details follow. " * 40
+def test_limit_notice_inside_a_long_final_report_is_not_termination(tmp_path):
+    report = "You have reached your weekly limit. " + "Details follow. " * 40
+    assert len(report) > 400
     records = [
         *_working_session()[:-1],
         _message("assistant", [{"type": "text", "text": report}], "m9", "2026-11-01T10:00:09Z"),
@@ -242,7 +242,7 @@ def test_limit_wording_in_a_long_final_report_is_not_termination(tmp_path):
 
     _meta, stats, _entries, _skills = _parse(tmp_path, records)
 
-    assert "terminated_by" not in stats
+    assert stats.get("terminated_by") is None
 
 
 def test_limit_message_that_is_not_final_is_not_termination(tmp_path):
@@ -260,7 +260,73 @@ def test_limit_message_that_is_not_final_is_not_termination(tmp_path):
 
     _meta, stats, _entries, _skills = _parse(tmp_path, records)
 
-    assert "terminated_by" not in stats
+    assert stats.get("terminated_by") is None
+
+
+def test_limit_message_after_an_earlier_completed_turn_is_termination(tmp_path):
+    records = [
+        *_working_session(),
+        _message("user", [{"type": "text", "text": "continue"}], "m8", "2026-11-01T10:00:08Z"),
+        _message(
+            "assistant",
+            [{"type": "text", "text": "You have reached your weekly limit."}],
+            "m9",
+            "2026-11-01T10:00:09Z",
+        ),
+    ]
+
+    _meta, stats, _entries, _skills = _parse(tmp_path, records)
+
+    assert stats["terminated_by"] == "usage_limit_exceeded"
+
+
+def test_exhausted_turn_is_cleared_when_the_session_resumes(tmp_path):
+    records = [
+        *_working_session()[:-1],
+        _outcome("model_usage_exhausted"),
+        _message("user", [{"type": "text", "text": "try again"}], "m8", "2026-11-01T10:00:08Z"),
+        _message("assistant", [{"type": "text", "text": "Done."}], "m9", "2026-11-01T10:00:09Z"),
+    ]
+
+    _meta, stats, _entries, _skills = _parse(tmp_path, records)
+
+    assert stats.get("terminated_by") is None
+
+
+def test_empty_user_message_around_an_exhausted_turn_keeps_termination(tmp_path):
+    records = [
+        *_working_session()[:-1],
+        _message("user", [], "m8", "2026-11-01T10:00:08Z"),
+        _outcome("model_usage_exhausted"),
+        _message("user", [], "m9", "2026-11-01T10:00:09Z"),
+    ]
+
+    _meta, stats, _entries, _skills = _parse(tmp_path, records)
+
+    assert stats["terminated_by"] == "model_usage_exhausted"
+
+
+@pytest.mark.parametrize(
+    ("role", "block"),
+    [
+        ("user", {"type": "text", "text": "You have reached your weekly limit."}),
+        (
+            "user",
+            {"type": "tool_result", "tool_use_id": "t3", "content": "429: rate limit exceeded"},
+        ),
+        ("assistant", {"type": "text", "text": "Added a rate limiter; the load test hit it."}),
+        ("assistant", {"type": "text", "text": "Fixed the 429s: the client hit the rate limit."}),
+    ],
+)
+def test_limit_wording_outside_an_assistant_notice_is_not_termination(tmp_path, role, block):
+    records = [
+        *_working_session()[:-1],
+        _message(role, [block], "m9", "2026-11-01T10:00:09Z"),
+    ]
+
+    _meta, stats, _entries, _skills = _parse(tmp_path, records)
+
+    assert stats.get("terminated_by") is None
 
 
 def test_finder_matches_session_jsonl_inside_cutoff_only(tmp_path):
@@ -454,4 +520,4 @@ def test_cli_factory_home_flag_without_value_exits_2(tmp_path):
     )
 
     assert result.returncode == 2
-    assert Path(tmp_path / "report" / "inventory.json").exists() is False
+    assert "expected one argument" in result.stderr

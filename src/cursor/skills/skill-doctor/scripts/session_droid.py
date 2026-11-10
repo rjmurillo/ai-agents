@@ -36,25 +36,18 @@ USAGE_LIMIT_REASONS = frozenset({"model_usage_exhausted"})
 # in passing is not one.
 LIMIT_MESSAGE_MAX_CHARS = 400
 LIMIT_MESSAGE_VALUE = "usage_limit_exceeded"
-_LIMIT_NAME = re.compile(r"\b(?:usage|weekly|monthly|daily|rate|token)\s+limit", re.IGNORECASE)
-_LIMIT_VERB = re.compile(r"\b(?:reached|reach|exceeded|hit)\b", re.IGNORECASE)
+_LIMIT_NAME = re.compile(r"\b(?:usage|weekly|monthly|daily|rate|token)\s+limit\b", re.IGNORECASE)
+_LIMIT_VERB = re.compile(r"\b(?:reached|exceeded)\b", re.IGNORECASE)
 
 
-def _is_limit_message(message: Any) -> bool:
-    if not isinstance(message, dict):
+def _is_limit_message(message: dict[str, Any]) -> bool:
+    """A short assistant notice that names a limit and says it was reached."""
+    if message.get("role") != "assistant":
         return False
     text = extract_text(message.get("content"))
     if not 0 < len(text) <= LIMIT_MESSAGE_MAX_CHARS:
         return False
     return bool(_LIMIT_NAME.search(text) and _LIMIT_VERB.search(text))
-
-
-def _termination(outcome_reason: Any, limit_message_last: bool) -> str | None:
-    if outcome_reason in USAGE_LIMIT_REASONS:
-        return str(outcome_reason)
-    if outcome_reason is None and limit_message_last:
-        return LIMIT_MESSAGE_VALUE
-    return None
 
 
 def parse_droid_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
@@ -65,8 +58,7 @@ def parse_droid_session(path: Path, _skill_names: Any, include_subagents: bool) 
     state = SessionState()
     meta: dict[str, Any] = {}
     seen: set[Any] = set()
-    outcome_reason: Any = None
-    limit_message_last = False
+    ending: str | None = None
     for obj in records:
         kind = obj.get("type")
         if kind == "session_start":
@@ -85,15 +77,19 @@ def parse_droid_session(path: Path, _skill_names: Any, include_subagents: bool) 
             message = obj.get("message")
             if not isinstance(message, dict):
                 continue
-            message = {**message, "id": message.get("id") or obj.get("id")}
-            role = message.get("role")
-            _claude_message(state, {"type": role, "message": message, "uuid": obj.get("id")}, seen)
-            limit_message_last = _is_limit_message(message)
+            wrapped = {"type": message.get("role"), "message": message, "uuid": obj.get("id")}
+            _claude_message(state, wrapped, seen)
+            # The last decisive record wins. A message with empty content, which
+            # Droid writes just before a usage-exhausted outcome, decides nothing.
+            if _is_limit_message(message):
+                ending = LIMIT_MESSAGE_VALUE
+            elif message.get("content"):
+                ending = None
         elif kind == "agent_turn_outcome":
-            outcome_reason = obj.get("reason")
+            reason = obj.get("reason")
+            ending = str(reason) if reason in USAGE_LIMIT_REASONS else None
     meta = meta or {"id": path.stem, "cwd": None, "originator": "droid", "thread_source": None}
     meta["started_at"] = state.first_ts
-    terminated_by = _termination(outcome_reason, limit_message_last)
-    if terminated_by:
-        state.stats["terminated_by"] = terminated_by
+    if ending:
+        state.stats["terminated_by"] = ending
     return state.finish(meta, DROID_EDIT_TOOLS)
