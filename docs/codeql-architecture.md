@@ -116,6 +116,7 @@ The workflow comments mention security coverage for repository automation. The a
 - `.claude/skills/codeql-scan/`
 - `.codeql/scripts/invoke_codeql_scan.py`
 - Optional VS Code integration installed by `.codeql/scripts/install_codeql_integration.py`
+- `/review` security axis (ADR-041 amendment 2026-11-09): reads Tier 1 alerts, local scan only as a guarded fallback
 
 **Characteristics**:
 

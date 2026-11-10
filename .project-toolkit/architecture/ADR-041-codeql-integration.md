@@ -1,17 +1,18 @@
 ---
 id: ADR-041
 status: accepted
-date: 2026-07-21
+date: 2026-11-09
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
 implemented: true
+review-by: 2027-05-09
 ---
 
 # ADR-041: CodeQL Integration Multi-Tier Strategy
 
-**Status**: Accepted as amended (adr-review consensus 2026-07-21: 6/6 Accept, comprising 5 clean Accept and 1 Accept-with-changes whose two required changes are applied below). Originally Accepted 2026-01-16; amended 2026-07-21 to retire Tier 3 (automatic PostToolUse quick scan) and simplify to a two-tier strategy, per this ADR's own 6-month re-evaluation clause. See the Amendment section below.
+**Status**: Accepted as amended (adr-review consensus 2026-07-21: 6/6 Accept, comprising 5 clean Accept and 1 Accept-with-changes whose two required changes are applied below). Originally Accepted 2026-01-16; amended 2026-07-21 to retire Tier 3 (automatic PostToolUse quick scan) and simplify to a two-tier strategy, per this ADR's own 6-month re-evaluation clause. See the Amendment section below. Amended 2026-11-09 (adr-review consensus) to let /review read CodeQL results as an explicit caller.
 **Date**: 2026-01-16
 **Deciders**: Repository Owner, Security Agent, Implementer Agent
 **Context**: Implementing comprehensive static security analysis
@@ -42,6 +43,49 @@ Historical record (adr-review critic follow-up): the original three-tier rationa
 Portable rebuild: a demand-driven, cross-harness rebuild of edit-time automatic scanning is deferred to issue #3219, not abandoned. If a customer needs edit-time feedback, #3219 captures the design.
 
 Refs: issue #3295 (hook purge), issue #3197 (ROI review), issue #3219 (deferred portable rebuild). Precedent: ADR-062 amendment 2026-07-17 (retire LSP runtime enforcement, keep static steering).
+
+## Amendment 2026-11-09: Let /review read CodeQL results as an explicit caller
+
+Status of this amendment: Accepted 2026-11-09 by adr-review consensus after
+three rounds (5 Accept, 1 Disagree-and-Commit; see
+`.project-toolkit/critique/ADR-041-debate-log-2.md`). The full
+rule set is in `.project-toolkit/analysis/adr-041-review-caller-rules.md` and is
+part of this decision.
+
+Problem. The `security` agent has no Bash tool, and `security-review` reads a
+diff without running anything. A reviewer never sees CodeQL's semantic findings
+during `/review`, even though Tier 1 computes them for every pull request.
+
+Change. `/review` becomes the one new caller of CodeQL results, only when its
+`security` axis is selected. `security-review` and the `security` agent are
+unchanged. In summary:
+
+1. If the diff (merge-base with the default branch to HEAD, plus uncommitted
+   changes) touches `.codeql/**`, `.github/codeql/**`,
+   `.github/workflows/codeql-analysis.yml`, `.github/actions/**`, or the
+   `codeql-scan` skill scripts, the step reads no result and reports `CodeQL: SKIPPED (scanner inputs
+   modified)`.
+2. Preferred source: the pull request's Tier 1 alerts, read with GET requests
+   only and every page read. They count only when the analyzed pull request
+   head SHA equals the reviewed HEAD and the tree is clean; otherwise `STALE`.
+   No analysis reports `NOT ANALYZED`.
+3. Fallback before a pull request exists: the local Tier 2 wrapper, only under
+   the guards in the rules file (clean tree, cache at HEAD, minimal environment,
+   60 second limit with a process-group kill, `CLEAN` only with fresh SARIF for
+   every detected language, with at least one detected). Unattended runs never use it.
+4. Results reach the `security` axis as a validated rule id, a diff-checked
+   path, and a line number. They are input only; Tier 1 stays the only blocking
+   gate. `STALE`, `NOT ANALYZED`, and `SKIPPED` are never reported as clean.
+
+What this amendment does NOT change: Tier 1 stays the blocking gate; automatic
+edit-time scanning stays retired (#3219); the scanner's behavior, configs, and
+exit codes (ADR-035) are unchanged; Tier 2 stays optional.
+
+Consequence for the investment policy. Tier 2 moves from "Maintenance-Only" to
+"Maintenance plus this single caller", not back to Active Development. Review
+by 2027-05-09 (`review-by` in the frontmatter): on that date the local fallback
+is removed by default, unless someone cites a `/review` output in which it
+produced a `CLEAN` or findings result. Source 1 stays.
 
 ## Context and Problem Statement
 
@@ -336,7 +380,7 @@ All scripts follow standardized exit codes:
 | Tier | Status | Investment Policy |
 |------|--------|------------------|
 | Tier 1 (CI/CD) | **Active Development** | Continue enhancements, maintain quality |
-| Tier 2 (Local) | **Maintenance-Only** | Bug fixes only, no new features |
+| Tier 2 (Local) | **Maintenance-Only, plus one caller** | Bug fixes, plus the /review caller added by the 2026-11-09 amendment. No other new features |
 | Tier 3 (Automatic) | **Retired (2026-07-21)** | Removed as unused; see Amendment 2026-07-21. Portable rebuild deferred to #3219 |
 
 **Rationale**: CI/CD enforcement provides core security value. Local/automatic tiers are developer convenience features subject to usage validation per post-deployment review (see below).
