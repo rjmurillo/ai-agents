@@ -186,7 +186,7 @@
     "templates/agents/critic.shared.md|templates/agents/explainer.shared.md": 4,
     "templates/agents/critic.shared.md|templates/agents/implementer.shared.md": 4,
     "templates/agents/critic.shared.md|templates/agents/independent-thinker.shared.md": 4,
-    "templates/agents/critic.shared.md|templates/agents/partials/critic-adversarial-coverage-checklist.mustache": 75,
+    "templates/agents/critic.shared.md|templates/agents/partials/critic-adversarial-coverage-checklist.mustache": 60,
     "templates/agents/critic.shared.md|templates/agents/partials/critic-degraded-mode-protocol.mustache": 7,
     "templates/agents/critic.shared.md|templates/agents/partials/critic-intro.mustache": 12,
     "templates/agents/critic.shared.md|templates/agents/partials/serena-worktree-write-guard.mustache": 4,

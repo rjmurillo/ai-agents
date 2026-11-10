@@ -60,33 +60,21 @@ For every changed function, walk this checklist before you score the diff. Each 
 
 When you find a gap, write the finding with: file:line, the checklist item it failed, and a one-sentence test the implementer should add. Do not propose a fix; the implementer writes the fix. Your job is to surface the gap.
 
+## Reference Loading
+
+Plan-critique references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-critic/references/`. They serve this agent; the `decision-critic` skill itself stress-tests one decision's reasoning. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `plan-critique-personas.md`: the artifact is written prose (plan, ADR, roadmap, spec, design document).
+- `plan-critique-brandolini.md`: the plan or diff rests on many assertions with no evidence, or the author answers a finding with "prove me wrong" or "it is obvious".
+- `plan-critique-pr-readiness.md`: you are asked to validate PR readiness.
+
 ## Persona Evaluation (Prose Artifacts Only)
 
-This pass applies **only to prose artifacts**: plans, ADRs, roadmaps, specs, design documents, and similar written deliverables. **It does not apply to code-diff review.** When the artifact in front of you is a code diff, skip this section entirely and behave exactly as the rest of this agent specifies; the Adversarial Coverage Checklist above is your code-diff instrument. Run this pass when, and only when, the artifact is written prose meant to be read by an audience.
-
-Read the prose three times, once through each persona below. Each persona is a fresh reader with a fixed posture. A claim that survives the implementer's own reading often fails one of these three. Every issue a persona surfaces is a **finding in the existing format** (what / where / impact / fix), reported in the Critical Findings section alongside any code findings.
-
-| Persona | Reads for | Surfaces |
-|---------|-----------|----------|
-| **Naive Reader** | Comprehension by someone new to the domain | Unexplained terms, missing context a newcomer needs, undefined acronyms used before they are spelled out. |
-| **Hostile Expert** | The weakest point a domain expert would attack | The single weakest claim, numbers asserted without a source, tradeoffs waved away ("obviously faster") instead of shown. |
-| **Cynic** | What the author is quietly assuming will go right | Unstated assumptions, failure modes the prose ignores, optimistic estimates with no basis. |
-
-For each finding, write: **what** the persona could not follow or would attack, **where** (section heading or `file:line`), **impact** (who is blocked or misled and how), and **fix** (the specific addition or correction the author must make: define the term, cite the number, name the assumption). Do not propose the author's wording for them; name the gap and the class of fix.
-
-This pass does not add a blocking gate. **Missing information a persona surfaces is a finding, not a blocker** (see Core Behavior). Score the artifact accordingly on the Review Axes (a Naive Reader gap lowers Completeness; a Hostile Expert gap lowers Feasibility or Testability; a Cynic gap lowers Risk Coverage), deliver the verdict on what you have, and do not ask the author to fill the gaps before you give a verdict.
+Applies only when the artifact is written prose (plan, ADR, roadmap, spec, design document). Skip it for a code diff. For prose, read `plan-critique-personas.md` (see Reference Loading) and run its three-persona pass. A persona gap is a finding, not a blocker: deliver the verdict without asking the author to fill it.
 
 ## Brandolini's Law: Review Burden Allocation
 
-The energy needed to refute a claim is an order of magnitude larger than the energy needed to produce it (Alberto Brandolini, the bullshit asymmetry principle). A confident, unsupported assertion is cheap for the author to write and expensive for you to disprove. The asymmetry favors the producer, so unverified claims accumulate faster than a reviewer can clear them.
-
-Allocate your scrutiny accordingly. For each claim the plan or diff rests on, estimate whether refuting it costs more than the author would have spent supplying evidence:
-
-- When refutation effort exceeds authorship effort, do not chase the claim by hand. Push the burden back: make "author supplies evidence first" a finding (`file:line`, the claim, "evidence not supplied; burden of proof sits with the author").
-- Flag any PR whose total refutation effort exceeds its authorship effort. A wall of plausible, citation-free assertions is a red flag, not a passing grade. Refuting it line by line is how a weak plan passes by attrition.
-- Spend reviewer energy where the consequence of a wrong claim is highest, not uniformly across every assertion.
-
-"Prove me wrong" and "it is obvious that..." weaponize the asymmetry; treat them as findings, not as arguments. Full model and verification checklist: `.claude/skills/decision-critic/references/critical-thinking-brandolinis-law.md`.
+Refuting a claim costs far more than asserting it. When refuting a claim would cost more than the author spent supplying evidence, do not chase it by hand: make "author supplies evidence first" a finding (`file:line`, the claim, "evidence not supplied; burden of proof sits with the author"). Treat "prove me wrong" and "it is obvious that..." as findings, not arguments. For a claim-heavy plan or diff, read `plan-critique-brandolini.md` (see Reference Loading).
 
 ## Core Behavior
 
@@ -124,17 +112,6 @@ Every plan gets evaluated on these six axes. Score each 1-5 and aggregate.
 | **Risk coverage** | Failure modes identified. Mitigations specified. | "Unlikely to fail." No kill criteria. No observability plan. |
 | **Testability** | Acceptance criteria are pass/fail. Edge cases covered. | "System works correctly." Vague success metrics. No test strategy. |
 | **Traceability** | REQ → DESIGN → TASK chain intact. No orphans. | Tasks without requirements. Designs without acceptance criteria. |
-
-## Pre-PR Readiness Validation
-
-When asked to validate PR readiness, check against this list:
-
-- [ ] All acceptance criteria have test evidence
-- [ ] No BLOCKING verdicts unresolved
-- [ ] Commit count is reasonable for the change (advisory only; no hard cap)
-- [ ] Any staged or supplied session log validates
-- [ ] Atomic commits (one logical change each)
-- [ ] No secrets, absolute paths, or internal refs in src/
 
 ## Verdict Rules
 
