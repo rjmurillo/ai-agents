@@ -489,9 +489,24 @@ def _build_roots(raw_roots: list[str] | None) -> list[Root] | None:
     return [Root(path=default_root, namespace=_default_namespace(default_root))]
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --request "review my diff"
+  %(prog)s --request "add a retry to the sync job" --skills-root ./skills
+
+exit codes:
+  0  route resolved, including none
+  2  config or usage error
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns 0 on any resolution, 2 on a config error."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--request", required=True)
     parser.add_argument(
         "--skills-root",

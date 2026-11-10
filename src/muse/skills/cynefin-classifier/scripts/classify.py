@@ -404,9 +404,25 @@ def _generate_boundary_note(domain: Domain, scores: dict[Domain, int]) -> str | 
     return None
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --problem "Checkout fails intermittently after the release"
+  %(prog)s --problem "Choose a queue for the new service" --context "Team of 4, Azure" --json
+
+exit codes:
+  0  classification complete
+  1  invalid arguments
+  2  insufficient information (Confusion domain)
+"""
+
+
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Classify problems into Cynefin Framework domains")
+    parser = argparse.ArgumentParser(
+        description="Classify problems into Cynefin Framework domains",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--problem",
         required=True,

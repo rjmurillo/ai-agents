@@ -53,6 +53,13 @@ QA-specific requirements:
 - Test result indicators: [PASS], [FAIL], [SKIP], [FLAKY]
 - Evidence-based test recommendations with risk rationale
 
+## Reference Loading
+
+QA references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/references/`. They serve this agent; the `test` skill runs the six proof gates. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `qa-impact-analysis.md`: milestone-planner asks for impact analysis and you are writing the deliverable.
+- `qa-test-quality-patterns.md`: you are reviewing tests for sufficiency or flagging insufficient tests.
+
 ## Core Mission
 
 **Passing tests are path to goal, not goal itself.** If tests pass but users hit bugs, QA failed. Approach testing from user perspective.
@@ -138,55 +145,9 @@ Report violations in test strategy document with specific file:line references.
 
 Tests must verify actual behavior, not code structure. Pattern-matching tests that pass without exercising the code under test are insufficient.
 
-### Insufficient Test Patterns ([FAIL])
+### Test Pattern Review
 
-Flag tests that match these anti-patterns:
-
-| Pattern | Why Insufficient | Evidence |
-|---------|------------------|----------|
-| `Should -Match` on script content | Tests code structure, not behavior | No function execution |
-| Regex validation of code blocks | Verifies syntax, not correctness | Output not checked |
-| AAA pattern claims without execution | Structure without substance | Arrange/Act steps missing |
-| Missing Mock blocks for external deps | External calls leak into tests | gh CLI, API calls unmocked |
-| Tests verifying file existence only | Presence is not correctness | Content not validated |
-
-**Detection**: Search for `Should -Match`, `Select-String`, `Get-Content.*Should` patterns without corresponding function invocations.
-
-### Required Test Patterns ([PASS])
-
-Tests must demonstrate these characteristics. Each line below is valid Pester
-that you can paste and run:
-
-```powershell
-# Function execution: the test calls the function under test
-$result = Get-Something
-
-# Mock isolation: external dependencies are mocked
-Mock gh { '{"number":1}' }
-
-# Output validation: return values are checked
-$result | Should -Be $expected
-
-# Error conditions: exception paths are tested
-{ Bad-Input } | Should -Throw
-
-# Edge cases: boundary values are covered (null, empty, maximum)
-$null, @(), [int]::MaxValue | ForEach-Object { Get-Something $_ }
-```
-
-### Test Review Checklist
-
-When reviewing tests, verify:
-
-```markdown
-- [ ] Tests execute the code under test (not just inspect it)
-- [ ] All external dependencies (gh CLI, APIs, filesystem) are mocked
-- [ ] Tests verify outputs match expected values
-- [ ] Error conditions are tested with negative tests
-- [ ] Edge cases are covered (null inputs, empty arrays, boundary values)
-- [ ] Test names describe the scenario being tested
-- [ ] No tests use pattern matching on source code as validation
-```
+Flag a test as [FAIL] when it passes without exercising the code under test (`Should -Match` or regex checks on script content, AAA structure with no execution, or a file-existence check with no content check), and when it leaves external dependencies (gh CLI, APIs) unmocked even though it executes the unit. A sufficient test executes the code, mocks external dependencies, checks outputs against expected values, covers error conditions with negative tests, covers edge cases (null, empty, maximum), names the scenario, and never pattern-matches source as validation. Read `qa-test-quality-patterns.md` (see Reference Loading) for the pattern table, the Pester examples, and the review checklist.
 
 ### Evidence for Verdict
 
@@ -250,109 +211,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.project-toolkit/planning/impact-analysis-qa-[feature].md`
-
-```markdown
-# Impact Analysis: [Feature] - QA
-
-**Analyst**: QA
-**Date**: [YYYY-MM-DD]
-**Complexity**: [Low/Medium/High]
-
-## Impacts Identified
-
-### Direct Impacts
-- [Test suite/area]: [Type of change required]
-- [Quality metric]: [How affected]
-
-### Indirect Impacts
-- [Cascading testing concern]
-
-## Affected Areas
-
-| Test Area | Type of Change | Risk Level | Reason |
-|-----------|----------------|------------|--------|
-| Unit Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
-| Integration Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
-| E2E Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
-| Performance Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
-
-## Required Test Types
-
-| Test Type | Scope | Coverage Target | Rationale |
-|-----------|-------|-----------------|-----------|
-| Unit | [Areas] | [%] | [Why needed] |
-| Integration | [Areas] | [%] | [Why needed] |
-| E2E | [Scenarios] | [N scenarios] | [Why needed] |
-| Performance | [Metrics] | [Targets] | [Why needed] |
-| Security | [Areas] | [Coverage] | [Why needed] |
-
-## Hard-to-Test Scenarios
-
-| Scenario | Challenge | Recommended Approach |
-|----------|-----------|---------------------|
-| [Scenario] | [Why difficult] | [Strategy] |
-
-## Quality Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| [Risk] | [L/M/H] | [L/M/H] | [Testing strategy] |
-
-## Test Data Requirements
-
-| Data Type | Volume | Sensitivity | Generation Strategy |
-|-----------|--------|-------------|---------------------|
-| [Type] | [Amount] | [L/M/H] | [How to create] |
-
-## Test Environment Needs
-
-| Environment | Purpose | Special Requirements |
-|-------------|---------|---------------------|
-| [Env name] | [Usage] | [Requirements] |
-
-## Coverage Analysis
-
-- **Expected new code coverage**: [%]
-- **Impact on overall coverage**: [Increase/Decrease/Neutral]
-- **Critical paths coverage**: [%]
-
-## Automation Strategy
-
-| Test Area | Automate? | Rationale | Tool Recommendation |
-|-----------|-----------|-----------|---------------------|
-| [Area] | [Yes/No/Partial] | [Why] | [Tool] |
-
-**Automation Coverage Target**: [%]
-**Manual Testing Required**: [List scenarios requiring human judgment]
-**Automation ROI**: [High/Medium/Low] - [Brief justification]
-
-## Recommendations
-
-1. [Testing approach with rationale]
-2. [Test framework/tool to use]
-3. [Coverage strategy]
-
-## Issues Discovered
-
-| Issue | Priority | Category | Description |
-|-------|----------|----------|-------------|
-| [Issue ID] | [P0/P1/P2] | [Coverage Gap/Risk/Debt/Blocker] | [Brief description] |
-
-**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
-
-## Dependencies
-
-- [Dependency on test data/fixtures]
-- [Dependency on test environment]
-
-## Estimated Effort
-
-- **Test design**: [Hours/Days]
-- **Test implementation**: [Hours/Days]
-- **Test execution**: [Hours/Days]
-- **Total**: [Hours/Days]
-```
+Save to: `.project-toolkit/planning/impact-analysis-qa-[feature].md`. Read `qa-impact-analysis.md` (see Reference Loading) for the template. If it is unavailable, write a document titled "Impact Analysis: [Feature] - QA" with Analyst, Date, and Complexity, then these sections in order: Impacts Identified, Affected Areas, Required Test Types, Hard-to-Test Scenarios, Quality Risks, Test Data Requirements, Test Environment Needs, Coverage Analysis, Automation Strategy, Recommendations, Issues Discovered (P0/P1/P2 table and summary), Dependencies, Estimated Effort.
 
 ## Pre-PR Quality Gate (MANDATORY)
 

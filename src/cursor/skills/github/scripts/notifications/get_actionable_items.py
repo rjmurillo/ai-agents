@@ -55,10 +55,25 @@ from github_core.output import (
     write_skill_output,
 )
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --limit 25 --output-format json
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  invalid owner or repo, or plugin lib missing
+  3  external error (API failure)
+  4  auth error
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="List actionable backlog items (PRs and issues needing attention).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

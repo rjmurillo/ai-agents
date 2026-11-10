@@ -433,8 +433,24 @@ def evaluate(data: dict[str, Any], max_options: int = MAX_PRESENTED_OPTIONS) -> 
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --brief brief.json
+  %(prog)s --brief brief.json --max-options 4
+
+exit codes:
+  0  routing resolved: no question needed, a complete brief, or decisions held
+  1  invalid arguments or unreadable or malformed brief JSON
+  2  brief incomplete, or an earlier answer ruled out the recommended option
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Evaluate a decision-question brief.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate a decision-question brief.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--brief", required=True, help="Path to a decision brief JSON file.")
     parser.add_argument(
         "--max-options",

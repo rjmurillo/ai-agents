@@ -328,16 +328,23 @@ def validate_threat_model(path: Path) -> tuple[bool, list[ValidationResult]]:
     return overall_pass, results
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s threat-model.md
+  %(prog)s threat-model.md --json
+
+exit codes:
+  0  validation passed
+  10  validation failed (not an ADR-035 code)
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Validate a threat model document for completeness",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python validate_threat_model.py auth-threats.md
-  python validate_threat_model.py ./threat-models/payment.md
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

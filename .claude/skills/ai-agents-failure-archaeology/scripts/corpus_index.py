@@ -69,9 +69,24 @@ def resolve_shas(repo: Path, shas: list[str]) -> dict[str, bool]:
     return out
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo .
+  %(prog)s --repo . --shas abc1234 def5678
+
+exit codes:
+  0  ok
+  1  a retro file is missing from the index
+  2  retro dir or failure-mode file missing, or a SHA starts with a dash
+  3  git failed resolving a SHA
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Count retros, INDEX.md coverage, failure modes, and memory files.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--repo", default=".", help="repository root (default: .)")
     p.add_argument(

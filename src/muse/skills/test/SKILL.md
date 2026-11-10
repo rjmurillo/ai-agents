@@ -303,6 +303,10 @@ If any answer is "no" or "not sure," adjust before proceeding.
 | Changing code to make a red test pass | Fixes the symptom and often moves the defect | Form a hypothesis, verify it, then fix |
 | Treating a passing suite as proof of coverage | A green run says the tests that exist pass, not that the risky paths have any | Check error paths and edge cases per Gate 1 |
 
+## References
+
+- [QA impact analysis](references/qa-impact-analysis.md) and [test quality patterns](references/qa-test-quality-patterns.md) serve the `qa` agent. This skill's gates do not use them.
+
 ## Extension Points
 
 - **A seventh gate.** Add a `## Gate 7` section, a row in the Step 0 type table,

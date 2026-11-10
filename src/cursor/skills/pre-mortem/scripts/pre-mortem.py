@@ -238,9 +238,25 @@ def print_result(result: ValidationResult) -> None:
     print("\n" + "=" * 60)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --inventory-path inventory.md
+  %(prog)s --inventory-path inventory.md --validate --json
+
+exit codes:
+  0  valid inventory with all required fields
+  1  invalid arguments or file not found
+  10  validation failed: missing required sections
+"""
+
+
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Validate a pre-mortem risk inventory document")
+    parser = argparse.ArgumentParser(
+        description="Validate a pre-mortem risk inventory document",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--inventory-path",
         type=str,

@@ -368,9 +368,25 @@ def _report_dry_run(
     return 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123
+  %(prog)s --issue 123 --dry-run --output-format json
+
+exit codes:
+  0  claimed (now assigned to the current user) or already held by current user
+  1  already claimed by a different login (do not start; coordinate)
+  2  config error (plugin lib path missing)
+  3  external error (gh/API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Self-assign an issue, refusing if already claimed by another login.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

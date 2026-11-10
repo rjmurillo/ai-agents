@@ -97,9 +97,26 @@ def _rows(repo: Path) -> list[dict[str, Any]]:
     return rows
 
 
+_HELP_EPILOG = """\
+run passes a started child process exit code through unchanged.
+
+examples:
+  %(prog)s --repo . list
+  %(prog)s --repo . run verify-config -- --pull-request 123
+
+exit codes:
+  0  ok
+  1  a listed instrument file is missing
+  2  bad arguments or unknown id
+  3  the run target failed to start
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     parser.add_argument("--repo", default=".")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -125,7 +142,13 @@ def main(argv: list[str] | None = None) -> int:
     row = next((r for r in rows if r["id"] == args.id), None)
     if row is None:
         print(
-            json.dumps({"error": f"unknown instrument id: {args.id}", "examined": len(rows)}),
+            json.dumps(
+                {
+                    "error": f"unknown instrument id: {args.id}",
+                    "known": [r["id"] for r in rows],
+                    "examined": len(rows),
+                }
+            ),
             file=sys.stderr,
         )
         return 2

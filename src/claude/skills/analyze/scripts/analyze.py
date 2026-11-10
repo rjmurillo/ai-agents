@@ -575,52 +575,26 @@ def format_output(step: int, total_steps: int, thoughts: str, guidance: dict) ->
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+workflow phases:
+  1 exploration, 2 focus selection, 3 investigation plan, 4+ deep analysis,
+  N-1 verification, N synthesis
+
+examples:
+  %(prog)s --step-number 1 --total-steps 6 --thoughts "Explore found: Flask app, SQLAlchemy"
+  %(prog)s --step-number 3 --total-steps 7 --thoughts-file findings.md
+
+exit codes:
+  0  step guidance printed
+  1  step number below 1, total steps below 6 or below the step, or unreadable thoughts file
+"""
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Analyze Skill - Systematic codebase analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Workflow Phases:
-  Step 1: EXPLORATION         - Process Explore agent results
-  Step 2: FOCUS SELECTION     - Classify investigation areas
-  Step 3: INVESTIGATION PLAN  - Commit to specific files and questions
-  Step 4+: DEEP ANALYSIS      - Progressive investigation with evidence
-  Step N-1: VERIFICATION      - Validate completeness before synthesis
-  Step N: SYNTHESIS           - Consolidate verified findings
-
-Examples:
-  # Step 1: After Explore agent returns
-  python3 analyze.py --step-number 1 --total-steps 6 \\
-    --thoughts "Explore found: Python web app, Flask, SQLAlchemy..."
-
-  # Step 2: Focus selection
-  python3 analyze.py --step-number 2 --total-steps 7 \\
-    --thoughts "Structure: src/, tests/. Focus: security (P1), quality (P2)..."
-
-  # Step 3: Investigation planning
-  python3 analyze.py --step-number 3 --total-steps 7 \\
-    --thoughts "P1 Security: auth/login.py (Q: input validation?), ..."
-
-  # Step 4: Initial investigation
-  python3 analyze.py --step-number 4 --total-steps 7 \\
-    --thoughts "FILES: auth/login.py read. [CRITICAL] SQL injection at :45..."
-
-  # Step 5: Deepen investigation
-  python3 analyze.py --step-number 5 --total-steps 7 \\
-    --thoughts "[Previous state] + traced to db/queries.py, pattern in 3 files..."
-
-  # Step 6: Verification
-  python3 analyze.py --step-number 6 --total-steps 7 \\
-    --thoughts "[All findings] Checking: all files read, all questions answered..."
-
-  # Step 7: Synthesis
-  python3 analyze.py --step-number 7 --total-steps 7 \\
-    --thoughts "[Verified findings] Ready for consolidation..."
-
-  # --thoughts-file avoids embedding request text on the command line
-  python3 analyze.py --step-number 1 --total-steps 6 \\
-    --thoughts-file /path/to/thoughts.txt
-""",
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

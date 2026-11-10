@@ -145,7 +145,7 @@ class TestMain:
                 return_value=[],
             ),
         ):
-            rc = main(["--pull-request", "10"])
+            rc = main(["--pull-request", "10", "--all"])
         assert rc == 0
         stdout = capsys.readouterr().out
         json_start = stdout.rfind("{")
@@ -162,5 +162,194 @@ class TestMain:
                 side_effect=RuntimeError("API fail"),
             ),
         ):
-            rc = main(["--pull-request", "10"])
+            rc = main(["--pull-request", "10", "--all"])
         assert rc == 3
+
+
+class TestScopeFlags:
+    """--pull-request alone must not unresolve every thread (closed input set)."""
+
+    def test_pull_request_without_all_exits_2_and_unresolves_nothing(self, capsys):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads") as lookup,
+            patch("unresolve_pr_review_thread.unresolve_review_thread") as mutate,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+        assert exc.value.code == 2
+        assert "needs --all" in capsys.readouterr().err
+        lookup.assert_not_called()
+        mutate.assert_not_called()
+
+    def test_all_with_thread_id_exits_2(self, capsys):
+        with patch("unresolve_pr_review_thread.assert_gh_authenticated"):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "PRRT_abc", "--all"])
+        assert exc.value.code == 2
+        assert "--pull-request" in capsys.readouterr().err
+
+
+class TestStreams:
+    def test_bulk_progress_goes_to_stderr_and_stdout_is_json_only(self, capsys):
+        thread = {"id": "PRRT_1", "comments": {"nodes": []}}
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads", return_value=[thread]),
+            patch("unresolve_pr_review_thread.unresolve_review_thread", return_value=True),
+        ):
+            rc = main(["--pull-request", "10", "--all"])
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert json.loads(captured.out)["Unresolved"] == 1
+        assert "Found 1 resolved thread" in captured.err
+        assert "Summary:" in captured.err
+
+
+class TestDryRun:
+    @staticmethod
+    def _preview(node, capsys):
+        reply = {"node": node}
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=reply) as graphql,
+            patch("unresolve_pr_review_thread.unresolve_review_thread") as mutate,
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--dry-run"])
+        mutate.assert_not_called()
+        assert "mutation" not in graphql.call_args.args[0]
+        return rc, json.loads(capsys.readouterr().out)
+
+    def test_single_thread_reports_plan_and_does_not_mutate(self, capsys):
+        rc, output = self._preview({"id": "PRRT_abc", "isResolved": True}, capsys)
+        assert rc == 0
+        assert output["Action"] == "would_unresolve"
+        assert output["DryRun"] is True
+        assert output["AlreadyUnresolved"] is False
+
+    def test_single_thread_already_unresolved_is_reported(self, capsys):
+        rc, output = self._preview({"id": "PRRT_abc", "isResolved": False}, capsys)
+        assert rc == 0
+        assert output["AlreadyUnresolved"] is True
+
+    def test_single_thread_not_found_exits_1_like_a_real_run(self, capsys):
+        rc, output = self._preview(None, capsys)
+        assert rc == 1
+        assert output["Success"] is False
+
+    def test_single_thread_read_failure_exits_1(self, capsys):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.gh_graphql", side_effect=RuntimeError("boom")),
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--dry-run"])
+        assert rc == 1
+        assert json.loads(capsys.readouterr().out)["Success"] is False
+
+    def test_bulk_lists_thread_ids_and_does_not_mutate(self, capsys):
+        threads = [
+            {"id": "PRRT_1", "comments": {"nodes": []}},
+            {"id": "PRRT_2", "comments": {"nodes": []}},
+        ]
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads", return_value=threads),
+            patch("unresolve_pr_review_thread.unresolve_review_thread") as mutate,
+        ):
+            rc = main(["--pull-request", "10", "--all", "--dry-run"])
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["ThreadIds"] == ["PRRT_1", "PRRT_2"]
+        assert output["TotalResolved"] == 2
+        mutate.assert_not_called()
+
+    def test_bulk_with_nothing_resolved_reports_the_noop_with_the_marker(self, capsys):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads", return_value=[]),
+        ):
+            rc = main(["--pull-request", "10", "--all", "--dry-run"])
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["TotalResolved"] == 0
+        assert output["DryRun"] is True
+
+    def test_dry_run_still_rejects_a_malformed_thread_id(self):
+        with patch("unresolve_pr_review_thread.assert_gh_authenticated"):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "INVALID", "--dry-run"])
+        assert exc.value.code == 2
+
+    def test_dry_run_still_propagates_lookup_failure(self):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch(
+                "unresolve_pr_review_thread.get_resolved_threads",
+                side_effect=RuntimeError("API fail"),
+            ),
+        ):
+            rc = main(["--pull-request", "10", "--all", "--dry-run"])
+        assert rc == 3
+
+
+class TestGetResolvedThreadsPagination:
+    """Every page is read; an incomplete read fails loud instead of looking complete."""
+
+    @staticmethod
+    def _page(ids, *, next_cursor=None, resolved=True):
+        return {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "pageInfo": {
+                            "hasNextPage": next_cursor is not None,
+                            "endCursor": next_cursor,
+                        },
+                        "nodes": [{"id": i, "isResolved": resolved} for i in ids],
+                    }
+                }
+            }
+        }
+
+    @staticmethod
+    def _repo():
+        return _completed(stdout=json.dumps({"owner": {"login": "o"}, "name": "r"}))
+
+    def test_reads_every_page_and_passes_the_cursor(self):
+        pages = [self._page(["T1"], next_cursor="c1"), self._page(["T2", "T3"])]
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", side_effect=pages) as graphql,
+        ):
+            threads = get_resolved_threads(10)
+
+        assert [t["id"] for t in threads] == ["T1", "T2", "T3"]
+        assert "cursor" not in graphql.call_args_list[0].args[1]
+        assert graphql.call_args_list[1].args[1]["cursor"] == "c1"
+
+    def test_unresolved_threads_are_filtered_out(self):
+        page = self._page(["T1"], resolved=False)
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=page),
+        ):
+            assert get_resolved_threads(10) == []
+
+    def test_missing_cursor_raises_and_states_what_was_read(self):
+        page = self._page(["T1"], next_cursor="")
+        page["repository"]["pullRequest"]["reviewThreads"]["pageInfo"]["hasNextPage"] = True
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=page),
+        ):
+            with pytest.raises(RuntimeError, match="no cursor; read 1 resolved thread"):
+                get_resolved_threads(10)
+
+    def test_page_cap_raises_instead_of_returning_a_partial_list(self):
+        endless = self._page(["T1"], next_cursor="more")
+        with (
+            patch("subprocess.run", return_value=self._repo()),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=endless),
+        ):
+            with pytest.raises(RuntimeError, match="exceeded 50 pages"):
+                get_resolved_threads(10)

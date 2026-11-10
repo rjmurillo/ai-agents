@@ -1,1 +1,0 @@
-../../src/copilot-cli/agents/pr-comment-responder.agent.md

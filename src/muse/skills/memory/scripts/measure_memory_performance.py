@@ -160,9 +160,21 @@ def format_markdown(benchmark: dict) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --queries 'session protocol' 'git hooks' --iterations 3
+
+exit codes:
+  0  benchmark finished
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Benchmark memory search performance.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--queries",

@@ -144,9 +144,25 @@ def update_setting(owner: str, repo: str, new_value: str) -> None:
         )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --set PR_BODY --dry-run
+
+exit codes:
+  0  success (read, no-op, dry-run, or applied write)
+  1  guard failure: --expected-current did not match the live value
+  2  usage or configuration error
+  3  external service or API error
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Read or update squash_merge_commit_message with a stale-write guard.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--owner", default="")
     p.add_argument("--repo", default="")

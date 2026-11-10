@@ -17,10 +17,24 @@ import subprocess
 import sys
 from pathlib import Path
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --grades-file grades.json
+  %(prog)s --grades-file grades.json --threshold 1
+
+exit codes:
+  0  no degradation detected
+  1  script error or degradation detected
+"""
+
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Check quality grades for degradation and notify")
+    parser = argparse.ArgumentParser(
+        description="Check quality grades for degradation and notify",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--grades-file",
         type=Path,

@@ -330,16 +330,22 @@ def generate_roadmap(input_path: Path, output_path: Path) -> int:
     return 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --input threats.md --output roadmap.md
+
+exit codes:
+  0  roadmap written
+  1  input missing or unreadable, or the roadmap could not be generated
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Generate a prioritized mitigation roadmap from a threat model",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python generate_mitigation_roadmap.py --input auth-threats.md --output auth-roadmap.md
-  python generate_mitigation_roadmap.py -i threats.md -o roadmap.md
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

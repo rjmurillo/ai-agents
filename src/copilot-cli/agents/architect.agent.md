@@ -63,6 +63,14 @@ Access via:
 serena/read_memory with memory_file_name="[memory-name]"
 ```
 
+## Reference Loading
+
+Architect references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/adr-review/references/`. They serve this agent; the `adr-review` skill runs the ADR debate. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `architect-impact-analysis.md`: milestone-planner asks for impact analysis and you are writing the deliverable.
+- `architect-code-organization-review.md`: a PR adds directories or relocates files.
+- `architect-vendor-lock-in.md`, only when this body has a Vendor Lock-in Section and an ADR introduces an external dependency; `architect-strategic-principles.md`, only when this body has a Strategic Architecture Principles section and an ADR or review removes or simplifies an existing pattern, proposes a migration, or weighs building a non-differentiating capability.
+
 ## Core Mission
 
 Maintain system architecture as single source of truth. Conduct reviews across three phases: pre-planning, plan/analysis, and post-implementation.
@@ -116,95 +124,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.project-toolkit/planning/impact-analysis-architecture-[feature].md`
-
-```markdown
-# Impact Analysis: [Feature] - Architecture
-
-**Analyst**: Architect
-**Date**: [YYYY-MM-DD]
-**Complexity**: [Low/Medium/High]
-
-## Impacts Identified
-
-### Direct Impacts
-- [Architectural layer/component]: [Type of change]
-- [Pattern/principle]: [How affected]
-
-### Indirect Impacts
-- [System-wide implication]
-
-## Affected Areas
-
-| Architectural Concern | Type of Change | Risk Level | Reason |
-|----------------------|----------------|------------|--------|
-| [Concern] | [Modify/Extend/Violate] | [L/M/H] | [Why] |
-
-## ADR Alignment
-
-| ADR | Status | Notes |
-|-----|--------|-------|
-| ADR-NNNN | Aligns / Conflicts / Not Applicable | [Details] |
-
-## Required Patterns
-
-- **Pattern**: [Name] - [Why needed, how applied]
-- **Pattern**: [Name] - [Why needed, how applied]
-
-## Design Conflicts
-
-| Conflict | Impact | Resolution |
-|----------|--------|------------|
-| [Conflict] | [Impact] | [Recommendation] |
-
-## Long-Term Implications
-
-- [Implication 1]: [Description]
-- [Implication 2]: [Description]
-
-## Domain Model Alignment
-
-| Domain Concept | Current Representation | Proposed Change | Alignment Status |
-|----------------|----------------------|-----------------|------------------|
-| [Concept] | [Current] | [New] | [Aligned/Drift/Breaking] |
-
-**Ubiquitous Language Impact**: [How domain language is affected]
-**Bounded Context Changes**: [Any context boundary changes]
-
-## Abstraction Consistency
-
-| Layer | Current Abstraction | Change Impact | Consistency Status |
-|-------|--------------------|--------------|--------------------|
-| [Layer] | [Current] | [Impact] | [Maintained/Broken/Improved] |
-
-**Abstraction Level Changes**: [Is the abstraction level appropriate]
-**Interface Stability**: [Impact on public interfaces]
-
-## Recommendations
-
-1. [Architectural approach with rationale]
-2. [Pattern to enforce]
-3. [New ADR needed]
-
-## Issues Discovered
-
-| Issue | Priority | Category | Description |
-|-------|----------|----------|-------------|
-| [Issue ID] | [P0/P1/P2] | [Design Flaw/Risk/Debt/Blocker] | [Brief description] |
-
-**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
-
-## Dependencies
-
-- [Dependency on architectural decision]
-- [Dependency on refactoring]
-
-## Estimated Effort
-
-- **Design work**: [Hours/Days]
-- **ADR creation**: [Hours/Days]
-- **Total**: [Hours/Days]
-```
+Save to: `.project-toolkit/planning/impact-analysis-architecture-[feature].md`. Read `architect-impact-analysis.md` (see Reference Loading) for the template. If it is unavailable, write a document titled "Impact Analysis: [Feature] - Architecture" with Analyst, Date, and Complexity, then these sections in order: Impacts Identified, Affected Areas, ADR Alignment, Required Patterns, Design Conflicts, Long-Term Implications, Domain Model Alignment, Abstraction Consistency, Recommendations, Issues Discovered (P0/P1/P2 table and summary), Dependencies, Estimated Effort.
 
 ## Architectural Decision Records (ADRs)
 
@@ -554,122 +474,16 @@ mcp__cloudmcp-manager__memory-create_entities
 
 ## Strategic Architecture Principles
 
-### Chesterton's Fence (Before Removing)
+Apply these when an ADR or review touches the pattern named. Read `architect-strategic-principles.md` (see Reference Loading) for the full protocol of each.
 
-Before removing or simplifying existing patterns, apply this protocol:
-
-1. **Investigate origin**: When was this introduced? (git log, git blame)
-2. **Identify purpose**: What problem did this solve?
-3. **Check if problem remains**: Does the original problem still exist?
-4. **Document findings**: Record in ADR why removal is now safe
-
-**Anti-Pattern**: "This looks complex, let's simplify" without understanding why complexity exists.
-
-### Path Dependence (Constraint Recognition)
-
-Recognize when architectural choices are constrained by history:
-
-**Indicators**:
-
-- Backward compatibility requirements
-- Hyrum's Law (users depend on implementation details)
-- Team training investment
-- Ecosystem lock-in
-
-**Response**: Document path-dependent constraints in ADRs. Distinguish between:
-
-- **Reversible decisions**: Can be changed with reasonable effort
-- **Irreversible decisions**: Would break contracts, data migrations, or compatibility
-
-### Second-System Effect (Avoiding Over-Engineering)
-
-When replacing successful systems, resist the temptation to add every postponed feature.
-
-**Warning Signs**:
-
-- "This time we'll do everything right"
-- Expanding scope during design phase
-- No clear success criteria from original system
-
-**Mitigation**:
-
-- Set explicit scope boundaries for replacements
-- Preserve simplicity that made original successful
-- Question features obviated by changed assumptions
-
-### Core vs Context (Investment Prioritization)
-
-Distinguish capabilities that differentiate business from necessary commodities:
-
-| Type | Definition | Strategy |
-|------|------------|----------|
-| **Core** | Differentiates business | Build, invest heavily, own |
-| **Context** | Necessary but not differentiating | Buy, outsource, commoditize |
-
-**Application**: When reviewing ADRs, challenge decisions to build context capabilities.
+- **Chesterton's Fence**: before removing or simplifying a pattern, find when and why it was introduced (git log, git blame), check whether the problem remains, and record in the ADR why removal is now safe.
+- **Path Dependence**: record backward-compatibility, Hyrum's Law, training, and ecosystem constraints in the ADR, and mark each decision reversible or irreversible.
+- **Second-System Effect**: when replacing a successful system, set explicit scope boundaries and resist adding every postponed feature.
+- **Core vs Context**: challenge decisions to build context (non-differentiating) capabilities; build core, buy context.
 
 ## Legacy Modernization Patterns
 
-### Strangler Fig Pattern (Incremental Migration)
-
-Gradually replace legacy systems by building new functionality around existing systems until old can be decommissioned.
-
-**Process**:
-
-1. Place routing facade in front of legacy system
-2. Migrate functionality piece by piece to new implementation
-3. Route requests to new components as they're ready
-4. Eventually decommission old application
-
-**When to Use**:
-
-- Large monolithic systems requiring modernization
-- Business continuity critical (no big-bang tolerance)
-- Learn-as-you-go approach needed
-
-**ADR Considerations**:
-
-- Document seams/boundaries for migration
-- Define routing strategy
-- Establish completion criteria
-
-### Expand/Contract (Safe Schema Evolution)
-
-Change schemas/APIs without downtime through parallel deployment:
-
-**Phases**:
-
-1. **Expand**: Add new elements without removing old (backward compatible)
-2. **Migrate**: Update application code to use new structures (both coexist)
-3. **Contract**: Remove obsolete elements after full migration
-
-**Example** (rename database column):
-
-- Phase 1: Add `new_name` column, write to both
-- Phase 2: Backfill `new_name` from `old_name`
-- Phase 3: Update reads to use `new_name`
-- Phase 4: Drop `old_name`
-
-**Key Insight**: Never make breaking changes atomically. Always have a period of parallel support.
-
-### Sacrificial Architecture (Planned Obsolescence)
-
-Accept that systems have lifespans and plan for replacement rather than indefinite preservation.
-
-**Jeff Dean's Rule** (Google): "Design for ~10X growth, but plan to rewrite before ~100X."
-
-**ADR Application**:
-
-- Document expected lifespan/scale limits
-- Define replacement triggers (performance, complexity, cost)
-- Separate what should be preserved (business logic, data) from what is disposable (implementation)
-
-**Warning Signs of End-of-Life**:
-
-- Scaling patches becoming more frequent
-- Operational burden exceeding development capacity
-- Business needs diverging from system capabilities
-- Key knowledge holders leaving
+Choose one for a migration ADR and fill the Legacy Migration Strategy block: **Strangler Fig** (route through a facade and migrate piece by piece), **Expand/Contract** (add, migrate, then remove; never make a breaking change atomically), or **Sacrificial Architecture** (document lifespan and replacement triggers). The reference has the process, examples, and ADR considerations of each.
 
 ## Architecture Review Process
 
@@ -702,23 +516,7 @@ Accept that systems have lifespans and plan for replacement rather than indefini
 
 ### Code Organization Review
 
-When reviewing PRs that add new directories or relocate files, assess structural cohesion.
-
-#### Questions to Ask
-
-1. Does this directory nesting serve a clear purpose?
-2. Could these files live one level up without loss of clarity?
-3. Is there an existing directory where this code belongs?
-4. Does the structure follow established patterns in the codebase?
-
-#### Anti-Patterns to Flag
-
-| Anti-Pattern | Signal | Recommendation |
-|--------------|--------|----------------|
-| Single-file directories | Directory contains only one file | Place file in parent directory |
-| Deep nesting without domain separation | 3+ levels with no clear boundary | Flatten to minimum necessary depth |
-| Parallel structures that could consolidate | Two directories with overlapping purpose | Merge into single directory |
-| Inconsistent naming | New directory breaks existing conventions | Rename to match established patterns |
+When reviewing PRs that add new directories or relocate files, assess structural cohesion. Flag single-file directories, nesting of 3+ levels with no clear boundary, parallel structures that could consolidate, and new directory names that break existing conventions. Read `architect-code-organization-review.md` (see Reference Loading) for the questions to ask and the recommendation for each anti-pattern.
 
 ## Output Location
 

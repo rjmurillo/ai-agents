@@ -82,9 +82,24 @@ def _write_step_summary(content: str) -> None:
         pass
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --output-format json
+
+exit codes:
+  0  success: Milestone found
+  2  config/resource error (no semantic milestones found)
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Detect the latest open semantic version milestone.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

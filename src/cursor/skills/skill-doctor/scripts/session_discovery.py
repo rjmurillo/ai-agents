@@ -17,7 +17,7 @@ from typing import Any
 from session_common import record_collection_issue
 
 CLAUDE_DIRECTORY = ".claude"
-PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github")
+PROJECT_HARNESS_DIRS = (CLAUDE_DIRECTORY, ".codex", ".github", ".factory")
 
 
 def resolve_repo(repo_arg: Any) -> Path:
@@ -96,6 +96,7 @@ def discover_skills(
     hermes_home: Path | None = None,
     copilot_home: Path | None = None,
     claude_home: Path | None = None,
+    factory_home: Path | None = None,
 ) -> dict[str, Any]:
     roots = _skill_roots(
         repos,
@@ -108,28 +109,38 @@ def discover_skills(
             grok_home,
             zcode_home,
             hermes_home,
+            factory_home,
         ),
         copilot_home,
     )
     skills: dict[str, dict[str, Any]] = {}
-    ambiguous: set[str] = set()
     for root in roots:
         if not root.is_dir():
             continue
         for skill_md in sorted(root.glob("*/SKILL.md")):
-            name = skill_md.parent.name
-            if name in ambiguous:
-                continue
             metadata = _skill_metadata(skill_md)
             if metadata is not None:
-                previous = skills.get(name)
-                if previous is not None and previous["sha256"] != metadata["sha256"]:
-                    del skills[name]
-                    ambiguous.add(name)
-                    record_collection_issue("ambiguous_skills")
-                else:
-                    skills.setdefault(name, metadata)
+                _add_definition(skills, metadata)
     return skills
+
+
+def _add_definition(skills: dict[str, dict[str, Any]], metadata: dict[str, Any]) -> None:
+    """Keep the first-seen copy as the edit target and group every copy by content.
+
+    Roots are visited in `--repo` order, then global homes, so the first copy is
+    the current checkout's. Usage detection never depends on that choice.
+    """
+    chosen = skills.setdefault(metadata["name"], metadata)
+    if chosen is metadata:
+        metadata["definitions"] = []
+    for definition in chosen["definitions"]:
+        if definition["sha256"] == metadata["sha256"]:
+            break
+    else:
+        definition = {"sha256": metadata["sha256"], "paths": []}
+        chosen["definitions"].append(definition)
+    if metadata["path"] not in definition["paths"]:
+        definition["paths"].append(metadata["path"])
 
 
 def _recent_files(paths: Any, cutoff: datetime) -> list[tuple[datetime, Path]]:
@@ -171,6 +182,11 @@ def find_pi_session_files(pi_home: Path, cutoff: datetime) -> Any:
 
 def find_grok_session_files(grok_home: Path, cutoff: datetime) -> Any:
     return _recent_files((grok_home / "sessions").glob("*/*/chat_history.jsonl"), cutoff)
+
+
+def find_droid_session_files(factory_home: Path, cutoff: datetime) -> Any:
+    """Session journals only: the ``*.settings.json`` sidecars never match ``*.jsonl``."""
+    return _recent_files((factory_home / "sessions").glob("*/*.jsonl"), cutoff)
 
 
 def find_zcode_session_files(zcode_home: Path, cutoff: datetime) -> Any:
@@ -324,6 +340,11 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         help="project to include (repeatable; default: git root of cwd, else cwd)",
     )
     parser.add_argument(
+        "--no-worktrees",
+        action="store_true",
+        help="grade only the listed checkouts, not their registered worktrees",
+    )
+    parser.add_argument(
         "--all-conversations",
         action="store_true",
         help="score conversations from every project represented in local history",
@@ -361,6 +382,7 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
             "grok",
             "zcode",
             "hermes",
+            "droid",
         ),
         default="auto",
         help="session source (default: auto; scans every locally available source)",
@@ -382,6 +404,11 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--grok-home", default="~/.grok", help="Grok Build home (default: ~/.grok)")
     parser.add_argument("--zcode-home", default="~/.zcode", help="ZCode home (default: ~/.zcode)")
     parser.add_argument(
+        "--factory-home",
+        default="~/.factory",
+        help="Factory Droid home containing sessions (default: ~/.factory)",
+    )
+    parser.add_argument(
         "--hermes-home",
         default=None,
         help="Hermes Agent home containing state.db (default: HERMES_HOME, ~/.hermes, then ~)",
@@ -396,7 +423,24 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _non_negative_minutes(value: str) -> float:
+    try:
+        minutes = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {value!r}") from None
+    if minutes < 0 or minutes != minutes:
+        raise argparse.ArgumentTypeError("must be 0 or greater")
+    return minutes
+
+
 def _add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--min-idle-minutes",
+        type=_non_negative_minutes,
+        default=15.0,
+        help="skip sessions whose last record is newer than N minutes, because they may "
+        "still be running (default: 15; 0 keeps every session)",
+    )
     parser.add_argument(
         "--days", type=int, default=45, help="only consider sessions modified in the last N days"
     )

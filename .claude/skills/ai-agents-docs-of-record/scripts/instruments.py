@@ -84,7 +84,15 @@ def cmd_list(repo: Path) -> int:
 def cmd_run(repo: Path, ident: str, extra: list[str]) -> int:
     row = next((r for r in INSTRUMENTS if r["id"] == ident), None)
     if row is None:
-        print(json.dumps({"error": f"unknown instrument id: {ident}"}), file=sys.stderr)
+        print(
+            json.dumps(
+                {
+                    "error": f"unknown instrument id: {ident}",
+                    "known": [r["id"] for r in INSTRUMENTS],
+                }
+            ),
+            file=sys.stderr,
+        )
         return 2
     try:
         sys.stdout.flush()
@@ -94,8 +102,27 @@ def cmd_run(repo: Path, ident: str, extra: list[str]) -> int:
         return 3
 
 
+_HELP_EPILOG = """\
+run passes a started child process exit code through unchanged.
+
+examples:
+  %(prog)s --repo . list
+  %(prog)s --repo . run adr-next-number
+
+exit codes:
+  0  ok
+  1  a listed instrument file is missing
+  2  bad arguments or unknown id
+  3  the run target failed to start
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="List or run this skill's instruments.")
+    p = argparse.ArgumentParser(
+        description="List or run this skill's instruments.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list", help="print every instrument row")

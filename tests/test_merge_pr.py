@@ -3001,3 +3001,82 @@ class TestRefusalMessagesAreSanitized:
         fake = _refused(stderr + " " + "x" * 5000)
         _, env = _run_main(fake, [], capsys)
         assert len(env["Error"]["Message"]) < 500
+
+
+class TestDryRun:
+    """--dry-run stops after the pre-merge refusals and before any merge call (ADR-112)."""
+
+    def test_open_pr_reports_would_merge_with_a_no_merge_audit(self, capsys):
+        fake = _FakeGh()
+        code, env = _run_main(fake, ["--dry-run"], capsys)
+
+        data = env["Data"]
+        assert code == 0
+        assert data["action"] == "would_merge"
+        assert data["dryRun"] is True
+        assert data["head_sha"] == _HEAD
+        assert data["audit"]["action"] == "none"
+        assert data["audit"]["result"] == "dry run; no merge call"
+        assert data["audit"]["rollback"] is None
+        assert fake.merge_calls() == []
+        assert not any(c[:2] == ["gh", "api"] for c in fake.calls)
+
+    def test_already_merged_pr_reports_the_real_noop_action_with_the_marker(self, capsys):
+        fake = _FakeGh(state=_pr_state(state="MERGED"))
+        code, env = _run_main(fake, ["--dry-run"], capsys)
+
+        assert code == 0
+        assert env["Data"]["action"] == "none"
+        assert env["Data"]["dryRun"] is True
+        assert fake.merge_calls() == []
+
+    def test_already_merged_pr_without_dry_run_has_no_marker(self, capsys):
+        fake = _FakeGh(state=_pr_state(state="MERGED"))
+        code, env = _run_main(fake, [], capsys)
+
+        assert code == 0
+        assert env["Data"]["action"] == "none"
+        assert "dryRun" not in env["Data"]
+
+    def test_closed_pr_still_fails_with_the_same_exit_code(self, capsys):
+        fake = _FakeGh(state=_pr_state(state="CLOSED"))
+        code, env = _run_main(fake, ["--dry-run"], capsys)
+
+        assert code == 100
+        assert env["Data"]["audit"]["result"] == "refused: PR is closed"
+        assert fake.merge_calls() == []
+
+    def test_head_pin_mismatch_still_fails(self, capsys):
+        fake = _FakeGh(state=_pr_state(head=_OTHER_HEAD))
+        code, env = _run_main(fake, ["--dry-run", "--expected-head-sha", _HEAD], capsys)
+
+        assert code == 1
+        assert env["Error"]["Type"] == "InvalidParams"
+
+    def test_unknown_head_still_fails_closed(self, capsys):
+        state = json.dumps({"state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"})
+        code, env = _run_main(_FakeGh(state=state), ["--dry-run"], capsys)
+
+        assert code == 3
+        assert env["Data"]["audit"]["result"] == "refused: head SHA unknown"
+
+    def test_unknown_mergeability_still_rejected_on_a_direct_merge(self, capsys):
+        state = json.dumps(
+            {
+                "state": "OPEN",
+                "mergeable": "UNKNOWN",
+                "mergeStateStatus": "UNKNOWN",
+                "headRefOid": _HEAD,
+            }
+        )
+        fake = _FakeGh(state=state)
+        code, _ = _run_main(fake, ["--dry-run"], capsys)
+
+        assert code != 0
+        assert fake.merge_calls() == []
+
+    def test_default_run_has_no_dry_run_key(self, capsys):
+        code, env = _run_main(_FakeGh(), [], capsys)
+
+        assert code == 0
+        assert "dryRun" not in env["Data"]

@@ -324,11 +324,11 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
 | `search_memory.py` | Search across Serena and the episode store | 0=success, 1=error |
-| `count_memory_tokens.py` | Token counting with tiktoken caching | 0=success, 1=error |
+| `count_memory_tokens.py` | Token counting with tiktoken caching; lists the 200 largest files, `--limit 0` lists all | 0=success, 1=error |
 | `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
 | `test_memory_health.py` | System health dashboard | 0=success |
-| `extract_session_episode.py` | Episode extraction; `--validate` checks the store at rest, `--fix` repairs backwards commit order | 0=success, 1=error, 2=violation or bad flag |
-| `repair_episode_causal_links.py` | Restore causal edges in flattened episodes | 0=success, 1=an episode is invalid, 2=episodes dir missing |
+| `extract_session_episode.py` | Episode extraction; `--validate` checks the store at rest, `--fix` repairs backwards commit order; `--dry-run` extracts without writing | 0=success, 1=error, 2=violation or bad flag |
+| `repair_episode_causal_links.py` | Restore causal edges in flattened episodes; `--check` or `--dry-run` reports without writing | 0=success, 1=an episode is invalid, 2=episodes dir missing |
 | `migrate_causal_version.py` | One-shot migration: stamps `causal_order_version=2` on legacy episodes; `--dry-run` previews counts without writing | 0=all stamped, 1=some skipped, 2=bad path |
 | `measure_memory_performance.py` | Serena search benchmark, by phase | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |

@@ -288,3 +288,71 @@ class TestMain:
                 ]
             )
         assert rc == 3
+
+
+class TestDryRun:
+    @staticmethod
+    def _run(comments):
+        findings = json.dumps({"comments": comments})
+        with (
+            patch(
+                "invoke_pr_comment_processing_skill.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", return_value=_completed(rc=0)) as run,
+        ):
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "PASS",
+                    "--findings-json",
+                    findings,
+                    "--dry-run",
+                ]
+            )
+        return rc, run
+
+    def test_reaction_and_wontfix_reply_are_reported_not_posted(self, capsys):
+        rc, run = self._run(
+            [
+                {"id": 1, "classification": "stale"},
+                {"id": 2, "classification": "wontfix", "resolution": "by design"},
+            ]
+        )
+
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "[dry-run] Would add eyes reaction to comment 1" in out
+        assert "[dry-run] Would reply to comment 2 on PR #1" in out
+        run.assert_not_called()
+
+    def test_dry_run_still_counts_a_comment_without_id_as_an_error(self):
+        rc, run = self._run([{"classification": "stale"}])
+
+        assert rc == 3
+        run.assert_not_called()
+
+    def test_dry_run_still_skips_a_wontfix_without_resolution(self, capsys):
+        rc, run = self._run([{"id": 3, "classification": "wontfix"}])
+
+        assert rc == 0
+        assert "[dry-run] Would reply" not in capsys.readouterr().out
+        run.assert_not_called()
+
+    def test_non_pass_verdict_still_skips_with_dry_run(self):
+        with patch("subprocess.run") as run:
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "FAIL",
+                    "--findings-json",
+                    "{}",
+                    "--dry-run",
+                ]
+            )
+        assert rc == 0
+        run.assert_not_called()

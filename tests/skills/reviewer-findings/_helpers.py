@@ -89,7 +89,9 @@ FENCE_RE = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 TRIAGE_PHASE = "2"
-VERIFY_PHASE = "3"
+# Phase 6 implements the fix. The reviewer-findings route must precede it, so
+# verify-before-fix holds. Phase 8 (completion verification) is later still.
+VERIFY_PHASE = "6"
 
 
 def _blank_fences(text: str) -> str:

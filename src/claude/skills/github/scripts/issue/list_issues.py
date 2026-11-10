@@ -66,10 +66,24 @@ from github_core.output import (
     write_skill_output,
 )
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --state open --label bug --limit 20
+  %(prog)s --assignee octocat --milestone v1.2.0
+
+exit codes:
+  0  success
+  2  config / argument error
+  3  external error (API failure)
+  4  auth error
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="List GitHub Issues with optional filters.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

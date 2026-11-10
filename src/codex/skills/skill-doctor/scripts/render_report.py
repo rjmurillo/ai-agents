@@ -207,6 +207,10 @@ li { margin-bottom: 10px; }
 .tag { font-size: 11px; color: var(--accent); text-transform: lowercase; }
 .tag::before { content: "# "; }
 .muted { color: var(--muted-2); font-size: 12px; }
+.notice { border: 1px solid var(--line); background: var(--yellow); color: #1a1522;
+  padding: 8px 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { border: 1px solid var(--line-soft); padding: 4px 8px; text-align: left; }
 .stamp { display: flex; align-items: center; gap: 11px; }
 .stamp .mark { width: 27px; height: 26px; flex: none; display: block; }
 .stamp-name { font-size: 15px; font-weight: 600; letter-spacing: -0.03em; }
@@ -264,6 +268,28 @@ li { margin-bottom: 10px; }
   .bar-fill { animation: none; }
 }
 """
+
+
+def render_sampling(sampling: Any) -> str:
+    """Per-harness candidate and sampled counts, and the cap notice when coverage was partial."""
+    per_harness = (sampling or {}).get("per_harness") or {}
+    if not per_harness:
+        return ""
+    notice = sampling.get("notice")
+    rows = "".join(
+        f"<tr><td>{esc(harness)}</td><td>{esc(c.get('scoreable', 0))}</td>"
+        f"<td>{esc(c.get('skill_candidates', 0))}</td><td>{esc(c.get('sampled', 0))}</td>"
+        f"<td>{pct(c['overall']) if c.get('overall') is not None else '-'}</td></tr>"
+        for harness, c in per_harness.items()
+    )
+    return (
+        "<h2>Sampling</h2>"
+        + (f'<p class="notice">{esc(notice)}</p>' if notice else "")
+        + '<p class="muted">Selection is skill-first within each harness, so each row grades '
+        "sessions that exercise skills first, not the whole harness.</p>"
+        "<table><thead><tr><th>Harness</th><th>Scoreable</th><th>Used a skill</th>"
+        f"<th>Sampled</th><th>Overall</th></tr></thead><tbody>{rows}</tbody></table>"
+    )
 
 
 def render_page(r: Any) -> str:
@@ -350,6 +376,7 @@ def render_page(r: Any) -> str:
   <div class="bars">{bars}</div>
 </div>
 <div class="stats">{stat_cells}</div>
+{render_sampling(r.get("sampling"))}
 <h2>Findings</h2><ul>{findings}</ul>
 <h2>Suggested skill changes</h2><ol>{suggestions}</ol>
 <div class="stamp-row row factories-footer">

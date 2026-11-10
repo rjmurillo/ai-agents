@@ -494,26 +494,22 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --step-number 1 --total-steps 4 --thoughts "Design auth system"
+  %(prog)s --phase review --step-number 1 --total-steps 2 --thoughts "Plan at plans/auth.md"
+
+exit codes:
+  0  step guidance printed
+  1  step number or total steps below 1
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Interactive Sequential Planner (Two-Phase)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Planning phase
-  python3 planner.py --step-number 1 --total-steps 4 --thoughts "Design auth system"
-
-  # Continue planning
-  python3 planner.py --step-number 2 --total-steps 4 --thoughts "..."
-
-  # Backtrack to earlier step if needed
-  python3 planner.py --step-number 2 --total-steps 4 \
-      --thoughts "New constraint invalidates approach, reconsidering..."
-
-  # Start review (after plan written)
-  python3 planner.py --phase review --step-number 1 --total-steps 2 \
-      --thoughts "Plan at plans/auth.md"
-""",
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

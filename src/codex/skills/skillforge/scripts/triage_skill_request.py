@@ -1364,17 +1364,23 @@ def format_output(result: Result) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s "create a skill for parsing PDFs"
+  %(prog)s --json --verbose "review my pull request"
+
+exit codes:
+  0  recommendation printed
+  1  general failure
+  2  skill index not found (run discover_skills.py first)
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze input and recommend skill action",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s "create a skill for database migrations"
-  %(prog)s "help me debug this error"
-  %(prog)s "do I have a skill for testing?" --json
-  %(prog)s "TypeError: Cannot read property 'map' of undefined"
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument("query", type=str, help="The user input to analyze")

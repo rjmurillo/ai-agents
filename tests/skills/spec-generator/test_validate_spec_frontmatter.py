@@ -322,7 +322,7 @@ class TestHeldOutGeneralization:
 def test_help_lists_example_and_exit_codes_and_exits_zero(capsys) -> None:
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
-    assert "example:" in out
+    assert "examples:" in out
     assert "exit codes:" in out
 
 

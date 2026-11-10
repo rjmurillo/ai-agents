@@ -21,7 +21,6 @@ _ANCHORED = (
 _CONSUMERS = [
     ".claude/skills/pr-review/SKILL.md",
     ".claude/skills/review/resources/technical-review.md",
-    ".claude/agents/pr-comment-responder.md",
 ]
 
 

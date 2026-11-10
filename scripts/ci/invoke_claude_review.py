@@ -20,7 +20,11 @@ Stricter/looser/different than ``invoke_copilot_cli.py``: no ``timeout`` child
 process (the SDK request timeout is the bound), no output-regex infrastructure
 classifier (the typed exception is the signal, so a model reply that merely
 contains the word "timeout" is never misread), and the agent definition is sent
-as the system prompt from ``.claude/agents/<agent>.md`` when that file exists.
+as the system prompt. It comes from ``.claude/agents/<agent>.md``, else from
+``.claude/skills/<agent>/SKILL.md`` (an agent retired into a skill keeps its
+workflow input), both read raw. A non-empty name that resolves to neither, or an
+unsafe name, exits 2 naming both locations, because running a review with no
+system prompt hides a retired or misspelled agent.
 
 Exit codes (AGENTS.md): 0 ok or fail-closed verdict written, 2 config error.
 """
@@ -47,6 +51,7 @@ REQUIRED_ENV_VAR = "ANTHROPIC_API_KEY"
 MAX_OUTPUT_TOKENS = 16000
 DEFAULT_TIMEOUT_SECONDS = 180
 AGENTS_DIR = _REPO_ROOT / ".claude" / "agents"
+SKILLS_DIR = _REPO_ROOT / ".claude" / "skills"
 
 MAX_SDK_RETRIES = 1
 UNTRUSTED_CONTENT_NOTICE = (
@@ -98,18 +103,41 @@ def _not_configured_result() -> shared.AttemptResult:
     return _did_not_run(NOT_CONFIGURED_NOTICE)
 
 
-def load_system_prompt(agent: str, agents_dir: Path = AGENTS_DIR) -> str:
-    """Return the agent definition text, or "" when the agent has no file."""
-    if not agent or "/" in agent or "\\" in agent or agent.startswith("."):
+class AgentNotFoundError(ValueError):
+    """The workflow's agent name matches no agent file and no skill."""
+
+
+def _is_safe_name(name: str) -> bool:
+    return bool(name) and "/" not in name and "\\" not in name and not name.startswith(".")
+
+
+def load_system_prompt(
+    agent: str, agents_dir: Path = AGENTS_DIR, skills_dir: Path = SKILLS_DIR
+) -> str:
+    """Return the agent or skill definition text for ``agent``.
+
+    An empty name returns "" (no definition requested). A non-empty name reads
+    ``<agents_dir>/<agent>.md``, else ``<skills_dir>/<agent>/SKILL.md``, both raw.
+    Raises ``AgentNotFoundError`` naming both locations when neither exists, and
+    for a name carrying a separator or a leading dot, which is never joined to a
+    path.
+    """
+    if not agent:
         return ""
-    path = agents_dir / f"{agent}.md"
-    if not path.is_file():
-        return ""
-    return path.read_text(encoding="utf-8", errors="replace")
+    agent_location = f"{agents_dir.name}/{agent}.md"
+    skill_location = f"{skills_dir.name}/{agent}/SKILL.md"
+    if _is_safe_name(agent):
+        for path in (agents_dir / f"{agent}.md", skills_dir / agent / "SKILL.md"):
+            if path.is_file():
+                return path.read_text(encoding="utf-8", errors="replace")
+    raise AgentNotFoundError(
+        f"agent {agent!r} resolves to neither .claude/{agent_location} nor "
+        f".claude/{skill_location}. Fix the workflow's agent input or restore one of them."
+    )
 
 
 def build_system_prompt(agent: str) -> str:
-    """Agent definition (when present) followed by the untrusted-content notice."""
+    """Agent definition (when named) followed by the untrusted-content notice."""
     definition = load_system_prompt(agent)
     return f"{definition}\n\n{UNTRUSTED_CONTENT_NOTICE}" if definition else UNTRUSTED_CONTENT_NOTICE
 
@@ -206,6 +234,11 @@ def build_config(env: Mapping[str, str]) -> shared.InvokeConfig:
 
 def run(config: shared.InvokeConfig, env: Mapping[str, str]) -> int:
     try:
+        system_prompt = build_system_prompt(config.copilot_agent)
+    except AgentNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return shared.EXIT_CONFIG
+    try:
         config.ai_review_output_file.unlink(missing_ok=True)
     except OSError as exc:
         print(f"error: cannot clear stale AI review output: {exc}", file=sys.stderr)
@@ -230,7 +263,7 @@ def run(config: shared.InvokeConfig, env: Mapping[str, str]) -> int:
             config=config,
             full_prompt=full_prompt,
             api_key=env.get(REQUIRED_ENV_VAR, ""),
-            system_prompt=build_system_prompt(config.copilot_agent),
+            system_prompt=system_prompt,
         )
     shared.write_results(config, full_prompt, result)
     return shared.EXIT_OK

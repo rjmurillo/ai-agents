@@ -143,9 +143,25 @@ def _summary(rel: dict[str, Any]) -> str:
     return f"Issue #{rel['number']}: parent {parent}, {counts}"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123
+  %(prog)s --issue 123 --output-format json
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  not found (no issue with that number) or plugin lib missing
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read the native relationships of a GitHub Issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

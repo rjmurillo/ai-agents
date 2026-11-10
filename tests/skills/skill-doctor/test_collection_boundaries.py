@@ -41,7 +41,7 @@ def test_scope_resolves_symlink_escape(tmp_path):
 
 
 @pytest.mark.parametrize("conflict", [False, True])
-def test_discovery_deduplicates_identical_but_excludes_ambiguous_names(tmp_path, conflict):
+def test_discovery_deduplicates_identical_and_keeps_conflicting_names(tmp_path, conflict):
     repos = [tmp_path / name for name in ("first", "second", "third")]
     for index, repo in enumerate(repos):
         skill = repo / ".claude" / "skills" / "shared" / "SKILL.md"
@@ -49,12 +49,9 @@ def test_discovery_deduplicates_identical_but_excludes_ambiguous_names(tmp_path,
         skill.write_text("Other" if conflict and index == 1 else "Same", encoding="utf-8")
     with collect_diagnostics():
         skills = discover_skills(repos, tmp_path / "codex", [], False)
-        if conflict:
-            assert "shared" not in skills
-            assert collection_issue_counts() == {"ambiguous_skills": 1}
-        else:
-            assert skills["shared"]["path"].startswith(str(repos[0]))
-            assert collection_issue_counts() == {}
+        assert skills["shared"]["path"].startswith(str(repos[0]))
+        assert len(skills["shared"]["definitions"]) == (2 if conflict else 1)
+        assert collection_issue_counts() == {}
 
 
 def test_discovery_reports_unreadable_skill(tmp_path, monkeypatch):

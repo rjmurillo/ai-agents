@@ -495,10 +495,23 @@ def format_json(grades: list[DomainGrade], trends: dict[str, str]) -> str:
     return json.dumps(data, indent=2)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo-root . --format json
+  %(prog)s --domains api cli --top-n 5 --output grades.md
+
+exit codes:
+  0  grading complete, report generated
+  2  --repo-root has no .claude directory, or no domains were detected
+"""
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Grade quality per product domain with gap tracking"
+        description="Grade quality per product domain with gap tracking",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--repo-root",

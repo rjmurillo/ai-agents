@@ -98,9 +98,25 @@ class _Context:
     output_format: str
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --expected-head-sha 0123456789abcdef0123456789abcdef01234567 --wait
+
+exit codes:
+  0  success (update requested, completed, or already up to date)
+  1  invalid parameters / logic error (PR not open, head moved)
+  2  not found
+  3  external error (API failure, wait timeout)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Update a pull request's head branch with its base (server side).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
@@ -128,6 +144,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help=f"Wait bound in seconds, with --wait (default {_DEFAULT_WAIT_SECONDS}).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run every read check and report whether an update would be requested; request none",
     )
     add_output_format_arg(parser)
     return parser
@@ -492,19 +513,20 @@ def _require_expected_head(ctx: _Context, snap: _PrSnapshot) -> None:
         )
 
 
-def _up_to_date_result(ctx: _Context, snap: _PrSnapshot, behind: int | None, msg: str) -> int:
-    return _emit_result(
-        ctx,
-        {
-            "action": "none",
-            "already_up_to_date": True,
-            "old_head_sha": snap.head_sha,
-            "new_head_sha": snap.head_sha,
-            "behind_by": behind,
-            "message": msg,
-        },
-        f"PR #{ctx.pr} is already up to date with {snap.base_ref}",
-    )
+def _up_to_date_result(
+    ctx: _Context, snap: _PrSnapshot, behind: int | None, msg: str, dry_run: bool = False
+) -> int:
+    data: dict[str, Any] = {
+        "action": "none",
+        "already_up_to_date": True,
+        "old_head_sha": snap.head_sha,
+        "new_head_sha": snap.head_sha,
+        "behind_by": behind,
+        "message": msg,
+    }
+    if dry_run:
+        data["dry_run"] = True
+    return _emit_result(ctx, data, f"PR #{ctx.pr} is already up to date with {snap.base_ref}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -524,7 +546,22 @@ def main(argv: list[str] | None = None) -> int:
     _require_expected_head(ctx, snap)
     behind, precheck = _behind_by(ctx, snap)
     if behind == 0:
-        return _up_to_date_result(ctx, snap, behind, "Head already contains the base")
+        return _up_to_date_result(
+            ctx, snap, behind, "Head already contains the base", dry_run=args.dry_run
+        )
+
+    if args.dry_run:
+        data = {
+            "action": "would_update",
+            "dry_run": True,
+            "already_up_to_date": False,
+            "old_head_sha": snap.head_sha,
+            "new_head_sha": None,
+            "behind_by": behind,
+            "precheck": precheck,
+            "message": "Dry run: update not requested",
+        }
+        return _emit_result(ctx, data, f"Dry run: PR #{ctx.pr} would be updated; nothing changed")
 
     up_to_date, message = _request_update(ctx)
     if up_to_date:

@@ -97,8 +97,27 @@ _EXIT_NOT_MERGEABLE = 100
 _REPO_NOT_FOUND_MARKER = "could not resolve to a repository"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123 --strategy squash
+  %(prog)s --pull-request 123 --expected-head-sha 0123456789abcdef0123456789abcdef01234567
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  not found
+  3  external error (API failure)
+  4  auth error
+  100  not mergeable (script-specific code)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Merge a GitHub Pull Request.")
+    parser = argparse.ArgumentParser(
+        description="Merge a GitHub Pull Request.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
@@ -133,6 +152,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--subject", default="", help="Custom commit subject")
     parser.add_argument("--body", default="", help="Custom commit body")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run every pre-merge check and report the merge that would be "
+            "attempted; make no merge call. Branch protection and stack "
+            "readiness are evaluated by GitHub at merge time, not here."
+        ),
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -1499,20 +1527,52 @@ def _require_expected_head(
     )
 
 
-def _emit_already_merged(ctx: _MergeContext) -> int:
+def _emit_already_merged(ctx: _MergeContext, dry_run: bool = False) -> int:
     """Report an already merged PR without a second merge call (retry-safe)."""
     pr = ctx.pr
+    data: dict[str, Any] = {
+        "pull_request": pr,
+        "number": pr,
+        "state": "MERGED",
+        "action": "none",
+        "message": "PR already merged",
+        "audit": _build_audit(ctx, "none", "already merged; no merge call"),
+    }
+    if dry_run:
+        data["dryRun"] = True
     write_skill_output(
-        {
-            "pull_request": pr,
-            "number": pr,
-            "state": "MERGED",
-            "action": "none",
-            "message": "PR already merged",
-            "audit": _build_audit(ctx, "none", "already merged; no merge call"),
-        },
+        data,
         output_format=ctx.output_format,
         human_summary=f"PR #{pr} already merged",
+        status="PASS",
+        script_name=_SCRIPT_NAME,
+    )
+    return 0
+
+
+def _emit_dry_run(ctx: _MergeContext) -> int:
+    """Report the planned merge after every pre-merge refusal has passed.
+
+    The audit record says no merge call was made, so it cannot be read as a
+    merge approval or a result (ADR-112).
+    """
+    write_skill_output(
+        {
+            "pull_request": ctx.pr,
+            "number": ctx.pr,
+            "action": "would_merge",
+            "dryRun": True,
+            "strategy": ctx.strategy,
+            "auto": ctx.auto,
+            "head_sha": ctx.head_sha,
+            "message": (
+                "Dry run: pre-merge checks passed. Branch protection and stack "
+                "readiness are evaluated by GitHub at merge time."
+            ),
+            "audit": _build_audit(ctx, "none", "dry run; no merge call"),
+        },
+        output_format=ctx.output_format,
+        human_summary=f"Dry run: PR #{ctx.pr} would be merged; nothing changed",
         status="PASS",
         script_name=_SCRIPT_NAME,
     )
@@ -1555,7 +1615,7 @@ def main(argv: list[str] | None = None) -> int:
     _require_expected_head(pr_data, args.expected_head_sha, ctx)
 
     if pr_data.get("state") == "MERGED":
-        return _emit_already_merged(ctx)
+        return _emit_already_merged(ctx, dry_run=args.dry_run)
 
     if pr_data.get("state") == "CLOSED":
         _emit_error(
@@ -1582,6 +1642,9 @@ def main(argv: list[str] | None = None) -> int:
     # exempt: it hands the merge decision to GitHub's own gate.
     if not args.auto:
         _reject_unknown_merge_state(pr_data, pr, output_format)
+
+    if args.dry_run:
+        return _emit_dry_run(ctx)
 
     approval = _APPROVAL
     try:

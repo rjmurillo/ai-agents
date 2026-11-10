@@ -849,8 +849,23 @@ def _default_references_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "references"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --changed-path src/app.py
+  %(prog)s --changed-path src/app.py --changed-path docs/guide.md --deep
+
+exit codes:
+  0  selection emitted on stdout as JSON
+  2  unknown pinned axis name, or the references directory could not be resolved
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--changed-path",
         action="append",
@@ -915,7 +930,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     unknown_pins = [axis for axis in args.pin if axis not in known]
     if unknown_pins:
         print(
-            "select_axes: unknown pinned axis: " + ", ".join(sorted(unknown_pins)),
+            "select_axes: unknown pinned axis: "
+            + ", ".join(sorted(unknown_pins))
+            + ". Expected one of: "
+            + ", ".join(sorted(known)),
             file=sys.stderr,
         )
         return 2

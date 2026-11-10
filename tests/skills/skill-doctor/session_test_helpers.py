@@ -9,7 +9,7 @@ from pathlib import Path
 PREVIOUS_FILE_LIMIT = 8 * 1024 * 1024
 
 
-def run_collector(tmp_path, home, *args, root="claude"):
+def run_collector(tmp_path, home, *args, root="claude", cwd=None):
     repo = Path(__file__).resolve().parents[3]
     script = repo / "src" / root / "skills" / "skill-doctor" / "scripts" / "collect_sessions.py"
     env = {
@@ -33,7 +33,7 @@ def run_collector(tmp_path, home, *args, root="claude"):
     env["COPILOT_HOME"] = str(home)
     return subprocess.run(
         [sys.executable, str(script), "--out", str(tmp_path / "report"), *args],
-        cwd=tmp_path,
+        cwd=tmp_path if cwd is None else cwd,
         env=env,
         capture_output=True,
         text=True,

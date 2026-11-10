@@ -19,6 +19,8 @@ from session_common import (
     detect_skills_from_entries,
     extract_text,
     iter_jsonl_records,
+    logical_skill_name,
+    looks_injected,
 )
 
 
@@ -68,11 +70,23 @@ def _claude_block(state: SessionState, block: Any, role: str) -> bool:
     elif kind == "tool_use":
         name, args = str(block.get("name") or "unknown"), block.get("input") or {}
         state.tool(name, _arguments(args))
-        if name == "Skill" and isinstance(args, dict) and args.get("skill"):
-            state.skills.add(args["skill"])
+        invoked = args.get("skill") if isinstance(args, dict) else None
+        if name == "Skill" and invoked and isinstance(invoked, str):
+            state.skills.add(logical_skill_name(invoked))
     elif kind == "tool_result":
         state.output(extract_text(block.get("content")), bool(block.get("is_error")))
     return False
+
+
+def _claude_termination(obj: Any, message: Any) -> tuple[str, str] | None:
+    """Claude Code writes a failed API call as an assistant record with isApiErrorMessage."""
+    if obj.get("isApiErrorMessage") is not True:
+        return None
+    reason = next(
+        (obj[key] for key in ("apiError", "error") if isinstance(obj.get(key), str) and obj[key]),
+        "api_error",
+    )
+    return reason, extract_text(message.get("content"))
 
 
 def _claude_message(state: SessionState, obj: Any, seen: set[Any]) -> None:
@@ -81,6 +95,11 @@ def _claude_message(state: SessionState, obj: Any, seen: set[Any]) -> None:
         return
     role = message.get("role") or kind
     if role == "assistant":
+        termination = _claude_termination(obj, message)
+        if termination:
+            state.terminate(*termination)
+        else:
+            state.resume()
         message_id = message.get("id") or obj.get("uuid")
         if message_id and message_id not in seen:
             seen.add(message_id)
@@ -130,6 +149,11 @@ def _codex_response(state: SessionState, payload: Any) -> None:
             state.text(role, text)
         elif role == "assistant" and text:
             state.append(role, text)
+    elif kind == "agent_message":
+        # Child-agent final answers; distinct from the event_msg record of the same name.
+        text = extract_text(payload.get("content"))
+        if text:
+            state.append("child-agent", text)
     elif kind in ("function_call", "custom_tool_call", "local_shell_call"):
         args = payload.get("arguments") or payload.get("input") or ""
         state.tool(payload.get("name") or kind, args if isinstance(args, str) else json.dumps(args))
@@ -138,12 +162,57 @@ def _codex_response(state: SessionState, payload: Any) -> None:
         state.output(out if isinstance(out, str) else json.dumps(out))
 
 
+def _codex_error_reason(info: Any) -> str:
+    if isinstance(info, str) and info:
+        return info
+    if isinstance(info, dict) and info:
+        return str(next(iter(info)))
+    return "error"
+
+
+def _codex_completion(state: SessionState, payload: dict[str, Any]) -> None:
+    """`task_complete.error.codex_error_info` marks a provider cutoff; a clean one resumes."""
+    error = payload.get("error")
+    if not error:
+        state.resume()
+        return
+    if not isinstance(error, dict):
+        state.terminate("error", str(error))
+        return
+    state.terminate(
+        _codex_error_reason(error.get("codex_error_info")), str(error.get("message") or "")
+    )
+
+
+def _codex_turn_role(payload: Any) -> str | None:
+    # Developer messages and injected user context are not turns.
+    if payload.get("type") != "message":
+        return None
+    role = payload.get("role")
+    if role == "assistant":
+        return role
+    if role == "user" and not looks_injected(extract_text(payload.get("content"))):
+        return role
+    return None
+
+
+def _codex_event(state: SessionState, payload: dict[str, Any], events: dict[str, int]) -> None:
+    event_roles = {"user_message": "user", "agent_message": "assistant"}
+    if payload.get("type") in event_roles:
+        events[event_roles[payload["type"]]] += 1
+    elif payload.get("type") == "task_complete":
+        _codex_completion(state, payload)
+
+
 def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
     try:
         records = iter_jsonl_records(path)
     except OSError:
         return None
     state, meta = SessionState(), {}
+    # Older rollouts carry both record kinds for one turn; prefer the event count.
+    events = {"user": 0, "assistant": 0}
+    items = {"user": 0, "assistant": 0}
     for obj in records:
         payload = obj.get("payload") or {}
         if not isinstance(payload, dict):
@@ -166,11 +235,14 @@ def parse_codex_session(path: Path, _skill_names: Any, include_subagents: bool) 
             if child and not include_subagents:
                 return None
         elif kind == "event_msg":
-            counter = {"user_message": "user_turns", "agent_message": "assistant_turns"}
-            if payload.get("type") in counter:
-                state.stats[counter[payload["type"]]] += 1
+            _codex_event(state, payload, events)
         elif kind == "response_item":
+            role = _codex_turn_role(payload)
+            if role:
+                items[role] += 1
             _codex_response(state, payload)
+    state.stats["user_turns"] = events["user"] or items["user"]
+    state.stats["assistant_turns"] = events["assistant"] or items["assistant"]
     return state.finish(meta or {"id": path.stem, "cwd": None, "started_at": state.first_ts})
 
 
@@ -392,7 +464,7 @@ def _copilot_event(state: SessionState, meta: Any, obj: Any) -> None:
     elif kind == "tool.execution_complete":
         _copilot_tool_complete(state, data)
     elif kind == "skill.invoked" and isinstance(data.get("name"), str):
-        state.skills.add(data["name"])
+        state.skills.add(logical_skill_name(data["name"]))
         state.entries.append(("skill", json.dumps({"skill": data["name"]})))
 
 

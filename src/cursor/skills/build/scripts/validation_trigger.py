@@ -330,8 +330,23 @@ def decide(
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --changed-path app/check_x.py
+  %(prog)s --changed-path a.py --changed-path b.py --effect severity-change
+
+exit codes:
+  0  decision emitted on stdout as JSON
+  2  no changed paths, or an unknown effect name
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--changed-path",
         action="append",

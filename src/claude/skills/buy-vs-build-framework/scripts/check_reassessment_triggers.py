@@ -137,11 +137,7 @@ def determine_recommendation(drift: dict[str, float], triggered: list[str]) -> t
         return ("Assumptions hold, stay course", 0)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Detect assumption drift and recommend re-evaluation",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+_HELP_EPILOG = """\
 Example current state file format (JSON):
 {
   "costs": [600000, 120000],
@@ -154,7 +150,23 @@ Example current state file format (JSON):
   "technology_disruption": false,
   "customer_demand_signal": false
 }
-        """,
+
+examples:
+  %(prog)s --adr-file adr-017-build-vs-buy.md --current-state current-state.json
+
+exit codes:
+  0  assumptions hold, stay the course
+  1  file not found or invalid JSON
+  2  minor drift (under 20%%), monitor closely
+  3  major drift (over 20%%), re-evaluate
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Detect assumption drift and recommend re-evaluation",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

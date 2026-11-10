@@ -129,9 +129,24 @@ def _classify_gh_failure(message: str) -> tuple[int, str]:
     return 3, "ApiError"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --title "Fix login timeout" --source human --body "Steps to reproduce..."
+  %(prog)s --title "Add retry to sync" --source agent --body-file issue-body.md --labels enhancement
+
+exit codes:
+  0  success
+  2  usage/configuration error
+  3  external error (API failure, milestone query or assignment failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create a new GitHub Issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
@@ -177,6 +192,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--milestone",
         type=str.strip,
         help="Milestone title, checked before creation (set_issue_milestone.py lookup).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate the request and the milestone, then report the issue that "
+            "would be created; create no label, issue, or milestone assignment"
+        ),
     )
     add_output_format_arg(parser)
     return parser
@@ -465,6 +488,27 @@ def main(argv: list[str] | None = None) -> int:
         return error
 
     source_label = f"source:{args.source}"
+    if args.dry_run:
+        write_skill_output(
+            {
+                "action": "would_create",
+                "dryRun": True,
+                "owner": owner,
+                "repo": repo,
+                "title": args.title,
+                "source": args.source,
+                "labels": [
+                    source_label,
+                    *(lbl.strip() for lbl in caller_labels.split(",") if lbl.strip()),
+                ],
+                "milestone": args.milestone,
+            },
+            output_format=fmt,
+            human_summary=f"Dry run: would create issue ({source_label}): {args.title}",
+            script_name="new_issue.py",
+        )
+        return 0
+
     provenance.ensure_source_label(owner, repo, source_label, args.source)
     create_result = _create_issue(owner, repo, args.title, body, source_label, fmt)
     if isinstance(create_result, int):

@@ -399,9 +399,22 @@ def format_output(step: int, total_steps: int, guidance: dict) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --step-number 1 --total-steps 7 --decision "Adopt X" --thoughts "Initial claim"
+  %(prog)s --step-number 2 --total-steps 7 --thoughts "Assumptions found so far"
+
+exit codes:
+  0  step guidance printed
+  1  step number outside 1 to 7, or --decision missing at step 1
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Decision Critic - Structured decision criticism workflow"
+        description="Decision Critic - Structured decision criticism workflow",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--step-number",

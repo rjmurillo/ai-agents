@@ -381,8 +381,24 @@ def load(path: str) -> dict[str, Any]:
     return data
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s record.json
+  %(prog)s record.json --promotion
+
+exit codes:
+  0  classification computed, no violation
+  1  a violation, a FAILED item, or independent falsification
+  2  unreadable JSON, unknown enum value, or missing field
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("record", help="JSON evidence record")
     parser.add_argument(
         "--promotion",

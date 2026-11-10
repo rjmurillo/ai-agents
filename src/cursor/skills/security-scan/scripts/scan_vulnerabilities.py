@@ -406,21 +406,26 @@ class _JsonAwareParser(argparse.ArgumentParser):
         super().print_help(file)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s src/app.py
+  %(prog)s --git-staged --format json
+
+exit codes:
+  0  no vulnerabilities found, or nothing assessed
+  1  scan error (file not found, unsupported --cwe, rejected path)
+  2  invalid command-line arguments
+  3  git could not list staged files
+  10  vulnerabilities detected (CI-blocking)
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser."""
     parser = _JsonAwareParser(
         description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
         "detection is delegated to CodeQL in CI; see module docstring.",
-        epilog=(
-            "Exit codes:\n"
-            "  0  no vulnerabilities found\n"
-            "  1  scan error (unsupported --cwe, file not found, path traversal)\n"
-            "  2  invalid command-line arguments\n"
-            "  3  git could not enumerate staged files\n"
-            "  10 vulnerabilities detected (CI-blocking)\n"
-            "\n"
-            "See .project-toolkit/architecture/ADR-054-local-security-scanning.md."
-        ),
+        epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(

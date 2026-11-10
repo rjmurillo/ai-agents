@@ -56,10 +56,24 @@ from github_core.output import (
     write_skill_output,
 )
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --state open --label bug --limit 20
+  %(prog)s --author octocat --base main
+
+exit codes:
+  0  success
+  2  config / invalid params
+  3  external error (API failure)
+  4  auth error
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="List GitHub Pull Requests with optional filters.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

@@ -1,1 +1,0 @@
-../../src/claude/agents/pr-comment-responder.md

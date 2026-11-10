@@ -233,12 +233,12 @@ def _session(key, skills):
 def test_sample_counts_every_skill_a_multi_skill_session_used():
     from types import SimpleNamespace
 
-    from collect_sessions import _sample
+    from session_sampling import sample_one_harness
 
     sessions = [_session("ab", ["a", "b"]), _session("b", ["b"]), _session("c", ["c"])]
     args = SimpleNamespace(max_sessions=2, per_skill=1, no_skill=0)
 
-    sampled = _sample(sessions, {"a": {}, "b": {}, "c": {}}, args)
+    sampled = sample_one_harness(sessions, {"a": {}, "b": {}, "c": {}}, args)
 
     assert sampled == {"ab", "c"}
 
@@ -246,11 +246,11 @@ def test_sample_counts_every_skill_a_multi_skill_session_used():
 def test_sample_still_takes_a_session_when_any_used_skill_has_quota():
     from types import SimpleNamespace
 
-    from collect_sessions import _sample
+    from session_sampling import sample_one_harness
 
     sessions = [_session("a", ["a"]), _session("ab", ["a", "b"])]
     args = SimpleNamespace(max_sessions=5, per_skill=1, no_skill=0)
 
-    sampled = _sample(sessions, {"a": {}, "b": {}}, args)
+    sampled = sample_one_harness(sessions, {"a": {}, "b": {}}, args)
 
     assert sampled == {"a", "ab"}

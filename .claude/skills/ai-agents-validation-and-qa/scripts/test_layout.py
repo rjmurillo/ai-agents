@@ -121,8 +121,25 @@ def cmd_skill_tests(repo: Path, name: str, no_pytest: bool) -> tuple[int, dict[s
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . pester
+  %(prog)s --repo . skill-tests memory --no-pytest
+
+exit codes:
+  0  ok
+  1  findings
+  2  bad arguments or missing config
+  3  uv or pytest missing, or collection errored
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Probe the ai-agents test layout.")
+    p = argparse.ArgumentParser(
+        description="Probe the ai-agents test layout.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = p.add_subparsers(dest="cmd", required=True)
     pe = sub.add_parser("pester", help="count *.Tests.ps1 files and check the stale-doc prose")

@@ -278,9 +278,25 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s check --plan plan.json
+  %(prog)s check --plan plan.json --skills-root .github/skills --require-scripts
+
+exit codes:
+  0  the plan has no violation
+  1  the plan has at least one violation
+  2  bad arguments, unreadable or malformed JSON, or a bad --skills-root
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        allow_abbrev=False, prog="bootstrap_forms", description=__doc__.split("\n\n")[0]
+        allow_abbrev=False,
+        prog="bootstrap_forms",
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
     p_check = sub.add_parser(

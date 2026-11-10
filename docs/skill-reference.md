@@ -43,7 +43,7 @@ Execute GitHub operations including PRs, issues, labels, comments, merges, and m
 
 ### pr-comment-responder
 
-PR review coordinator. Gathers comment context, acknowledges feedback, and tracks resolution status for all reviewer comments.
+User-invocable skill (`/pr-comment-responder`) for one PR's review threads. Gathers comment context, acknowledges feedback, triages security-domain comments first, and tracks a terminal status for every reviewer comment. Use `pr-review` for several PRs or a completion-gate verdict.
 
 ### github-url-intercept
 

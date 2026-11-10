@@ -136,8 +136,24 @@ def validate_template_compliance(body: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --title "fix(api): handle empty body" --body-file pr-body.md
+  %(prog)s --title "feat: add flag" --body "Closes #123" --fail-on-violation
+
+exit codes:
+  0  all validations pass or warnings only (default mode)
+  1  validation failures (when --fail-on-violation specified)
+  2  usage/environment error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Validate PR description against GitHub standards")
+    p = argparse.ArgumentParser(
+        description="Validate PR description against GitHub standards",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--title", required=True, help="PR title to validate")
     p.add_argument("--body", default="", help="PR description body text")
     p.add_argument("--body-file", default="", help="Path to file containing PR body")

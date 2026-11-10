@@ -574,10 +574,26 @@ def run_scanner(
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = (
+    "examples:\n"
+    "  %(prog)s --owner octo-org --repo octo-repo --pull-request 123\n"
+    "  %(prog)s --owner octo-org --repo octo-repo --pull-request 123 --run-scanner\n"
+    "\n"
+    "exit codes:\n"
+    "  0  snapshot captured\n"
+    "  1  verification failure: SHA mismatch, shallow clone, stale PR, or dirty caller\n"
+    "  2  bad arguments or missing dependency\n"
+    "  3  network, GitHub API, or timeout failure\n"
+    "  4  authentication failure\n"
+)
+
+
 def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
-        description="Capture immutable PR snapshot for doc-accuracy review"
+        description="Capture immutable PR snapshot for doc-accuracy review",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", required=True, help="Repository owner")
     parser.add_argument("--repo", required=True, help="Repository name")

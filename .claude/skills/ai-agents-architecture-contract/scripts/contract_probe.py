@@ -104,8 +104,25 @@ def probe_guard(repo: Path) -> tuple[dict[str, Any], int]:
     return result, 0 if definitions else 1
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . adrs
+  %(prog)s --repo . guard
+
+exit codes:
+  0  ok
+  1  a cited ADR has no file, or the guard has no definition
+  2  bad arguments or configuration
+  3  a file could not be read
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = parser.add_subparsers(dest="command", required=True)
     adrs = sub.add_parser("adrs", help="status of each cited ADR")

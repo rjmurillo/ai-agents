@@ -406,11 +406,26 @@ def _non_negative_finite_float(value: str) -> float:
     return parsed
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --target src/app.py --format json
+  %(prog)s --target src --changed-only --base origin/main --gate-mode regression
+
+exit codes:
+  0  gate passed (or nothing changed in regression mode)
+  1  invalid target, config error, or no files to assess
+  10  regression: a quality regressed or scored evidence was lost
+  11  a file is below the configured thresholds
+"""
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
         description="Assess code quality across 5 foundational qualities",
         allow_abbrev=False,
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--target", required=True, help="File, directory, or glob pattern to assess"

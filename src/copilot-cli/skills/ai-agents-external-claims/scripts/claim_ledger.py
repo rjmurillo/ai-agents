@@ -283,9 +283,25 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --ledger claims.json
+  %(prog)s --ledger claims.json --artifact report.md
+
+exit codes:
+  0  the ledger passed; a JSON summary is on stdout
+  1  the ledger has defects; the summary lists them
+  2  a file is unreadable, the ledger is not valid JSON, or bad arguments
+"""
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Validate the ledger named on the command line and print a summary."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--ledger", type=Path, required=True, help="claim ledger JSON")
     parser.add_argument("--artifact", type=Path, help="artifact text to check")
     args = parser.parse_args(argv)

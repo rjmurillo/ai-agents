@@ -332,6 +332,19 @@ def write_prepared_pr_body(repo_root: Path, relative_path: str, content: str) ->
             os.close(scratch_fd)
 
 
+_HELP_EPILOG = """\
+Prints the path of a new scratch file. Each run creates one new file.
+
+examples:
+  %(prog)s
+  %(prog)s --base origin/main
+
+exit codes:
+  0  file created
+  2  bad arguments, or the scratch directory is unsafe or not writable
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="prepare_pr_body.py",
@@ -341,14 +354,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "base ref, and print its path on stdout. Fill the file, then pass "
             "it to new_pr.py with --body-file."
         ),
-        epilog=(
-            "examples:\n"
-            "  python3 prepare_pr_body.py\n"
-            "  python3 prepare_pr_body.py --base origin/develop\n\n"
-            "Prints a path like .project-toolkit/scratch/pr-body-<token>.md.\n"
-            "exit codes: 0 file created, 2 bad arguments or scratch directory "
-            "unsafe or not writable. Each run creates one new file."
-        ),
+        epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(

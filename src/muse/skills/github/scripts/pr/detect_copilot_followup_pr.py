@@ -403,9 +403,23 @@ def detect_followups(
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pr-number 123
+
+exit codes:
+  0  success
+  2  invalid owner or repo, or plugin lib missing
+  3  external error (API failure)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Detect and analyze Copilot follow-up PR patterns.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--pr-number",

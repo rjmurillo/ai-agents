@@ -63,7 +63,7 @@ This system includes **20 specialized agents** organized into 5 categories.
 
 **Delegates To**: All agents (based on task analysis)
 
-**Called By**: User (entry point), pr-comment-responder
+**Called By**: User (entry point), the `pr-comment-responder` skill
 
 **When to Use**:
 - Complex multi-step tasks requiring multiple specialists
@@ -751,40 +751,6 @@ implementation from previous sessions.
 
 ---
 
-#### pr-comment-responder
-
-**File**: `src/claude/agents/pr-comment-responder.md`
-
-**Role**: Handles PR review comments
-
-**Specialization**: Comment triage, reviewer communication, bot handling
-
-**Input**:
-- PR number
-- Review comments to address
-
-**Output**:
-- Comment map in `.project-toolkit/pr-comments/PR-[N]/`
-- Task lists
-- Reply drafts
-
-**Delegates To**: orchestrator (for analysis and implementation)
-
-**Called By**: User (via /pr-comment-responder command)
-
-**When to Use**:
-- Responding to GitHub PR review comments
-- Managing bot reviewer feedback
-- Coordinating comment resolution
-
-**Example Invocation**:
-```text
-@pr-comment-responder Address all review comments on PR #47.
-Triage by priority and implement fixes.
-```
-
----
-
 ## 2.5 Agent Coordination
 
 ### Overview
@@ -833,7 +799,7 @@ meanings:
 | Role | Meaning | Examples |
 |------|---------|----------|
 | `strategic` | Sets direction, arbitrates priority, owns design authority | high-level-advisor, architect, roadmap, independent-thinker |
-| `coordinator` | Routes work, sequences plans, aggregates parallel results | orchestrator, milestone-planner, critic, pr-comment-responder |
+| `coordinator` | Routes work, sequences plans, aggregates parallel results | orchestrator, milestone-planner, critic |
 | `executor` | Produces the change: code, tests, deployment, fixes | implementer, qa, devops, security, debug |
 | `support` | Supplies research, documentation, and context to any caller | analyst, explainer, task-decomposer, skillbook, retrospective |
 
@@ -1163,7 +1129,7 @@ critic: Reports any orphan requirements, broken references, or status inconsiste
 | "prioritize", "roadmap", "epic" | roadmap | high-level-advisor | Product strategy |
 | "decide", "verdict", "stuck" | high-level-advisor | independent-thinker | Strategic decisions |
 | "learn", "retro", "what went wrong" | retrospective | analyst | Learning extraction |
-| "PR comment", "review feedback" | pr-comment-responder | orchestrator | PR management |
+| "PR comment", "review feedback" | `pr-comment-responder` skill (via autoplan) | orchestrator | PR management |
 
 ### Agent Selection Matrix
 
@@ -1736,7 +1702,7 @@ When work cannot proceed:
 | Strategic decision | Strategic | independent-thinker, high-level-advisor |
 | Security review | Specialized | security, architect |
 | Documentation | Specialized | explainer, analyst |
-| PR comment response | PR Flow | pr-comment-responder, orchestrator |
+| PR comment response | PR Flow | `pr-comment-responder` skill, orchestrator |
 
 ### Agent Model Assignment
 
@@ -1759,7 +1725,6 @@ When work cannot proceed:
 | devops | sonnet | Infrastructure |
 | roadmap | opus | Strategic vision |
 | security | opus | Thorough review |
-| pr-comment-responder | sonnet | Comment handling |
 
 ---
 

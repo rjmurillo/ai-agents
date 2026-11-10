@@ -191,8 +191,22 @@ def render_text(proposals: list[Proposal]) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --root .serena/memories --json
+
+exit codes:
+  0  report printed; always 0 because the sweep proposes and never gates
+"""
+
+
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Supersession sweep for memories.")
+    parser = argparse.ArgumentParser(
+        description="Supersession sweep for memories.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--root",
         default=".serena/memories",
@@ -202,6 +216,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--json",
         action="store_true",
         help="Emit the proposal report as JSON.",
+    )
+    parser.add_argument(
+        "--include-live",
+        action="store_true",
+        help=(
+            "With --json, also list the live and healthy-supersession files. "
+            "Default: list only the actionable proposals; counts always cover every file."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -217,9 +239,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     proposals = sweep(root)
     if args.json:
+        listed = (
+            proposals
+            if args.include_live
+            else [p for p in proposals if p.disposition in ACTIONABLE]
+        )
         payload = {
             "counts": _counts(proposals),
-            "proposals": [asdict(p) for p in proposals],
+            "listed": "all" if args.include_live else "actionable",
+            "proposals": [asdict(p) for p in listed],
         }
         print(json.dumps(payload, indent=2))
     else:

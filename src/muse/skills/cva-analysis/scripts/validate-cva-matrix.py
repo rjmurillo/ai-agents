@@ -230,9 +230,23 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
     return suggestions
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s cva-matrix.md
+  %(prog)s cva-matrix.md --verbose
+
+exit codes:
+  0  valid matrix, patterns suggested
+  1  file not found or invalid format
+  10  validation failure: missing rows or columns, or empty cells
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Validate CVA matrix completeness and suggest patterns"
+        description="Validate CVA matrix completeness and suggest patterns",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("matrix_file", help="Path to CVA matrix markdown file")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")

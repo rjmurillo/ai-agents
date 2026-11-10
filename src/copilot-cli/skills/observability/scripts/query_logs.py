@@ -199,9 +199,25 @@ def format_table(events: list[dict]) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s session.jsonl --errors-only
+  %(prog)s session.jsonl --event-type tool_call --session-id abc123 --output summary-tools
+
+exit codes:
+  0  query completed
+  1  file not found or invalid arguments
+  2  invalid JSONL
+"""
+
+
 def main() -> int:
     """Entry point."""
-    parser = argparse.ArgumentParser(description="Query agent observability logs (JSONL format)")
+    parser = argparse.ArgumentParser(
+        description="Query agent observability logs (JSONL format)",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("logfile", help="Path to JSONL log file")
     parser.add_argument("--event-type", help="Filter by event type")
     parser.add_argument("--session-id", help="Filter by session ID")

@@ -1,10 +1,20 @@
 # Coordinator Detail
 
-Detail the `pr-comment-responder` agent keeps out of its loaded body. Each section names the step that loads it. The agent reads this file only when that step runs.
+Detail that `SKILL.md` keeps out of the loaded body. Each section names the step that loads it. Read this file only when that step runs.
 
 ## Triage detail
 
 Read this when you apply the Quick Fix criteria or route a fix to `qa`.
+
+### Workflow paths
+
+The orchestrator picks the path. You pass context and add no routing logic of your own, except the Quick Fix path below. It is the only case where you skip the orchestrator, and only when all four criteria hold.
+
+| Path | Workers | Triage signal |
+|------|---------|---------------|
+| Quick Fix | `implementer`, then `qa` | You can explain the fix in one sentence |
+| Standard | `analyst`, `milestone-planner`, `implementer`, `qa` | Needs investigation first |
+| Strategic | `independent-thinker`, `high-level-advisor`, `task-decomposer` | The question is whether, not how |
 
 ### Quick Fix Path Criteria
 
@@ -35,7 +45,7 @@ Invocation forms. Claude Code: `agent_type: "project-toolkit:implementer"` with 
 
 ### QA Integration Requirement
 
-**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MUST**: Run the `qa` worker after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -236,4 +246,46 @@ Confirm that the `pr-review/pr-comment-responder-skills` memory reflects the new
 # Claude Code: Read this checkout's .serena/memories/pr-review/pr-comment-responder-skills.md
 # Copilot CLI and VS Code: mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
 # In a linked worktree every harness reads this checkout's file directly.
+```
+
+## Output format
+
+Read this when you write the final session summary.
+
+```markdown
+## PR Comment Response Summary
+
+**PR**: #[number] - [title]
+**Session**: [timestamp]
+
+### Statistics
+
+| Metric | Count |
+|--------|-------|
+| Total Comments | [N] |
+| Quick Fix | [N] |
+| Standard | [N] |
+| Strategic | [N] |
+| Won't Fix | [N] |
+| Questions Pending | [N] |
+
+### Commits Made
+
+| Commit | Description | Comments Addressed |
+|--------|-------------|--------------------|
+| [hash] | [message] | [comment_ids] |
+
+### Pending Items
+
+| Comment ID | Author | Reason |
+|------------|--------|--------|
+| [id] | @[author] | Awaiting response to question |
+
+### Files Modified
+
+- [file]: [change type]
+
+### PR Description Updated
+
+[Yes / No] - [summary if yes]
 ```

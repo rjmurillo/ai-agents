@@ -289,8 +289,23 @@ def decide(
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --diff-base origin/main
+  %(prog)s --diff-base origin/main --changed-path docs/guide.md
+
+exit codes:
+  0  decision emitted on stdout as JSON
+  2  classifier not loadable, blank diff base, or unreadable build record
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--diff-base",
         required=True,

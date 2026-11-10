@@ -90,10 +90,10 @@ class TestLosslessRendering:
                 f"Committed file {committed_path} differs from fixture {fixture_path}"
             )
 
-    def test_fixture_count_is_30(self) -> None:
-        """Exactly 30 fixtures must exist."""
+    def test_fixture_count_is_29(self) -> None:
+        """Exactly 29 fixtures must exist."""
         stems = _discover_fixture_stems()
-        assert len(stems) == 30, f"Expected 30 fixtures, found {len(stems)}: {stems}"
+        assert len(stems) == 29, f"Expected 29 fixtures, found {len(stems)}: {stems}"
 
     def test_negative_control_template_change_is_detected(self, tmp_path: Path) -> None:
         """Appending to template produces different bytes (proves test can fail)."""

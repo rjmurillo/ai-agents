@@ -232,9 +232,22 @@ def process_files(
     return stats
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --dry-run
+  %(prog)s --memories-path .serena/memories --output-json
+
+exit codes:
+  0  Related sections added, or nothing to add
+  1  a file failed, no project root, or path outside the project
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Improve graph density of Serena memories by adding Related sections.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--dry-run",

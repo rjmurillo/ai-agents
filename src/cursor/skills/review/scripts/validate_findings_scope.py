@@ -313,9 +313,23 @@ def format_scope_checked_text(text: str, diff_files: list[str], *, frozen: bool 
     return adjusted_text
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --worktree . --base-branch origin/main
+  %(prog)s --text "src/app.py:42 missing null check"
+
+exit codes:
+  0  all locations in scope, or the diff list is empty or unavailable
+  1  one or more locations are out of scope
+  2  no --text and stdin is a terminal
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate review-axis finding locations against the PR diff.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--worktree",

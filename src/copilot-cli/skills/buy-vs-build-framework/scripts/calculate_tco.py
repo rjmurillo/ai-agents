@@ -239,96 +239,84 @@ def validate_inputs(args: argparse.Namespace) -> list[str]:
     return errors
 
 
+_HELP_EPILOG = (
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    "                            WHAT YOU NEED TO KNOW\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    "\n"
+    "This tool calculates what building ACTUALLY costs (not just engineer salary).\n"
+    "\n"
+    "REQUIRED FOR ALL OPTIONS:\n"
+    "  --discount-rate 0.12     How much you discount future money (10-15%% typical)\n"
+    "  --years 5                How many years to analyze (3, 5, or 10)\n"
+    "\n"
+    "SIMPLE MODE (if you just know annual costs):\n"
+    "  --build-initial 500000   Upfront build cost\n"
+    "  --build-ongoing 200000   Annual build cost (simple)\n"
+    "  --buy-initial 50000      Upfront buy cost (licenses, setup)\n"
+    "  --buy-ongoing 150000     Annual buy cost (subscriptions, support)\n"
+    "\n"
+    "REALISTIC MODE (accounts for hidden build costs):\n"
+    "  --build-initial 500000\n"
+    "  --engineer-cost 350000         Engineer salary + benefits + facilities\n"
+    "  --maintenance-hours 120        Annual overhead (security, compliance, updates)\n"
+    "  --maintenance-growth 1.15      Overhead grows 15%%/year as systems mature\n"
+    "  --code-churn-rate 0.5          50%% of code changes yearly (unplanned work)\n"
+    "  --buy-initial 50000\n"
+    "  --buy-ongoing 150000\n"
+    "\n"
+    "WHY REALISTIC MODE MATTERS:\n"
+    "  A $350K engineer with 120hrs maintenance (grows 15%%/yr) and 50%% churn\n"
+    "  costs $416K in year 1 and $526K by year 5 (not $350K).\n"
+    "\n"
+    "TYPICAL VALUES BY ORG TYPE:\n"
+    "\n"
+    "  Large Tech Company (Microsoft, Google, Meta):\n"
+    "    --engineer-cost 350000 --maintenance-hours 150 --maintenance-growth 1.15\n"
+    "    --code-churn-rate 0.45   (Lower churn, more stability)\n"
+    "\n"
+    "  Mid-Size Tech Company:\n"
+    "    --engineer-cost 250000 --maintenance-hours 120 --maintenance-growth 1.12\n"
+    "    --code-churn-rate 0.50   (Moderate churn)\n"
+    "\n"
+    "  Startup (Series A-B):\n"
+    "    --engineer-cost 180000 --maintenance-hours 80 --maintenance-growth 1.20\n"
+    "    --code-churn-rate 0.70   (High churn, fast iteration, technical debt)\n"
+    "\n"
+    "  Enterprise (Non-Tech):\n"
+    "    --engineer-cost 200000 --maintenance-hours 100 --maintenance-growth 1.10\n"
+    "    --code-churn-rate 0.35   (Low churn, risk-averse)\n"
+    "\n"
+    "OUTPUT EXPLAINED:\n"
+    "  NPV (Build): -$2,500,000  ← You spend $2.5M over 5 years (in today's dollars)\n"
+    "  NPV (Buy):   -$950,000    ← You spend $950K over 5 years\n"
+    "  Break-even: Year 8.2      ← Build becomes cheaper than buy after 8.2 years\n"
+    "                              (but you only analyzed 5 years, so buy wins)\n"
+    "\n"
+    "RULE OF THUMB:\n"
+    "  If break-even > analysis horizon, buy wins.\n"
+    "  If NPV (Build) is way more negative than NPV (Buy), buy wins BIG.\n"
+    "\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    "\n"
+    "examples:\n"
+    "  %(prog)s --discount-rate 0.1 --years 3 --build-initial 1e5 --build-ongoing 2e4 --buy-initial "
+    "5e3 --buy-ongoing 3e4\n"
+    "  %(prog)s --discount-rate 0.12 --years 5 --build-initial 3e5 --engineer-cost 3.5e5 "
+    "--buy-initial 3e4 --buy-ongoing 9e4\n"
+    "\n"
+    "exit codes:\n"
+    "  0  all options computed\n"
+    "  1  invalid inputs\n"
+    "  2  an option's NPV is above zero (warning, results still printed)\n"
+)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Calculate REALISTIC TCO for Build/Buy/Partner decisions",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                            WHAT YOU NEED TO KNOW
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-This tool calculates what building ACTUALLY costs (not just engineer salary).
-
-REQUIRED FOR ALL OPTIONS:
-  --discount-rate 0.12     How much you discount future money (10-15%% typical)
-  --years 5                How many years to analyze (3, 5, or 10)
-
-SIMPLE MODE (if you just know annual costs):
-  --build-initial 500000   Upfront build cost
-  --build-ongoing 200000   Annual build cost (simple)
-  --buy-initial 50000      Upfront buy cost (licenses, setup)
-  --buy-ongoing 150000     Annual buy cost (subscriptions, support)
-
-REALISTIC MODE (accounts for hidden build costs):
-  --build-initial 500000
-  --engineer-cost 350000         Engineer salary + benefits + facilities
-  --maintenance-hours 120        Annual overhead (security, compliance, updates)
-  --maintenance-growth 1.15      Overhead grows 15%%/year as systems mature
-  --code-churn-rate 0.5          50%% of code changes yearly (unplanned work)
-  --buy-initial 50000
-  --buy-ongoing 150000
-
-WHY REALISTIC MODE MATTERS:
-  A $350K engineer with 120hrs maintenance (grows 15%%/yr) and 50%% churn
-  costs $416K in year 1 and $526K by year 5 (not $350K).
-
-TYPICAL VALUES BY ORG TYPE:
-
-  Large Tech Company (Microsoft, Google, Meta):
-    --engineer-cost 350000 --maintenance-hours 150 --maintenance-growth 1.15
-    --code-churn-rate 0.45   (Lower churn, more stability)
-
-  Mid-Size Tech Company:
-    --engineer-cost 250000 --maintenance-hours 120 --maintenance-growth 1.12
-    --code-churn-rate 0.50   (Moderate churn)
-
-  Startup (Series A-B):
-    --engineer-cost 180000 --maintenance-hours 80 --maintenance-growth 1.20
-    --code-churn-rate 0.70   (High churn, fast iteration, technical debt)
-
-  Enterprise (Non-Tech):
-    --engineer-cost 200000 --maintenance-hours 100 --maintenance-growth 1.10
-    --code-churn-rate 0.35   (Low churn, risk-averse)
-
-EXAMPLES:
-
-  # Simple: Just compare sticker prices
-  python3 calculate_tco.py \\
-    --build-initial 500000 --build-ongoing 200000 \\
-    --buy-initial 50000 --buy-ongoing 150000 \\
-    --partner-initial 100000 --partner-ongoing 125000 \\
-    --discount-rate 0.12 --years 5
-
-  # Realistic: Tech company with growing overhead
-  python3 calculate_tco.py \\
-    --build-initial 500000 \\
-    --engineer-cost 350000 --maintenance-hours 150 \\
-    --maintenance-growth 1.15 --code-churn-rate 0.45 \\
-    --buy-initial 50000 --buy-ongoing 150000 \\
-    --partner-initial 100000 --partner-ongoing 125000 \\
-    --discount-rate 0.12 --years 5
-
-  # Realistic: Startup with high churn
-  python3 calculate_tco.py \\
-    --build-initial 200000 \\
-    --engineer-cost 180000 --maintenance-hours 80 \\
-    --maintenance-growth 1.20 --code-churn-rate 0.70 \\
-    --buy-initial 30000 --buy-ongoing 80000 \\
-    --discount-rate 0.15 --years 3
-
-OUTPUT EXPLAINED:
-  NPV (Build): -$2,500,000  ← You spend $2.5M over 5 years (in today's dollars)
-  NPV (Buy):   -$950,000    ← You spend $950K over 5 years
-  Break-even: Year 8.2      ← Build becomes cheaper than buy after 8.2 years
-                              (but you only analyzed 5 years, so buy wins)
-
-RULE OF THUMB:
-  If break-even > analysis horizon, buy wins.
-  If NPV (Build) is way more negative than NPV (Buy), buy wins BIG.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     # Required for all scenarios

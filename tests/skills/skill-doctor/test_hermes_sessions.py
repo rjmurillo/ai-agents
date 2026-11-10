@@ -398,6 +398,8 @@ class HermesCollectorTests(unittest.TestCase):
                 "--hermes-home",
                 str(root),
                 "--all-conversations",
+                "--min-idle-minutes",
+                "0",
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             inventory = json.loads((root / "report" / "inventory.json").read_text())

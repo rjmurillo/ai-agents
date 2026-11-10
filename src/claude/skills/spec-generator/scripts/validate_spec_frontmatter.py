@@ -192,6 +192,18 @@ def validate_file(path: str) -> SpecValidation:
     return validate_fields(path, fields)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s spec.md
+  %(prog)s specs/REQ-001.md specs/DESIGN-001.md
+
+exit codes:
+  0  all valid
+  1  one or more validation failures
+  2  no input, or an unreadable file
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="validate_spec_frontmatter.py",
@@ -200,12 +212,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "canonical enums, required fields, and id patterns. Read-only. "
             "Prints one [PASS] or [FAIL] line per file on stdout."
         ),
-        epilog=(
-            "example:\n"
-            "  validate_spec_frontmatter.py .project-toolkit/specs/REQ-001.md\n\n"
-            "exit codes: 0 all valid, 1 one or more validation failures, "
-            "2 no input or an unreadable file."
-        ),
+        epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("files", nargs="*", metavar="FILE", help="spec file to validate")

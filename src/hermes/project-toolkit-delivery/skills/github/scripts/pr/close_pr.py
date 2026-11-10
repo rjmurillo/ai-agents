@@ -44,9 +44,25 @@ from github_core.api import (
 from github_core.not_found import is_pr_not_found
 from github_core.validation import assert_valid_body_file, read_body_file_text
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --comment "Superseded by #130"
+
+exit codes:
+  0  success
+  2  not found
+  3  external error (API failure)
+  4  auth error
+"""
+
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Close a GitHub Pull Request.")
+    parser = argparse.ArgumentParser(
+        description="Close a GitHub Pull Request.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
@@ -61,7 +77,44 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="File containing comment body",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the PR state and report what would happen; comment and close nothing",
+    )
     return parser
+
+
+def _report_noop_or_plan(args: argparse.Namespace, state: str, comment: str) -> int | None:
+    """Report an already closed or merged PR, or the --dry-run plan.
+
+    Returns the exit code when nothing is left to do, or None when the PR must be closed.
+    """
+    pr = args.pull_request
+    if state in ("CLOSED", "MERGED"):
+        result: dict[str, object] = {
+            "success": True,
+            "number": pr,
+            "state": state,
+            "action": "none",
+            "message": f"PR already {state.lower()}",
+        }
+        if args.dry_run:
+            result["dryRun"] = True
+    elif args.dry_run:
+        result = {
+            "success": True,
+            "number": pr,
+            "state": state,
+            "action": "would_close",
+            "dryRun": True,
+            "wouldComment": bool(comment),
+            "message": "Dry run: PR not closed",
+        }
+    else:
+        return None
+    print(json.dumps(result, indent=2))
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -99,16 +152,9 @@ def main(argv: list[str] | None = None) -> int:
 
     state = json.loads(state_result.stdout).get("state", "")
 
-    if state in ("CLOSED", "MERGED"):
-        result = {
-            "success": True,
-            "number": pr,
-            "state": state,
-            "action": "none",
-            "message": f"PR already {state.lower()}",
-        }
-        print(json.dumps(result, indent=2))
-        return 0
+    reported = _report_noop_or_plan(args, state, comment)
+    if reported is not None:
+        return reported
 
     if comment:
         subprocess.run(

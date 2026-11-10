@@ -511,6 +511,20 @@ def build_metrics(original: str, compressed: str, level: CompressionLevel) -> Co
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s -i notes.md
+  %(prog)s -i notes.md -l aggressive -o notes.min.md -v
+
+exit codes:
+  0  compression completed
+  1  input file not found
+  2  invalid compression level
+  3  output file write failed
+  4  tiktoken not installed
+"""
+
+
 def main() -> None:
     """Main entry point."""
     if _tiktoken_missing():
@@ -520,7 +534,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compress markdown documentation to minimal tokens using pipe-delimited format",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument("-i", "--input", required=True, type=Path, help="Input markdown file path")

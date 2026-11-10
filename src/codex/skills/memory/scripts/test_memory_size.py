@@ -257,9 +257,22 @@ def format_result(result: ValidationResult, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s .serena/memories --recursive
+  %(prog)s .serena/memories/skills-index.md --max-chars 8000 --verbose
+
+exit codes:
+  0  every file is within the size thresholds
+  1  a file is over a threshold, the path is missing, or it has '..'
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Validate Serena memory file sizes against context engineering thresholds"
+        description="Validate Serena memory file sizes against context engineering thresholds",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("path", type=Path, help="Memory file or directory to validate")
     parser.add_argument(

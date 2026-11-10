@@ -3,7 +3,7 @@
 
 Scans Claude Code project history, Codex rollout files, Warp's local
 conversation databases, Pi agent session JSONL, Grok Build chat history,
-and/or ZCode model-io rollouts, discovers installed skills, detects which
+ZCode model-io rollouts, and/or Factory Droid sessions, discovers installed skills, detects which
 sessions used which skills, and emits:
 
   <out>/inventory.json        - skills, per-session stats, sampling decisions
@@ -25,6 +25,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
+from repository_scope import print_scope_roots, resolve_repository_scope
 from session_common import (
     CLAUDE_CODE_EDIT_TOOLS,
     CODE_EDIT_HINTS,
@@ -41,10 +42,14 @@ from session_common import (
     detect_skill_candidates,
     detect_skills_from_entries,
     extract_text,
+    is_live_session,
     iter_jsonl_records,
     looks_injected,
     record_collection_issue,
     render_transcript,
+    resolve_session_usage,
+    session_record,
+    skill_variants,
     truncate,
 )
 from session_databases import (
@@ -69,6 +74,7 @@ from session_discovery import (
     find_claude_session_files,
     find_codex_session_files,
     find_copilot_session_files,
+    find_droid_session_files,
     find_grok_session_files,
     find_pi_session_files,
     find_zcode_session_files,
@@ -83,6 +89,7 @@ from session_discovery import (
     warp_data_roots,
     warp_database_candidates,
 )
+from session_droid import parse_droid_session
 from session_json import (
     parse_claude_session,
     parse_codex_session,
@@ -91,6 +98,7 @@ from session_json import (
     parse_pi_session,
     parse_zcode_session,
 )
+from session_sampling import sample_sessions
 
 __all__ = [
     "CLAUDE_CODE_EDIT_TOOLS",
@@ -166,10 +174,11 @@ class Collection:
 
     def __init__(self, args: Any, repos: Any, skills: Any) -> None:
         self.args, self.repos, self.skills = args, repos, skills
+        self.scope = resolve_repository_scope(repos, not args.no_worktrees)
         self.sessions: list[dict[str, Any]] = []
         self.sources: dict[str, Any] = {}
         self.scanned = 0
-        self.in_scope = 0
+        self.in_scope = self.skipped_idle = 0
         self.warp_databases: list[Path] = []
 
     def add(self, harness: str, parsed: Any, file: str, modified_at: str) -> None:
@@ -181,22 +190,13 @@ class Collection:
         self.in_scope += 1
         if stats["assistant_turns"] < 1 or stats["tool_calls"] < 1:
             return
-        self.sessions.append(
-            {
-                "harness": harness,
-                "meta": meta,
-                "stats": stats,
-                "skills_used": skills_used,
-                "file": file,
-                "modified_at": modified_at,
-                "_entries": entries,
-            }
-        )
+        if is_live_session(stats, self.args.min_idle_minutes):
+            self.skipped_idle += 1
+            return
+        self.sessions.append(session_record(harness, parsed, file, modified_at))
 
     def matches(self, harness: str, meta: Any) -> bool:
-        if harness == "copilot":
-            return copilot_session_matches_repos(meta, self.repos)
-        return session_matches_repos(meta.get("cwd"), self.repos)
+        return self.scope.matches(harness, meta)
 
     def requested(self, harness: str) -> bool:
         return self.args.harness in ("auto", "all", harness)
@@ -318,6 +318,7 @@ def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:
             parse_zcode_session,
             "ZCode model-io rollouts not found at",
         ),
+        ("droid", "sessions", find_droid_session_files, parse_droid_session, "Droid not found at"),
     )
     for name, subdir, finder, parser, message in specs:
         if name == "pi":
@@ -340,29 +341,8 @@ def _discover(args: Any, repos: Any, homes: Any) -> Any:
         hermes_home=homes["hermes"],
         copilot_home=homes["copilot"],
         claude_home=homes["claude"],
+        factory_home=homes["droid"],
     )
-
-
-def _sample(sessions: Any, skills: Any, args: Any) -> set[str]:
-    sampled: set[str] = set()
-    counts = dict.fromkeys(skills, 0)
-    for session in sessions:
-        if len(sampled) >= args.max_sessions:
-            break
-        used = session["skills_used"]
-        if any(counts.get(name, 0) < args.per_skill for name in used):
-            sampled.add(session["_key"])
-            # Count every skill the session used, so a multi-skill session fills each quota.
-            for name in used:
-                counts[name] = counts.get(name, 0) + 1
-    no_skill = 0
-    for session in sessions:
-        if len(sampled) >= args.max_sessions or no_skill >= args.no_skill:
-            break
-        if not session["skills_used"] and session["_key"] not in sampled:
-            sampled.add(session["_key"])
-            no_skill += 1
-    return sampled
 
 
 def _write_transcripts(sessions: Any, sampled: set[str], directory: Path) -> None:
@@ -381,12 +361,15 @@ def _write_transcripts(sessions: Any, sampled: set[str], directory: Path) -> Non
         del session["_key"]
 
 
-def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
+def _inventory(
+    collection: Collection, homes: Any, sampled: set[str], per_harness: Any, sampling: Any
+) -> Any:
     args, repos, skills = collection.args, collection.repos, collection.skills
     usage = dict.fromkeys(skills, 0)
     for session in collection.sessions:
         for name in session["skills_used"]:
             usage[name] += 1
+    variants = skill_variants(skills)
     scope_name = repos[0].name if len(repos) == 1 else "multiple-projects"
     if args.all_conversations:
         scope_name = "all-conversations"
@@ -402,19 +385,25 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
         "repos": [str(repo) for repo in repos],
         "repo_name": scope_name,
         "repo_names": [repo.name for repo in repos],
+        "scope_resolution": collection.scope.report(collection.sessions),
         "window_days": args.days,
         "skills": sorted(skills.values(), key=lambda skill: skill["name"]),
         "skill_usage": usage,
+        "skill_variants": variants,
         "stats": {
             "session_files_in_window": collection.scanned,
             "session_records_in_window": collection.scanned,
             "sessions_in_repo": collection.in_scope,
             "sessions_in_scope": collection.in_scope,
             "sessions_considered": len(collection.sessions),
+            "sessions_skipped_idle": collection.skipped_idle,
             "sessions_sampled": len(sampled),
+            "per_harness": per_harness,
             "skills_found": len(skills),
+            "ambiguous_skills": len(variants),
             "skills_used": sum(1 for count in usage.values() if count > 0),
         },
+        "sampling": sampling,
         "sessions": collection.sessions,
     }
     inventory.update(
@@ -437,6 +426,7 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
         "all conversations" if args.all_conversations else ", ".join(str(repo) for repo in repos)
     )
     print(f"scope:             {scope}")
+    print_scope_roots(inventory["scope_resolution"])
     print(f"sources:           {', '.join(inventory['sources'])}")
     print(f"skills found:      {stats['skills_found']} ({stats['skills_used']} used in window)")
     print(
@@ -444,6 +434,13 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
         f"{stats['sessions_in_scope']} in scope, {stats['sessions_considered']} scoreable"
     )
     print(f"sessions sampled:  {stats['sessions_sampled']} -> {out / 'transcripts'}")
+    for harness, counts in stats["per_harness"].items():
+        print(
+            f"  {harness}: {counts['sampled']} sampled of {counts['scoreable']} scoreable "
+            f"({counts['skill_candidates']} used a skill)"
+        )
+    if inventory["sampling"]["notice"]:
+        print(f"warning: {inventory['sampling']['notice']}", file=sys.stderr)
     print(f"inventory:         {out / 'inventory.json'}")
 
 
@@ -456,6 +453,7 @@ def _run() -> None:
         name: Path(getattr(args, f"{name}_home")).expanduser()
         for name in ("claude", "codex", "copilot", "pi", "grok", "zcode")
     }
+    homes["droid"] = Path(args.factory_home).expanduser()
     homes["hermes"] = resolve_hermes_home(args.hermes_home)
     out = Path(args.out).expanduser()
     (out / "transcripts").mkdir(parents=True, exist_ok=True)
@@ -465,20 +463,18 @@ def _run() -> None:
     if not collection.sources:
         _fatal(
             "no supported session source found "
-            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, or Hermes)"
+            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, Droid, or Hermes)"
         )
     if args.all_conversations:
         collection.repos = infer_session_repos(collection.sessions)
         collection.skills = _discover(args, collection.repos, homes)
-    installed = set(collection.skills)
+    resolve_session_usage(collection.sessions, collection.skills)
     for session in collection.sessions:
-        detected = detect_skills_from_entries(session["_entries"], installed)
-        session["skills_used"] = sorted((set(session["skills_used"]) | set(detected)) & installed)
         session["_key"] = f"{session['harness']}:{session['meta']['id']}"
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
-    sampled = _sample(collection.sessions, collection.skills, args)
+    sampled, per_harness, sampling = sample_sessions(collection.sessions, collection.skills, args)
     _write_transcripts(collection.sessions, sampled, out / "transcripts")
-    inventory = _inventory(collection, homes, sampled)
+    inventory = _inventory(collection, homes, sampled, per_harness, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")
     _print_summary(inventory, args, collection.repos, out)
 

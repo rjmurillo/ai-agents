@@ -125,10 +125,21 @@ def test_agent_definition_ignores_a_workspace_copy(env, tmp_path, monkeypatch):
     assert "INJECTED BY PR HEAD" not in FakeClient.last_kwargs["system"]
 
 
-def test_system_prompt_is_only_the_notice_when_agent_file_absent(env):
+def test_unknown_agent_exits_config_error_naming_both_locations(env, capsys):
     env["REVIEW_AGENT"] = "no-such-agent"
+    assert run_main(env) == 2
+    err = capsys.readouterr().err
+    assert ".claude/agents/no-such-agent.md" in err
+    assert ".claude/skills/no-such-agent/SKILL.md" in err
+    assert FakeClient.last_kwargs is None
+
+
+def test_agent_retired_into_a_skill_loads_the_skill_text(env):
+    env["REVIEW_AGENT"] = "pr-comment-responder"
     assert run_main(env) == 0
-    assert FakeClient.last_kwargs["system"] == claude.UNTRUSTED_CONTENT_NOTICE
+    system = FakeClient.last_kwargs["system"]
+    assert "name: pr-comment-responder" in system
+    assert system.endswith(claude.UNTRUSTED_CONTENT_NOTICE)
 
 
 def test_injected_quote_cannot_override_the_models_final_verdict(env, monkeypatch, tmp_path):
@@ -298,10 +309,56 @@ def test_missing_context_file_fails_closed(env):
     assert "infrastructure_failure=true" in outputs(env)
 
 
-@pytest.mark.parametrize("agent", ["", "../x", "a/b", ".hidden", "a\\b"])
+@pytest.mark.parametrize("agent", ["../x", "a/b", ".hidden", "a\\b", "../../etc/passwd"])
 def test_load_system_prompt_rejects_unsafe_agent_names(tmp_path, agent):
     (tmp_path / "x.md").write_text("secret", encoding="utf-8")
-    assert claude.load_system_prompt(agent, tmp_path) == ""
+    skills = tmp_path / "skills"
+    (skills / "x").mkdir(parents=True)
+    (skills / "x" / "SKILL.md").write_text("secret skill", encoding="utf-8")
+    with pytest.raises(claude.AgentNotFoundError) as exc:
+        claude.load_system_prompt(agent, tmp_path, skills)
+    assert "secret" not in str(exc.value)
+
+
+def test_load_system_prompt_empty_name_requests_no_definition(tmp_path):
+    assert claude.load_system_prompt("", tmp_path, tmp_path) == ""
+
+
+def test_load_system_prompt_prefers_the_agent_file_over_the_skill(tmp_path):
+    agents, skills = tmp_path / "agents", tmp_path / "skills"
+    (agents).mkdir()
+    (skills / "tool").mkdir(parents=True)
+    (agents / "tool.md").write_text("AGENT TEXT", encoding="utf-8")
+    (skills / "tool" / "SKILL.md").write_text("SKILL TEXT", encoding="utf-8")
+    assert claude.load_system_prompt("tool", agents, skills) == "AGENT TEXT"
+
+
+def test_load_system_prompt_falls_back_to_the_skill_raw(tmp_path):
+    agents, skills = tmp_path / "agents", tmp_path / "skills"
+    agents.mkdir()
+    (skills / "tool").mkdir(parents=True)
+    raw = "---\nname: tool\n---\nBody\n"
+    (skills / "tool" / "SKILL.md").write_text(raw, encoding="utf-8")
+    assert claude.load_system_prompt("tool", agents, skills) == raw
+
+
+def test_load_system_prompt_neither_present_names_both_locations(tmp_path):
+    agents, skills = tmp_path / "agents", tmp_path / "skills"
+    agents.mkdir()
+    skills.mkdir()
+    with pytest.raises(claude.AgentNotFoundError) as exc:
+        claude.load_system_prompt("ghost", agents, skills)
+    message = str(exc.value)
+    assert ".claude/agents/ghost.md" in message
+    assert ".claude/skills/ghost/SKILL.md" in message
+
+
+def test_skill_directory_without_skill_md_does_not_resolve(tmp_path):
+    agents, skills = tmp_path / "agents", tmp_path / "skills"
+    agents.mkdir()
+    (skills / "ghost").mkdir(parents=True)
+    with pytest.raises(claude.AgentNotFoundError):
+        claude.load_system_prompt("ghost", agents, skills)
 
 
 def test_stale_output_file_is_cleared_before_run(env):

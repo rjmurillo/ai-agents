@@ -221,8 +221,23 @@ def format_report(findings: Sequence[Finding]) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s proposal.json
+
+exit codes:
+  0  adopt: no axis needs revision
+  1  revise: at least one axis needs revision
+  2  unreadable file, invalid JSON, or invalid proposal
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("proposal", type=Path, help="JSON file describing the proposed design.")
     return parser
 

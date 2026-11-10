@@ -756,10 +756,24 @@ def _request_failed(
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s list docs/api.md --touching /orders
+  %(prog)s lint docs/api.md
+
+exit codes:
+  0  clean
+  1  lint findings or failed examples
+  2  bad input or unverifiable (no examples, unreachable server, remote URL without --allow-remote)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     sub = parser.add_subparsers(dest="command", required=True)
     for name, helptext in (

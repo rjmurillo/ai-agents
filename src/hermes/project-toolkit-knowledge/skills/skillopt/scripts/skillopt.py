@@ -399,8 +399,28 @@ def _add_buffer_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]
     p.set_defaults(func=_cmd_buffer_add)
 
 
+_HELP_EPILOG = """\
+buffer-check is inverted on purpose: exit 0 means KNOWN-BAD (already rejected),
+exit 1 means NOVEL. Branch on the stdout word, never chain it with &&.
+
+examples:
+  %(prog)s budget --step 0 --total 5
+  %(prog)s gate --candidate 0.82 --incumbent 0.74
+
+exit codes:
+  0  success or accept
+  1  reject, mismatch, or run left a task unverified (buffer-check: NOVEL)
+  2  usage or validation error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="skillopt", description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="skillopt",
+        description=(__doc__ or "").splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("budget", help="cosine-decayed edit budget for a step")

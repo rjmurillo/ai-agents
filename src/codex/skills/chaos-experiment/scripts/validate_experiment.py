@@ -322,23 +322,25 @@ def validate_experiment(path: Path, strict: bool = False) -> ValidationResult:
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s experiment.md
+  %(prog)s experiment.md --strict --json
+
+exit codes:
+  0  validation passed
+  1  general failure
+  2  invalid arguments
+  10  validation failure (missing required sections; not an ADR-035 code)
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Validate a chaos experiment document",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    python validate_experiment.py experiment.md
-    python validate_experiment.py experiment.md --strict
-    python validate_experiment.py ./chaos/*.md --json
-
-Exit Codes:
-    0  - Validation passed
-    1  - General failure
-    2  - Invalid arguments
-    10 - Validation failure
-        """,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

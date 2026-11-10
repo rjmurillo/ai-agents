@@ -1155,7 +1155,7 @@ class TestRealRepository:
                 if _ALIAS_IN_FRONTMATTER.search(block):
                     offenders.append(str(path))
         assert offenders == []
-        assert examined >= 175, f"only {examined} frontmatter blocks examined"
+        assert examined >= 174, f"only {examined} frontmatter blocks examined"
 
     def test_every_configured_tree_exists_and_is_scanned(self):
         """Guard against a tree being dropped, from the constant or from ``scan``.
@@ -1226,7 +1226,7 @@ class TestRealRepository:
                 if (name in roster) != _has_agent_frontmatter(path):
                     disagreements.append(str(path.relative_to(REPO_ROOT)))
         assert not disagreements, f"roster disagrees with the oracle on: {disagreements}"
-        assert checked >= 175, f"oracle only examined {checked} files"
+        assert checked >= 174, f"oracle only examined {checked} files"
 
     def test_every_configured_tree_yields_agents(self):
         """Guard against a suffix that stops matching what a tree ships.

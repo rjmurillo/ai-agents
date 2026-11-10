@@ -282,11 +282,24 @@ def read_events(path: Path | None) -> list[FailureEvent]:
     return parse_events(raw)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --events events.json
+  %(prog)s --events events.json --repeat 3 --window 20
+
+exit codes:
+  0  ran (regardless of stuck or not stuck)
+  2  invalid arguments or event input
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point for ``check-failures``."""
     parser = argparse.ArgumentParser(
         prog="stuck-detection check-failures",
         description="Check a JSON array of tool events for a failure loop.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--events", type=Path, default=None, help="JSON file of tool events (default: stdin)."

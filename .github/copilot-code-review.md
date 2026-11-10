@@ -146,7 +146,6 @@ All agents now have 1:1 parity across all three platforms:
 | `independent-thinker.agent.md` | `independent-thinker.agent.md` | `independent-thinker.md` |
 | `orchestrator.agent.md` | `orchestrator.agent.md` | `orchestrator.md` |
 | `milestone-planner.agent.md` | `milestone-planner.agent.md` | `milestone-planner.md` |
-| `pr-comment-responder.agent.md` | `pr-comment-responder.agent.md` | `pr-comment-responder.md` |
 | `qa.agent.md` | `qa.agent.md` | `qa.md` |
 | `retrospective.agent.md` | `retrospective.agent.md` | `retrospective.md` |
 | `roadmap.agent.md` | `roadmap.agent.md` | `roadmap.md` |

@@ -406,9 +406,24 @@ def _is_frontmatter_only_change(file_path: str, since_commit: str, base_path: Pa
     return _only_non_decision_fields_changed(old_frontmatter, new_frontmatter)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --since-commit abc1234
+
+exit codes:
+  0  success (changes detected or no changes found)
+  1  not a git repository, or an unexpected error during detection
+  2  a file or directory is missing
+  3  git diff failed (including an unknown --since-commit) or another I/O failure
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Detect ADR file changes for automatic skill triggering.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--base-path",

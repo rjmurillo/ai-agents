@@ -1,7 +1,7 @@
 ---
 name: pr-review
 version: 1.0.0
-description: Respond to review comments on one or more pull requests. Clusters the threads, fixes and pushes, then runs the dispatchable completion gate for a verdict. Use when you say `respond to PR review comments`, `pr-review 1234`, or `address the review feedback`. Do NOT use to fix a red check that carries no review comments (use pr-autofix), and do NOT use to work one PR's threads as a step inside another workflow (use pr-comment-responder).
+description: Respond to review comments on one or more pull requests, then run the completion gate for a verdict. Runs pr-comment-responder per PR. Use when you say `pr-review 1234`, `pr-review 12 15 --parallel`, or `respond to review comments and tell me if it can merge`. Do NOT use to fix a red check with no review comments (use pr-autofix), or to work one PR's threads with no gate verdict (use pr-comment-responder).
 license: MIT
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 user-invocable: true

@@ -8,7 +8,8 @@ Neither subcommand fetches or mutates anything. Run `git fetch origin main`
 first when the lag number must be current.
 
 Exit codes: 0 ok, 1 findings (a foreign stash, or left count above zero),
-2 bad arguments or not a git repository, 3 git missing or failed.
+2 bad arguments or --repo is not a directory, 3 git missing or failed
+(including a directory that is not a git repository).
 """
 
 from __future__ import annotations
@@ -86,8 +87,25 @@ def base_lag(repo: Path, base: str = "origin/main") -> dict[str, Any]:
     return {"base": base, "left": left, "right": right, "examined": 1}
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . stash
+  %(prog)s --repo . lag
+
+exit codes:
+  0  ok
+  1  a foreign stash, or a left count above zero
+  2  bad arguments, or --repo is not a directory
+  3  git missing or failed, including a directory that is not a git repository
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p = argparse.ArgumentParser(
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("stash", help="classify each stash entry as own or foreign")

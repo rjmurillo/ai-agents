@@ -123,9 +123,21 @@ def test_modules_available(memory_root: Path) -> list[dict[str, Any]]:
     return results
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --format table
+
+exit codes:
+  0  health report printed (read it for unavailable tiers)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Health check for all memory system tiers.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--format",
