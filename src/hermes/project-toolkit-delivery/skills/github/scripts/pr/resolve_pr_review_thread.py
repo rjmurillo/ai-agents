@@ -49,6 +49,7 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
+from github_core.review_threads import collect_all_review_threads
 
 _RESOLVE_MUTATION = """\
 mutation($threadId: ID!) {
@@ -61,10 +62,11 @@ mutation($threadId: ID!) {
 }"""
 
 _THREADS_QUERY = """\
-query($owner: String!, $name: String!, $prNumber: Int!) {
+query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
     repository(owner: $owner, name: $name) {
         pullRequest(number: $prNumber) {
-            reviewThreads(first: 100) {
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
                 nodes {
                     id
                     isResolved
@@ -111,7 +113,10 @@ def resolve_review_thread(thread_id: str) -> bool:
 
 
 def get_unresolved_threads(pr_number: int) -> list[dict[str, Any]]:
-    """Fetch unresolved review threads for a PR."""
+    """Fetch unresolved review threads for a PR, paging to the last page.
+
+    Raises RuntimeError when the read cannot reach the last page.
+    """
     result = subprocess.run(
         ["gh", "repo", "view", "--json", "owner,name"],
         capture_output=True,
@@ -125,14 +130,13 @@ def get_unresolved_threads(pr_number: int) -> list[dict[str, Any]]:
     owner = repo_info["owner"]["login"]
     name = repo_info["name"]
 
-    data = gh_graphql(
-        _THREADS_QUERY,
-        {"owner": owner, "name": name, "prNumber": pr_number},
-    )
+    def fetch_page(cursor: str | None) -> dict[str, Any]:
+        variables: dict[str, Any] = {"owner": owner, "name": name, "prNumber": pr_number}
+        if cursor is not None:
+            variables["cursor"] = cursor
+        return gh_graphql(_THREADS_QUERY, variables)
 
-    threads = (
-        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
-    )
+    threads = collect_all_review_threads(fetch_page, pr_number)
     return [t for t in threads if not t.get("isResolved", True)]
 
 
