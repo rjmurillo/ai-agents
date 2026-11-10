@@ -217,6 +217,58 @@
       ],
       "expected_gate": "skill-bootstrap-mined-candidates",
       "rationale": "Candidate selection runs as a deterministic mining step over git history (reverts, churn and TODO hotspots, optional PR review rounds) that ranks cases with evidence, instead of the model browsing history by hand."
+    },
+    {
+      "id": "S18",
+      "desc": "Stable provenance hides a poorly performing existing skill",
+      "input": "Refresh this repo's skill library. Drift checks pass, but local sessions show agents repeatedly missing the existing release skill. Scope and output paths are already authorized. What should bootstrap do? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "skill-doctor",
+        "existing",
+        "--update",
+        "eval"
+      ],
+      "expected_gate": "skill-bootstrap-diagnose-existing-skills",
+      "rationale": "Doctor diagnoses existing skills before candidate selection. Verified gaps use the existing improvement path, with frozen old-versus-new cases and the no-skill baseline."
+    },
+    {
+      "id": "S19",
+      "desc": "Doctor already supplied the bootstrap seed",
+      "input": "Doctor invoked bootstrap with an inventory, sampled transcripts, and proposed fixes. The repository, skill scope, collection window, and skill contents still match. Should bootstrap invoke doctor again or should doctor start another bootstrap? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "reuse",
+        "no",
+        "parent",
+        "verify"
+      ],
+      "expected_gate": "skill-bootstrap-no-recursive-doctor",
+      "rationale": "Matching artifacts are reused. A doctor child returns to its parent without launching bootstrap, recollecting history, or automatically applying drafts."
+    },
+    {
+      "id": "S20",
+      "desc": "Unavailable diagnosis cannot certify skill health",
+      "input": "Bootstrap this repo's skill library. Doctor is not installed and there are no sampled transcripts. Repository and hosted PR evidence remain available. Are existing skills healthy, and should discovery stop? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "UNAVAILABLE",
+        "NOT RUN",
+        "continue",
+        "not"
+      ],
+      "expected_gate": "skill-bootstrap-unavailable-doctor",
+      "rationale": "Missing doctor or sampled history produces explicit coverage limits. Other discovery continues, but missing diagnosis proves no skill-health or improvement claim."
+    },
+    {
+      "id": "S21",
+      "desc": "Doctor drafts exceed the authorized improvement boundary",
+      "input": "Doctor proposed edits to a global skill and a generated project SKILL.md. Bootstrap has authorization only for one project skill under its output root, not the global skill or canonical templates. Can it copy those doctor drafts into place? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "proposals only",
+        "boundary",
+        "canonical",
+        "authorization"
+      ],
+      "expected_gate": "skill-bootstrap-doctor-draft-authority",
+      "rationale": "Diagnostic drafts grant no write authority. Global and generated skills remain proposals until their actual authoring paths are authorized."
     }
   ]
 }

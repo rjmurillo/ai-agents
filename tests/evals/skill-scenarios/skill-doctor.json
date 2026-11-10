@@ -1,0 +1,42 @@
+{
+  "skill_path": ".claude/skills/skill-doctor/SKILL.md",
+  "skill_id": "skill-doctor",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Project-scoped Copilot diagnosis",
+      "input": "Run skill-doctor for this project using only Copilot sessions. Do not execute tools. Describe collection and scoring in four short bullets.",
+      "expected_signals": [
+        "--repo",
+        "--harness copilot",
+        "inventory.json",
+        "scoring"
+      ],
+      "expected_gate": "skill-doctor-project-scope",
+      "rationale": "A project request must not collect every local conversation. Collection precedes model-based scoring."
+    },
+    {
+      "id": "S2",
+      "desc": "Deterministic observations seed bootstrap without proving friction",
+      "input": "The skill-doctor inventory contains repeated tool calls and errors. Its report also assigns efficiency grades. Explain what skill-bootstrap may import. Do not execute tools. Answer in four short bullets.",
+      "expected_signals": [
+        "inventory.json",
+        "unverified",
+        "observations",
+        "qualitative"
+      ],
+      "expected_gate": "skill-doctor-unverified-bootstrap-seed",
+      "rationale": "Deterministic counters seed discovery. Neither counters nor qualitative grades prove avoidable friction."
+    },
+    {
+      "id": "S3",
+      "desc": "Held-out optimization belongs to skillopt",
+      "input": "Optimize one existing skill against its scored held-out evaluation set. Do not diagnose local sessions. Name the correct skill and stop.",
+      "expected_signals": [
+        "skillopt"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Held-out optimization uses skillopt rather than a local session diagnosis."
+    }
+  ]
+}

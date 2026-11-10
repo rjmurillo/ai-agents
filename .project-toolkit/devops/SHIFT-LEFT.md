@@ -384,6 +384,7 @@ a security gate.
 | pre-commit | `conflict-marker-policy` | staged files | Conflict markers in staged files | - | no | Required: Validate PR, step Check for conflict markers (tracked files only) |
 | pre-commit | `python-autofix` | glob | Ruff autofix on staged Python (writes) | - | no | None found |
 | pre-commit | `python-check` | glob | Ruff check on staged Python | - | no | Required: Run Python Tests, step Run ruff ratchet (changed Python files) |
+| pre-commit | `python-quality-advisory` | glob | Advisory ruff PLE, PLW, and D check on staged Python | - | no | None found |
 | pre-commit | `python-format` | glob | Ruff format check on staged Python | - | no | Required: Run Python Tests, step Run ruff format check (whole tree) |
 | pre-commit | `workflow-validation` | glob | validate_workflows.py on staged workflows | - | no | Required: Validate PR, step Validate workflow YAML (whole tree) |
 | pre-commit | `actionlint` | glob | actionlint on staged workflows | - | no | None found. pr-validation.yml records that actionlint stays out of CI on purpose |

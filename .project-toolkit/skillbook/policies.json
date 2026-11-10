@@ -455,7 +455,7 @@
       "created_at": 1778976000,
       "last_tested_at": 0,
       "version": 1,
-      "source": "templates/agents/pr-comment-responder.shared.md"
+      "source": "templates/skills/pr-comment-responder.SKILL.md.tmpl"
     },
     {
       "id": "pol-task-decomposer-atomic-items",
