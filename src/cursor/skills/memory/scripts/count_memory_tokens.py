@@ -164,26 +164,31 @@ def count_directory(
     return results
 
 
-_HELP_EPILOG = """\
-examples:
-  %(prog)s .serena/memories/skills-index.md
-  %(prog)s .serena/memories --recurse --total
-
-exit codes:
-  0  tokens counted
-  1  tiktoken missing, path not found, or a read failed
-"""
+DEFAULT_LIST_LIMIT = 200
 
 
-def main() -> int:
-    if not _HAS_TIKTOKEN:
-        print("Error: tiktoken not installed. Run: uv pip install tiktoken", file=sys.stderr)
-        return 1
+def _print_results(results: dict[Path, int], limit: int, total_flag: bool) -> None:
+    """Print per-file counts, the largest ``limit`` files when there are more, then the total.
 
+    The total always covers every file. ``limit`` 0 prints every file.
+    """
+    shown = list(results.items())
+    if limit and len(shown) > limit:
+        shown = sorted(shown, key=lambda item: item[1], reverse=True)[:limit]
+        print(
+            f"Showing the {limit} largest of {len(results)} files; "
+            "raise --limit or pass --limit 0 to list all.",
+            file=sys.stderr,
+        )
+    for file_path, count in shown:
+        print(f"{file_path}: {count:,} tokens")
+    if total_flag or len(results) > 1:
+        print(f"\nTotal: {sum(results.values()):,} tokens across {len(results)} files")
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Count tokens in Serena memory files using tiktoken",
-        epilog=_HELP_EPILOG,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Count tokens in Serena memory files using tiktoken"
     )
     parser.add_argument("path", type=Path, help="Memory file or directory to analyze")
     parser.add_argument(
@@ -204,8 +209,28 @@ def main() -> int:
         help="File pattern for directory mode (default: *.md)",
     )
     parser.add_argument("--total", action="store_true", help="Show total token count for directory")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_LIST_LIMIT,
+        help=(
+            f"Directory mode: list at most this many files, largest first "
+            f"(default {DEFAULT_LIST_LIMIT}; 0 lists all). The total always counts every file."
+        ),
+    )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    if args.limit < 0:
+        parser.error(f"--limit must be 0 or greater, got {args.limit}")
+
+    if not _HAS_TIKTOKEN:
+        print(
+            "Error: tiktoken is not installed, so tokens cannot be counted. "
+            "Expected: pip install tiktoken (or uv pip install tiktoken), then rerun.",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         args.path = validate_path_no_traversal(args.path)
@@ -222,14 +247,7 @@ def main() -> int:
                 print(f"No files matching '{pattern}' in {args.path}", file=sys.stderr)
                 return 1
 
-            # Print results
-            total = 0
-            for file_path, count in results.items():
-                print(f"{file_path}: {count:,} tokens")
-                total += count
-
-            if args.total or len(results) > 1:
-                print(f"\nTotal: {total:,} tokens across {len(results)} files")
+            _print_results(results, args.limit, args.total)
         else:
             print(f"Error: Path not found: {args.path}", file=sys.stderr)
             return 1

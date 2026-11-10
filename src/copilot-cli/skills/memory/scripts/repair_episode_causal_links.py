@@ -110,8 +110,11 @@ def _all_removed_now_incomparable(
     return True
 
 
-def repair_episode(path: Path) -> dict[str, Any]:
+def repair_episode(path: Path, *, write: bool = True) -> dict[str, Any]:
     """Repair one episode file in place. Returns a per-file report.
+
+    With ``write=False`` the report is identical (``status`` stays ``repaired``)
+    and the file is never opened for writing.
 
     ``status`` is one of ``repaired``, ``unchanged``, or ``unrepairable``.
     ``unrepairable`` means the episode is flat and no commit SHA in it
@@ -151,7 +154,8 @@ def repair_episode(path: Path) -> dict[str, Any]:
         return report
 
     episode["events"] = events
-    path.write_text(json.dumps(episode, indent=2) + "\n", encoding="utf-8")
+    if write:
+        path.write_text(json.dumps(episode, indent=2) + "\n", encoding="utf-8")
     return {
         "path": str(path),
         "status": "repaired",
@@ -205,8 +209,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--check",
+        "--dry-run",
+        dest="check",
         action="store_true",
-        help="Report what would change without writing.",
+        help="Report what would change without writing. --dry-run is an alias.",
     )
     return parser.parse_args(argv)
 
@@ -224,6 +230,8 @@ def main(argv: list[str] | None = None) -> int:
 
     reports = [_inspect_or_repair(path, check=args.check) for path in _episode_paths(args)]
     summary = _summarize(reports)
+    if args.check:
+        summary["DryRun"] = True
     print(json.dumps(summary, indent=2))
     # One malformed episode must not stop the corpus pass, but it is still a
     # defect the caller has to see, so it lands in the summary and the exit code.
@@ -231,15 +239,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _inspect_or_repair(path: Path, *, check: bool) -> dict[str, Any]:
-    """Repair the episode, restoring the original bytes when check is set."""
-    original = path.read_bytes() if check else b""
+    """Repair the episode, or only report the repair when check is set."""
     try:
-        return repair_episode(path)
+        return repair_episode(path, write=not check)
     except (OSError, ValueError, EpisodeValidationError) as exc:
         return {"path": str(path), "status": "invalid", "edges": 0, "reason": str(exc)}
-    finally:
-        if check:
-            path.write_bytes(original)
 
 
 if __name__ == "__main__":

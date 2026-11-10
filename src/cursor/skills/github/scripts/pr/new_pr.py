@@ -304,6 +304,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Required when --skip-validation is used. Logged for audit trail.",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run every check a real run runs, then report the PR that would be "
+            "created. Writes no audit log and creates no PR."
+        ),
+    )
     return parser
 
 
@@ -446,8 +454,11 @@ def _run_pre_creation_validations(
                 file=sys.stderr,
             )
             return 2
-        print("WARNING: VALIDATION SKIPPED (audit logged)", file=sys.stderr)
-        write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
+        if args.dry_run:
+            print("WARNING: VALIDATION WOULD BE SKIPPED (dry run, no audit log)", file=sys.stderr)
+        else:
+            print("WARNING: VALIDATION SKIPPED (audit logged)", file=sys.stderr)
+            write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
         print()
         return None
 
@@ -534,6 +545,15 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = get_repo_root()
 
+    if args.prepare_body_file and args.dry_run:
+        print(
+            "--dry-run does not apply to --prepare-body-file, which only allocates a "
+            "scratch file and prints its path. Expected: --prepare-body-file alone, or "
+            "--dry-run with --title and --body-file.",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.prepare_body_file:
         base = args.base
         if base and not base.startswith("origin/"):
@@ -559,6 +579,11 @@ def main(argv: list[str] | None = None) -> int:
     validation_exit = _run_pre_creation_validations(args, repo_root, head, body, preflight_warnings)
     if validation_exit is not None:
         return validation_exit
+
+    if args.dry_run:
+        draft = " (draft)" if args.draft else ""
+        print(f"Dry run: would create PR {head} -> {args.base}{draft}; nothing changed")
+        return 0
 
     return _create_pr(args, head, body)
 
