@@ -20,6 +20,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
     if str(_extra_path) not in sys.path:
         sys.path.insert(0, str(_extra_path))
 
+import lib_hand_files  # noqa: E402
 import lib_mirror  # noqa: E402
 
 # --- sync_pair (directory sync, import rewrite) -----------------------------
@@ -233,9 +234,9 @@ def _write_full_sources(root: Path) -> None:
     validation = root / "scripts" / "validation"
     validation.mkdir(parents=True)
     (validation / "validate_review_marker.py").write_text('"""Marker."""\n', encoding="utf-8")
-    claude_lib = root / lib_mirror.PLUGIN_LIB_SOURCE_DIR
+    claude_lib = root / lib_hand_files.PLUGIN_LIB_SOURCE_DIR
     claude_lib.mkdir(parents=True)
-    for name in lib_mirror.PLUGIN_LIB_FILES:
+    for name in lib_hand_files.PLUGIN_LIB_FILES:
         (claude_lib / name).write_text('"""Hand-maintained."""\n', encoding="utf-8")
 
 
@@ -354,7 +355,7 @@ def test_compile_all_leaves_the_copilot_paths_py_alone(tmp_path: Path) -> None:
     result = lib_mirror.compile_all(tmp_path, check=True)
 
     assert copilot.read_text(encoding="utf-8") == "# copilot copy\n"
-    assert "src/copilot-cli/lib" not in lib_mirror.PLUGIN_LIB_COPY_ROOTS
+    assert "src/copilot-cli/lib" not in lib_hand_files.PLUGIN_LIB_COPY_ROOTS
     assert not result.had_drift, result.drift
 
 

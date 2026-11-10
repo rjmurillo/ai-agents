@@ -19,17 +19,12 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from atomic_write import read_bytes_no_redirect  # noqa: E402
-from lib_mirror import (  # noqa: E402
-    PACKAGES,
-    PLUGIN_LIB_FILES,
-    PLUGIN_LIB_SOURCE_DIR,
-    SYNC_FILE_NAMES,
-    _transform_file,
-)
+from lib_hand_files import PLUGIN_LIB_FILES, PLUGIN_LIB_SOURCE_DIR  # noqa: E402
+from lib_mirror import PACKAGES, SYNC_FILE_NAMES, _transform_file  # noqa: E402
 
 # PLUGIN_LIB_FILES (hand-maintained modules with no scripts/ source that live in
 # the Claude plugin's lib/; ADR-119: skill scripts import paths.py from there)
-# comes from lib_mirror, so the Hermes packs and the lib trees name one list.
+# comes from lib_hand_files, so the Hermes packs and the lib trees name one list.
 
 # Hand-maintained modules that this renderer places only in the Claude
 # plugin's lib/, never in another plugin tree or the Hermes pack: the grouped

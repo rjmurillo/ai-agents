@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
+import lib_hand_files  # noqa: E402
 import lib_mirror  # noqa: E402
 
 _REAL_SURFACE_PARITY_EXIT = build_all._surface_parity_exit
@@ -91,7 +92,7 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
     what the test actually exercises, so this stubs a minimal
     (`__init__.py`-only) directory for each of `lib_mirror.PACKAGES` in
     addition to the two file-shaped sources and the hand-maintained
-    `src/claude/lib` files that `lib_mirror.PLUGIN_LIB_FILES` copies. A test that specifically
+    `src/claude/lib` files that `lib_hand_files.PLUGIN_LIB_FILES` copies. A test that specifically
     wants to exercise the missing-source path removes one stub itself
     after calling this.
     """
@@ -113,9 +114,9 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
     if not marker.exists():
         marker.write_text('"""Test review-marker stub."""\n', encoding="utf-8")
 
-    claude_lib = repo_root / lib_mirror.PLUGIN_LIB_SOURCE_DIR
+    claude_lib = repo_root / lib_hand_files.PLUGIN_LIB_SOURCE_DIR
     claude_lib.mkdir(parents=True, exist_ok=True)
-    for name in lib_mirror.PLUGIN_LIB_FILES:
+    for name in lib_hand_files.PLUGIN_LIB_FILES:
         hand_maintained = claude_lib / name
         if not hand_maintained.exists():
             hand_maintained.write_text('"""Test hand-maintained stub."""\n', encoding="utf-8")
