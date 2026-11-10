@@ -313,7 +313,7 @@ of a guess.
 | Reused features | Existing skills and scripts each workflow composes |
 | Verified shortcuts | Each hint with its evidence label and source reference |
 | Source coverage | Repository, discourse, each session client, memory: read, partial, or `UNAVAILABLE` |
-| Stages | candidates, skillforge, context-optimizer, capability eval, skillopt, review: ran or skipped, with the reason |
+| Stages | skill-doctor, candidates, skillforge, context-optimizer, capability eval, skillopt, review: ran, reused, or skipped, with the reason |
 | Evaluation | Accepted results, human corrections, rejected attempts, recovery, unnecessary discovery; tokens, tool calls, context size, elapsed time where measured, else `UNMEASURED` |
 | Boundary | Output root, authorized names, `bootstrap_boundary.py verify` exit code |
 | Limits | Unresolved disagreements, unmeasured outcomes, smaller-model checks not run |

@@ -137,7 +137,7 @@ leading path so nobody reads them as the upstream tree they were copied from.
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `redact_secrets.py` | Redacts secrets from Step 0 and Step 0.5 tally text before any durable write. BLOCKING: a failure means do not write. | 0 success (redactions may have been applied), 2 usage or read error; `--help` for usage |
-| `metrics_writer.py` | The single safe append point for the metrics tally files. Refuses a symlinked target (CWE-59) and opens with `O_NOFOLLOW` where the platform supports it. | 0 appended, 1 refused (symlink, path outside the working directory, I/O error), 2 usage error; `--help` for usage |
+| `metrics_writer.py` | The single safe append point for the metrics tally files. Refuses a symlinked target (CWE-59) and opens with `O_NOFOLLOW` where the platform supports it. Takes `--path PATH` plus the line as `--line=LINE` or `--stdin`, never as a positional argument, so a line such as `-h` is data and not a flag. | 0 appended, 1 refused (symlink, path outside the working directory, I/O error), 2 usage error; `--help` for usage |
 
 `spec-entity-aliases.json` ships in this skill's `data/` directory beside them:
 the alias table Step 0.5 uses to normalize topic names. All three are byte-identical copies of their canonical
