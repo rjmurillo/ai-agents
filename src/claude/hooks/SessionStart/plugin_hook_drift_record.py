@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# taste-lint: ignore naming -- a library imported by the drift-check hook,
+# registered as a hook nowhere. The `invoke_` prefix marks a registered entry
+# point, so using it here would assert the opposite of what is true. Same
+# reasoning as `plugin_hook_drift_state.py`.
 """Read Claude Code's own record of which plugin installs are active.
 
 Claude Code keeps superseded plugin copies in `~/.claude/plugins/cache` after

@@ -216,7 +216,10 @@ class TestRemoteUrls:
         def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
             calls.append(args)
             return subprocess.CompletedProcess(
-                args, 0, stdout=_remote_v(origin="https://github.com/a/b.git"), stderr=""
+                ["git", "remote", "-v"],
+                0,
+                stdout=_remote_v(origin="https://github.com/a/b.git"),
+                stderr="",
             )
 
         monkeypatch.setattr(guards.subprocess, "run", fake_run)
