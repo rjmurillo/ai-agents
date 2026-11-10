@@ -55,6 +55,34 @@ class TestFormatReflection:
         assert "Fix 1 broken citation." in result
 
     @pytest.mark.unit
+    def test_format_reports_unknown_when_git_cannot_say(self):
+        report = MagicMock(
+            total_memories=3, health_score=0.75, stale_memories=[], recommendations=[]
+        )
+        result = _format_reflection(report, session_facts=None)
+
+        assert "Updated this session: unknown (git unavailable)" in result
+
+    @pytest.mark.unit
+    def test_format_reports_updated_count_from_git(self):
+        report = MagicMock(
+            total_memories=3, health_score=0.75, stale_memories=[], recommendations=[]
+        )
+        result = _format_reflection(report, session_facts=["a", "b"])
+
+        assert "Updated this session: 2 memories" in result
+        assert "unknown" not in result
+
+    @pytest.mark.unit
+    def test_format_omits_updated_line_when_nothing_changed(self):
+        report = MagicMock(
+            total_memories=3, health_score=0.75, stale_memories=[], recommendations=[]
+        )
+        result = _format_reflection(report, session_facts=[])
+
+        assert "Updated this session" not in result
+
+    @pytest.mark.unit
     def test_format_no_stale(self):
         report = MagicMock(
             total_memories=1,
