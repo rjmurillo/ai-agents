@@ -268,7 +268,8 @@ Then derive the substance:
 Follow `$SKILL_ROOT/references/skill-improvements.md` to propose improvements to project skills based only on `failed_conversations`.
 
 Every candidate keeps `status: "unevaluated"`. Static diagnosis cannot measure whether a change helps.
-Do not start skillopt, skillforge, or any edit. The report supplies their handoff prompts; the user chooses the next action.
+Do not start skillopt or skillforge, and do not edit installed skill files. Drafts under `$REPORT_DIR/proposed/` are diagnosis output, not edits. The report supplies the handoff prompts; the user chooses the next action.
+Skillopt evaluates only `skill` candidates with an existing target. A `new-skill` candidate routes through skillforge first, and a `tooling` candidate goes to its named code owner; the renderer writes those routing notes in place of a skillopt run.
 
 1. Read the skill's current file: `path` in its `skills` entry of `inventory.json`. Set `target` to that exact path and state its `sha256` in the suggestion's `change` text. When the name is in `skill_variants`, leave `target` empty, list every variant's `path` and `sha256` in `variants`, and draft no diff: the user selects the edit target. Never draft against a global-home copy while a repository copy exists.
 2. Write the full improved version to `$REPORT_DIR/proposed/<skill-name>/SKILL.md`, changing only what the evidence justifies. Improve the parts the sessions actually exercised: the trigger description that failed to fire, the missing preflight check, the step the agent had to figure out by trial and error.
@@ -335,7 +336,7 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
 
 Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`.
 Keep `evaluation.optimization` at `not_run` for every skill-doctor run.
-Only a later skillopt result may set `run` and a suggestion `status` of `accepted`, `rejected`, or `inconclusive`; that suggestion then needs `evaluation.baseline` and `evaluation.candidate` references.
+Only a later skillopt result may set `evaluation.optimization` to `run` and a suggestion `status` of `accepted`, `rejected`, or `inconclusive`; that suggestion then needs its own `"evaluation": {"baseline": "<ref>", "candidate": "<ref>"}` object with non-empty references.
 The renderer exits 1 on a measured status without that evidence, a drafted diff for unresolved variants, or a "no beneficial change" verdict without scored evaluation.
 It builds the skillopt and skillforge handoff prompts from each suggestion's own fields. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
 

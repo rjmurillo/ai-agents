@@ -41,6 +41,14 @@ def _fresh_cwd_cache():
     clear_cwd_resolution_cache()
 
 
+def symlink_or_skip(link: Path, target: Path) -> None:
+    """Create a directory symlink, or skip where the platform denies the privilege."""
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation requires an OS capability unavailable here.")
+
+
 def git(cwd, *args):
     subprocess.run(
         [
@@ -232,10 +240,10 @@ def test_cwd_cache_is_cleared_between_runs_for_retargeted_symlink(tmp_path):
     first.mkdir()
     second.mkdir()
     link = tmp_path / "link"
-    link.symlink_to(first, target_is_directory=True)
+    symlink_or_skip(link, first)
     assert session_cwd_within_repo(str(link), first)
     link.unlink()
-    link.symlink_to(second, target_is_directory=True)
+    symlink_or_skip(link, second)
     assert session_cwd_within_repo(str(link), first)  # stale by design within one run
     clear_cwd_resolution_cache()
     assert not session_cwd_within_repo(str(link), first)
@@ -246,7 +254,7 @@ def test_cwd_matching_equals_reference_on_edge_values(tmp_path):
     repo = tmp_path / "repo"
     (repo / "sub").mkdir(parents=True)
     link = tmp_path / "alias"
-    link.symlink_to(repo, target_is_directory=True)
+    symlink_or_skip(link, repo)
     values = [
         str(repo),
         str(repo / "sub"),
@@ -376,7 +384,7 @@ def _write_skill_world(tmp_path: Path) -> tuple[dict[str, Any], Path]:
         "---\nname: deploy\ndescription: Deploy it.\n---\n# deploy\n", encoding="utf-8"
     )
     link = tmp_path / "link-to-wt"
-    link.symlink_to(world["trees"][1], target_is_directory=True)
+    symlink_or_skip(link, world["trees"][1])
     home = tmp_path / "copilot"
     cwds = [world["main"], world["main"] / "src", world["trees"][0], link, world["outside"]]
     for index, cwd in enumerate(cwds * 2):

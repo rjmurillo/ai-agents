@@ -176,6 +176,42 @@ def test_scored_rejection_may_state_a_no_change_verdict():
     assert ev.validate_report(report) == []
 
 
+@pytest.mark.parametrize("field", ["change", "mechanism", "expected_improvement"])
+def test_unmeasured_suggestion_prose_cannot_claim_a_no_change_verdict(field):
+    report = _report([_candidate(**{field: "No beneficial change is possible."})])
+
+    errors = ev.validate_report(report)
+
+    assert any(f"suggestions[0] (deploy).{field}" in e for e in errors)
+
+
+def test_measured_rejection_may_state_its_own_no_change_verdict():
+    candidate = _measured("rejected")
+    candidate["change"] = "No beneficial change: the candidate regressed held-out tasks."
+
+    assert ev.validate_report(_report([candidate], evaluation={"optimization": "run"})) == []
+
+
+def test_report_wide_verdict_is_rejected_when_a_candidate_was_accepted():
+    report = _report(
+        [_measured("accepted"), _measured("rejected")],
+        evaluation={"optimization": "run"},
+        findings=["No beneficial change was found."],
+    )
+
+    assert any("top_findings[0]" in e for e in ev.validate_report(report))
+
+
+def test_report_wide_verdict_is_rejected_while_a_candidate_stays_unevaluated():
+    report = _report(
+        [_measured("rejected"), _candidate()],
+        evaluation={"optimization": "run"},
+        findings=["No beneficial change was found."],
+    )
+
+    assert any("top_findings[0]" in e for e in ev.validate_report(report))
+
+
 def test_unknown_status_and_owner_are_rejected():
     errors = ev.validate_report(_report([_candidate(status="proven", owner="someone")]))
     errors += ev.validate_report(_report([_candidate(owner="someone")]))
@@ -242,10 +278,43 @@ def test_missing_fields_are_disclosed_not_invented():
 def test_tooling_candidate_names_owner_without_instruction_causality():
     candidate = _candidate(owner="tooling", owner_target="collect_sessions.py session filter")
 
-    prompt = ev.skillopt_prompt(candidate)
+    prompt = ev.skillforge_prompt(candidate)
 
     assert "Owner: tooling (collect_sessions.py session filter)" in prompt
     assert "not proven to be an instruction defect" in prompt
+
+
+def test_tooling_candidate_gets_a_routing_note_instead_of_a_skillopt_run():
+    candidate = _candidate(owner="tooling", owner_target="collect_sessions.py", target="")
+
+    prompt = ev.skillopt_prompt(candidate)
+
+    assert prompt.startswith("This candidate is not a skillopt target")
+    assert "collect_sessions.py" in prompt
+    assert "First establish a scored baseline" not in prompt
+    assert candidate["evidence"] in prompt
+
+
+def test_new_skill_candidate_routes_through_skillforge_before_skillopt():
+    prompt = ev.skillopt_prompt(_candidate(owner="new-skill", target="", skill="token-preflight"))
+
+    assert prompt.startswith("No existing skill exists for skillopt to optimize")
+    assert "skillforge first" in prompt
+
+
+def test_tooling_candidate_with_owner_target_is_not_marked_unresolved():
+    candidate = _candidate(owner="tooling", owner_target="collect_sessions.py", target="")
+
+    gaps = ev.missing_evidence(candidate)
+
+    assert "edit target unresolved" not in gaps
+    assert "tooling owner unresolved" not in gaps
+
+
+def test_tooling_candidate_without_owner_target_is_marked_unresolved():
+    gaps = ev.missing_evidence(_candidate(owner="tooling", target=""))
+
+    assert "tooling owner unresolved" in gaps
 
 
 def test_unresolved_variants_are_not_selected_as_edit_target():
@@ -270,6 +339,15 @@ def test_unresolved_variants_with_a_drafted_diff_are_rejected():
     candidate = _candidate(
         target="", variants=[{"path": "/repo/a/SKILL.md", "sha256": "a" * 64}], diff="+x"
     )
+
+    errors = ev.validate_report(_report([candidate]))
+
+    assert any("unresolved variants carry a drafted diff" in e for e in errors)
+
+
+@pytest.mark.parametrize("target", ["", "   ", "\t", None])
+def test_blank_target_with_variants_and_a_diff_is_rejected(target):
+    candidate = _candidate(target=target, variants=[{"path": "/a", "sha256": "a" * 64}], diff="+x")
 
     errors = ev.validate_report(_report([candidate]))
 
@@ -302,7 +380,8 @@ def test_legacy_suggestion_without_new_fields_renders_as_unevaluated():
 def test_skill_md_forbids_starting_skillopt_skillforge_or_edits():
     text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
 
-    assert "Do not start skillopt, skillforge, or any edit." in text
+    assert "Do not start skillopt or skillforge, and do not edit installed skill files." in text
+    assert "Drafts under `$REPORT_DIR/proposed/` are diagnosis output, not edits." in text
     assert "Do not apply suggested edits without the user's explicit instruction." in text
     assert "Never describe an empty or static-only suggestion list" in text
 

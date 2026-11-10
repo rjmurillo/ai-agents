@@ -73,6 +73,23 @@ def _has_evidence(suggestion: dict[str, Any]) -> bool:
     )
 
 
+def has_target(suggestion: dict[str, Any]) -> bool:
+    """True when the suggestion names a non-blank edit target path."""
+    target = suggestion.get("target")
+    return isinstance(target, str) and bool(target.strip())
+
+
+def _is_measured(suggestion: dict[str, Any], optimization: str) -> bool:
+    return (
+        optimization == "run"
+        and suggestion_status(suggestion) in MEASURED_STATUSES
+        and _has_evidence(suggestion)
+    )
+
+
+_SUGGESTION_PROSE = ("change", "mechanism", "expected_improvement")
+
+
 def _report_text(report: dict[str, Any]) -> list[tuple[str, str]]:
     texts = [("summary", report.get("summary"))]
     texts += [
@@ -98,20 +115,31 @@ def _suggestion_errors(index: int, suggestion: dict[str, Any], optimization: str
         errors.append(
             f"{where}: status {status!r} needs evaluation.baseline and evaluation.candidate evidence"
         )
-    if suggestion.get("variants") and not suggestion.get("target") and suggestion.get("diff"):
+    if suggestion.get("variants") and not has_target(suggestion) and suggestion.get("diff"):
         errors.append(
             f"{where}: unresolved variants carry a drafted diff; the user must select an edit target first"
         )
+    if not _is_measured(suggestion, optimization):
+        errors += [
+            f"{where}.{field}: claims a measured no-change verdict without scored evaluation evidence"
+            for field in _SUGGESTION_PROSE
+            if isinstance(suggestion.get(field), str)
+            and _UNSUPPORTED_VERDICT.search(suggestion[field])
+        ]
     return errors
 
 
 def _verdict_errors(report: dict[str, Any], optimization: str) -> list[str]:
-    """No-change verdicts in prose that no scored evaluation supports."""
+    """Report-wide no-change verdicts that the candidates do not all support.
+
+    A blanket verdict holds only when every candidate was measured and none
+    was accepted: one accepted or unevaluated candidate contradicts it.
+    """
     suggestions = report.get("suggestions") or []
-    measured = any(
-        suggestion_status(s) in MEASURED_STATUSES and _has_evidence(s) for s in suggestions
+    supported = bool(suggestions) and all(
+        _is_measured(s, optimization) and suggestion_status(s) != "accepted" for s in suggestions
     )
-    if optimization == "run" and measured:
+    if supported:
         return []
     return [
         f"{where}: claims a measured no-change verdict without scored evaluation evidence"
@@ -201,9 +229,11 @@ def missing_evidence(suggestion: dict[str, Any]) -> list[str]:
         for label, value in required.items()
         if _text(value) == NOT_SUPPLIED
     ]
-    if not (isinstance(suggestion.get("target"), str) and suggestion["target"].strip()):
-        if suggestion.get("owner") != "new-skill":
-            gaps.append("edit target unresolved")
+    owner = suggestion.get("owner") or "skill"
+    if owner == "tooling" and _text(suggestion.get("owner_target")) == NOT_SUPPLIED:
+        gaps.append("tooling owner unresolved")
+    if owner == "skill" and not has_target(suggestion):
+        gaps.append("edit target unresolved")
     return gaps
 
 
@@ -218,8 +248,40 @@ def _owner_line(suggestion: dict[str, Any]) -> str:
     return f"Owner: {owner}."
 
 
+def _non_skill_route(suggestion: dict[str, Any]) -> str | None:
+    """Why skillopt cannot evaluate this candidate directly, or None when it can."""
+    owner = suggestion.get("owner") or "skill"
+    if owner == "tooling":
+        return (
+            "This candidate is not a skillopt target: its owner is tooling "
+            f"({_text(suggestion.get('owner_target'))}). Hand the defect to that owner. "
+            "Use skillopt only for a separate instruction candidate that names an existing skill."
+        )
+    if owner == "new-skill":
+        return (
+            "No existing skill exists for skillopt to optimize. Route this gap through "
+            "skillforge first; use skillopt only once an existing skill owns the behavior."
+        )
+    return None
+
+
 def skillopt_prompt(suggestion: dict[str, Any]) -> str:
-    """Copyable skillopt handoff built from the suggestion's own fields."""
+    """Copyable skillopt handoff built from the suggestion's own fields.
+
+    Tooling and new-skill candidates get a routing note instead, because skillopt
+    needs an existing skill, agent, or prompt artifact to baseline and patch.
+    """
+    route = _non_skill_route(suggestion)
+    if route is not None:
+        return "\n".join(
+            [
+                route,
+                f"Target: {target_identity(suggestion)}.",
+                f"Observed failure: {_text(suggestion.get('evidence'))}.",
+                f"Acceptance checks: {_text(suggestion.get('acceptance_checks'))}.",
+                "Do not apply changes without authorization.",
+            ]
+        )
     lines = [
         "Use skillopt to evaluate this unevaluated candidate.",
         f"Target: {target_identity(suggestion)}.",
@@ -236,7 +298,7 @@ def skillopt_prompt(suggestion: dict[str, Any]) -> str:
         "Do not claim improvement without passing the evaluation gate.",
         "Do not apply changes to installed skills without authorization.",
     ]
-    if suggestion.get("variants") and not suggestion.get("target"):
+    if suggestion.get("variants") and not has_target(suggestion):
         lines.insert(3, "Ask the user to select one variant as the edit target before patching.")
     return "\n".join(lines)
 

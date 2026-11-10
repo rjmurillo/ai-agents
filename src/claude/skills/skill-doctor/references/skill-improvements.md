@@ -32,6 +32,8 @@ Keep three kinds of statement apart:
 - `new-skill`: no installed skill owns the capability. Route through skillforge first.
 - `tooling`: a collector, script, product, or infrastructure defect. Name the real owner in `owner_target`. Do not relabel a tool defect as an instruction defect; an instruction candidate for it stays a hypothesis.
 
+Skillopt can baseline and patch only an existing skill. The renderer gives `new-skill` and `tooling` candidates a routing note in place of a skillopt run: skillforge first for a new skill, the named code owner for tooling.
+
 ## Same-name variants
 
 When the skill name appears in `skill_variants`, the edit target is unresolved.
