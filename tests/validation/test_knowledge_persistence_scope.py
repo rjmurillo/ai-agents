@@ -199,7 +199,6 @@ FROZEN_ARTIFACT_KINDS = (
 KNOWLEDGE_PERSISTENCE_TREES = [
     KNOWLEDGE_PERSISTENCE,
     REPO_ROOT / ".github/instructions/knowledge-persistence.instructions.md",
-    REPO_ROOT / "src/copilot-cli/instructions/knowledge-persistence.instructions.md",
 ]
 
 
