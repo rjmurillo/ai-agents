@@ -160,9 +160,25 @@ def cmd_retired(repo: Path) -> int:
     return 1 if reappeared else 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . locate --list
+  %(prog)s --repo . markers
+  %(prog)s --repo . retired
+
+exit codes:
+  0  ok
+  1  findings
+  2  bad arguments or unreadable configuration
+  3  a file cannot be read
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     parser.add_argument("--repo", default=".")
     sub = parser.add_subparsers(dest="cmd", required=True)

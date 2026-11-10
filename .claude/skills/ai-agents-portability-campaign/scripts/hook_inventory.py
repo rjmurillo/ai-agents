@@ -149,8 +149,26 @@ def cmd_qualifiers(repo: Path, _args: argparse.Namespace) -> tuple[dict[str, Any
     return out, 1 if unqualified else 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . counts
+  %(prog)s --repo . phase-tests
+  %(prog)s --repo . qualifiers
+
+exit codes:
+  0  ok
+  1  findings
+  2  configuration or bad arguments
+  3  external failure
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("counts", help="events and registrations per hook manifest")

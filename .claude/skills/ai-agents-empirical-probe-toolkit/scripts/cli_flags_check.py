@@ -87,9 +87,23 @@ def run(repo: Path, skill_md: Path) -> tuple[dict[str, Any], int]:
     return report, 1 if undeclared else 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo .
+  %(prog)s --repo . --skill-md SKILL.md
+
+exit codes:
+  0  every cited flag is declared
+  1  an undeclared flag or a missing script
+  2  bad arguments or unreadable input
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     parser.add_argument("--repo", default=".")
     parser.add_argument("--skill-md", help=f"default: <repo>/.claude/skills/{SKILL}/SKILL.md")

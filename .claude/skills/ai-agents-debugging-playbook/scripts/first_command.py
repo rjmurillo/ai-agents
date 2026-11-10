@@ -86,8 +86,25 @@ def base_lag(repo: Path, base: str = "origin/main") -> dict[str, Any]:
     return {"base": base, "left": left, "right": right, "examined": 1}
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . stash
+  %(prog)s --repo . lag
+
+exit codes:
+  0  ok
+  1  a foreign stash, or a left count above zero
+  2  bad arguments or not a git repository
+  3  git missing or failed
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p = argparse.ArgumentParser(
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--repo", default=".", help="repository root (default: .)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("stash", help="classify each stash entry as own or foreign")

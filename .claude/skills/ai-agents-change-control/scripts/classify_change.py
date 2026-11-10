@@ -197,8 +197,26 @@ def git_paths(repo: Path, args: list[str]) -> list[str]:
     return [ln for ln in proc.stdout.splitlines() if ln.strip()]
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --repo . --staged
+  %(prog)s --repo . --base origin/main
+  %(prog)s --map
+
+exit codes:
+  0  ok
+  1  investigation-only paths mixed with paths outside the allowlist
+  2  bad arguments or missing allowlist module
+  3  git failed
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Classify changed paths and list triggered gates.")
+    ap = argparse.ArgumentParser(
+        description="Classify changed paths and list triggered gates.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     ap.add_argument("--repo", default=".", help="repository root (default: .)")
     ap.add_argument("--staged", action="store_true", help="use git diff --cached --name-only")
     ap.add_argument("--base", metavar="REF", help="use git diff --name-only REF...HEAD")
