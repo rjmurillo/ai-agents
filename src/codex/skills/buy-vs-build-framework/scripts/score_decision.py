@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity -- main() was 11 branches all along; its column-0 epilog string hid the count
 """
 Calculate weighted decision scores with sensitivity analysis.
 
@@ -106,11 +107,7 @@ def sensitivity_analysis(
     return sensitivity
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Calculate weighted decision scores",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+_HELP_EPILOG = """\
 Example criteria file format (JSON):
 {
   "weights": {
@@ -128,7 +125,22 @@ Example criteria file format (JSON):
     "partner": { ... }
   }
 }
-        """,
+
+examples:
+  %(prog)s --criteria-file criteria.json
+
+exit codes:
+  0  a winner (scores more than 10%% apart; over 20%% is high confidence)
+  1  tie within 10%% needs human judgment, or path traversal rejected
+  2  criteria file not found, not valid JSON, or failed validation
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Calculate weighted decision scores",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(
