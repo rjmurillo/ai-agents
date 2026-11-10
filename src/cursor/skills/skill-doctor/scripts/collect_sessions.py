@@ -45,6 +45,8 @@ from session_common import (
     looks_injected,
     record_collection_issue,
     render_transcript,
+    resolve_session_usage,
+    skill_variants,
     truncate,
 )
 from session_databases import (
@@ -387,6 +389,7 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
     for session in collection.sessions:
         for name in session["skills_used"]:
             usage[name] += 1
+    variants = skill_variants(skills)
     scope_name = repos[0].name if len(repos) == 1 else "multiple-projects"
     if args.all_conversations:
         scope_name = "all-conversations"
@@ -405,6 +408,7 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
         "window_days": args.days,
         "skills": sorted(skills.values(), key=lambda skill: skill["name"]),
         "skill_usage": usage,
+        "skill_variants": variants,
         "stats": {
             "session_files_in_window": collection.scanned,
             "session_records_in_window": collection.scanned,
@@ -413,6 +417,7 @@ def _inventory(collection: Collection, homes: Any, sampled: set[str]) -> Any:
             "sessions_considered": len(collection.sessions),
             "sessions_sampled": len(sampled),
             "skills_found": len(skills),
+            "ambiguous_skills": len(variants),
             "skills_used": sum(1 for count in usage.values() if count > 0),
         },
         "sessions": collection.sessions,
@@ -470,10 +475,8 @@ def _run() -> None:
     if args.all_conversations:
         collection.repos = infer_session_repos(collection.sessions)
         collection.skills = _discover(args, collection.repos, homes)
-    installed = set(collection.skills)
+    resolve_session_usage(collection.sessions, collection.skills)
     for session in collection.sessions:
-        detected = detect_skills_from_entries(session["_entries"], installed)
-        session["skills_used"] = sorted((set(session["skills_used"]) | set(detected)) & installed)
         session["_key"] = f"{session['harness']}:{session['meta']['id']}"
     collection.sessions.sort(key=lambda session: session["modified_at"], reverse=True)
     sampled = _sample(collection.sessions, collection.skills, args)
