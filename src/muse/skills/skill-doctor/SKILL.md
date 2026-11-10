@@ -157,10 +157,12 @@ Useful flags:
 - `--max-sessions N` - cap on sampled sessions (default 12).
 - `--skills-dir PATH` - nonstandard skill locations.
 - `--include-subagents` - include child or sidechain sessions.
+- `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
 
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
 State `scope_resolution` in the report: included roots with their session counts, rejected roots with reasons, and that clone discovery is unsupported.
 A removed worktree joins only when the user confirms its path and you pass it as `--repo PATH`. A directory name or shared prefix never grants access.
+Note `stats.sessions_skipped_idle`: sessions whose last record is newer than `--min-idle-minutes` (default 15) are skipped because they may still be running; disclose the count.
 Disclose partial collection before interpreting usage or recommending changes.
 Same-name definitions with different content stay in usage and coverage.
 `skill_variants` in `inventory.json` lists each one with its paths and `sha256`, and names the current edit target.
@@ -208,7 +210,7 @@ Instructions: For each session in `inventory.json` with `sampled: true`, read it
 These upstream weights reward skill adoption independently of accepted outcomes.
 Skill coverage does not prove that skills improved those outcomes.
 
-Then, define `failed_conversations` from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable efficiency, code-quality, procedure-compliance, or verbosity score is below `0.5`. An `insufficient_evidence` result does not make a conversation fail. Use only `failed_conversations` as evidence for skill-improvement suggestions and draft skill edits.
+Then, define `failed_conversations` from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable efficiency, code-quality, procedure-compliance, or verbosity score is below `0.5`. An `insufficient_evidence` result does not make a conversation fail. A failure caused only by provider termination does not count: when a session's `stats.terminated_by` is set (for example `usage_limit_exceeded`, `server_overloaded`, or `usage_limit_reached`), the transcript ends at a provider cutoff, so a missing final report or terse ending there is not an agent defect. Leave such a conversation out of `failed_conversations` unless it also fails a score on evidence from before the cutoff, and state how many were left out in the findings. Use only `failed_conversations` as evidence for skill-improvement suggestions and draft skill edits.
 
 Then derive the substance:
 
