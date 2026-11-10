@@ -33,7 +33,7 @@ category from both sides, per owner decision D11 on 2026-11-06 (PR #7123, merge 
 |---|---|---|---|
 | 1 | Canonical owners decrease | **Not met** | Original definition: 455 against 412 at `5934169149` (2026-11-10); 455 at `3e9f30aaa1` (2026-11-06). Redefined: 333 against 301 at `5934169149`; 334 against 301 at `3e9f30aaa1`. Abort-if clause 1 tripped. |
 | 2 | Always-loaded tokens decrease per harness | Met | At `5934169149`: Claude Code 16,879 to 10,656; Copilot 17,281 to 11,148; Codex 965 to 760. |
-| 3 | Local-gate p95 does not regress | **Not met**, literal comparison | Pre-push p95 201.73s (n=20, `5fbdfd238b`) against a recorded worst-observed 128.21s (n=2, `1251644dd`). Detail below. |
+| 3 | Local-gate p95 does not regress | **Not met**, literal comparison | Pre-push p95 201.73s (n=20, `5fbdfd238b`) against a recorded worst-observed 124.11s for the python class (n=2, `1251644dd`); 128.21s is the worst across classes (hooks). Detail below. |
 | 4 | Nothing lands without removing something | Met as recorded, with a flag | Recorded Met on two named exceptions, `control_plane_baseline.py` and `gate_latency.py` (D32, 2026-10-04). Flag below. |
 | 5 | Reduced configuration compared on identical tasks | Data on both harnesses; controls tie | 2026-11-06: Claude 15 of 15 against 15 of 15, Codex 4 of 6 against 4 of 6 (PR #7122, `badc5ffb24`). 2026-11-10: 70 of 70 against 69 of 70 (below). |
 | 6 | Smaller configuration non-inferior | **Shown** on this corpus | Pre-registered rule; difference -0.0143, 95 percent interval -0.0766 to +0.0390 against a -0.10 margin (below). |
@@ -69,7 +69,7 @@ p95, on a 48-CPU host shared with other agent sessions. Records are in
 
 | Capture | SHA | p50 | p95 | min | max | Recorded reference (worst observed) |
 |---|---|---|---|---|---|---|
-| pre-push, python class | `5fbdfd238b` | 106.15s | 201.73s | 100.93s | 245.58s | 128.21s (`1251644dd`, n=2) |
+| pre-push, python class | `5fbdfd238b` | 106.15s | 201.73s | 100.93s | 245.58s | 124.11s python class (`1251644dd`, n=2); 128.21s worst across classes (hooks) |
 | pre-commit, python class | `5fbdfd238b` | 5.56s | 5.92s | 5.38s | 6.02s | 7.22s (n=3) |
 | pre-commit, markdown class | `5fbdfd238b` | 6.13s | 6.84s | 5.74s | 7.23s | 9.82s (n=3) |
 | `workflow-local-run`, full act path | `3abb246c3c` | 78.71s | 84.86s | 75.04s | 90.70s | not measured before |
@@ -82,7 +82,7 @@ Reading it:
   container, with load unrecorded. It is not a p95.
 - Eight of 20 pre-push repetitions took 143.54s to 245.58s. The other 12 took 100.93s to
   107.13s. The one-minute load before a repetition does not separate the groups. Repetition
-  1 ran at load 27.29 and took 107.13s. The cause of the tail is not isolated.
+  0 ran at load 27.29 and took 107.13s. The cause of the tail is not isolated.
 - `pre-pr-validation` carries most of the tail: p50 91.66s, p95 186.13s, max 228.31s.
 - The same-host n=20 record at `c5fc0f5bec` (2026-10-23, load 3.26) reads p50 134.88s and
   p95 135.76s. The median fell since then and the p95 rose.
