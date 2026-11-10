@@ -640,6 +640,76 @@ class TestGetRepoInfo:
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             assert get_repo_info() is None
 
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://github.com/owner/repo/\n",
+            "https://github.com/owner/repo.git/\n",
+            "ssh://git@github.com/owner/repo.git\n",
+            "ssh://git@github.com:22/owner/repo\n",
+            "ssh://git@github.com:2222/owner/repo.git/\n",
+            "git@github.com:owner/repo.git\n",
+            "github.com/owner/repo\n",
+        ],
+    )
+    def test_parses_trailing_slash_and_ssh_url_forms(self, stdout, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() == RepoInfo(owner="owner", repo="repo")
+
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://github.com/owner\n",
+            "https://github.com/owner/repo/extra\n",
+            "ssh://git@github.com:22/owner\n",
+            "\n",
+        ],
+    )
+    def test_returns_none_for_malformed_path(self, stdout, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
+
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://ghe.example.com/owner/repo.git\n",
+            "ssh://git@ghe.example.com:2222/owner/repo.git\n",
+            "git@GHE.example.com:owner/repo\n",
+        ],
+    )
+    def test_gh_host_enterprise_remote_matches(self, stdout, monkeypatch):
+        monkeypatch.setenv("GH_HOST", "ghe.example.com")
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() == RepoInfo(owner="owner", repo="repo")
+
+    def test_enterprise_remote_ignored_without_gh_host(self, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        stdout = "https://ghe.example.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
+
+    def test_gh_host_does_not_match_other_hosts(self, monkeypatch):
+        monkeypatch.setenv("GH_HOST", "ghe.example.com")
+        stdout = "https://other.example.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
+
+    def test_gh_host_keeps_github_com_working(self, monkeypatch):
+        monkeypatch.setenv("GH_HOST", "ghe.example.com")
+        stdout = "https://github.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() == RepoInfo(owner="owner", repo="repo")
+
+    def test_resolve_fails_loud_when_remote_unmatched(self, monkeypatch):
+        monkeypatch.delenv("GH_HOST", raising=False)
+        stdout = "https://ghe.example.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            with pytest.raises(SystemExit) as exc:
+                resolve_repo_params()
+        assert exc.value.code == 2
+
     def test_returns_none_when_not_git_repo(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="fatal")):
             assert get_repo_info() is None
@@ -808,9 +878,8 @@ class TestGhApiPaginated:
                 gh_api_paginated("repos/o/r/issues")
             assert exc.value.code == 3
 
-    def test_mid_pagination_failure_returns_partial(self):
+    def test_mid_pagination_failure_exits_3_not_partial(self, capsys):
         page1 = [{"id": i} for i in range(100)]
-
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -818,15 +887,34 @@ class TestGhApiPaginated:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=json.dumps(page1))
-            return _completed(rc=1, stderr="rate limited")
+            return _completed(rc=1, stderr="HTTP 502: bad gateway")
 
         with (
             patch("subprocess.run", side_effect=_side_effect),
             patch("scripts.github_core.api.time.sleep"),
+            pytest.raises(SystemExit) as exc,
         ):
-            with pytest.warns(UserWarning, match="Returning partial results"):
-                result = gh_api_paginated("repos/o/r/issues")
-        assert len(result) == 100
+            gh_api_paginated("repos/o/r/issues")
+
+        assert exc.value.code == 3
+        err = capsys.readouterr().err
+        assert "page 2" in err
+        assert "100 items read" in err
+
+    def test_exactly_one_full_page_then_empty_page_returns_all(self):
+        page1 = [{"id": i} for i in range(100)]
+        responses = iter([json.dumps(page1), "[]"])
+
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=lambda *a, **k: _completed(stdout=next(responses)),
+            ),
+            patch("scripts.github_core.api.time.sleep"),
+        ):
+            result = gh_api_paginated("repos/o/r/issues", page_size=100)
+
+        assert result == page1
 
     def test_invalid_json_first_page_exits(self):
         with patch("subprocess.run", return_value=_completed(stdout="not json")):
@@ -834,9 +922,8 @@ class TestGhApiPaginated:
                 gh_api_paginated("repos/o/r/issues")
             assert exc.value.code == 3
 
-    def test_invalid_json_mid_pagination_returns_partial(self):
+    def test_invalid_json_mid_pagination_exits_3_not_partial(self, capsys):
         page1 = [{"id": i} for i in range(100)]
-
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -849,10 +936,12 @@ class TestGhApiPaginated:
         with (
             patch("subprocess.run", side_effect=_side_effect),
             patch("scripts.github_core.api.time.sleep"),
+            pytest.raises(SystemExit) as exc,
         ):
-            with pytest.warns(UserWarning, match="Invalid JSON"):
-                result = gh_api_paginated("repos/o/r/issues")
-        assert len(result) == 100
+            gh_api_paginated("repos/o/r/issues")
+
+        assert exc.value.code == 3
+        assert "Invalid JSON" in capsys.readouterr().err
 
     def test_endpoint_with_query_params_uses_ampersand(self):
         with patch("subprocess.run", return_value=_completed(stdout="[]")) as mock:

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import random
 import re
 import subprocess
@@ -97,19 +98,60 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 # Repository
 # ---------------------------------------------------------------------------
 
-_GITHUB_REMOTE_PATTERN = re.compile(
-    r"^(?:[A-Za-z][A-Za-z0-9+.-]*://)?(?:[^/@]+@)?"
-    r"github\.com[:/]([^/]+)/([^/]+)$"
+_DEFAULT_GITHUB_HOST = "github.com"
+# URL form: ``https://host[:port]/owner/repo``, ``ssh://git@host[:port]/owner/repo``.
+_URL_REMOTE_PATTERN = re.compile(
+    r"^[A-Za-z][A-Za-z0-9+.-]*://(?:[^/@]+@)?(?P<host>[^/:@]+)(?::\d+)?"
+    r"/(?P<owner>[^/]+)/(?P<repo>[^/]+?)/*$"
 )
+# scp-like form: ``git@host:owner/repo`` and the bare ``host/owner/repo``.
+_SCP_REMOTE_PATTERN = re.compile(
+    r"^(?:[^/@]+@)?(?P<host>[^/:@]+)[:/](?P<owner>[^/]+)/(?P<repo>[^/]+?)/*$"
+)
+
+
+def _accepted_github_hosts() -> frozenset[str]:
+    """Return the hosts a remote URL may name: github.com plus ``GH_HOST``.
+
+    ``GH_HOST`` is the host ``gh`` itself targets, so matching it keeps
+    repository inference and ``gh api`` on the same host. No other host is
+    guessed.
+    """
+    hosts = {_DEFAULT_GITHUB_HOST}
+    gh_host = os.environ.get("GH_HOST", "").strip().lower()
+    if gh_host:
+        hosts.add(gh_host.split(":", 1)[0])
+    return frozenset(hosts)
+
+
+def _parse_remote_url(url: str) -> RepoInfo | None:
+    """Parse a git remote URL into owner and repo, or None when it does not match.
+
+    Accepts https, ssh with an optional port, scp-like, and bare forms, with or
+    without a trailing slash or ``.git``. Preserves dots in repository names and
+    removes only a trailing ``.git``.
+    """
+    url = url.strip()
+    match = _URL_REMOTE_PATTERN.match(url) or _SCP_REMOTE_PATTERN.match(url)
+    if not match:
+        return None
+    if match.group("host").lower() not in _accepted_github_hosts():
+        return None
+    return RepoInfo(
+        owner=match.group("owner"),
+        repo=re.sub(r"\.git$", "", match.group("repo")),
+    )
 
 
 def get_repo_info() -> RepoInfo | None:
     """Infer repository owner and name from git remote origin URL.
 
-    Preserves dots in repository names and removes only a trailing ``.git``.
+    Reads ``origin`` only. Hosts accepted: ``github.com`` and the ``GH_HOST``
+    environment value when set.
 
     Returns:
-        RepoInfo with owner and repo, or None if not in a git repo.
+        RepoInfo with owner and repo, or None if not in a git repo or the
+        remote does not name an accepted host.
     """
     try:
         result = subprocess.run(
@@ -121,13 +163,7 @@ def get_repo_info() -> RepoInfo | None:
         )
         if result.returncode != 0:
             return None
-
-        match = _GITHUB_REMOTE_PATTERN.search(result.stdout.strip())
-        if match:
-            return RepoInfo(
-                owner=match.group(1),
-                repo=re.sub(r"\.git$", "", match.group(2)),
-            )
+        return _parse_remote_url(result.stdout)
     except subprocess.TimeoutExpired:
         logger.debug("git remote get-url origin timed out")
     except FileNotFoundError:
@@ -1001,6 +1037,10 @@ def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
 
     Returns:
         Combined list of items across all pages.
+
+    Exits 3 through ``error_and_exit`` when any page fails or returns invalid
+    JSON. A partial list is never returned as if it were complete
+    (``lossless-queue-reads.md``).
     """
     all_items: list[dict] = []
     page = 1
@@ -1012,31 +1052,20 @@ def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
         result = _run_gh_api_page(url)
 
         if result.returncode != 0:
-            msg = (
+            error_and_exit(
                 f"GitHub API request failed for endpoint '{endpoint}' "
-                f"(page {page}): {result.stderr}"
+                f"(page {page}, {len(all_items)} items read): {result.stderr}",
+                3,
             )
-            if page == 1:
-                error_and_exit(msg, 3)
-            else:
-                warnings.warn(
-                    f"{msg}. Returning partial results from {len(all_items)} items.",
-                    stacklevel=2,
-                )
-                break
 
         try:
             items = json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            msg = f"Invalid JSON from endpoint '{endpoint}' (page {page}): {exc}"
-            if page == 1:
-                error_and_exit(msg, 3)
-            else:
-                warnings.warn(
-                    f"{msg}. Returning {len(all_items)} partial results.",
-                    stacklevel=2,
-                )
-                break
+            error_and_exit(
+                f"Invalid JSON from endpoint '{endpoint}' "
+                f"(page {page}, {len(all_items)} items read): {exc}",
+                3,
+            )
         if not items:
             break
 
