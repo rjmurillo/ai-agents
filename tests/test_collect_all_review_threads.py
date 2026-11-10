@@ -1,4 +1,4 @@
-"""Tests for the strict review-thread pager in github_core.review_threads.
+"""Tests for the strict review-thread pager in github_core.review_thread_pager.
 
 The pager backs the --all path of resolve_pr_review_thread.py and the thread
 read in detect_stale_pr_comments.py. It must page to the end or raise, per
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.github_core.review_threads import (
+from scripts.github_core.review_thread_pager import (
     ReviewThreadsIncompleteError,
     collect_all_review_threads,
 )

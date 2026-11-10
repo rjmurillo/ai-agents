@@ -49,7 +49,7 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
-from github_core.review_threads import collect_all_review_threads
+from github_core.review_thread_pager import collect_all_review_threads
 
 _RESOLVE_MUTATION = """\
 mutation($threadId: ID!) {

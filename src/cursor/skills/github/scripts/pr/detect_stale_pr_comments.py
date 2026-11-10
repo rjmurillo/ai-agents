@@ -45,7 +45,7 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.bot_config import is_bot
-from github_core.review_threads import collect_all_review_threads
+from github_core.review_thread_pager import collect_all_review_threads
 
 # ---------------------------------------------------------------------------
 # GraphQL: fetch all review threads with path and line info
