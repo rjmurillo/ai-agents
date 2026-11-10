@@ -204,7 +204,7 @@
     {"agent": "security", "pair": "claude-shared", "unit": "capability:mcp:perplexity", "digest": "587bae728805519c3542d21766295396bd01087b6c47765ae3cadbf679813bbe"},
     {"agent": "security", "pair": "claude-shared", "unit": "capability:mcp:serena", "digest": "1011aae44fe39a6641b3cec9214314cdf23c0388d4f22dafe68c1f6bb0da7099"},
     {"agent": "security", "pair": "claude-shared", "unit": "section:Claude Code Tools", "digest": "e051f8944aa18322b709e927f72d84c6a791db881eecfc0aefc3891bc3a1f0a0"},
-    {"agent": "security", "pair": "claude-shared", "unit": "section:Key Responsibilities", "digest": "04a7ef2e8eeb8420108bf8f791648cef0a5fb70d471fdae87149834238a28c72"},
+    {"agent": "security", "pair": "claude-shared", "unit": "section:Key Responsibilities", "digest": "986566d91ab01b369c21e327ff426310e253049c1cc8b2a737c42f6f124133cb"},
     {"agent": "security", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "c19d7d7f49a94f046713805812364a54723bf7385d427e8f85afa3ab94c4082c"},
     {"agent": "silent-failure-hunter", "pair": "claude-shared", "unit": "capability:builtin", "digest": "3afe6ce8d1a37b0fa06081d4c01fad7de57b231387265812a15d995973a89bea"},
     {"agent": "silent-failure-hunter", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
