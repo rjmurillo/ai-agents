@@ -233,26 +233,51 @@ def _build_parser() -> argparse.ArgumentParser:
     source.add_argument(
         "--stdin",
         action="store_true",
-        help="read the tally line from standard input (one trailing newline is optional)",
+        help="read the one tally line from standard input (one trailing newline is optional)",
     )
     return parser
 
 
 def _read_stdin_line() -> str | None:
-    """Return the line piped on stdin, or None when stdin is empty or not UTF-8.
+    """Return the one line piped on stdin, or None after printing why it is unusable.
 
     The caller reports None as exit 2. Only ``--stdin`` reaches this function,
     so a harness that leaves an open pipe on stdin never blocks a ``--line`` call.
+    One trailing newline (LF or CRLF) is the line terminator and is dropped.
+    Anything left that holds another newline is a second record, and the CLI
+    appends exactly one record per call, so it is rejected, not truncated.
     """
     try:
         data = sys.stdin.read()
     except UnicodeDecodeError:
         print("metrics_writer: stdin is not valid UTF-8", file=sys.stderr)
         return None
+    for terminator in ("\r\n", "\n"):
+        if data.endswith(terminator):
+            data = data[: -len(terminator)]
+            break
     if data == "":
         print("metrics_writer: no line on stdin", file=sys.stderr)
         return None
+    if "\n" in data or "\r" in data:
+        print("metrics_writer: stdin holds more than one line", file=sys.stderr)
+        return None
     return data
+
+
+def _is_utf8_encodable(line: str) -> bool:
+    """Return False for text that cannot encode as UTF-8, such as lone surrogates.
+
+    POSIX stdin and argv decode undecodable bytes to surrogates (surrogateescape),
+    so a bad byte arrives as a str, not as UnicodeDecodeError. Encoding fails
+    later, inside ``safe_append_tally``, after the tally file was created. Check
+    before any write so a rejected line leaves no empty file behind.
+    """
+    try:
+        line.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -262,6 +287,9 @@ def main(argv: list[str] | None = None) -> int:
         return exc.code if isinstance(exc.code, int) else 2
     line = _read_stdin_line() if args.stdin else args.line
     if line is None:
+        return 2
+    if not _is_utf8_encodable(line):
+        print("metrics_writer: line is not valid UTF-8", file=sys.stderr)
         return 2
     try:
         safe_append_tally(args.path, line, base_dir=Path.cwd())

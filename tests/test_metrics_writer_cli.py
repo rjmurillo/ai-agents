@@ -282,6 +282,8 @@ def _run_script(args: list[str], cwd: Path, stdin: str | None = None):
         input=stdin if stdin is not None else "",
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -303,3 +305,63 @@ def test_subprocess_equals_form_flag_like_line_is_data(line: str, tmp_path: Path
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
     assert (tmp_path / "tally.md").read_text(encoding="utf-8") == line + "\n"
+
+
+def test_subprocess_invalid_utf8_stdin_exits_two_and_leaves_no_file(tmp_path: Path) -> None:
+    """Raw 0xff on a real pipe: no traceback, no empty tally file (exit 2)."""
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--path", "tally.md", "--stdin"],
+        cwd=tmp_path,
+        input=b"\xff\n",
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 2, result.stderr
+    assert b"Traceback" not in result.stderr
+    assert not (tmp_path / "tally.md").exists()
+
+
+def test_surrogate_text_is_rejected_before_the_file_is_created(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """surrogateescape turns a bad byte into a lone surrogate str, not an error."""
+    monkeypatch.chdir(tmp_path)
+
+    assert metrics_writer.main(["--path", "tally.md", "--line=bad\udcffbyte"]) == 2
+    assert "not valid UTF-8" in capsys.readouterr().err
+    assert not (tmp_path / "tally.md").exists()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    ["a\nb\n", "a\nb", "a\r\nb\r\n", "a\n\n", "a\rb"],
+    ids=["two-lines", "two-lines-no-final-newline", "crlf-two-lines", "trailing-blank", "bare-cr"],
+)
+def test_stdin_with_more_than_one_line_is_rejected_and_writes_nothing(
+    payload: str, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+
+    assert metrics_writer.main(["--path", "tally.md", "--stdin"]) == 2
+    assert "more than one line" in capsys.readouterr().err
+    assert not (tmp_path / "tally.md").exists()
+
+
+def test_stdin_crlf_terminator_is_dropped(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(_TALLY + "\r\n"))
+
+    assert metrics_writer.main(["--path", "tally.md", "--stdin"]) == 0
+    assert (tmp_path / "tally.md").read_bytes() == (_TALLY + "\n").encode()
+
+
+def test_stdin_of_only_a_newline_is_no_line(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("\n"))
+
+    assert metrics_writer.main(["--path", "tally.md", "--stdin"]) == 2
+    assert "no line on stdin" in capsys.readouterr().err
+    assert not (tmp_path / "tally.md").exists()
