@@ -16,7 +16,8 @@ from audit_batch_helpers import Row, _inventory, _row, _rows, _score
 
 @pytest.fixture
 def manifest() -> Row:
-    return ab.build_assignment(_inventory(5), 2)
+    built: Row = ab.build_assignment(_inventory(5), 2)
+    return built
 
 
 @pytest.fixture

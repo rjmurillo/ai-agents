@@ -60,7 +60,8 @@ def test_option_off_matches_the_output_of_the_pre_change_sampler() -> None:
 
 def _on(count: int, sessions: list[Row] | None = None) -> tuple[Any, Any, Any]:
     args = SimpleNamespace(max_sessions=4, per_skill=1, no_skill=1, timeline_supplement=count)
-    return sample_sessions(sessions or _golden_rows(), {"a": {}}, args)
+    result: tuple[Any, Any, Any] = sample_sessions(sessions or _golden_rows(), {"a": {}}, args)
+    return result
 
 
 def test_option_on_keeps_the_existing_picks_and_adds_only_no_skill_sessions() -> None:
