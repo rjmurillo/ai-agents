@@ -3,7 +3,7 @@
 
 Scans Claude Code project history, Codex rollout files, Warp's local
 conversation databases, Pi agent session JSONL, Grok Build chat history,
-and/or ZCode model-io rollouts, discovers installed skills, detects which
+ZCode model-io rollouts, and/or Factory Droid sessions, discovers installed skills, detects which
 sessions used which skills, and emits:
 
   <out>/inventory.json        - skills, per-session stats, sampling decisions
@@ -69,6 +69,7 @@ from session_discovery import (
     find_claude_session_files,
     find_codex_session_files,
     find_copilot_session_files,
+    find_droid_session_files,
     find_grok_session_files,
     find_pi_session_files,
     find_zcode_session_files,
@@ -83,6 +84,7 @@ from session_discovery import (
     warp_data_roots,
     warp_database_candidates,
 )
+from session_droid import parse_droid_session
 from session_json import (
     parse_claude_session,
     parse_codex_session,
@@ -114,6 +116,7 @@ __all__ = [
     "find_claude_session_files",
     "find_codex_session_files",
     "find_copilot_session_files",
+    "find_droid_session_files",
     "find_grok_session_files",
     "find_hermes_sessions",
     "find_pi_session_files",
@@ -130,6 +133,7 @@ __all__ = [
     "parse_claude_session",
     "parse_codex_session",
     "parse_copilot_session",
+    "parse_droid_session",
     "parse_epoch_timestamp",
     "parse_grok_session",
     "parse_hermes_session",
@@ -318,6 +322,13 @@ def _collect(collection: Collection, homes: Any, cutoff: datetime) -> None:
             parse_zcode_session,
             "ZCode model-io rollouts not found at",
         ),
+        (
+            "droid",
+            "sessions",
+            find_droid_session_files,
+            parse_droid_session,
+            "Droid session home not found at",
+        ),
     )
     for name, subdir, finder, parser, message in specs:
         if name == "pi":
@@ -340,6 +351,7 @@ def _discover(args: Any, repos: Any, homes: Any) -> Any:
         hermes_home=homes["hermes"],
         copilot_home=homes["copilot"],
         claude_home=homes["claude"],
+        factory_home=homes["droid"],
     )
 
 
@@ -456,6 +468,7 @@ def _run() -> None:
         name: Path(getattr(args, f"{name}_home")).expanduser()
         for name in ("claude", "codex", "copilot", "pi", "grok", "zcode")
     }
+    homes["droid"] = Path(args.factory_home).expanduser()
     homes["hermes"] = resolve_hermes_home(args.hermes_home)
     out = Path(args.out).expanduser()
     (out / "transcripts").mkdir(parents=True, exist_ok=True)
@@ -465,7 +478,7 @@ def _run() -> None:
     if not collection.sources:
         _fatal(
             "no supported session source found "
-            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, or Hermes)"
+            "(Copilot, Claude Code, Codex, Warp, Pi, Grok, ZCode, Droid, or Hermes)"
         )
     if args.all_conversations:
         collection.repos = infer_session_repos(collection.sessions)

@@ -28,6 +28,14 @@ Unencodable diagnostic characters are escaped when a legacy output encoding requ
 | Grok Build | `grok` | Grok Build chat_history JSONL (`~/.grok/sessions`) |
 | ZCode | `zcode` | ZCode model-io rollout (`~/.zcode/cli/rollout`) |
 | Hermes | `hermes` | Hermes Agent state.db (SQLite: `sessions` + `messages`) |
+| Factory Droid | `droid` | Droid session JSONL (`~/.factory/sessions/<encoded-cwd>/<id>.jsonl`) |
+
+Known but unsupported, with no collector:
+
+- Devin CLI keeps history in `~/.local/share/devin/cli/sessions.db` (SQLite tables `sessions`, `message_nodes`, `tool_call_state`). The store held 0 rows on the machine that was inspected, so no parser could be tested against real data. A collector needs a populated fixture first.
+- Antigravity: no local conversation store was found under `~/.gemini`, `~/.cache/antigravity`, or `~/.local/share`.
+
+Sessions from these harnesses never reach the report. Do not read their stores by hand.
 
 At startup, identify the harness executing the skill from the runtime context. Do not infer it from conversation files found on disk.
 
@@ -53,6 +61,7 @@ Harness-specific source overrides:
 - `--pi-home PATH` - nonstandard Pi agent home (default `~/.pi/agent`).
 - `--grok-home PATH` - nonstandard Grok Build home (default `~/.grok`).
 - `--zcode-home PATH` - nonstandard ZCode home (default `~/.zcode`).
+- `--factory-home PATH` - nonstandard Factory Droid home containing `sessions` (default `~/.factory`).
 - `--hermes-home PATH` - Hermes Agent home containing `state.db` (default discovery checks `HERMES_HOME`, `~/.hermes`, then `~`).
 
 ## Skill locations
@@ -62,11 +71,12 @@ Project skills are discovered from:
 - `.claude/skills`
 - `.codex/skills`
 - `.github/skills`
+- `.factory/skills`
 
 Other repository skill directories require an explicit `--skills-dir PATH`.
 Global discovery includes each harness's standard skill directory when
 `--include-global-skills` is set.
-This includes Claude Code, Codex, Pi, Grok Build, ZCode, and Hermes homes.
+This includes Claude Code, Codex, Pi, Grok Build, ZCode, Factory Droid, and Hermes homes.
 The collector's `discover_skills` function defines the exact search roots.
 
 Copilot also scans `<copilot-home>/skills` and

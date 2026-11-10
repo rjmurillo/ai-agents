@@ -68,6 +68,7 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 28. Bounded browser launch and a fixed upstream HTTPS report destination.
 29. Loaded-skill startup paths independent of plugin variables or the working directory.
 30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
+31. Factory Droid collector (`droid`, `--factory-home`, `session_droid.py`), `.factory/skills` discovery, and `stats.terminated_by` for Droid usage-limit endings. Devin CLI and Antigravity stay listed as unsupported.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.
