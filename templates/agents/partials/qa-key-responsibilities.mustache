@@ -28,55 +28,9 @@ Report violations in test strategy document with specific file:line references.
 
 Tests must verify actual behavior, not code structure. Pattern-matching tests that pass without exercising the code under test are insufficient.
 
-### Insufficient Test Patterns ([FAIL])
+### Test Pattern Review
 
-Flag tests that match these anti-patterns:
-
-| Pattern | Why Insufficient | Evidence |
-|---------|------------------|----------|
-| `Should -Match` on script content | Tests code structure, not behavior | No function execution |
-| Regex validation of code blocks | Verifies syntax, not correctness | Output not checked |
-| AAA pattern claims without execution | Structure without substance | Arrange/Act steps missing |
-| Missing Mock blocks for external deps | External calls leak into tests | gh CLI, API calls unmocked |
-| Tests verifying file existence only | Presence is not correctness | Content not validated |
-
-**Detection**: Search for `Should -Match`, `Select-String`, `Get-Content.*Should` patterns without corresponding function invocations.
-
-### Required Test Patterns ([PASS])
-
-Tests must demonstrate these characteristics. Each line below is valid Pester
-that you can paste and run:
-
-```powershell
-# Function execution: the test calls the function under test
-$result = Get-Something
-
-# Mock isolation: external dependencies are mocked
-Mock gh { '{"number":1}' }
-
-# Output validation: return values are checked
-$result | Should -Be $expected
-
-# Error conditions: exception paths are tested
-{ Bad-Input } | Should -Throw
-
-# Edge cases: boundary values are covered (null, empty, maximum)
-$null, @(), [int]::MaxValue | ForEach-Object { Get-Something $_ }
-```
-
-### Test Review Checklist
-
-When reviewing tests, verify:
-
-```markdown
-- [ ] Tests execute the code under test (not just inspect it)
-- [ ] All external dependencies (gh CLI, APIs, filesystem) are mocked
-- [ ] Tests verify outputs match expected values
-- [ ] Error conditions are tested with negative tests
-- [ ] Edge cases are covered (null inputs, empty arrays, boundary values)
-- [ ] Test names describe the scenario being tested
-- [ ] No tests use pattern matching on source code as validation
-```
+Flag a test as [FAIL] when it passes without exercising the code under test: `Should -Match` or regex checks on script content, AAA structure with no execution, external dependencies (gh CLI, APIs) left unmocked, or a file-existence check with no content check. A sufficient test executes the code, mocks external dependencies, checks outputs against expected values, covers error conditions with negative tests, covers edge cases (null, empty, maximum), names the scenario, and never pattern-matches source as validation. Read `qa-test-quality-patterns.md` (see Reference Loading) for the pattern table, the Pester examples, and the review checklist.
 
 ### Evidence for Verdict
 

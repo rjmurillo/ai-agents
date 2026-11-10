@@ -424,7 +424,7 @@
     "templates/agents/partials/qa-degraded-mode-protocol.mustache|templates/agents/qa.shared.md": 21,
     "templates/agents/partials/qa-insufficient-test-evidence.mustache|templates/agents/qa.shared.md": 16,
     "templates/agents/partials/qa-intro.mustache|templates/agents/qa.shared.md": 8,
-    "templates/agents/partials/qa-key-responsibilities.mustache|templates/agents/qa.shared.md": 17,
+    "templates/agents/partials/qa-key-responsibilities.mustache|templates/agents/qa.shared.md": 7,
     "templates/agents/partials/qa-verdict-decision-logic.mustache|templates/agents/qa.shared.md": 6,
     "templates/agents/partials/quality-auditor-intro.mustache|templates/agents/quality-auditor.shared.md": 33,
     "templates/agents/partials/retrospective-claude-code-tools.mustache|templates/agents/retrospective.shared.md": 4,
