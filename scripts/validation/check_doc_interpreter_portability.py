@@ -335,6 +335,11 @@ def _local_modules(name: str, importer: str, tracked_py: set[str]) -> list[str] 
     return candidates if len(candidates) == 1 else []
 
 
+# Public name for sibling validators that must resolve a module the same way
+# (check_plugin_root_interpreter.py rule 5). One definition keeps the two in step.
+local_modules = _local_modules
+
+
 def _tokens_are_uv_run_options(tokens: list[str]) -> bool:
     index = 0
     while index < len(tokens):
