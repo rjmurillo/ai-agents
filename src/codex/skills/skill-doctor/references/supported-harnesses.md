@@ -72,10 +72,13 @@ The collector's `discover_skills` function defines the exact search roots.
 Copilot also scans `<copilot-home>/skills` and
 `<copilot-home>/installed-plugins/*/*/skills` when global discovery is enabled.
 
-Identical definitions are deduplicated using their content hashes.
-Different same-name definitions are excluded from grading and edit targets.
-The inventory records `ambiguous_skills` under `collection_issues`.
-Resolve conflicting definitions before requesting improvements for that name.
+Identical definitions share one content fingerprint and keep every path as an alias.
+Different same-name definitions all stay discoverable and count toward usage and coverage.
+The first definition found is the current edit target: `--repo` paths in order, then global homes, then `--skills-dir` directories.
+The inventory lists conflicts under `skill_variants` and counts them in `stats.ambiguous_skills`.
+That count is information, not a collection failure.
+Historical attribution stays `unresolved` for a conflicting name.
+A transcript does not record which bytes ran, so a fingerprint is never the executed version.
 
 ## Project boundaries and collection losses
 
@@ -99,6 +102,11 @@ Tool starts provide call counts, arguments, edit hints, and repeated-call detect
 Explicit failure flags and error messages provide error-output counts.
 Skill names come from `skill.invoked` and tool arguments, not catalog descriptions.
 Only discovered installed skills enter the final usage inventory.
+A `namespace:name` invocation counts as usage of installed `name`.
+The namespace is not matched to a definition. When the qualified name is the only evidence in the transcript, the session's `skill_attribution` records `namespace_unverified`.
+Only the `skill` and `bundled_skill_id` keys count as a qualified invocation. A generic `name` value such as `area:review` does not.
+`skill_attribution` lists `unresolved_because` as `conflicting_definitions`, `namespace_unverified`, or `evidence_not_in_transcript`.
+The last one means the bounded transcript no longer shows how the skill was named.
 
 Events marked with `agentId` or `data.parentToolCallId` are treated as child events.
 They are excluded unless `--include-subagents` is passed.
