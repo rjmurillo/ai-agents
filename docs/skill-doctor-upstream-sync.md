@@ -68,6 +68,10 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 28. Bounded browser launch and a fixed upstream HTTPS report destination.
 29. Loaded-skill startup paths independent of plugin variables or the working directory.
 30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
+31. Repository scope from Git metadata: the main checkout plus registered linked worktrees, in `repository_scope.py`.
+32. A `scope_resolution` inventory block and summary that list included roots, rejected roots, and reasons.
+33. Removed worktrees are rejected with a reason and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
+34. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.
