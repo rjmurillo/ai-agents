@@ -20,6 +20,10 @@ from scripts.hook_utilities.utilities import get_project_directory
 # from incidental on-disk files: a consumer repo may keep its own .agents/
 # directory for unrelated tooling, which the previous .agents/-presence check
 # mistook for the project repo and so denied ordinary tool calls (issue #2610).
+# The remote must match owner AND name: a name-only match let ``acme/ai-agents``
+# pass as the project repo (issue #7227).
+_PROJECT_REPO_SLUG = "rjmurillo/ai-agents"
+# The pyproject.toml fallback has no remote, so it can only match the bare name.
 _PROJECT_REPO_NAME = "ai-agents"
 
 # Override and cache hook. "1" forces project-repo behavior, "0" forces
@@ -33,19 +37,38 @@ RepoIdentity = Literal["project", "consumer", "unknown"]
 _origin_repo_cache: dict[str, RepoIdentity] = {}
 
 
-def _remote_repo_name(project_root: str) -> str | None:
-    """Return the origin remote's repository name, or None when unavailable.
+def _repo_slug(url: str) -> str | None:
+    """Return ``owner/name`` (lowercase) from a git remote URL, or None.
 
-    Parses both HTTPS (``https://host/owner/ai-agents.git``) and SSH
-    (``git@host:owner/ai-agents.git``) forms. Any failure (git missing, no
-    origin, timeout) yields None so the caller can fail open outside the project.
+    Handles ``https://host/owner/name.git``, ``git@host:owner/name.git``, and
+    ``ssh://git@host/owner/name.git``. A URL with no owner segment yields None.
+    """
+    path = url.strip().rstrip("/").replace("\\", "/")
+    if "://" in path:
+        after_scheme = path.split("://", 1)[1]
+        path = after_scheme.split("/", 1)[1] if "/" in after_scheme else ""
+    elif ":" in path:
+        path = path.rsplit(":", 1)[-1]
+    if path.endswith(".git"):
+        path = path[:-4]
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2:
+        return None
+    return f"{parts[-2]}/{parts[-1]}".lower()
+
+
+def _remote_urls(project_root: str) -> dict[str, str] | None:
+    """Return fetch URLs keyed by remote name, or None when git cannot answer.
+
+    One ``git remote -v`` call reads ``origin`` and ``upstream`` together, so the
+    lookup stays a single subprocess under the host hook budget.
     """
     git = shutil.which("git")
     if git is None:
         return None
     try:
         result = subprocess.run(
-            [git, "-C", project_root, "remote", "get-url", "origin"],
+            [git, "-C", project_root, "remote", "-v"],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -56,7 +79,7 @@ def _remote_repo_name(project_root: str) -> str | None:
             # the host SIGKILL the whole hook. A SIGKILL cannot be caught by the
             # caller's fail-open try/except, so it surfaces as a hard "hook
             # errored" deny of the command (repo-settings Bash-hook wedge RCA).
-            # A local `git remote get-url origin` reads .git/config in <10ms;
+            # A local `git remote -v` reads .git/config in <10ms;
             # 1s only trips on a genuine hang, which is exactly when we want to
             # degrade fast. Enforced by tests/test_hook_plugin_guards.py::
             # test_origin_lookup_timeout_under_host_budget.
@@ -65,15 +88,36 @@ def _remote_repo_name(project_root: str) -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    url = result.stdout.strip()
-    if not url:
-        return None
-    # Repository name is the last path segment, minus an optional ".git".
-    tail = url.rstrip("/").replace("\\", "/").rsplit("/", 1)[-1]
-    tail = tail.rsplit(":", 1)[-1]  # bare SSH "host:repo" with no owner segment
-    if tail.endswith(".git"):
-        tail = tail[:-4]
-    return tail or None
+    urls: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        name, separator, rest = line.partition("\t")
+        if not separator or not rest.endswith("(fetch)"):
+            continue
+        url = rest[: -len("(fetch)")].strip()
+        if name and url and name not in urls:
+            urls[name] = url
+    return urls
+
+
+def _project_remote_identity(project_root: str) -> RepoIdentity:
+    """Classify a checkout from its ``origin`` (and, for forks, ``upstream``).
+
+    ``origin`` must be ``rjmurillo/ai-agents``. A contributor's fork has an
+    ``origin`` under their own account, so a remote named ``upstream`` that
+    points at the project repo also qualifies. No usable ``origin`` is
+    "unknown" so the caller can fail open outside the project.
+    """
+    urls = _remote_urls(project_root)
+    origin = urls.get("origin") if urls else None
+    slug = _repo_slug(origin) if origin else None
+    if slug is None:
+        return "unknown"
+    if slug == _PROJECT_REPO_SLUG:
+        return "project"
+    upstream = urls.get("upstream") if urls else None
+    if upstream and _repo_slug(upstream) == _PROJECT_REPO_SLUG:
+        return "project"
+    return "consumer"
 
 
 def _project_repo_identity() -> RepoIdentity:
@@ -86,20 +130,15 @@ def _project_repo_identity() -> RepoIdentity:
 
     project_root = get_project_directory()
     if project_root not in _origin_repo_cache:
-        name = _remote_repo_name(project_root)
-        if name is None:
-            _origin_repo_cache[project_root] = "unknown"
-        elif name.lower() == _PROJECT_REPO_NAME:
-            _origin_repo_cache[project_root] = "project"
-        else:
-            _origin_repo_cache[project_root] = "consumer"
+        _origin_repo_cache[project_root] = _project_remote_identity(project_root)
     return _origin_repo_cache[project_root]
 
 
 def is_project_repo() -> bool:
-    """Return True when running inside the ai-agents project repository.
+    """Return True when running inside the rjmurillo/ai-agents project repository.
 
-    Identity comes from the git origin remote (authoritative), not from
+    Identity comes from the git origin remote (authoritative; a fork also
+    qualifies through an ``upstream`` remote), not from
     incidental on-disk files. The AI_AGENTS_PROJECT_REPO environment variable
     overrides the lookup ("1"/"0") and caches a one-time resolution; tests set
     it directly. Uses get_project_directory() so it works from a subdirectory.
