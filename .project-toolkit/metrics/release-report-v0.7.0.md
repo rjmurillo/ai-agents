@@ -170,8 +170,8 @@ Content produced by a build step from a template, so a hand edit is overwritten.
 
 - ADR-109 moved rules, agents, hooks, `settings.json`, and `lib/` packages to generated
   output under `.claude/`.
-- At `5934169149`, 105 of 122 skill entries and 29 of 29 agent entries under `.claude/` are
-  symlinks into a shipped source tree (ADR-119).
+- Symlinks into a shipped source tree (ADR-119), counted at `5934169149`: 105 of 122 skill
+  entries and 29 of 29 agent entries.
 - These count as owners in gate 1. The pinned tree at `53ffe92c2` had no such links, which is
   why the symlink-only reading was rejected.
 
