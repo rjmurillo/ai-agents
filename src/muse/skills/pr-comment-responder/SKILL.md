@@ -54,7 +54,7 @@ verdict.
 **ALWAYS extract PR context from prompt first. Never prompt for information already provided.**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Extract PR number and owner/repo from user prompt
 python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
@@ -121,7 +121,7 @@ priority.
 **Reviewer-Priority-First Processing Workflow:**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Get comments grouped by domain
 comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 908 --group-by-domain --include-issue-comments)
@@ -176,7 +176,7 @@ different files; rounds 5 and 6 patched per-file and did not collapse the
 cluster (see `.project-toolkit/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`).
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/pr-comment-responder/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/scripts"
 
 # Owner and repo are optional; the script infers them from git when omitted.
 python3 "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER"

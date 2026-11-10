@@ -19,7 +19,7 @@ GitHub Copilot is **amnesiac**. It has no memory of the codebase, PR context, or
 3. Post the generated prompt via issue comment or PR comment reply
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Step 1: Gather context
 pr=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50 --include-changed-files)
