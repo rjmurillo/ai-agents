@@ -30,6 +30,7 @@ of the carrier list is how a carrier drops out of coverage unnoticed.
 
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 from collections.abc import Sequence
@@ -41,7 +42,6 @@ from tests.test_pr_comment_responder_status_greps import (
     CARRIER_PATHS,
     REPO_ROOT,
     TERMINAL_PATTERN,
-    VOCABULARY_CARRIERS,
     _bash_fences,
     _carrier_id,
     _derivation_script,
@@ -53,12 +53,13 @@ from tests.test_pr_comment_responder_status_greps import (
     requires_grep,
 )
 
-TEMPLATE = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+TEMPLATE = REPO_ROOT / "src/claude/skills/pr-comment-responder/references/gates.md"
 
 # The condensed workflow reference and its generated plugin copy. They restate
 # the post-implementation checklist in prose, so they carry the same defect in
 # shorter form and must name the comment map too.
 WORKFLOW_CARRIERS: tuple[Path, ...] = (
+    REPO_ROOT / "src/claude/skills/pr-comment-responder/references/workflow.md",
     REPO_ROOT / ".claude/skills/pr-comment-responder/references/workflow.md",
     REPO_ROOT / "src/copilot-cli/skills/pr-comment-responder/references/workflow.md",
 )
@@ -66,7 +67,7 @@ WORKFLOW_CARRIERS: tuple[Path, ...] = (
 GATE_THREE_HEADING_KEY = "Gate 3"
 
 # The steps Gate 3 must publish, quoted verbatim from
-# templates/agents/pr-comment-responder.shared.md. The comment-map write is the
+# src/claude/skills/pr-comment-responder/references/gates.md. The comment-map write is the
 # one this suite exists for: without it the task list moves and the artifact
 # every later gate counts does not.
 COMMENT_ID_GUARD = 'case "$COMMENT_ID" in'
@@ -158,7 +159,7 @@ def _task_row(comment_id: str) -> list[str]:
     """One task entry in the shape Phase 6 renders.
 
     Quoted from the ``Implementation Tasks (Phase 6)`` template in
-    ``templates/agents/pr-comment-responder.shared.md``::
+    ``src/claude/skills/pr-comment-responder/references/workflow.md``::
 
         - [ ] **TASK-[id]**: [description]
           - Comment: [comment_id] by @[author]
@@ -630,7 +631,7 @@ def test_every_carrier_publishes_the_gate_three_writeback(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
+@pytest.mark.parametrize("path", WORKFLOW_CARRIERS, ids=_carrier_id)
 def test_step_six_five_names_the_comment_map(path: Path) -> None:
     """Step 6.5 must not tell the reader to update the task list alone.
 
@@ -638,11 +639,11 @@ def test_step_six_five_names_the_comment_map(path: Path) -> None:
     literally is what left ``comments.md`` at its starting status.
     """
     text = path.read_text(encoding="utf-8")
-    heading = "#### Step 6.5:"
+    heading = "### Step 6.5:"
     assert heading in text, f"{_carrier_id(path)} publishes no Step 6.5"
 
     start = text.index(heading)
-    end = text.find("\n### ", start)
+    end = text.find("\n## ", start)
     section = text[start : len(text) if end == -1 else end]
 
     assert "comments.md" in section, (
@@ -655,7 +656,7 @@ def test_step_six_five_names_the_comment_map(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
+@pytest.mark.parametrize("path", WORKFLOW_CARRIERS, ids=_carrier_id)
 def test_phase_five_records_its_terminal_outcomes(path: Path) -> None:
     """Won't Fix and Duplicate never reach Phase 6, so Phase 5 must record them.
 
@@ -664,11 +665,11 @@ def test_phase_five_records_its_terminal_outcomes(path: Path) -> None:
     pending and block Phase 8 exactly like an unworked comment.
     """
     text = path.read_text(encoding="utf-8")
-    heading = "### Phase 5: Immediate Replies"
+    heading = "## Phase 5: Immediate Replies"
     assert heading in text, f"{_carrier_id(path)} publishes no Phase 5"
 
     start = text.index(heading)
-    end = text.index("### Phase 6", start)
+    end = text.index("## Phase 6", start)
     section = text[start:end]
 
     assert "comments.md" in section, (
@@ -686,7 +687,7 @@ def test_workflow_reference_names_both_artifacts(path: Path) -> None:
     """The condensed workflow restates the checklist, so it carries the defect.
 
     Its Phase 6 read ``4. Update task list``. A reader who follows the short
-    form instead of the agent prompt hits the same block. The assertion is
+    form instead of the gate reference hits the same block. The assertion is
     scoped to that section: ``comments.md`` appears elsewhere in the file for
     unrelated reasons, so a file-wide search would pass without the fix.
     """
@@ -705,3 +706,52 @@ def test_workflow_reference_names_both_artifacts(path: Path) -> None:
         f"{_carrier_id(path)} Phase 6 must route through Gate 3 rather than "
         f"restate the commands and drift from them"
     )
+
+
+# Gate 1 counts `reaction ... eyes` records in the PR comment run log. The agent
+# that once created and filled that log was retired, so the skill's Gate 0 and
+# Step 2.1 must do both, or Gate 1 reads a file nobody wrote (PR 7169 review).
+
+REACTION_LOG_PATH = ".project-toolkit/pr-comments/PR-[number]/session.log"
+REACTION_RECORD_PATTERN = re.compile(
+    r"printf 'reaction eyes (review|issue) %s\\n' \"\$id\" >> \"\$PR_COMMENT_LOG\""
+)
+
+
+def _gate_zero_creates_log(gates_text: str) -> bool:
+    start = gates_text.index("## Gate 0: Continuity")
+    section = gates_text[start : gates_text.index("## Gate 1:", start)]
+    return REACTION_LOG_PATH in section and ': > "$PR_COMMENT_LOG"' in section
+
+
+def _step_two_one_kinds(workflow_text: str) -> set[str]:
+    start = workflow_text.index("### Step 2.1:")
+    section = workflow_text[start : workflow_text.index("### Step 2.2:", start)]
+    return {m.group(1) for m in REACTION_RECORD_PATTERN.finditer(section)}
+
+
+def _gate_one_reads_log(gates_text: str) -> bool:
+    start = gates_text.index("## Gate 1:")
+    section = gates_text[start : gates_text.index("## Gate 2:", start)]
+    return REACTION_LOG_PATH in section and 'grep -c "reaction.*eyes"' in section
+
+
+@pytest.mark.parametrize("path", WORKFLOW_CARRIERS, ids=_carrier_id)
+def test_step_two_one_records_both_comment_kinds_in_the_log_gate_one_reads(path: Path) -> None:
+    """Review and issue acknowledgments both land in the log Gate 1 counts."""
+    workflow_text = path.read_text(encoding="utf-8")
+    gates_text = (path.parent / "gates.md").read_text(encoding="utf-8")
+
+    assert _step_two_one_kinds(workflow_text) == {"review", "issue"}, _carrier_id(path)
+    assert _gate_zero_creates_log(gates_text), f"{_carrier_id(path)} Gate 0 never creates the log"
+    assert _gate_one_reads_log(gates_text), f"{_carrier_id(path)} Gate 1 reads a different log"
+
+
+def test_reaction_log_detectors_reject_a_skill_that_never_writes_the_log() -> None:
+    """Negative control: the retired-agent regression must fail these predicates."""
+    workflow_without_records = "### Step 2.1: x\n\nreact only\n\n### Step 2.2: y\n"
+    gates_without_log = "## Gate 0: Continuity\n\ntext\n\n## Gate 1: x\n\n## Gate 2: y\n"
+
+    assert _step_two_one_kinds(workflow_without_records) == set()
+    assert not _gate_zero_creates_log(gates_without_log)
+    assert not _gate_one_reads_log(gates_without_log)

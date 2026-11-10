@@ -101,7 +101,7 @@ Run build/test/lint in the worktree directory.
 - Keep build outputs isolated per worktree.
 - Share only safe caches (NuGet packages, etc.), not `bin/obj`.
 - Set `UV_PROJECT_ROOT` to the main repo root so `uv run` resolves tools
-  (ruff, pytest, mypy, bandit) from the main project venv:
+  (ruff, pytest, mypy) from the main project venv:
 
 ```bash
 export UV_PROJECT_ROOT="$(git rev-parse --git-common-dir | xargs dirname)"

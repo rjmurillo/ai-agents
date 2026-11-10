@@ -7,7 +7,8 @@ bootstrap hook imports.
 DO NOT use this helper to replace the inline bootstrap in `.claude/hooks/`
 hooks or in skill scripts governed by ADR-047. Those files MUST keep the
 inline `os.environ.get("CLAUDE_PLUGIN_ROOT")` + `os.path.isdir(_lib_dir)`
-literals: `tests/test_plugin_path_resolution.py` grep-asserts them, and the
+literals (this module also reads `COPILOT_PLUGIN_ROOT`, which the Copilot CLI
+exports): `tests/test_plugin_path_resolution.py` grep-asserts them, and the
 only exemption it grants is delegation to `_bootstrap.ensure_plugin_paths`
 (the generated-tree helper, ADR-068), NOT this function. Migrating those
 hooks here removes the literals and fails the ADR-047 test.
@@ -15,7 +16,7 @@ See ADR-047 (Path Resolution) for the sanctioned
 inline pattern and issue #2898 for the history.
 
 The setup_hook_lib_path function handles:
-- Checking CLAUDE_PLUGIN_ROOT environment variable
+- Checking the COPILOT_PLUGIN_ROOT, then CLAUDE_PLUGIN_ROOT, environment variable
 - Walking up directory tree to find .claude-plugin/plugin.json marker
 - Adding the lib directory to sys.path
 - Exiting with specified code if lib not found
@@ -32,12 +33,25 @@ import sys
 from pathlib import Path
 
 
+def _plugin_root_from_env() -> str | None:
+    """Return the plugin root a harness exported, Copilot first.
+
+    Same order as the nested form the rule prescribes for commands,
+    ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}``, and as the
+    skill scripts' ``os.environ.get("COPILOT_PLUGIN_ROOT") or
+    os.environ.get("CLAUDE_PLUGIN_ROOT")``. Empty values fall through.
+    """
+    copilot_root = os.environ.get("COPILOT_PLUGIN_ROOT")
+    return copilot_root or os.environ.get("CLAUDE_PLUGIN_ROOT")
+
+
 def resolve_plugin_lib_dir(hook_file: str | Path | None = None) -> str | None:
     """Resolve the plugin lib directory for hook imports.
 
-    Checks CLAUDE_PLUGIN_ROOT environment variable first, then walks up
-    from the hook file location looking for .claude-plugin/plugin.json
-    (the plugin manifest marker). The sibling lib/ is the plugin's lib dir.
+    Checks the COPILOT_PLUGIN_ROOT, then CLAUDE_PLUGIN_ROOT, environment
+    variable first, then walks up from the hook file location looking for
+    .claude-plugin/plugin.json (the plugin manifest marker). The sibling lib/ is
+    the plugin's lib dir.
 
     Args:
         hook_file: Path to the hook file (__file__). If None, uses the
@@ -46,7 +60,7 @@ def resolve_plugin_lib_dir(hook_file: str | Path | None = None) -> str | None:
     Returns:
         Absolute path to the lib directory as a string, or None if not found.
     """
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    plugin_root = _plugin_root_from_env()
     if plugin_root:
         return str(Path(plugin_root).resolve() / "lib")
 
@@ -87,9 +101,9 @@ def setup_hook_lib_path(hook_file: str | Path, fail_exit_code: int = 2) -> str:
     """
     lib_dir = resolve_plugin_lib_dir(hook_file)
     if lib_dir is None or not os.path.isdir(lib_dir):
-        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        plugin_root = _plugin_root_from_env()
         print(
-            f"Plugin lib directory not found: {lib_dir} (CLAUDE_PLUGIN_ROOT={plugin_root!r})",
+            f"Plugin lib directory not found: {lib_dir} (plugin root env={plugin_root!r})",
             file=sys.stderr,
         )
         sys.exit(fail_exit_code)

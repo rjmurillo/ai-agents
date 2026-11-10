@@ -10,8 +10,8 @@ Covered:
     and treats missing JSON as a failure (not indicator_count=0). The contract
     now lives in scripts/ci/run_hook_bypass_audit.py (ADR-006), so these tests
     drive that script directly instead of matching shell text.
-  - pytest.yml (security job): bandit gates on high severity/confidence with no
-    `|| true`, the job has actions: read plus security-events: write, and a
+  - pytest.yml (security job): the ruff security rules (bandit's replacement) gate
+    with no `|| true`, the job has actions: read plus security-events: write, and a
     codeql upload-sarif step publishes findings with if: always().
   - drift-detection.yml: the JSON re-run stops swallowing stderr and the exit
     code, failing only on exit >=2 (config/crash) since exit 1 is the expected
@@ -179,41 +179,39 @@ class TestAuditHookBypass:
         assert "indicator_count=0" not in out + err
 
 
-class TestPytestBanditSecurity:
+class TestPytestRuffSecurity:
     """pytest.yml security job must fail on real findings and upload SARIF."""
 
     def _workflow(self) -> dict[str, Any]:
         return _load_workflow("pytest.yml")
 
-    def _bandit_step(self) -> dict[str, Any]:
+    def _security_step(self) -> dict[str, Any]:
         steps = _job_steps(self._workflow(), "security")
-        step = _find_step_by_run(steps, "bandit -r")
+        step = _find_step_by_run(steps, "ruff check")
         assert step is not None
         return step
 
-    def test_bandit_has_no_true_suppression(self) -> None:
-        assert "|| true" not in _command_text(self._bandit_step()["run"])
+    def test_security_step_has_no_true_suppression(self) -> None:
+        assert "|| true" not in _command_text(self._security_step()["run"])
 
-    def test_bandit_gates_on_high_severity_and_confidence(self) -> None:
-        run = self._bandit_step()["run"]
-        assert "--severity-level high" in run
-        assert "--confidence-level high" in run
+    def test_security_step_writes_sarif_artifact(self) -> None:
+        run = self._security_step()["run"]
+        assert "--output-format sarif" in run
+        assert "--output-file ruff-security.sarif" in run
 
-    def test_bandit_writes_sarif_artifact(self) -> None:
-        run = self._bandit_step()["run"]
-        assert "-f sarif" in run
-        assert "-o bandit.sarif" in run
+    def test_security_step_excludes_test_paths(self) -> None:
+        # Test-only S324 SHA1-for-module-name false positives must not gate CI.
+        assert "--extend-exclude '**/tests/**'" in self._security_step()["run"]
 
-    def test_bandit_excludes_test_paths(self) -> None:
-        # Test-only B324 SHA1-for-module-name false positives must not gate CI.
-        assert "-x" in self._bandit_step()["run"]
+    def test_security_step_does_not_run_bandit(self) -> None:
+        assert "bandit" not in self._security_step()["run"]
 
     def test_security_job_can_write_code_scanning_events(self) -> None:
         permissions = _job_permissions(self._workflow(), "security")
         assert permissions.get("actions") == "read"
         assert permissions.get("security-events") == "write"
 
-    def test_bandit_sarif_upload_runs_after_bandit_on_trusted_prs(self) -> None:
+    def test_sarif_upload_runs_after_security_step_on_trusted_prs(self) -> None:
         steps = _job_steps(self._workflow(), "security")
         step = _find_step_by_uses(steps, "github/codeql-action/upload-sarif@")
         assert step is not None
@@ -222,8 +220,8 @@ class TestPytestBanditSecurity:
         assert condition.startswith("always()")
         assert "github.event_name != 'pull_request'" in condition
         assert "github.event.pull_request.head.repo.full_name == github.repository" in condition
-        assert step["with"]["sarif_file"] == "bandit.sarif"
-        assert step["with"]["category"] == "bandit"
+        assert step["with"]["sarif_file"] == "ruff-security.sarif"
+        assert step["with"]["category"] == "ruff-security"
 
 
 class TestDriftDetection:
