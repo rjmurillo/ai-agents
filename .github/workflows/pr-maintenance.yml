@@ -224,7 +224,7 @@ jobs:
           steps.ai-analysis.outputs.verdict == 'PASS'
         uses: ./.trusted-helper/.github/actions/ai-review
         with:
-          agent: analyst
+          agent: pr-comment-responder
           context-type: pr-diff
           pr-number: ${{ matrix.number }}
           prompt-file: .trusted-helper/.github/prompts/pr-comment-triage.md
