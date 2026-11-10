@@ -657,8 +657,25 @@ def format_sarif_output(result: ScanResult) -> str:
     return json.dumps(sarif, indent=2)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --target .
+  %(prog)s --git-staged
+  %(prog)s --format json --output violations.json
+
+exit codes:
+  0  all files compliant
+  1  script error (invalid arguments or config parse failure)
+  10  violations detected
+"""
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Check code style against editorconfig rules")
+    parser = argparse.ArgumentParser(
+        description="Check code style against editorconfig rules",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--target",
         default=".",

@@ -441,9 +441,27 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s plan --output-root .github/skills --name my-skill
+  %(prog)s snapshot --output-root .github/skills --out snapshot.json
+  %(prog)s verify --snapshot snapshot.json --output-root .github/skills --name my-skill
+
+exit codes:
+  0  no conflict or violation
+  1  plan conflict, invalid name, or boundary violation
+  2  bad arguments, disallowed output root, or unreadable snapshot
+  3  git missing, failed, or timed out, or a file could not be read
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        allow_abbrev=False, prog="bootstrap_boundary", description=__doc__.split("\n\n")[0]
+        allow_abbrev=False,
+        prog="bootstrap_boundary",
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
     roots = "one of: " + ", ".join(ALLOWED_ROOTS)

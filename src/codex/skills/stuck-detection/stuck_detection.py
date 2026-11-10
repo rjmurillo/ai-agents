@@ -421,11 +421,25 @@ def _run_failure_loops(argv: list[str]) -> int:
     return result
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s check
+  %(prog)s status
+  %(prog)s reset
+
+exit codes:
+  0  ran (regardless of stuck or not stuck)
+  2  invalid command or arguments
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="stuck-detection",
         description="Detect agent loops via topic signatures or repeated tool failures.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--history",

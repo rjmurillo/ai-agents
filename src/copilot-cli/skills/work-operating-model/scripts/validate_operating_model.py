@@ -308,10 +308,23 @@ def load_document(path: str, validate_path: bool = True) -> Any:
     return json.loads(text)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s operating-model.md
+
+exit codes:
+  0  the document conforms to the schema
+  1  the document violates the schema
+  2  bad arguments or unreadable input
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns the process exit code."""
     parser = argparse.ArgumentParser(
         description="Validate a work-operating-model JSON document.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "path",

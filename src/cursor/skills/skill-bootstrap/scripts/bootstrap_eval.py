@@ -949,9 +949,27 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
 # --- CLI --------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s freeze --cases cases.json --out frozen.json
+  %(prog)s check --cases cases.json
+  %(prog)s score --frozen frozen.json --results results.jsonl --min-delta 0.1
+
+exit codes:
+  0  freeze wrote the file, cases are valid, or every case scored complete
+  1  incomplete or regression case, delta below --min-delta, or a flat skill
+  2  bad arguments, bad cases or results, edited frozen file, or unsafe --out
+  3  git failed, the grader failed, or the --out write failed
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        allow_abbrev=False, prog="bootstrap_eval", description=__doc__.split("\n\n")[0]
+        allow_abbrev=False,
+        prog="bootstrap_eval",
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

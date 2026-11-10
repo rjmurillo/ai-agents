@@ -378,9 +378,25 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s check --repo . --skills-root .github/skills
+  %(prog)s check --repo . --skills-root .github/skills --name my-skill --require
+
+exit codes:
+  0  no skill failed, is malformed, or is incomplete
+  1  a skill failed, is malformed, timed out, or lacks provenance under --require
+  2  bad arguments, bad repo or skills root, or unknown --name
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        allow_abbrev=False, prog="bootstrap_drift", description=__doc__.split("\n\n")[0]
+        allow_abbrev=False,
+        prog="bootstrap_drift",
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
     p_check = sub.add_parser(

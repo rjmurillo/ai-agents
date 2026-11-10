@@ -751,9 +751,26 @@ def _out_outside_repo(root: Path, out: str | None) -> Path | None:
     return target
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s candidates --repo . --top 20
+  %(prog)s claims --repo . SKILL.md --out claims.json
+
+exit codes:
+  0  success (claims: no finding has context current)
+  1  claims found a non-ok reference with context current
+  2  bad arguments, not a git repository, bad rev, or unsafe --out
+  3  git failed or timed out, or the --out write failed
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        allow_abbrev=False, prog="bootstrap_mine", description=__doc__.split("\n\n")[0]
+        allow_abbrev=False,
+        prog="bootstrap_mine",
+        description=__doc__.split("\n\n")[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
