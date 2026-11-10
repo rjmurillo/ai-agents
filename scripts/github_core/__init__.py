@@ -50,6 +50,8 @@ from scripts.github_core.formatting import (
 from scripts.github_core.gh_client import GhCliClient
 from scripts.github_core.not_found import is_pr_not_found
 from scripts.github_core.output import (
+    STANDARD_FAILURE_EXIT_CODES,
+    add_output_format_arg,
     get_output_format,
     write_skill_error,
     write_skill_output,
@@ -74,6 +76,8 @@ from scripts.github_core.validation import (
 )
 
 __all__ = [
+    "STANDARD_FAILURE_EXIT_CODES",
+    "add_output_format_arg",
     "DEFAULT_RATE_THRESHOLDS",
     "FetchStatus",
     "GhAuthResult",

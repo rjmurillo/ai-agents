@@ -198,6 +198,39 @@ class TestPluginPathResolution:
         )
 
 
+def _skill_resolution_source(script_path: Path) -> str:
+    """Inspect an actual shared skill bootstrap without dropping its consumer."""
+    content = script_path.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return content
+    imports = {
+        alias.asname or alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "skill_bootstrap"
+        for alias in node.names
+        if alias.name == "ensure_plugin_paths"
+    }
+    calls = [
+        node.value
+        for node in tree.body
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+    ]
+    delegates = any(
+        isinstance(call.func, ast.Name)
+        and call.func.id in imports
+        and call.args
+        and isinstance(call.args[0], ast.Name)
+        and call.args[0].id == "__file__"
+        for call in calls
+    )
+    helper = script_path.parent.parent / "skill_bootstrap.py"
+    if delegates and helper.is_file():
+        return content + "\n" + helper.read_text(encoding="utf-8")
+    return content
+
+
 class TestSkillPluginPathResolution:
     """Verify skill scripts use CLAUDE_PLUGIN_ROOT for import resolution."""
 
@@ -213,7 +246,7 @@ class TestSkillPluginPathResolution:
         """Skill scripts importing from lib must use CLAUDE_PLUGIN_ROOT."""
         violations = []
         for script_path in skill_scripts_with_lib_imports:
-            content = script_path.read_text(encoding="utf-8")
+            content = _skill_resolution_source(script_path)
             if PLUGIN_PATH_PATTERN not in content:
                 rel = script_path.relative_to(REPO_ROOT)
                 violations.append(str(rel))
@@ -230,7 +263,7 @@ class TestSkillPluginPathResolution:
         """Skill scripts with CLAUDE_PLUGIN_ROOT must validate lib dir exists (ADR-047)."""
         violations = []
         for script_path in skill_scripts_with_lib_imports:
-            content = script_path.read_text(encoding="utf-8")
+            content = _skill_resolution_source(script_path)
             if PLUGIN_PATH_PATTERN in content and not _has_lib_dir_validation(content):
                 rel = script_path.relative_to(REPO_ROOT)
                 violations.append(str(rel))

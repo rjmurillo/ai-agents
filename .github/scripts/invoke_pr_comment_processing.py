@@ -24,13 +24,20 @@ import subprocess
 import sys
 from typing import Any
 
-_workspace = os.environ.get(
-    "GITHUB_WORKSPACE",
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+sys.path.insert(
+    0,
+    os.environ.get(
+        "GITHUB_WORKSPACE",
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+    ),
 )
-sys.path.insert(0, _workspace)
 
-from scripts.github_core.api import resolve_repo_params  # noqa: E402
+from scripts.github_core.api import resolve_repo_params
+from scripts.github_core.comment_processing import (
+    add_comment_reaction,
+    format_wontfix_reply,
+    report_comment_action,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,67 +71,6 @@ def parse_findings(json_str: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # GitHub API helpers
 # ---------------------------------------------------------------------------
-
-
-def add_comment_reaction(
-    owner: str,
-    repo: str,
-    comment_id: int,
-    reaction: str = "eyes",
-) -> bool:
-    """Add a reaction to a comment.
-
-    Tries the PR review comment endpoint first, then falls back
-    to the issue comment endpoint.
-
-    Returns True on success, False on failure.
-    """
-    base_url = f"repos/{owner}/{repo}"
-
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"{base_url}/pulls/comments/{comment_id}/reactions",
-            "-X",
-            "POST",
-            "-f",
-            f"content={reaction}",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-
-    if result.returncode == 0:
-        print(f"Added {reaction} reaction to comment {comment_id}")
-        return True
-
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"{base_url}/issues/comments/{comment_id}/reactions",
-            "-X",
-            "POST",
-            "-f",
-            f"content={reaction}",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-
-    if result.returncode == 0:
-        print(f"Added {reaction} reaction to comment {comment_id}")
-        return True
-
-    error_str = result.stderr.strip() or result.stdout.strip()
-    print(
-        f"WARNING: Failed to add reaction to comment {comment_id}: {error_str}",
-        file=sys.stderr,
-    )
-    return False
 
 
 def reply_to_comment(
@@ -212,11 +158,7 @@ def process_comments(
             # Cosmetic acknowledgement failure; do not fail the run (Issue #2522).
             stats["reaction_failures"] += 1
 
-        if classification == "stale":
-            print("  Stale comment needs manual resolution (thread ID required)")
-            stats["skipped"] += 1
-
-        elif classification == "wontfix":
+        if classification == "wontfix":
             resolution = comment.get("resolution")
             if not resolution:
                 print(
@@ -225,30 +167,13 @@ def process_comments(
                 )
                 stats["skipped"] += 1
                 continue
-
-            body = (
-                "Thank you for the feedback. After review, "
-                "we've decided not to implement this change:\n\n"
-                f"{resolution}"
-            )
+            body = format_wontfix_reply(resolution)
             if reply_to_comment(owner, repo, pr_number, comment_id, body):
                 stats["replied"] += 1
             else:
                 stats["errors"] += 1
-
-        elif classification == "question":
-            summary = comment.get("summary", "")
-            print(f"  Needs human response: {summary}")
-            stats["skipped"] += 1
-
-        elif classification in ("quick-fix", "standard", "strategic"):
-            action = comment.get("action", "")
-            summary = comment.get("summary", "")
-            print(f"  Action needed: {action} - {summary}")
-            stats["skipped"] += 1
-
         else:
-            print(f"  Unknown classification '{classification}', skipping")
+            report_comment_action(classification, comment)
             stats["skipped"] += 1
 
     return stats

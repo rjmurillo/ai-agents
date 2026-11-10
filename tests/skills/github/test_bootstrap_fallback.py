@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_plugin_path_resolution import _skill_resolution_source
+
 # Absolute path to the skills scripts dir, independent of cwd.
 _SCRIPTS_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "github" / "scripts"
 # A representative script that prints something on --help, exits 0 is not
@@ -113,7 +115,8 @@ class TestBootstrapSourceCode:
         return [
             f
             for f in _SCRIPTS_DIR.rglob("*.py")
-            if "_plugin_root" in f.read_text() and "CLAUDE_PLUGIN_ROOT" in f.read_text()
+            if "_plugin_root" in _skill_resolution_source(f)
+            and "CLAUDE_PLUGIN_ROOT" in _skill_resolution_source(f)
         ]
 
     def test_scripts_prefer_copilot_plugin_root(self) -> None:
@@ -121,7 +124,7 @@ class TestBootstrapSourceCode:
         COPILOT_PLUGIN_ROOT (preferring it via `or`)."""
         failures = []
         for f in self._bootstrap_scripts():
-            content = f.read_text()
+            content = _skill_resolution_source(f)
             if "COPILOT_PLUGIN_ROOT" not in content:
                 failures.append(str(f.relative_to(_SCRIPTS_DIR.parents[3])))
         assert not failures, (
@@ -134,7 +137,7 @@ class TestBootstrapSourceCode:
         lib/github_core is present before trusting the value."""
         failures = []
         for f in self._bootstrap_scripts():
-            content = f.read_text()
+            content = _skill_resolution_source(f)
             if 'os.path.isdir(os.path.join(_plugin_root, "lib", "github_core"))' not in content:
                 failures.append(str(f.relative_to(_SCRIPTS_DIR.parents[3])))
         assert not failures, (
