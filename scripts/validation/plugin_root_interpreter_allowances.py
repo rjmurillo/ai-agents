@@ -52,6 +52,57 @@ YAML_ALLOWANCES: dict[tuple[str, str, str, str], str] = {
     ): _GUARDED_MARKDOWN_IT,
 }
 
+_CLAUDE_HOOK = (
+    "Claude Code hook runtime. Claude hooks never render into src/copilot-cli, and "
+    "Claude Code exports only its own plugin-root variable (official-hook-contracts.md)."
+)
+_CLAUDE_HOOK_CHECK = (
+    "Validates the Claude hooks.json anchor, which is the Claude variable by contract. "
+    "The Copilot shape is checked against its generator."
+)
+_HARNESS_FACT = (
+    "States what Claude Code exports, as harness-reference evidence. It is a fact about "
+    "one harness, not a command."
+)
+
+# Rule 4 (single-root): files that may name the Claude plugin-root variable
+# without the Copilot one. Keyed by full path, else by path with the plugin tree
+# stripped (one key then covers every render). Value is
+# (number of standalone statements per copy, reason). The checker fails when a
+# file holds more, or fewer, than the count, and when a key matches no file.
+SINGLE_ROOT_ALLOWANCES: dict[str, tuple[int, str]] = {
+    "src/claude/hooks/hooks.json": (1, _CLAUDE_HOOK),
+    "hooks/invoke_dispatch_claude.py": (4, _CLAUDE_HOOK),
+    "hooks/PreCompact/invoke_compact_checkpoint.py": (1, _CLAUDE_HOOK),
+    "hooks/PreToolUse/_bootstrap.py": (8, _CLAUDE_HOOK),
+    "hooks/SessionStart/invoke_checkout_freshness_check.py": (1, _CLAUDE_HOOK),
+    "hooks/SessionStart/invoke_context_loader.py": (1, _CLAUDE_HOOK),
+    "hooks/SessionStart/invoke_plugin_hook_drift_check.py": (1, _CLAUDE_HOOK),
+    "templates/hooks/hooks.json": (1, _CLAUDE_HOOK),
+    "templates/hooks/invoke_dispatch_claude.py": (4, _CLAUDE_HOOK),
+    "templates/hooks/PreCompact/invoke_compact_checkpoint.py": (1, _CLAUDE_HOOK),
+    "templates/hooks/PreToolUse/_bootstrap.py": (8, _CLAUDE_HOOK),
+    "templates/hooks/SessionStart/invoke_checkout_freshness_check.py": (1, _CLAUDE_HOOK),
+    "templates/hooks/SessionStart/invoke_context_loader.py": (1, _CLAUDE_HOOK),
+    "templates/hooks/SessionStart/invoke_plugin_hook_drift_check.py": (1, _CLAUDE_HOOK),
+    "scripts/validation/validate_hook_anchoring.py": (4, _CLAUDE_HOOK_CHECK),
+    "scripts/validation/hook_contracts.py": (1, _CLAUDE_HOOK_CHECK),
+    "scripts/validation/checks_plugin.py": (1, _CLAUDE_HOOK_CHECK),
+    "build/scripts/generate_hooks_emit.py": (1, "Comment on the Claude hook command rewrite."),
+    "scripts/validation/git_hook_policy.py": (
+        1,
+        "Pre-push pytest env pins one plugin tree for the suite. Not shipped, not a command.",
+    ),
+    "skills/agent-harness-reference/SKILL.md": (2, _HARNESS_FACT),
+    "templates/skills/agent-harness-reference.SKILL.md.tmpl": (2, _HARNESS_FACT),
+    "skills/agent-harness-reference/references/probe-evidence.md": (1, _HARNESS_FACT),
+    "skills/github/scripts/pr/run_completion_gate.py": (
+        1,
+        "Expansion table that still recognizes the legacy single-root form in installed "
+        "configs. It reads the form; it never emits it.",
+    ),
+}
+
 _KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?:\s|$)")
 # A block scalar header closes a key line (or a `- ` item): `|`, `>`, with an
 # optional chomping or indentation indicator and an optional trailing comment.

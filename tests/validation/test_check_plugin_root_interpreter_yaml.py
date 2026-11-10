@@ -178,6 +178,7 @@ def test_main_fails_on_an_allowance_that_no_longer_matches(
     """Issue #6506: a stale allowance fails the run so it cannot hide a later offense."""
     key = ("skills/demo/config.yaml", "a", "bare-path", "skills/foo/scripts/gone.py")
     monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
+    monkeypatch.setattr(checker, "_SINGLE_ROOT_ALLOWANCES", {})
     repo = make_repo(tmp_path, {**_STDLIB, _CONFIG: "a: 1\n"})
     assert checker.main(["--repo-root", str(repo)]) == 1
     captured = capsys.readouterr()
@@ -191,6 +192,7 @@ def test_main_passes_when_every_allowance_still_matches(
 ) -> None:
     key = ("skills/demo/config.yaml", "a", "bare-path", "skills/foo/scripts/bar.py")
     monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
+    monkeypatch.setattr(checker, "_SINGLE_ROOT_ALLOWANCES", {})
     repo = make_repo(
         tmp_path,
         {**_STDLIB, ".claude/skills/foo/scripts/bar.py": "import json\n", _CONFIG: _BARE_BAR},

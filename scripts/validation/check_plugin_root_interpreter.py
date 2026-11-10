@@ -123,15 +123,18 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.validation import plugin_root_interpreter_allowances as _allowances  # noqa: E402
+from scripts.validation import plugin_root_interpreter_rules as _rules  # noqa: E402
 from scripts.validation.check_doc_interpreter_portability import (  # noqa: E402
     HISTORICAL_ROOTS,
     ScanError,
+    local_modules,
     third_party_imports,
     tracked_files,
     tracked_py_with_links,
 )
 
 _YAML_ALLOWANCES = _allowances.YAML_ALLOWANCES
+_SINGLE_ROOT_ALLOWANCES = _allowances.SINGLE_ROOT_ALLOWANCES
 
 # Fixtures construct offending invocations on purpose. Same carve-out shape as
 # ``FIXTURE_ROOTS`` in ``check_doc_interpreter_portability.py``, kept as a
@@ -159,6 +162,23 @@ _YAML_SUFFIXES = (".yaml", ".yml")
 _Key = tuple[str, str, str, str]
 _Imports = dict[str, frozenset[str]] | None  # script to its third-party imports, per scan (#6854)
 _MUST_2 = ".claude/rules/plugin-self-containment.md MUST 2"
+_MUST_4 = ".claude/rules/plugin-self-containment.md MUST 4"
+
+# Rule 4 (single-root): every tree that holds, renders, or generates plugin content.
+# `tests/` is out (fixtures name the variable on purpose), and so are the historical
+# roots. `src/` covers every shipped harness tree, `.claude/` the dogfood install.
+_SINGLE_ROOT_SCOPE = ("templates", "src", ".claude", "scripts", "build", "packages")
+_SINGLE_ROOT_SUFFIXES = (
+    ".md", ".mdc", ".py", ".tmpl", ".mustache", ".yaml", ".yml", ".json", ".toml", ".txt", ".sh",
+    ".ps1",
+)  # fmt: skip
+# Rule 5 (import-time): shipped skill and lib modules. The other harness trees are
+# renders of these, so scanning them would repeat each finding.
+_IMPORT_TIME_SCOPE = ("src/claude/skills/", "src/claude/lib/")
+# A render's path with its tree stripped, so one allowance covers every copy.
+_TREE_PREFIX = re.compile(
+    r"^(?:\.claude|src/(?:claude|copilot-cli|cursor|codex|muse|vs-code-agents|hermes/[^/]+))/"
+)
 _SCAN_PATTERNS = ("*.md", "*.py", "*.tmpl", "*.mustache", "*.yaml", "*.yml")
 
 # One interpreter token: `python`, `python3`, or a pinned `python3.11`-style
@@ -448,9 +468,102 @@ def find_yaml_offenses(
     return reported
 
 
-def scan(repo_root: Path, used_allowances: set[_Key] | None = None) -> list[str]:
+def allowance_key(rel: str) -> str:
+    """Return ``rel`` without its plugin tree prefix, the key of a rule 4 allowance."""
+    return _TREE_PREFIX.sub("", rel, count=1)
+
+
+def find_single_root_offenses(
+    text: str, rel: str, used_single_root: set[str] | None = None
+) -> list[tuple[int, str]]:
+    """Return rule 4 offenses for one file; an allowance absorbs its exact count.
+
+    A file listed in ``SINGLE_ROOT_ALLOWANCES`` may carry exactly the allowed
+    number of standalone Claude-only plugin-root statements. More is reported as
+    offenses. Fewer is reported as one stale count, so a fixed file cannot keep
+    a larger allowance than it needs and hide a later regression.
+    """
+    raw_lines = text.splitlines()
+    logical_lines, line_maps = _join_continuations(text)
+    hits = [
+        lineno
+        for lineno in _rules.single_root_lines(logical_lines, line_maps)
+        if not _is_declared(raw_lines, lineno)
+    ]
+    key = rel if rel in _SINGLE_ROOT_ALLOWANCES else allowance_key(rel)
+    allowed = _SINGLE_ROOT_ALLOWANCES.get(key)
+    if allowed is not None and used_single_root is not None:
+        used_single_root.add(key)
+    budget = allowed[0] if allowed is not None else 0
+    if len(hits) < budget:
+        return [
+            (
+                1,
+                f"{rel}:1: allowance expects {budget} standalone Claude-only plugin-root "
+                f"statement(s), found {len(hits)}; lower the count in "
+                "plugin_root_interpreter_allowances.py",
+            )
+        ]
+    message = (
+        "names CLAUDE_PLUGIN_ROOT without COPILOT_PLUGIN_ROOT; the Copilot CLI sets only "
+        "the latter. Use ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}} or name "
+        f"both ({_MUST_4}, issue #5949)"
+    )
+    return [(lineno, f"{rel}:{lineno}: {message}") for lineno in hits[budget:]]
+
+
+def find_import_time_offenses(
+    text: str, rel: str, repo_root: Path, tracked_py: set[str]
+) -> list[tuple[int, str]]:
+    """Return rule 5 offenses: a third-party import at module level with no fallback."""
+
+    def is_repo_module(name: str) -> bool:
+        return local_modules(name, rel, tracked_py) is not None
+
+    try:
+        found = _rules.unguarded_third_party_imports(text, is_repo_module)
+    except SyntaxError as exc:
+        raise ScanError(f"could not parse {rel}: {exc}") from exc
+    return [
+        (
+            lineno,
+            f"{rel}:{lineno}: imports {name} at module level; a vendored install's bare "
+            f"python3 cannot resolve it. Import it inside the function that needs it, or "
+            f"wrap it in try/except ImportError with a fallback ({_MUST_4}, issue #5949)",
+        )
+        for lineno, name in found
+    ]
+
+
+def _scan_new_rules(
+    repo_root: Path, tracked_py: set[str], used_single_root: set[str]
+) -> list[tuple[str, int, str]]:
+    """Run rules 4 and 5 over every tracked file in their scopes."""
+    offenses: list[tuple[str, int, str]] = []
+    for rel in tracked_files(repo_root, *_SINGLE_ROOT_SCOPE):
+        in_single = rel.endswith(_SINGLE_ROOT_SUFFIXES)
+        in_import = rel.endswith(".py") and rel.startswith(_IMPORT_TIME_SCOPE)
+        if not (in_single or in_import) or (repo_root / rel).is_symlink():
+            continue
+        try:
+            text = (repo_root / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ScanError(f"could not read {rel}: {exc}") from exc
+        found = find_single_root_offenses(text, rel, used_single_root) if in_single else []
+        if in_import:
+            found += find_import_time_offenses(text, rel, repo_root, tracked_py)
+        offenses.extend((rel, lineno, message) for lineno, message in found)
+    return offenses
+
+
+def scan(
+    repo_root: Path,
+    used_allowances: set[_Key] | None = None,
+    used_single_root: set[str] | None = None,
+) -> list[str]:
     """Return one message per offense across the tree; record allowances used."""
     used = set() if used_allowances is None else used_allowances
+    used_roots = set() if used_single_root is None else used_single_root
     tracked_py = tracked_py_with_links(repo_root)
     imports: dict[str, frozenset[str]] = {}
     all_offenses: list[tuple[str, int, str]] = []
@@ -467,6 +580,7 @@ def scan(repo_root: Path, used_allowances: set[_Key] | None = None) -> list[str]
         else:
             found = find_offenses(text, rel, repo_root, tracked_py, imports)
         all_offenses.extend((rel, lineno, message) for lineno, message in found)
+    all_offenses.extend(_scan_new_rules(repo_root, tracked_py, used_roots))
     all_offenses.sort(key=lambda item: (item[0], item[1]))
     return [message for _, _, message in all_offenses]
 
@@ -497,7 +611,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         used_allowances: set[_Key] = set()
-        offenses = scan(repo_root, used_allowances)
+        used_single_root: set[str] = set()
+        offenses = scan(repo_root, used_allowances, used_single_root)
     except (OSError, ScanError, subprocess.CalledProcessError) as exc:
         print(f"check-plugin-root-interpreter: {exc}", file=sys.stderr)
         return 2
@@ -508,9 +623,13 @@ def main(argv: list[str] | None = None) -> int:
     for entry in stale:
         message = "check-plugin-root-interpreter: allowance no longer matches: "
         print(message + " ".join(entry), file=sys.stderr)
+    stale_roots = sorted(set(_SINGLE_ROOT_ALLOWANCES) - used_single_root)
+    for key in stale_roots:
+        message = "check-plugin-root-interpreter: single-root allowance matches no file: "
+        print(message + key, file=sys.stderr)
 
-    if offenses or stale:
-        counts = f"{len(offenses)} offense(s), {len(stale)} stale allowance(s)"
+    if offenses or stale or stale_roots:
+        counts = f"{len(offenses)} offense(s), {len(stale) + len(stale_roots)} stale allowance(s)"
         print(f"check-plugin-root-interpreter: FAIL ({counts})", file=sys.stderr)
         return 1
 
