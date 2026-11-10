@@ -181,8 +181,21 @@ def test_full_path_allowance_beats_the_tree_stripped_key(
 def test_symlinked_copy_is_not_scanned_twice(tmp_path: Path) -> None:
     repo = make_repo(tmp_path, {"src/claude/hooks/a.py": f"x={SINGLE}\n"})
     (repo / ".claude").mkdir()
-    (repo / ".claude/a.py").symlink_to("../src/claude/hooks/a.py")
+    try:
+        (repo / ".claude/a.py").symlink_to("../src/claude/hooks/a.py")
+    except (OSError, NotImplementedError):
+        pytest.skip("this host cannot create symlinks")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    staged = subprocess.run(
+        ["git", "ls-files", "-s", ".claude/a.py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    ).stdout
+    if not staged.startswith("120000"):
+        pytest.skip("git did not record the link as a symlink on this host")
     assert len(checker.scan(repo)) == 1
 
 
@@ -263,6 +276,24 @@ def test_import_under_a_conditional_runs_at_import_time() -> None:
 
 def test_type_checking_import_never_runs() -> None:
     source = "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    import yaml\n"
+    assert _third_party(source) == []
+
+
+def test_negated_type_checking_import_runs_at_import_time() -> None:
+    source = "from typing import TYPE_CHECKING\nif not TYPE_CHECKING:\n    import yaml\n"
+    assert _third_party(source) == ["yaml"]
+
+
+def test_import_in_a_module_level_match_case_is_flagged() -> None:
+    source = "match 1:\n    case 1:\n        import yaml\n    case _:\n        import json\n"
+    assert _third_party(source) == ["yaml"]
+
+
+def test_guarded_import_in_a_match_case_is_clean() -> None:
+    source = (
+        "match 1:\n    case 1:\n        try:\n            import yaml\n"
+        "        except ImportError:\n            yaml = None\n"
+    )
     assert _third_party(source) == []
 
 

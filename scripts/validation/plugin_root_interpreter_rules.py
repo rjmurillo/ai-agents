@@ -138,6 +138,9 @@ def _import_time_imports(body: list[ast.stmt], guarded: bool) -> Iterator[tuple[
             yield from _import_time_imports(node.finalbody, guarded)
         elif isinstance(node, ast.If) and _is_type_checking(node.test):
             yield from _import_time_imports(node.orelse, guarded)
+        elif isinstance(node, ast.Match):
+            for case in node.cases:
+                yield from _import_time_imports(case.body, guarded)
         else:
             for field in ("body", "orelse", "finalbody"):
                 nested = getattr(node, field, None)
@@ -161,7 +164,7 @@ def unguarded_third_party_imports(
     ``is_repo_module`` says whether a name resolves to a tracked repository
     module. Standard library names and ``__future__`` never count.
 
-    Stricter/looser/different than ``check_doc_interpreter_portability``'s
+    Differs from ``check_doc_interpreter_portability``'s
     ``third_party_imports``: that function counts a guarded ``try``/``except
     ImportError`` import as a dependency, because it answers "can a bare
     interpreter run this exact script". This one reads a guarded import as

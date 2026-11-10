@@ -588,7 +588,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Fail when a plugin-root skill invocation uses anything but bare "
-            "python3, or names a target with non-stdlib imports (issue #5949)."
+            "python3 or names a target with non-stdlib imports (rules 1 to 3), "
+            "when a file names the Claude plugin-root variable without the Copilot "
+            "one (rule 4), or when a shipped skill or lib module imports a "
+            "third-party package at module level with no fallback (rule 5) "
+            "(issue #5949)."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=None, help="Repository root.")
