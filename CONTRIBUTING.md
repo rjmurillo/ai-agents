@@ -787,7 +787,7 @@ The repository enforces quality automatically at multiple stages:
 |-------|-----------|---------|
 | **Pre-commit hook** | Python linting (ruff), Markdown linting | Every commit |
 | **Pre-push hook** | Full pytest, drift detection, lint, security scans | Every push |
-| **CI pytest.yml** | pytest, pip-audit, bandit | Every PR/push |
+| **CI pytest.yml** | pytest, pip-audit, ruff security rules | Every PR/push |
 
 **No manual test runs required for routine development.** Quality gates run automatically.
 
@@ -901,7 +901,7 @@ uv run pytest --cov --cov-report=html       # With coverage
 
 # Security scanning (also runs in CI)
 uv run pip-audit                            # Dependency vulnerabilities
-uv run bandit -r .claude/ scripts/          # Static analysis
+uv run ruff check .                         # Lint, including the security rules that replaced bandit
 ```
 
 ### Agent Generation Tests

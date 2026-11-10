@@ -73,7 +73,7 @@ commit their dated update names.
 ## Prior art this inventory does not re-litigate
 
 Issue #2808 hardened four workflows against this same class:
-`audit-hook-bypass.yml`, `pytest.yml` (bandit step), `memory-validation.yml`,
+`audit-hook-bypass.yml`, `pytest.yml` (security step, formerly bandit), `memory-validation.yml`,
 and `drift-detection.yml`. Issue #5626 later deleted `memory-validation.yml`
 outright as fully redundant, so three of the four remain live. `tests/workflows/test_workflow_fail_open_guards.py`
 pins those contracts so the suppression cannot return without a test failing
@@ -332,7 +332,7 @@ so the suppression cannot return without a test failing first.
 | Path | What it was | What pins it now |
 |---|---|---|
 | `audit-hook-bypass.yml` detection step | `\|\| true` around the detector | the step classifies the exit code, fails on `>=2`, and treats missing JSON as a failure rather than `indicator_count=0`; the contract lives in `scripts/ci/run_hook_bypass_audit.py` per ADR-006 |
-| `pytest.yml` security job | bandit behind `\|\| true` | bandit gates on high severity and confidence with no `\|\| true`; a CodeQL `upload-sarif` step publishes findings with `if: always()` |
+| `pytest.yml` security job | bandit behind `\|\| true` | ruff security rules (bandit's replacement) gate with no `\|\| true`; a CodeQL `upload-sarif` step publishes findings with `if: always()` |
 | `memory-validation.yml` verify and parse steps | pipefail aborting before the exit code was captured, and a default-to-pass parse | nothing, and nothing needs to: issue #5626 deleted the workflow and `scripts/ci/parse_memory_validation_results.py` with it. The checks it ran are enforced by lefthook, the required `Validate PR` check, and `citation-verify.yml` |
 | `drift-detection.yml` JSON re-run | stderr and the exit code both swallowed | fails on exit `>=2`, since exit 1 is the expected drift path for that step |
 
