@@ -326,3 +326,46 @@ class TestNotFound:
             stderr="gh: Forbidden (HTTP 403)",
         )
         assert code == 3
+
+
+class TestDryRun:
+    @staticmethod
+    def _run(argv):
+        with (
+            patch("post_pr_comment_reply.assert_gh_authenticated"),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run") as run,
+        ):
+            rc = main(argv)
+        return rc, run
+
+    def test_top_level_comment_reports_endpoint_and_posts_nothing(self, capsys):
+        rc, run = self._run(["--pull-request", "5", "--body", "hello", "--dry-run"])
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["dryRun"] is True
+        assert output["action"] == "would_post"
+        assert output["endpoint"] == "repos/o/r/issues/5/comments"
+        assert output["body_chars"] == 5
+        run.assert_not_called()
+
+    def test_threaded_reply_reports_reply_endpoint(self, capsys):
+        rc, run = self._run(
+            ["--pull-request", "5", "--comment-id", "77", "--body", "hi", "--dry-run"]
+        )
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["endpoint"] == "repos/o/r/pulls/5/comments/77/replies"
+        assert output["in_reply_to"] == 77
+        run.assert_not_called()
+
+    def test_dry_run_still_rejects_an_empty_body(self):
+        with pytest.raises(SystemExit) as exc:
+            self._run(["--pull-request", "5", "--body", "", "--dry-run"])
+
+        assert exc.value.code == 2

@@ -115,6 +115,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Read the issue state, verify claims, and report what would "
+            "happen; close and comment nothing"
+        ),
+    )
+
     add_output_format_arg(parser)
     return parser
 
@@ -660,9 +669,12 @@ def main(argv: list[str] | None = None) -> int:
     if state == "closed":
         commented = False
         comment_already_present = False
+        would_comment = False
         if body and body.strip():
             comment_already_present = _comment_exists(owner, repo, issue, body, fmt)
-            if not comment_already_present:
+            if not comment_already_present and args.dry_run:
+                would_comment = True
+            elif not comment_already_present:
                 _post_comment(owner, repo, issue, body, fmt)
                 commented = True
         data = {
@@ -675,6 +687,9 @@ def main(argv: list[str] | None = None) -> int:
             "commentAlreadyPresent": comment_already_present,
             "action": "already_closed",
         }
+        if args.dry_run:
+            data["dryRun"] = True
+            data["wouldComment"] = would_comment
         write_skill_output(
             data,
             output_format=fmt,
@@ -694,6 +709,26 @@ def main(argv: list[str] | None = None) -> int:
         verification = verify_claims(claims, owner=owner, repo=repo)
         if verification.blocked:
             return _write_verification_error(claims, verification, issue, fmt)
+
+    if args.dry_run:
+        write_skill_output(
+            {
+                "issue": issue,
+                "owner": owner,
+                "repo": repo,
+                "state": state,
+                "reason": args.reason,
+                "commented": False,
+                "wouldComment": bool(body and body.strip()),
+                "dryRun": True,
+                "action": "would_close",
+            },
+            output_format=fmt,
+            human_summary=f"Dry run: would close issue #{issue}; nothing changed",
+            status="PASS",
+            script_name="close_issue.py",
+        )
+        return 0
 
     result = _close_issue(owner, repo, issue, args.reason)
     if result.returncode != 0:

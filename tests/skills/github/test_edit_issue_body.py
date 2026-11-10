@@ -179,3 +179,38 @@ class TestEditIssueBodyErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "42", "--body", "x"])
         assert exc.value.code == 3
+
+
+class TestEditIssueBodyDryRun:
+    def test_dry_run_reports_plan_and_makes_no_gh_call(self, mock_auth, capsys):
+        with patch.object(mod.subprocess, "run") as run:
+            rc = main(["--issue", "42", "--body", "new text", "--dry-run"])
+
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 0
+        assert data["dryRun"] is True
+        assert data["status"] == "would_update"
+        run.assert_not_called()
+
+    def test_dry_run_still_rejects_missing_body(self, mock_auth):
+        with patch.object(mod.subprocess, "run") as run:
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "42", "--dry-run"])
+
+        assert exc.value.code == 1
+        run.assert_not_called()
+
+    def test_dry_run_still_rejects_escaped_newline_body(self, mock_auth):
+        with patch.object(mod.subprocess, "run") as run:
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "42", "--body", "a\\nb\\nc\\nd", "--dry-run"])
+
+        assert exc.value.code == 2
+        run.assert_not_called()
+
+    def test_default_run_has_no_dry_run_key(self, mock_auth, capsys):
+        with patch.object(mod.subprocess, "run", return_value=_make_proc()):
+            rc = main(["--issue", "42", "--body", "new text"])
+
+        assert rc == 0
+        assert "dryRun" not in json.loads(capsys.readouterr().out)["Data"]

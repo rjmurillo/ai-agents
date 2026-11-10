@@ -145,7 +145,7 @@ class TestMain:
                 return_value=[],
             ),
         ):
-            rc = main(["--pull-request", "10"])
+            rc = main(["--pull-request", "10", "--all"])
         assert rc == 0
         stdout = capsys.readouterr().out
         json_start = stdout.rfind("{")
@@ -162,5 +162,93 @@ class TestMain:
                 side_effect=RuntimeError("API fail"),
             ),
         ):
-            rc = main(["--pull-request", "10"])
+            rc = main(["--pull-request", "10", "--all"])
+        assert rc == 3
+
+
+class TestScopeFlags:
+    """--pull-request alone must not unresolve every thread (closed input set)."""
+
+    def test_pull_request_without_all_exits_2_and_unresolves_nothing(self, capsys):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads") as lookup,
+            patch("unresolve_pr_review_thread.unresolve_review_thread") as mutate,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+        assert exc.value.code == 2
+        assert "needs --all" in capsys.readouterr().err
+        lookup.assert_not_called()
+        mutate.assert_not_called()
+
+    def test_all_with_thread_id_exits_2(self, capsys):
+        with patch("unresolve_pr_review_thread.assert_gh_authenticated"):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "PRRT_abc", "--all"])
+        assert exc.value.code == 2
+        assert "--pull-request" in capsys.readouterr().err
+
+
+class TestStreams:
+    def test_bulk_progress_goes_to_stderr_and_stdout_is_json_only(self, capsys):
+        thread = {"id": "PRRT_1", "comments": {"nodes": []}}
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads", return_value=[thread]),
+            patch("unresolve_pr_review_thread.unresolve_review_thread", return_value=True),
+        ):
+            rc = main(["--pull-request", "10", "--all"])
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert json.loads(captured.out)["Unresolved"] == 1
+        assert "Found 1 resolved thread" in captured.err
+        assert "Summary:" in captured.err
+
+
+class TestDryRun:
+    def test_single_thread_reports_plan_and_does_not_mutate(self, capsys):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.unresolve_review_thread") as mutate,
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--dry-run"])
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["Action"] == "would_unresolve"
+        assert output["DryRun"] is True
+        mutate.assert_not_called()
+
+    def test_bulk_lists_thread_ids_and_does_not_mutate(self, capsys):
+        threads = [
+            {"id": "PRRT_1", "comments": {"nodes": []}},
+            {"id": "PRRT_2", "comments": {"nodes": []}},
+        ]
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads", return_value=threads),
+            patch("unresolve_pr_review_thread.unresolve_review_thread") as mutate,
+        ):
+            rc = main(["--pull-request", "10", "--all", "--dry-run"])
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["ThreadIds"] == ["PRRT_1", "PRRT_2"]
+        assert output["TotalResolved"] == 2
+        mutate.assert_not_called()
+
+    def test_dry_run_still_rejects_a_malformed_thread_id(self):
+        with patch("unresolve_pr_review_thread.assert_gh_authenticated"):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "INVALID", "--dry-run"])
+        assert exc.value.code == 2
+
+    def test_dry_run_still_propagates_lookup_failure(self):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch(
+                "unresolve_pr_review_thread.get_resolved_threads",
+                side_effect=RuntimeError("API fail"),
+            ),
+        ):
+            rc = main(["--pull-request", "10", "--all", "--dry-run"])
         assert rc == 3

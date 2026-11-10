@@ -61,6 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="File containing comment body",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the PR state and report what would happen; comment and close nothing",
+    )
     return parser
 
 
@@ -106,6 +111,19 @@ def main(argv: list[str] | None = None) -> int:
             "state": state,
             "action": "none",
             "message": f"PR already {state.lower()}",
+        }
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if args.dry_run:
+        result = {
+            "success": True,
+            "number": pr,
+            "state": state,
+            "action": "would_close",
+            "dryRun": True,
+            "wouldComment": bool(comment),
+            "message": "Dry run: PR not closed",
         }
         print(json.dumps(result, indent=2))
         return 0

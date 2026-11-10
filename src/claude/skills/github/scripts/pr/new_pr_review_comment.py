@@ -120,6 +120,11 @@ def build_parser() -> argparse.ArgumentParser:
     body_group = parser.add_mutually_exclusive_group(required=True)
     body_group.add_argument("--body", help="Comment text (inline)")
     body_group.add_argument("--body-file", help="Path to file containing the comment")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Read the PR head commit and report the comment that would be posted; post nothing",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -253,6 +258,27 @@ def _post_comment(
     return response
 
 
+def _write_dry_run(args: argparse.Namespace, head_sha: str, fmt: str) -> int:
+    write_skill_output(
+        {
+            "action": "would_post",
+            "dryRun": True,
+            "pull_request": args.pull_request,
+            "path": args.path,
+            "line": args.line,
+            "side": args.side,
+            "commit_id": head_sha,
+        },
+        output_format=fmt,
+        human_summary=(
+            f"Dry run: would comment on #{args.pull_request} at {args.path}:{args.line}; "
+            "nothing posted"
+        ),
+        script_name=_SCRIPT_NAME,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -265,6 +291,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         head_sha = _get_head_sha(owner, repo, args.pull_request)
+        if args.dry_run:
+            return _write_dry_run(args, head_sha, fmt)
         response = _post_comment(owner, repo, args, body, head_sha)
     except CommentApiError as failure:
         write_skill_error(

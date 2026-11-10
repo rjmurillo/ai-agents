@@ -366,3 +366,67 @@ def test_conflict_checked_before_priority_discard(mock_run):
         )
 
     assert exc.value.code == 1
+
+
+def _write_calls(mock_run) -> list[list[str]]:
+    """Commands that create a label, edit the issue, or call a non-GET API."""
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    return [c for c in calls if c[:3] in (["gh", "label", "create"], ["gh", "issue", "edit"])]
+
+
+@patch("subprocess.run")
+def test_dry_run_plans_create_apply_and_remove_without_writes(mock_run, capsys):
+    mock_run.side_effect = [
+        *_PRE,
+        _view("old"),  # strict label fetch for --remove-labels
+        _completed(rc=0),  # bug exists
+        _completed(rc=1),  # new-label missing
+    ]
+
+    rc = main(
+        ["--issue", "7", "--labels", "bug,new-label", "--remove-labels", "old,gone", "--dry-run"]
+    )
+
+    data = json.loads(capsys.readouterr().out)["Data"]
+    assert rc == 0
+    assert data["dryRun"] is True
+    assert data["action"] == "would_set_labels"
+    assert data["wouldApply"] == ["bug", "new-label"]
+    assert data["wouldCreate"] == ["new-label"]
+    assert data["wouldRemove"] == ["old"]
+    assert data["absent"] == ["gone"]
+    assert _write_calls(mock_run) == []
+
+
+@patch("subprocess.run")
+def test_dry_run_with_no_create_missing_skips_absent_labels(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _completed(rc=1)]
+
+    rc = main(["--issue", "7", "--labels", "ghost", "--no-create-missing", "--dry-run"])
+
+    data = json.loads(capsys.readouterr().out)["Data"]
+    assert rc == 0
+    assert data["skippedMissing"] == ["ghost"]
+    assert data["wouldCreate"] == []
+    assert _write_calls(mock_run) == []
+
+
+@patch("subprocess.run")
+def test_dry_run_flags_priority_reconciliation(mock_run, capsys):
+    mock_run.side_effect = [*_PRE, _completed(rc=0)]
+
+    rc = main(["--issue", "7", "--priority", "P1", "--dry-run"])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["Data"]["reconcilesPriority"] is True
+
+
+@patch("subprocess.run")
+def test_dry_run_still_rejects_add_and_remove_conflict(mock_run, capsys):
+    mock_run.side_effect = [*_PRE]
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "7", "--labels", "bug", "--remove-labels", "bug", "--dry-run"])
+
+    assert exc.value.code == 1
+    assert _write_calls(mock_run) == []

@@ -376,3 +376,53 @@ class TestMain:
         ):
             rc = main(["--pull-request", "42", "--enable"])
         assert rc == 0
+
+
+class TestDryRun:
+    @staticmethod
+    def _run(argv, auto_merge_request):
+        pr = {"id": "PR_1", "number": 7, "state": "OPEN", "autoMergeRequest": auto_merge_request}
+        query_reply = {"repository": {"pullRequest": pr}}
+        with (
+            patch("set_pr_auto_merge.assert_gh_authenticated"),
+            patch(
+                "set_pr_auto_merge.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("set_pr_auto_merge.gh_graphql", return_value=query_reply) as graphql,
+        ):
+            rc = main(argv)
+        return rc, graphql
+
+    def test_enable_reports_would_enable_and_runs_only_the_read_query(self, capsys):
+        rc, graphql = self._run(["--pull-request", "7", "--enable", "--dry-run"], None)
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["Action"] == "WouldEnable"
+        assert output["DryRun"] is True
+        assert graphql.call_count == 1
+        assert "mutation" not in graphql.call_args.args[0]
+
+    def test_disable_of_enabled_auto_merge_reports_would_disable(self, capsys):
+        rc, graphql = self._run(
+            ["--pull-request", "7", "--disable", "--dry-run"], {"enabledAt": "2026-01-01"}
+        )
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["Action"] == "WouldDisable"
+        assert output["AutoMergeEnabled"] is True
+        assert graphql.call_count == 1
+
+    def test_disable_when_already_disabled_reports_no_change(self, capsys):
+        rc, _ = self._run(["--pull-request", "7", "--disable", "--dry-run"], None)
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["Action"] == "NoChange"
+
+    def test_dry_run_still_requires_enable_or_disable(self):
+        with pytest.raises(SystemExit) as exc:
+            build_parser().parse_args(["--pull-request", "7", "--dry-run"])
+
+        assert exc.value.code == 2

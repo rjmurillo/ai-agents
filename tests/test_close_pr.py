@@ -422,3 +422,67 @@ def test_failed_pr_view_exit_code(stdout, stderr, code):
             main(["--pull-request", "999999"])
     assert exc.value.code == code
     assert all(call.args[0][:3] != ["gh", "pr", "close"] for call in run.call_args_list)
+
+
+def _run_dry(argv, responses):
+    with (
+        patch("close_pr.assert_gh_authenticated"),
+        patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+        patch("subprocess.run", side_effect=responses) as run,
+    ):
+        rc = main(argv)
+    return rc, run
+
+
+class TestDryRun:
+    def test_open_pr_reports_would_close_and_makes_no_write_call(self, capsys):
+        rc, run = _run_dry(
+            ["--pull-request", "5", "--comment", "superseded", "--dry-run"],
+            [_completed(stdout=json.dumps({"state": "OPEN"}))],
+        )
+
+        data = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert data["action"] == "would_close"
+        assert data["dryRun"] is True
+        assert data["wouldComment"] is True
+        assert run.call_count == 1
+
+    def test_closed_pr_is_still_a_noop(self, capsys):
+        rc, run = _run_dry(
+            ["--pull-request", "5", "--dry-run"],
+            [_completed(stdout=json.dumps({"state": "CLOSED"}))],
+        )
+
+        data = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert data["action"] == "none"
+        assert "dryRun" not in data
+        assert run.call_count == 1
+
+    def test_dry_run_without_comment_never_would_comment(self, capsys):
+        rc, _ = _run_dry(
+            ["--pull-request", "5", "--dry-run"],
+            [_completed(stdout=json.dumps({"state": "OPEN"}))],
+        )
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["wouldComment"] is False
+
+    def test_dry_run_still_fails_when_the_pr_is_missing(self):
+        with pytest.raises(SystemExit) as exc:
+            _run_dry(
+                ["--pull-request", "5", "--dry-run"],
+                [_completed(rc=1, stderr="Could not resolve to a PullRequest")],
+            )
+
+        assert exc.value.code == 2
+
+    def test_default_run_has_no_dry_run_key(self, capsys):
+        rc, _ = _run_dry(
+            ["--pull-request", "5"],
+            [_completed(stdout=json.dumps({"state": "OPEN"})), _completed()],
+        )
+
+        assert rc == 0
+        assert "dryRun" not in json.loads(capsys.readouterr().out)
