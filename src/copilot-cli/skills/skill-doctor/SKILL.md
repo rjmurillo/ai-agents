@@ -228,7 +228,7 @@ Write every scored result to `$REPORT_DIR/scores.json`, then compute the aggrega
 
 ```json
 {"sessions": [{"session_id": "", "harness": "", "skills_detected": true, "terminated_by": null,
-  "scores": {"efficiency": {"label": "", "score": 0.0, "reason": "", "evidence_ref": ""},
+  "scores": {"efficiency": {"label": "", "score": 0.0, "reason": "", "evidence_ref": "", "pre_cutoff": true},
              "code_quality": {}, "procedure_compliance": {}, "verbosity": {}}}]}
 ```
 
@@ -237,6 +237,7 @@ python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$
 ```
 
 It exits 1 and writes nothing when a label does not match its rubric value, a reason is missing, or a session id repeats. Fix the scores and rerun.
+When `terminated_by` is set, give every result an explicit `pre_cutoff`: `true` when the score rests on evidence from before the provider cutoff, `false` when it judges only the cut-off ending. A missing `pre_cutoff` on a terminated session counts as `false`, so that session leaves `failed_conversations`.
 Copy each `dimensions.<name>.score` and `overall` from `score_artifact.json` into `report.json`; use its `failed_conversations` and `per_harness` values. The formulas below define what the script computes:
 
 - `raw_efficiency` = mean of efficiency scores across all scored sessions.

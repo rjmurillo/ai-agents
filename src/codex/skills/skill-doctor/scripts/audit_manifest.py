@@ -210,6 +210,19 @@ def _scope_report(inventory: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _identity_roots(inventory: dict[str, Any]) -> tuple[list[Path], str]:
+    """Roots whose identity and skills the manifest describes, and where they came from.
+
+    A project run reads its declared scope. An all-conversations run has no
+    declared scope, so it describes the repositories inferred from session
+    working directories; those roots never authorize anything.
+    """
+    if inventory["conversation_scope"] == "all":
+        return [Path(repo) for repo in inventory.get("repos", [])], "inferred_from_session_cwds"
+    included = inventory["scope_resolution"]["included"]
+    return [Path(root["path"]) for root in included], "declared_scope"
+
+
 def _fingerprint(manifest: dict[str, Any]) -> str:
     stable = {
         key: value
@@ -229,7 +242,7 @@ def build_manifest(
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     """Build the manifest from an inventory dict and the run's declared inputs."""
-    included = [Path(root["path"]) for root in inventory["scope_resolution"]["included"]]
+    roots, basis = _identity_roots(inventory)
     manifest: dict[str, Any] = {
         "manifest_version": MANIFEST_VERSION,
         "generated_at": generated_at or datetime.now(timezone.utc).isoformat(),
@@ -245,10 +258,11 @@ def build_manifest(
         "evidence_caps": {key: run_inputs.get(key) for key in _CAP_KEYS},
         "branch_policy": {"branch_filter": inventory["scope_resolution"]["branch_filter"]},
         "source_revision": source_revision(scripts_dir),
-        "upstream_identity": [_identity_for(root) for root in included],
+        "identity_basis": basis,
+        "upstream_identity": [_identity_for(root) for root in roots],
         "upstream_claims": [dict(claim) for claim in upstream_claims or []],
         "scope_resolution": _scope_report(inventory),
-        "catalog": _catalog(inventory.get("skills", []), included),
+        "catalog": _catalog(inventory.get("skills", []), roots),
         "attribution": _attribution(inventory.get("sessions", [])),
     }
     manifest["fingerprint"] = _fingerprint(manifest)
@@ -324,6 +338,22 @@ def _group_by_common_dir(manifest: dict[str, Any]) -> dict[str, list[dict[str, A
 
 
 def _check_authorization(manifest: dict[str, Any]) -> list[str]:
+    """Every described root must trace to an explicit selection.
+
+    An all-conversations run declares no project scope; its inferred roots
+    describe what sessions touched and authorize nothing, so only the basis
+    itself is checked.
+    """
+    basis = manifest.get("identity_basis", "declared_scope")
+    all_conversations = manifest["declared_inputs"].get("conversation_scope") == "all"
+    if basis == "inferred_from_session_cwds":
+        if all_conversations:
+            return []
+        return ["identity_basis inferred_from_session_cwds requires conversation_scope all"]
+    return _check_declared_authorization(manifest)
+
+
+def _check_declared_authorization(manifest: dict[str, Any]) -> list[str]:
     declared = set(manifest["declared_inputs"]["repos"])
     selected = {
         root["path"]

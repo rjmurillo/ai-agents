@@ -412,3 +412,38 @@ def test_source_revision_is_stable_and_tracks_file_content(tmp_path):
     assert first["files"] == 2
     (scripts / "a.py").write_text("changed", encoding="utf-8")
     assert am.source_revision(scripts)["sha256"] != first["sha256"]
+
+
+def test_all_conversations_manifest_describes_inferred_repos(family):
+    main = family["main"]
+    write_skill(main, "deploy", "Body")
+    skills = discover_skills([main], family["tmp"] / "codex", [], False)
+    inventory = {
+        **inventory_for([], skills),
+        "conversation_scope": "all",
+        "repos": [str(main)],
+    }
+
+    manifest = am.build_manifest(inventory, {**RUN_INPUTS, "explicit_repos": []})
+
+    assert manifest["identity_basis"] == "inferred_from_session_cwds"
+    assert [row["path"] for row in manifest["upstream_identity"]] == [str(main)]
+    assert manifest["upstream_identity"][0]["origin_url"]
+    assert {entry["scope"] for entry in manifest["catalog"]} == {"repository"}
+    assert manifest["scope_resolution"]["included"] == []
+    assert am.validate_manifest(manifest) == []
+
+
+def test_project_manifest_describes_its_declared_scope(family):
+    manifest = manifest_for([family["main"]], explicit=[family["main"]])
+
+    assert manifest["identity_basis"] == "declared_scope"
+
+
+def test_inferred_basis_on_a_project_run_is_rejected(family):
+    manifest = manifest_for([family["main"]], explicit=[family["main"]])
+    manifest["identity_basis"] = "inferred_from_session_cwds"
+
+    errors = am.validate_manifest(restamp(manifest))
+
+    assert any("requires conversation_scope all" in e for e in errors)
