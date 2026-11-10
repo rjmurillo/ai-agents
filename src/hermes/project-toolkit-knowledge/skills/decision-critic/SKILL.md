@@ -105,7 +105,7 @@ After execution:
 - [Survivorship Bias](references/critical-thinking-survivorship-bias.md) - Avoid drawing conclusions from winners while ignoring failures
 - [Systems Thinking](references/strategic-thinking-systems-thinking.md) - Trace second-order effects and feedback loops in decisions
 - [Rewrite-Regression Check](references/rewrite-regression-check.md) - Halt criterion for "v0 was faster, v1 is worse" rewrites
-- Plan critique for the `critic` agent, not used by this workflow: [Personas](references/plan-critique-personas.md), [Brandolini burden allocation](references/plan-critique-brandolini.md), [PR readiness](references/plan-critique-pr-readiness.md)
+- Plan critique for the `critic` agent, not used by this workflow: [Personas](references/plan-critique-personas.md), [Brandolini burden allocation](references/plan-critique-brandolini.md)
 
 ## Academic Grounding
 

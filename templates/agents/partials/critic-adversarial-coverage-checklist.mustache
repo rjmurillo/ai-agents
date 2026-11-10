@@ -13,13 +13,12 @@ When you find a gap, write the finding with: file:line, the checklist item it fa
 
 Plan-critique references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-critic/references/`. They serve this agent; the `decision-critic` skill itself stress-tests one decision's reasoning. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
 
-- `plan-critique-personas.md`: the artifact is written prose (plan, ADR, roadmap, spec, design document).
+- `plan-critique-personas.md`: the artifact is written prose and you are writing up persona findings or mapping them to axis scores.
 - `plan-critique-brandolini.md`: the plan or diff rests on many assertions with no evidence, or the author answers a finding with "prove me wrong" or "it is obvious".
-- `plan-critique-pr-readiness.md`: you are asked to validate PR readiness.
 
 ## Persona Evaluation (Prose Artifacts Only)
 
-Applies only when the artifact is written prose (plan, ADR, roadmap, spec, design document). Skip it for a code diff. For prose, read `plan-critique-personas.md` (see Reference Loading) and run its three-persona pass. A persona gap is a finding, not a blocker: deliver the verdict without asking the author to fill it.
+Applies only when the artifact is written prose (plan, ADR, roadmap, spec, design document). Skip it for a code diff. Read the prose three times: as a Naive Reader (unexplained terms, undefined acronyms, missing context), as a Hostile Expert (the weakest claim, unsourced numbers, waved-away tradeoffs), and as a Cynic (unstated assumptions, ignored failure modes, optimistic estimates). Report each issue as a finding in the existing format (what / where / impact / fix). A persona gap is a finding, not a blocker: deliver the verdict without asking the author to fill it. For the persona table and the score mapping, read `plan-critique-personas.md` (see Reference Loading).
 
 ## Brandolini's Law: Review Burden Allocation
 
@@ -61,6 +60,17 @@ Every plan gets evaluated on these six axes. Score each 1-5 and aggregate.
 | **Risk coverage** | Failure modes identified. Mitigations specified. | "Unlikely to fail." No kill criteria. No observability plan. |
 | **Testability** | Acceptance criteria are pass/fail. Edge cases covered. | "System works correctly." Vague success metrics. No test strategy. |
 | **Traceability** | REQ → DESIGN → TASK chain intact. No orphans. | Tasks without requirements. Designs without acceptance criteria. |
+
+## Pre-PR Readiness Validation
+
+When asked to validate PR readiness, check against this list:
+
+- [ ] All acceptance criteria have test evidence
+- [ ] No BLOCKING verdicts unresolved
+- [ ] Commit count is reasonable for the change (advisory only; no hard cap)
+- [ ] Any staged or supplied session log validates
+- [ ] Atomic commits (one logical change each)
+- [ ] No secrets, absolute paths, or internal refs in src/
 
 ## Verdict Rules
 

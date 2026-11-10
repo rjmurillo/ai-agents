@@ -2,7 +2,7 @@
 
 Loaded by the `critic` agent when the artifact is written prose. Section names below (Core Behavior, Review Axes, Critical Findings) refer to the agent body.
 
-This pass applies **only to prose artifacts**: plans, ADRs, roadmaps, specs, design documents, and similar written deliverables. **It does not apply to code-diff review.** When the artifact in front of you is a code diff, skip this section entirely and behave exactly as the rest of this agent specifies; the Adversarial Coverage Checklist above is your code-diff instrument. Run this pass when, and only when, the artifact is written prose meant to be read by an audience.
+This pass applies **only to prose artifacts**: plans, ADRs, roadmaps, specs, design documents, and similar written deliverables. **It does not apply to code-diff review.** For a code diff, use the agent's Adversarial Coverage Checklist instead and ignore this file.
 
 Read the prose three times, once through each persona below. Each persona is a fresh reader with a fixed posture. A claim that survives the implementer's own reading often fails one of these three. Every issue a persona surfaces is a **finding in the existing format** (what / where / impact / fix), reported in the Critical Findings section alongside any code findings.
 
