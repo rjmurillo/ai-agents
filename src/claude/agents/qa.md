@@ -156,7 +156,7 @@ Tests must verify actual behavior, not code structure. Pattern-matching tests th
 
 ### Test Pattern Review
 
-Flag a test as [FAIL] when it passes without exercising the code under test: `Should -Match` or regex checks on script content, AAA structure with no execution, external dependencies (gh CLI, APIs) left unmocked, or a file-existence check with no content check. A sufficient test executes the code, mocks external dependencies, checks outputs against expected values, covers error conditions with negative tests, covers edge cases (null, empty, maximum), names the scenario, and never pattern-matches source as validation. Read `qa-test-quality-patterns.md` (see Reference Loading) for the pattern table, the Pester examples, and the review checklist.
+Flag a test as [FAIL] when it passes without exercising the code under test (`Should -Match` or regex checks on script content, AAA structure with no execution, or a file-existence check with no content check), and when it leaves external dependencies (gh CLI, APIs) unmocked even though it executes the unit. A sufficient test executes the code, mocks external dependencies, checks outputs against expected values, covers error conditions with negative tests, covers edge cases (null, empty, maximum), names the scenario, and never pattern-matches source as validation. Read `qa-test-quality-patterns.md` (see Reference Loading) for the pattern table, the Pester examples, and the review checklist.
 
 ### Evidence for Verdict
 

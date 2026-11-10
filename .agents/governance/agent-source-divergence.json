@@ -177,7 +177,7 @@
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Pre-PR Quality Gate (MANDATORY)", "digest": "46378b83223a8b6449f3480994760d9a7d6c556c438767ad084872d432a4d2c1"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Style Guide Compliance", "digest": "72bb8986be3dc4042afa8d13776b90092e5f4729d0972b8efb4a62adc637c898"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Test Commands", "digest": "18a3dc62e7d11835a98abc299fd24857a1bad874951e69a593e226282f265a2c"},
-    {"agent": "qa", "pair": "claude-shared", "unit": "section:Test Quality Criteria", "digest": "e34e4c38779fcb32fa36471ddfa2dd465496731d9d900112f2f88c8de49db074"},
+    {"agent": "qa", "pair": "claude-shared", "unit": "section:Test Quality Criteria", "digest": "681082b2d63ac4c07989e2e93b4a4cd460e3bae90c492159f6911fd6425e26a9"},
     {"agent": "quality-auditor", "pair": "claude-shared", "unit": "capability:builtin", "digest": "b6d0e3c7db0e35dc146cdf2292c1000ca1dabeb1864dbd1887b98ca0e3a4e9d0"},
     {"agent": "quality-auditor", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "quality-auditor", "pair": "claude-shared", "unit": "capability:mcp:cloudmcp-manager", "digest": "587bae728805519c3542d21766295396bd01087b6c47765ae3cadbf679813bbe"},
