@@ -61,7 +61,7 @@ AGENT_TREE = Path("src/claude/agents")
 
 # Agents that route work to other agents. Adding a name here is a topology
 # decision: update the rule in templates/rules/claude-agents.md in the same PR.
-DELEGATORS = frozenset({"orchestrator", "pr-comment-responder"})
+DELEGATORS = frozenset({"orchestrator"})
 
 _DELEGATION_TOOL = re.compile(r"^(Agent|Task)(\(.*\))?$")
 _DENIAL = re.compile(r"\byou\s+cannot\s+delegate\b", re.IGNORECASE)

@@ -1,3 +1,0 @@
-#### Security Keyword Detection
-
-Scan each comment body, case-insensitive, for these patterns: `CWE-\d+`, vulnerability, injection, XSS, SQL, CSRF, auth (also matches authentication and authorization), `secrets?`, `credentials?`, TOCTOU, symlink, traversal, and the stems `sanitiz` and `escap` (they match sanitize, sanitization, escape, escaping). A match makes the comment security-domain. Read `references/templates.md` (Security Domain Priority) for the full pattern list.

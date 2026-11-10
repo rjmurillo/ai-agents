@@ -195,6 +195,10 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 ```
 
+Then run the Phase 1 Recording fence in [gates.md](gates.md). It writes `total_comments.txt` and `comment_ids.txt`, the two artifacts every gate reads. Skip it and the gates block.
+
+Drop comments on code that no longer exists. Add `--detect-stale --exclude-stale` to the same command. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). Use `--detect-stale --only-stale` during PR cleanup to find stale threads to resolve, and to spot bots that reviewed an outdated commit. A stale comment still needs a terminal status in the comment map; record it through Gate 3.
+
 ### Step 1.4: Confirm the PR is still actionable
 
 Run the PR-level gate before using cached review data:
@@ -236,6 +240,8 @@ fi
 ### Step 2.2: Generate Comment Map
 
 Save to: `.project-toolkit/pr-comments/PR-[number]/comments.md`
+
+Render it from the Comment Map Template in [gates.md](gates.md). The gates parse that shape.
 
 Each comment gets:
 
@@ -329,6 +335,8 @@ Priority groups:
 
 ## Phase 4.5: Copilot Follow-Up Handling
 
+**BLOCKING**: finish this phase before Phase 5 begins. If no follow-up PR exists, go straight to Phase 5. Read [bots.md](bots.md) (Copilot Follow-Up Handling Detail) first, because the query and its empty-result exit are there.
+
 Detect Copilot follow-up PRs:
 
 - Branch: `copilot/sub-pr-{original_pr_number}`
@@ -356,6 +364,20 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
   --pull-request [number] --thread-id [thread-id] --body "[response]"
 ```
+
+### Step 5.1: Record Terminal Outcomes Decided Here
+
+A Won't Fix, a Duplicate, and a Deferred are terminal, and none of them reaches
+Phase 6. Their comments never pass through Step 6.5, so record them now: run
+Gate 3 ([gates.md](gates.md)) for each with the matching `TERMINAL_STATUS`
+(`[WONTFIX]`, `[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`). Gate 3 writes both
+`tasks.md` and that comment's `**Status**:` line in `comments.md`.
+
+Skipping this leaves a decided comment pending in the comment map, and Phase 8
+blocks on it exactly as it would on an unworked one.
+
+A Question or a Clarification is not terminal. Leave its status alone until the
+reviewer answers.
 
 ## Phase 6: Implementation
 
@@ -387,6 +409,20 @@ its generated status stays pending and blocks Phase 8 on finished work.
 
 Phase 5 outcomes never reach this phase. Record a Won't Fix, a Duplicate, or a
 Deferred through Gate 3 when you decide it, not here.
+
+### Step 6.5: Record the Terminal Status
+
+Run Gate 3 with `TERMINAL_STATUS="[COMPLETE]"`. It marks the task in `tasks.md`
+and writes that comment's `**Status**:` line in `comments.md` in the same step.
+
+Marking only the task list is the failure this step exists to prevent. The
+comment map is the artifact Gate 4, Gate 5, and Phase 8.1 count, so a fix that
+is committed and pushed while the map still reads its starting status stays
+pending forever.
+
+A comment that is genuinely still open, waiting on a reviewer reply or carrying
+`Action: Clarify`, keeps its non-terminal status. Phase 8 blocking on that one
+is the gate working; do not route around it by writing a terminal status.
 
 ## Phase 7: PR Description Update
 

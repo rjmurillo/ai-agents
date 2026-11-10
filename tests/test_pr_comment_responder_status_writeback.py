@@ -41,7 +41,6 @@ from tests.test_pr_comment_responder_status_greps import (
     CARRIER_PATHS,
     REPO_ROOT,
     TERMINAL_PATTERN,
-    VOCABULARY_CARRIERS,
     _bash_fences,
     _carrier_id,
     _derivation_script,
@@ -53,12 +52,13 @@ from tests.test_pr_comment_responder_status_greps import (
     requires_grep,
 )
 
-TEMPLATE = REPO_ROOT / "templates/agents/pr-comment-responder.shared.md"
+TEMPLATE = REPO_ROOT / "src/claude/skills/pr-comment-responder/references/gates.md"
 
 # The condensed workflow reference and its generated plugin copy. They restate
 # the post-implementation checklist in prose, so they carry the same defect in
 # shorter form and must name the comment map too.
 WORKFLOW_CARRIERS: tuple[Path, ...] = (
+    REPO_ROOT / "src/claude/skills/pr-comment-responder/references/workflow.md",
     REPO_ROOT / ".claude/skills/pr-comment-responder/references/workflow.md",
     REPO_ROOT / "src/copilot-cli/skills/pr-comment-responder/references/workflow.md",
 )
@@ -66,7 +66,7 @@ WORKFLOW_CARRIERS: tuple[Path, ...] = (
 GATE_THREE_HEADING_KEY = "Gate 3"
 
 # The steps Gate 3 must publish, quoted verbatim from
-# templates/agents/pr-comment-responder.shared.md. The comment-map write is the
+# src/claude/skills/pr-comment-responder/references/gates.md. The comment-map write is the
 # one this suite exists for: without it the task list moves and the artifact
 # every later gate counts does not.
 COMMENT_ID_GUARD = 'case "$COMMENT_ID" in'
@@ -158,7 +158,7 @@ def _task_row(comment_id: str) -> list[str]:
     """One task entry in the shape Phase 6 renders.
 
     Quoted from the ``Implementation Tasks (Phase 6)`` template in
-    ``templates/agents/pr-comment-responder.shared.md``::
+    ``src/claude/skills/pr-comment-responder/references/workflow.md``::
 
         - [ ] **TASK-[id]**: [description]
           - Comment: [comment_id] by @[author]
@@ -630,7 +630,7 @@ def test_every_carrier_publishes_the_gate_three_writeback(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
+@pytest.mark.parametrize("path", WORKFLOW_CARRIERS, ids=_carrier_id)
 def test_step_six_five_names_the_comment_map(path: Path) -> None:
     """Step 6.5 must not tell the reader to update the task list alone.
 
@@ -638,11 +638,11 @@ def test_step_six_five_names_the_comment_map(path: Path) -> None:
     literally is what left ``comments.md`` at its starting status.
     """
     text = path.read_text(encoding="utf-8")
-    heading = "#### Step 6.5:"
+    heading = "### Step 6.5:"
     assert heading in text, f"{_carrier_id(path)} publishes no Step 6.5"
 
     start = text.index(heading)
-    end = text.find("\n### ", start)
+    end = text.find("\n## ", start)
     section = text[start : len(text) if end == -1 else end]
 
     assert "comments.md" in section, (
@@ -655,7 +655,7 @@ def test_step_six_five_names_the_comment_map(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("path", VOCABULARY_CARRIERS, ids=_carrier_id)
+@pytest.mark.parametrize("path", WORKFLOW_CARRIERS, ids=_carrier_id)
 def test_phase_five_records_its_terminal_outcomes(path: Path) -> None:
     """Won't Fix and Duplicate never reach Phase 6, so Phase 5 must record them.
 
@@ -664,11 +664,11 @@ def test_phase_five_records_its_terminal_outcomes(path: Path) -> None:
     pending and block Phase 8 exactly like an unworked comment.
     """
     text = path.read_text(encoding="utf-8")
-    heading = "### Phase 5: Immediate Replies"
+    heading = "## Phase 5: Immediate Replies"
     assert heading in text, f"{_carrier_id(path)} publishes no Phase 5"
 
     start = text.index(heading)
-    end = text.index("### Phase 6", start)
+    end = text.index("## Phase 6", start)
     section = text[start:end]
 
     assert "comments.md" in section, (
@@ -686,7 +686,7 @@ def test_workflow_reference_names_both_artifacts(path: Path) -> None:
     """The condensed workflow restates the checklist, so it carries the defect.
 
     Its Phase 6 read ``4. Update task list``. A reader who follows the short
-    form instead of the agent prompt hits the same block. The assertion is
+    form instead of the gate reference hits the same block. The assertion is
     scoped to that section: ``comments.md`` appears elsewhere in the file for
     unrelated reasons, so a file-wide search would pass without the fix.
     """

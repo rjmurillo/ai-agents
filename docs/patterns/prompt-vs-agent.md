@@ -9,8 +9,8 @@ This repository uses two distinct file types to define AI behaviors: `.agent.md`
 | Purpose | Defines a runnable agent | Defines a VS Code slash command | Source template for agent generation |
 | Frontmatter | `name:`, `tools:`, `model:` | `description:`, `tools:`, `model:` | `description:`, `tools_vscode:`, `tools_copilot:` |
 | Model format | `claude-opus-4.5` (SDK) | `Claude Opus 4.5 (anthropic)` (display) | Omitted (injected by generator) |
-| Invocation | Called by other agents via `agent` tool | Called by user as slash command (e.g., `/pr-comment-responder 70`) | Not invoked directly |
-| Locations | `.github/agents/`, `src/copilot-cli/`, `src/vs-code-agents/` | `.github/prompts/`, `.github/agents/` | `templates/agents/` |
+| Invocation | Called by other agents via `agent` tool | Called by user as slash command (e.g., `/pr-quality:all`) | Not invoked directly |
+| Locations | `.github/agents/`, `src/copilot-cli/`, `src/vs-code-agents/` | `.github/prompts/` | `templates/agents/` |
 | Can delegate | Yes, to other agents | Yes, via `agent` tool | N/A |
 
 ## Why Both Types Exist
@@ -38,43 +38,7 @@ flowchart TD
 
 ## Concrete Example: PR Comment Responder
 
-The `pr-comment-responder` agent exists in all three forms.
-
-**Slash command** (`.github/agents/pr-comment-responder.prompt.md`):
-
-```yaml
----
-description: PR review coordinator who gathers comment context...
-argument-hint: Specify the PR number or review comments to address
-tools:
-  - vscode
-  - execute
-  - read
-  - edit
-  - agent
-model: Claude Opus 4.5 (anthropic)
----
-```
-
-The user runs `/pr-comment-responder 70`. The slash command gathers PR metadata and comment context. It then delegates to the orchestrator agent for analysis and implementation.
-
-**Agent** (`.github/agents/pr-comment-responder.agent.md`):
-
-```yaml
----
-name: pr-comment-responder
-description: PR review coordinator who gathers comment context...
-argument-hint: Specify the PR number or review comments to address
-tools:
-  - shell
-  - read
-  - edit
-  - agent
-model: claude-opus-4.5
----
-```
-
-This agent is callable by other agents. The orchestrator can route work to it. It uses `shell` instead of `vscode`/`execute` because it runs in CLI context.
+`pr-comment-responder` once existed as an agent, a `.prompt.md` slash command, and a shared template. It is now a skill (`src/claude/skills/pr-comment-responder/`). ADR-064 makes skills the single user-invocable surface, so the skill replaces the slash command, and the orchestrator delegates to it as a skill. Use a skill, not a new `.prompt.md` pair, for a user-invocable workflow that owns its own references and scripts.
 
 ## Generation Pipeline
 
@@ -121,14 +85,14 @@ Toolset references (`$toolset:editor`) are expanded from `templates/toolsets.yam
 
 These define standalone VS Code slash commands. They do not use the `agent` tool. For example, `.github/prompts/pr-quality.all.prompt.md` runs as `/pr-quality:all` and executes six review agents sequentially against your working directory.
 
-The `.github/agents/` directory contains both `.agent.md` and `.prompt.md` files. The `.agent.md` files are primary agent definitions for GitHub Copilot CLI. The `.prompt.md` file (`pr-comment-responder.prompt.md`) provides the slash command entry point for orchestration.
+The `.github/agents/` directory holds `.agent.md` files. VS Code reads both `.agent.md` and `.md` files in that folder as custom agents (VS Code custom agent file reference, retrieved 2026-11-09), so a `.prompt.md` placed there loads as an agent, not as a slash command. Put prompt files in `.github/prompts/`.
 
 ## When to Create Each Type
 
 | You want to... | Create a... |
 |----------------|-------------|
 | Add a new specialized agent | `.shared.md` in `templates/agents/`, then run `uv run python build/generate_agents.py` |
-| Add a user-facing slash command | `.prompt.md` in `.github/prompts/` or `.github/agents/` |
+| Add a user-facing slash command | `.prompt.md` in `.github/prompts/`, or a skill with `user-invocable: true` |
 | Add an orchestration entry point | `.prompt.md` that delegates to agents via the `agent` tool |
 | Modify agent behavior | Edit the `.shared.md` source, then regenerate |
 
