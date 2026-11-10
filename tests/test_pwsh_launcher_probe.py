@@ -48,10 +48,16 @@ def test_launcher_that_starts_runs_the_test(path_with: Path) -> None:
     assert probe.pwsh_skip_reason() is None
 
 
-def test_launcher_that_exits_zero_without_the_marker_still_skips(path_with: Path) -> None:
+def test_launcher_that_starts_and_rejects_the_probe_runs_the_test(path_with: Path) -> None:
+    _stub_pwsh(path_with, "echo 'Unknown parameter: -NonInteractive' >&2; exit 64")
+
+    assert probe.pwsh_skip_reason() is None
+
+
+def test_launcher_that_exits_zero_without_the_marker_runs_the_test(path_with: Path) -> None:
     _stub_pwsh(path_with, "exit 0")
 
-    assert probe.pwsh_skip_reason() is not None
+    assert probe.pwsh_skip_reason() is None
 
 
 def test_ci_never_skips_a_present_launcher(
@@ -64,7 +70,9 @@ def test_ci_never_skips_a_present_launcher(
 
 
 def test_require_working_pwsh_skips_through_pytest(path_with: Path) -> None:
-    _stub_pwsh(path_with, "exit 1")
+    _stub_pwsh(
+        path_with, "echo 'snap-confine is packaged without necessary permissions' >&2; exit 1"
+    )
 
     with pytest.raises(pytest.skip.Exception):
         probe.require_working_pwsh()

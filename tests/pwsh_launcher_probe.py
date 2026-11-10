@@ -25,6 +25,13 @@ import pytest
 _ON_CI = bool(os.environ.get("CI"))
 
 _MARKER = "pwsh-probe-ok"
+# Messages a launcher prints when the process never reached PowerShell.
+_LAUNCH_FAULTS = (
+    "snap-confine",
+    "error while loading shared libraries",
+    "cannot execute binary file",
+    "permission denied",
+)
 _PROBE_TIMEOUT_SECONDS = 60
 
 
@@ -51,7 +58,11 @@ def pwsh_skip_reason() -> str | None:
         return None
     if probe.returncode == 0 and _MARKER in probe.stdout:
         return None
-    detail = (probe.stderr or probe.stdout).strip().splitlines()
+    output = (probe.stderr or probe.stdout).strip()
+    if not any(fault in output.lower() for fault in _LAUNCH_FAULTS):
+        # pwsh started and rejected the probe. Let the test decide.
+        return None
+    detail = output.splitlines()
     first_line = detail[0] if detail else f"exit code {probe.returncode}"
     return f"pwsh is installed but cannot start: {first_line} (issue #7231)"
 
