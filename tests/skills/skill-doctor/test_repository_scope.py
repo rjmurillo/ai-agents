@@ -467,3 +467,28 @@ def test_unreadable_worktree_is_rejected_without_aborting_the_scope(world, monke
     rejected = {item.path: item.reason for item in scope.rejected}
     feature = next(path for path in rejected if path in blocked)
     assert "unreadable" in rejected[feature]
+
+
+def test_manifest_scope_follows_explicit_repo_authorization(world):
+    import audit_manifest as am
+
+    def export(selected):
+        inventory = {
+            "conversation_scope": "projects",
+            "repos": [str(path) for path in selected],
+            "harness": "copilot",
+            "window_days": 45,
+            "scope_resolution": resolve_repository_scope(selected).report(),
+            "skills": [],
+            "sessions": [],
+        }
+        inputs = {"explicit_repos": [str(path) for path in selected]}
+        return am.build_manifest(inventory, inputs)
+
+    single = export([world["main"]])
+    paths = {item["path"] for item in single["upstream_identity"]}
+    assert str(world["second_clone"]) not in paths
+    assert am.validate_manifest(single) == []
+    both = export([world["main"], world["second_clone"]])
+    assert am.validate_manifest(both) == []
+    assert {item["origin_url"] for item in both["upstream_identity"]} == {UPSTREAM}

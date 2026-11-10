@@ -21,7 +21,7 @@ Forked from warpdotdev/common-skills by the Warp team, under MIT.
 Copyright (c) 2026 Denver Technologies, Inc. See `LICENSE`.
 Maintainers: read `references/upstream-sync.md` before reconciling upstream changes.
 
-Grade the user's agent setup by scoring recent local agent conversations, then propose concrete skill edits and render one shareable report page.
+Grade the user's agent setup by scoring recent local agent conversations, then surface unevaluated improvement candidates with handoff prompts and render one shareable report page.
 
 The report can cover conversations in the current repository, conversations in selected projects, or all local conversations. It can evaluate project skills alone or project and global skills together.
 
@@ -73,10 +73,14 @@ Create the report directory only after the startup gate and scope choices.
 | --- | --- |
 | `collect_sessions.py` | Collect selected journals into `inventory.json` and bounded transcripts. |
 | `render_report.py` | Render scored `report.json` into `report.html`; `--open` requests browser launch. |
+| `audit_scores.py` | Validate per-session rubric results in `scores.json` and compute the Step 3 aggregates. |
+| `audit_manifest.py` | Validate an `audit_manifest.json` written by `collect_sessions.py --audit-manifest`. |
+| `audit_batches.py` | `assign` immutable review batches from `inventory.json`; `import` one batch of score rows into an accepted file. |
+| `public_export.py` | Write an aggregate-only summary of `report.json` that is safe to share. |
 | `warp_decoder.py` | Imported Warp protobuf decoder, not a standalone CLI. |
 
-Both CLIs accept `--help`.
-Exit 0 means success, 1 means failure, and 2 means invalid CLI arguments.
+Every CLI accepts `--help`.
+Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, `audit_batches.py`, `public_export.py`, and `render_report.py`: invalid input, an unsupported claim, or a private value in an export; nothing is written), and 2 means invalid CLI arguments or an unreadable file.
 Use absolute script paths, as shown below, from any working directory.
 
 ## Process
@@ -137,6 +141,7 @@ Build the collector arguments from the startup answers:
 
 - Current repository: `--repo "$REPO"`. The run adds the main checkout and registered worktrees from Git metadata.
 - Selected projects: repeat `--repo PATH` for every project.
+- Many checkouts of one repository: pass each authorized checkout as `--repo PATH`. The collector expands each Git common directory once and resolves each working directory once per run. Do not write a custom discovery or traversal script.
 - All conversations: `--all-conversations`.
 - Project and global skills: add `--include-global-skills`.
 - Project skills only: do not add `--include-global-skills`.
@@ -171,6 +176,8 @@ Useful flags:
 - `--skills-dir PATH` - nonstandard skill locations.
 - `--include-subagents` - include child or sidechain sessions.
 - `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
+- `--timeline-supplement N` - add up to N no-skill sessions spaced across the window, tagged as their own stratum. The sample stays non-probability; the inventory says so.
+- `--audit-manifest` - also write `audit_manifest.json`: declared inputs and caps, source revision, upstream identity evidence, scope, and the content-aware skill catalog. It exits 1 and writes no manifest when the evidence contradicts the declared scope.
 
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
 State `scope_resolution` in the report: included roots with their session counts, rejected roots with reasons, and that clone discovery is unsupported.
@@ -220,6 +227,14 @@ Instructions: For each session in `inventory.json` with `sampled: true`, read it
 
 ### Step 3: Aggregate
 
+Write every scored result to `$REPORT_DIR/scores.json` in the shape `$SKILL_ROOT/references/audit-workflow.md` defines, then compute the aggregates with the script instead of by hand:
+
+```bash
+python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$REPORT_DIR/score_artifact.json"
+```
+
+Copy each `dimensions.<name>.score` and `overall` from `score_artifact.json` into `report.json`; use its `failed_conversations` and `per_harness` values. The reference also covers `pre_cutoff` on terminated sessions and batched reviews. The formulas below define what the script computes:
+
 - `raw_efficiency` = mean of efficiency scores across all scored sessions.
 - `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
 - `raw_procedure_compliance` = mean of procedure-compliance scores across all scored sessions.
@@ -242,13 +257,17 @@ Then, define `failed_conversations` from each conversation's raw, uncurved score
 Then derive the substance:
 
 - `top_findings`: the 3 most impactful, specific patterns across sessions. These lead the report and the spoken summary. Make each summary concrete and concise, following the STE-100 standard.
-- `suggestions`: concrete skill changes, if any. Each names a skill (existing or proposed-new) and a specific change: a trigger-description fix so it fires when it should, a missing step or check, a command to encode, a new skill to create. Suggestions must trace back to observed waste or defects in `failed_conversations`, not generic best practices - cite the failed session, scorer, and moment that motivated each one. An installed skill that never triggered in a failed conversation is usually a description problem and worth a suggestion of its own.
+- `suggestions`: one candidate per supported finding, ranked by frequency times severity. Each names a skill (existing or proposed-new) or a tooling owner and a specific change: a trigger-description fix so it fires when it should, a missing step or check, a command to encode, a new skill to create. Suggestions must trace back to observed waste or defects in `failed_conversations`, not generic best practices - cite the failed session, scorer, and moment that motivated each one. An installed skill that never triggered in a failed conversation is usually a description problem and worth a suggestion of its own. No static change bar suppresses a candidate; when evidence is too thin to name one, record what is missing.
 
 ### Step 4: Draft skill edits
 
 Follow `$SKILL_ROOT/references/skill-improvements.md` to propose improvements to project skills based only on `failed_conversations`.
 
-1. Read the skill's current file: `path` in its `skills` entry of `inventory.json`, the current edit target. Draft only against that path. When the name is in `skill_variants`, refuse to draft against any other path, and never against a global-home copy while a repository copy exists. State the exact source path and its `sha256` in the suggestion's `change` text.
+Every candidate keeps `status: "unevaluated"`. Static diagnosis cannot measure whether a change helps.
+Do not start skillopt or skillforge, and do not edit installed skill files. Drafts under `$REPORT_DIR/proposed/` are diagnosis output, not edits. The report supplies the handoff prompts; the user chooses the next action.
+Skillopt evaluates only `skill` candidates with an existing target. A `new-skill` candidate routes through skillforge first, and a `tooling` candidate goes to its named code owner; the renderer writes those routing notes in place of a skillopt run.
+
+1. Read the skill's current file: `path` in its `skills` entry of `inventory.json`. Set `target` to that exact path and state its `sha256` in the suggestion's `change` text. When the name is in `skill_variants`, leave `target` empty, list every variant's `path` and `sha256` in `variants`, and draft no diff: the user selects the edit target. Never draft against a global-home copy while a repository copy exists.
 2. Write the full improved version to `$REPORT_DIR/proposed/<skill-name>/SKILL.md`, changing only what the evidence justifies. Improve the parts the sessions actually exercised: the trigger description that failed to fire, the missing preflight check, the step the agent had to figure out by trial and error.
 3. Produce a unified diff with Python's `difflib.unified_diff`, reading both files as UTF-8. Store it in the suggestion's `diff` field so it renders in the report.
 
@@ -289,17 +308,33 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
   "suggestions": [
     {
       "skill": "",
+      "status": "unevaluated",
+      "owner": "skill | new-skill | tooling",
+      "owner_target": "<tooling owner, only when owner is tooling>",
+      "target": "<exact skill path, or empty when variants are unresolved>",
+      "variants": [{"path": "", "sha256": ""}],
       "change": "<one-sentence summary of the edit>",
-      "evidence": "<which session(s) and what happened that motivates this>",
+      "evidence": "<observed fact: which session(s), scorer, and what happened>",
+      "mechanism": "<hypothesis: the behavioral change and why it may help>",
+      "expected_improvement": "<unmeasured expected behavior change>",
+      "reproduction": "<smallest useful reproduction>",
+      "acceptance_checks": ["<check skillopt can score>"],
+      "risks": ["<known risk or counterexample>"],
+      "missing_evidence": ["<what the transcripts do not show>"],
       "proposed_path": "<path under proposed/, if an edit was drafted>",
       "diff": "<unified diff, or full content for a new skill>"
     }
   ],
-  "cta_url": "https://warp.dev/factories/request-access"
+  "evaluation": {"diagnosis": "static", "optimization": "not_run"}
 }
 ```
 
-Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
+Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`.
+Optional `audit` sections and the shareable aggregate export are in `$SKILL_ROOT/references/audit-workflow.md`.
+Keep `evaluation.optimization` at `not_run` for every skill-doctor run.
+Only a later skillopt result may set `evaluation.optimization` to `run` and a suggestion `status` of `accepted`, `rejected`, or `inconclusive`; that suggestion then needs its own `"evaluation": {"baseline": "<ref>", "candidate": "<ref>"}` object with non-empty references.
+The renderer exits 1 on a measured status without that evidence, a drafted diff for unresolved variants, or a "no beneficial change" verdict without scored evaluation.
+It builds the skillopt and skillforge handoff prompts from each suggestion's own fields. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
 
 ```bash
 python3 "$SKILL_ROOT/scripts/render_report.py" "$REPORT_DIR/report.json" --open
@@ -313,21 +348,25 @@ python (Join-Path $SKILL_ROOT 'scripts\render_report.py') (Join-Path $REPORT_DIR
 
 For a bootstrap child run, omit `--open` and return the report path.
 
-This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "show more" toggle, and a "share as png" button exports a 1200x675 share image locally. There is no separate card file to open or screenshot.
+This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "Show more" toggle, and a "Share" button saves a 2400x1350 PNG locally. There is no separate card file to open or screenshot.
 
 ### Step 6: Output
 
 Tell the user the grade and the three findings, in text.
+Then state the `evaluation:` line that `render_report.py` printed, verbatim. It matches the report's evaluation status.
+Name each candidate with its status. Never describe an empty or static-only suggestion list as evidence that no change would help.
 
 Finish with the absolute path to `REPORT_DIR/report.html`.
 Do not apply suggested edits without the user's explicit instruction.
-The report retains Warp's upstream branding and attribution.
+The report carries no vendor branding. The fork's MIT attribution remains in `LICENSE` and the header of this file.
 
 ## Verification
 
 - [ ] `inventory.json` reflects the chosen projects, sources, and skill scope.
 - [ ] The report states per-harness candidate and sampled counts, and says when the cap prevented full harness coverage.
 - [ ] Each proposed edit cites a failed conversation and its scorer evidence.
+- [ ] Every candidate is `unevaluated` and carries both handoff prompts; nothing started skillopt or skillforge.
+- [ ] The spoken summary repeats the renderer's `evaluation:` line.
 - [ ] `report.html` exists and displays scores and proposed edits.
 - [ ] Standalone runs open the report; bootstrap child runs return its path.
 - [ ] Original skill files remain unchanged.
