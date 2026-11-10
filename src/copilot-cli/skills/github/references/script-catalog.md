@@ -11,7 +11,6 @@ of the skill's script directory, the last four in `issue`. Run every script with
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `check_pr_live_state.py` | Re-triage probe before acting on a queued PR. Exit 0 safe to act, exit 1 skip (merged, closed, or superseded by main), exit 2 not found | `--pull-request`, `--skip-fetch`, `--expected-head-sha`, `--expected-base-ref`, `--expected-base-sha` |
-| `get_pr_code_scanning_alerts.py` | Read a PR's CodeQL alerts for `/review` (ADR-041 amendment). GET only, every page, JSON on stdout. `Data.outcome` is CURRENT, STALE, NOT ANALYZED, or SKIPPED. Alerts reduce to rule id, path, line. Exit 0 outcome read, exit 2 usage, exit 3 SKIPPED (request or paging failed), exit 4 SKIPPED (auth or not found) | `--pull-request`, `--head-sha`, `--tree-state`, `--changed-file`, `--changed-files-from` |
 | `check_pr_round_cap.py` | Round and wall-clock circuit breaker for the pr-autofix thread loop. Exit 0 under both caps, exit 1 a cap is exceeded | `--pull-request`, `--max-rounds`, `--max-hours`, `--reset`, `--worktree` |
 | `run_completion_gate.py` | Run the `/pr-review` completion criteria from a config file and print one result per criterion. Exit 0 all pass, exit 1 any fails, exit 3 unverified | `--config`, `--pull-request`, `--json`, `--evidence-path`, `--trusted-ref`, `--verify-config-only` |
 | `check_review_thread_resolution_shas.py` | Verify that commits cited in resolved review threads are in the PR head | `--pull-request`, `--repo-path` |
@@ -23,6 +22,7 @@ of the skill's script directory, the last four in `issue`. Run every script with
 | `claim_issue.py` | Self-assign an issue; refuse (exit 1) when another login holds it; warn about pushed branches that name the issue | `--issue`, `--dry-run` |
 | `edit_issue_body.py` | Replace an issue body from `--body` or `--body-file` | `--issue`, `--body`, `--body-file` |
 | `redact_secrets.py` | Redact secret and PII shapes from text on stdin or `FILE`; writes the result to stdout | `FILE` |
+| `get_pr_code_scanning_alerts.py` | Read a PR's CodeQL alerts for `/review` (ADR-041 amendment). GET only, every page, JSON on stdout. `Data.outcome` is CURRENT, STALE, NOT ANALYZED, or SKIPPED. Alerts reduce to rule id, path, line. Exit 0 outcome read, exit 2 usage, exit 3 SKIPPED (request or paging failed), exit 4 SKIPPED (auth or not found) | `--pull-request`, `--head-sha`, `--tree-state`, `--changed-file`, `--changed-files-from` |
 
 ## Full text of shortened rows
 
