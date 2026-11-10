@@ -5,6 +5,8 @@
 The user authorized repository-side repairs, commits, PR creation, and merge.
 The existing privacy contract remains unchanged.
 Dependency checker repairs are committed and pass focused validation.
+Final alert, setup, and duplication diagnostic repairs are committed.
+Current main merged cleanly before final validation.
 Full preflight and fresh independent review must precede the push.
 The previous push failed because required security review proof was absent.
 No successful push or PR creation has been observed.
@@ -14,8 +16,8 @@ No successful push or PR creation has been observed.
 - **Remote**: rjmurillo/ai-agents
 - **Branch**: fix/agent-readiness-signals
 - **Worktree**: ~/src/GitHub/rjmurillo/ai-agents4
-- **Head SHA**: ac6a0fd3e1fc8e39e9925e210ba77e7b4b6738aa
-- **Timestamp**: 2026-11-10T04:24:15+00:00
+- **Head SHA**: 39377f00ceb269b76b4330744404c8c01224e515
+- **Timestamp**: 2026-11-10T14:27:33+00:00
 - **Objective**: Ship repository-side readiness repairs without adding client telemetry.
 - **Non-goals**: Hosted infrastructure, package releases, and security configuration changes.
 - **Risk tier**: shared-repository
@@ -46,6 +48,14 @@ No successful push or PR creation has been observed.
   - Provenance: The repaired checker documents configuration exit two for unsupported predicates.
 - Use existing locked packaging interval APIs without changing package versions.
   - Provenance: Locked packaging provides exact prerelease intervals; regenerated metadata preserves every package version.
+- Admit alert publishing only after canonical eligibility classification.
+  - Provenance: Independent QA reproduced ignored completions cancelling eligible alerts.
+- Include locked Node tools in contributor setup without lifecycle scripts.
+  - Provenance: Independent DevOps review found fresh setup omitted the required scanner.
+- Preserve duplication failures when optional diagnostics contain malformed reports.
+  - Provenance: QA found malformed auxiliary reports replaced controlled failures with tracebacks.
+- Update coalescing tests to include the branch's three added workflows.
+  - Provenance: The branch changes defaults; unchanged tests still expected six names.
 
 ## Latest Validation Evidence
 
@@ -55,12 +65,17 @@ No successful push or PR creation has been observed.
 - 2026-11-10: Dependency usage examined 30 declarations across three manifests without findings.
 - 2026-11-10: Drift examined three Python manifests and six npm manifests without findings.
 - 2026-11-10: Root lock validation passed after metadata-only regeneration.
-- 2026-11-10: Validation authority passed for seven local targets and one generated lock.
+- 2026-11-10: Validation authority passed for 14 local targets and one generated lock.
+- 2026-11-10: Before main integration, final repair and coalescing tests passed all 178 cases.
+- 2026-11-10: Alert admission stress passed 660 cases across 30 fresh processes.
+- 2026-11-10: Stress validates local admission and wiring, not GitHub scheduler execution.
+- 2026-11-10: Main integration at 39377f00ceb269b76b4330744404c8c01224e515 required no conflict edits.
 - 2026-11-10: Historical preflight at 8f573a920 passed 119 gates with two accepted skips.
 - 2026-11-10: Historical regression at 8f573a920 passed 5351 tests with 27 explained skips.
 
 Historical results do not certify the repaired tip.
 The operator approved repairs and a fresh review cycle after QA findings.
+The renewed delegation budget allows one implementation and 14 independent review processes.
 Earlier review results cannot authorize the repaired code's security marker.
 
 ## Execution Receipts
