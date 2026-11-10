@@ -201,7 +201,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --repo . --staged
   %(prog)s --repo . --base origin/main
-  %(prog)s --map
 
 exit codes:
   0  ok

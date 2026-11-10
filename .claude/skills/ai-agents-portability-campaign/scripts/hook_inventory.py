@@ -153,7 +153,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --repo . counts
   %(prog)s --repo . phase-tests
-  %(prog)s --repo . qualifiers
 
 exit codes:
   0  ok

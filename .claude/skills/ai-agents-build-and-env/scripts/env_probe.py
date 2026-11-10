@@ -158,7 +158,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --repo . pins
   %(prog)s --repo . envfile
-  %(prog)s --repo . smoke
 
 exit codes:
   0  ok

@@ -363,7 +363,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --repo . generators
   %(prog)s --repo . path src/claude/rules/voice.md
-  %(prog)s --repo . gates
 
 exit codes:
   0  ok

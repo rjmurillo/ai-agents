@@ -102,7 +102,7 @@ run passes a started child process exit code through unchanged.
 
 examples:
   %(prog)s --repo . list
-  %(prog)s --repo . run verify-config
+  %(prog)s --repo . run verify-config -- --pull-request 123
 
 exit codes:
   0  ok

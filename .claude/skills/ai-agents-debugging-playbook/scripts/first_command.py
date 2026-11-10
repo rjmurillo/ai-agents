@@ -8,7 +8,8 @@ Neither subcommand fetches or mutates anything. Run `git fetch origin main`
 first when the lag number must be current.
 
 Exit codes: 0 ok, 1 findings (a foreign stash, or left count above zero),
-2 bad arguments or not a git repository, 3 git missing or failed.
+2 bad arguments or --repo is not a directory, 3 git missing or failed
+(including a directory that is not a git repository).
 """
 
 from __future__ import annotations
@@ -94,8 +95,8 @@ examples:
 exit codes:
   0  ok
   1  a foreign stash, or a left count above zero
-  2  bad arguments or not a git repository
-  3  git missing or failed
+  2  bad arguments, or --repo is not a directory
+  3  git missing or failed, including a directory that is not a git repository
 """
 
 

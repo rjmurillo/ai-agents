@@ -90,7 +90,6 @@ def run(repo: Path, skill_md: Path) -> tuple[dict[str, Any], int]:
 _HELP_EPILOG = """\
 examples:
   %(prog)s --repo .
-  %(prog)s --repo . --skill-md SKILL.md
 
 exit codes:
   0  every cited flag is declared

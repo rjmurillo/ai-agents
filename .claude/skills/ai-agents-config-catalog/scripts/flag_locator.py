@@ -164,7 +164,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --repo . locate --list
   %(prog)s --repo . markers
-  %(prog)s --repo . retired
 
 exit codes:
   0  ok

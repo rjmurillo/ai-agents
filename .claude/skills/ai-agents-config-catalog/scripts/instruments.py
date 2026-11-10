@@ -115,7 +115,7 @@ run passes a started child process exit code through unchanged.
 
 examples:
   %(prog)s --repo . list
-  %(prog)s --repo . run flag-locate
+  %(prog)s --repo . run flag-locate -- --list
 
 exit codes:
   0  ok

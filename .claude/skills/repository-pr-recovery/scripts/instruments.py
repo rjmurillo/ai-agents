@@ -101,7 +101,7 @@ run passes a started child process exit code through unchanged.
 
 examples:
   %(prog)s --repo . list
-  %(prog)s --repo . run why-pr-blocked
+  %(prog)s --repo . run why-pr-blocked -- --pull-request 123
 
 exit codes:
   0  ok
