@@ -440,7 +440,7 @@
     "templates/agents/partials/retrospective-retrospective-flow.mustache|templates/agents/retrospective.shared.md": 26,
     "templates/agents/partials/retrospective-style-guide-compliance.mustache|templates/agents/retrospective.shared.md": 3,
     "templates/agents/partials/roadmap-intro.mustache|templates/agents/roadmap.shared.md": 55,
-    "templates/agents/partials/security-claude-code-tools.mustache|templates/agents/security.shared.md": 143,
+    "templates/agents/partials/security-claude-code-tools.mustache|templates/agents/security.shared.md": 80,
     "templates/agents/partials/security-intro.mustache|templates/agents/partials/task-decomposer-task-decomposer.mustache": 3,
     "templates/agents/partials/security-intro.mustache|templates/agents/qa.shared.md": 2,
     "templates/agents/partials/security-intro.mustache|templates/agents/retrospective.shared.md": 2,

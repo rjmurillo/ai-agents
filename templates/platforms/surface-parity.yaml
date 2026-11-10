@@ -68,12 +68,6 @@ surfaces:
     generator: build/scripts/binplace_manifest.py
     include: ["*.agent.md"]
     owner: build_all.py --check; agent-drift-detection.yml
-  - id: github-agents-security-references
-    path: .github/agents/security/references
-    relation: mirrored
-    authority: src/claude/security/references
-    owner: build/scripts/check_surface_parity.py
-    reason: Hand-maintained byte copy; no generator writes it.
   - id: agent-catalog
     path: docs/agent-catalog.md
     relation: generated
