@@ -56,9 +56,13 @@ script reads only the run's event metadata. It never reads logs or artifacts.
   its own run. No alert is a visible gap, not a silent pass.
 - A bug in the script exits non-zero. Exit codes: 2 for a missing or unreadable
   event payload, 3 for a failed issue operation, 4 for authentication.
-- Concurrent failures of one workflow share a concurrency group.
-  A newer event supersedes an in-flight alert for the same workflow.
-  Check the newest run if an alert job shows as cancelled.
+- A read-only eligibility job calls `workflow_failure_alert.py:parse_event`.
+  Only eligible failures enter the publishing job's concurrency group.
+  Ignored conclusions, triggers, branches, and metadata cannot cancel an alert.
+  Eligible failures of one workflow share a group across allowed triggers.
+  A later eligible publishing job supersedes an in-flight alert for that workflow.
+  Classifier jobs run independently, so completion order can differ from event order.
+  Check the surviving alert job if another shows as cancelled.
   An interrupted issue request can still produce duplicates. Close the duplicate.
 
 ## Privacy

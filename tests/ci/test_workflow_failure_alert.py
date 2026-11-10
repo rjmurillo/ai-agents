@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import random
 import re
 import subprocess
 import sys
@@ -263,9 +265,10 @@ def test_alert_workflow_is_least_privilege_and_pinned() -> None:
     doc = _load_yaml(ALERT_WORKFLOW)
 
     assert doc["permissions"] == {}
-    assert doc["concurrency"]["cancel-in-progress"] is True
-    assert "github.event.workflow_run.name" in doc["concurrency"]["group"]
+    assert "concurrency" not in doc
     job = doc["jobs"]["alert"]
+    assert job["concurrency"]["cancel-in-progress"] is True
+    assert "github.event.workflow_run.name" in job["concurrency"]["group"]
     assert job["permissions"] == {"contents": "read", "issues": "write"}
     actions = [step for step in job["steps"] if "uses" in step]
     for step in actions:
@@ -275,3 +278,112 @@ def test_alert_workflow_is_least_privilege_and_pinned() -> None:
     assert checkout["with"]["persist-credentials"] is False
     run_blocks = [s["run"] for s in job["steps"] if "run" in s]
     assert all("${{" not in block for block in run_blocks)
+
+
+def _workflow_eligibility(payload: object, tmp_path: Path) -> bool:
+    """Execute the parsed workflow adapter, not a second eligibility policy."""
+    job = _load_yaml(ALERT_WORKFLOW)["jobs"]["eligibility"]
+    step = next(s for s in job["steps"] if s.get("id") == "classify")
+    event = tmp_path / "event.json"
+    output = tmp_path / "output"
+    event.write_text(json.dumps(payload), encoding="utf-8")
+    output.write_text("", encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GITHUB_") and k != "CI"}
+    env.update(GITHUB_EVENT_PATH=str(event), GITHUB_OUTPUT=str(output))
+    result = subprocess.run(
+        ["bash", "-e", "-c", step["run"]],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    value = output.read_text(encoding="utf-8").strip()
+    assert value in {"eligible=true", "eligible=false"}
+    return value == "eligible=true"
+
+
+def test_alert_concurrency_is_behind_canonical_eligibility() -> None:
+    """AC1: Only the canonical classifier can admit the publishing job."""
+    doc = _load_yaml(ALERT_WORKFLOW)
+    assert "concurrency" not in doc
+    classifier = doc["jobs"]["eligibility"]
+    assert "concurrency" not in classifier
+    assert classifier["permissions"] == {"contents": "read"}
+    assert classifier["outputs"] == {"eligible": "${{ steps.classify.outputs.eligible }}"}
+    job = doc["jobs"]["alert"]
+    assert job["needs"] == "eligibility"
+    assert job["if"] == "${{ needs.eligibility.outputs.eligible == 'true' }}"
+    assert job["concurrency"] == {
+        "group": "workflow-failure-alert-${{ github.event.workflow_run.name }}",
+        "cancel-in-progress": True,
+    }
+    for candidate in (classifier, job):
+        checkout = next(
+            s for s in candidate["steps"] if s.get("uses", "").startswith("actions/checkout@")
+        )
+        assert checkout["with"] == {"persist-credentials": False}
+        assert all(
+            re.search(r"@[0-9a-f]{40}$", s["uses"]) for s in candidate["steps"] if "uses" in s
+        )
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        *[
+            {"conclusion": c}
+            for c in ("success", "cancelled", "skipped", "neutral", "action_required", None)
+        ],
+        *[
+            {"event": e}
+            for e in (
+                "pull_request",
+                "pull_request_target",
+                "push",
+                "release",
+                "workflow_run",
+                None,
+            )
+        ],
+        {"name": "CodeQL Analysis", "event": "workflow_dispatch"},
+        {"name": "npm Publish", "event": "schedule"},
+        *[{"head_branch": b} for b in ("feature/x", "MAIN", "", None)],
+        {"name": "not watched"},
+        {"html_url": "https://example.com/run"},
+    ],
+)
+def test_ignored_completions_cannot_enter_alert_concurrency(overrides, tmp_path) -> None:
+    """AC1: Ignored failures, successes, branches, and triggers never acquire a group."""
+    assert not _workflow_eligibility(_payload(**overrides), tmp_path)
+
+
+def test_repeated_overlaps_keep_only_eligible_same_workflow_keys(tmp_path) -> None:
+    """AC1: Local admission/key model, not execution of GitHub's scheduler."""
+    events = [
+        _payload(name=name, event=event, conclusion=conclusion)
+        for name, triggers in alert.WATCHED.items()
+        for event in triggers
+        for conclusion in alert.FAILING_CONCLUSIONS
+    ]
+    random.Random(os.environ.get("PYTHONHASHSEED", "0")).shuffle(events)
+    active: dict[str, int] = {}
+    for sequence, event in enumerate(events):
+        assert _workflow_eligibility(event, tmp_path)
+        name = event["workflow_run"]["name"]
+        active[name.casefold()] = sequence
+        assert not _workflow_eligibility(
+            {
+                **event,
+                "workflow_run": {
+                    **event["workflow_run"],
+                    "conclusion": "success",
+                },
+            },
+            tmp_path,
+        )
+        assert active[name.casefold()] == sequence
+    assert len(active) == len(alert.WATCHED)

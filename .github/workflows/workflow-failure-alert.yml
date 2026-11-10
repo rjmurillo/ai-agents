@@ -37,15 +37,39 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: workflow-failure-alert-${{ github.event.workflow_run.name }}
-  cancel-in-progress: true
-
 jobs:
+  eligibility:
+    name: Classify workflow completion
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      eligible: ${{ steps.classify.outputs.eligible }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Classify with the alert policy
+        id: classify
+        run: |
+          python3 -c 'import json, os; from pathlib import Path; from scripts.ci.workflow_failure_alert import FailedRun, parse_event; print("eligible=" + str(isinstance(parse_event(json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))), FailedRun)).lower())' >> "$GITHUB_OUTPUT"
+
   alert:
     name: Alert on failed workflow
-    # Skip success and cancelled runs before a runner starts.
-    if: ${{ github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out' || github.event.workflow_run.conclusion == 'startup_failure' }}
+    needs: eligibility
+    # Ignored completions never enter the publishing job's concurrency group.
+    if: ${{ needs.eligibility.outputs.eligible == 'true' }}
+    concurrency:
+      group: workflow-failure-alert-${{ github.event.workflow_run.name }}
+      cancel-in-progress: true
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
