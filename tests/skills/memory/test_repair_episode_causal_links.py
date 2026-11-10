@@ -284,6 +284,36 @@ class TestCliContract:
         assert path.read_bytes() == before
 
     @pytest.mark.unit
+    def test_dry_run_alias_reports_without_opening_the_file_for_writing(self, tmp_path):
+        episodes = tmp_path / "episodes"
+        path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
+        before = path.read_bytes()
+        path.chmod(0o444)  # a write-and-restore implementation would fail here
+
+        try:
+            result = _run("--episodes-dir", str(episodes), "--dry-run")
+        finally:
+            path.chmod(0o644)
+
+        assert result.returncode == 0, result.stderr
+        summary = _summary(result)
+        assert summary["Repaired"] == 1
+        assert summary["Invalid"] == []
+        assert path.read_bytes() == before
+
+    @pytest.mark.unit
+    def test_real_run_still_rewrites_after_dry_run(self, tmp_path):
+        episodes = tmp_path / "episodes"
+        path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
+        before = path.read_bytes()
+
+        _run("--episodes-dir", str(episodes), "--dry-run")
+        result = _run("--episodes-dir", str(episodes))
+
+        assert _summary(result)["Repaired"] == 1
+        assert path.read_bytes() != before
+
+    @pytest.mark.unit
     def test_missing_directory_is_a_config_error(self, tmp_path):
         result = _run("--episodes-dir", str(tmp_path / "nope"))
 
