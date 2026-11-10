@@ -222,12 +222,12 @@ max-complexity = 15
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
 "tests/validation/**/*.py" = ["E402"]
-# ANN suppression for test files (annotations not required in tests)
 # S103 flags the one os.chmod(skill_script, 0o755) in the CodeQL installer. That call makes
 # the installed skill script executable for every user of the checkout, so a tighter mode
 # breaks the install. The git hook policy rejects inline S-code noqa comments, so a
 # line-scoped suppression is unavailable and this single-file waiver is the narrowest form.
 ".codeql/scripts/install_codeql_integration.py" = ["S103"]
+# ANN suppression for test files (annotations not required in tests)
 # S324 and S605 are out of scope for tests, as they were for the retired bandit gate.
 "tests/**/*.py" = ["ANN", "S324", "S605"]
 "**/tests/**/*.py" = ["ANN", "S324", "S605"]
