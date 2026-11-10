@@ -1288,6 +1288,6 @@ JSON is unchanged. No mechanism was deleted by this section.
 Gate 1 stays not met under both definitions (455 against 412, and 333 against
 301, at `5934169149`); the owner-decision figures at `3e9f30aaa1` were 455 and
 334. Gate 2 holds for all three harnesses. Gates 3 and 6 are in the table above
-and the sections before this one. Epic #5456 is closed by owner decision D14
+and the sections before this one. Epic #5456 closes under owner decision D14
 with gates 1 and 3 not met; the final report is
 `.project-toolkit/metrics/release-report-v0.7.0.md`.
