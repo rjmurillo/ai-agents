@@ -13,7 +13,7 @@ import render_report
 import report_audit
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "audit"
-GENERATED_AT = re.compile(r"Generated [^&]*&middot;")
+GENERATED_AT = re.compile(r"Generated [^<]*<")
 
 
 def load(name: str) -> dict[str, Any]:
@@ -22,7 +22,7 @@ def load(name: str) -> dict[str, Any]:
 
 
 def normalized_html(report: dict[str, Any]) -> str:
-    return GENERATED_AT.sub("Generated &middot;", render_report.render_page(report))
+    return GENERATED_AT.sub("Generated <", render_report.render_page(report))
 
 
 def write_report(tmp_path: Path, report: dict[str, Any]) -> Path:
@@ -76,7 +76,7 @@ class TestHtmlReachability:
         for marker in ("Sampling", "Findings", "Evaluation status", "Suggested skill changes"):
             assert marker in page
         assert "skillopt handoff prompt" in page
-        assert "[unevaluated]" in page
+        assert 'data-status="unevaluated"' in page
 
 
 class TestCountsAndTotals:

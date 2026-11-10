@@ -8,7 +8,7 @@ Installed consumers do not need its generation or validation tooling.
 This is an MIT-licensed fork of Warp's skill-doctor, credited to warpdotdev.
 The copyright holder is Denver Technologies, Inc.
 The complete upstream MIT notice ships in `src/claude/skills/skill-doctor/LICENSE`.
-The report retains upstream assets and Warp branding.
+The HTML report drops the upstream footer, call to action, and pixel mark; attribution stays in `LICENSE`, the SKILL.md header, and the bundled diff library provenance comment.
 
 Upstream repository: <https://github.com/warpdotdev/common-skills>.
 Pinned upstream skill directory: `.agents/skills/skill-doctor`. <!-- agents-write-target: historical -- Directory in the pinned upstream tree, not this checkout. -->
@@ -65,7 +65,7 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 25. Same-name definitions kept in usage detection, with the first-seen copy as the edit target (issue 7185).
 26. Partial-collection counters, including bootstrap provenance and source failure isolation.
 27. Deferred Pi/Grok skill matching until project discovery finishes.
-28. Bounded browser launch and a fixed upstream HTTPS report destination.
+28. Bounded browser launch. The report links to no external destination.
 29. Loaded-skill startup paths independent of plugin variables or the working directory.
 30. Unchanged upstream scoring weights, with explicit outcome-causality limitations.
 31. Content fingerprints with path aliases per definition, `skill_variants`, and unresolved historical attribution (issue 7185).
@@ -91,6 +91,7 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 51. `audit_scores.py` executes Steps 2 and 3: it validates rubric labels against `scorers/*.md`, recomputes pooled applicable means, the quality fallback, weighted shortfalls, and failed conversations (issue #7248, M3).
 52. `audit_batches.py` and `--timeline-supplement`: immutable review assignments with a source digest, atomic all-or-nothing score imports, and an opt-in timeline stratum recorded as non-probability (issue #7248, M2).
 53. `report_audit.py` and `public_export.py`: optional catalog, score, and per-record sections in `report.html`, a scorecard-versus-artifact check, and an allowlist aggregate export that refuses private values (issue #7248, M4).
+54. Report UX rework and branding removal: `report_style.py` holds one light and dark token set, the page reads as header, summary band (grade, evaluation status, totals), findings, candidate cards with Copy and Select all handoff prompts, then collapsible evidence. The Warp footer, `Request access` call to action, `cta_url`, pixel mark, and Warp share-card text are removed; the share card is neutral.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

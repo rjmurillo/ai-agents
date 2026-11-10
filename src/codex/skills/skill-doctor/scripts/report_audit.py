@@ -113,19 +113,48 @@ def validate_audit(report: Mapping[str, Any]) -> list[str]:
     return _score_errors(report, artifact) + _count_errors(report, audit)
 
 
+class Code(str):
+    """A table cell rendered in monospace (hashes, paths)."""
+
+
+def _cell(esc: Escape, cell: Any) -> str:
+    if isinstance(cell, Code):
+        return f"<td><code>{esc(cell)}</code></td>"
+    return f"<td>{esc(cell)}</td>"
+
+
 def _row(esc: Escape, cells: Sequence[Any]) -> str:
-    return "<tr>" + "".join(f"<td>{esc(cell)}</td>" for cell in cells) + "</tr>"
+    return "<tr>" + "".join(_cell(esc, cell) for cell in cells) + "</tr>"
 
 
-def _table(esc: Escape, headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
-    head = "".join(f"<th>{esc(h)}</th>" for h in headers)
+def table_html(
+    esc: Escape, caption: str, headers: Sequence[str], rows: Sequence[Sequence[Any]]
+) -> str:
+    """A captioned table in a keyboard-focusable region that scrolls sideways when narrow."""
+    head = "".join(f'<th scope="col">{esc(h)}</th>' for h in headers)
     body = "".join(_row(esc, row) for row in rows)
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+    return (
+        f'<div class="table-scroll" role="region" aria-label="{esc(caption)}" tabindex="0">'
+        f"<table><caption>{esc(caption)}</caption>"
+        f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>"
+    )
+
+
+def details_html(esc: Escape, summary: str, body: str, open_: bool = False) -> str:
+    """A collapsible report section; `open_` starts it expanded."""
+    flag = " open" if open_ else ""
+    return (
+        f'<details class="section"{flag}><summary>{esc(summary)}</summary>'
+        f'<div class="section-body">{body}</div></details>'
+    )
+
+
+def _table(esc: Escape, caption: str, headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
+    return table_html(esc, caption, headers, rows)
 
 
 def _details(esc: Escape, summary: str, body: str, open_: bool = False) -> str:
-    flag = " open" if open_ else ""
-    return f"<details{flag}><summary>{esc(summary)}</summary>{body}</details>"
+    return details_html(esc, summary, body, open_)
 
 
 def render_catalog(audit: Mapping[str, Any], esc: Escape) -> str:
@@ -136,9 +165,9 @@ def render_catalog(audit: Mapping[str, Any], esc: Escape) -> str:
     rows = [
         [
             d.get("name"),
-            d.get("sha256"),
+            Code(str(d.get("sha256"))),
             d.get("scope"),
-            d.get("path"),
+            Code(str(d.get("path"))),
             "; ".join(str(a) for a in d.get("aliases") or []) or "-",
             "yes" if d.get("current_edit_target") else "no",
         ]
@@ -155,10 +184,10 @@ def render_catalog(audit: Mapping[str, Any], esc: Escape) -> str:
         "in a past conversation.</p>"
     )
     headers = ["Name", "Content hash", "Scope", "Path", "Aliases", "Current edit target"]
-    body = summary + _table(esc, headers, rows)
+    body = summary + _table(esc, "Skill definitions found", headers, rows)
     if conflict_rows:
-        body += "<h3>Conflicting names</h3>" + _table(
-            esc, ["Name", "Distinct hashes"], conflict_rows
+        body += "<h4>Conflicting names</h4>" + _table(
+            esc, "Names with more than one content hash", ["Name", "Distinct hashes"], conflict_rows
         )
     return _details(esc, "Skill catalog", body)
 
@@ -199,9 +228,9 @@ def render_scores(audit: Mapping[str, Any], esc: Escape) -> str:
     parts = [
         f'<p id="audit-scores-total" data-sessions="{esc(artifact.get("sessions_scored"))}">'
         f"{esc(artifact.get('sessions_scored'))} conversations scored. "
-        f"Overall {float(artifact.get('overall', 0)):.4f}; "
+        f"Overall {100 * float(artifact.get('overall', 0)):.2f} / 100; "
         f"total weighted shortfall {float(total):.4f} points.</p>",
-        _table(esc, headers, _dimension_rows(artifact)),
+        _table(esc, "Score by dimension", headers, _dimension_rows(artifact)),
     ]
     limits = list(artifact.get("evidence_limits") or []) + list(artifact.get("limitations") or [])
     if limits:
@@ -212,7 +241,7 @@ def render_scores(audit: Mapping[str, Any], esc: Escape) -> str:
             f"<p>Conversations with an applicable score below 0.5: {esc(failed.get('count', 0))}"
             f" (termination-only exclusions: {esc(failed.get('excluded_count', 0))}).</p>"
         )
-    return _details(esc, "Score artifact", "".join(parts))
+    return _details(esc, "Score artifact", "".join(parts), open_=True)
 
 
 def _record_rows(record: Mapping[str, Any]) -> list[list[Any]]:
@@ -237,7 +266,7 @@ def _record_rows(record: Mapping[str, Any]) -> list[list[Any]]:
 def _render_record(record: Mapping[str, Any], esc: Escape) -> str:
     title = f"{record.get('session_id')} | {record.get('harness')} | {record.get('stratum') or '-'}"
     headers = ["Scorer", "Label", "Score", "Applicability", "Reason", "Evidence"]
-    body = _table(esc, headers, _record_rows(record))
+    body = _table(esc, "Scorer results for this conversation", headers, _record_rows(record))
     if record.get("terminated_by"):
         body = f"<p>Terminated by: {esc(record['terminated_by'])}</p>" + body
     return _details(esc, title, body)
@@ -263,4 +292,6 @@ def render_audit(report: Mapping[str, Any], esc: Escape) -> str:
         render_records(audit, esc),
     ]
     body = "".join(part for part in parts if part)
-    return f'<h2>Audit evidence</h2><div class="audit">{body}</div>' if body else ""
+    if not body:
+        return ""
+    return _details(esc, "Audit evidence", f'<div class="audit">{body}</div>', open_=True)

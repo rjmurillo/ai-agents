@@ -322,8 +322,7 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
       "diff": "<unified diff, or full content for a new skill>"
     }
   ],
-  "evaluation": {"diagnosis": "static", "optimization": "not_run"},
-  "cta_url": "https://warp.dev/factories/request-access"
+  "evaluation": {"diagnosis": "static", "optimization": "not_run"}
 }
 ```
 
@@ -356,7 +355,7 @@ Name each candidate with its status. Never describe an empty or static-only sugg
 
 Finish with the absolute path to `REPORT_DIR/report.html`.
 Do not apply suggested edits without the user's explicit instruction.
-The report retains Warp's upstream branding and attribution.
+The report carries no vendor branding. The fork's MIT attribution remains in `LICENSE` and the header of this file.
 
 ## Verification
 

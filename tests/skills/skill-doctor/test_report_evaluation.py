@@ -161,7 +161,7 @@ def test_scored_candidates_later_accepted_rejected_or_inconclusive_render(tmp_pa
     page = html_path.read_text(encoding="utf-8")
     assert code == 0
     assert f"1 {status}" in out
-    assert f"[{status}]" in page
+    assert f'<span class="badge" data-status="{status}">{status}</span>' in page
     assert "skillopt run 7 baseline 0.41" in page
     assert "skillopt run 7 candidate 0.63" in page
 
@@ -230,7 +230,7 @@ def test_unknown_optimization_stage_is_rejected():
 def test_evidence_backed_failure_renders_a_visible_unevaluated_candidate():
     page = render_page(_report([_candidate()]))
 
-    assert "[unevaluated]" in page
+    assert '<span class="badge" data-status="unevaluated">unevaluated</span>' in page
     assert "Observed (fact)" in page
     assert "Hypothesis" in page
     assert "Expected improvement (unmeasured)" in page
@@ -239,7 +239,7 @@ def test_evidence_backed_failure_renders_a_visible_unevaluated_candidate():
 def test_each_candidate_renders_both_copyable_prompts():
     page = render_page(_report([_candidate()]))
 
-    assert page.count('<pre class="prompt">') == 2
+    assert page.count('<pre class="prompt" ') == 2
     assert "skillopt handoff prompt" in page
     assert "skillforge handoff prompt" in page
 
@@ -371,7 +371,7 @@ def test_prompt_text_is_escaped_in_html():
 def test_legacy_suggestion_without_new_fields_renders_as_unevaluated():
     page = render_page(_report([{"skill": "deploy", "change": "x", "evidence": "y"}]))
 
-    assert "[unevaluated]" in page
+    assert '<span class="badge" data-status="unevaluated">unevaluated</span>' in page
 
 
 # SKILL.md contract

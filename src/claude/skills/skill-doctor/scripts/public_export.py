@@ -232,7 +232,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     try:
-        write_atomic(Path(args.out).expanduser(), export)
+        out = Path(args.out).expanduser()
+        if not out.parent.is_dir():
+            raise OSError(f"directory does not exist: {out.parent}")
+        write_atomic(out, export)
     except OSError as exc:
         print(f"error: cannot write {args.out}: {exc}", file=sys.stderr)
         return 2
