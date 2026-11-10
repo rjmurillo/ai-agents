@@ -108,6 +108,7 @@ def _git(repo: Path, *args: str) -> None:
         check=True,
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         env={
             **os.environ,
             "GIT_AUTHOR_NAME": "t",
