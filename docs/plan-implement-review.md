@@ -134,7 +134,7 @@ Fleet mode helps when subtasks are independent. The [fleet documentation](https:
 
 ## Option 3: a ready-made team with AI Agents
 
-AI Agents ships the roles so you do not write them. One install gives you 30 agents in either CLI, including orchestrator, analyst, architect, milestone-planner, implementer, critic, qa, and security.
+AI Agents ships the roles so you do not write them. One install gives you 29 agents in either CLI, including orchestrator, analyst, architect, milestone-planner, implementer, critic, qa, and security.
 
 ### Install
 
