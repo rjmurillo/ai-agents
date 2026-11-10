@@ -457,3 +457,38 @@ class TestPostFailures:
     def test_non_object_json_response_exits_3(self, repo_ready, capsys, payload: str):
         code, _ = self._run(_completed(stdout=payload), capsys)
         assert code == 3
+
+
+class TestDryRun:
+    def test_reports_plan_and_issues_only_the_head_commit_read(self, repo_ready, capsys):
+        with patch(
+            "new_pr_review_comment.subprocess.run",
+            side_effect=[_completed(stdout=HEAD_SHA)],
+        ) as run:
+            assert main([*BASE_ARGS, "--dry-run"]) == 0
+
+        data = _envelope(capsys)["Data"]
+        assert data["action"] == "would_post"
+        assert data["dryRun"] is True
+        assert data["commit_id"] == HEAD_SHA
+        assert run.call_count == 1
+        assert "POST" not in run.call_args.args[0]
+
+    def test_dry_run_still_fails_when_the_pr_is_missing(self, repo_ready, capsys):
+        with patch(
+            "new_pr_review_comment.subprocess.run",
+            side_effect=[_completed(rc=1, stderr="gh: Not Found (HTTP 404)")],
+        ) as run:
+            assert main([*BASE_ARGS, "--dry-run"]) == 2
+
+        assert _envelope(capsys)["Success"] is False
+        assert run.call_count == 1
+
+    def test_default_run_has_no_dry_run_key(self, repo_ready, capsys):
+        with patch(
+            "new_pr_review_comment.subprocess.run",
+            side_effect=[_completed(stdout=HEAD_SHA), _created()],
+        ):
+            assert main(BASE_ARGS) == 0
+
+        assert "dryRun" not in _envelope(capsys)["Data"]

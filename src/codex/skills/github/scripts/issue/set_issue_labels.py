@@ -174,6 +174,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not auto-create labels that don't exist",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Read label state and report what would be created, applied, and "
+            "removed; change nothing"
+        ),
+    )
+    parser.add_argument(
         "--default-color",
         default="ededed",
         help="Default color for auto-created labels",
@@ -355,6 +363,68 @@ def _reconcile_priorities(
     return removed
 
 
+def _write_dry_run(
+    issue: int,
+    all_labels: list[dict[str, str]],
+    remove_names: list[str],
+    current_labels: list[str],
+    create_missing: bool,
+    repo_ref: tuple[str, str],
+    fmt: str,
+) -> int:
+    """Report the plan. Reads label existence; makes no create, apply, or remove call.
+
+    ``current_labels`` comes from the strict issue read, so a missing issue fails first.
+    """
+    owner, repo = repo_ref
+    would_create: list[str] = []
+    would_apply: list[str] = []
+    skipped_missing: list[str] = []
+    for label_info in all_labels:
+        name = label_info["name"]
+        if _label_exists(owner, repo, name):
+            would_apply.append(name)
+        elif create_missing:
+            would_create.append(name)
+            would_apply.append(name)
+        else:
+            skipped_missing.append(name)
+
+    present_lower = {name.lower(): name for name in current_labels}
+    would_remove = [present_lower[n.lower()] for n in remove_names if n.lower() in present_lower]
+    absent = [n for n in remove_names if n.lower() not in present_lower]
+    reconciles_priority = any(
+        info["name"].lower().startswith(PRIORITY_PREFIX) for info in all_labels
+    )
+    if reconciles_priority:
+        # A real run removes the stale priority labels (Issue #2623). Name them too.
+        incoming = [info["name"] for info in all_labels]
+        stale = compute_priority_removals(current_labels, incoming)
+        listed = {name.lower() for name in would_remove}
+        would_remove += [name for name in stale if name.lower() not in listed]
+    write_skill_output(
+        {
+            "issue": issue,
+            "action": "would_set_labels",
+            "dryRun": True,
+            "wouldApply": would_apply,
+            "wouldCreate": would_create,
+            "skippedMissing": skipped_missing,
+            "wouldRemove": would_remove,
+            "absent": absent,
+            "reconcilesPriority": reconciles_priority,
+        },
+        output_format=fmt,
+        human_summary=(
+            f"Dry run: would apply {len(would_apply)} label(s) and remove "
+            f"{len(would_remove)} on issue #{issue}; nothing changed"
+        ),
+        status="PASS",
+        script_name="set_issue_labels.py",
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -409,7 +479,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     current_labels: list[str] = []
-    if remove_names:
+    if remove_names or args.dry_run:
         fetched = _fetch_issue_labels_strict(owner, repo, args.issue)
         if fetched is None:
             write_skill_error(
@@ -423,6 +493,17 @@ def main(argv: list[str] | None = None) -> int:
         current_labels = fetched
 
     incoming_names = [label_info["name"] for label_info in all_labels]
+
+    if args.dry_run:
+        return _write_dry_run(
+            args.issue,
+            all_labels,
+            remove_names,
+            current_labels,
+            create_missing,
+            (owner, repo),
+            fmt,
+        )
 
     applied: list[str] = []
     created: list[str] = []

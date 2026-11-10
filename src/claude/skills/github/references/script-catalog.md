@@ -11,7 +11,7 @@ of the skill's script directory, the last four in `issue`. Run every script with
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `check_pr_live_state.py` | Re-triage probe before acting on a queued PR. Exit 0 safe to act, exit 1 skip (merged, closed, or superseded by main), exit 2 not found | `--pull-request`, `--skip-fetch`, `--expected-head-sha`, `--expected-base-ref`, `--expected-base-sha` |
-| `check_pr_round_cap.py` | Round and wall-clock circuit breaker for the pr-autofix thread loop. Exit 0 under both caps, exit 1 a cap is exceeded | `--pull-request`, `--max-rounds`, `--max-hours`, `--reset`, `--worktree` |
+| `check_pr_round_cap.py` | Round and wall-clock circuit breaker for the pr-autofix thread loop. Exit 0 under both caps, exit 1 a cap is exceeded | `--pull-request`, `--max-rounds`, `--max-hours`, `--reset`, `--worktree`, `--dry-run` |
 | `run_completion_gate.py` | Run the `/pr-review` completion criteria from a config file and print one result per criterion. Exit 0 all pass, exit 1 any fails, exit 3 unverified | `--config`, `--pull-request`, `--json`, `--evidence-path`, `--trusted-ref`, `--verify-config-only` |
 | `check_review_thread_resolution_shas.py` | Verify that commits cited in resolved review threads are in the PR head | `--pull-request`, `--repo-path` |
 | `check_suppressed_review_findings.py` | Report Copilot review findings that GitHub suppressed instead of threading; waive one with a tracked dispositions file | `--pull-request`, `--dispositions-file` |
@@ -48,3 +48,38 @@ Parameters: `--pull-request`, `--base-branch`, `--output-format {json,human,auto
 CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green).
 
 Parameters: `--check-name`, `--branch`, `--history-depth`, `--pull-request`
+
+## Previewing a change with `--dry-run`
+
+Each script below runs its reads and validation as a real run does, then
+reports the planned change and writes nothing. The result carries
+`dryRun: true` (or `DryRun`/`dry_run` where the script already used that key)
+and a `would_*` action. A refusal fails the same way under `--dry-run`, with
+the same exit code.
+
+The marker means the run was a preview, so it is present even when nothing
+needs to change. A dry run on such a target reports the same no-op action as a
+real run (`action: none` for a merged PR or a PR already up to date, `NoChange`
+for auto-merge that is already off, `already_closed` for a closed issue) and
+adds the marker. Read the action to learn whether a change would happen.
+
+| Script | Action reported | Note |
+|--------|-----------------|------|
+| `close_issue.py` | `would_close` | `--verify-claims` still runs and can still refuse |
+| `new_issue.py` | `would_create` | no label, issue, or milestone write |
+| `edit_issue_body.py` | `would_update` | reads the issue first; a missing or hidden issue exits 3, as the edit would |
+| `set_issue_labels.py` | `would_set_labels` | reads the issue and label existence (a missing issue exits 3); lists `wouldCreate`, `wouldApply`, `wouldRemove` (including the stale `priority:*` label a new priority replaces) |
+| `set_issue_assignee.py` | `would_assign` | reads the issue first; a missing issue exits 3 |
+| `close_pr.py` | `would_close` | |
+| `new_pr.py` | text line `Dry run: would create PR` | runs the pre-creation validations; writes no audit log; exits 2 with `--prepare-body-file` |
+| `new_pr_review_comment.py` | `would_post` | reads the PR head commit |
+| `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing, or if the comment is on another PR); names the endpoint and body length |
+| `set_pr_auto_merge.py` | `WouldEnable`, `WouldDisable`, `NoChange` | enabling on a closed or merged PR exits 3, as a real run does |
+| `unresolve_pr_review_thread.py` | `would_unresolve` | `--thread-id` reads the thread and exits 1 when it is not found; `--all` lists the thread ids, reading every page and failing if a page cannot be read |
+| `update_pr_branch.py` | `would_update` | |
+| `invoke_pr_comment_processing.py` | `[dry-run]` lines | classifies every comment; posts no reaction or reply; does not check that a comment id exists |
+| `check_pr_round_cap.py` | the usual verdict plus `dryRun` | records no round: no state marker, no escalation note, and `--worktree` fetches no git objects (a missing head reports as unverified) |
+| `merge_pr.py` | `would_merge` | stops after the pre-merge refusals and before any merge call; the audit record says `dry run; no merge call`. Branch protection and stack readiness are evaluated by GitHub at merge time, so a dry run is not a merge-ready verdict |
+
+`unresolve_pr_review_thread.py --pull-request N` now requires `--all`, as the
+`SKILL.md` row already says. Without it the script exits 2.
