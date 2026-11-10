@@ -91,7 +91,15 @@ def cmd_list(repo: Path) -> int:
 def cmd_run(repo: Path, ident: str, extra: list[str]) -> int:
     row = next((r for r in INSTRUMENTS if r["id"] == ident), None)
     if row is None:
-        print(json.dumps({"error": f"unknown instrument id: {ident}"}), file=sys.stderr)
+        print(
+            json.dumps(
+                {
+                    "error": f"unknown instrument id: {ident}",
+                    "known": [r["id"] for r in INSTRUMENTS],
+                }
+            ),
+            file=sys.stderr,
+        )
         return 2
     try:
         sys.stdout.flush()

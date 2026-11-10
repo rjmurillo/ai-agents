@@ -111,7 +111,13 @@ def main(argv: list[str] | None = None) -> int:
     row = next((r for r in rows if r["id"] == args.id), None)
     if row is None:
         print(
-            json.dumps({"error": f"unknown instrument id: {args.id}", "examined": len(rows)}),
+            json.dumps(
+                {
+                    "error": f"unknown instrument id: {args.id}",
+                    "known": [r["id"] for r in rows],
+                    "examined": len(rows),
+                }
+            ),
             file=sys.stderr,
         )
         return 2

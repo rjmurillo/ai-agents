@@ -203,6 +203,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Emit the proposal report as JSON.",
     )
+    parser.add_argument(
+        "--include-live",
+        action="store_true",
+        help=(
+            "With --json, also list the live and healthy-supersession files. "
+            "Default: list only the actionable proposals; counts always cover every file."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -217,9 +225,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     proposals = sweep(root)
     if args.json:
+        listed = (
+            proposals
+            if args.include_live
+            else [p for p in proposals if p.disposition in ACTIONABLE]
+        )
         payload = {
             "counts": _counts(proposals),
-            "proposals": [asdict(p) for p in proposals],
+            "listed": "all" if args.include_live else "actionable",
+            "proposals": [asdict(p) for p in listed],
         }
         print(json.dumps(payload, indent=2))
     else:

@@ -93,7 +93,8 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markd
 ```
 
 Options: `--write` repairs in place, `--json` emits machine-readable output,
-`--pattern` sets the glob for directory scans (default `*.md`). Paths default
+`--pattern` sets the glob for directory scans (default `*.md`), `--max-lines`
+bounds the text listing (default 200, `0` lists all; `--json` is never cut). Paths default
 to the current directory. `.git`, `node_modules`, `.venv`, `venv`, and `__pycache__`
 are skipped.
 

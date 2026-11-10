@@ -915,7 +915,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     unknown_pins = [axis for axis in args.pin if axis not in known]
     if unknown_pins:
         print(
-            "select_axes: unknown pinned axis: " + ", ".join(sorted(unknown_pins)),
+            "select_axes: unknown pinned axis: "
+            + ", ".join(sorted(unknown_pins))
+            + ". Expected one of: "
+            + ", ".join(sorted(known)),
             file=sys.stderr,
         )
         return 2

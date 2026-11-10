@@ -95,7 +95,8 @@ python3 .claude/skills/taste-lints/scripts/taste_lints.py path/to/file.py
 # Scan a directory
 python3 .claude/skills/taste-lints/scripts/taste_lints.py --directory src/
 
-# JSON output
+# Text output lists 100 violations, errors first; --max-violations 0 lists all
+# JSON output (never cut)
 python3 .claude/skills/taste-lints/scripts/taste_lints.py --format json --git-staged
 
 # Run specific rules only

@@ -164,6 +164,34 @@ def test_main_json_exit_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     assert payload["counts"][ROT] == 1
 
 
+def test_json_lists_only_actionable_proposals_but_counts_every_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "rot.md").write_text("**Status**: RESOLVED\n(removed) (removed)\n")
+    (tmp_path / "live.md").write_text("# Live\n\nguidance\n")
+
+    rc = sweep_mod.main(["--root", str(tmp_path), "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["listed"] == "actionable"
+    assert [p["path"] for p in payload["proposals"]] == ["rot.md"]
+    assert payload["counts"][LIVE] == 1
+    assert payload["counts"][ROT] == 1
+
+
+def test_include_live_lists_every_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "rot.md").write_text("**Status**: RESOLVED\n(removed) (removed)\n")
+    (tmp_path / "live.md").write_text("# Live\n\nguidance\n")
+
+    rc = sweep_mod.main(["--root", str(tmp_path), "--json", "--include-live"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["listed"] == "all"
+    assert sorted(p["path"] for p in payload["proposals"]) == ["live.md", "rot.md"]
+
+
 def test_main_text_exit_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / "a.md").write_text("# Live\n\nguidance\n")
     rc = sweep_mod.main(["--root", str(tmp_path)])

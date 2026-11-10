@@ -350,12 +350,16 @@ def iter_markdown_files(paths: list[Path], pattern: str) -> list[Path]:
     return found
 
 
+DEFAULT_MAX_LINES = 200
+
+
 def _report(
     results: dict[str, list[Defect]],
     *,
     as_json: bool,
     wrote: list[str],
     refused: dict[str, str],
+    max_lines: int = DEFAULT_MAX_LINES,
 ) -> None:
     if as_json:
         payload = {
@@ -371,10 +375,19 @@ def _report(
     if not results:
         print("No fence defects found")
         return
-    for name, defects in results.items():
-        for defect in defects:
-            print(f"{name}:{defect.line}: {defect.kind}: {defect.text}")
+    lines = [
+        f"{name}:{defect.line}: {defect.kind}: {defect.text}"
+        for name, defects in results.items()
+        for defect in defects
+    ]
+    for line in lines[:max_lines] if max_lines else lines:
+        print(line)
     total = sum(len(d) for d in results.values())
+    if max_lines and len(lines) > max_lines:
+        print(
+            f"... {len(lines) - max_lines} more defect line(s) not shown. "
+            "Pass --max-lines 0 to list all, or --json."
+        )
     print(f"\n{total} defect(s) in {len(results)} file(s)")
     if wrote:
         print(f"Repaired {len(wrote)} file(s)")
@@ -400,7 +413,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable output")
     parser.add_argument("--pattern", default="*.md", help="Glob for directory scans")
+    parser.add_argument(
+        "--max-lines",
+        type=int,
+        default=DEFAULT_MAX_LINES,
+        help=(
+            f"Text output: list at most this many defect lines (default {DEFAULT_MAX_LINES}; "
+            "0 lists all). The defect total counts every file. --json is never cut."
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.max_lines < 0:
+        parser.error(f"--max-lines must be 0 or greater, got {args.max_lines}")
 
     paths = [Path(p) for p in (args.paths or ["."])]
     missing = [str(p) for p in paths if not p.exists()]
@@ -425,7 +449,9 @@ def main(argv: list[str] | None = None) -> int:
             # files had changed. In `--json` mode that meant empty stdout, so
             # a programmatic caller could not reconcile its own state either.
             # The writes that happened were correct; only the record was lost.
-            _report(results, as_json=args.json, wrote=wrote, refused=refused)
+            _report(
+                results, as_json=args.json, wrote=wrote, refused=refused, max_lines=args.max_lines
+            )
             return 2
 
         defects = find_fence_defects(content)
@@ -446,7 +472,9 @@ def main(argv: list[str] | None = None) -> int:
             file_path.write_bytes(bom + repaired.encode("utf-8"))
         except OSError as exc:
             print(f"Error: cannot write {file_path}: {exc}", file=sys.stderr)
-            _report(results, as_json=args.json, wrote=wrote, refused=refused)  # same reason
+            _report(
+                results, as_json=args.json, wrote=wrote, refused=refused, max_lines=args.max_lines
+            )  # same reason
             return 2
         wrote.append(str(file_path))
 
@@ -455,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
             "Note: markdown-it-py is not installed; the balanced-file check was skipped.",
             file=sys.stderr,
         )
-    _report(results, as_json=args.json, wrote=wrote, refused=refused)
+    _report(results, as_json=args.json, wrote=wrote, refused=refused, max_lines=args.max_lines)
     return 1 if (refused or (results and not args.write)) else 0
 
 

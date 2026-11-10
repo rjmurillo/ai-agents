@@ -67,7 +67,8 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/curating-
 ```
 
 Add `--json` for machine-readable output, or `--root <dir>` to scan a
-directory other than `.serena/memories`.
+directory other than `.serena/memories`. The JSON lists only the actionable
+proposals; `--include-live` lists every file, and the counts always cover all.
 
 ### The four buckets
 
