@@ -58,8 +58,9 @@ Scan and repair malformed closing fences in markdown files. Closing fences must 
 Do not walk the file by hand. Fence tracking is a state machine, and
 `fix_fences.py` runs it.
 
-1. **Report.** Run the script over the target path. It prints every defect as
-   `FILE:LINE: KIND: TEXT` and exits 1 when it finds any.
+1. **Report.** Run the script over the target path. It prints defects as
+   `FILE:LINE: KIND: TEXT`, up to 200 lines, then says how many it left out (rerun
+   with `--max-lines 0` for all, or narrow the path). It exits 1 when it finds any.
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markdown-fences/scripts/fix_fences.py" FILE_OR_DIR
@@ -97,7 +98,8 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markd
 ```
 
 Options: `--write` repairs in place, `--json` emits machine-readable output,
-`--pattern` sets the glob for directory scans (default `*.md`). Paths default
+`--pattern` sets the glob for directory scans (default `*.md`), `--max-lines`
+bounds the text listing (default 200, `0` lists all; `--json` is never cut). Paths default
 to the current directory. `.git`, `node_modules`, `.venv`, `venv`, and `__pycache__`
 are skipped.
 
