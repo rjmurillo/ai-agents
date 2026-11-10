@@ -28,3 +28,7 @@
 - The critic notes that the leg has not run on a real runner. Empty-HOME behavior there is unproven until this pull request's own CI runs the job.
 - The positive test reads `src/claude`, not an installed copy. The ADR states the leg proves registration, not execution, on Ubuntu only.
 - The result message and the "What the smokes prove" header list were left unchanged. They are cosmetic.
+
+## Post-consensus edit (frontmatter only, not panel-reviewed)
+
+- The ADR-109 frontmatter `date` moves from 2026-11-04 to 2026-11-09, matching the D32 follow-up. A PR #7166 review thread raised it, and the architecture README index was regenerated. The body text is unchanged.

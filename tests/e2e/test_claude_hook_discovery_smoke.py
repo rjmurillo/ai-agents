@@ -77,8 +77,23 @@ def expected_events() -> list[str]:
 
 
 def isolated_env(home: Path) -> dict[str, str]:
-    """Minimal environment: empty HOME, PATH only. No credentials reach the CLI."""
-    return {"HOME": str(home), "PATH": os.environ.get("PATH", "")}
+    """Minimal environment with every home-directory input pinned to an empty dir.
+
+    POSIX reads HOME. Windows reads USERPROFILE and the AppData variables, so
+    those are pinned too; otherwise the CLI could find the real profile and
+    its credentials. SYSTEMROOT is passed through because Windows processes
+    need it to start.
+    """
+    env = {
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "APPDATA": str(home / "AppData" / "Roaming"),
+        "LOCALAPPDATA": str(home / "AppData" / "Local"),
+        "PATH": os.environ.get("PATH", ""),
+    }
+    if os.name == "nt" and "SYSTEMROOT" in os.environ:
+        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
+    return env
 
 
 def run_plugin_details(plugin_dir: Path, home: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -135,6 +150,9 @@ def test_cli_discovers_the_shipped_plugin_hooks(tmp_path: Path) -> None:
     assert expected, "hooks.json declares no events, so this guard would pass vacuously"
     assert count == len(expected)
     assert sorted(names) == expected
+    # The REQ-048 nudge is a Stop hook. Pin it here so this leg alone catches
+    # a manifest that drops or renames the Stop event.
+    assert "Stop" in names
 
 
 @pytest.mark.smoke
