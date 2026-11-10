@@ -196,9 +196,7 @@ class Collection:
         )
 
     def matches(self, harness: str, meta: Any) -> bool:
-        if harness == "copilot":
-            return copilot_session_matches_repos(meta, self.scope.paths)
-        return session_matches_repos(meta.get("cwd"), self.scope.paths)
+        return self.scope.matches(harness, meta)
 
     def requested(self, harness: str) -> bool:
         return self.args.harness in ("auto", "all", harness)

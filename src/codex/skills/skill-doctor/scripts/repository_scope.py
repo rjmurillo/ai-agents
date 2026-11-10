@@ -7,6 +7,10 @@ each registration's ``gitdir`` file. A directory name, a numbered suffix, or a
 shared path prefix never grants membership. The module reads files and never
 runs Git, so it cannot change a branch or a working tree.
 
+A rejected root also fences off its own subtree: a session whose deepest
+containing root is a rejected one stays out of scope even when a shallower
+included root contains it.
+
 Clone discovery (a second clone of the same upstream) is not supported.
 """
 
@@ -16,11 +20,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from session_discovery import session_cwd_within_repo
+from session_discovery import (
+    copilot_session_matches_repos,
+    session_cwd_within_repo,
+    session_matches_repos,
+)
 
 CLONE_DISCOVERY = "unsupported"
 BRANCH_FILTER = "none"
 _POINTER_PREFIX = "gitdir:"
+_REMOVED = (
+    "registered worktree directory is missing (removed); pass --repo PATH to include its sessions"
+)
+_NOT_POINTING_BACK = "directory exists but its .git does not point back to the registration"
+_BAD_REGISTRATION = "registration gitdir file is empty, unreadable, or not a valid path"
 
 
 @dataclass(frozen=True)
@@ -40,6 +53,7 @@ class RejectedRoot:
 class RepositoryScope:
     included: list[ScopeRoot] = field(default_factory=list)
     rejected: list[RejectedRoot] = field(default_factory=list)
+    _fenced: dict[str, bool] = field(default_factory=dict, repr=False)
 
     @property
     def paths(self) -> list[Path]:
@@ -53,6 +67,32 @@ class RepositoryScope:
     def reject(self, path: Path, reason: str) -> None:
         if path not in self.paths and all(item.path != path for item in self.rejected):
             self.rejected.append(RejectedRoot(path, reason))
+
+    def matches(self, harness: str, meta: Any) -> bool:
+        """Apply the repository filter, then drop sessions inside a rejected root."""
+        if harness == "copilot":
+            admitted = copilot_session_matches_repos(meta, self.paths)
+            cwds = [meta.get("cwd"), *meta["cwd_history"]]
+        else:
+            admitted = session_matches_repos(meta.get("cwd"), self.paths)
+            cwds = [meta.get("cwd")]
+        return admitted and not any(self._fenced_off(cwd) for cwd in cwds)
+
+    def _fenced_off(self, cwd: Any) -> bool:
+        key = cwd if isinstance(cwd, str) else ""
+        if key not in self._fenced:
+            self._fenced[key] = self._deepest_is_rejected(cwd)
+        return self._fenced[key]
+
+    def _deepest_is_rejected(self, cwd: Any) -> bool:
+        candidates = [(root.path, False) for root in self.rejected]
+        candidates += [(root.path, True) for root in self.included]
+        containing = [
+            (len(path.parts), keeps)
+            for path, keeps in candidates
+            if session_cwd_within_repo(cwd, path)
+        ]
+        return bool(containing) and not max(containing)[1]
 
     def report(self, sessions: Any = ()) -> dict[str, Any]:
         counts = count_sessions_by_root(sessions, self.paths)
@@ -79,9 +119,13 @@ def _read_line(path: Path) -> str | None:
         return None
 
 
-def _resolve(base: Path, text: str) -> Path:
-    candidate = Path(text)
-    return (candidate if candidate.is_absolute() else base / candidate).resolve()
+def _resolve(base: Path, text: str) -> Path | None:
+    """Resolve a pointer; a malformed one (NUL byte, symlink loop) yields None."""
+    try:
+        candidate = Path(text)
+        return (candidate if candidate.is_absolute() else base / candidate).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
 
 
 def git_dir_of(checkout: Path) -> Path | None:
@@ -95,19 +139,17 @@ def git_dir_of(checkout: Path) -> Path | None:
     if not text or not text.startswith(_POINTER_PREFIX):
         return None
     target = _resolve(checkout, text[len(_POINTER_PREFIX) :].strip())
-    return target if target.is_dir() else None
+    return target if target is not None and target.is_dir() else None
 
 
 def common_dir_of(git_dir: Path) -> Path:
     text = _read_line(git_dir / "commondir")
-    if not text:
-        return git_dir
-    target = _resolve(git_dir, text)
-    return target if target.is_dir() else git_dir
+    target = _resolve(git_dir, text) if text else None
+    return target if target is not None and target.is_dir() else git_dir
 
 
-def _registrations(common: Path) -> list[tuple[Path, Path]]:
-    """Return (registration directory, recorded worktree path) pairs."""
+def _registrations(common: Path) -> list[tuple[Path, Path | None]]:
+    """Return (registration directory, recorded worktree path or None) pairs."""
     root = common / "worktrees"
     try:
         entries = sorted(item for item in root.iterdir() if item.is_dir())
@@ -116,16 +158,31 @@ def _registrations(common: Path) -> list[tuple[Path, Path]]:
     pairs = []
     for entry in entries:
         recorded = _read_line(entry / "gitdir")
-        if recorded:
-            pairs.append((entry.resolve(), _resolve(entry, recorded).parent))
+        target = _resolve(entry, recorded) if recorded else None
+        pairs.append((entry.resolve(), target.parent if target is not None else None))
     return pairs
 
 
-def _main_checkout(common: Path) -> Path | None:
+def _admit_main(scope: RepositoryScope, common: Path) -> None:
     if common.name != ".git":
-        return None
-    parent = common.parent
-    return parent if git_dir_of(parent) == common else None
+        scope.reject(
+            common, "no main checkout resolved (bare repository or separate git directory)"
+        )
+    else:
+        scope.add(
+            ScopeRoot(common.parent, "main", "main checkout of the same Git common directory")
+        )
+
+
+def _admit_worktree(scope: RepositoryScope, registration: Path, worktree: Path | None) -> None:
+    if worktree is None:
+        scope.reject(registration, _BAD_REGISTRATION)
+    elif not worktree.is_dir():
+        scope.reject(worktree, _REMOVED)
+    elif git_dir_of(worktree) != registration:
+        scope.reject(worktree, _NOT_POINTING_BACK)
+    else:
+        scope.add(ScopeRoot(worktree, "worktree", "registered linked worktree"))
 
 
 def _expand(scope: RepositoryScope, selected: Path) -> None:
@@ -135,26 +192,9 @@ def _expand(scope: RepositoryScope, selected: Path) -> None:
         return
     common = common_dir_of(git_dir)
     scope.add(ScopeRoot(selected, "selected", "checkout the run started from or was given"))
-    main = _main_checkout(common)
-    if main is not None:
-        scope.add(ScopeRoot(main, "main", "main checkout of the same Git common directory"))
+    _admit_main(scope, common)
     for registration, worktree in _registrations(common):
         _admit_worktree(scope, registration, worktree)
-
-
-def _admit_worktree(scope: RepositoryScope, registration: Path, worktree: Path) -> None:
-    if not worktree.is_dir():
-        scope.reject(
-            worktree,
-            "registered worktree directory is missing (removed); "
-            "pass --repo PATH to include its sessions",
-        )
-    elif git_dir_of(worktree) != registration:
-        scope.reject(
-            worktree, "directory exists but its .git does not point back to the registration"
-        )
-    else:
-        scope.add(ScopeRoot(worktree, "worktree", "registered linked worktree"))
 
 
 def resolve_repository_scope(repos: Any, expand: bool = True) -> RepositoryScope:

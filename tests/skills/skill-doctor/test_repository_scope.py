@@ -287,19 +287,82 @@ def test_nonexistent_path_is_kept_as_an_explicit_selection(tmp_path):
     assert [root.path for root in scope.included] == [gone]
 
 
-def test_registration_whose_directory_points_elsewhere_is_rejected(world):
+def reject_reasons(scope):
+    return {item.path: item.reason for item in scope.rejected}
+
+
+def test_registration_pointing_at_a_directory_with_another_registration_is_rejected(world):
+    extra = add_worktree(world["main"], world["tmp"] / "trees" / "widgets" / "extra", "extra")
     entry = world["main"] / ".git" / "worktrees" / "feature-a"
-    assert entry.is_dir()
     hijacked = world["tmp"] / "hijacked"
     hijacked.mkdir()
-    (hijacked / ".git").write_text(f"gitdir: {world['tmp'] / 'nowhere'}\n", encoding="utf-8")
+    other_registration = world["main"] / ".git" / "worktrees" / extra.name
+    (hijacked / ".git").write_text(f"gitdir: {other_registration}\n", encoding="utf-8")
     (entry / "gitdir").write_text(f"{hijacked / '.git'}\n", encoding="utf-8")
 
     scope = resolve_repository_scope([world["main"].resolve()])
 
-    assert hijacked.resolve() not in [root.path for root in scope.included]
-    rejected = {item.path: item.reason for item in scope.rejected}
-    assert "does not point back" in rejected[hijacked.resolve()]
+    assert hijacked.resolve() not in scope.paths
+    assert "does not point back" in reject_reasons(scope)[hijacked.resolve()]
+    assert extra.resolve() in scope.paths
+
+
+def test_registration_pointing_at_a_full_clone_is_rejected(world):
+    entry = world["main"] / ".git" / "worktrees" / "feature-a"
+    clone = world["second_clone"]
+    (entry / "gitdir").write_text(f"{clone / '.git'}\n", encoding="utf-8")
+
+    scope = resolve_repository_scope([world["main"].resolve()])
+
+    assert clone.resolve() not in scope.paths
+    assert "does not point back" in reject_reasons(scope)[clone.resolve()]
+
+
+def test_empty_registration_is_rejected_with_a_reason(world):
+    entry = world["main"] / ".git" / "worktrees" / "feature-a"
+    (entry / "gitdir").write_text("", encoding="utf-8")
+
+    scope = resolve_repository_scope([world["main"].resolve()])
+
+    assert world["feature"].resolve() not in scope.paths
+    assert "not a valid path" in reject_reasons(scope)[entry.resolve()]
+
+
+def test_nul_byte_in_a_pointer_is_rejected_without_aborting(world):
+    entry = world["main"] / ".git" / "worktrees" / "feature-a"
+    (entry / "gitdir").write_text("/x/\x00/.git", encoding="utf-8")
+    broken = world["tmp"] / "broken-pointer"
+    broken.mkdir()
+    (broken / ".git").write_text("gitdir: /x/\x00/y", encoding="utf-8")
+
+    main_scope = resolve_repository_scope([world["main"].resolve()])
+    broken_scope = resolve_repository_scope([broken.resolve()])
+
+    assert world["feature"].resolve() not in main_scope.paths
+    assert broken_scope.paths == [broken.resolve()]
+
+
+def test_unusable_commondir_falls_back_to_the_registration_and_drops_main(world):
+    entry = world["main"] / ".git" / "worktrees" / "feature-a"
+    (entry / "commondir").write_text("/nowhere/at/all\n", encoding="utf-8")
+
+    scope = resolve_repository_scope([world["feature"].resolve()])
+
+    assert scope.paths == [world["feature"].resolve()]
+    assert "no main checkout resolved" in reject_reasons(scope)[entry.resolve()]
+
+
+def test_separate_git_dir_reports_the_unresolved_main_checkout(tmp_path):
+    main, gitdir = tmp_path / "sep-main", tmp_path / "sep-gitdir"
+    main.mkdir()
+    git(main, "init", "-q", "-b", "main", "--separate-git-dir", str(gitdir))
+    git(main, "commit", "-q", "--allow-empty", "-m", "init")
+    tree = add_worktree(main, tmp_path / "trees" / "sep-tree", "sep-branch")
+
+    scope = resolve_repository_scope([tree.resolve()])
+
+    assert scope.paths == [tree.resolve()]
+    assert "no main checkout resolved" in reject_reasons(scope)[gitdir.resolve()]
 
 
 def test_relative_gitdir_pointer_resolves_against_the_worktree(world):
@@ -339,3 +402,42 @@ def test_bare_repository_lists_worktrees_without_inventing_a_main_checkout(tmp_p
 
     assert [root.path for root in scope.included] == [tree.resolve()]
     assert all(root.kind != "main" for root in scope.included)
+    assert "no main checkout resolved" in reject_reasons(scope)[bare.resolve()]
+
+
+@pytest.mark.parametrize("root", ROOTS)
+def test_no_worktrees_flag_limits_the_run_to_the_listed_paths(world, root):
+    inventory, _ = collect(world, "--no-worktrees", "--repo", str(world["feature"]), root=root)
+
+    assert session_cwds(inventory) == {str(world["feature"])}
+    included = inventory["scope_resolution"]["included"]
+    assert [entry["path"] for entry in included] == [str(world["feature"])]
+    assert inventory["scope_resolution"]["rejected"] == []
+
+
+@pytest.mark.parametrize("root", ROOTS)
+def test_session_in_a_removed_worktree_nested_under_main_stays_out(world, root):
+    nested = add_worktree(world["main"], world["main"] / "nested-trees" / "gone", "nested-gone")
+    shutil.rmtree(nested)
+    write_session(world["home"], "nested", nested)
+    write_session(world["home"], "inside", world["main"] / "src")
+
+    inventory, _ = collect(world, root=root, cwd=world["main"])
+
+    assert str(nested) not in session_cwds(inventory)
+    assert str(world["main"] / "src") in session_cwds(inventory)
+    rejected = {entry["path"] for entry in inventory["scope_resolution"]["rejected"]}
+    assert str(nested) in rejected
+
+
+def test_nested_worktree_is_attributed_to_the_deepest_root(world):
+    nested = add_worktree(world["main"], world["main"] / "nested-trees" / "live", "nested-live")
+    sessions = [{"meta": {"cwd": str(nested)}}, {"meta": {"cwd": str(world["main"] / "src")}}]
+
+    scope = resolve_repository_scope([world["main"].resolve()])
+    counts = {
+        item["path"]: item["sessions_considered"] for item in scope.report(sessions)["included"]
+    }
+
+    assert counts[str(nested.resolve())] == 1
+    assert counts[str(world["main"].resolve())] == 1
