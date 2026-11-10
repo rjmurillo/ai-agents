@@ -415,10 +415,26 @@ def _require_unfilled_skeleton(path: Path) -> None:
         raise ValueError(f"fill target is not an unfilled skeleton: {path}")
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --scope 2026-11-09
+  %(prog)s --since "1 day ago" --learning "Pin actions to a SHA"
+  %(prog)s --fill retro-skeleton.md
+
+exit codes:
+  0  artifact written
+  1  a learning scored below the threshold (artifact still written)
+  2  usage or configuration error
+  3  unexpected external failure
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Run the retrospective workflow and write an artifact.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--scope",

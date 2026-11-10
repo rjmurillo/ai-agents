@@ -180,9 +180,23 @@ def process_files(
     return stats
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --dry-run
+  %(prog)s --memories-path .serena/memories --output-json
+  %(prog)s --files skills-index.md --dry-run
+
+exit codes:
+  0  files converted, or nothing to convert
+  1  a file failed to convert, no project root, or path outside the project
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Convert file references in index table cells to Markdown links.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--memories-path",

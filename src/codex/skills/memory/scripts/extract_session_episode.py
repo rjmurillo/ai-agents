@@ -1883,9 +1883,24 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True, session_id: 
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s session-log.json
+  %(prog)s session-log.json --force
+  %(prog)s episodes --validate
+
+exit codes:
+  0  episode written, or validation passed
+  1  invalid session log, extraction failed, or --validate path missing
+  2  unsafe path, bad AI_AGENTS_REPO_ROOT, or episode validation violation
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Extract episode data from session logs.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "session_log_path",

@@ -279,6 +279,20 @@ def show_manifest_path(cwd: Path | None = None) -> int:
     return EXIT_OK
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s path
+  %(prog)s check
+  %(prog)s restore --dry-run
+
+exit codes:
+  0  ok
+  1  invalid manifest
+  2  usage error, or not in a git repository
+  3  a git command failed
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="memory_git_targets.py",
@@ -286,14 +300,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Validate, restore, and clean the fixed git manifest that scopes a "
             "memory-consolidation run."
         ),
-        epilog=(
-            "examples:\n"
-            "  memory_git_targets.py path\n"
-            "  memory_git_targets.py check\n"
-            "  memory_git_targets.py restore --dry-run\n\n"
-            "exit codes: 0 ok, 1 logic (invalid manifest), 2 config (usage, "
-            "not in a repository), 3 external (git failed)."
-        ),
+        epilog=_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", metavar="{path,check,restore,cleanup}")

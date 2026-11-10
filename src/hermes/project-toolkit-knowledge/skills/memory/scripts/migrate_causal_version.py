@@ -244,9 +244,24 @@ def run_migrate(target: Path, *, dry_run: bool = False) -> int:
     return 1 if any(counts.get(outcome, 0) > 0 for outcome in _FAILURE_OUTCOMES) else 0
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s episodes --dry-run
+  %(prog)s episodes
+  %(prog)s episodes/episode-2026-01-01-session-1.json
+
+exit codes:
+  0  every processable episode is now v2
+  1  one or more episodes could not be stamped
+  2  no episode files found, or bad arguments
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Stamp causal_order_version=2 on legacy episode files (issue #3598)."
+        description="Stamp causal_order_version=2 on legacy episode files (issue #3598).",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
         "target",
