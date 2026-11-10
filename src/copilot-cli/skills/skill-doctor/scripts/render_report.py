@@ -97,6 +97,7 @@ def open_report(report_path: Path) -> bool:
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=output,
+                encoding="utf-8",
                 errors="replace",
                 timeout=BROWSER_TIMEOUT_SECONDS,
                 check=False,
