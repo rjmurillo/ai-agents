@@ -261,7 +261,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s .serena/memories --recursive
   %(prog)s .serena/memories/skills-index.md --max-chars 8000 --verbose
-  %(prog)s .serena/memories --recursive --fail-fast
 
 exit codes:
   0  every file is within the size thresholds

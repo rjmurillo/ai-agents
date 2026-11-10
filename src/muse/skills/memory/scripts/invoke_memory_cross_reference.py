@@ -44,7 +44,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --output-json
-  %(prog)s --files skills-index.md --memories-path .serena/memories
 
 exit codes:
   0  all three steps ran; step failures print as warnings (fail-open for hooks)

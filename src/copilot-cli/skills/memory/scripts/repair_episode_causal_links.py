@@ -15,7 +15,7 @@ evidence, so it is reported as unrepairable rather than given a fabricated
 order.
 
 EXIT CODES:
-  0 - success (repaired, or already sound, or --check found nothing)
+  0 - success (repaired, or already sound, or --check ran; repairs it would make still exit 0)
   1 - logic error (an episode is unreadable or its causal graph is invalid)
   2 - configuration error (episodes directory missing, or AI_AGENTS_REPO_ROOT
       is not a directory)
@@ -183,10 +183,9 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --check
   %(prog)s --episodes-dir episodes
-  %(prog)s episode-2026-01-01-session-1.json
 
 exit codes:
-  0  repaired, already sound, or --check found nothing
+  0  repaired, already sound, or --check ran (repairs it would make still exit 0)
   1  an episode is unreadable or its causal graph is invalid
   2  episodes directory missing, or AI_AGENTS_REPO_ROOT is not a directory
 """

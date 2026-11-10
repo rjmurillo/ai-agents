@@ -229,7 +229,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s "session protocol"
   %(prog)s "git hooks" --max-results 5 --format table
-  %(prog)s "episode" --episodes-path episodes
 
 exit codes:
   0  search ran (results may be empty)

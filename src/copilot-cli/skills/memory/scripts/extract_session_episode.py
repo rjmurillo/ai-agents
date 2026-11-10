@@ -1887,7 +1887,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s session-log.json
   %(prog)s session-log.json --force
-  %(prog)s episodes --validate
 
 exit codes:
   0  episode written, or validation passed

@@ -164,7 +164,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --queries 'session protocol' 'git hooks' --iterations 3
-  %(prog)s --format json --warmup 1
 
 exit codes:
   0  benchmark finished

@@ -184,7 +184,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --dry-run
   %(prog)s --memories-path .serena/memories --output-json
-  %(prog)s --files skills-index.md --dry-run
 
 exit codes:
   0  files converted, or nothing to convert

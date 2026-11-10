@@ -283,7 +283,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s path
   %(prog)s check
-  %(prog)s restore --dry-run
 
 exit codes:
   0  ok

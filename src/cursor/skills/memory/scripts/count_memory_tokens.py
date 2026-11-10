@@ -168,7 +168,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s .serena/memories/skills-index.md
   %(prog)s .serena/memories --recurse --total
-  %(prog)s .serena/memories --pattern '*-index.md' --force
 
 exit codes:
   0  tokens counted

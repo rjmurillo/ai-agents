@@ -127,7 +127,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --format table
-  %(prog)s --base-path . --format json
 
 exit codes:
   0  health report printed (read it for unavailable tiers)

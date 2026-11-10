@@ -419,7 +419,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --scope 2026-11-09
   %(prog)s --since "1 day ago" --learning "Pin actions to a SHA"
-  %(prog)s --fill retro-skeleton.md
 
 exit codes:
   0  artifact written

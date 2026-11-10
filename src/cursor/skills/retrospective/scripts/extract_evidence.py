@@ -381,7 +381,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --scope 2026-11-09 --since '1 day ago'
-  %(prog)s --project-dir /path/to/repo
 
 exit codes:
   0  evidence gathered (some sources may be marked absent)

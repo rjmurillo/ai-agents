@@ -248,7 +248,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s episodes --dry-run
   %(prog)s episodes
-  %(prog)s episodes/episode-2026-01-01-session-1.json
 
 exit codes:
   0  every processable episode is now v2
