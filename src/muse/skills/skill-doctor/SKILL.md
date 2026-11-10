@@ -335,7 +335,7 @@ python (Join-Path $SKILL_ROOT 'scripts\render_report.py') (Join-Path $REPORT_DIR
 
 For a bootstrap child run, omit `--open` and return the report path.
 
-This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "Show more" toggle, and a "Share" button saves a 1200x675 PNG locally. There is no separate card file to open or screenshot.
+This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "Show more" toggle, and a "Share" button saves a 2400x1350 PNG locally. There is no separate card file to open or screenshot.
 
 ### Step 6: Output
 

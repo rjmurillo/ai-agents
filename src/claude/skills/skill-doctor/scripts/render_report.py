@@ -5,7 +5,7 @@ Output (next to report.json):
   report.html - summary, findings, candidate skill changes with copyable
                 handoff prompts, and collapsible evidence in a single
                 self-contained page, with a Share button that draws a
-                1200x675 share image client-side and downloads it.
+                1200x675 share card at 2x (2400x1350 pixels) client-side and downloads it.
 
 Python 3.10+, stdlib only. Uses system fonts so the page and the exported PNG
 render the same everywhere.
@@ -283,7 +283,7 @@ def render_header(r: Any, generated_at: str) -> str:
         '<header class="page-head"><div class="title-row">'
         f"<h1>{title}</h1>"
         '<button class="button" id="share-png" type="button" '
-        'title="Save a 1200x675 share image as a PNG">Share</button></div>'
+        'title="Save a 2400x1350 PNG share card">Share</button></div>'
         f'<ul class="meta">{meta}</ul></header>'
     )
 
@@ -465,7 +465,7 @@ def main(argv: Any = None) -> None:
                 "warning: could not open the report in the default browser",
                 file=sys.stderr,
             )
-    print("        use the Share button to save a 1200x675 PNG")
+    print("        use the Share button to save a 2400x1350 PNG")
 
 
 if __name__ == "__main__":
