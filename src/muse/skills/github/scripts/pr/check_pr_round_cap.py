@@ -296,7 +296,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123
   %(prog)s --pull-request 123 --max-rounds 6 --max-hours 24
-  %(prog)s --pull-request 123 --reset
 
 exit codes:
   0  under the cap

@@ -75,7 +75,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --issue 123
   %(prog)s --issue 123 --comment "Regression in v1.2.1" --dry-run
-  %(prog)s --issue 123 --comment-file note.md
 
 exit codes:
   0  success (issue reopened, or already open)

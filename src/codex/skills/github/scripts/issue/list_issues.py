@@ -70,7 +70,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --state open --label bug --limit 20
   %(prog)s --assignee octocat --milestone v1.2.0
-  %(prog)s --search "login in:title" --output-format json
 
 exit codes:
   0  success

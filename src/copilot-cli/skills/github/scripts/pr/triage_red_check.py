@@ -611,7 +611,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --check-name "pytest"
   %(prog)s --check-name "pytest" --branch main --history-depth 10
-  %(prog)s --check-name "lint" --pull-request 123 --output-format json
 
 exit codes:
   0  GREEN_ON_MAIN (check passes on main; investigate the PR)

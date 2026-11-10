@@ -100,8 +100,7 @@ _REPO_NOT_FOUND_MARKER = "could not resolve to a repository"
 _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123 --strategy squash
-  %(prog)s --pull-request 123 --strategy squash --expected-head-sha abc1234 --delete-branch
-  %(prog)s --pull-request 123 --auto --strategy squash
+  %(prog)s --pull-request 123 --expected-head-sha 0123456789abcdef0123456789abcdef01234567
 
 exit codes:
   0  success

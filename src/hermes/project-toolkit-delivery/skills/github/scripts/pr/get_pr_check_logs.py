@@ -655,7 +655,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123
   %(prog)s --pull-request 123 --check-name "build" --max-lines 200
-  %(prog)s --pull-request 123 --context-lines 20 --output-format json
 
 exit codes:
   0  success (logs retrieved, or no failing checks)

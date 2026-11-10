@@ -101,7 +101,7 @@ class _Context:
 _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123
-  %(prog)s --pull-request 123 --expected-head-sha abc1234 --wait --timeout-seconds 120
+  %(prog)s --pull-request 123 --expected-head-sha 0123456789abcdef0123456789abcdef01234567 --wait
 
 exit codes:
   0  success (update requested, completed, or already up to date)

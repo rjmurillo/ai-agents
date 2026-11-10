@@ -278,9 +278,8 @@ WORKFLOW_MAP = {
 
 _HELP_EPILOG = """\
 examples:
-  %(prog)s --workflow ci.yml --dry-run
-  %(prog)s --workflow ci.yml --event pull_request --pr-number 123
-  %(prog)s --workflow ci.yml --job build --verbose
+  %(prog)s --workflow validate-paths.yml --dry-run
+  %(prog)s --workflow validate-paths.yml --event pull_request --pr-number 123
 
 exit codes:
   0  success

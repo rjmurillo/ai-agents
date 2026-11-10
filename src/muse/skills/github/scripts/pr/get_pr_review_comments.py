@@ -627,7 +627,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123
   %(prog)s --pull-request 123 --author octocat --include-diff-hunk
-  %(prog)s --pull-request 123 --only-unaddressed --group-by-domain --output-format json
 
 exit codes:
   0  success

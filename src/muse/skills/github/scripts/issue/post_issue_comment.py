@@ -180,7 +180,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --issue 123 --body "Fixed in the linked PR"
   %(prog)s --issue 123 --body-file report.md --marker status-report --update-if-exists
-  %(prog)s --issue 123 --body "Note" --dry-run
 
 exit codes:
   0  success (includes idempotent skip)

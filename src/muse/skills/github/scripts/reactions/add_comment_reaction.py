@@ -82,7 +82,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --comment-id 456789 --reaction eyes
   %(prog)s --comment-id 456789 457000 --reaction +1 --comment-type review --pull-request 123
-  %(prog)s --comment-id 456789 --reaction rocket --dry-run
 
 exit codes:
   0  all succeeded

@@ -234,7 +234,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --title "fix(api): handle empty body" --body-file pr-body.md
   %(prog)s --prepare-body-file
-  %(prog)s --title "feat(cli): add flag" --body-file pr-body.md --draft --base main
 
 exit codes:
   0  success

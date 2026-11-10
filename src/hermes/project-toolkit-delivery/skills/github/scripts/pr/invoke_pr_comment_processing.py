@@ -291,8 +291,7 @@ def process_comments(
 
 _HELP_EPILOG = """\
 examples:
-  %(prog)s --pr-number 123 --verdict PASS --findings-json findings.json
-  %(prog)s --pr-number 123 --verdict CRITICAL_FAIL --findings-json '{"findings": []}'
+  %(prog)s --pr-number 123 --verdict PASS --findings-json '{"comments": []}'
 
 exit codes:
   0  success

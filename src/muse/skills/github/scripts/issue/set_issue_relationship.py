@@ -278,7 +278,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --issue 123 --relation parent --target 100
   %(prog)s --issue 123 --relation blocked-by --target 101 102 --dry-run
-  %(prog)s --issue 123 --relation sub-issue --target 124 --remove
 
 exit codes:
   0  success (including no-op)

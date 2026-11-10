@@ -113,7 +113,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --text "Fixes #123 see https://github.com/octo-org/octo-repo/pull/45"
   %(prog)s --text "Review PR #45" --require-pr
-  %(prog)s --text "Closes #123" --require-issue
 
 exit codes:
   0  success

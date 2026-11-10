@@ -311,8 +311,7 @@ def _complete_commits(
 _HELP_EPILOG = """\
 examples:
   %(prog)s
-  %(prog)s --artifact abc1234
-  %(prog)s --output-format json
+  %(prog)s --artifact evidence.json
 
 exit codes:
   0  no unsupported closing claim can reach a squash commit

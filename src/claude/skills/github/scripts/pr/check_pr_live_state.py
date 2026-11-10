@@ -537,8 +537,7 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
 _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123
-  %(prog)s --pull-request 123 --expected-head-sha abc1234 --expected-base-ref main
-  %(prog)s --pull-request 123 --skip-fetch --output-format json
+  %(prog)s --pull-request 123 --expected-head-sha 0123456789abcdef0123456789abcdef01234567
 
 exit codes:
   0  PR is safe to act on (still OPEN; not superseded by main)

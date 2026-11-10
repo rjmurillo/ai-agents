@@ -495,7 +495,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --issue-number 123 --dry-run
   %(prog)s --issue-number 123 --prepare-context-only
-  %(prog)s --issue-number 123 --skip-assignment --output-format json
 
 exit codes:
   0  success (includes idempotent update)

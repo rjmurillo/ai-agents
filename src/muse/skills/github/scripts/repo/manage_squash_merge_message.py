@@ -148,7 +148,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --set PR_BODY --dry-run
-  %(prog)s --set PR_BODY --expected-current COMMIT_MESSAGES
 
 exit codes:
   0  success (read, no-op, dry-run, or applied write)

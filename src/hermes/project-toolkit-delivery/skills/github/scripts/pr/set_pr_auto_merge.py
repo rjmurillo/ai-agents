@@ -311,7 +311,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123 --enable --merge-method SQUASH
   %(prog)s --pull-request 123 --enable --commit-headline "fix(api): handle empty body"
-  %(prog)s --pull-request 123 --disable
 
 exit codes:
   0  success

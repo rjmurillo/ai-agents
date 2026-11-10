@@ -116,7 +116,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --issue 123 --labels bug needs-triage
   %(prog)s --issue 123 --remove-labels needs-triage --priority P1
-  %(prog)s --issue 123 --labels area-docs --no-create-missing
 
 exit codes:
   0  success

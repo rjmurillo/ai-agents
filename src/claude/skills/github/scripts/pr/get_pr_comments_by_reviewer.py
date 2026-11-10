@@ -352,7 +352,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123
   %(prog)s --pull-request 123 124 --include-reviewer octocat
-  %(prog)s --pull-request 123 --exclude-reviewer hubot --comment-type review --since 2026-11-01
 
 exit codes:
   0  success

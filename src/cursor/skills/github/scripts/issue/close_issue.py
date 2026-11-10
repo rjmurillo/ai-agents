@@ -79,7 +79,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --issue 123
   %(prog)s --issue 123 --reason "not planned" --comment "Superseded by #130"
-  %(prog)s --issue 123 --comment-file closing-note.md --verify-claims
 
 exit codes:
   0  success (issue closed, or already closed)

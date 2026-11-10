@@ -166,7 +166,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123 --dry-run
   %(prog)s --run-id 9876543210
-  %(prog)s --run-id 9876543210 --job-id 1234567890
 
 exit codes:
   0  reruns requested, or no failed runs to rerun

@@ -48,7 +48,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123
   %(prog)s --pull-request 123 --comment "Superseded by #130"
-  %(prog)s --pull-request 123 --comment-file closing-note.md
 
 exit codes:
   0  success

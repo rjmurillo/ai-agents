@@ -257,7 +257,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --pull-request 123 --body-file pr-body.md
   %(prog)s --pull-request 123 --body-file pr-body.md --dry-run
-  %(prog)s --pull-request 123 --body-file pr-body.md --expected-hash 0123abcd
 
 exit codes:
   0  success (or no-op)

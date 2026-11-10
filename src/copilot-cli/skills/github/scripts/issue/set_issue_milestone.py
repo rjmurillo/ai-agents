@@ -160,7 +160,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --issue 123 --milestone "v1.2.0"
   %(prog)s --issue 123 --milestone "v1.3.0" --force --dry-run
-  %(prog)s --issue 123 --clear
 
 exit codes:
   0  success

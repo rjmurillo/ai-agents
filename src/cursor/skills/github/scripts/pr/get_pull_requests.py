@@ -60,7 +60,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --state open --label bug --limit 20
   %(prog)s --author octocat --base main
-  %(prog)s --search "retry in:title" --output-format json
 
 exit codes:
   0  success

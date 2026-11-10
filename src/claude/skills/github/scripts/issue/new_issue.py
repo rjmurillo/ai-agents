@@ -133,7 +133,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --title "Fix login timeout" --source human --body "Steps to reproduce..."
   %(prog)s --title "Add retry to sync" --source agent --body-file issue-body.md --labels enhancement
-  %(prog)s --title "Docs gap" --source human --milestone "v1.2.0" --blocked-by 100
 
 exit codes:
   0  success
