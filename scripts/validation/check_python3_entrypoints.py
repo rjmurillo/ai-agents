@@ -42,7 +42,6 @@ _THIRD_PARTY_IMPORTS: frozenset[str] = frozenset(
         "pytest",
         "semgrep",
         "packaging",
-        "bandit",
         "ruff",
         "mypy",
         "openai",

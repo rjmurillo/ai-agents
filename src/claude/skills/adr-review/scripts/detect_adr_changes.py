@@ -35,7 +35,16 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-import yaml
+# PyYAML is optional. This script runs under a consumer's bare ``python3``
+# (`.claude/rules/plugin-self-containment.md` MUST 4), where PyYAML is not
+# installed. Without it every frontmatter parse reports "cannot parse", which
+# every caller already treats as fail closed: the adr-review gate still fires.
+try:
+    import yaml
+
+    _HAVE_YAML = True
+except ImportError:
+    _HAVE_YAML = False
 
 ADR_PATTERNS = (
     ".project-toolkit/architecture/ADR-*.md",
@@ -89,8 +98,8 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 
 
 # Frontmatter boundary, MIRRORED because it cannot be imported. This file ships
-# inside the plugin and may import only the standard library and yaml
-# (`.claude/rules/plugin-self-containment.md`), so neither `python-frontmatter`
+# inside the plugin and may import only the standard library at import time
+# (`.claude/rules/plugin-self-containment.md` MUST 4), so neither `python-frontmatter`
 # nor `scripts/validation/frontmatter_contract.py` is reachable here. Quoted
 # citation-freshness: ignore -- cites the installed python-frontmatter package, which is a pinned dependency in pyproject.toml and is deliberately not tracked in this repo; the parity tests assert the quoted pattern against the live library rather than against HEAD
 # verbatim from `frontmatter/default_handlers.py:252`, which that contract
@@ -135,7 +144,10 @@ def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
     values, and blank lines inside block values are parsed the same way the
     real ADR tooling and CI parse them. Returns ``None`` on malformed input or
     a non-mapping document so callers can fail closed (still trip the gate).
+    Also returns ``None`` when PyYAML is not installed: no parse is possible.
     """
+    if not _HAVE_YAML:
+        return None
     try:
         loaded = yaml.safe_load(frontmatter)
     except yaml.YAMLError:
@@ -192,11 +204,17 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
     instead of `list[Any]`. This returns a bool because callers only branch on
     it, and swallows a YAML parse error as False because a malformed block is
     already handled by the callers' own parse path. This file ships inside the plugin and may import only the
-    standard library and yaml, so the loader is duplicated here rather than
+    standard library at import time, so the loader is duplicated here rather than
     shared (`.claude/rules/plugin-self-containment.md`). Keys are compared with
     ``==`` in a list, not a set: a YAML key need not be hashable (``? [a, b]``
     builds a list key) and a set raises ``TypeError`` on it.
+
+    Without PyYAML this returns True. Absence of a duplicate cannot be proven
+    without a parser, and both callers read True as "do not trust this block":
+    the exemption is refused and the status is ``unknown``.
     """
+    if not _HAVE_YAML:
+        return True
 
     class _Dup(yaml.YAMLError):
         pass

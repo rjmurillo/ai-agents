@@ -357,7 +357,12 @@ def test_tool_grant_names_each_skill_script_and_no_git_grep():
     assert all(g.endswith(".py:*)") for g in python_grants)
     scripts = Path(SCRIPT).resolve().parents[2] / ".claude/skills/skill-bootstrap/scripts"
     named = {g.split("scripts/")[1].removesuffix(":*)") for g in python_grants}
-    assert named == {p.name for p in scripts.glob("bootstrap_*.py")}
+    entry_points = {
+        p.name
+        for p in scripts.glob("bootstrap_*.py")
+        if 'if __name__ == "__main__":' in p.read_text(encoding="utf-8")
+    }
+    assert named == entry_points
 
 
 def test_grade_ignores_a_list_under_another_key():

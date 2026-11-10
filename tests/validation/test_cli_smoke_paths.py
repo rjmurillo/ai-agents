@@ -38,6 +38,8 @@ def test_union_has_no_duplicates() -> None:
         ".claude/hooks/pre_tool_use.py",
         "tests/e2e/test_plugin_load_smoke.py",
         "tests/e2e/test_cli_hook_e2e.py",
+        "tests/e2e/test_claude_hook_discovery_smoke.py",
+        "templates/hooks/Stop/hook.json",
         ".github/workflows/plugin-cli-smoke.yml",
         ".github/cli-smoke/claude/package.json",
         ".github/cli-smoke/copilot/package-lock.json",

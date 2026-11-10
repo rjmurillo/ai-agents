@@ -16,7 +16,7 @@ redistributed to users when they install a plugin.
 
 **Does not require attribution:**
 
-- Dev-only tools (pytest, ruff, mypy, bandit)
+- Dev-only tools (pytest, ruff, mypy)
 - Build and CI infrastructure (GitHub Actions, Docker images)
 - Transitive pip packages users install from PyPI themselves
 - Test frameworks and test utilities

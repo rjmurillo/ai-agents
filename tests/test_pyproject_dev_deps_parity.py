@@ -43,7 +43,6 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # ``--testmon`` (issue #6239).
 REQUIRED_DEV_TOOLS = frozenset(
     {
-        "bandit",
         "lefthook",
         "mypy",
         "pip-audit",
@@ -226,7 +225,7 @@ def test_missing_required_tools_flags_absent_tools() -> None:
 
     missing = missing_required_tools(group)
 
-    assert {"ruff", "mypy", "bandit", "pip-audit", "pytest", "pytest-xdist"} <= missing
+    assert {"ruff", "mypy", "pip-audit", "pytest", "pytest-xdist"} <= missing
     assert "pytest-cov" not in missing
 
 
@@ -237,7 +236,6 @@ def test_missing_required_tools_empty_when_all_present() -> None:
         "pytest-timeout>=2.4.0",
         "pytest-xdist>=3.8.0",
         "pytest-testmon>=2.2.0",
-        "bandit[sarif]>=1.9.4",
         "lefthook==2.1.10",
         "pip-audit>=2.10.0",
         "ruff>=0.15.16",

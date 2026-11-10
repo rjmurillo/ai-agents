@@ -17,7 +17,7 @@ description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input,
 **When you see a GitHub URL, use these commands immediately:**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # PR URL → Use this
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {n} --owner {owner} --repo {repo}

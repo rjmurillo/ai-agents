@@ -1,7 +1,7 @@
 ---
 id: ADR-109
 status: accepted
-date: 2026-11-04
+date: 2026-11-09
 decision-makers: [rjmurillo]
 supersedes: [ADR-052]
 superseded-by: null
@@ -69,6 +69,8 @@ Exception: lib's canonical source stays `scripts/`, not `templates/`. The packag
 This changes `src/claude/`'s layout. Today its agent files sit flat at the plugin root, `src/claude/<name>.md`, with no `agents/` subdirectory (`repo-observed`: `ls src/claude`; `build/scripts/validate_install_parity.py:141` matches `^src/claude/(?P<name>[^/]+)\.md$`). B1 moves them to `src/claude/agents/<name>.md`, the layout `.claude/agents/` already uses, rewrites that regex and `detect_agent_drift.py`'s comparison pairs, and lands before the B6 marketplace switch. A consumer of the `claude-agents` plugin sees the path move at their next plugin update; B6 then retires that plugin name. `src/claude/` holds 33 `.md` files today for 31 agent stems (`repo-observed`: `ls src/claude/*.md | wc -l` against `ls templates/agents/*.shared.md | wc -l`); `AGENTS.md` and `claude-instructions.template.md` are not agents and stay at the plugin root after this move, not under `src/claude/agents/`.
 
 2026-11-04 amendment (owner decision D28, 2026-11-04, REQ-048 TASK-006): the plugin hooks file renders to `src/claude/hooks/hooks.json`, not the plugin root beside `agents/`. Claude Code auto-discovers plugin hooks only in the `hooks/` subdirectory of the plugin root. Live evidence (Claude Code 2.1.318, 2026-11-04): with the root file, a `--plugin-dir` run registered 22 hooks and the Stop hook never ran. With the file under `hooks/` and no `plugin.json` key, the hook ran, wrote its marker, and the nudge reached the stream. A `hooks` key in `plugin.json` stays banned (issue #1833: CLI 2.1.122 broke installs). `.claude/hooks/hooks.json` is now a relative symlink to `../../src/claude/hooks/hooks.json` (ADR-119), made by the file-shaped `hooks-json` binplace row with `link: true`; the `hooks` row leaves that one name alone. The original text above stands as written. Path coupling: the hook depends on Claude Code auto-discovering `<plugin-root>/hooks/hooks.json`, proven only on Claude Code 2.1.318. The only guard is the opt-in `tests/e2e/test_cli_stop_nudge_e2e.py` (not in `plugin-cli-smoke.yml`), and because the hook fails open, a CLI change would skip it silently.
+
+2026-11-09 follow-up (owner decision D32, 2026-11-09): the D28 sentence "The only guard is the opt-in `tests/e2e/test_cli_stop_nudge_e2e.py`" no longer holds. The `smoke-claude-hooks` leg in `plugin-cli-smoke.yml` runs `tests/e2e/test_claude_hook_discovery_smoke.py` on Ubuntu on every trusted pull request the smoke path filter selects, including pinned-CLI bumps under `.github/cli-smoke/`. It runs `claude plugin details project-toolkit`, which makes no model call and reads no credential, so the leg has no environment (ADR-114 decision 1). It asserts that the CLI registers every event key in `src/claude/hooks/hooks.json`, and a negative control asserts that the root layout registers none. Measured 2026-11-09 on Claude Code 2.1.316 (the pinned CI version) and locally on 2.1.319: `Hooks (1)  Stop` for the shipped tree, `Hooks (0)` for the root layout. The leg names both tests with `--require-pass`. It proves registration, not execution. Execution stays with the environment-gated hook smoke and the opt-in `test_cli_stop_nudge_e2e.py`. It covers Ubuntu only.
 
 ### 3. Binplace: one atomic operation writes the install trees
 

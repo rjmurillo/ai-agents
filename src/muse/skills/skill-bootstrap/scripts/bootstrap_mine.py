@@ -400,7 +400,24 @@ def candidates(args: argparse.Namespace) -> Outcome:
     if prs is not None:
         payload["review_rounds"] = prs[0]
         payload["examined"]["prs"] = prs[1]
+    _add_friction_inputs(args, root, payload)
     return Outcome(0, payload, out, root)
+
+
+def _add_friction_inputs(args: argparse.Namespace, root: Path, payload: Payload) -> None:
+    sessions = getattr(args, "sessions_json", None)
+    hosted = getattr(args, "hosted_json", None)
+    if sessions is None and not hosted:
+        return
+    # Keep the optional importer out of legacy runs and claims.
+    from bootstrap_friction import import_seeds
+
+    try:
+        result = import_seeds(root, sessions, hosted or [])
+    except (ValueError, OSError, RecursionError) as exc:
+        raise ConfigError(f"invalid friction input: {exc}") from exc
+    payload["examined"].update(result.pop("examined"))
+    payload.update(result)
 
 
 # ---------------------------------------------------------------- claims
@@ -754,6 +771,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_cand.add_argument("--top", type=int, default=10)
     p_cand.add_argument("--exclude", action="append", metavar="PREFIX")
     p_cand.add_argument("--prs-json", metavar="FILE")
+    p_cand.add_argument("--sessions-json", metavar="FILE", help="offline skill-doctor inventory")
+    p_cand.add_argument(
+        "--hosted-json",
+        metavar="FILE",
+        action="append",
+        help="versioned offline hosted friction export; repeatable",
+    )
 
     p_claims = sub.add_parser(
         "claims", allow_abbrev=False, help="check repo paths named in authored markdown"

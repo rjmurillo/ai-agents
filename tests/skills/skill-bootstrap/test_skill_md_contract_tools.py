@@ -45,8 +45,9 @@ def test_every_script_on_disk_is_bundled_and_documented() -> None:
     on_disk = {f"scripts/{p.name}" for p in (_skill_dir(".claude") / "scripts").glob("*.py")}
     text = _skill_md()
 
-    assert on_disk == set(BUNDLED_SCRIPTS)
-    for rel in sorted(on_disk):
+    assert on_disk == set(BUNDLED_SCRIPTS) | {"scripts/bootstrap_friction.py"}
+    assert "`bootstrap_friction.py`" in text
+    for rel in BUNDLED_SCRIPTS:
         portable = PORTABLE_SCRIPT.replace("bootstrap_boundary.py", rel.removeprefix("scripts/"))
         assert f'python3 "{portable}"' in text, rel
 

@@ -340,7 +340,7 @@ if __name__ == "__main__":
 # Verify extension installed
 gh extension list | grep <extension-name>
 
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Test wrapper script
 python3 "$SCRIPTS_DIR/extensions/<script>.py"
 

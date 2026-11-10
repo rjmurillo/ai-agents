@@ -19,6 +19,7 @@ GREEN = {
     "TRUSTED": "true",
     "SMOKE_RESULT": "success",
     "CODEX_RESULT": "success",
+    "HOOKS_RESULT": "success",
     "PI_RESULT": "success",
 }
 

@@ -7,8 +7,8 @@
 # would be blocked.
 #
 # The action pin may run ahead of that catalog's validate-contribution.yml.
-# Last checked 2026-11-05: the catalog pins c96833de (v1.2.806, scanner 3.57.0)
-# and this workflow pins v1.2.811 (scanner 3.58.0), by owner decision on #6982.
+# Last checked 2026-11-09: the catalog pins c96833de (v1.2.806, scanner 3.57.0)
+# and this workflow pins v1.2.815 (scanner 3.58.0), by owner decision on #6982.
 # While the pins differ, the score here comes from a newer scanner than the
 # catalog's and can differ from it. fail_on_severity is none, as in the catalog:
 # severities are advisory, the score is the gate. The action verifies the
@@ -22,7 +22,7 @@
 # literals. It cannot read upstream, so checking scanner-version.txt and
 # scanner-sha256.txt at the new commit is a manual step.
 #
-# Margin: the local twin scored 82 under scanner 3.58.0 on 2026-11-06. Refresh
+# Margin: the local twin scored 82 under scanner 3.58.0 on 2026-11-09. Refresh
 # this line on each bump. The twin prints the current score and every check
 # that lost points, on a pass too.
 #
@@ -69,7 +69,7 @@ jobs:
           persist-credentials: false
 
       - name: Run HOL AI Plugin Scanner
-        uses: hashgraph-online/ai-plugin-scanner-action@3220f5fedcd269533a6275738b2ab5d5f9753e8e # v1.2.811
+        uses: hashgraph-online/ai-plugin-scanner-action@a18c14cfbf6b787db97e6aa4207d5d469a5672a0 # v1.2.815
         with:
           plugin_dir: "."
           mode: scan

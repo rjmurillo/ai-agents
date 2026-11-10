@@ -19,6 +19,11 @@
 #     reads no credential, so it has no environment and no secret (ADR-115).
 #   - smoke-codex: one leg per OS. The Codex plugin-load smoke makes no model
 #     call and reads no credential, so it has no environment and no secret.
+#   - smoke-claude-hooks: one Ubuntu leg. `claude plugin details` proves the CLI
+#     still discovers the hooks in src/claude/hooks/hooks.json (REQ-048 Stop
+#     nudge, D32). It makes no model call and reads no credential, so it has no
+#     environment and no secret (ADR-114 decision 1: an environment is for a job
+#     that calls a model and reads a provider secret; this one does neither).
 #
 # What the smokes prove:
 #   - Hook smoke (test_cli_hook_e2e.py): a plugin hook resolves and runs from the
@@ -495,6 +500,88 @@ jobs:
           --expected-count 1
           --require-pass test_codex_plugin_loads_expected_skills
 
+  # Hook discovery needs no credential and no model call: `claude plugin details`
+  # reads the plugin tree only, with an empty HOME. No environment, no secret.
+  # Its two tests must pass, never skip (no --allow-skip-marker).
+  smoke-claude-hooks:
+    name: Smoke (claude hook discovery, ubuntu)
+    needs: [changes, authorize]
+    if: needs.changes.outputs.run == 'true' && needs.authorize.outputs.trusted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      RUN_CLI_E2E: '1'
+    steps:
+      - name: Harden Runner
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The gate decides pass or fail, so it runs from the base commit, not the pull
+      # request tree. It is stdlib-only, so `python -I` needs no environment.
+      - name: Checkout trusted scripts from the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-base
+          sparse-checkout: scripts/validation/assert_smoke_ran.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Setup Python
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.15'
+
+      - name: Install uv
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: true
+
+      - name: Setup Node
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 'lts/*'
+
+      # Keep credentials out of npm lifecycle scripts (CWE-829). npm ci installs
+      # the committed lockfile and checks every tarball integrity hash.
+      - name: Install pinned Claude CLI
+        shell: bash
+        working-directory: .github/cli-smoke/claude
+        env:
+          BIN_DIR: ${{ github.workspace }}/.github/cli-smoke/claude/node_modules/.bin
+        run: |
+          npm ci
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
+
+      - name: Run real-CLI hook discovery smoke (claude)
+        shell: bash
+        run: >-
+          uv run --frozen pytest tests/e2e/test_claude_hook_discovery_smoke.py
+          -m "smoke and claude" --junitxml=hook-discovery-report.xml
+
+      - name: Assert the hook discovery smoke actually ran
+        # always(): a silent skip of the hook discovery smoke must also fail the job.
+        if: always()
+        shell: bash
+        run: >-
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py
+          hook-discovery-report.xml
+          --smoke-substr test_claude_hook_discovery_smoke
+          --expected-count 2
+          --require-pass test_cli_discovers_the_shipped_plugin_hooks
+          --require-pass test_cli_finds_no_hooks_when_hooks_json_sits_at_the_plugin_root
+
   smoke-pi:
     name: Smoke (pi, ${{ matrix.os }})
     needs: [changes, authorize]
@@ -579,7 +666,7 @@ jobs:
 
   smoke-result:
     name: CLI Smoke Result
-    needs: [changes, authorize, smoke, smoke-codex, smoke-pi]
+    needs: [changes, authorize, smoke, smoke-codex, smoke-claude-hooks, smoke-pi]
     # The one terminal status to require: it runs on every pull request, passes
     # when the path filter says nothing relevant changed, and otherwise demands
     # every leg. !cancelled() rather than always(): a newer push cancels the run
@@ -630,5 +717,6 @@ jobs:
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
+          HOOKS_RESULT: ${{ needs.smoke-claude-hooks.result }}
           PI_RESULT: ${{ needs.smoke-pi.result }}
         run: python3 -I trusted-base/scripts/validation/smoke_result.py --preset plugin-cli-smoke

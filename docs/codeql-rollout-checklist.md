@@ -30,7 +30,7 @@ Verify all prerequisites before rollout:
   - [ ] Run targeted pytest command:
 
     ```bash
-    uv run pytest tests/test_install_codeql.py tests/test_install_codeql_integration.py tests/test_invoke_codeql_scan_py.py tests/test_test_codeql_config.py tests/test_get_codeql_diagnostics.py tests/test_test_codeql_rollout.py tests/skills/codeql-scan/test_invoke_codeql_scan_skill.py
+    uv run pytest tests/test_install_codeql.py tests/test_install_codeql_integration.py tests/test_invoke_codeql_scan_py.py tests/test_test_codeql_config.py tests/test_get_codeql_diagnostics.py tests/test_test_codeql_rollout.py tests/skills/codeql-scan/test_invoke_codeql_scan.py tests/skills/codeql-scan/test_codeql_delegate_paths.py
     ```
 
 - [ ] **Documentation reviewed**

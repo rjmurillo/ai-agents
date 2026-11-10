@@ -62,7 +62,7 @@ _FIELD_PREFIXES = ("i/", "w/", "attr/")
 #
 # `Cf` is the format category: the bidi controls, zero-width space, ZWNJ, ZWJ,
 # soft hyphen, the BOM. Every one renders as nothing or reorders what follows,
-# so `handoff‮dm.txt` reads as a different filename than it is (CWE-451).
+# so `handoff<U+202E>dm.txt` reads as a different filename than it is (CWE-451).
 # The class framing is deliberate, not a list of the variants reported so far:
 # `scripts/validation/git_hook_policy.py` reaches the same conclusion for
 # placeholder text and states it verbatim as

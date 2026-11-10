@@ -515,18 +515,23 @@ new file mode 100644
         assert _run_suppression_push(monkeypatch, tmp_path, diff, ("pkg/stub.pyi",)) == 1
         assert "pkg/stub.pyi:1" in capsys.readouterr().err
 
-    def test_pyw_suppression_is_honored_by_bandit_and_blocked_by_push_gate(self, tmp_path):
+    def test_pyw_suppression_is_honored_by_ruff_and_blocked_by_push_gate(self, tmp_path):
         repo = tmp_path / "repo"
         repo.mkdir()
         _init_push_repo(repo)
-        comment = "# nos" + "ec"
+        comment = "# no" + "qa: S502"
         path = repo / "tools" / "legacy_tls.pyw"
         path.parent.mkdir()
-        path.write_text(
-            f"import ssl\nssl.wrap_socket(ssl_version=ssl.PROTOCOL_SSLv3)  {comment}\n",
-            encoding="utf-8",
-        )
-        analyzer = _run([_tool("bandit"), "-q", str(path)], _ROOT)
+        source = "import ssl\nssl.wrap_socket(ssl_version=ssl.PROTOCOL_SSLv3)"
+        path.write_text(f"{source}  {comment}\n", encoding="utf-8")
+        # Control: without the comment ruff reports S502, so a zero exit below
+        # proves the comment suppressed a real finding.
+        control = tmp_path / "control.pyw"
+        control.write_text(f"{source}\n", encoding="utf-8")
+        ruff_s502 = [_tool("ruff"), "check", "--no-cache", "--select", "S502"]
+        flagged = _run([*ruff_s502, str(control)], _ROOT)
+        assert flagged.returncode == 1, flagged.stdout + flagged.stderr
+        analyzer = _run([*ruff_s502, str(path)], _ROOT)
         assert analyzer.returncode == 0, analyzer.stdout + analyzer.stderr
         head = _commit(repo, "add pyw suppression")
 

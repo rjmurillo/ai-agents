@@ -29,8 +29,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import jsonschema
-
 # A graph that has drifted produces thousands of errors; a message that long is
 # unreadable in a hook's stderr and truncated by most log sinks.
 _MAX_REPORTED_SCHEMA_ERRORS = 20
@@ -70,8 +68,11 @@ def _validate_schema(
     validator that reports success over data it never descended into is worse
     than none, because it gets cited as evidence the data is well formed.
 
-    ``jsonschema`` is already a project dependency, so there was never a cost
-    argument for the shorter path.
+    ``jsonschema`` is imported here, not at module level. The read functions in
+    this module must load under a consumer's bare ``python3``
+    (`.claude/rules/plugin-self-containment.md` MUST 4), where it is not
+    installed. A write that cannot validate fails loudly on the import rather
+    than skipping validation, which would bring back the #3356 shape.
 
     Args:
         data: The data dict to validate.
@@ -81,7 +82,10 @@ def _validate_schema(
     Raises:
         FileNotFoundError: If schema file is missing.
         ValueError: If data does not conform to the schema.
+        ModuleNotFoundError: If ``jsonschema`` is not installed.
     """
+    import jsonschema
+
     if not schema_file.is_file():
         msg = (
             f"Required schema file not found: {schema_file}. "

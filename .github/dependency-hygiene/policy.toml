@@ -53,12 +53,6 @@ evidence_file = ".github/workflows/pytest.yml"
 evidence_pattern = "\\.pytest-split/durations\\.json"
 
 [[manifest.tool_only]]
-package = "bandit"
-reason = "security linter run as a CLI"
-evidence_file = ".github/workflows/pytest.yml"
-evidence_pattern = '^\s*bandit\s+-r\s'
-
-[[manifest.tool_only]]
 package = "pip-audit"
 reason = "vulnerability auditor run as a CLI"
 evidence_file = ".github/workflows/pytest.yml"

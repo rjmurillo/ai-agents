@@ -58,6 +58,7 @@ artifacts:
     # Exclusion is transitive: a skill that refers to an excluded skill is
     # excluded too, because its reference would point at nothing.
     excluded:
+      skill-doctor: "The bundled renderer asset exceeds Hermes' 1 MiB per-file limit."
       adr-review: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
       cva-analysis: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."
       memory-maintenance: "plugin_guard returns dangerous for this skill (ADR-115 Decision 6)."

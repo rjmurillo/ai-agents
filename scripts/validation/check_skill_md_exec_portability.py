@@ -355,8 +355,9 @@ def diff_against_baseline(
                 f"{rel}: {n} bare '.claude/skills/...' or 'scripts/...' invocation(s) "
                 f"(baseline {allowed}). For a '.claude/skills/...' invocation, resolve "
                 "the script root via a plugin-root env var "
-                'with a source fallback, e.g. SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:'
-                '-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..." then invoke '
+                "with a source fallback, e.g. "
+                'SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+                '/skills/..." then invoke '
                 "\"$SCRIPTS_DIR/script.py\". A 'scripts/...' invocation has no such "
                 "resolved form: that tree is upstream-only and ships in neither "
                 "plugin root, so drop the invocation instead. Either kind may be "

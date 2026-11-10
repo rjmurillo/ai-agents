@@ -2442,19 +2442,22 @@ def test_transcript_descriptor_closes_when_fstat_fails(
         closed.append(descriptor)
         original_close(descriptor)
 
-    monkeypatch.setattr(transcript_module.os, "close", record_close)
-    monkeypatch.setattr(
-        transcript_module.os,
-        "fstat",
-        lambda descriptor: (_ for _ in ()).throw(OSError("fstat failed")),
-    )
-
-    with pytest.raises(OSError, match="fstat failed"):
-        transcript_module._open_transcript(
-            tmp_path,
-            "session",
-            "Copilot CLI",
+    # transcript_module.os is the global os module. Scope the fstat patch to
+    # the call under test so pytest's own capture fstat (pytest 9.2 calls it
+    # when the test phase ends) is not broken by it.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(transcript_module.os, "close", record_close)
+        scoped.setattr(
+            transcript_module.os,
+            "fstat",
+            lambda descriptor: (_ for _ in ()).throw(OSError("fstat failed")),
         )
+        with pytest.raises(OSError, match="fstat failed"):
+            transcript_module._open_transcript(
+                tmp_path,
+                "session",
+                "Copilot CLI",
+            )
 
     assert len(closed) == 3
 

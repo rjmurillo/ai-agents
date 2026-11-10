@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -85,8 +86,36 @@ class TestGetRepoRoot:
             mock_run.return_value = MagicMock(returncode=0, stdout="\n")
             assert _get_repo_root() is None
 
+    @pytest.mark.parametrize(
+        "error",
+        [
+            FileNotFoundError(2, "No such file or directory: 'git'"),
+            PermissionError(13, "Permission denied: 'git'"),
+            subprocess.TimeoutExpired(cmd="git", timeout=10),
+        ],
+        ids=["git-missing", "git-not-executable", "git-hangs"],
+    )
+    def test_returns_none_when_git_cannot_run(self, error: BaseException) -> None:
+        with patch("subprocess.run", side_effect=error):
+            assert _get_repo_root() is None
+
+    def test_git_call_is_bounded_by_a_timeout(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="/repo\n")
+            _get_repo_root()
+        assert mock_run.call_args.kwargs["timeout"] == _mod.GIT_TIMEOUT_SECONDS
+
 
 class TestMain:
+    @pytest.mark.parametrize("operation", ["full", "quick", "validate"])
+    def test_missing_git_is_exit_3_not_a_traceback(
+        self, operation: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A missing git binary must not surface as exit 1 ("findings detected")."""
+        with patch("subprocess.run", side_effect=FileNotFoundError(2, "git")):
+            assert main(["--operation", operation]) == 3
+        assert "Not in a git repository" in capsys.readouterr().err
+
     @patch("subprocess.run")
     def test_not_in_git_repo(self, mock_run: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="not a repo")

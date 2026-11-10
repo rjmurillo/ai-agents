@@ -74,7 +74,7 @@ Completion rule for every execution phase below (create worktree, merge, stage, 
 ### Phase 1: Context Gathering
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 # Get PR metadata
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pr <number>
 

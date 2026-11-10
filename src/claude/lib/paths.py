@@ -49,9 +49,10 @@ Relationship to existing skills:
 
 Related sources: `.claude/skills/review/SKILL.md`, section "Path resolution
 (harness-agnostic)". Plugin-root marker reuse:
-`.claude/lib/bootstrap.py::resolve_plugin_lib_dir` (CLAUDE_PLUGIN_ROOT then
-the `.claude-plugin/plugin.json` walk-up). This file is a sibling write-path
-resolver to that read-path resolver per the Issue #2050 batch decision.
+`.claude/lib/bootstrap.py::resolve_plugin_lib_dir` (COPILOT_PLUGIN_ROOT, then
+CLAUDE_PLUGIN_ROOT, then the `.claude-plugin/plugin.json` walk-up). This file
+is a sibling write-path resolver to that read-path resolver per the Issue #2050
+batch decision.
 """
 
 from __future__ import annotations
