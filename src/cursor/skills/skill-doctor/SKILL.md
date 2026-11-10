@@ -171,6 +171,8 @@ Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection
 Disclose partial collection before interpreting usage or recommending changes.
 Ambiguous same-name definitions are excluded, never selected as edit targets.
 If `sessions_sampled` is 0, report no scoreable conversations and stop.
+If `skills_found` is 0, continue with `skill_coverage` set to 0.
+Recommend creation only when a failed conversation demonstrates a capability gap.
 
 #### Sampling disclosure
 
@@ -183,8 +185,6 @@ Inside each harness, sessions that used an installed skill are taken first, newe
 Read `stats.per_harness` and `sampling` in `inventory.json`. Each harness entry holds `scoreable` (candidates), `skill_candidates`, `quota`, `sampled`, and `sampled_with_skills`. Report candidate and sampled counts for every harness separately.
 When `sampling.harness_coverage_complete` is false, state in the report that the cap prevented full harness coverage. Name each entry of `sampling.omitted_harnesses` with its `scoreable` count, and quote `sampling.notice`.
 Disclose that selection is skill-first within each harness. Harness balance alone does not make the sample representative.
-If `skills_found` is 0, continue with `skill_coverage` set to 0.
-Recommend creation only when a failed conversation demonstrates a capability gap.
 
 When the run covered exactly one repository (`conversation_scope` is `projects` and `repos` has one entry), you can pass the inventory to `skill-bootstrap` as an initial candidate seed. Bootstrap rejects all-conversations and multi-project inventories.
 In a bootstrap child run, return it to the caller instead of starting another run.
@@ -286,7 +286,7 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
 }
 ```
 
-Copy `notice` and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
+Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
 
 ```bash
 python3 "$SKILL_ROOT/scripts/render_report.py" "$REPORT_DIR/report.json" --open
