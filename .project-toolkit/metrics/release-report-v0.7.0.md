@@ -126,6 +126,11 @@ passes acceptance and then fails follow-up, violates scope, or records a residua
   anyway gives an interval of -0.0390 to +0.0766, still inside the margin.
 - Pooled with the 15 runs per arm of 2026-11-06 (secondary): 84 of 85 against 85 of 85,
   interval -0.0637 to +0.0325.
+- Success leaves out `durable.objective_satisfied`, the regex checks on the agent's final
+  reply. That check fails in 23 of 70 `full` runs and 19 of 70 `reduced` runs:
+  `duration-hours` 14 and 13, `docs-title-publish` 9 and 5, `config-loader-resume` 0 and 1.
+  `reduced` does no worse on it. Still, Success here means the code passed its checks, not
+  that the reply met every response check.
 
 Limits of the Shown verdict. It covers a 5-task fixture corpus, one model (`claude-sonnet-5`),
 and Claude Code 2.1.319. The ambient `~/.claude` load applies under both controls, so
