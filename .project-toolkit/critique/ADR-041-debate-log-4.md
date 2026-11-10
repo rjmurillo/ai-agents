@@ -70,3 +70,10 @@ decision and is flagged for the owner.
 Consensus: 2 Accept, 1 Disagree-and-Commit. ADR summary items 1 and 2 and the
 rules file change together in one commit. The ADR is 481 lines, under the
 500-line cap.
+
+## Post-consensus correction
+
+PR #7196 thread `PRRT_kwDOQoWRls61kD6I` (Cursor Bugbot, low) found that the
+ADR frontmatter `date` stayed `2026-11-09`. ADR-073 treats `date` as last
+updated. The date and the architecture index row now read `2026-11-10`. No
+rule text changed, so no new vote was taken.
