@@ -63,10 +63,16 @@ Sources, in this order:
    - The step runs the documented wrapper with `--operation quick --ci`, a 60
      second limit, and an environment limited to `PATH`, `HOME`, `LANG`, and
      `TMPDIR`. On timeout it kills the whole process group.
-   - The result is `CLEAN` only when at least one language was detected and the
-     run wrote a SARIF file for each detected language after the run started.
-     Exit 0 with a skip marker, exit 2 or 3, any other exit code, a signal, or a
-     timeout is `SKIPPED`.
+   - The language set is explicit: the step maps the diff's file types to
+     CodeQL languages and passes them with `--languages`. An empty set is
+     `SKIPPED (no scannable languages)`.
+   - The outcome needs a SARIF file for each requested language, written after
+     the run started. With that evidence, exit 0 with zero results is `CLEAN`,
+     and exit 1 with at least one result is `FINDINGS` (`--ci` exits 1 when
+     the scan finds issues, per ADR-035), read from those SARIF files. An
+     uncaught error also exits 1, so any mismatch between the exit code and
+     the result count is `SKIPPED (exit and results disagree)`. Without that evidence, and for exit 0 with a skip marker, exit 2 or
+     3, any other exit code, a signal, or a timeout, the outcome is `SKIPPED`.
 
 Rules for both sources:
 

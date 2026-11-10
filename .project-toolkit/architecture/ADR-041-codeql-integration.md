@@ -71,8 +71,10 @@ unchanged. In summary:
    No analysis reports `NOT ANALYZED`.
 3. Fallback before a pull request exists: the local Tier 2 wrapper, only under
    the guards in the rules file (clean tree, cache at HEAD, minimal environment,
-   60 second limit with a process-group kill, `CLEAN` only with fresh SARIF for
-   every detected language, with at least one detected). Unattended runs never use it.
+   60 second limit with a process-group kill, languages passed explicitly from
+   the diff). With fresh SARIF for every requested language, exit 0 with zero
+   results is `CLEAN` and exit 1 with at least one result is `FINDINGS`;
+   anything else is `SKIPPED`. Unattended runs never use it.
 4. Results reach the `security` axis as a validated rule id, a diff-checked
    path, and a line number. They are input only; Tier 1 stays the only blocking
    gate. `STALE`, `NOT ANALYZED`, and `SKIPPED` are never reported as clean.
