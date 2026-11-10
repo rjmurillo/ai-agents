@@ -29,7 +29,11 @@ _SKILLS_DIR_NAME = "skills"
 _TEMPLATES_SEGMENTS = ("templates", "agents")
 _SPEC_GENERATOR_SEGMENTS = (_CLAUDE_DIR_NAME, _SKILLS_DIR_NAME, "spec-generator", "SKILL.md")
 
-_PROSE_AGENTS = ("analyst", "explainer", "pr-comment-responder", "retrospective")
+_PROSE_AGENTS = ("analyst", "explainer", "retrospective")
+
+# pr-comment-responder moved from an agent to a skill, so its self-check pointer
+# lives in the skill template rather than a templates/agents shared body.
+_PROSE_SKILL_TEMPLATE_SEGMENTS = ("templates", "skills", "pr-comment-responder.SKILL.md.tmpl")
 
 
 def _find_repo_root(start: Path) -> Path | None:
@@ -53,6 +57,7 @@ def _canonical_prose_sources() -> list[Path]:
         REPO_ROOT.joinpath(*_TEMPLATES_SEGMENTS, f"{name}.shared.md") for name in _PROSE_AGENTS
     ]
     sources.append(REPO_ROOT.joinpath(*_SPEC_GENERATOR_SEGMENTS))
+    sources.append(REPO_ROOT.joinpath(*_PROSE_SKILL_TEMPLATE_SEGMENTS))
     return sources
 
 
@@ -90,5 +95,5 @@ def test_prose_agent_has_self_check_heading(name: str) -> None:
 
 
 def test_all_prose_agents_covered() -> None:
-    """Negative control: the covered set is exactly the four prose-emitting agents."""
-    assert set(_PROSE_AGENTS) == {"analyst", "explainer", "pr-comment-responder", "retrospective"}
+    """Negative control: the covered set is exactly the three prose-emitting agents."""
+    assert set(_PROSE_AGENTS) == {"analyst", "explainer", "retrospective"}
