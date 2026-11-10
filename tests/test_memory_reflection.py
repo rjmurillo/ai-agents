@@ -164,10 +164,23 @@ class TestExtractSessionFacts:
         assert extract_session_facts(mem_dir) == ["nested"]
 
     @pytest.mark.unit
-    def test_deleted_file_is_reported(self, tmp_path):
+    def test_deleted_file_is_not_reported_as_updated(self, tmp_path):
         mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
         (mem_dir / "alpha.md").unlink()
-        assert extract_session_facts(mem_dir) == ["alpha"]
+        assert extract_session_facts(mem_dir) == []
+
+    @pytest.mark.unit
+    def test_staged_deletion_is_not_reported_as_updated(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
+        _git(mem_dir.parent.parent, "rm", "-q", ".serena/memories/alpha.md")
+        assert extract_session_facts(mem_dir) == []
+
+    @pytest.mark.unit
+    def test_deletion_does_not_hide_a_sibling_update(self, tmp_path):
+        mem_dir = _init_repo_with_memories(tmp_path, ["alpha", "beta"])
+        (mem_dir / "alpha.md").unlink()
+        (mem_dir / "beta.md").write_text("# beta (2026-01-01)\n\nchanged\n", encoding="utf-8")
+        assert extract_session_facts(mem_dir) == ["beta"]
 
     @pytest.mark.unit
     def test_renamed_file_reports_the_new_name_once(self, tmp_path):

@@ -65,6 +65,8 @@ def generate_skill_candidates(memories_dir: Path, repo_root: Path) -> list[dict[
 def _changed_paths(memories_dir: Path) -> list[str] | None:
     """Paths under ``memories_dir`` that differ from HEAD or are untracked.
 
+    Deleted paths are skipped: a removed memory is not an updated one.
+
     Returns None when git cannot answer: git missing, not a repository, a
     non-zero exit, or a timeout. Parses ``git status --porcelain -z`` so odd
     file names survive; a rename entry carries the old path as an extra field,
@@ -102,6 +104,8 @@ def _changed_paths(memories_dir: Path) -> list[str] | None:
         status, path = field[:2], field[3:]
         if "R" in status or "C" in status:
             next(fields, None)  # old path of a rename or copy
+        if "D" in status:
+            continue  # a removed memory is not an updated one
         paths.append(path)
     return paths
 
