@@ -1,0 +1,9 @@
+diff --git a/billing/split.py b/billing/split.py
+index 880af5a..71574dc 100644
+--- a/billing/split.py
++++ b/billing/split.py
+@@ -1,2 +1,3 @@
+ def split_bill(total_cents, people):
+-    return [total_cents // people] * people
++    base, remainder = divmod(total_cents, people)
++    return [base + 1 if i < remainder else base for i in range(people)]

@@ -300,10 +300,13 @@ Load a file only when its condition holds. The scanner runs without any of them.
 | `references/agent-memory-inference-leakage.md` | The diff touches a memory write path: a call that saves agent memory, a reflection script, or a prompt that lets an agent record observations |
 | `references/autonomous-execution-guardrails.md` | You work unsupervised and are about to merge, or you are about to dismiss a security review comment as "won't fix" |
 | `references/dependency-risk-scoring.md` | The diff adds an external package or changes its version |
+| `references/security-cwe-catalog.md` | For the `security` agent: you scan for CWEs and need a name or description |
+| `references/security-impact-analysis.md` | For the `security` agent: milestone-planner asks for a security impact analysis |
+| `references/security-piv-ci-checks.md` | For the `security` agent: you write the CI check request in Post-Implementation Verification |
 
-`references/threat-model-template.md` has no load condition here. It is a short
-older copy of the template the `threat-modeling` skill ships under
-`templates/`. Use that one.
+`references/threat-model-template.md` is the short template the `security` agent uses
+for its `TM-NNN` reports; the scanner does not read it. For a full STRIDE workflow use
+the template the `threat-modeling` skill ships under `templates/`.
 
 ---
 
