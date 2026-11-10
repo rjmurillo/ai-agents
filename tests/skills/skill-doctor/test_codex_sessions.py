@@ -272,7 +272,7 @@ def _collect(tmp_path, root, *extra):
         root=root,
     )
     assert result.returncode == 0, result.stderr
-    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text())
+    inventory = json.loads((tmp_path / "report" / "inventory.json").read_text(encoding="utf-8"))
     return result, inventory
 
 
@@ -338,7 +338,7 @@ def test_terminated_session_is_reported_in_inventory_and_transcript(tmp_path, ro
 
     session = inventory["sessions"][0]
     assert session["stats"]["terminated_by"] == "usage_limit_exceeded"
-    transcript = Path(session["transcript_path"]).read_text()
+    transcript = Path(session["transcript_path"]).read_text(encoding="utf-8")
     assert "- terminated by: usage_limit_exceeded" in transcript
     assert transcript.rstrip().splitlines()[-1].startswith("[terminated]")
 
