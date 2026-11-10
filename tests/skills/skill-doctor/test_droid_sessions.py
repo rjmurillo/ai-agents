@@ -157,7 +157,7 @@ def test_missing_cwd_leaves_cwd_unset(tmp_path):
 
 def test_empty_file_has_no_scoreable_activity(tmp_path):
     path = tmp_path / "empty-id.jsonl"
-    path.write_text("")
+    path.write_text("", encoding="utf-8")
 
     meta, stats, entries, skills = parse_droid_session(path, {"alpha"}, False)
 
@@ -175,7 +175,7 @@ def test_malformed_lines_and_unknown_records_are_skipped(tmp_path):
     lines.insert(1, "{not json")
     lines.insert(2, json.dumps({"type": "todo_state", "todos": []}))
     lines.insert(3, json.dumps({"type": "message", "id": "bad", "message": "not a dict"}))
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     _meta, stats, _entries, _skills = parse_droid_session(path, {"alpha"}, False)
 
@@ -335,7 +335,7 @@ def test_finder_matches_session_jsonl_inside_cutoff_only(tmp_path):
     stray = home / "sessions" / "loose.jsonl"
     for path in (fresh, stale, settings, stray):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{}\n")
+        path.write_text("{}\n", encoding="utf-8")
     old = (datetime.now(timezone.utc) - timedelta(days=90)).timestamp()
     os.utime(stale, (old, old))
     cutoff = datetime.now(timezone.utc) - timedelta(days=45)
