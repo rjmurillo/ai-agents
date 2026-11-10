@@ -369,6 +369,11 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         help="grade only the listed checkouts, not their registered worktrees",
     )
     parser.add_argument(
+        "--audit-manifest",
+        action="store_true",
+        help="also write audit_manifest.json: declared scope, catalog, and provenance",
+    )
+    parser.add_argument(
         "--all-conversations",
         action="store_true",
         help="score conversations from every project represented in local history",

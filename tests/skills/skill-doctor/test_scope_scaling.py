@@ -6,9 +6,11 @@ journal-like session metas that reuse a few cwd values.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path, PureWindowsPath
 from typing import Any
@@ -29,6 +31,7 @@ from session_discovery import (
     infer_session_repos,
     session_cwd_within_repo,
 )
+from session_test_helpers import run_collector, write_jsonl
 
 
 @pytest.fixture(autouse=True)
@@ -328,3 +331,109 @@ def test_benchmark_reports_workload_counts_and_runtime(tmp_path, counters, capsy
     assert resolutions == unique
     assert elapsed < 2.0
     assert "benchmark:" in capsys.readouterr().out
+
+
+_UNCACHED_LAUNCHER = """
+import sys
+sys.path.insert(0, sys.argv.pop(1))
+import session_discovery
+
+_resolve = session_discovery._resolve_native_cwd
+
+def _uncached(cwd):
+    session_discovery.clear_cwd_resolution_cache()
+    return _resolve(cwd)
+
+session_discovery._resolve_native_cwd = _uncached
+import collect_sessions
+sys.argv[0] = collect_sessions.__file__
+collect_sessions.main()
+"""
+
+
+def _collector_view(out: Path) -> dict[str, Any]:
+    inventory = json.loads((out / "inventory.json").read_text(encoding="utf-8"))
+    sessions = sorted(
+        (s["harness"], s["meta"].get("cwd"), s.get("skills_used"), s.get("sampled"))
+        for s in inventory["sessions"]
+    )
+    scope = inventory["scope_resolution"]
+    return {
+        "sessions": [list(map(str, item)) for item in sessions],
+        "skill_usage": inventory["skill_usage"],
+        "skills_used": inventory["stats"]["skills_used"],
+        "sessions_in_scope": inventory["stats"]["sessions_in_scope"],
+        "included": [(r["path"], r["sessions_considered"]) for r in scope["included"]],
+        "rejected": scope["rejected"],
+    }
+
+
+def _write_skill_world(tmp_path: Path) -> tuple[dict[str, Any], Path]:
+    world = build_world(tmp_path, worktrees=2)
+    skill = world["main"] / ".claude" / "skills" / "deploy"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\nname: deploy\ndescription: Deploy it.\n---\n# deploy\n", encoding="utf-8"
+    )
+    link = tmp_path / "link-to-wt"
+    link.symlink_to(world["trees"][1], target_is_directory=True)
+    home = tmp_path / "copilot"
+    cwds = [world["main"], world["main"] / "src", world["trees"][0], link, world["outside"]]
+    for index, cwd in enumerate(cwds * 2):
+        write_jsonl(
+            home / "session-state" / f"s{index}" / "events.jsonl",
+            [
+                {"type": "session.start", "data": {"context": {"cwd": str(cwd)}}},
+                {"type": "assistant.message", "data": {"content": "Inspect"}},
+                {
+                    "type": "tool.execution_start",
+                    "data": {"toolName": "skill", "arguments": {"skill": "deploy"}},
+                },
+            ],
+        )
+    return world, home
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink fixture needs POSIX permissions")
+def test_collector_sessions_and_skill_usage_match_the_uncached_baseline(tmp_path):
+    world, home = _write_skill_world(tmp_path)
+    args = ["--harness", "copilot", "--repo", str(world["main"]), "--min-idle-minutes", "0"]
+    cached = tmp_path / "cached"
+    cached.mkdir()
+    baseline = tmp_path / "baseline"
+    baseline.mkdir()
+    launcher = baseline / "launch_uncached.py"
+    launcher.write_text(_UNCACHED_LAUNCHER, encoding="utf-8")
+    scripts = Path(session_discovery.__file__).resolve().parent
+
+    first = run_collector(cached, home, *args, cwd=tmp_path)
+    second = _run_launcher(baseline, home, launcher, scripts, args)
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    view = _collector_view(cached / "report")
+    assert view == _collector_view(baseline / "report")
+    assert view["sessions_in_scope"] == 8
+    assert view["skill_usage"]["deploy"] > 0
+
+
+def _run_launcher(tmp_path: Path, home: Path, launcher: Path, scripts: Path, args):
+    env = {k: v for k, v in os.environ.items() if k not in {"CI", "GITHUB_STEP_SUMMARY"}}
+    isolated = tmp_path / "isolated-home"
+    isolated.mkdir()
+    env.update({"HOME": str(isolated), "USERPROFILE": str(isolated), "COPILOT_HOME": str(home)})
+    for key in ("APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME", "WARP_DATA_DIR", "HERMES_HOME"):
+        env[key] = str(isolated / key.lower())
+    for key in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
+        env[key] = str(isolated / key.lower())
+    return subprocess.run(
+        [sys.executable, str(launcher), str(scripts), "--out", str(tmp_path / "report"), *args],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )

@@ -85,6 +85,10 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 45. Removed worktrees are rejected with a reason, fence off their subtree, and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
 46. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
 47. Per-run scope caching: each unique native cwd is resolved once, each Git common directory is expanded once, and `infer_session_repos` runs Git once per unique cwd (issue #7246).
+48. `report_evaluation.py` and the `evaluation` block: reports record `diagnosis` and `optimization` separately, every suggestion carries a `status` that stays `unevaluated` without skillopt evidence, and `render_report.py` exits 1 on unsupported measured claims or "no beneficial change" verdicts (issue #7245).
+49. `references/skill-improvements.md` has no static change bar. Every supported finding is a visible candidate with an owner, separated fact and hypothesis, and copyable skillopt and skillforge handoff prompts; nothing starts either skill (issue #7247).
+50. `audit_manifest.py` and `collect_sessions.py --audit-manifest`: a versioned, fingerprinted manifest of declared scope, caps, source revision, upstream identity evidence, and a content-aware catalog (issue #7248, M1).
+51. `audit_scores.py` executes Steps 2 and 3: it validates rubric labels against `scorers/*.md`, recomputes pooled applicable means, the quality fallback, weighted shortfalls, and failed conversations (issue #7248, M3).
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.

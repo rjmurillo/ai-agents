@@ -73,10 +73,12 @@ Create the report directory only after the startup gate and scope choices.
 | --- | --- |
 | `collect_sessions.py` | Collect selected journals into `inventory.json` and bounded transcripts. |
 | `render_report.py` | Render scored `report.json` into `report.html`; `--open` requests browser launch. |
+| `audit_scores.py` | Validate per-session rubric results in `scores.json` and compute the Step 3 aggregates. |
+| `audit_manifest.py` | Validate an `audit_manifest.json` written by `collect_sessions.py --audit-manifest`. |
 | `warp_decoder.py` | Imported Warp protobuf decoder, not a standalone CLI. |
 
-Both CLIs accept `--help`.
-Exit 0 means success, 1 means failure, and 2 means invalid CLI arguments.
+Every CLI accepts `--help`.
+Exit 0 means success, 1 means failure (for `audit_scores.py`, `audit_manifest.py`, and `render_report.py`: invalid input or an unsupported claim), and 2 means invalid CLI arguments or an unreadable file.
 Use absolute script paths, as shown below, from any working directory.
 
 ## Process
@@ -172,6 +174,7 @@ Useful flags:
 - `--skills-dir PATH` - nonstandard skill locations.
 - `--include-subagents` - include child or sidechain sessions.
 - `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
+- `--audit-manifest` - also write `audit_manifest.json`: declared inputs and caps, source revision, upstream identity evidence, scope, and the content-aware skill catalog. It exits 1 and writes no manifest when the evidence contradicts the declared scope.
 
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
 State `scope_resolution` in the report: included roots with their session counts, rejected roots with reasons, and that clone discovery is unsupported.
@@ -220,6 +223,21 @@ Scoring is based on efficiency, code quality, procedure compliance, and verbosit
 Instructions: For each session in `inventory.json` with `sampled: true`, read its `transcript_path`. Ignore other files in `$REPORT_DIR/transcripts/`, which can be left over from an earlier run. Read each transcript and judge it against all four rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1-3 sentence reason citing specifics from the transcript. Apply the code-quality scorer only where the transcript shows code changes; otherwise record `insufficient_evidence` and exclude that result from the code-quality average and failed-conversation filter.
 
 ### Step 3: Aggregate
+
+Write every scored result to `$REPORT_DIR/scores.json`, then compute the aggregates with the script instead of by hand:
+
+```json
+{"sessions": [{"session_id": "", "harness": "", "skills_detected": true, "terminated_by": null,
+  "scores": {"efficiency": {"label": "", "score": 0.0, "reason": "", "evidence_ref": ""},
+             "code_quality": {}, "procedure_compliance": {}, "verbosity": {}}}]}
+```
+
+```bash
+python3 "$SKILL_ROOT/scripts/audit_scores.py" "$REPORT_DIR/scores.json" --out "$REPORT_DIR/score_artifact.json"
+```
+
+It exits 1 and writes nothing when a label does not match its rubric value, a reason is missing, or a session id repeats. Fix the scores and rerun.
+Copy each `dimensions.<name>.score` and `overall` from `score_artifact.json` into `report.json`; use its `failed_conversations` and `per_harness` values. The formulas below define what the script computes:
 
 - `raw_efficiency` = mean of efficiency scores across all scored sessions.
 - `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.

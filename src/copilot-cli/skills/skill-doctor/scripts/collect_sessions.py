@@ -8,6 +8,7 @@ sessions used which skills, and emits:
 
   <out>/inventory.json        - skills, per-session stats, sampling decisions
   <out>/transcripts/<id>.md   - condensed transcripts for sampled sessions
+  <out>/audit_manifest.json   - only with --audit-manifest: scope, catalog, provenance
 
 Everything runs locally; nothing is uploaded. Python 3.10+, stdlib only.
 Copyright (c) 2026 Denver Technologies, Inc. MIT license, see ../LICENSE.
@@ -25,6 +26,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
+from audit_manifest import export_manifest
 from repository_scope import print_scope_roots, resolve_repository_scope
 from session_common import (
     CLAUDE_CODE_EDIT_TOOLS,
@@ -479,6 +481,8 @@ def _run() -> None:
     inventory = _inventory(collection, homes, sampled, per_harness, sampling)
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2), encoding="utf-8")
     _print_summary(inventory, args, collection.repos, out)
+    if args.audit_manifest:
+        export_manifest(inventory, args, out)
 
 
 def main() -> None:
