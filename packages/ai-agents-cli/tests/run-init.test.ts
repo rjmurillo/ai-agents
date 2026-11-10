@@ -289,4 +289,86 @@ describe("runInit half-present marker block (issue #7229)", () => {
     expect(stderr).toContain(claudeMd);
     expect(await readFile(claudeMd, "utf-8")).toBe("# mine\n<!-- ai-agents:begin -->\nstuff\n");
   });
+
+  test("fails before vendoring: no files, no pin, no success output", async () => {
+    await writeFile(join(targetDir, "CLAUDE.md"), "# mine\n<!-- ai-agents:begin -->\n");
+
+    const { result, stdout } = await capture(() =>
+      runInit({ ...base(), targetDir, assetsDir }),
+    );
+
+    expect(result).toBe(1);
+    expect(stdout).not.toContain("Vendored");
+    expect(stdout).not.toContain("/spec");
+    await expect(access(agentPath())).rejects.toThrow();
+    await expect(access(pinPath())).rejects.toThrow();
+  });
+
+  test("--dry-run reports the lone marker and exits 1", async () => {
+    const claudeMd = join(targetDir, "CLAUDE.md");
+    await writeFile(claudeMd, "# mine\n<!-- ai-agents:end -->\n");
+
+    const { result, stdout, stderr } = await capture(() =>
+      runInit({ ...base(), dryRun: true, targetDir, assetsDir }),
+    );
+
+    expect(result).toBe(1);
+    expect(stderr).toContain(claudeMd);
+    expect(stdout).not.toContain("Would vendor");
+    expect(await readFile(claudeMd, "utf-8")).toBe("# mine\n<!-- ai-agents:end -->\n");
+  });
+
+  test("--dry-run names the Copilot file for the copilot target", async () => {
+    const copilotFile = join(targetDir, ".github", "copilot-instructions.md");
+    await mkdir(join(targetDir, ".github"), { recursive: true });
+    await writeFile(copilotFile, "<!-- ai-agents:begin -->\n");
+
+    const { result, stderr } = await capture(() =>
+      runInit({ ...base(), dryRun: true, targetDir, assetsDir, target: "copilot" }),
+    );
+
+    expect(result).toBe(1);
+    expect(stderr).toContain(copilotFile);
+  });
+});
+
+describe("runInit pin keeps hashes of skipped pack files", () => {
+  const packSkill = () =>
+    join(targetDir, ".claude", "skills", "business-strategy", "SKILL.md");
+
+  test("enabling a pack after a run without it does not read untouched files as edits", async () => {
+    await mkdir(join(assetsDir, "skills", "business-strategy"), { recursive: true });
+    const bundled = join(assetsDir, "skills", "business-strategy", "SKILL.md");
+    await writeFile(bundled, "# biz v1\n");
+
+    expect(await runInit({ ...base(), targetDir, assetsDir, packs: ["business"] })).toBe(0);
+    expect(await runInit({ ...base(), targetDir, assetsDir })).toBe(0);
+    const pin = JSON.parse(await readFile(pinPath(), "utf-8"));
+    expect(pin.files["skills/business-strategy/SKILL.md"]).toMatch(/^[0-9a-f]{64}$/);
+
+    await writeFile(bundled, "# biz v2\n");
+    const code = await runInit({ ...base(), targetDir, assetsDir, packs: ["business"] });
+
+    expect(code).toBe(0);
+    expect(await readFile(packSkill(), "utf-8")).toBe("# biz v2\n");
+  });
+
+  test("a locally edited pack file still blocks the upgrade after a run without the pack", async () => {
+    await mkdir(join(assetsDir, "skills", "business-strategy"), { recursive: true });
+    const bundled = join(assetsDir, "skills", "business-strategy", "SKILL.md");
+    await writeFile(bundled, "# biz v1\n");
+
+    await runInit({ ...base(), targetDir, assetsDir, packs: ["business"] });
+    await runInit({ ...base(), targetDir, assetsDir });
+    await writeFile(packSkill(), "MY EDIT\n");
+    await writeFile(bundled, "# biz v2\n");
+
+    const { result, stderr } = await capture(() =>
+      runInit({ ...base(), targetDir, assetsDir, packs: ["business"] }),
+    );
+
+    expect(result).toBe(2);
+    expect(stderr).toContain("skills/business-strategy/SKILL.md");
+    expect(await readFile(packSkill(), "utf-8")).toBe("MY EDIT\n");
+  });
 });

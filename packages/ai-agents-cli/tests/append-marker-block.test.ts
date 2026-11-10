@@ -53,4 +53,18 @@ describe("appendMarkerBlock", () => {
     await expect(appendMarkerBlock(file, BLOCK, false)).rejects.toThrow(file);
     expect(await readFile(file, "utf-8")).toBe(original);
   });
+
+  test("dry run throws on a lone marker and leaves the file unchanged", async () => {
+    const original = `# mine\n${BEGIN_MARKER}\nbody\n`;
+    await writeFile(file, original);
+    const failure = appendMarkerBlock(file, BLOCK, true);
+    await expect(failure).rejects.toBeInstanceOf(MarkerBlockError);
+    await expect(failure).rejects.toThrow(file);
+    expect(await readFile(file, "utf-8")).toBe(original);
+  });
+
+  test("dry run on a missing file writes nothing and does not throw", async () => {
+    await appendMarkerBlock(join(dir, "sub", "new.md"), BLOCK, true);
+    await expect(readFile(join(dir, "sub", "new.md"), "utf-8")).rejects.toThrow();
+  });
 });

@@ -24,8 +24,9 @@ export function hashContent(content: Buffer): string {
 }
 
 // Read the per-file content hashes recorded by the last install. A missing
-// pin, an unreadable pin, or a pin written before hashes existed all mean
-// "no record", so every existing file is judged against the incoming content.
+// pin, a pin that is not valid JSON, or a pin written before hashes existed
+// all mean "no record", so every existing file is judged against the incoming
+// content. Any other read error is rethrown.
 export async function readRecordedHashes(
   targetDir: string,
 ): Promise<Record<string, string>> {

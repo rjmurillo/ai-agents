@@ -76,7 +76,20 @@ export async function runInit(opts: RunInitOptions): Promise<number> {
   const source = new FsBundleSource(opts.assetsDir);
   // Hashes from the last install let the emitter tell a consumer edit from an
   // unmodified vendored file (issue #7218).
-  const emitter = new FsTargetEmitter(await readRecordedHashes(target.targetDir));
+  const recorded = await readRecordedHashes(target.targetDir);
+  const emitter = new FsTargetEmitter(recorded);
+
+  // Validate the instruction files before vendoring anything, in dry-run too.
+  // A half-present marker block then fails the run before any file is written
+  // or any success line is printed, and a preview reports the same failure.
+  const instructionTarget = opts.target ?? DEFAULT_TARGET;
+  try {
+    await writeTargetBlocks(target.targetDir, instructionTarget, true);
+  } catch (err) {
+    if (!(err instanceof MarkerBlockError)) throw err;
+    process.stderr.write(`${err.message}\n`);
+    return 1;
+  }
 
   // Optional skill packs are excluded by default; --pack opts them in. The
   // filter runs before emit so a non-requested pack's files are neither
@@ -86,7 +99,6 @@ export async function runInit(opts: RunInitOptions): Promise<number> {
   const code = await init(source, emitter, target, [packFilter]);
   if (code !== 0) return code;
 
-  const instructionTarget = opts.target ?? DEFAULT_TARGET;
   if (opts.dryRun) {
     process.stdout.write("Dry run: these writes were skipped:\n");
     for (const write of skippedWrites(instructionTarget)) {
@@ -96,12 +108,16 @@ export async function runInit(opts: RunInitOptions): Promise<number> {
   }
 
   const installed = emitter.installedHashes();
+  // The manifest lists what this run selected. The recorded hashes also keep
+  // files an earlier run installed and this run skipped (an optional pack left
+  // out now), so enabling that pack later still tells an untouched file from a
+  // local edit. Hashes from this run's emit pass win over older ones.
   await writeVersionPin(
     target.targetDir,
     opts.version,
     Object.keys(installed),
     opts.dryRun,
-    installed,
+    { ...recorded, ...installed },
   );
   await writeAgentsMd(target.targetDir, opts.dryRun);
   try {

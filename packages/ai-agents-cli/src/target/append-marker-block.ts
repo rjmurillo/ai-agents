@@ -21,7 +21,8 @@ export class MarkerBlockError extends Error {
 // Append a marker-delimited block to a markdown instruction file, preserving
 // existing content and CRLF line endings. Idempotent: a file that already
 // contains both markers is left untouched. A file with only one marker throws
-// MarkerBlockError. The dry-run guard writes nothing.
+// MarkerBlockError, in dry-run too, so a preview reports the same failure a
+// real run hits. The dry-run guard writes nothing.
 //
 // Shared by the CLAUDE.md (claude target) and copilot-instructions.md
 // (copilot target) writers so the CRLF and idempotency rules live in one place.
@@ -37,11 +38,6 @@ export async function appendMarkerBlock(
         "them.",
     );
   }
-
-  if (dryRun) return;
-
-  const dir = dirname(filePath);
-  await mkdir(dir, { recursive: true });
 
   let existing = "";
   let detectedCrlf = false;
@@ -70,6 +66,9 @@ export async function appendMarkerBlock(
       hasBegin ? END_MARKER : BEGIN_MARKER,
     );
   }
+
+  if (dryRun) return;
+  await mkdir(dirname(filePath), { recursive: true });
 
   let blockToWrite = block;
   if (detectedCrlf) {
