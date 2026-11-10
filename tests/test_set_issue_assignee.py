@@ -182,3 +182,32 @@ def test_dry_run_on_a_missing_issue_exits_3_like_a_real_assignment(mock_run, cap
     assert output["Success"] is False
     assert "Failed to read issue #4242 in o/r" in output["Error"]["Message"]
     assert all(c.args[0][:3] != ["gh", "issue", "edit"] for c in mock_run.call_args_list)
+
+
+@patch("subprocess.run")
+def test_dry_run_issue_read_timeout_exits_3_with_an_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),
+        _completed(stdout="https://github.com/o/r\n"),
+        subprocess.TimeoutExpired("gh", 30),
+    ]
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "42", "--assignees", "octocat", "--dry-run"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exc.value.code == 3
+    assert output["Error"]["Type"] == "Timeout"
+    assert mock_run.call_args_list[-1].kwargs["timeout"] == 30
+
+
+@patch("subprocess.run")
+def test_dry_run_issue_read_has_a_timeout(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),
+        _completed(stdout="https://github.com/o/r\n"),
+        _completed(stdout='{"number": 42}'),
+    ]
+
+    assert main(["--issue", "42", "--assignees", "octocat", "--dry-run"]) == 0
+    assert mock_run.call_args_list[-1].kwargs["timeout"] == 30

@@ -73,7 +73,7 @@ adds the marker. Read the action to learn whether a change would happen.
 | `close_pr.py` | `would_close` | |
 | `new_pr.py` | text line `Dry run: would create PR` | runs the pre-creation validations; writes no audit log; exits 2 with `--prepare-body-file` |
 | `new_pr_review_comment.py` | `would_post` | reads the PR head commit |
-| `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing); names the endpoint and body length |
+| `post_pr_comment_reply.py` | `would_post` | reads the PR or comment first (exit 2 if missing, or if the comment is on another PR); names the endpoint and body length |
 | `set_pr_auto_merge.py` | `WouldEnable`, `WouldDisable`, `NoChange` | enabling on a closed or merged PR exits 3, as a real run does |
 | `unresolve_pr_review_thread.py` | `would_unresolve` | `--thread-id` reads the thread and exits 1 when it is not found; `--all` lists the thread ids, reading every page and failing if a page cannot be read |
 | `update_pr_branch.py` | `would_update` | |

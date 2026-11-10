@@ -105,24 +105,40 @@ def _not_found_message(owner: str, repo: str, pr: int, comment_id: int) -> str:
 
 
 def _check_target_exists(owner: str, repo: str, pr: int, comment_id: int) -> None:
-    """Read the reply target, so a dry run fails like a real run on a missing PR or comment."""
+    """Read the reply target, so a dry run fails like a real run on a missing PR or comment.
+
+    A threaded reply posts to the PR-scoped endpoint, so the comment must belong to ``pr``.
+    """
     if comment_id:
         endpoint = f"repos/{owner}/{repo}/pulls/comments/{comment_id}"
     else:
         endpoint = f"repos/{owner}/{repo}/pulls/{pr}"
-    result = subprocess.run(
-        ["gh", "api", endpoint],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-    if result.returncode == 0:
-        return
-    if _is_not_found(result):
+    try:
+        result = subprocess.run(
+            ["gh", "api", endpoint],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit("Timed out after 30s reading the reply target; nothing was posted.", 3)
+    if result.returncode != 0:
+        if _is_not_found(result):
+            error_and_exit(_not_found_message(owner, repo, pr, comment_id), 2)
+        error_and_exit(f"Failed to read the reply target: {result.stderr or result.stdout}", 3)
+    if comment_id and not _comment_belongs_to_pr(result.stdout, pr):
         error_and_exit(_not_found_message(owner, repo, pr, comment_id), 2)
-    error_and_exit(f"Failed to read the reply target: {result.stderr or result.stdout}", 3)
+
+
+def _comment_belongs_to_pr(comment_json: str, pr: int) -> bool:
+    """True when the review comment's ``pull_request_url`` ends with ``/pulls/<pr>``."""
+    try:
+        url = json.loads(comment_json).get("pull_request_url", "")
+    except (ValueError, AttributeError):
+        return False
+    return isinstance(url, str) and url.rstrip("/").endswith(f"/pulls/{pr}")
 
 
 def _resolve_body(args: argparse.Namespace) -> str:
