@@ -418,5 +418,5 @@ def test_scanner_project_lock_pins_the_action_wheel() -> None:
     workflow = (REPO_ROOT / ".github" / "workflows" / "plugin-scanner.yml").read_text(
         encoding="utf-8"
     )
-    assert "ai-plugin-scanner-action@3220f5fedcd269533a6275738b2ab5d5f9753e8e" in workflow
+    assert "ai-plugin-scanner-action@a18c14cfbf6b787db97e6aa4207d5d469a5672a0" in workflow
     assert "min_score: 80" in workflow
