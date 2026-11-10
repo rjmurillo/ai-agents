@@ -68,6 +68,7 @@ from session_databases import (
     warp_database_has_sessions,
 )
 from session_discovery import (
+    clear_cwd_resolution_cache,
     copilot_session_matches_repos,
     discover_hermes_databases,
     discover_skills,
@@ -446,6 +447,7 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
 
 def _run() -> None:
     args = parse_args()
+    clear_cwd_resolution_cache()
     if args.all_conversations and args.repo:
         print("error: --all-conversations cannot be combined with --repo", file=sys.stderr)
         sys.exit(2)

@@ -84,6 +84,7 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 44. A `scope_resolution` inventory block and summary that list included roots, rejected roots, and reasons.
 45. Removed worktrees are rejected with a reason, fence off their subtree, and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
 46. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
+47. Per-run scope caching: each unique native cwd is resolved once, each Git common directory is expanded once, and `infer_session_repos` runs Git once per unique cwd (issue #7246).
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.
