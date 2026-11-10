@@ -30,6 +30,7 @@ of the carrier list is how a carrier drops out of coverage unnoticed.
 
 from __future__ import annotations
 
+import re
 import shlex
 import subprocess
 from collections.abc import Sequence
@@ -705,3 +706,52 @@ def test_workflow_reference_names_both_artifacts(path: Path) -> None:
         f"{_carrier_id(path)} Phase 6 must route through Gate 3 rather than "
         f"restate the commands and drift from them"
     )
+
+
+# Gate 1 counts `reaction ... eyes` records in the PR comment run log. The agent
+# that once created and filled that log was retired, so the skill's Gate 0 and
+# Step 2.1 must do both, or Gate 1 reads a file nobody wrote (PR 7169 review).
+
+REACTION_LOG_PATH = ".project-toolkit/pr-comments/PR-[number]/session.log"
+REACTION_RECORD_PATTERN = re.compile(
+    r"printf 'reaction eyes (review|issue) %s\\n' \"\$id\" >> \"\$PR_COMMENT_LOG\""
+)
+
+
+def _gate_zero_creates_log(gates_text: str) -> bool:
+    start = gates_text.index("## Gate 0: Continuity")
+    section = gates_text[start : gates_text.index("## Gate 1:", start)]
+    return REACTION_LOG_PATH in section and ': > "$PR_COMMENT_LOG"' in section
+
+
+def _step_two_one_kinds(workflow_text: str) -> set[str]:
+    start = workflow_text.index("### Step 2.1:")
+    section = workflow_text[start : workflow_text.index("### Step 2.2:", start)]
+    return {m.group(1) for m in REACTION_RECORD_PATTERN.finditer(section)}
+
+
+def _gate_one_reads_log(gates_text: str) -> bool:
+    start = gates_text.index("## Gate 1:")
+    section = gates_text[start : gates_text.index("## Gate 2:", start)]
+    return REACTION_LOG_PATH in section and 'grep -c "reaction.*eyes"' in section
+
+
+@pytest.mark.parametrize("path", WORKFLOW_CARRIERS, ids=_carrier_id)
+def test_step_two_one_records_both_comment_kinds_in_the_log_gate_one_reads(path: Path) -> None:
+    """Review and issue acknowledgments both land in the log Gate 1 counts."""
+    workflow_text = path.read_text(encoding="utf-8")
+    gates_text = (path.parent / "gates.md").read_text(encoding="utf-8")
+
+    assert _step_two_one_kinds(workflow_text) == {"review", "issue"}, _carrier_id(path)
+    assert _gate_zero_creates_log(gates_text), f"{_carrier_id(path)} Gate 0 never creates the log"
+    assert _gate_one_reads_log(gates_text), f"{_carrier_id(path)} Gate 1 reads a different log"
+
+
+def test_reaction_log_detectors_reject_a_skill_that_never_writes_the_log() -> None:
+    """Negative control: the retired-agent regression must fail these predicates."""
+    workflow_without_records = "### Step 2.1: x\n\nreact only\n\n### Step 2.2: y\n"
+    gates_without_log = "## Gate 0: Continuity\n\ntext\n\n## Gate 1: x\n\n## Gate 2: y\n"
+
+    assert _step_two_one_kinds(workflow_without_records) == set()
+    assert not _gate_zero_creates_log(gates_without_log)
+    assert not _gate_one_reads_log(gates_without_log)

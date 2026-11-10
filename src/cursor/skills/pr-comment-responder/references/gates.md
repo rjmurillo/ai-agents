@@ -188,15 +188,26 @@ IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
 
 ## Gate 0: Continuity
 
-Before work, read the current per-issue handoff when one exists. Keep PR comment
-state in the working artifact directory created by the skill. Session log
+Before work, read the current per-issue handoff when one exists. Session log
 creation is discontinued.
 
-**Evidence required**: Transcript or PR artifact identifies the loaded state.
+```bash
+# Create the PR comment run log consumed by Gate 1. Step 2.1 appends one
+# `reaction eyes ...` record per comment it acknowledges.
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
+mkdir -p "$(dirname "$PR_COMMENT_LOG")"
+: > "$PR_COMMENT_LOG"
+```
+
+**Evidence required**: PR comment run log exists. Transcript identifies any
+loaded handoff.
 
 ## Gate 1: Acknowledgment Verification
 
-**After Phase 2**: Verify eyes reaction count equals total comment count.
+**After Phase 2**: Verify eyes reaction count equals total comment count. A comment the
+reaction helper skipped by its live-state gate (resolved, missing, or wrong PR) is still
+recorded by Step 2.1, because the helper exits 0 only when every id was reacted or
+deliberately skipped.
 
 ```bash
 REACTIONS_ADDED=$(cat .project-toolkit/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
@@ -828,11 +839,15 @@ echo "=== Completion Criteria ==="
 echo "[ ] Comments: $TERMINAL/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"
 
-# CI check verification using skill
+# CI check verification using skill. PASS needs both a buildable merge ref and
+# every check passing: a small green set on an unbuildable merge ref is not evidence.
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
 all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
-if [ "$all_passing" = "true" ]; then
+merge_ref_usable=$(echo "$checks" | jq -r '.Data.MergeRefUsable')
+if [ "$all_passing" = "true" ] && [ "$merge_ref_usable" = "true" ]; then
     echo "[ ] CI checks: PASS"
+elif [ "$merge_ref_usable" = "false" ]; then
+    echo "[ ] CI checks: merge ref unusable, CI status incomplete"
 else
     echo "[ ] CI checks: $(echo "$checks" | jq '.Data.FailedCount') failures, $(echo "$checks" | jq '.Data.PendingCount') pending"
 fi

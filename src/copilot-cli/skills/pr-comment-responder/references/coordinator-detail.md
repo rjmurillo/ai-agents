@@ -8,7 +8,7 @@ Read this when you apply the Quick Fix criteria or route a fix to `qa`.
 
 ### Workflow paths
 
-The orchestrator picks the path. You pass context and never add routing logic of your own.
+The orchestrator picks the path. You pass context and add no routing logic of your own, except the Quick Fix path below. It is the only case where you skip the orchestrator, and only when all four criteria hold.
 
 | Path | Workers | Triage signal |
 |------|---------|---------------|

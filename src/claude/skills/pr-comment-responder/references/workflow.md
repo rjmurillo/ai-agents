@@ -197,7 +197,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --in
 
 Then run the Phase 1 Recording fence in [gates.md](gates.md). It writes `total_comments.txt` and `comment_ids.txt`, the two artifacts every gate reads. Skip it and the gates block.
 
-Drop comments on code that no longer exists. Add `--detect-stale --exclude-stale` to the same command. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). Use `--detect-stale --only-stale` during PR cleanup to find stale threads to resolve, and to spot bots that reviewed an outdated commit. A stale comment still needs a terminal status in the comment map; record it through Gate 3.
+Label comments on code that no longer exists by adding `--detect-stale` to the same command. Do not add `--exclude-stale` here: Phase 1 Recording counts every comment, so a stale comment stays in the comment map and needs a terminal status recorded through Gate 3. The script labels a stale comment `FileDeleted` (the file is gone from HEAD), `LineOutOfRange` (the line number exceeds the current file length), or `CodeChanged` (the diff hunk no longer matches). Use `--detect-stale --only-stale` during PR cleanup to find stale threads to resolve, and to spot bots that reviewed an outdated commit.
 
 ### Step 1.4: Confirm the PR is still actionable
 
@@ -226,16 +226,28 @@ issue_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Issu
 
 # Review reactions requery each target thread and reject resolved, missing,
 # or wrong-PR comments before mutation.
+# Gate 0 created this log. Gate 1 counts its `reaction eyes` records.
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
+
 if [ -n "$review_ids" ]; then
   python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
-    --pull-request [number] --comment-id $review_ids --reaction eyes
+    --pull-request [number] --comment-id $review_ids --reaction eyes || exit 1
+  for id in $review_ids; do
+    printf 'reaction eyes review %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
 fi
 
 if [ -n "$issue_ids" ]; then
   python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
-    --comment-type issue --comment-id $issue_ids --reaction eyes
+    --comment-type issue --comment-id $issue_ids --reaction eyes || exit 1
+  for id in $issue_ids; do
+    printf 'reaction eyes issue %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
 fi
 ```
+
+Run Gate 0 in [gates.md](gates.md) before this step so the log exists. A helper
+failure stops the step before any record is written for that batch.
 
 ### Step 2.2: Generate Comment Map
 

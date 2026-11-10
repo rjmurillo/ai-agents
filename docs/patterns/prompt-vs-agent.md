@@ -38,7 +38,7 @@ flowchart TD
 
 ## Concrete Example: PR Comment Responder
 
-`pr-comment-responder` once existed as an agent, a `.prompt.md` slash command, and a shared template. It is now a skill (`src/claude/skills/pr-comment-responder/`). ADR-064 makes skills the single user-invocable surface, so the skill replaces the slash command, and the orchestrator delegates to it as a skill. Use a skill, not a new `.prompt.md` pair, for a user-invocable workflow that owns its own references and scripts.
+`pr-comment-responder` once existed as an agent, a `.prompt.md` slash command, and a shared template. It is now a skill (`src/claude/skills/pr-comment-responder/`). ADR-064 makes skills the single user-invocable surface, so the skill replaces the slash command, and the skill delegates each comment to the orchestrator agent. Use a skill, not a new `.prompt.md` pair, for a user-invocable workflow that owns its own references and scripts.
 
 ## Generation Pipeline
 
@@ -85,7 +85,7 @@ Toolset references (`$toolset:editor`) are expanded from `templates/toolsets.yam
 
 These define standalone VS Code slash commands. They do not use the `agent` tool. For example, `.github/prompts/pr-quality.all.prompt.md` runs as `/pr-quality:all` and executes six review agents sequentially against your working directory.
 
-The `.github/agents/` directory holds `.agent.md` files. VS Code reads both `.agent.md` and `.md` files in that folder as custom agents (VS Code custom agent file reference, retrieved 2026-11-09), so a `.prompt.md` placed there loads as an agent, not as a slash command. Put prompt files in `.github/prompts/`.
+The `.github/agents/` directory holds `.agent.md` files. VS Code reads both `.agent.md` and `.md` files in that folder as custom agents ([VS Code custom agent file reference](https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference), retrieved 2026-11-09), so a `.prompt.md` placed there loads as an agent, not as a slash command. Put prompt files in `.github/prompts/`.
 
 ## When to Create Each Type
 
