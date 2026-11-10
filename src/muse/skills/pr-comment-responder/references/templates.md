@@ -107,11 +107,11 @@ Disposition: premise refuted, no code change required.
 
 ## Security Domain Priority
 
-Process comments in priority order by domain:
+Domain is the primary sort key, regardless of reviewer. Process comments by domain:
 
 | Comment Domain | Keywords | Priority |
 |----------------|----------|----------|
-| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth | +50% (Always first) |
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth | Always first, whoever wrote it |
 | **Bug** | error, crash, exception, fail, null | Standard |
 | **Style** | formatting, naming, convention | Standard |
 
@@ -144,7 +144,7 @@ Read this when classifying a comment as security, bug, or style domain.
 | **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
 | **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
 
-Scan each comment body for the patterns in Security Keyword Detection above, case-insensitive. The agent list also matches `authentication`, `authorization`, `TOCTOU`, `symlink`, `traversal`, `sanitiz`, and `escap`.
+Scan each comment body for the patterns in Security Keyword Detection above, case-insensitive. The full list also matches `authentication`, `authorization`, `TOCTOU`, `symlink`, `traversal`, `sanitiz`, and `escap`.
 
 ### Evidence
 
@@ -166,3 +166,24 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 # Note: in_reply_to must be the ID of a top-level review comment (not a reply)
 # When in_reply_to is set, path/position/commit_id are ignored
 ```
+
+## Commit, Reply, and Resolve Conventions
+
+Read this when you commit a review fix, write a resolution reply, or decide whether to resolve a thread.
+
+**Commit message.** Use `type: description`. Reference the PR with `Refs #[number]` in the body and add `Comment-ID: [id]` for traceability. Avoid `Closes` and `Fixes` in review-response commits; reserve them for the main implementation.
+
+**Resolution reply.** Follow the pattern Action + Location + Reference.
+
+- Good: `Fixed in abc1234. Updated validation logic to handle null values.`
+- Good: `Refactored in def5678. Extracted method to reduce complexity from 15 to 8.`
+- Avoid: `Done.`, `Fixed.`, `I've updated the code.`
+
+**Force push.** When a rebase or squash forces a push, say so in the thread: `Force pushed to update commit history. Previous: abc1234, current: def5678. Changes: [brief explanation]`.
+
+**Thread resolution protocol.**
+
+- Auto-resolve only bot-authored threads after the fix.
+- Never bulk-resolve while an unresolved human-authored thread exists.
+- Resolve only after the fix is committed and pushed and the reply is posted.
+- Human reviewers verify and resolve their own threads.

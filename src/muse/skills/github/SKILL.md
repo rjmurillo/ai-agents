@@ -273,7 +273,7 @@ All scripts output structured JSON wrapped in a standard envelope per ADR-051.
 **Usage:**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 result=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
 echo "$result" | jq '.Data'
 ```
@@ -295,7 +295,7 @@ Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external 
 **Example Flow:**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 
 # Get PR context
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
