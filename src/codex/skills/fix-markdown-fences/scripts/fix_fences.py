@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import argparse
 import codecs
+import functools
 import json
 import os
 import re
@@ -353,6 +354,14 @@ def iter_markdown_files(paths: list[Path], pattern: str) -> list[Path]:
 DEFAULT_MAX_LINES = 200
 
 
+def _print_capped(lines: list[str], max_lines: int, noun: str) -> None:
+    """Print up to max_lines (0 prints all), then count the rest."""
+    for line in lines[:max_lines] if max_lines else lines:
+        print(line)
+    if max_lines and len(lines) > max_lines:
+        print(f"... {len(lines) - max_lines} more {noun}(s) not shown (--max-lines 0 lists all).")
+
+
 def _report(
     results: dict[str, list[Defect]],
     *,
@@ -375,30 +384,13 @@ def _report(
     if not results:
         print("No fence defects found")
         return
-    lines = [
-        f"{name}:{defect.line}: {defect.kind}: {defect.text}"
-        for name, defects in results.items()
-        for defect in defects
-    ]
-    for line in lines[:max_lines] if max_lines else lines:
-        print(line)
+    lines = [f"{n}:{d.line}: {d.kind}: {d.text}" for n, ds in results.items() for d in ds]
     total = sum(len(d) for d in results.values())
-    if max_lines and len(lines) > max_lines:
-        print(
-            f"... {len(lines) - max_lines} more defect line(s) not shown. "
-            "Pass --max-lines 0 to list all, or --json."
-        )
+    _print_capped(lines, max_lines, "defect line")
     print(f"\n{total} defect(s) in {len(results)} file(s)")
     if wrote:
         print(f"Repaired {len(wrote)} file(s)")
-    refusals = list(refused.items())
-    for name, reason in refusals[:max_lines] if max_lines else refusals:
-        print(f"Refused {name}: {reason}")
-    if max_lines and len(refusals) > max_lines:
-        print(
-            f"... {len(refusals) - max_lines} more refusal(s) not shown. "
-            "Pass --max-lines 0 to list all, or --json."
-        )
+    _print_capped([f"Refused {n}: {r}" for n, r in refused.items()], max_lines, "refusal")
 
 
 _HELP_EPILOG = """\
@@ -437,11 +429,8 @@ def main(argv: list[str] | None = None) -> int:
         "--max-lines",
         type=int,
         default=DEFAULT_MAX_LINES,
-        help=(
-            "Text output: list at most this many defect lines, and at most this many "
-            f"refusal lines (default {DEFAULT_MAX_LINES}; 0 lists all). The defect total "
-            "counts every file. --json is never cut."
-        ),
+        help="Text output: cap defect and refusal lines (default 200; 0 lists all). "
+        "The defect total counts every file. --json is never cut.",
     )
     args = parser.parse_args(argv)
     if args.max_lines < 0:
@@ -458,6 +447,9 @@ def main(argv: list[str] | None = None) -> int:
     wrote: list[str] = []
     refused: dict[str, str] = {}
     skipped_check = False
+    report = functools.partial(
+        _report, results, as_json=args.json, wrote=wrote, refused=refused, max_lines=args.max_lines
+    )
     for file_path in iter_markdown_files(paths, args.pattern):
         try:
             raw = file_path.read_bytes()
@@ -470,9 +462,7 @@ def main(argv: list[str] | None = None) -> int:
             # files had changed. In `--json` mode that meant empty stdout, so
             # a programmatic caller could not reconcile its own state either.
             # The writes that happened were correct; only the record was lost.
-            _report(
-                results, as_json=args.json, wrote=wrote, refused=refused, max_lines=args.max_lines
-            )
+            report()
             return 2
 
         defects = find_fence_defects(content)
@@ -493,9 +483,7 @@ def main(argv: list[str] | None = None) -> int:
             file_path.write_bytes(bom + repaired.encode("utf-8"))
         except OSError as exc:
             print(f"Error: cannot write {file_path}: {exc}", file=sys.stderr)
-            _report(
-                results, as_json=args.json, wrote=wrote, refused=refused, max_lines=args.max_lines
-            )  # same reason
+            report()  # same reason
             return 2
         wrote.append(str(file_path))
 
@@ -504,7 +492,7 @@ def main(argv: list[str] | None = None) -> int:
             "Note: markdown-it-py is not installed; the balanced-file check was skipped.",
             file=sys.stderr,
         )
-    _report(results, as_json=args.json, wrote=wrote, refused=refused, max_lines=args.max_lines)
+    report()
     return 1 if (refused or (results and not args.write)) else 0
 
 
