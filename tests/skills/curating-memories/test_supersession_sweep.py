@@ -167,8 +167,10 @@ def test_main_json_exit_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str])
 def test_json_lists_only_actionable_proposals_but_counts_every_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (tmp_path / "rot.md").write_text("**Status**: RESOLVED\n(removed) (removed)\n")
-    (tmp_path / "live.md").write_text("# Live\n\nguidance\n")
+    (tmp_path / "rot.md").write_text(
+        "**Status**: RESOLVED\n(removed) (removed)\n", encoding="utf-8"
+    )
+    (tmp_path / "live.md").write_text("# Live\n\nguidance\n", encoding="utf-8")
 
     rc = sweep_mod.main(["--root", str(tmp_path), "--json"])
 
@@ -181,8 +183,10 @@ def test_json_lists_only_actionable_proposals_but_counts_every_file(
 
 
 def test_include_live_lists_every_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    (tmp_path / "rot.md").write_text("**Status**: RESOLVED\n(removed) (removed)\n")
-    (tmp_path / "live.md").write_text("# Live\n\nguidance\n")
+    (tmp_path / "rot.md").write_text(
+        "**Status**: RESOLVED\n(removed) (removed)\n", encoding="utf-8"
+    )
+    (tmp_path / "live.md").write_text("# Live\n\nguidance\n", encoding="utf-8")
 
     rc = sweep_mod.main(["--root", str(tmp_path), "--json", "--include-live"])
 
