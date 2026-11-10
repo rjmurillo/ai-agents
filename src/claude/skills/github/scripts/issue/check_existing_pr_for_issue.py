@@ -414,9 +414,25 @@ def find_open_prs_for_issue(
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123
+  %(prog)s --issue 123 --output-format json
+
+exit codes:
+  0  no open PR claims implementation ownership (safe to proceed)
+  1  one or more open PRs claim implementation ownership
+  2  config error (plugin lib path missing)
+  3  external error (gh/API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Check whether an open PR already addresses an issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

@@ -110,9 +110,24 @@ _DISMISS_MESSAGE = (
 )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --output-format json
+
+exit codes:
+  0  classified (read ``Data.verdict``)
+  2  not found or config error
+  3  external error (API failure, unreadable sibling output)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Detect a stale bot CHANGES_REQUESTED review that blocks merge.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

@@ -534,12 +534,29 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --expected-head-sha abc1234 --expected-base-ref main
+  %(prog)s --pull-request 123 --skip-fetch --output-format json
+
+exit codes:
+  0  PR is safe to act on (still OPEN; not superseded by main)
+  1  PR should be skipped/closed (merged, closed, or superseded by main)
+  2  PR not found
+  3  external error (API failure)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Per-PR live-state probe for pr-autofix. Re-queries PR state "
             "and detects supersession-by-base immediately before acting."
         ),
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

@@ -308,8 +308,25 @@ def _complete_commits(
         page_info = next_connection.get("pageInfo") or {}
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --artifact abc1234
+  %(prog)s --output-format json
+
+exit codes:
+  0  success
+  2  invalid owner or repo, or plugin lib missing
+  4  not authenticated with gh
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Audit closing claims in open PRs.")
+    p = argparse.ArgumentParser(
+        description="Audit closing claims in open PRs.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--owner", default="")
     p.add_argument("--repo", default="")
     p.add_argument(
