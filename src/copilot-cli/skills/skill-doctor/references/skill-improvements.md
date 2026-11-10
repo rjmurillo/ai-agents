@@ -1,29 +1,45 @@
 # Skill improvement guidelines
 
+Skill-doctor diagnoses. It does not decide whether a change would improve outcomes.
+Diagnosis surfaces candidates. Skillopt measures existing-skill candidates.
+Skillforge routes capability gaps before anyone creates a skill.
+Skill-doctor never starts either one, and never applies an edit.
+
 ## Method
 
-1. Cluster the findings by root cause, across scorers and classifications, after attribution.
-2. Prioritize clusters by frequency times severity.
-3. Verify each finding against the current repository and the agent's configuration before proposing any improvements. Drop what does not verify.
-4. You are editing another agent's instructions. Keep those edits small and general. Before editing, state the intended behavioral rule and owning surface in one sentence, then make the smallest change that expresses it.
-5. Prefer **replacing** existing guidance over **appending** another paragraph.
+1. Cluster the findings from `failed_conversations` by root cause, across scorers and classifications.
+2. Verify each finding against the current repository and the agent's configuration. A finding that does not verify is not observed; record it under missing evidence instead of as a fact.
+3. For each verified finding, state the candidate mechanism: the behavioral rule, the owning surface, and the smallest change that expresses it. Prefer **replacing** existing guidance over **appending** another paragraph.
+4. Rank candidates by frequency times severity. Ranking orders the list. It never removes a candidate from it.
 
-## When to propose changes
+## What every supported finding produces
 
-Do not propose changes by default. Proceed only when a concrete instruction is missing or wrong and amending it would have prevented the scored failure. Ask: would a competent agent with the current instructions still be expected to fail this way? If yes, there is a gap. If no, defer.
+Every supported finding produces a visible candidate, or an explanation of the evidence that is missing.
+No static bar suppresses a candidate. Frequency, severity, and instruction attribution rank candidates; they do not filter them.
 
-File only when all of these are true:
+Each candidate starts with `status: "unevaluated"`.
+Only a skillopt run with a scored baseline and a candidate evaluation can set `accepted`, `rejected`, or `inconclusive`, and the suggestion must then cite that baseline and candidate evidence.
 
-- The failure is caused by a missing, wrong, or underspecified instruction on a concrete surface: the owning actor's configuration, a skill, or in-repo guidance.
-- You can name that owning surface and the one reusable rule it should have stated.
-- If that rule had been present and followed, the scored failure would not have happened.
-- The same gap appears in more than one source run, or is severe enough that a single occurrence still proves a missing contract.
+Keep three kinds of statement apart:
 
-Do not file when:
+- **Observed fact**: the failed conversation, the scorer, and what happened. Goes in `evidence`.
+- **Hypothesis**: why it happened and what change might help. Goes in `mechanism` and `expected_improvement`.
+- **Measured result**: only from skillopt. Goes in `status` and `evaluation`.
 
-- The existing instruction already required the correct behavior and the model ignored it
-- The failure is model variance: same prompt, same tools, different choice
-- The only available edit is restating, hedging, or adding examples from these runs
-- The real fix is product, infra, scorer, or code outside instruction surfaces
+## Owners
 
-When nothing clears this bar, open no change and say, per finding, why not - that is a success. A speculative change is worse than none.
+- `skill`: an existing skill's instructions own the behavior. Name the exact path from `inventory.json`.
+- `new-skill`: no installed skill owns the capability. Route through skillforge first.
+- `tooling`: a collector, script, product, or infrastructure defect. Name the real owner in `owner_target`. Do not relabel a tool defect as an instruction defect; an instruction candidate for it stays a hypothesis.
+
+## Same-name variants
+
+When the skill name appears in `skill_variants`, the edit target is unresolved.
+List every variant path and `sha256` in `variants`, leave `target` empty, and do not draft a diff.
+The user selects the edit target. The renderer refuses a drafted diff for an unresolved target.
+
+## Statements the evidence does not support
+
+Static triage cannot show that a change would not help.
+An empty `suggestions` list means no candidate was proposed through static triage. It is not evidence against improvement.
+Never write "no change is justified", "no beneficial change", or a similar verdict unless skillopt evaluation evidence supports it. The renderer refuses those phrases in `summary` and `top_findings` when no scored evaluation exists.

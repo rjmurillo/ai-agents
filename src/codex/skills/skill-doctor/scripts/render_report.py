@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import report_evaluation
 import report_script
 
 GRADES = [
@@ -209,6 +210,10 @@ li { margin-bottom: 10px; }
 .muted { color: var(--muted-2); font-size: 12px; }
 .notice { border: 1px solid var(--line); background: var(--yellow); color: #1a1522;
   padding: 8px 12px; }
+.evaluation { border: 1px solid var(--line); padding: 8px 12px; }
+.prompt { white-space: pre-wrap; user-select: all; font-size: 12px; border: 1px solid var(--line);
+  padding: 8px 12px; }
+.status { font-size: 12px; color: var(--muted-2); }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { border: 1px solid var(--line-soft); padding: 4px 8px; text-align: left; }
 .stamp { display: flex; align-items: center; gap: 11px; }
@@ -292,6 +297,54 @@ def render_sampling(sampling: Any) -> str:
     )
 
 
+def empty_suggestions_text(r: Any) -> str:
+    if report_evaluation.evaluation_of(r)["optimization"] != "run":
+        return report_evaluation.EMPTY_STATIC_STATEMENT
+    return "No candidates remain after the recorded skillopt evaluation."
+
+
+def _list_block(label: str, values: Any) -> str:
+    items = [str(v) for v in (values if isinstance(values, (list, tuple)) else [values]) if v]
+    if not items:
+        return ""
+    return f'<div class="muted">{esc(label)}: ' + "; ".join(esc(item) for item in items) + "</div>"
+
+
+def _prompt_block(label: str, text: str) -> str:
+    return f'<details class="handoff"><summary>{esc(label)}</summary><pre class="prompt">{esc(text)}</pre></details>'
+
+
+def render_suggestion(s: Any) -> str:
+    """One candidate: facts, hypothesis, status, and copyable handoff prompts."""
+    status = report_evaluation.suggestion_status(s)
+    measured = s.get("evaluation") if isinstance(s.get("evaluation"), dict) else {}
+    parts = [
+        f'<li><b><code>{esc(s.get("skill"))}</code></b> <span class="status">[{esc(status)}]</span>'
+        f"  -  {esc(s.get('change'))}",
+        _list_block("Target", report_evaluation.target_identity(s)),
+        _list_block("Owner", s.get("owner") or "skill"),
+        _list_block("Observed (fact)", s.get("evidence")),
+        _list_block("Hypothesis", s.get("mechanism")),
+        _list_block(
+            "Expected improvement (unmeasured)"
+            if status == "unevaluated"
+            else "Expected improvement",
+            s.get("expected_improvement"),
+        ),
+        _list_block("Reproduction", s.get("reproduction")),
+        _list_block("Acceptance checks", s.get("acceptance_checks")),
+        _list_block("Risks and counterexamples", s.get("risks")),
+        _list_block("Missing evidence", report_evaluation.missing_evidence(s)),
+        _list_block("Baseline evidence", measured.get("baseline")),
+        _list_block("Candidate evidence", measured.get("candidate")),
+        render_diff(s.get("diff", ""), s.get("proposed_path", "")),
+        _prompt_block("skillopt handoff prompt", report_evaluation.skillopt_prompt(s)),
+        _prompt_block("skillforge handoff prompt", report_evaluation.skillforge_prompt(s)),
+        "</li>",
+    ]
+    return "".join(part for part in parts if part)
+
+
 def render_page(r: Any) -> str:
     scores = r["scores"]
     stats = r.get("stats", {})
@@ -322,14 +375,8 @@ def render_page(r: Any) -> str:
         ]
     )
     findings = "".join(f"<li>{esc(finding)}</li>" for finding in r.get("top_findings", []))
-    suggestions = (
-        "".join(
-            f"""<li><b><code>{esc(s.get("skill"))}</code></b>  -  {esc(s.get("change"))}
-        {('<div class="muted">Evidence: ' + esc(s["evidence"]) + "</div>") if s.get("evidence") else ""}
-        {render_diff(s.get("diff", ""), s.get("proposed_path", ""))}</li>"""
-            for s in r.get("suggestions", [])
-        )
-        or "<li>No skill change cleared the bar for this window.</li>"
+    suggestions = "".join(render_suggestion(s) for s in r.get("suggestions", [])) or (
+        f"<li>{esc(empty_suggestions_text(r))}</li>"
     )
 
     card_data = json.dumps(
@@ -378,6 +425,7 @@ def render_page(r: Any) -> str:
 <div class="stats">{stat_cells}</div>
 {render_sampling(r.get("sampling"))}
 <h2>Findings</h2><ul>{findings}</ul>
+<h2>Evaluation status</h2><p class="evaluation" id="evaluation-status">{esc(report_evaluation.evaluation_summary(r))}</p>
 <h2>Suggested skill changes</h2><ol>{suggestions}</ol>
 <div class="stamp-row row factories-footer">
   <div class="stamp">{WARP_MARK}<div>
@@ -420,10 +468,16 @@ def main(argv: Any = None) -> None:
         sys.exit(1)
     r = json.loads(report_path.read_text(encoding="utf-8"))
     r.setdefault("grade", grade_for(r["scores"]["overall"]))
+    errors = report_evaluation.validate_report(r)
+    if errors:
+        for error in errors:
+            print(f"error: unsupported claim: {error}", file=sys.stderr)
+        sys.exit(1)
 
     out_path = report_path.parent / "report.html"
     out_path.write_text(render_page(r), encoding="utf-8")
     print(f"report: {out_path.absolute().as_uri()}")
+    print(f"evaluation: {report_evaluation.evaluation_summary(r)}")
     if args.open_browser:
         if open_report(out_path):
             print("        opened in the default browser")

@@ -8,7 +8,7 @@ Forked from warpdotdev/common-skills by the Warp team, under MIT.
 Copyright (c) 2026 Denver Technologies, Inc. See `LICENSE`.
 Maintainers: read `references/upstream-sync.md` before reconciling upstream changes.
 
-Grade the user's agent setup by scoring recent local agent conversations, then propose concrete skill edits and render one shareable report page.
+Grade the user's agent setup by scoring recent local agent conversations, then surface unevaluated improvement candidates with handoff prompts and render one shareable report page.
 
 The report can cover conversations in the current repository, conversations in selected projects, or all local conversations. It can evaluate project skills alone or project and global skills together.
 
@@ -124,6 +124,7 @@ Build the collector arguments from the startup answers:
 
 - Current repository: `--repo "$REPO"`. The run adds the main checkout and registered worktrees from Git metadata.
 - Selected projects: repeat `--repo PATH` for every project.
+- Many checkouts of one repository: pass each authorized checkout as `--repo PATH`. The collector expands each Git common directory once and resolves each working directory once per run. Do not write a custom discovery or traversal script.
 - All conversations: `--all-conversations`.
 - Project and global skills: add `--include-global-skills`.
 - Project skills only: do not add `--include-global-skills`.
@@ -229,13 +230,16 @@ Then, define `failed_conversations` from each conversation's raw, uncurved score
 Then derive the substance:
 
 - `top_findings`: the 3 most impactful, specific patterns across sessions. These lead the report and the spoken summary. Make each summary concrete and concise, following the STE-100 standard.
-- `suggestions`: concrete skill changes, if any. Each names a skill (existing or proposed-new) and a specific change: a trigger-description fix so it fires when it should, a missing step or check, a command to encode, a new skill to create. Suggestions must trace back to observed waste or defects in `failed_conversations`, not generic best practices - cite the failed session, scorer, and moment that motivated each one. An installed skill that never triggered in a failed conversation is usually a description problem and worth a suggestion of its own.
+- `suggestions`: one candidate per supported finding, ranked by frequency times severity. Each names a skill (existing or proposed-new) or a tooling owner and a specific change: a trigger-description fix so it fires when it should, a missing step or check, a command to encode, a new skill to create. Suggestions must trace back to observed waste or defects in `failed_conversations`, not generic best practices - cite the failed session, scorer, and moment that motivated each one. An installed skill that never triggered in a failed conversation is usually a description problem and worth a suggestion of its own. No static change bar suppresses a candidate; when evidence is too thin to name one, record what is missing.
 
 ### Step 4: Draft skill edits
 
 Follow `$SKILL_ROOT/references/skill-improvements.md` to propose improvements to project skills based only on `failed_conversations`.
 
-1. Read the skill's current file: `path` in its `skills` entry of `inventory.json`, the current edit target. Draft only against that path. When the name is in `skill_variants`, refuse to draft against any other path, and never against a global-home copy while a repository copy exists. State the exact source path and its `sha256` in the suggestion's `change` text.
+Every candidate keeps `status: "unevaluated"`. Static diagnosis cannot measure whether a change helps.
+Do not start skillopt, skillforge, or any edit. The report supplies their handoff prompts; the user chooses the next action.
+
+1. Read the skill's current file: `path` in its `skills` entry of `inventory.json`. Set `target` to that exact path and state its `sha256` in the suggestion's `change` text. When the name is in `skill_variants`, leave `target` empty, list every variant's `path` and `sha256` in `variants`, and draft no diff: the user selects the edit target. Never draft against a global-home copy while a repository copy exists.
 2. Write the full improved version to `$REPORT_DIR/proposed/<skill-name>/SKILL.md`, changing only what the evidence justifies. Improve the parts the sessions actually exercised: the trigger description that failed to fire, the missing preflight check, the step the agent had to figure out by trial and error.
 3. Produce a unified diff with Python's `difflib.unified_diff`, reading both files as UTF-8. Store it in the suggestion's `diff` field so it renders in the report.
 
@@ -276,17 +280,33 @@ Write `$REPORT_DIR/report.json`. Store the curved `efficiency`, `code_quality`, 
   "suggestions": [
     {
       "skill": "",
+      "status": "unevaluated",
+      "owner": "skill | new-skill | tooling",
+      "owner_target": "<tooling owner, only when owner is tooling>",
+      "target": "<exact skill path, or empty when variants are unresolved>",
+      "variants": [{"path": "", "sha256": ""}],
       "change": "<one-sentence summary of the edit>",
-      "evidence": "<which session(s) and what happened that motivates this>",
+      "evidence": "<observed fact: which session(s), scorer, and what happened>",
+      "mechanism": "<hypothesis: the behavioral change and why it may help>",
+      "expected_improvement": "<unmeasured expected behavior change>",
+      "reproduction": "<smallest useful reproduction>",
+      "acceptance_checks": ["<check skillopt can score>"],
+      "risks": ["<known risk or counterexample>"],
+      "missing_evidence": ["<what the transcripts do not show>"],
       "proposed_path": "<path under proposed/, if an edit was drafted>",
       "diff": "<unified diff, or full content for a new skill>"
     }
   ],
+  "evaluation": {"diagnosis": "static", "optimization": "not_run"},
   "cta_url": "https://warp.dev/factories/request-access"
 }
 ```
 
-Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
+Copy `harness_coverage_complete`, `notice`, and each harness's `scoreable`, `skill_candidates`, and `sampled` from `inventory.json`.
+Keep `evaluation.optimization` at `not_run` for every skill-doctor run.
+Only a later skillopt result may set `run` and a suggestion `status` of `accepted`, `rejected`, or `inconclusive`; that suggestion then needs `evaluation.baseline` and `evaluation.candidate` references.
+The renderer exits 1 on a measured status without that evidence, a drafted diff for unresolved variants, or a "no beneficial change" verdict without scored evaluation.
+It builds the skillopt and skillforge handoff prompts from each suggestion's own fields. Set `overall` from the per-harness computation in Step 3, or omit it for a harness with no scored session.
 
 ```bash
 python3 "$SKILL_ROOT/scripts/render_report.py" "$REPORT_DIR/report.json" --open
@@ -305,6 +325,8 @@ This writes a single self-contained `$REPORT_DIR/report.html` and attempts to op
 ### Step 6: Output
 
 Tell the user the grade and the three findings, in text.
+Then state the `evaluation:` line that `render_report.py` printed, verbatim. It matches the report's evaluation status.
+Name each candidate with its status. Never describe an empty or static-only suggestion list as evidence that no change would help.
 
 Finish with the absolute path to `REPORT_DIR/report.html`.
 Do not apply suggested edits without the user's explicit instruction.
@@ -315,6 +337,8 @@ The report retains Warp's upstream branding and attribution.
 - [ ] `inventory.json` reflects the chosen projects, sources, and skill scope.
 - [ ] The report states per-harness candidate and sampled counts, and says when the cap prevented full harness coverage.
 - [ ] Each proposed edit cites a failed conversation and its scorer evidence.
+- [ ] Every candidate is `unevaluated` and carries both handoff prompts; nothing started skillopt or skillforge.
+- [ ] The spoken summary repeats the renderer's `evaluation:` line.
 - [ ] `report.html` exists and displays scores and proposed edits.
 - [ ] Standalone runs open the report; bootstrap child runs return its path.
 - [ ] Original skill files remain unchanged.
