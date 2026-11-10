@@ -90,7 +90,8 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
     otherwise fail `run()`/`_run_generators` for a reason unrelated to
     what the test actually exercises, so this stubs a minimal
     (`__init__.py`-only) directory for each of `lib_mirror.PACKAGES` in
-    addition to the two file-shaped sources. A test that specifically
+    addition to the two file-shaped sources and the hand-maintained
+    `src/claude/lib` files that `lib_mirror.PLUGIN_LIB_FILES` copies. A test that specifically
     wants to exercise the missing-source path removes one stub itself
     after calling this.
     """
@@ -111,6 +112,13 @@ def _write_minimal_lib_sources(repo_root: Path) -> None:
     marker = validation / "validate_review_marker.py"
     if not marker.exists():
         marker.write_text('"""Test review-marker stub."""\n', encoding="utf-8")
+
+    claude_lib = repo_root / lib_mirror.PLUGIN_LIB_SOURCE_DIR
+    claude_lib.mkdir(parents=True, exist_ok=True)
+    for name in lib_mirror.PLUGIN_LIB_FILES:
+        hand_maintained = claude_lib / name
+        if not hand_maintained.exists():
+            hand_maintained.write_text('"""Test hand-maintained stub."""\n', encoding="utf-8")
 
 
 def _write_platform_with_skills(
@@ -611,7 +619,7 @@ def test_build_lib_check_mode_writes_nothing(tmp_path: Path) -> None:
     # Every destination is missing, so check mode fails on the drift (issue
     # #6098) and still writes nothing.
     assert result.exit_code == 2, result.notices
-    assert not (tmp_path / "src" / "claude" / "lib").exists()
+    assert not (tmp_path / "src" / "claude" / "lib" / "hook_utilities").exists()
     assert not (tmp_path / "src" / "copilot-cli" / "lib").exists()
 
 

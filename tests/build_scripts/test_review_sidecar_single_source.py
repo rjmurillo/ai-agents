@@ -59,6 +59,8 @@ def repo(tmp_path: Path) -> Path:
     for pkg in lib_mirror.PACKAGES:
         _write(tmp_path, f"scripts/{pkg}/__init__.py", "")
     _write(tmp_path, "scripts/hook_utilities/bootstrap.py", '"""Bootstrap."""\n')
+    for name in lib_mirror.PLUGIN_LIB_FILES:
+        _write(tmp_path, f"{lib_mirror.PLUGIN_LIB_SOURCE_DIR}/{name}", '"""Hand-maintained."""\n')
     _write(tmp_path, CANONICAL, OLD)
     _write(tmp_path, "src/claude/skills/review/SKILL.md", "# review\n")
     _write(tmp_path, "src/claude/skills/review/scripts/other.py", "print('other')\n")
