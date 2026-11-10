@@ -85,7 +85,12 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import assert_gh_authenticated, resolve_repo_params
+from github_core.api import (
+    GhAuthStatus,
+    assert_gh_authenticated,
+    classify_gh_failure_text,
+    resolve_repo_params,
+)
 from github_core.output import (
     add_output_format_arg,
     write_skill_error,
@@ -103,11 +108,12 @@ from code_scanning_transport import (
     Transport,
     get_all_pages,
     get_object,
-    gh_get,
     parse_json,
 )
+from code_scanning_transport import gh_get as _transport_gh_get
 
 _SCRIPT_NAME = "get_pr_code_scanning_alerts.py"
+_RATE_LIMITED = (GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED)
 _TOOL_NAME = "CodeQL"
 _SARIF_MEDIA_TYPE = "application/sarif+json"
 _PAGE_SIZE = 100
@@ -287,6 +293,15 @@ exit codes:
 Data.outcome is one of CURRENT, STALE, NOT ANALYZED, SKIPPED. Only CURRENT carries
 alerts, each as rule_id, path, line. Anything but CURRENT is never a clean result.
 """
+
+
+def _is_rate_limited(text: str) -> bool:
+    return classify_gh_failure_text(text) in _RATE_LIMITED
+
+
+def gh_get(endpoint: str, accept: str | None = None) -> tuple[dict[str, str], str]:
+    """The transport this script passes to ``read_outcome``: GET only, rate limits named."""
+    return _transport_gh_get(endpoint, accept, _is_rate_limited)
 
 
 def build_parser() -> argparse.ArgumentParser:

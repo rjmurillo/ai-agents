@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import ast
 import subprocess
 from unittest.mock import patch
 
 import code_scanning_transport as transport_mod
 import pytest
+from github_core.api import GhAuthStatus, classify_gh_failure_text
 from test_helpers import make_completed_process
 
 SkipError = transport_mod.SkipError
+
+
+def is_rate_limited(text):
+    status = classify_gh_failure_text(text)
+    return status in (GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED)
 
 
 class TestNextLink:
@@ -140,7 +147,7 @@ class TestTransport:
             transport_mod.subprocess, "run", return_value=self._run(stderr=stderr, returncode=1)
         ):
             with pytest.raises(SkipError) as caught:
-                transport_mod.gh_get("e")
+                transport_mod.gh_get("e", None, is_rate_limited)
         assert caught.value.exit_code == code
         assert fragment in caught.value.reason
         for remote_word in ("Forbidden", "Not Found", "Unauthorized", "Server Error", "reset"):
@@ -158,3 +165,39 @@ class TestTransport:
             with pytest.raises(SkipError) as caught:
                 transport_mod.gh_get("e")
         assert caught.value.exit_code == 4
+
+
+class TestRateLimitClassifierIsInjected:
+    def _fail(self, text):
+        return patch.object(
+            transport_mod.subprocess,
+            "run",
+            return_value=make_completed_process(stderr=text, returncode=1),
+        )
+
+    def test_the_module_imports_nothing_from_the_plugin_lib(self):
+        tree = ast.parse(open(transport_mod.__file__, encoding="utf-8").read())
+        imported = {
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        } | {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        assert not any(name.split(".")[0] == "github_core" for name in imported)
+
+    def test_without_a_predicate_rate_limit_text_is_a_plain_http_failure(self):
+        with self._fail("API rate limit exceeded (HTTP 403)"):
+            with pytest.raises(SkipError) as caught:
+                transport_mod.gh_get("e")
+        assert caught.value.exit_code == 4
+
+    def test_with_the_predicate_the_same_text_is_a_rate_limit_skip(self):
+        with self._fail("API rate limit exceeded (HTTP 403)"):
+            with pytest.raises(SkipError) as caught:
+                transport_mod.gh_get("e", None, is_rate_limited)
+        assert caught.value.exit_code == 3
+        assert "rate limit" in caught.value.reason

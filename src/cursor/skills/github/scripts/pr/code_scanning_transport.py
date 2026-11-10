@@ -16,7 +16,7 @@ Stricter/looser/different than canonical
 Not ``github_core.api.gh_api_paginated``: that helper stops on ``len(items) <
 page_size`` and, on a failure after page 1, warns and returns the partial list.
 Both break the rules above. This module keeps the same ``gh api`` transport and
-the same ``classify_gh_failure_text`` classifier.
+the ``classify_gh_failure_text`` classifier, passed in by the caller.
 
 GitHub words the next link with the repository id (``/repositories/{id}/...``),
 not the ``/repos/{owner}/{repo}/...`` path that was requested; observed on
@@ -38,7 +38,6 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from code_scanning_errors import EXIT_AUTH, EXIT_EXTERNAL, SkipError
-from github_core.api import GhAuthStatus, classify_gh_failure_text
 
 MAX_PAGES = 50
 _GH_TIMEOUT_SECONDS = 30
@@ -48,15 +47,19 @@ _HEADER_BREAK = re.compile(r"\r?\n\r?\n")
 _REFUSED_STATUSES = frozenset({401, 403, 404})
 
 #: gh transport: ``run(endpoint, accept)`` returns ``(headers, body)``.
+#: Tells whether gh failure text is a rate-limit refusal. The caller passes
+#: ``github_core``'s classifier, so this module imports nothing from the plugin lib and
+#: needs no plugin-root resolution of its own.
+RateLimitCheck = Callable[[str], bool]
+
 Transport = Callable[[str, str | None], tuple[dict[str, str], str]]
 
 
-def _failure_to_skip(text: str) -> SkipError:
+def _failure_to_skip(text: str, is_rate_limited: RateLimitCheck | None) -> SkipError:
     """Classify gh failure text into a SKIPPED reason with a fixed string."""
     match = _HTTP_STATUS.search(text)
     status = int(match.group(1)) if match else None
-    gh_status = classify_gh_failure_text(text)
-    if gh_status in (GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED):
+    if is_rate_limited is not None and is_rate_limited(text):
         return SkipError("GitHub rate limit refused the request", EXIT_EXTERNAL)
     if status in _REFUSED_STATUSES:
         return SkipError(f"authorization or not-found error (HTTP {status})", EXIT_AUTH)
@@ -78,7 +81,11 @@ def _split_response(stdout: str) -> tuple[dict[str, str], str]:
     return headers, parts[1]
 
 
-def gh_get(endpoint: str, accept: str | None = None) -> tuple[dict[str, str], str]:
+def gh_get(
+    endpoint: str,
+    accept: str | None = None,
+    is_rate_limited: RateLimitCheck | None = None,
+) -> tuple[dict[str, str], str]:
     """GET one endpoint through ``gh api`` and return ``(headers, body)``.
 
     Raises:
@@ -102,7 +109,7 @@ def gh_get(endpoint: str, accept: str | None = None) -> tuple[dict[str, str], st
     except OSError as exc:
         raise SkipError("gh could not be run", EXIT_AUTH) from exc
     if result.returncode != 0:
-        raise _failure_to_skip(f"{result.stderr}\n{result.stdout}")
+        raise _failure_to_skip(f"{result.stderr}\n{result.stdout}", is_rate_limited)
     return _split_response(result.stdout)
 
 

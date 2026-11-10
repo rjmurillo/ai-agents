@@ -187,3 +187,13 @@ class TestCli:
             patch.object(mod, "resolve_repo_params"),
         ):
             assert mod.main(self.ARGS) == 4
+
+
+class TestScriptTransport:
+    def test_gh_get_passes_the_github_core_rate_limit_check(self):
+        with patch.object(mod, "_transport_gh_get", return_value=({}, "[]")) as inner:
+            assert mod.gh_get("repos/o/r/x", "application/json") == ({}, "[]")
+        endpoint, accept, check = inner.call_args.args
+        assert (endpoint, accept) == ("repos/o/r/x", "application/json")
+        assert check("API rate limit exceeded (HTTP 403)") is True
+        assert check("Not Found (HTTP 404)") is False
