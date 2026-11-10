@@ -146,5 +146,5 @@ Fourteen books, one file each, all under `references/`:
 Pattern credit: the books-to-skills structure (decision trees, scored checklists,
 honest limitations, cross-book conflict resolution) follows the MIT-licensed
 [Founder Playbook](https://github.com/getagentseal/founder-playbook). The
-distillations here are original. The `npx ai-agents init --pack business` installer
+distillations here are original. The `npx @rjmurillo/ai-agents init --pack business` installer
 flag is tracked separately (CLI milestone, not in this skill).

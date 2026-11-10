@@ -137,8 +137,11 @@ Some skills ship as optional packs: excluded from a default `ai-agents init` and
 installed only on request with `--pack`.
 
 ```bash
-npx ai-agents init --pack business
+npx @rjmurillo/ai-agents init --pack business
 ```
+
+The `@rjmurillo/ai-agents` package is not on npm yet, so this command fails today.
+Install the full toolkit from the plugin marketplace, as described at the top of this guide.
 
 | Pack | Installs | Purpose |
 |------|----------|---------|
