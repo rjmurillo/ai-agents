@@ -86,7 +86,6 @@ Every subcommand is read-only and prints one JSON object on stdout.
 examples:
   %(prog)s scan src --base . --changed delete_user
   %(prog)s preview-files --root . --pattern 'tmp/*.tmp'
-  %(prog)s gate --evidence evidence.json --scan scan.json
 
 exit codes:
   0  scan ran, preview counted, or gate verdict is PASS or SKIP

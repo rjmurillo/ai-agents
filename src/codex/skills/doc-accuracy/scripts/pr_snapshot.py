@@ -578,8 +578,6 @@ _HELP_EPILOG = (
     "examples:\n"
     "  %(prog)s --owner octo-org --repo octo-repo --pull-request 123\n"
     "  %(prog)s --owner octo-org --repo octo-repo --pull-request 123 --run-scanner\n"
-    "  %(prog)s --owner octo-org --repo octo-repo --pull-request 123 --check-stale --identity-file "
-    "id.json\n"
     "\n"
     "exit codes:\n"
     "  0  snapshot captured\n"

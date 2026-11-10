@@ -203,7 +203,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s session.jsonl --errors-only
   %(prog)s session.jsonl --event-type tool_call --session-id abc123 --output summary-tools
-  %(prog)s session.jsonl --since 2026-11-01 --slow 500
 
 exit codes:
   0  query completed

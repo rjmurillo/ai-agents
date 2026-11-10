@@ -186,7 +186,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --days 30 --output-format json
-  %(prog)s --days 14 --until 2026-11-01
 
 exit codes:
   0  report produced from a complete read

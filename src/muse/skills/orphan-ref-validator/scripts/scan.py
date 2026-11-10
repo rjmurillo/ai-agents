@@ -954,7 +954,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --targets docs src --output human
-  %(prog)s --baseline baseline.json --allow-missing-targets
 
 exit codes:
   0  PASS or WARN (no critical findings)

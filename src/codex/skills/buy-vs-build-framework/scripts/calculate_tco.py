@@ -308,7 +308,7 @@ _HELP_EPILOG = (
     "exit codes:\n"
     "  0  all options computed\n"
     "  1  invalid inputs\n"
-    "  2  negative NPV on every option (warning, results still printed)\n"
+    "  2  an option's NPV is above zero (warning, results still printed)\n"
 )
 
 

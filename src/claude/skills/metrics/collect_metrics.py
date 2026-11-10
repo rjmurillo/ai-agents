@@ -382,7 +382,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --since 7 --output summary
-  %(prog)s --repo-path /path/to/repo --output markdown
 
 exit codes:
   0  metrics collected

@@ -392,13 +392,12 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s
   %(prog)s --since-commit abc1234
-  %(prog)s --base-path . --include-untracked
 
 exit codes:
   0  success (changes detected or no changes found)
-  1  logic or unexpected error during detection
-  2  config/user error (invalid commit SHA, missing file)
-  3  external error (I/O failure, git command failure)
+  1  not a git repository, or an unexpected error during detection
+  2  a file or directory is missing
+  3  git diff failed (including an unknown --since-commit) or another I/O failure
 """
 
 

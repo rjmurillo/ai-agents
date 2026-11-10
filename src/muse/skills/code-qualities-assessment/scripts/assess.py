@@ -410,7 +410,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --target src/app.py --format json
   %(prog)s --target src --changed-only --base origin/main --gate-mode regression
-  %(prog)s --target src --context production --output report.md
 
 exit codes:
   0  gate passed (or nothing changed in regression mode)

@@ -130,7 +130,7 @@ examples:
   %(prog)s --criteria-file criteria.json
 
 exit codes:
-  0  clear winner (over 20%% score gap)
+  0  a winner (scores more than 10%% apart; over 20%% is high confidence)
   1  tie within 10%% needs human judgment, or path traversal rejected
   2  criteria file not found, not valid JSON, or failed validation
 """

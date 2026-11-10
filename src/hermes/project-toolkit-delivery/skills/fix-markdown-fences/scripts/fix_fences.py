@@ -386,7 +386,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s docs
   %(prog)s docs --write
-  %(prog)s --json --pattern '*.md' docs
 
 exit codes:
   0  no defects, or --write repaired every defect

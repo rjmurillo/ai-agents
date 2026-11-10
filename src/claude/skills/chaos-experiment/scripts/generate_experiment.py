@@ -137,7 +137,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --name "API Gateway Resilience" --dry-run
   %(prog)s --name "DB Failover" --system "Payment Service" --region us-east-1
-  %(prog)s --name "Cache Partition" --output out/chaos --json
 
 exit codes:
   0  experiment document generated (or printed with --dry-run)

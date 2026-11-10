@@ -836,9 +836,8 @@ examples:
 
 exit codes:
   0  no conflicts, or conflicts auto-resolved
-  1  conflicts could not be auto-resolved, or resolution failed
+  1  conflicts could not be auto-resolved, a git command failed, or repo info lookup failed
   2  no plugin lib directory carries github_core
-  3  git command failed
 """
 
 

@@ -188,7 +188,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s check records/defect-001.json
   %(prog)s report records/defect-001.json --output-format json
-  %(prog)s recheck records/defect-001.json --rev origin/main
 
 exit codes:
   0  ok

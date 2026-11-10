@@ -90,6 +90,8 @@ def run_probe(script: Path, scratch: Path) -> dict:
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=PROBE_TIMEOUT_SECONDS,
         stdin=subprocess.DEVNULL,
         check=False,

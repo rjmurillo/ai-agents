@@ -170,7 +170,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s init --workspace panning
   %(prog)s validate --inventory inventory.md
-  %(prog)s merge --pass1 pass1.md --final final.md --output merged.md
 
 exit codes:
   0  ok

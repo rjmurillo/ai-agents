@@ -828,7 +828,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s prompt.md --models claude,gpt --output markdown
   %(prog)s --prompt "Summarize this repo" --dry-run
-  %(prog)s prompt.md --models claude --judge --skip-unavailable
 
 exit codes:
   0  ok

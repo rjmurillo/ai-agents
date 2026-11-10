@@ -1820,7 +1820,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --target .
   %(prog)s --target . --diff-base origin/main --format summary
-  %(prog)s --target . --phases 1,2 --severity-threshold medium
 
 exit codes:
   0  no findings at or above the severity threshold

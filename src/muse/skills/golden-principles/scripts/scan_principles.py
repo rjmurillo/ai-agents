@@ -382,7 +382,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s --directory .
   %(prog)s --diff-scope origin/main --format json
-  %(prog)s --rules actions-pinned,yaml-logic -o findings.txt
 
 exit codes:
   0  clean

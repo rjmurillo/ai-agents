@@ -584,8 +584,8 @@ def get_step_guidance(step_number: int, plan_file: str, thoughts: str) -> dict:
 
 _HELP_EPILOG = """\
 examples:
-  %(prog)s --plan-file plan.md --step-number 1 --total-steps 5 --thoughts "Starting milestone 1"
-  %(prog)s --plan-file plan.md --step-number 2 --total-steps 5 --thoughts "Milestone 1 verified"
+  %(prog)s --plan-file plan.md --step-number 1 --total-steps 7 --thoughts "Starting milestone 1"
+  %(prog)s --plan-file plan.md --step-number 2 --total-steps 7 --thoughts "Milestone 1 verified"
 
 exit codes:
   0  step guidance printed

@@ -760,7 +760,6 @@ _HELP_EPILOG = """\
 examples:
   %(prog)s list docs/api.md --touching /orders
   %(prog)s lint docs/api.md
-  %(prog)s run docs/api.md --base-url http://127.0.0.1:8080 --evidence evidence.json
 
 exit codes:
   0  clean
