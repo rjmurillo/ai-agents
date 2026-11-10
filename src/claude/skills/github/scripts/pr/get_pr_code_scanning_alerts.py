@@ -24,9 +24,10 @@ Rules this script enforces
   analysis ``commit_sha`` is a merge commit. The analyzed pull request head SHA
   is that merge commit's second parent, read from ``GET commits/{sha}``.
   "Current" means every category's newest analysis resolves to the reviewed HEAD.
-* Origin filter (ADR-041 debate log 4): only analyses whose ``analysis_key`` names
-  ``.github/workflows/codeql-analysis.yml`` under a ``/language:<lang>`` category
-  count, and only alerts whose most recent instance came from one. Every other upload
+* Origin filter (ADR-041 debate log 4): only analyses whose ``analysis_key`` is exactly
+  ``.github/workflows/codeql-analysis.yml:analyze``, whose category fully matches
+  ``/language:[a-z-]+``, and whose ``tool.name`` is ``CodeQL`` count, and only alerts
+  whose most recent instance came from one. The tool name is never the only test. Every other upload
   is ignored, whatever tool name its SARIF carries. If only other workflows analyzed
   the ref, the outcome is NOT ANALYZED.
 * Each alert reaches the caller as rule id, repository-relative path, and line.

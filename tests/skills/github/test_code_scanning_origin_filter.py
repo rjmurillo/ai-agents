@@ -82,40 +82,70 @@ def world(analyses, results=(), alerts=()):
     return fake
 
 
+OK_KEY = ".github/workflows/codeql-analysis.yml:analyze"
+
+
 class TestIsCodeqlOrigin:
-    @pytest.mark.parametrize("lang", ["python", "actions", "javascript-typescript"])
-    def test_accepts_the_workflow_under_a_language_category(self, lang):
-        key = ".github/workflows/codeql-analysis.yml:analyze"
-        assert scope.is_codeql_origin(key, f"/language:{lang}") is True
+    @pytest.mark.parametrize("lang", ["python", "actions", "javascript-typescript", "c-cpp"])
+    def test_accepts_the_analyze_job_under_a_language_category_from_codeql(self, lang):
+        assert scope.is_codeql_origin(OK_KEY, f"/language:{lang}", "CodeQL") is True
 
     @pytest.mark.parametrize(
-        ("key", "category"),
+        ("key", "category", "tool"),
         [
-            (PYTEST_KEY, "ruff-security"),
-            (PYTEST_KEY, "/language:python"),
-            (".github/workflows/codeql-analysis.yaml:analyze", "/language:python"),
-            (".github/workflows/codeql-analysis.yml.bak:analyze", "/language:python"),
-            ("x/.github/workflows/codeql-analysis.yml:analyze", "/language:python"),
-            (".github/workflows/CodeQL-Analysis.yml:analyze", "/language:python"),
-            (".github/workflows/codeql-analysis.yml", "/language:python"),
-            (".github/workflows/codeql-analysis.yml:", "/language:python"),
-            ("", "/language:python"),
-            (None, "/language:python"),
-            (7, "/language:python"),
-            (".github/workflows/codeql-analysis.yml:analyze", "ruff-security"),
-            (".github/workflows/codeql-analysis.yml:analyze", "/language:"),
-            (".github/workflows/codeql-analysis.yml:analyze", "language:python"),
-            (".github/workflows/codeql-analysis.yml:analyze", ""),
-            (".github/workflows/codeql-analysis.yml:analyze", None),
-            (".github/workflows/codeql-analysis.yml:analyze", ["/language:python"]),
+            (PYTEST_KEY, "ruff-security", "CodeQL"),
+            (PYTEST_KEY, "/language:python", "CodeQL"),
+            (".github/workflows/codeql-analysis.yml:other-job", "/language:python", "CodeQL"),
+            (".github/workflows/codeql-analysis.yml:analyze2", "/language:python", "CodeQL"),
+            (".github/workflows/codeql-analysis.yml:Analyze", "/language:python", "CodeQL"),
+            (".github/workflows/codeql-analysis.yml:analyze ", "/language:python", "CodeQL"),
+            (".github/workflows/codeql-analysis.yaml:analyze", "/language:python", "CodeQL"),
+            ("x/.github/workflows/codeql-analysis.yml:analyze", "/language:python", "CodeQL"),
+            (".github/workflows/CodeQL-Analysis.yml:analyze", "/language:python", "CodeQL"),
+            (".github/workflows/codeql-analysis.yml", "/language:python", "CodeQL"),
+            (".github/workflows/codeql-analysis.yml:", "/language:python", "CodeQL"),
+            ("", "/language:python", "CodeQL"),
+            (None, "/language:python", "CodeQL"),
+            (7, "/language:python", "CodeQL"),
+            (OK_KEY, "ruff-security", "CodeQL"),
+            (OK_KEY, "/language:", "CodeQL"),
+            (OK_KEY, "language:python", "CodeQL"),
+            (OK_KEY, "/language:python/extra", "CodeQL"),
+            (OK_KEY, "/language:python-extra suffix", "CodeQL"),
+            (OK_KEY, "/language:python\n", "CodeQL"),
+            (OK_KEY, "/language:Python", "CodeQL"),
+            (OK_KEY, "/language:py_thon", "CodeQL"),
+            (OK_KEY, "/language:python,/language:actions", "CodeQL"),
+            (OK_KEY, "x/language:python", "CodeQL"),
+            (OK_KEY, "", "CodeQL"),
+            (OK_KEY, None, "CodeQL"),
+            (OK_KEY, ["/language:python"], "CodeQL"),
+            (OK_KEY, "/language:python", "Ruff"),
+            (OK_KEY, "/language:python", "codeql"),
+            (OK_KEY, "/language:python", "CodeQL "),
+            (OK_KEY, "/language:python", ""),
+            (OK_KEY, "/language:python", None),
+            (OK_KEY, "/language:python", ["CodeQL"]),
         ],
     )
-    def test_rejects_everything_else(self, key, category):
-        assert scope.is_codeql_origin(key, category) is False
+    def test_rejects_everything_else(self, key, category, tool):
+        assert scope.is_codeql_origin(key, category, tool) is False
 
-    @pytest.mark.parametrize("record", [None, "x", 3, [], {}, {"category": "/language:python"}])
+    @pytest.mark.parametrize(
+        "record",
+        [None, "x", 3, [], {}, {"category": "/language:python"}, {"analysis_key": OK_KEY}],
+    )
     def test_is_origin_analysis_rejects_records_missing_a_field(self, record):
         assert scope.is_origin_analysis(record) is False
+
+    def test_an_analysis_without_a_tool_object_is_ignored(self):
+        row = analysis(101)
+        del row["tool"]
+        assert scope.is_origin_analysis(row) is False
+
+    def test_the_tool_name_alone_never_qualifies(self):
+        row = analysis(101, analysis_key=PYTEST_KEY, category="ruff-security", tool="CodeQL")
+        assert scope.is_origin_analysis(row) is False
 
 
 class TestAnalysesAreFiltered:
@@ -155,6 +185,17 @@ class TestAnalysesAreFiltered:
         row = analysis(101)
         del row["category"]
         assert read(world([row]))["outcome"] == "NOT ANALYZED"
+
+    def test_a_different_job_in_the_same_workflow_file_is_ignored(self):
+        key = ".github/workflows/codeql-analysis.yml:other-job"
+        assert read(world([analysis(101, analysis_key=key)]))["outcome"] == "NOT ANALYZED"
+
+    def test_a_category_with_extra_suffix_text_is_ignored(self):
+        row = analysis(101, category="/language:python-and-more text")
+        assert read(world([row]))["outcome"] == "NOT ANALYZED"
+
+    def test_a_non_codeql_tool_name_is_ignored(self):
+        assert read(world([analysis(101, tool="Ruff")]))["outcome"] == "NOT ANALYZED"
 
     def test_an_analysis_with_the_wrong_category_is_ignored(self):
         assert read(world([analysis(101, category="ruff-security")]))["outcome"] == "NOT ANALYZED"
@@ -212,6 +253,10 @@ class TestAlertsAreFiltered:
             {"category": "ruff-security"},
             {"analysis_key": PYTEST_KEY},
             {"analysis_key": ".github/workflows/codeql-analysis.yaml:analyze"},
+            {"analysis_key": ".github/workflows/codeql-analysis.yml:other-job"},
+            {"category": "/language:python-and-more text"},
+            {"tool": "Ruff"},
+            {"tool": None},
         ],
     )
     def test_an_alert_missing_or_failing_either_field_is_ignored(self, kwargs):

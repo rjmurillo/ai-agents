@@ -15,6 +15,7 @@ data; no I/O. Rules from the ADR-041 amendment 2026-11-09
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from code_scanning_errors import SkipError
@@ -38,35 +39,38 @@ __all__ = [
 #: The one workflow whose uploads count (ADR-041 amendment, "Origin filter"). Another job
 #: with ``security-events: write`` can upload SARIF whose content sets the tool name to
 #: ``CodeQL``, so the tool name is never the filter; the analysis key and category are.
-ORIGIN_WORKFLOW = ".github/workflows/codeql-analysis.yml"
-ORIGIN_CATEGORY_PREFIX = "/language:"
+ORIGIN_ANALYSIS_KEY = ".github/workflows/codeql-analysis.yml:analyze"
+ORIGIN_CATEGORY = re.compile(r"/language:[a-z-]+")
+ORIGIN_TOOL = "CodeQL"
 
 MAX_ATTACHED = 200
 MAX_OTHER_FILES = 50
 
 
-def is_codeql_origin(analysis_key: object, category: object) -> bool:
-    """True when an upload came from ``codeql-analysis.yml`` under ``/language:<lang>``.
+def is_codeql_origin(analysis_key: object, category: object, tool_name: object) -> bool:
+    """True when an upload came from the ``analyze`` job of ``codeql-analysis.yml``.
 
-    ``analysis_key`` reads ``<workflow file>:<job>`` (observed:
-    ``.github/workflows/codeql-analysis.yml:analyze``), so the file is the part before
-    the first colon and must equal ``ORIGIN_WORKFLOW`` exactly. The category must be
-    ``/language:`` plus a non-empty language. A missing or non-string field is False.
+    All three must hold. The key is exactly ``ORIGIN_ANALYSIS_KEY`` (observed:
+    ``.github/workflows/codeql-analysis.yml:analyze``; the job id ``analyze`` is at
+    ``codeql-analysis.yml:118``). The category fully matches ``/language:<lang>``
+    with a lower-case language. The tool name is ``CodeQL``. The tool name is an extra
+    condition only: SARIF content sets it, so it never stands alone. A missing or
+    non-string field is False.
     """
-    if not isinstance(analysis_key, str) or not isinstance(category, str):
+    if analysis_key != ORIGIN_ANALYSIS_KEY or tool_name != ORIGIN_TOOL:
         return False
-    workflow, sep, job = analysis_key.partition(":")
-    if workflow != ORIGIN_WORKFLOW or not sep or not job:
-        return False
-    return category.startswith(ORIGIN_CATEGORY_PREFIX) and len(category) > len(
-        ORIGIN_CATEGORY_PREFIX
-    )
+    return isinstance(category, str) and ORIGIN_CATEGORY.fullmatch(category) is not None
+
+
+def _tool_name(record: dict[str, Any]) -> object:
+    tool = record.get("tool")
+    return tool.get("name") if isinstance(tool, dict) else None
 
 
 def is_origin_analysis(analysis: object) -> bool:
     """True when an analysis record came from the CodeQL workflow."""
     return isinstance(analysis, dict) and is_codeql_origin(
-        analysis.get("analysis_key"), analysis.get("category")
+        analysis.get("analysis_key"), analysis.get("category"), _tool_name(analysis)
     )
 
 
@@ -74,7 +78,9 @@ def _is_origin_alert(alert: dict[str, Any]) -> bool:
     instance = alert.get("most_recent_instance")
     if not isinstance(instance, dict):
         return False
-    return is_codeql_origin(instance.get("analysis_key"), instance.get("category"))
+    return is_codeql_origin(
+        instance.get("analysis_key"), instance.get("category"), _tool_name(alert)
+    )
 
 
 def _alert_primary_path(alert: dict[str, Any]) -> str | None:

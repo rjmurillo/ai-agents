@@ -112,6 +112,7 @@ def alert(
     commit_sha: str = MERGE_SHA,
     analysis_key: str | None = ORIGIN_KEY,
     category: str | None = "/language:python",
+    tool: str | None = "CodeQL",
 ) -> dict[str, Any]:
     instance: dict[str, Any] = {
         "ref": "refs/pull/7/merge",
@@ -123,12 +124,15 @@ def alert(
         instance["analysis_key"] = analysis_key
     if category is not None:
         instance["category"] = category
-    return {
+    result: dict[str, Any] = {
         "number": number,
         "state": "open",
         "rule": {"id": rule_id, "name": "Rule NAME to ignore", "description": "free text"},
         "most_recent_instance": instance,
     }
+    if tool is not None:
+        result["tool"] = {"name": tool, "version": "2.0"}
+    return result
 
 
 class FakeGitHub:
