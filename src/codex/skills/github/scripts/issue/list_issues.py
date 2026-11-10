@@ -11,7 +11,10 @@ Enumerates issues in a repository with filtering capabilities:
 - Result limit
 
 Emits the standard skill envelope. In JSON mode, stdout is:
-``{"Success": bool, "Data": {"issues": [...], "count": int}, ...}``.
+``{"Success": bool, "Data": {"issues": [...], "count": int, "truncated": bool}, ...}``.
+``count`` is the number of rows returned, not a total. ``truncated`` is true when
+more matching issues exist past ``--limit``; the script asks ``gh`` for one extra
+row to know.
 Failure paths emit the same envelope with ``Error`` populated.
 
 Mirrors the PR-side ``get_pull_requests.py`` precedent, providing a
@@ -181,7 +184,8 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
         "--repo",
         repo_flag,
         "--limit",
-        str(args.limit),
+        # One extra row tells main() whether more issues exist past the limit.
+        str(args.limit + 1),
         "--json",
         "number,title,state,labels,assignees,author,url,createdAt,updatedAt",
     ]
@@ -352,12 +356,14 @@ def main(argv: list[str] | None = None) -> int:
     _require_gh_auth(fmt)
     owner, repo = _resolve_repo(args, fmt)
     issues = _run_issue_list(_build_issue_list_args(args, f"{owner}/{repo}"), fmt)
-    output = [_format_issue(issue) for issue in issues if isinstance(issue, dict)]
+    truncated = len(issues) > args.limit
+    output = [_format_issue(issue) for issue in issues[: args.limit] if isinstance(issue, dict)]
 
+    summary = f"{len(output)} issue(s)" + (" (truncated, more exist)" if truncated else "")
     write_skill_output(
-        {"issues": output, "count": len(output)},
+        {"issues": output, "count": len(output), "truncated": truncated},
         output_format=fmt,
-        human_summary=f"{len(output)} issue(s)",
+        human_summary=summary,
         status="PASS",
         script_name="list_issues.py",
     )
