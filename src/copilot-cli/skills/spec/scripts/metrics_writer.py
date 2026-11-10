@@ -33,10 +33,17 @@ no tally line is interleaved or lost. The file descriptor is always closed in a
 ``finally`` block.
 
 Exit codes (ADR-035): 0 = success, 1 = logic/validation error (symlink
-rejected, traversal rejected, lock or write failure), 2 = usage error.
+rejected, traversal rejected, lock or write failure), 2 = usage error or no
+line supplied.
 
 Usage:
-    metrics_writer.py PATH LINE      # append LINE (one tally record) to PATH
+    metrics_writer.py --path PATH --line LINE   # append LINE (one tally record)
+    metrics_writer.py --path PATH --line=LINE   # same; required when LINE starts with '-'
+    ... | metrics_writer.py --path PATH --stdin # read LINE from stdin
+
+The CLI has no positional arguments. A positional LINE that starts with ``-``
+(``-h``, ``--help``) is parsed as a flag, which printed help and exited 0
+without appending. ``--line=LINE`` and ``--stdin`` keep such text as data.
 """
 
 from __future__ import annotations
@@ -197,22 +204,55 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="metrics_writer.py",
         allow_abbrev=False,
         description=(
-            "Append one tally LINE to the metrics file at PATH. Refuses a "
-            "symlinked target and a path outside the current directory."
+            "Append one tally line to the metrics file at --path. Refuses a "
+            "symlinked target and a path outside the current directory. The "
+            "line comes from --line or stdin, never from a positional "
+            "argument, so a line such as -h or --help is data, not a flag."
         ),
         epilog=(
-            "example:\n"
-            "  metrics_writer.py .project-toolkit/metrics/STEP-0-METRICS.md "
-            "'| 2026-01-01 | topic | 6/6 |'\n\n"
-            "A LINE that starts with '-' needs '--' before it.\n"
+            "examples:\n"
+            "  metrics_writer.py --path .project-toolkit/metrics/STEP-0-METRICS.md "
+            "--line '| 2026-01-01 | topic | 6/6 |'\n"
+            "  printf '%s\\n' \"$LINE\" | metrics_writer.py --path tally.md --stdin\n\n"
+            "A line that starts with '-' must use --line=LINE (with the equals "
+            "sign) or --stdin. 'metrics_writer.py --line -h' is a usage error "
+            "(exit 2), not help.\n"
             "exit codes (ADR-035): 0 appended, 1 write refused (symlink, path "
-            "outside the working directory, I/O error), 2 usage error."
+            "outside the working directory, I/O error), 2 usage error or no "
+            "line supplied."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("path", help="tally file to append to, relative to the current directory")
-    parser.add_argument("line", help="one tally line to append")
+    parser.add_argument(
+        "--path",
+        required=True,
+        help="tally file to append to, relative to the current directory",
+    )
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--line", help="one tally line to append")
+    source.add_argument(
+        "--stdin",
+        action="store_true",
+        help="read the tally line from standard input (one trailing newline is optional)",
+    )
     return parser
+
+
+def _read_stdin_line() -> str | None:
+    """Return the line piped on stdin, or None when stdin is empty or not UTF-8.
+
+    The caller reports None as exit 2. Only ``--stdin`` reaches this function,
+    so a harness that leaves an open pipe on stdin never blocks a ``--line`` call.
+    """
+    try:
+        data = sys.stdin.read()
+    except UnicodeDecodeError:
+        print("metrics_writer: stdin is not valid UTF-8", file=sys.stderr)
+        return None
+    if data == "":
+        print("metrics_writer: no line on stdin", file=sys.stderr)
+        return None
+    return data
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -220,8 +260,11 @@ def main(argv: list[str] | None = None) -> int:
         args = _build_parser().parse_args(argv)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 2
+    line = _read_stdin_line() if args.stdin else args.line
+    if line is None:
+        return 2
     try:
-        safe_append_tally(args.path, args.line, base_dir=Path.cwd())
+        safe_append_tally(args.path, line, base_dir=Path.cwd())
     except MetricsWriteError as exc:
         print(f"metrics_writer: {exc}", file=sys.stderr)
         return 1
