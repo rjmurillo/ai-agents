@@ -7,7 +7,7 @@ Output (next to report.json):
                 self-contained page, with a Share button that draws a
                 1200x675 share image client-side and downloads it.
 
-Python 3.9+, stdlib only. Uses system fonts so the page and the exported PNG
+Python 3.10+, stdlib only. Uses system fonts so the page and the exported PNG
 render the same everywhere.
 """
 
@@ -411,6 +411,20 @@ def page_script(card_data: str) -> str:
     return report_script.page_script(card_data, DIFF_CLAMP_PX)
 
 
+def load_report(report_path: Path) -> dict[str, Any]:
+    """Read report.json; exit 2 when unreadable or not JSON, 1 when it has no overall score."""
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        print(f"error: cannot read {report_path}: {exc}", file=sys.stderr)
+        sys.exit(2)
+    scores = report.get("scores") if isinstance(report, dict) else None
+    if not isinstance(scores, dict) or not isinstance(scores.get("overall"), (int, float)):
+        print(f"error: {report_path} needs a numeric scores.overall", file=sys.stderr)
+        sys.exit(1)
+    return report
+
+
 def parse_args(argv: Any = None) -> Any:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -431,10 +445,7 @@ def parse_args(argv: Any = None) -> Any:
 def main(argv: Any = None) -> None:
     args = parse_args(argv)
     report_path = Path(args.report_path).expanduser()
-    if not report_path.exists():
-        print(f"error: {report_path} not found", file=sys.stderr)
-        sys.exit(1)
-    r = json.loads(report_path.read_text(encoding="utf-8"))
+    r = load_report(report_path)
     r.setdefault("grade", grade_for(r["scores"]["overall"]))
     errors = report_evaluation.validate_report(r) + report_audit.validate_audit(r)
     if errors:
@@ -454,7 +465,7 @@ def main(argv: Any = None) -> None:
                 "warning: could not open the report in the default browser",
                 file=sys.stderr,
             )
-    print('        use "share as png" for a 1200x675 share image')
+    print("        use the Share button to save a 1200x675 PNG")
 
 
 if __name__ == "__main__":

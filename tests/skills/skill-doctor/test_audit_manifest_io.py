@@ -63,11 +63,11 @@ def test_cli_exit_one_for_an_invalid_manifest(tmp_path, capsys):
     assert "invalid:" in capsys.readouterr().err
 
 
-def test_cli_exit_one_for_json_that_does_not_parse(tmp_path):
+def test_cli_exit_two_for_json_that_does_not_parse(tmp_path):
     path = tmp_path / "m.json"
     path.write_text("{not json", encoding="utf-8")
 
-    assert am.main([str(path)]) == 1
+    assert am.main([str(path)]) == 2
 
 
 def test_cli_exit_two_for_bad_arguments_and_unreadable_files(tmp_path, capsys):

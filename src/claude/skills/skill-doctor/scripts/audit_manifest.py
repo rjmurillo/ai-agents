@@ -467,8 +467,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         manifest = json.loads(text)
     except ValueError as exc:
-        print(f"invalid: not valid JSON: {exc}", file=sys.stderr)
-        return 1
+        print(f"error: cannot read {parsed.manifest}: not valid JSON: {exc}", file=sys.stderr)
+        return 2
     errors = validate_manifest(manifest)
     for error in errors:
         print(f"invalid: {error}", file=sys.stderr)
