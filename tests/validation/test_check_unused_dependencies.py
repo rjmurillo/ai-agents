@@ -224,6 +224,52 @@ def test_transitive_ok_without_matching_finding_is_stale(tmp_path):
     assert [f.code for f in findings] == ["STALE-EXEMPTION"]
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("declared", [set(), {"import-linter"}])
+def test_transitive_mixed_locations_preserve_findings_and_parent_requirement(
+    tmp_path, reverse, declared
+):
+    manifest = _manifest(transitive_ok=(cud.TransitiveOk("grimp", "import-linter", "tests/", "r"),))
+    raw = [
+        _raw("DEP003", "grimp", "tests/t.py", 1),
+        _raw("DEP003", "grimp", "scripts/s.py", 2),
+    ]
+    if reverse:
+        raw.reverse()
+
+    findings = cud.evaluate(manifest, raw, tmp_path, [], declared)
+
+    if declared:
+        assert [(f.code, f.where) for f in findings] == [("DEP003", "scripts/s.py:2")]
+    else:
+        assert [(f.code, f.where) for f in findings] == [
+            ("DEP003", f"{item['location']['file']}:{item['location']['line']}") for item in raw
+        ] + [("STALE-EXEMPTION", str(cud.DEFAULT_POLICY))]
+        assert findings[-1].message == (
+            "transitive_ok relies on 'import-linter', which the manifest no longer declares"
+        )
+
+
+def test_stale_policy_entries_keep_transitive_fixture_tool_order_and_diagnostics(tmp_path):
+    manifest = _manifest(
+        transitive_ok=(cud.TransitiveOk("grimp", "import-linter", "tests/", "r"),),
+        fixture_modules=(cud.FixtureModule("fixture_only", "tests/t.py", "reason"),),
+        tool_only=(_tool("pip_audit"),),
+    )
+
+    findings = cud.evaluate(manifest, [], tmp_path, [], {"import-linter"})
+
+    assert [f.render() for f in findings] == [
+        f".: STALE-EXEMPTION grimp ({cud.DEFAULT_POLICY}): "
+        "transitive_ok entry no longer matches any DEP003 finding; delete it",
+        f".: STALE-EXEMPTION fixture_only ({cud.DEFAULT_POLICY}): "
+        "fixture_module matches no DEP001 finding in tests/t.py; delete the entry",
+        f".: STALE-EXEMPTION pip_audit ({cud.DEFAULT_POLICY}): "
+        "listed under tool_only but deptry no longer reports it unused "
+        "(removed from the manifest, or now imported); delete the exemption",
+    ]
+
+
 def _fixture(module="imported_only", used_in="tests/t.py"):
     return cud.FixtureModule(module, used_in, "reason")
 

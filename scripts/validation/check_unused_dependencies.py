@@ -307,18 +307,68 @@ def _fixture_for(manifest: Manifest, module: str, relative: str) -> FixtureModul
     )
 
 
+def _stale_exemption(manifest: Manifest, module: str, message: str) -> Finding:
+    return Finding(manifest.path, "STALE-EXEMPTION", module, str(DEFAULT_POLICY), message)
+
+
 def _stale_fixtures(manifest: Manifest, used: set[FixtureModule]) -> list[Finding]:
     return [
-        Finding(
-            manifest.path,
-            "STALE-EXEMPTION",
+        _stale_exemption(
+            manifest,
             fixture.module,
-            str(DEFAULT_POLICY),
             f"fixture_module matches no DEP001 finding in {fixture.used_in}; delete the entry",
         )
         for fixture in manifest.fixture_modules
         if fixture not in used
     ]
+
+
+def _unused_finding(
+    manifest: Manifest, module: str, where: str, tool: ToolOnly | None, root: Path, files: list[str]
+) -> Finding | None:
+    if tool is None:
+        return Finding(
+            manifest.path,
+            "DEP002",
+            module,
+            where,
+            "declared but never imported; remove it, or list it under tool_only "
+            "with a reason and evidence if a CLI or plugin uses it",
+        )
+    if evidence_present(root, tool, files):
+        return None
+    return Finding(
+        manifest.path,
+        "STALE-EXEMPTION",
+        module,
+        where,
+        f"tool-only exemption lost its evidence ({tool.evidence_file} no "
+        f"longer matches {tool.evidence_pattern!r}); remove the dependency "
+        "or restore the use",
+    )
+
+
+def _stale_transitives(
+    manifest: Manifest,
+    transitive: dict[str, TransitiveOk],
+    declared: set[str],
+    used: set[str],
+    findings: list[Finding],
+) -> list[Finding]:
+    stale = []
+    for module, entry in transitive.items():
+        if entry.via not in declared:
+            message = (
+                f"transitive_ok relies on '{entry.via}', which the manifest no longer declares"
+            )
+        elif module not in used and not any(
+            f.code == "DEP003" and f.module == module for f in findings
+        ):
+            message = "transitive_ok entry no longer matches any DEP003 finding; delete it"
+        else:
+            continue
+        stale.append(_stale_exemption(manifest, module, message))
+    return stale
 
 
 def evaluate(
@@ -350,32 +400,9 @@ def evaluate(
         if code == "DEP002":
             package = normalize(module)
             reported_unused.add(package)
-            tool = exempt.get(package)
-            if tool is not None:
-                if evidence_present(root, tool, files):
-                    continue
-                findings.append(
-                    Finding(
-                        manifest.path,
-                        "STALE-EXEMPTION",
-                        module,
-                        where,
-                        f"tool-only exemption lost its evidence ({tool.evidence_file} no "
-                        f"longer matches {tool.evidence_pattern!r}); remove the dependency "
-                        "or restore the use",
-                    )
-                )
-                continue
-            findings.append(
-                Finding(
-                    manifest.path,
-                    code,
-                    module,
-                    where,
-                    "declared but never imported; remove it, or list it under tool_only "
-                    "with a reason and evidence if a CLI or plugin uses it",
-                )
-            )
+            unused = _unused_finding(manifest, module, where, exempt.get(package), root, files)
+            if unused is not None:
+                findings.append(unused)
             continue
         relative = _relative(location["file"], root, base)
         if code == "DEP003" and module in transitive:
@@ -388,40 +415,15 @@ def evaluate(
             continue
         findings.append(Finding(manifest.path, code, module, where, item["error"]["message"]))
 
-    for module, entry in transitive.items():
-        if entry.via not in declared:
-            findings.append(
-                Finding(
-                    manifest.path,
-                    "STALE-EXEMPTION",
-                    module,
-                    str(DEFAULT_POLICY),
-                    f"transitive_ok relies on '{entry.via}', which the manifest no longer declares",
-                )
-            )
-        elif module not in used_transitive and not any(
-            f.code == "DEP003" and f.module == module for f in findings
-        ):
-            findings.append(
-                Finding(
-                    manifest.path,
-                    "STALE-EXEMPTION",
-                    module,
-                    str(DEFAULT_POLICY),
-                    "transitive_ok entry no longer matches any DEP003 finding; delete it",
-                )
-            )
-
+    findings.extend(_stale_transitives(manifest, transitive, declared, used_transitive, findings))
     findings.extend(_stale_fixtures(manifest, used_fixtures))
 
     for package, tool in exempt.items():
         if package not in reported_unused:
             findings.append(
-                Finding(
-                    manifest.path,
-                    "STALE-EXEMPTION",
+                _stale_exemption(
+                    manifest,
                     tool.package,
-                    str(DEFAULT_POLICY),
                     "listed under tool_only but deptry no longer reports it unused "
                     "(removed from the manifest, or now imported); delete the exemption",
                 )
