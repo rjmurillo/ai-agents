@@ -35,9 +35,9 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates the canonical review axes by change risk, not by blind fan-out. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` at runtime for `--deep` review; risk mode needs a table entry, or the axis is `skipped` (axis-selection.md). Enrollment is not edit-free: the axis names and counts in this body document that directory rather than drive it, and a contract test reds on drift. A project with CI syncs the axes into its CI prompts with its own generator and drift checks. The build copies the whole skill directory into vendored installs (see "Vendored install"), so `/review` needs no CI.
+`/review` evaluates the canonical review axes by change risk, not by blind fan-out. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` at runtime for `--deep` review; risk mode needs a table entry, or the axis is `skipped` (axis-selection.md). Enrollment is not edit-free: the axis names and counts in this body document that directory rather than drive it, and a contract test reds on drift. The build copies the whole skill directory into vendored installs (see "Vendored install"), so `/review` needs no CI.
 
-The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` and `analyst` always run. Callers can pin more always-on axes; `select_axes.py` selects the rest from verified changed paths and diff effects (Process step 4), never by prompt prose. Only a Stage-1 `CRITICAL_FAIL` short-circuits the review; a Stage-1 `UNKNOWN` does not (Process step 2). The caller decides how the merged verdict gates its workflow.
+The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` and `analyst` always run. Callers can pin more always-on axes; `select_axes.py` selects the rest from verified changed paths and diff effects (Process step 4), never by prompt prose. Only a Stage-1 `CRITICAL_FAIL` short-circuits the review; a Stage-1 `UNKNOWN` does not (Process step 2).
 
 `/review` is a strict superset of CI only in deep-review mode, when it runs the full canonical set. Risk-selected `/review` can be narrower than CI, because it may skip axes that do not apply. The 4 local-only skill axes need local code execution and repo state, so CI cannot run them; they are language-agnostic, risk-selected or pinned like any axis, and tracked in a set of their own (step 4b).
 
@@ -101,6 +101,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 4a. **Validate scope of each axis output against the PR diff.** After each axis (steps 2, 3, and every axis in step 4) returns its findings text, run `scripts/validate_findings_scope.py` (resolved via the "Path resolution" section) to find `location:` fields naming files outside the three-dot diff of step 1: `python3 <validate_findings_scope.py> --worktree <WORKTREE_PATH> --base-branch <BASE_BRANCH> --text <AXIS_TEXT> --emit-adjusted-text`. On exit 1 (out-of-scope locations found), replace the axis output with the script's stdout before extracting the verdict; the adjusted text marks each flagged location `[pre-existing - not in this PR diff]`. When every cited location is out of scope and the axis emitted a blocking verdict, the script downgrades that verdict to `WARN`, so an unrelated finding cannot block the reviewed PR. Do NOT suppress or skip the finding; preserve it with the label. On exit 0 (all in scope, or diff empty or unavailable), record stdout when present, otherwise the axis output unmodified.
 4b. **Keep the local-only skill axes in their own selected set.** The 4 local axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) are sibling skills invoked with `Skill(skill="{name}")`. None has a `references/{name}.md` file, so a local axis in the canonical set resolves to a prompt path that does not exist. `select_axes.py` reports them in `local_selected`, never in `canonical_selected`, including when `--pin` names one; keep the two lists separate for the rest of the run.
 4c. **Always-on correctness pass.** Load `resources/technical-review.md`, resolved like the axis prompts with `resources/` in place of `references/`. Invoke `Task(subagent_type="code-reviewer")`, falling back to `general-purpose`, with that contract as the response contract and the same CONTEXT_MODE-prefixed diff as input. Scope-check its output as in 4a, then `extract_verdict`; any failure is `UNKNOWN`.
+4d. **CodeQL pre-step, only when `security` is selected.** Follow `resources/codeql-prestep.md` (ADR-041): attach `alerts` to the security input as untrusted candidates; print `status_line`. STALE, NOT ANALYZED, SKIPPED are never clean.
 
 5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Resolve each `<script>` per "Path resolution" (chained-skill scripts). Scope every axis to the PR diff with the base branch detected in step 1 (stored as `BASE_BRANCH`), quoted, so the gates evaluate only changed files, not the whole tree:
 
@@ -119,7 +120,7 @@ A subagent with no `Task` tool MUST NOT review its own diff and write the marker
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored plugin install in any harness (Claude Code, Copilot CLI, and similar). No axis or skill assumes one hard-coded layout; resolve every dependency through "Path resolution". The build copies the whole skill directory into each plugin install. CI prompts, generators, and sync scripts named here are maintainer context, not runtime dependencies.
+`/review` MUST work in a vendored plugin install in any harness (Claude Code, Copilot CLI, and similar). No axis or skill assumes one hard-coded layout; resolve every dependency through "Path resolution". The build copies the whole skill directory into each plugin install.
 
 ## UNKNOWN handling
 
@@ -138,9 +139,10 @@ Findings table with one row per axis:
 | spec-compliance | PASS | always-on | (from get_verdict_emoji) | (Stage-1 gate; SKIPPED rows below when it short-circuits) |
 | analyst | PASS | always-on | (from get_verdict_emoji) | (one-line summary) |
 | architect | WARN | selected - risk category | ... | ... |
-| devops | UNKNOWN | skipped - reason from `skipped` | ... | ... |
 
 One row per axis in the step-4 candidate set, then one per local axis: 16 rows with the current set. Append one `UNKNOWN` row per `unresolved_axes` entry. Append one always-on `correctness` row for step 4c. Each Selection cell reads `always-on`, or `selected / skipped` plus its reason from `selection_reasons` or `skipped`.
+
+Print the CodeQL `status_line` under the table.
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 
