@@ -179,8 +179,25 @@ def _summarize(reports: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --check
+  %(prog)s --episodes-dir episodes
+  %(prog)s episode-2026-01-01-session-1.json
+
+exit codes:
+  0  repaired, already sound, or --check found nothing
+  1  an episode is unreadable or its causal graph is invalid
+  2  episodes directory missing, or AI_AGENTS_REPO_ROOT is not a directory
+"""
+
+
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("paths", nargs="*", help="Episode files. Default: the whole corpus.")
     parser.add_argument(
         "--episodes-dir",
