@@ -92,7 +92,7 @@ Use the harness's user-question tool when available.
 
 When a current repository is available, ask **“Which conversations should I grade?”** with:
 
-1. **Conversations in this repository** - recommended.
+1. **Conversations in this repository** - recommended. Covers the main checkout and its registered Git worktrees.
 2. **All conversations**.
 3. **Choose projects to analyze**.
 
@@ -122,7 +122,7 @@ REPORT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/skill-doctor-XXXXXXXX")"
 
 Build the collector arguments from the startup answers:
 
-- Current repository: `--repo "$REPO"`.
+- Current repository: `--repo "$REPO"`. The run adds the main checkout and registered worktrees from Git metadata.
 - Selected projects: repeat `--repo PATH` for every project.
 - All conversations: `--all-conversations`.
 - Project and global skills: add `--include-global-skills`.
@@ -149,7 +149,8 @@ Replace the scope arguments with the user's choices before execution.
 Useful flags:
 
 - `--harness VALUE` - which local session sources to scan; use the reference's collector IDs.
-- `--repo PATH` - include a project; repeatable.
+- `--repo PATH` - include a project and its registered worktrees; repeatable.
+- `--no-worktrees` - grade only the listed paths.
 - `--all-conversations` - do not filter conversations by project.
 - `--include-global-skills` - also grade global skills.
 - `--days N` - lookback window (default 45).
@@ -159,6 +160,8 @@ Useful flags:
 - `--min-idle-minutes N` - skip sessions active within the last N minutes (default 15; 0 keeps every session).
 
 Read `$REPORT_DIR/inventory.json`, including `collection_status` and `collection_issues`.
+State `scope_resolution` in the report: included roots with their session counts, rejected roots with reasons, and that clone discovery is unsupported.
+A removed worktree joins only when the user confirms its path and you pass it as `--repo PATH`. A directory name or shared prefix never grants access.
 Note `stats.sessions_skipped_idle`: sessions whose last record is newer than `--min-idle-minutes` (default 15) are skipped because they may still be running; disclose the count.
 Disclose partial collection before interpreting usage or recommending changes.
 Same-name definitions with different content stay in usage and coverage.

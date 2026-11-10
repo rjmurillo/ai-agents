@@ -25,6 +25,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
+from repository_scope import print_scope_roots, resolve_repository_scope
 from session_common import (
     CLAUDE_CODE_EDIT_TOOLS,
     CODE_EDIT_HINTS,
@@ -173,6 +174,7 @@ class Collection:
 
     def __init__(self, args: Any, repos: Any, skills: Any) -> None:
         self.args, self.repos, self.skills = args, repos, skills
+        self.scope = resolve_repository_scope(repos, not args.no_worktrees)
         self.sessions: list[dict[str, Any]] = []
         self.sources: dict[str, Any] = {}
         self.scanned = 0
@@ -194,9 +196,7 @@ class Collection:
         self.sessions.append(session_record(harness, parsed, file, modified_at))
 
     def matches(self, harness: str, meta: Any) -> bool:
-        if harness == "copilot":
-            return copilot_session_matches_repos(meta, self.repos)
-        return session_matches_repos(meta.get("cwd"), self.repos)
+        return self.scope.matches(harness, meta)
 
     def requested(self, harness: str) -> bool:
         return self.args.harness in ("auto", "all", harness)
@@ -385,6 +385,7 @@ def _inventory(
         "repos": [str(repo) for repo in repos],
         "repo_name": scope_name,
         "repo_names": [repo.name for repo in repos],
+        "scope_resolution": collection.scope.report(collection.sessions),
         "window_days": args.days,
         "skills": sorted(skills.values(), key=lambda skill: skill["name"]),
         "skill_usage": usage,
@@ -425,6 +426,7 @@ def _print_summary(inventory: Any, args: Any, repos: Any, out: Path) -> None:
         "all conversations" if args.all_conversations else ", ".join(str(repo) for repo in repos)
     )
     print(f"scope:             {scope}")
+    print_scope_roots(inventory["scope_resolution"])
     print(f"sources:           {', '.join(inventory['sources'])}")
     print(f"skills found:      {stats['skills_found']} ({stats['skills_used']} used in window)")
     print(

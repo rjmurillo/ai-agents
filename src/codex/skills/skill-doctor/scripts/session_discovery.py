@@ -340,6 +340,11 @@ def parse_collector_args(description: str | None) -> argparse.Namespace:
         help="project to include (repeatable; default: git root of cwd, else cwd)",
     )
     parser.add_argument(
+        "--no-worktrees",
+        action="store_true",
+        help="grade only the listed checkouts, not their registered worktrees",
+    )
+    parser.add_argument(
         "--all-conversations",
         action="store_true",
         help="score conversations from every project represented in local history",

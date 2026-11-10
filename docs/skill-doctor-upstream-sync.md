@@ -80,6 +80,10 @@ There is no renamed `collection_sessions.py` compatibility entry point.
 40. Project skill discovery now includes `<repo>/.factory/skills`, and global discovery includes `<factory-home>/skills`.
 41. `stats.terminated_by` for Droid sessions that end on `model_usage_exhausted` or a short usage-limit message.
 42. Devin CLI and Antigravity listed as known and unsupported in `supported-harnesses.md`, with no collector.
+43. Repository scope from Git metadata: the main checkout plus registered linked worktrees, in `repository_scope.py`.
+44. A `scope_resolution` inventory block and summary that list included roots, rejected roots, and reasons.
+45. Removed worktrees are rejected with a reason, fence off their subtree, and join only through an explicit `--repo PATH`; `--no-worktrees` opts out.
+46. Clone discovery is reported as unsupported. No conversation branch filter exists, and collection never changes a branch.
 
 Do not replace local files wholesale with the newest upstream tree.
 Do not restore removed local adaptations merely because upstream still includes them.
