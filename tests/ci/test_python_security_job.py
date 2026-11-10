@@ -1,12 +1,14 @@
-"""The Python Security Checks job runs Bandit even when pip-audit fails.
+"""The Python Security Checks job runs the ruff security rules even when pip-audit fails.
 
 Issue #6028: pip-audit failed on a transitive pyjwt pin, and the default
-success() condition then skipped Bandit on every pull request. Assertions parse
+success() condition then skipped the scan on every pull request. Bandit was later
+replaced by ruff's equivalent rules. Assertions parse
 the YAML object graph (``.claude/rules/testing.md`` MUST 9).
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,8 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PYTEST_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pytest.yml"
 UV_LOCK = REPO_ROOT / "uv.lock"
+PYPROJECT = REPO_ROOT / "pyproject.toml"
+SECURITY_STEP = "Run ruff security rules"
 
 # CVE-2026-4539 affects pygments before 2.20.0 (issue #5224).
 PYGMENTS_FIXED_IN = (2, 20, 0)
@@ -39,17 +43,51 @@ def _locked_version(package: str) -> tuple[int, ...]:
     return tuple(int(part) for part in matches[0]["version"].split("."))
 
 
-def test_bandit_runs_after_pip_audit() -> None:
+def _security_command() -> str:
+    _, step = _step(SECURITY_STEP)
+    return " ".join(str(step["run"]).replace("\\\n", " ").split())
+
+
+def _step_select_codes() -> set[str]:
+    match = re.search(r"--select (\S+)", _security_command())
+    assert match is not None, "ruff security step passes no --select"
+    return set(match.group(1).split(","))
+
+
+def _pyproject_select_codes() -> set[str]:
+    document = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    return set(document["tool"]["ruff"]["lint"]["select"])
+
+
+def test_ruff_security_rules_run_after_pip_audit() -> None:
     audit_at, _ = _step("Run pip-audit")
-    bandit_at, _ = _step("Run Bandit")
+    security_at, _ = _step(SECURITY_STEP)
 
-    assert audit_at < bandit_at
+    assert audit_at < security_at
 
 
-def test_bandit_does_not_depend_on_the_pip_audit_outcome() -> None:
-    _, bandit = _step("Run Bandit")
+def test_ruff_security_rules_do_not_depend_on_the_pip_audit_outcome() -> None:
+    _, security = _step(SECURITY_STEP)
 
-    assert bandit.get("if") == "${{ !cancelled() }}"
+    assert security.get("if") == "${{ !cancelled() }}"
+
+
+def test_bandit_is_gone_from_the_security_job() -> None:
+    """Negative: no step may still install, run, or upload bandit output."""
+    assert "bandit" not in str(_steps()).lower()
+
+
+def test_step_select_is_a_subset_of_the_pyproject_select() -> None:
+    """The workflow list cannot drift from the codes the main ruff gate enforces."""
+    missing = _step_select_codes() - _pyproject_select_codes()
+
+    assert not missing, f"codes in the workflow but not in pyproject select: {sorted(missing)}"
+
+
+def test_every_pyproject_security_code_is_scanned_by_the_step() -> None:
+    """Inverse: a security code added to pyproject must also reach the SARIF step."""
+    in_pyproject = {c for c in _pyproject_select_codes() if re.fullmatch(r"S\d{3}|PLE\d{4}", c)}
+    assert in_pyproject == _step_select_codes()
 
 
 def test_pip_audit_still_fails_the_job() -> None:

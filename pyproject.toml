@@ -19,7 +19,6 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "bandit[sarif]>=1.9.4",
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
@@ -134,10 +133,6 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
 ]
-
-[tool.bandit]
-exclude_dirs = [".venv", "tests", ".git"]
-skips = []
 
 [tool.ruff]
 # Match the hook-execution portability floor enforced by
@@ -819,7 +814,6 @@ forbidden_modules = ["tests"]
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "bandit[sarif]>=1.9.4",
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
