@@ -4727,7 +4727,10 @@ class TestDryRun:
 
         captured = capsys.readouterr()
         assert rc == 0
-        assert json.loads(captured.out)["id"]
+        preview = json.loads(captured.out)
+        assert preview["dry_run"] is True
+        assert preview["would_write"].endswith("episode-2026-05-31-session-9002.json")
+        assert preview["episode"]["id"]
         assert "Dry run: would write" in captured.err
         assert not out.exists()
 
@@ -4774,3 +4777,4 @@ class TestDryRun:
 
         assert rc == 0
         assert len(list(out.glob("episode-*.json"))) == 1
+        assert "dry_run" not in json.loads(capsys.readouterr().out)

@@ -222,8 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.limit < 0:
-        print(f"Error: --limit must be 0 or greater, got {args.limit}", file=sys.stderr)
-        return 1
+        parser.error(f"--limit must be 0 or greater, got {args.limit}")
 
     if not _HAS_TIKTOKEN:
         print(

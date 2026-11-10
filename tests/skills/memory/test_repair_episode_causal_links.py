@@ -299,6 +299,7 @@ class TestCliContract:
         summary = _summary(result)
         assert summary["Repaired"] == 1
         assert summary["Invalid"] == []
+        assert summary["DryRun"] is True
         assert path.read_bytes() == before
 
     @pytest.mark.unit
@@ -310,7 +311,9 @@ class TestCliContract:
         _run("--episodes-dir", str(episodes), "--dry-run")
         result = _run("--episodes-dir", str(episodes))
 
-        assert _summary(result)["Repaired"] == 1
+        summary = _summary(result)
+        assert summary["Repaired"] == 1
+        assert "DryRun" not in summary
         assert path.read_bytes() != before
 
     @pytest.mark.unit

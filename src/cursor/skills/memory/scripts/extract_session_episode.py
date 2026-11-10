@@ -1937,8 +1937,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help=(
-            "Run the full extraction and every refusal check, print the episode "
-            "JSON, but create no directory and write no episode file. "
+            "Run the full extraction and every refusal check, print "
+            '{"dry_run": true, "would_write": PATH, "episode": {...}}, but create no '
+            "directory and write no episode file. "
             "Extraction only: not valid with --validate"
         ),
     )
@@ -2992,8 +2993,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Lessons:   {len(lessons)}", file=sys.stderr)
     print(f"  Output:    {episode_file}", file=sys.stderr)
 
-    # Output episode JSON to stdout for pipeline usage
-    print(json.dumps(episode, indent=2))
+    # Output episode JSON to stdout for pipeline usage. A dry run wraps it so a
+    # captured result cannot be mistaken for a persisted episode.
+    if args.dry_run:
+        preview = {"dry_run": True, "would_write": str(episode_file), "episode": episode}
+        print(json.dumps(preview, indent=2))
+    else:
+        print(json.dumps(episode, indent=2))
     return 0
 
 

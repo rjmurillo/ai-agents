@@ -214,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
 
     reports = [_inspect_or_repair(path, check=args.check) for path in _episode_paths(args)]
     summary = _summarize(reports)
+    if args.check:
+        summary["DryRun"] = True
     print(json.dumps(summary, indent=2))
     # One malformed episode must not stop the corpus pass, but it is still a
     # defect the caller has to see, so it lands in the summary and the exit code.

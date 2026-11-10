@@ -2,15 +2,32 @@
 
 from __future__ import annotations
 
-import sys
+import importlib.util
 from pathlib import Path
 
 import pytest
 
-SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
-sys.path.insert(0, str(SCRIPT_DIR))
+SCRIPT = (
+    Path(__file__).resolve().parents[3]
+    / ".claude"
+    / "skills"
+    / "memory"
+    / "scripts"
+    / "count_memory_tokens.py"
+)
 
-import count_memory_tokens as cmt
+
+def _load_script():
+    """Load by path so the test adds nothing to sys.path."""
+    spec = importlib.util.spec_from_file_location("count_memory_tokens_cli_under_test", SCRIPT)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+cmt = _load_script()
 
 
 @pytest.fixture
@@ -89,10 +106,13 @@ class TestBoundedListing:
         assert rc == 0
         assert "Showing" not in capsys.readouterr().err
 
-    def test_negative_limit_exits_1_and_says_the_expected_range(self, memory_dir, capsys):
-        rc = cmt.main([str(memory_dir), "--limit", "-1"])
+    def test_negative_limit_is_a_usage_error_exit_2_that_says_the_expected_range(
+        self, memory_dir, capsys
+    ):
+        with pytest.raises(SystemExit) as exc:
+            cmt.main([str(memory_dir), "--limit", "-1"])
 
         captured = capsys.readouterr()
-        assert rc == 1
-        assert "--limit must be 0 or greater" in captured.err
+        assert exc.value.code == 2
+        assert "--limit must be 0 or greater, got -1" in captured.err
         assert captured.out == ""
