@@ -37,10 +37,9 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
+from code_scanning_errors import EXIT_AUTH, EXIT_EXTERNAL, SkipError
 from github_core.api import GhAuthStatus, classify_gh_failure_text
 
-EXIT_EXTERNAL = 3
-EXIT_AUTH = 4
 MAX_PAGES = 50
 _GH_TIMEOUT_SECONDS = 30
 _HTTP_STATUS = re.compile(r"\bHTTP\s+(\d{3})\b")
@@ -50,15 +49,6 @@ _REFUSED_STATUSES = frozenset({401, 403, 404})
 
 #: gh transport: ``run(endpoint, accept)`` returns ``(headers, body)``.
 Transport = Callable[[str, str | None], tuple[dict[str, str], str]]
-
-
-class SkipError(Exception):
-    """The read cannot complete. ``reason`` is a fixed string, never remote text."""
-
-    def __init__(self, reason: str, exit_code: int = EXIT_EXTERNAL) -> None:
-        super().__init__(reason)
-        self.reason = reason
-        self.exit_code = exit_code
 
 
 def _failure_to_skip(text: str) -> SkipError:

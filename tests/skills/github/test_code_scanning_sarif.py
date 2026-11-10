@@ -168,3 +168,36 @@ class TestDiffMatching:
 
     def test_matching_is_case_sensitive(self):
         assert sarif_mod.first_location_in_diff([("SRC/a.py", 1)], frozenset({"src/a.py"})) is None
+
+
+class TestScopeSarifResults:
+    """The local-scan reduction shares the alert reduction's rules."""
+
+    def _scope(self, results, files=("src/a.py",)):
+        import code_scanning_scope as scope
+
+        return scope.scope_sarif_results(results, frozenset(files))
+
+    def test_a_result_with_no_usable_location_is_counted_under_the_marker(self):
+        out = self._scope([{"ruleId": "py/x", "locations": []}])
+        assert out["alerts"] == []
+        assert out["other_by_file"] == {"(unparseable path)": 1}
+
+    def test_rule_id_falls_back_to_the_rule_object(self):
+        result = sarif_result(1)
+        del result["ruleId"]
+        result["rule"] = {"id": "py/from-rule"}
+        assert self._scope([result])["alerts"][0]["rule_id"] == "py/from-rule"
+
+    def test_a_result_with_no_rule_id_at_all_is_dropped_and_counted(self):
+        result = sarif_result(1)
+        del result["ruleId"]
+        out = self._scope([result])
+        assert out["alerts"] == []
+        assert out["counts"]["invalid_rule_id"] == 1
+
+    def test_a_non_object_result_is_a_skip(self):
+        import code_scanning_scope as scope
+
+        with pytest.raises(scope.SkipError):
+            scope.scope_sarif_results(["x"], frozenset())

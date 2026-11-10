@@ -92,12 +92,10 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
+from code_scanning_errors import EXIT_AUTH, EXIT_EXTERNAL, SkipError
 from code_scanning_sarif import normalize_changed_files, sarif_results_by_alert_number
 from code_scanning_scope import scope_alerts
 from code_scanning_transport import (
-    EXIT_AUTH,
-    EXIT_EXTERNAL,
-    SkipError,
     Transport,
     get_all_pages,
     get_object,

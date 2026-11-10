@@ -17,13 +17,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from code_scanning_errors import SkipError
 from code_scanning_sarif import (
     first_location_in_diff,
     is_valid_rule_id,
+    normalize_changed_files,
     normalize_repo_path,
     sarif_result_locations,
 )
-from code_scanning_transport import SkipError
+
+__all__ = ["SkipError", "normalize_changed_files", "scope_alerts", "scope_sarif_results"]
 
 MAX_ATTACHED = 200
 MAX_OTHER_FILES = 50
@@ -108,3 +111,45 @@ def _scoped_result(
         "other_total": sum(other_by_file.values()),
         "counts": counts,
     }
+
+
+def _sarif_rule_id(result: dict[str, Any]) -> object:
+    rule_id = result.get("ruleId")
+    if rule_id is not None:
+        return rule_id
+    rule = result.get("rule")
+    return rule.get("id") if isinstance(rule, dict) else None
+
+
+def scope_sarif_results(
+    results: list[Any],
+    changed_files: frozenset[str],
+) -> dict[str, Any]:
+    """Reduce raw SARIF results (the local scan) to attached ``{rule_id, path, line}``.
+
+    Same reduction and same any-location scope as :func:`scope_alerts`, for results
+    that did not come through the alerts API. There is no alert state to join, so
+    every result counts as open.
+    """
+    attached: dict[tuple[str, str, int], dict[str, Any]] = {}
+    other_by_file: dict[str, int] = {}
+    counts = {"total": 0, "invalid_rule_id": 0}
+    for result in results:
+        if not isinstance(result, dict):
+            raise SkipError("a SARIF result had an unexpected shape")
+        counts["total"] += 1
+        locations = sarif_result_locations(result)
+        hit = first_location_in_diff(locations, changed_files)
+        rule_id = _sarif_rule_id(result)
+        if hit is None:
+            key = locations[0][0] if locations else "(unparseable path)"
+            other_by_file[key] = other_by_file.get(key, 0) + 1
+        elif not is_valid_rule_id(rule_id):
+            counts["invalid_rule_id"] += 1
+        else:
+            attached[(str(rule_id), hit[0], hit[1])] = {
+                "rule_id": str(rule_id),
+                "path": hit[0],
+                "line": hit[1],
+            }
+    return _scoped_result(attached, other_by_file, counts)
