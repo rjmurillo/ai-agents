@@ -31,12 +31,6 @@
         0
       ]
     ],
-    "codeql-scan/scripts/invoke_codeql_scan_skill.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "context-optimizer/scripts/path_validation.py": [
       [
         "result = subprocess.run(",

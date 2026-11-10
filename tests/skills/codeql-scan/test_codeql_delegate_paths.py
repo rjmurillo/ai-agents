@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind the codeql-scan wrappers to the delegates that actually exist (Issue #4921).
+"""Bind the codeql-scan wrapper to the delegates that actually exist (Issue #4921).
 
 The wrappers resolved `Test-CodeQLConfig.ps1`, `Invoke-CodeQLScan.ps1`, and
 `Install-CodeQL.ps1` long after those files were deleted, so every operation
@@ -37,17 +37,13 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import PROJECT_ROOT, import_skill_script
 
-WRAPPER_RELATIVE_PATHS = (
-    ".claude/skills/codeql-scan/scripts/invoke_codeql_scan.py",
-    ".claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py",
-)
+WRAPPER_RELATIVE_PATHS = (".claude/skills/codeql-scan/scripts/invoke_codeql_scan.py",)
 
 CODEQL_SCRIPTS_DIR = PROJECT_ROOT / ".codeql" / "scripts"
 
 # The documented entry point. SKILL.md, line 19:
 #   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 wrapper = import_skill_script(WRAPPER_RELATIVE_PATHS[0], module_name="codeql_wrapper")
-skill_wrapper = import_skill_script(WRAPPER_RELATIVE_PATHS[1], module_name="codeql_wrapper_skill")
 
 # The delegate is imported under an alias: its file name (invoke_codeql_scan.py)
 # collides with the wrapper's, and a shared sys.modules key would let one shadow
@@ -86,18 +82,6 @@ class TestDelegatesExistInRealRepository:
             f"{missing}. This is the Issue #4921 failure: the wrapper resolves a "
             f"script the repository does not ship."
         )
-
-    def test_skill_wrapper_delegates_exist_in_real_repo(self) -> None:
-        missing = [
-            name
-            for name in skill_wrapper.DELEGATE_SCRIPT_NAMES
-            if not (CODEQL_SCRIPTS_DIR / name).is_file()
-        ]
-        assert not missing, f"Sibling wrapper names missing delegates: {missing}"
-
-    def test_both_wrappers_agree_on_delegate_names(self) -> None:
-        """One skill, one set of delegates. Divergence means one wrapper is stale."""
-        assert wrapper.DELEGATE_SCRIPT_NAMES == skill_wrapper.DELEGATE_SCRIPT_NAMES
 
     def test_delegates_are_python_not_powershell(self) -> None:
         for name in wrapper.DELEGATE_SCRIPT_NAMES:
@@ -271,7 +255,16 @@ class TestEdgeCases:
         """sys.executable is documented to be empty in frozen builds."""
         with patch.object(sys, "executable", ""):
             assert wrapper._python_executable() == "python3"
-            assert skill_wrapper._python_executable() == "python3"
+
+    def test_only_one_codeql_scan_wrapper_ships(self) -> None:
+        """The second wrapper, invoke_codeql_scan_skill.py, was removed as a duplicate.
+
+        It diverged from the documented wrapper and no workflow or doc invoked it.
+        This guard fails if a sibling wrapper reappears under the skill.
+        """
+        scripts_dir = PROJECT_ROOT / ".claude" / "skills" / "codeql-scan" / "scripts"
+        wrappers = sorted(path.name for path in scripts_dir.glob("invoke_codeql_scan*.py"))
+        assert wrappers == ["invoke_codeql_scan.py"]
 
     def test_python_executable_prefers_current_interpreter(self) -> None:
         with patch.object(sys, "executable", "/venv/bin/python"):

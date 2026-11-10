@@ -56,6 +56,10 @@ CONFIG_SCRIPT_NAME = "test_codeql_config.py"
 SCAN_SCRIPT_NAME = "invoke_codeql_scan.py"
 INSTALL_SCRIPT_NAME = "install_codeql.py"
 
+#: Upper bound for the ``git rev-parse`` call, matching the delegate's own git calls
+#: (``.codeql/scripts/invoke_codeql_scan.py`` uses ``timeout=10``).
+GIT_TIMEOUT_SECONDS = 10
+
 #: Delegate scripts this wrapper resolves under ``<repo root>/.codeql/scripts/``.
 #: `tests/skills/codeql-scan/test_codeql_delegate_paths.py` asserts every name
 #: here resolves to a real file in this repository, so a rename that is not
@@ -98,13 +102,22 @@ def _get_repo_root() -> Path | None:
     a bare repository, where the caller surfaces a clear "not in a git
     repository" error (exit 3). Canonical reference:
     scripts/github_core/repo.py::get_repo_root.
+
+    A missing ``git`` binary (``OSError``) or a hung one (``TimeoutExpired``)
+    also returns None. Without that, the traceback exits 1, which ADR-035 and
+    this wrapper's contract define as "findings detected", so a broken PATH
+    in CI would read as a security finding.
     """
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
     if result.returncode != 0:
         return None
     raw = result.stdout.strip()
