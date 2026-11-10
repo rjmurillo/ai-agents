@@ -199,18 +199,42 @@ def _validate_thread_id(thread_id: str) -> None:
         error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
 
+_THREAD_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread { id isResolved }
+    }
+}"""
+
+
+def _preview_single(thread_id: str) -> int:
+    """Read the thread and report the plan; exit 1 where a real run's mutation would fail."""
+    try:
+        data = gh_graphql(_THREAD_QUERY, {"threadId": thread_id})
+    except RuntimeError as exc:
+        print(f"WARNING: Could not read thread {thread_id}: {exc}", file=sys.stderr)
+        data = {}
+    node = data.get("node")
+    found = isinstance(node, dict) and node.get("id") == thread_id
+    result: dict[str, object] = {
+        "Success": found,
+        "ThreadId": thread_id,
+        "Action": "would_unresolve",
+        "DryRun": True,
+    }
+    if found:
+        result["AlreadyUnresolved"] = node.get("isResolved") is False
+    else:
+        print(f"WARNING: Thread {thread_id} not found or not readable.", file=sys.stderr)
+    print(json.dumps(result, indent=2))
+    return 0 if found else 1
+
+
 def _unresolve_single(args: argparse.Namespace) -> int:
     """Unresolve one thread, or report the plan under --dry-run."""
     _validate_thread_id(args.thread_id)
     if args.dry_run:
-        result = {
-            "Success": True,
-            "ThreadId": args.thread_id,
-            "Action": "would_unresolve",
-            "DryRun": True,
-        }
-        print(json.dumps(result, indent=2))
-        return 0
+        return _preview_single(args.thread_id)
     success = unresolve_review_thread(args.thread_id)
     result = {
         "Success": success,

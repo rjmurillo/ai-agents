@@ -400,7 +400,7 @@ def test_dry_run_plans_create_apply_and_remove_without_writes(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_dry_run_with_no_create_missing_skips_absent_labels(mock_run, capsys):
-    mock_run.side_effect = [*_PRE, _completed(rc=1)]
+    mock_run.side_effect = [*_PRE, _view(), _completed(rc=1)]
 
     rc = main(["--issue", "7", "--labels", "ghost", "--no-create-missing", "--dry-run"])
 
@@ -413,7 +413,7 @@ def test_dry_run_with_no_create_missing_skips_absent_labels(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_dry_run_flags_priority_reconciliation(mock_run, capsys):
-    mock_run.side_effect = [*_PRE, _completed(rc=0), _view()]
+    mock_run.side_effect = [*_PRE, _view(), _completed(rc=0)]
 
     rc = main(["--issue", "7", "--priority", "P1", "--dry-run"])
 
@@ -423,7 +423,7 @@ def test_dry_run_flags_priority_reconciliation(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_dry_run_names_the_stale_priority_label_a_real_run_removes(mock_run, capsys):
-    mock_run.side_effect = [*_PRE, _completed(rc=0), _view("bug", "priority:P3")]
+    mock_run.side_effect = [*_PRE, _view("bug", "priority:P3"), _completed(rc=0)]
 
     rc = main(["--issue", "7", "--priority", "P1", "--dry-run"])
 
@@ -437,9 +437,8 @@ def test_dry_run_names_the_stale_priority_label_a_real_run_removes(mock_run, cap
 def test_dry_run_lists_a_stale_priority_once_when_also_named_in_remove_labels(mock_run, capsys):
     mock_run.side_effect = [
         *_PRE,
-        _view("priority:P3"),  # strict fetch for --remove-labels
+        _view("priority:P3"),  # strict issue read, shared by --remove-labels and reconciliation
         _completed(rc=0),  # priority:P1 exists
-        _view("priority:P3"),  # priority reconciliation read
     ]
 
     rc = main(["--issue", "7", "--priority", "P1", "--remove-labels", "priority:P3", "--dry-run"])
@@ -456,4 +455,24 @@ def test_dry_run_still_rejects_add_and_remove_conflict(mock_run, capsys):
         main(["--issue", "7", "--labels", "bug", "--remove-labels", "bug", "--dry-run"])
 
     assert exc.value.code == 1
+    assert _write_calls(mock_run) == []
+
+
+@patch("subprocess.run")
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--labels", "bug"],
+        ["--priority", "P1"],
+        ["--remove-labels", "old"],
+    ],
+)
+def test_dry_run_on_a_missing_issue_fails_like_a_real_run(mock_run, argv, capsys):
+    mock_run.side_effect = [*_PRE, _completed(rc=1, stderr="Could not resolve to an Issue")]
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--issue", "7", *argv, "--dry-run"])
+
+    assert exc.value.code == 3
+    assert "Could not read labels for #7" in json.loads(capsys.readouterr().out)["Error"]["Message"]
     assert _write_calls(mock_run) == []

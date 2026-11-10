@@ -356,7 +356,10 @@ def _write_dry_run(
     repo_ref: tuple[str, str],
     fmt: str,
 ) -> int:
-    """Report the plan. Reads label existence; makes no create, apply, or remove call."""
+    """Report the plan. Reads label existence; makes no create, apply, or remove call.
+
+    ``current_labels`` comes from the strict issue read, so a missing issue fails first.
+    """
     owner, repo = repo_ref
     would_create: list[str] = []
     would_apply: list[str] = []
@@ -380,7 +383,7 @@ def _write_dry_run(
     if reconciles_priority:
         # A real run removes the stale priority labels (Issue #2623). Name them too.
         incoming = [info["name"] for info in all_labels]
-        stale = compute_priority_removals(_get_issue_labels(owner, repo, issue), incoming)
+        stale = compute_priority_removals(current_labels, incoming)
         listed = {name.lower() for name in would_remove}
         would_remove += [name for name in stale if name.lower() not in listed]
     write_skill_output(
@@ -460,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     current_labels: list[str] = []
-    if remove_names:
+    if remove_names or args.dry_run:
         fetched = _fetch_issue_labels_strict(owner, repo, args.issue)
         if fetched is None:
             write_skill_error(

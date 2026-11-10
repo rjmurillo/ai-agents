@@ -77,6 +77,30 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _check_issue_exists(owner: str, repo: str, issue: int) -> None:
+    """Read the issue, so a dry run fails like a real edit on a missing or hidden issue."""
+    try:
+        result = subprocess.run(
+            ["gh", "issue", "view", str(issue), "--repo", f"{owner}/{repo}", "--json", "number"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except FileNotFoundError:
+        error_and_exit("gh CLI not found on PATH", 2)
+    except subprocess.TimeoutExpired:
+        error_and_exit("gh issue view timed out after 30s", 2)
+    if result.returncode == 0:
+        return
+    error_str = result.stderr.strip() or result.stdout.strip()
+    if "authentication" in error_str.lower() or "not logged in" in error_str.lower():
+        error_and_exit(f"Auth error: {error_str}", 4)
+    error_and_exit(f"Failed to read issue #{issue} in {owner}/{repo}: {error_str}", 3)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -131,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         gh_args.extend(["--body", args.body])
 
     if args.dry_run:
+        _check_issue_exists(owner, repo, args.issue)
         write_skill_output(
             {
                 "issue": args.issue,

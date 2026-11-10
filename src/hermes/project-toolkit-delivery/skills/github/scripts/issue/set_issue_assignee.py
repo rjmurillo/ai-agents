@@ -67,6 +67,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _check_issue_exists(owner: str, repo: str, issue: int, fmt: str) -> None:
+    """Read the issue, so a dry run fails like a real assignment on a missing issue."""
+    result = subprocess.run(
+        ["gh", "issue", "view", str(issue), "--repo", f"{owner}/{repo}", "--json", "number"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode == 0:
+        return
+    write_skill_error(
+        f"Failed to read issue #{issue} in {owner}/{repo}: "
+        f"{result.stderr.strip() or result.stdout.strip()}",
+        3,
+        error_type="ApiError",
+        output_format=fmt,
+        script_name="set_issue_assignee.py",
+        extra={"issue": issue},
+    )
+    raise SystemExit(3)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -81,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.dry_run:
+        _check_issue_exists(owner, repo, args.issue, fmt)
         write_skill_output(
             {
                 "issue": args.issue,

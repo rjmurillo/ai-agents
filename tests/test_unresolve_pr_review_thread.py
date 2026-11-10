@@ -207,17 +207,44 @@ class TestStreams:
 
 
 class TestDryRun:
-    def test_single_thread_reports_plan_and_does_not_mutate(self, capsys):
+    @staticmethod
+    def _preview(node, capsys):
+        reply = {"node": node}
         with (
             patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.gh_graphql", return_value=reply) as graphql,
             patch("unresolve_pr_review_thread.unresolve_review_thread") as mutate,
         ):
             rc = main(["--thread-id", "PRRT_abc", "--dry-run"])
-        output = json.loads(capsys.readouterr().out)
+        mutate.assert_not_called()
+        assert "mutation" not in graphql.call_args.args[0]
+        return rc, json.loads(capsys.readouterr().out)
+
+    def test_single_thread_reports_plan_and_does_not_mutate(self, capsys):
+        rc, output = self._preview({"id": "PRRT_abc", "isResolved": True}, capsys)
         assert rc == 0
         assert output["Action"] == "would_unresolve"
         assert output["DryRun"] is True
-        mutate.assert_not_called()
+        assert output["AlreadyUnresolved"] is False
+
+    def test_single_thread_already_unresolved_is_reported(self, capsys):
+        rc, output = self._preview({"id": "PRRT_abc", "isResolved": False}, capsys)
+        assert rc == 0
+        assert output["AlreadyUnresolved"] is True
+
+    def test_single_thread_not_found_exits_1_like_a_real_run(self, capsys):
+        rc, output = self._preview(None, capsys)
+        assert rc == 1
+        assert output["Success"] is False
+
+    def test_single_thread_read_failure_exits_1(self, capsys):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.gh_graphql", side_effect=RuntimeError("boom")),
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--dry-run"])
+        assert rc == 1
+        assert json.loads(capsys.readouterr().out)["Success"] is False
 
     def test_bulk_lists_thread_ids_and_does_not_mutate(self, capsys):
         threads = [
