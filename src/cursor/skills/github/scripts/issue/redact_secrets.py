@@ -420,17 +420,6 @@ class _QuietParser(argparse.ArgumentParser):
         raise SystemExit(2)
 
 
-_HELP_EPILOG = """\
-examples:
-  %(prog)s notes.txt
-  echo 'Bearer abc123def456ghi789' | %(prog)s
-
-exit codes:
-  0  redacted text written to stdout
-  2  no input (terminal stdin and no FILE), unreadable FILE, or bad arguments
-"""
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = _QuietParser(
         prog="redact_secrets.py",
@@ -438,7 +427,13 @@ def _build_parser() -> argparse.ArgumentParser:
             "Redact secret and PII token shapes from free text. Reads FILE, or "
             "stdin when FILE is omitted, and writes the redacted text to stdout."
         ),
-        epilog=_HELP_EPILOG,
+        epilog=(
+            "examples:\n"
+            "  redact_secrets.py notes.txt\n"
+            "  echo 'Bearer abc123def456ghi789' | redact_secrets.py\n\n"
+            "exit codes (ADR-035): 0 success (redactions may or may not have "
+            "occurred), 2 usage or read error."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
