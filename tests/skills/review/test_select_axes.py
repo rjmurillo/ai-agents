@@ -436,6 +436,9 @@ class TestCliExitCodes:
         proc = run_cli("--changed-path", "docs/guide.md", "--pin", "not-an-axis")
         assert proc.returncode == 2
         assert "unknown pinned axis" in proc.stderr
+        assert "Expected one of:" in proc.stderr
+        assert "analyst" in proc.stderr.split("Expected one of:")[1]
+        assert proc.stdout == ""
 
     def test_exit_2_when_the_references_directory_is_missing(self, tmp_path: Path) -> None:
         proc = run_cli(

@@ -193,6 +193,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=str.strip,
         help="Milestone title, checked before creation (set_issue_milestone.py lookup).",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate the request and the milestone, then report the issue that "
+            "would be created; create no label, issue, or milestone assignment"
+        ),
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -480,6 +488,27 @@ def main(argv: list[str] | None = None) -> int:
         return error
 
     source_label = f"source:{args.source}"
+    if args.dry_run:
+        write_skill_output(
+            {
+                "action": "would_create",
+                "dryRun": True,
+                "owner": owner,
+                "repo": repo,
+                "title": args.title,
+                "source": args.source,
+                "labels": [
+                    source_label,
+                    *(lbl.strip() for lbl in caller_labels.split(",") if lbl.strip()),
+                ],
+                "milestone": args.milestone,
+            },
+            output_format=fmt,
+            human_summary=f"Dry run: would create issue ({source_label}): {args.title}",
+            script_name="new_issue.py",
+        )
+        return 0
+
     provenance.ensure_source_label(owner, repo, source_label, args.source)
     create_result = _create_issue(owner, repo, args.title, body, source_label, fmt)
     if isinstance(create_result, int):
