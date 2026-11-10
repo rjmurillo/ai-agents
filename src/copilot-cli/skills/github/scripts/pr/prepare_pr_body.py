@@ -333,12 +333,15 @@ def write_prepared_pr_body(repo_root: Path, relative_path: str, content: str) ->
 
 
 _HELP_EPILOG = """\
+Prints the path of a new scratch file. Each run creates one new file.
+
 examples:
   %(prog)s
   %(prog)s --base origin/main
 
 exit codes:
-  0  success
+  0  file created
+  2  bad arguments, or the scratch directory is unsafe or not writable
 """
 
 
