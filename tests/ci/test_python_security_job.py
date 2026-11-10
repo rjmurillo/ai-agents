@@ -1,7 +1,8 @@
-"""The Python Security Checks job runs Bandit even when pip-audit fails.
+"""The Python Security Checks job runs the ruff security rules even when pip-audit fails.
 
 Issue #6028: pip-audit failed on a transitive pyjwt pin, and the default
-success() condition then skipped Bandit on every pull request. Assertions parse
+success() condition then skipped the scan on every pull request. Bandit was later
+replaced by ruff's equivalent rules. Assertions parse
 the YAML object graph (``.claude/rules/testing.md`` MUST 9).
 """
 
@@ -16,6 +17,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PYTEST_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pytest.yml"
 UV_LOCK = REPO_ROOT / "uv.lock"
+SECURITY_STEP = "Run ruff security rules"
 
 # CVE-2026-4539 affects pygments before 2.20.0 (issue #5224).
 PYGMENTS_FIXED_IN = (2, 20, 0)
@@ -39,21 +41,26 @@ def _locked_version(package: str) -> tuple[int, ...]:
     return tuple(int(part) for part in matches[0]["version"].split("."))
 
 
-def test_bandit_runs_after_pip_audit() -> None:
+def test_ruff_security_rules_run_after_pip_audit() -> None:
     audit_at, _ = _step("Run pip-audit")
-    bandit_at, _ = _step("Run Bandit")
+    security_at, _ = _step(SECURITY_STEP)
 
-    assert audit_at < bandit_at
+    assert audit_at < security_at
 
 
-def test_bandit_does_not_depend_on_the_pip_audit_outcome() -> None:
-    _, bandit = _step("Run Bandit")
+def test_ruff_security_rules_do_not_depend_on_the_pip_audit_outcome() -> None:
+    _, security = _step(SECURITY_STEP)
 
-    assert bandit.get("if") == "${{ !cancelled() }}"
+    assert security.get("if") == "${{ !cancelled() }}"
+
+
+def test_bandit_is_gone_from_the_security_job() -> None:
+    """Negative: no step may still install, run, or upload bandit output."""
+    assert "bandit" not in str(_steps()).lower()
 
 
 def test_pip_audit_still_fails_the_job() -> None:
-    """Negative: running Bandit anyway must not soften the audit itself."""
+    """Negative: running the ruff security scan anyway must not soften the audit itself."""
     _, audit = _step("Run pip-audit")
 
     assert "continue-on-error" not in audit

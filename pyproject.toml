@@ -19,7 +19,6 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "bandit[sarif]>=1.9.4",
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
@@ -112,7 +111,7 @@ markers = [
     "safe_push_transport: Safe-push tests that touch a non-local transport and are excluded from pre-push.",
     "security: Security-focused tests",
     "smoke: Real-CLI smoke tests (need auth/credits or an installed CLI; run on pull requests by plugin-cli-smoke.yml). The smoke gate asserts these were not skipped (issue #2231 item 4).",
-    "claude: Real-CLI tests that need the claude CLI and its credential. The CLI smoke selects those that also carry the smoke marker on the claude matrix leg; the live security review e2e does not.",
+    "claude: Real-CLI tests that need the claude CLI, most also its credential. The CLI smoke selects those that also carry the smoke marker on the claude matrix leg; the live security review e2e does not. The no-credential hook discovery tests run on the smoke-claude-hooks job.",
     "copilot: Real-CLI tests that need the copilot CLI and its credential. The CLI smoke selects them on the copilot matrix leg.",
     "codex: Real-CLI tests that need the codex CLI and no credential. The CLI smoke selects them on the codex job.",
     "grok: Real-CLI tests that need the grok CLI and no credential. No CI leg selects them yet; they run locally under RUN_CLI_E2E=1.",
@@ -134,10 +133,6 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
 ]
-
-[tool.bandit]
-exclude_dirs = [".venv", "tests", ".git"]
-skips = []
 
 [tool.ruff]
 # Match the hook-execution portability floor enforced by
@@ -174,8 +169,22 @@ exclude = [
 # `ruff check --select ARG` on its own against a shrink-only baseline, because
 # selecting ARG here would turn every existing unused argument red in the other
 # ruff gates.
-select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90"]
+#
+# The S and PLE2502 codes cover ruff's equivalent of every bandit test that can
+# report HIGH severity, the bar the retired CI bandit gate used. Four extras
+# fall below that bar in bandit 1.9.4: S301, S313 and S503 (MEDIUM) and S504
+# (LOW). They stay because they report nothing today. The S4xx import checks
+# stay off because ruff ships them as preview-only.
+select = [
+    "E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100", "C90",
+    "S103", "S201", "S202", "S301", "S304", "S312", "S313", "S321",
+    "S324", "S501", "S502", "S503", "S504", "S505",
+    "S507", "S602", "S605", "S609", "S701", "PLE2502",
+]
 ignore = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
@@ -186,9 +195,9 @@ max-complexity = 15
 "scripts/eval/eval-knowledge-integration.py" = ["E501"]
 # Deliberately vulnerable detection benchmarks. Their `# noqa: S...` comments
 # document which bandit-family finding each sample is meant to trigger for the
-# external scanners that grade them. Those rule families are not in this
-# project's ruff select list, so RUF100 reads every one as dead. Removing them
-# would strip the benchmark's own answer key.
+# external scanners that grade them. Only a subset of S codes is in this
+# project's ruff select list, so RUF100 reads every `noqa` for another S code as
+# dead. Removing them would strip the benchmark's own answer key.
 #
 # I001 and E501 are waived for the same reason, one step removed. This tree is
 # an answer key graded by external scanners, not ordinary source, and editing it
@@ -214,9 +223,15 @@ max-complexity = 15
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
 "tests/validation/**/*.py" = ["E402"]
+# S103 flags the one os.chmod(skill_script, 0o755) in the CodeQL installer. That call makes
+# the installed skill script executable for every user of the checkout, so a tighter mode
+# breaks the install. The git hook policy rejects inline S-code noqa comments, so a
+# line-scoped suppression is unavailable and this single-file waiver is the narrowest form.
+".codeql/scripts/install_codeql_integration.py" = ["S103"]
 # ANN suppression for test files (annotations not required in tests)
-"tests/**/*.py" = ["ANN"]
-"**/tests/**/*.py" = ["ANN"]
+# S324 and S605 are out of scope for tests, as they were for the retired bandit gate.
+"tests/**/*.py" = ["ANN", "S324", "S605"]
+"**/tests/**/*.py" = ["ANN", "S324", "S605"]
 # REQ-048 TASK-006: byte copies of .claude/lib dispatcher modules (surface-parity row
 # lib-claude-dispatch-copies). The authority files carry the C901 baseline entries.
 "src/claude/lib/*hook_dispatch*.py" = ["C90"]
@@ -804,7 +819,6 @@ forbidden_modules = ["tests"]
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "bandit[sarif]>=1.9.4",
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",

@@ -55,6 +55,7 @@ PRE_COMMIT_JOBS = (
     "security-suppressions-staged",
     "python-autofix",
     "python-check",
+    "python-quality-advisory",
 )
 PRE_PUSH_JOBS = (
     "repo-health",
