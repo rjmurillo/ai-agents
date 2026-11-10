@@ -232,6 +232,20 @@ def _independent(manifest: surface_manifest.Manifest | None, rel: str) -> bool:
     return surface is not None and surface.relation == "independent"
 
 
+def _link_target(repo_root: Path, entry: Path) -> Path | None:
+    """Return the repo-local path a live install symlink resolves to, else ``None``.
+
+    The ``independent`` and ``NO-REGEN`` exemptions name the plugin file, not the
+    binplace link to it, so a link inherits its target's exemption. A dangling
+    link, or one that leaves the repository, inherits nothing.
+    """
+    try:
+        target = entry.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    return target if target.is_relative_to(repo_root) else None
+
+
 def _declared_repo_local(repo_root: Path, name: str) -> bool:
     try:
         return bool(is_repo_local(repo_root, name))
@@ -281,6 +295,11 @@ def _skill_orphan(
     skill_md = f"{relative_posix(repo_root, entry)}/{_SKILL_MD}"
     if _independent(manifest, skill_md) or _declared_repo_local(repo_root, entry.name):
         return True
+    target = _link_target(repo_root, entry) if entry.is_symlink() else None
+    if target is not None and _independent(
+        manifest, f"{relative_posix(repo_root, target)}/{_SKILL_MD}"
+    ):
+        return True
     role = ROLE_LINK if entry.is_symlink() else tree.role
     return Orphan(entry, KIND_SKILL, entry.name, role, _template_rels(KIND_SKILL, entry.name))
 
@@ -303,7 +322,10 @@ def _agent_orphan(
         return True
     if _independent(manifest, relative_posix(repo_root, entry)):
         return True
-    if not entry.is_symlink() and regen_detect_reason(entry) is not None:
+    target = _link_target(repo_root, entry) if entry.is_symlink() else None
+    if target is not None and _independent(manifest, relative_posix(repo_root, target)):
+        return True
+    if (target or entry).is_file() and regen_detect_reason(target or entry) is not None:
         return True
     role = ROLE_LINK if entry.is_symlink() else ROLE_FILE
     return Orphan(entry, KIND_AGENT, stem, role, _template_rels(KIND_AGENT, stem))

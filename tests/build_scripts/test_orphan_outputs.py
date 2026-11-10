@@ -24,6 +24,7 @@ from orphan_test_helpers import (  # noqa: E402
     delete_skill_template,
     make_repo,
     names,
+    symlink_or_skip,
     write,
 )
 
@@ -206,6 +207,26 @@ def test_non_skill_names_in_skill_trees_are_ignored(repo: Path) -> None:
 
 
 # --- Edge: symlinked install entries ---------------------------------------------
+
+
+def test_no_regen_agent_is_exempt_through_its_install_link(repo: Path) -> None:
+    write(repo / "src/claude/agents/hand.md", "<!-- NO-REGEN: hand maintained -->\n")
+    symlink_or_skip(repo / ".claude/agents/hand.md", "../../src/claude/agents/hand.md")
+
+    assert oo.scan(repo).orphans == []
+
+
+def test_dangling_install_link_is_flagged_even_when_it_names_an_exempt_file(repo: Path) -> None:
+    symlink_or_skip(repo / ".claude/agents/hand.md", "../../src/claude/agents/hand.md")
+
+    assert names(oo.scan(repo), repo) == {".claude/agents/hand.md"}
+
+
+def test_install_link_to_an_unprotected_file_is_still_flagged(repo: Path) -> None:
+    write(repo / "src/claude/agents/plain.md", "plain\n")
+    symlink_or_skip(repo / ".claude/agents/plain.md", "../../src/claude/agents/plain.md")
+
+    assert ".claude/agents/plain.md" in names(oo.scan(repo), repo)
 
 
 def test_symlink_for_surviving_skill_is_not_flagged(repo: Path) -> None:

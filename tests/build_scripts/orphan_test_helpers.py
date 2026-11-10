@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
@@ -83,6 +85,34 @@ def git(root: Path, *args: str) -> None:
     subprocess.run(cmd, check=True, capture_output=True, env=env)
 
 
+def symlink_or_skip(link: Path, target: str | Path) -> None:
+    """Create ``link`` -> ``target``, or skip where the platform denies symlinks.
+
+    Windows without Developer Mode raises ``OSError``; some Python builds raise
+    ``NotImplementedError``. Follows ``test_sync_slim_agents._symlink_or_skip``.
+    """
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
+
+
+def _skip_unless_git_records_symlinks(root: Path) -> None:
+    """Skip when git stored an install link as a regular file (``core.symlinks=false``)."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_VARS}
+    done = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-s", "--", ".claude"],
+        capture_output=True,
+        check=True,
+        env=env,
+        text=True,
+    )
+    modes = {line.split()[0] for line in done.stdout.splitlines() if line.strip()}
+    if modes != {"120000"}:
+        pytest.skip(f"git did not record install links as symlinks (modes: {sorted(modes)})")
+
+
 def write(path: Path, text: str = "x\n") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -96,9 +126,7 @@ def add_skill(root: Path, name: str, *, with_template: bool = True, support: boo
         write(root / tree / name / "SKILL.md", "---\nname: x\n---\n")
         if support and tree == "src/claude/skills":
             write(root / tree / name / "references" / "notes.md")
-    link = root / ".claude" / "skills" / name
-    link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(f"../../src/claude/skills/{name}")
+    symlink_or_skip(root / ".claude" / "skills" / name, f"../../src/claude/skills/{name}")
 
 
 def add_agent(root: Path, stem: str, *, with_template: bool = True) -> None:
@@ -108,9 +136,9 @@ def add_agent(root: Path, stem: str, *, with_template: bool = True) -> None:
         write(root / "templates" / "agents" / f"{stem}.copilot.md.tmpl")
     for tree, suffix in AGENT_TREES:
         write(root / tree / f"{stem}{suffix}", "agent\n")
-    link = root / ".claude" / "agents" / f"{stem}.md"
-    link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(f"../../src/claude/agents/{stem}.md")
+    symlink_or_skip(
+        root / ".claude" / "agents" / f"{stem}.md", f"../../src/claude/agents/{stem}.md"
+    )
 
 
 def make_repo(root: Path) -> Path:
@@ -126,6 +154,7 @@ def make_repo(root: Path) -> Path:
     add_agent(root, "critic")
     git(root, "init", "-q")
     git(root, "add", "-A")
+    _skip_unless_git_records_symlinks(root)
     git(root, "commit", "-q", "-m", "seed")
     return root
 

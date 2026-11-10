@@ -17,7 +17,8 @@ write
 
     1. Git shows its template existed (at ``HEAD`` or in ``HEAD`` history) and is
        gone now. A name that never had a template is never pruned.
-    2. No file below it is untracked or carries a ``NO-REGEN`` sentinel.
+    2. No file below it is untracked, ignored, or edited since ``HEAD``, and none
+       carries a ``NO-REGEN`` sentinel.
     3. For a skill directory in ``src/claude/skills`` or a repo-local
        ``.claude/skills`` directory, ``SKILL.md`` is the only file. Other files
        there are hand-maintained (``src/AGENTS.md``), so they are reported, not
@@ -117,11 +118,36 @@ def _files_below(directory: Path) -> list[Path]:
     return sorted(p for p in directory.rglob("*") if not p.is_dir())
 
 
-def _agent_blocker(repo_root: Path, path: Path) -> str | None:
-    tracked = _git_lists(repo_root, path)
-    if not tracked:
-        return "file is untracked or git could not be read"
+def _local_change(repo_root: Path, path: Path) -> str | None:
+    """Return why ``path`` holds work git cannot restore, or ``None`` when it is clean.
+
+    ``git status --ignored`` lists three kinds of local state that deleting the
+    path would lose: unstaged edits to tracked files, untracked files, and
+    ignored files (``ls-files --others --exclude-standard`` omits the last). A
+    bytecode cache is regenerated, so it never protects a path.
+    """
+    rel = path.relative_to(repo_root).as_posix()
+    done = _git(
+        repo_root, "status", "--porcelain=v1", "-z", "--ignored", "--untracked-files=all", "--", rel
+    )
+    if done is None or done.returncode != 0:
+        return "git could not be read"
+    for entry in done.stdout.decode("utf-8", "surrogateescape").split("\0"):
+        status, changed = entry[:2], entry[3:]
+        # "??" untracked, "!!" ignored, or a second column other than blank: the
+        # working file differs from the index. A staged-only change lives in the
+        # index, so deleting the working file loses nothing.
+        if not changed or "__pycache__" in Path(changed).parts:
+            continue
+        if status[0] in "?!" or status[1] != " ":
+            return f"holds uncommitted, untracked, or ignored file {changed}"
     return None
+
+
+def _agent_blocker(repo_root: Path, path: Path) -> str | None:
+    if not _git_lists(repo_root, path):
+        return "file is untracked or git could not be read"
+    return _local_change(repo_root, path)
 
 
 def _content_blocker(path: Path) -> str | None:
@@ -144,12 +170,7 @@ def _hand_maintained_blocker(path: Path) -> str | None:
 
 
 def _skill_blocker(repo_root: Path, orphan: Orphan, removed_sources: set[str]) -> str | None:
-    untracked = _git_lists(repo_root, orphan.path, "--others", "--exclude-standard")
-    if untracked is None:
-        return "git could not be read"
-    if untracked:
-        return f"holds untracked file {untracked[0]}"
-    reason = _content_blocker(orphan.path)
+    reason = _content_blocker(orphan.path) or _local_change(repo_root, orphan.path)
     if reason is not None:
         return reason
     if orphan.role == ROLE_SOURCE:
@@ -185,12 +206,26 @@ def _delete(orphan: Orphan) -> list[str]:
     return []
 
 
+def _plugin_tree_exists(link: Path) -> bool:
+    """Return whether the directory the link points into exists.
+
+    ``binplace_links`` sweeps a dangling install link only for a plugin tree
+    that is a directory. A tree that is gone leaves the link for a human.
+    """
+    pointed = Path(os.path.normpath(link.parent / os.readlink(link)))
+    return pointed.parent.is_dir()
+
+
 def _classify_links(links: Iterable[Orphan], result: PruneResult) -> None:
     for orphan in links:
-        if os.path.lexists(orphan.path) and not orphan.path.exists():
+        if not os.path.lexists(orphan.path) or orphan.path.exists():
+            result.unresolved.append((orphan, "link target still exists"))
+        elif _plugin_tree_exists(orphan.path):
             result.swept_by_binplace.append(orphan.path)
         else:
-            result.unresolved.append((orphan, "link target still exists"))
+            result.unresolved.append(
+                (orphan, "its plugin tree is gone, so binplace will not sweep it; git rm the link")
+            )
 
 
 def prune(repo_root: Path, orphans: Iterable[Orphan], *, what_if: bool = False) -> PruneResult:

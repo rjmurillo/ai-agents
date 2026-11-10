@@ -26,6 +26,7 @@ from orphan_test_helpers import (  # noqa: E402
     git,
     make_repo,
     names,
+    symlink_or_skip,
     write,
 )
 
@@ -41,7 +42,7 @@ def repo(tmp_path: Path) -> Path:
 def test_dangling_symlink_without_template_is_flagged_and_left_for_binplace(
     repo: Path,
 ) -> None:
-    (repo / ".claude/skills/ghost").symlink_to("../../src/claude/skills/ghost")
+    symlink_or_skip(repo / ".claude/skills/ghost", "../../src/claude/skills/ghost")
 
     found = oo.scan(repo)
     done = op.prune(repo, found.orphans)
@@ -55,7 +56,7 @@ def test_dangling_symlink_without_template_is_flagged_and_left_for_binplace(
 def test_prune_never_follows_a_symlink_into_its_target(repo: Path, tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     keep = write(outside / "keep.txt")
-    (repo / ".claude/skills/escape").symlink_to(outside)
+    symlink_or_skip(repo / ".claude/skills/escape", outside)
 
     found = oo.scan(repo)
     op.prune(repo, found.orphans)
@@ -142,6 +143,56 @@ def test_untracked_file_inside_orphan_mirror_is_kept(repo: Path) -> None:
 
     assert mine.exists()
     assert any("untracked" in reason for _, reason in done.unresolved)
+
+
+def test_edited_tracked_agent_file_is_kept(repo: Path) -> None:
+    delete_agent_templates(repo, "planner")
+    edited = write(repo / "src/cursor/agents/planner.md", "my local edit\n")
+
+    found = oo.scan(repo)
+    done = op.prune(repo, found.orphans)
+
+    assert edited.read_text(encoding="utf-8") == "my local edit\n"
+    assert not (repo / "src/claude/agents/planner.md").exists()
+    assert any("uncommitted" in reason for _, reason in done.unresolved)
+    assert op.exit_code(found, done) == 2
+
+
+def test_ignored_file_inside_orphan_mirror_is_kept(repo: Path) -> None:
+    write(repo / ".gitignore", "*.local\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "ignore local files")
+    delete_skill_template(repo, "alpha")
+    secret = write(repo / "src/codex/skills/alpha/settings.local")
+
+    done = op.prune(repo, oo.scan(repo).orphans)
+
+    assert secret.exists()
+    assert any("settings.local" in reason for _, reason in done.unresolved)
+
+
+def test_ignored_bytecode_cache_does_not_protect_an_orphan_mirror(repo: Path) -> None:
+    write(repo / ".gitignore", "__pycache__/\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "ignore bytecode")
+    delete_skill_template(repo, "alpha")
+    write(repo / "src/codex/skills/alpha/__pycache__/x.pyc")
+
+    done = op.prune(repo, oo.scan(repo).orphans)
+
+    assert not (repo / "src/codex/skills/alpha").exists()
+    assert done.unresolved == []
+
+
+def test_dangling_link_whose_plugin_tree_is_gone_stays_unresolved(repo: Path) -> None:
+    symlink_or_skip(repo / ".claude/skills/ghost", "../../gone/skills/ghost")
+
+    found = oo.scan(repo)
+    done = op.prune(repo, found.orphans)
+
+    assert done.swept_by_binplace == []
+    assert "plugin tree is gone" in done.unresolved[0][1]
+    assert op.exit_code(found, done) == 2
 
 
 def test_untracked_agent_file_is_kept(repo: Path) -> None:
