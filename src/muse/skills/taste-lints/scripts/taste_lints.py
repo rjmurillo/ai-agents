@@ -1088,13 +1088,27 @@ def run_lint(
     return result
 
 
-def format_text(result: LintResult) -> str:
-    """Format results as human/agent-readable text."""
+DEFAULT_TEXT_LIMIT = 100
+
+
+def format_text(result: LintResult, max_violations: int = DEFAULT_TEXT_LIMIT) -> str:
+    """Format results as human/agent-readable text.
+
+    ``max_violations`` bounds the listing (0 lists all). When it cuts the list, errors
+    come first and a line says how many were left out. The summary counts every
+    violation. JSON output is never bounded: the count ratchet parses it whole.
+    """
     if not result.violations:
         return f"taste-lints: {result.files_scanned} files scanned, no violations found."
 
+    shown = result.violations
+    omitted = 0
+    if max_violations and len(shown) > max_violations:
+        ordered = sorted(shown, key=lambda v: v.severity != "error")
+        shown, omitted = ordered[:max_violations], len(ordered) - max_violations
+
     output = []
-    for v in result.violations:
+    for v in shown:
         severity_marker = "ERROR" if v.severity == "error" else "WARNING"
         output.append(
             f"\n[{severity_marker}] {v.category} {v.rule}: {v.file}:{v.line}\n"
@@ -1102,6 +1116,11 @@ def format_text(result: LintResult) -> str:
             f"  {v.remediation}"
         )
 
+    if omitted:
+        output.append(
+            f"\n... {omitted} more violation(s) not shown. Pass --max-violations 0 to list "
+            "all, or --format json."
+        )
     summary = (
         f"\ntaste-lints: {result.files_scanned} files scanned, "
         f"{result.error_count} error(s), {result.warning_count} warning(s)"
@@ -1191,11 +1210,23 @@ def main() -> int:
         help="Output format (default: text)",
     )
     parser.add_argument(
+        "--max-violations",
+        type=int,
+        default=DEFAULT_TEXT_LIMIT,
+        help=(
+            f"Text format: list at most this many violations, errors first (default "
+            f"{DEFAULT_TEXT_LIMIT}; 0 lists all). The summary counts every violation. "
+            "JSON output is never bounded."
+        ),
+    )
+    parser.add_argument(
         "--rules",
         help=f"Comma-separated rules to run (default: all). Options: {','.join(ALL_RULES)}",
     )
 
     args = parser.parse_args()
+    if args.max_violations < 0:
+        parser.error(f"--max-violations must be 0 or greater, got {args.max_violations}")
     rules = parse_rules(args.rules)
 
     files: list[str] = []
@@ -1228,7 +1259,7 @@ def main() -> int:
     if args.format == "json":
         print(format_json(result))
     else:
-        print(format_text(result))
+        print(format_text(result, args.max_violations))
 
     if result.error_count > 0:
         return EXIT_VIOLATIONS

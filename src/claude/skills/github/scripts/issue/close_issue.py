@@ -131,6 +131,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Read the issue state, verify claims, and report what would "
+            "happen; close and comment nothing"
+        ),
+    )
+
     add_output_format_arg(parser)
     return parser
 
@@ -662,6 +671,68 @@ def _write_verification_error(
     return code
 
 
+def _report_already_closed(
+    args: argparse.Namespace, owner: str, repo: str, body: str, fmt: str
+) -> int:
+    """Handle an already closed issue: post a missing comment, or plan it under --dry-run."""
+    issue: int = args.issue
+    commented = False
+    comment_already_present = False
+    would_comment = False
+    if body and body.strip():
+        comment_already_present = _comment_exists(owner, repo, issue, body, fmt)
+        if not comment_already_present and args.dry_run:
+            would_comment = True
+        elif not comment_already_present:
+            _post_comment(owner, repo, issue, body, fmt)
+            commented = True
+    data = {
+        "issue": issue,
+        "owner": owner,
+        "repo": repo,
+        "state": "closed",
+        "reason": args.reason,
+        "commented": commented,
+        "commentAlreadyPresent": comment_already_present,
+        "action": "already_closed",
+    }
+    if args.dry_run:
+        data["dryRun"] = True
+        data["wouldComment"] = would_comment
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=f"Issue #{issue} is already closed",
+        status="PASS",
+        script_name="close_issue.py",
+    )
+    return 0
+
+
+def _report_dry_run_close(
+    args: argparse.Namespace, owner: str, repo: str, state: str, body: str, fmt: str
+) -> int:
+    """Report the close that would happen; nothing is closed or commented."""
+    write_skill_output(
+        {
+            "issue": args.issue,
+            "owner": owner,
+            "repo": repo,
+            "state": state,
+            "reason": args.reason,
+            "commented": False,
+            "wouldComment": bool(body and body.strip()),
+            "dryRun": True,
+            "action": "would_close",
+        },
+        output_format=fmt,
+        human_summary=f"Dry run: would close issue #{args.issue}; nothing changed",
+        status="PASS",
+        script_name="close_issue.py",
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -674,31 +745,7 @@ def main(argv: list[str] | None = None) -> int:
 
     state = _get_issue_state(owner, repo, issue, fmt)
     if state == "closed":
-        commented = False
-        comment_already_present = False
-        if body and body.strip():
-            comment_already_present = _comment_exists(owner, repo, issue, body, fmt)
-            if not comment_already_present:
-                _post_comment(owner, repo, issue, body, fmt)
-                commented = True
-        data = {
-            "issue": issue,
-            "owner": owner,
-            "repo": repo,
-            "state": "closed",
-            "reason": args.reason,
-            "commented": commented,
-            "commentAlreadyPresent": comment_already_present,
-            "action": "already_closed",
-        }
-        write_skill_output(
-            data,
-            output_format=fmt,
-            human_summary=f"Issue #{issue} is already closed",
-            status="PASS",
-            script_name="close_issue.py",
-        )
-        return 0
+        return _report_already_closed(args, owner, repo, body, fmt)
 
     # Verify any cited commit / PR claims BEFORE we run the close; a bad
     # claim aborts the entire operation so the bot cannot post "resolved by
@@ -710,6 +757,9 @@ def main(argv: list[str] | None = None) -> int:
         verification = verify_claims(claims, owner=owner, repo=repo)
         if verification.blocked:
             return _write_verification_error(claims, verification, issue, fmt)
+
+    if args.dry_run:
+        return _report_dry_run_close(args, owner, repo, state, body, fmt)
 
     result = _close_issue(owner, repo, issue, args.reason)
     if result.returncode != 0:

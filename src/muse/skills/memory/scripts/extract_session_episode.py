@@ -1948,6 +1948,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run the full extraction and every refusal check, print "
+            '{"dry_run": true, "would_write": PATH, "episode": {...}}, but create no '
+            "directory and write no episode file. "
+            "Extraction only: not valid with --validate"
+        ),
+    )
+    parser.add_argument(
         "--pending-stage",
         action="store_true",
         help=(
@@ -2761,6 +2771,21 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     session_log_path = args.session_log_path.resolve()
 
+    if args.dry_run and args.validate:
+        print(
+            json.dumps(
+                {
+                    "Error": (
+                        "--dry-run applies to extraction only. Expected: "
+                        "'--dry-run SESSION_LOG', or '--validate PATH' without "
+                        "--dry-run (--validate alone writes nothing)."
+                    )
+                }
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
     if args.validate:
         if not session_log_path.exists():
             print(
@@ -2884,7 +2909,8 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     # Ensure output directory exists
-    output_path.mkdir(parents=True, exist_ok=True)
+    if not args.dry_run:
+        output_path.mkdir(parents=True, exist_ok=True)
 
     # Write episode file
     episode_file = output_path / f"episode-{session_id}.json"
@@ -2956,17 +2982,20 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
 
-    try:
-        episode_file.write_text(
-            json.dumps(episode, indent=2) + "\n",
-            encoding="utf-8",
-        )
-    except OSError as e:
-        print(
-            json.dumps({"Error": f"Failed to write episode file: {e}"}),
-            file=sys.stderr,
-        )
-        return 1
+    if args.dry_run:
+        print(f"Dry run: would write {episode_file}; nothing written", file=sys.stderr)
+    else:
+        try:
+            episode_file.write_text(
+                json.dumps(episode, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as e:
+            print(
+                json.dumps({"Error": f"Failed to write episode file: {e}"}),
+                file=sys.stderr,
+            )
+            return 1
 
     # Summary
     print("\nEpisode extracted:", file=sys.stderr)
@@ -2978,8 +3007,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Lessons:   {len(lessons)}", file=sys.stderr)
     print(f"  Output:    {episode_file}", file=sys.stderr)
 
-    # Output episode JSON to stdout for pipeline usage
-    print(json.dumps(episode, indent=2))
+    # Output episode JSON to stdout for pipeline usage. A dry run wraps it so a
+    # captured result cannot be mistaken for a persisted episode.
+    if args.dry_run:
+        preview = {"dry_run": True, "would_write": str(episode_file), "episode": episode}
+        print(json.dumps(preview, indent=2))
+    else:
+        print(json.dumps(episode, indent=2))
     return 0
 
 

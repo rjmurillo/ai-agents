@@ -13,6 +13,7 @@ from collections import Counter, deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -142,29 +143,101 @@ class TranscriptBuffer:
         return self._entries + [("note", f"[... {omitted} entries omitted ...]")] + list(self._tail)
 
 
+_QUALIFIED_SKILL = re.compile(r"^[\w.-]+:([\w.-]+)$")
+_SKILL_KEY = r'"(?:skill|name|bundled_skill_id)"\s*:\s*"'
+# Only these keys name an invocation. Generic "name" values such as "area:review" are labels.
+_INVOKE_KEY = r'"(?:skill|bundled_skill_id)"\s*:\s*"'
+
+
+def logical_skill_name(candidate: Any) -> Any:
+    """Return the bare name of a `namespace:name` invocation, else the input.
+
+    The namespace is not checked against any definition. Callers record that
+    through `skill_evidence`, never as proof of which definition ran.
+    """
+    match = _QUALIFIED_SKILL.match(candidate) if isinstance(candidate, str) else None
+    return match.group(1) if match else candidate
+
+
+def logical_skill_names(candidates: Any) -> set[str]:
+    return {name for name in map(logical_skill_name, candidates) if isinstance(name, str)}
+
+
 def detect_skill_candidates(text: str) -> set[str]:
     normalized = text.replace("\\", "/")
     candidates = set(re.findall(r"(?:^|/)skills/+([^/]+)/+", normalized))
-    candidates.update(re.findall(r'"(?:skill|name|bundled_skill_id)"\s*:\s*"([^"]+)"', normalized))
-    return candidates
+    candidates.update(re.findall(_SKILL_KEY + r'([^"]+)"', normalized))
+    return candidates | logical_skill_names(re.findall(_INVOKE_KEY + r'([^"]+)"', normalized))
+
+
+def _tool_text(entries: Any) -> str:
+    return "\n".join(
+        text for role, text in entries if role == "skill" or role.startswith("tool:")
+    ).replace("\\", "/")
 
 
 def detect_skills_from_entries(entries: Any, skill_names: Any) -> set[str]:
-    tool_text = "\n".join(
-        text for role, text in entries if role == "skill" or role.startswith("tool:")
-    ).replace("\\", "/")
-    detected = set()
+    tool_text = _tool_text(entries)
+    detected = detect_skill_candidates(tool_text) & set(skill_names)
     for name in skill_names:
-        markers = (
-            f"skills/{name}/",
-            f"{name}/SKILL.md",
-            f'"skill": "{name}"',
-            f'"name": "{name}"',
-            f'"bundled_skill_id": "{name}"',
-        )
-        if any(marker in tool_text for marker in markers):
+        if f"skills/{name}/" in tool_text or f"{name}/SKILL.md" in tool_text:
             detected.add(name)
     return detected
+
+
+def skill_evidence(entries: Any, name: str) -> str:
+    """Rank how a transcript names a skill: path, bare_name, qualified_name, or unrecorded."""
+    tool_text = _tool_text(entries)
+    if f"skills/{name}/" in tool_text or f"{name}/SKILL.md" in tool_text:
+        return "path"
+    quoted = re.escape(name)
+    if re.search(_SKILL_KEY + quoted + '"', tool_text):
+        return "bare_name"
+    if re.search(_INVOKE_KEY + r"[\w.-]+:" + quoted + '"', tool_text):
+        return "qualified_name"
+    return "unrecorded"
+
+
+def skill_variants(skills: Any) -> dict[str, Any]:
+    """Name every content-distinct definition. Only the edit target is a current claim."""
+    return {
+        name: {
+            "edit_target": {"path": skill["path"], "sha256": skill["sha256"]},
+            "definitions": skill["definitions"],
+            "historical_attribution": "unresolved",
+        }
+        for name, skill in sorted(skills.items())
+        if len(skill["definitions"]) > 1
+    }
+
+
+def _attribution(entries: Any, used: Any, variants: Any) -> dict[str, Any]:
+    """Flag usage whose executed definition cannot be known from the transcript."""
+    notes = {}
+    for name in used:
+        evidence = skill_evidence(entries, name)
+        reasons = ["conflicting_definitions"] if name in variants else []
+        if evidence == "qualified_name":
+            reasons.append("namespace_unverified")
+        elif evidence == "unrecorded":
+            reasons.append("evidence_not_in_transcript")
+        if reasons:
+            notes[name] = {"evidence": evidence, "unresolved_because": reasons}
+    return notes
+
+
+def resolve_session_usage(sessions: Any, skills: Any) -> None:
+    """Set logical usage per session, independent of which definition is the edit target."""
+    installed = set(skills)
+    variants = skill_variants(skills)
+    for session in sessions:
+        entries = session["_entries"]
+        detected = detect_skills_from_entries(entries, installed)
+        used = (set(session["skills_used"]) | detected) & installed
+        session["skills_used"] = sorted(used)
+        notes = _attribution(entries, session["skills_used"], variants)
+        if notes:
+            session["skill_attribution"] = notes
 
 
 def looks_injected(text: str) -> bool:
@@ -201,6 +274,39 @@ def assistant_tool_calls(message: Any) -> list[tuple[str, str]]:
     return calls
 
 
+_FRACTION = re.compile(r"\.(\d+)")
+
+
+def parse_session_timestamp(value: Any) -> datetime | None:
+    """Return an aware UTC datetime for an ISO string or epoch number, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        seconds = value / 1000 if value > 1e11 else value
+        try:
+            return datetime.fromtimestamp(seconds, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if not isinstance(value, str) or not value:
+        return None
+    text = value.strip().replace("Z", "+00:00")
+    # Python 3.10 fromisoformat accepts only 3 or 6 fraction digits.
+    text = _FRACTION.sub(lambda m: "." + m.group(1)[:6].ljust(6, "0"), text, count=1)
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def is_live_session(stats: Any, min_idle_minutes: float) -> bool:
+    """A session whose last record is inside the quiet window may still be running."""
+    last = parse_session_timestamp(stats.get("last_ts"))
+    if last is None or min_idle_minutes <= 0:
+        return False
+    return datetime.now(timezone.utc) - last < timedelta(minutes=min_idle_minutes)
+
+
 class SessionState:
     """Accumulate parser-local statistics without sharing mutable state."""
 
@@ -216,6 +322,7 @@ class SessionState:
         self.edits = False
         self.first_ts: Any = None
         self.last_ts: Any = None
+        self.terminated: tuple[str, str] | None = None
 
     def timestamp(self, ts: Any) -> None:
         if ts:
@@ -252,11 +359,26 @@ class SessionState:
         self.append(role, text)
         return True
 
+    def terminate(self, reason: str, message: str = "") -> None:
+        """Record that the provider, not the agent, ended the session.
+
+        Each harness adapter calls this from its own record matcher. A later
+        record that shows the agent still working calls `resume`.
+        """
+        self.terminated = (reason, message.strip())
+
+    def resume(self) -> None:
+        self.terminated = None
+
     def finish(self, meta: Any, edit_tools: Any = ()) -> Any:
+        if self.terminated:
+            reason, message = self.terminated
+            self.append("terminated", f"{reason}: {message}" if message else reason)
         self.stats.update(
             first_ts=self.first_ts,
             last_ts=self.last_ts,
             has_code_edits=self.edits or bool(self.tools & set(edit_tools)),
+            terminated_by=self.terminated[0] if self.terminated else None,
         )
         entries = (
             self.entries.finish() if isinstance(self.entries, TranscriptBuffer) else self.entries
@@ -273,10 +395,10 @@ def render_transcript(meta: Any, stats: Any, skills_used: Any, entries: Any) -> 
         f"- stats: {stats['user_turns']} user turns, {stats['assistant_turns']} assistant turns, "
         f"{stats['tool_calls']} tool calls ({stats['repeated_tool_calls']} repeated), "
         f"{stats['error_outputs']} error-ish outputs, code edits: {stats['has_code_edits']}",
-        "",
-        "## Condensed transcript",
-        "",
     ]
+    if stats.get("terminated_by"):
+        lines.append(f"- terminated by: {stats['terminated_by']} (provider ended the session)")
+    lines.extend(("", "## Condensed transcript", ""))
     shown = entries
     if len(entries) > MAX_TRANSCRIPT_ENTRIES:
         omitted = len(entries) - TRANSCRIPT_HEAD - TRANSCRIPT_TAIL
@@ -288,3 +410,17 @@ def render_transcript(meta: Any, stats: Any, skills_used: Any, entries: Any) -> 
     for role, text in shown:
         lines.extend((f"[{role}] {text}", ""))
     return "\n".join(lines)
+
+
+def session_record(harness: str, parsed: Any, file: str, modified_at: str) -> dict[str, Any]:
+    """Build the collector's per-session record from a parser result."""
+    meta, stats, entries, skills_used = parsed
+    return {
+        "harness": harness,
+        "meta": meta,
+        "stats": stats,
+        "skills_used": skills_used,
+        "file": file,
+        "modified_at": modified_at,
+        "_entries": entries,
+    }

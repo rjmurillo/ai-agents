@@ -340,7 +340,11 @@ def _fetch_missing_head(live_head: str, runner: GitRunner) -> str:
 
 
 def scan_unpushed_commits(
-    live_head: str, runner: GitRunner = default_runner, *, pr_checkout: bool = False
+    live_head: str,
+    runner: GitRunner = default_runner,
+    *,
+    pr_checkout: bool = False,
+    fetch_missing_head: bool = True,
 ) -> dict[str, object]:
     """Report local commits that the live PR head does not contain.
 
@@ -348,14 +352,16 @@ def scan_unpushed_commits(
     current directory ``HEAD`` may be another branch, so a diverged live head proves
     nothing about a force-push and its commits are not listed.
 
-    Moves no ref. A named worktree fetches an absent live head first; the current
+    Moves no ref. A named worktree fetches an absent live head first unless
+    ``fetch_missing_head`` is False (a read-only caller such as a dry run; an absent head
+    then reports ``unverified`` while a present one is still compared). The current
     directory may be another repository. Never raises: a git failure is ``unverified``.
     The SHA comes from the GitHub API, so its shape is checked before it
     reaches a git argument vector (CWE-88).
     """
     if not _SHA.fullmatch(live_head):
         return _unverified(live_head, "live head is not a commit SHA")
-    if pr_checkout and (failure := _fetch_missing_head(live_head, runner)):
+    if pr_checkout and fetch_missing_head and (failure := _fetch_missing_head(live_head, runner)):
         return _unverified(live_head, failure)
     code, _ = runner(["merge-base", "--is-ancestor", live_head, "HEAD"])
     if code == 1:
@@ -405,6 +411,7 @@ def scan_if_escalated(
     runner: GitRunner = default_runner,
     *,
     pr_checkout: bool = False,
+    fetch_missing_head: bool = True,
 ) -> dict[str, object]:
     """Scan only when the round-cap record is escalated; otherwise ``not_checked``.
 
@@ -414,4 +421,6 @@ def scan_if_escalated(
         return _report("not_checked", live_head or "")
     if not live_head:
         return _unverified("", "live PR head SHA unavailable")
-    return scan_unpushed_commits(live_head, runner, pr_checkout=pr_checkout)
+    return scan_unpushed_commits(
+        live_head, runner, pr_checkout=pr_checkout, fetch_missing_head=fetch_missing_head
+    )

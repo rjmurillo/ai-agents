@@ -72,8 +72,48 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help='GitHub usernames to assign. Use "@me" for current user.',
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report the assignees that would be added; change nothing",
+    )
     add_output_format_arg(parser)
     return parser
+
+
+def _check_issue_exists(owner: str, repo: str, issue: int, fmt: str) -> None:
+    """Read the issue, so a dry run fails like a real assignment on a missing issue."""
+    try:
+        result = subprocess.run(
+            ["gh", "issue", "view", str(issue), "--repo", f"{owner}/{repo}", "--json", "number"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            f"Timed out after 30s reading issue #{issue} in {owner}/{repo}; nothing was assigned.",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="set_issue_assignee.py",
+            extra={"issue": issue},
+        )
+        raise SystemExit(3) from None
+    if result.returncode == 0:
+        return
+    write_skill_error(
+        f"Failed to read issue #{issue} in {owner}/{repo}: "
+        f"{result.stderr.strip() or result.stdout.strip()}",
+        3,
+        error_type="ApiError",
+        output_format=fmt,
+        script_name="set_issue_assignee.py",
+        extra={"issue": issue},
+    )
+    raise SystemExit(3)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,6 +127,22 @@ def main(argv: list[str] | None = None) -> int:
     assignees: list[str] = args.assignees
     if not assignees:
         print("No assignees to add.", file=sys.stderr)
+        return 0
+
+    if args.dry_run:
+        _check_issue_exists(owner, repo, args.issue, fmt)
+        write_skill_output(
+            {
+                "issue": args.issue,
+                "action": "would_assign",
+                "wouldAssign": list(assignees),
+                "dryRun": True,
+            },
+            output_format=fmt,
+            human_summary=f"Dry run: would assign {len(assignees)} user(s) to issue #{args.issue}",
+            status="PASS",
+            script_name="set_issue_assignee.py",
+        )
         return 0
 
     applied: list[str] = []
