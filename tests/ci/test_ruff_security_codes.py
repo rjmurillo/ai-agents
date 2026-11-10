@@ -76,17 +76,39 @@ _ALLOWED_SECURITY_WAIVERS = {
 }
 
 
+def _security(codes: list[str]) -> set[str]:
+    return {c for c in codes if c.startswith(("S", "PLE"))}
+
+
+def _ruff_tables() -> list[dict[str, Any]]:
+    """Ruff reads lint settings from [tool.ruff.lint] and, deprecated, from [tool.ruff]."""
+    ruff = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["tool"]["ruff"]
+    return [ruff, ruff.get("lint", {})]
+
+
 def test_security_codes_are_waived_only_where_reviewed() -> None:
-    """A per-file-ignores entry silences the CI security step, so new ones must be listed."""
-    document = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    ignores = document["tool"]["ruff"]["lint"]["per-file-ignores"]
-    waived = {
-        glob: {c for c in codes if c.startswith(("S", "PLE"))} for glob, codes in ignores.items()
-    }
+    """Both per-file tables silence the CI security step, so a new waiver must be listed."""
+    waived: dict[str, set[str]] = {}
+    for table in _ruff_tables():
+        for key in ("per-file-ignores", "extend-per-file-ignores"):
+            for glob, codes in table.get(key, {}).items():
+                waived.setdefault(glob, set()).update(_security(codes))
     unreviewed = {
         glob: sorted(codes - _ALLOWED_SECURITY_WAIVERS.get(glob, set()))
         for glob, codes in waived.items()
         if codes - _ALLOWED_SECURITY_WAIVERS.get(glob, set())
     }
 
-    assert not unreviewed, f"unreviewed security waivers in per-file-ignores: {unreviewed}"
+    assert not unreviewed, f"unreviewed per-file security waivers: {unreviewed}"
+
+
+def test_security_codes_are_never_ignored_repo_wide() -> None:
+    """An S or PLE code in ignore or extend-ignore turns the check off everywhere."""
+    ignored = {
+        code
+        for table in _ruff_tables()
+        for key in ("ignore", "extend-ignore")
+        for code in _security(table.get(key, []))
+    }
+
+    assert not ignored, f"security codes ignored repo-wide: {sorted(ignored)}"

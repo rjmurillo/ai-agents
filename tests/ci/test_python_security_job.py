@@ -60,7 +60,7 @@ def test_bandit_is_gone_from_the_security_job() -> None:
 
 
 def test_pip_audit_still_fails_the_job() -> None:
-    """Negative: running Bandit anyway must not soften the audit itself."""
+    """Negative: running the ruff security scan anyway must not soften the audit itself."""
     _, audit = _step("Run pip-audit")
 
     assert "continue-on-error" not in audit
