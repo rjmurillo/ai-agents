@@ -14,10 +14,25 @@ SKILL = REPO / "src" / "claude" / "skills" / "skill-doctor"
 TEMPLATE = REPO / "templates" / "skills" / "skill-doctor.SKILL.md.tmpl"
 
 
+def _runs(executable: str | None) -> bool:
+    """Return True when the shell starts; a broken install (snap confinement) does not."""
+    if executable is None:
+        return False
+    probe = subprocess.run(
+        [executable, "-NoProfile", "-Command", "exit 0"],
+        capture_output=True,
+        timeout=60,
+        check=False,
+    )
+    return probe.returncode == 0
+
+
 @pytest.mark.parametrize("shell", ["bash", "powershell"])
 def test_loaded_skill_location_works_from_unrelated_directory(tmp_path, shell):
     executable = shutil.which("bash" if shell == "bash" else "pwsh")
     if executable is None or (shell == "bash" and os.name == "nt"):
+        pytest.skip(f"Native {shell} runtime is not available on this test host.")
+    if shell == "powershell" and not _runs(executable):
         pytest.skip(f"Native {shell} runtime is not available on this test host.")
     content = TEMPLATE.read_text(encoding="utf-8")
     block = re.search(rf"```{shell}\n(.*?)\n```", content, re.DOTALL).group(1)
