@@ -39,7 +39,8 @@ EXIT_VIOLATION = 1
 EXIT_CONFIG = 2
 
 # An agent tree that ADR-109 B1 made generated output. A path below a
-# subdirectory is not an agent file.
+# subdirectory is not an agent file: a hand-maintained sidecar directory such as
+# ``agents/<name>/references/`` is prose, not an agent definition.
 _AGENT_TREE = r"(?:src/claude/agents|\.claude/agents|\.github/agents)(?!/[^\s`/]+/)"
 
 # Source files whose prose describes the agent and rule pipeline. Rendered
