@@ -7,7 +7,7 @@ Load this when a step names a command that your harness does not run as written.
 | Delegate to a worker | `agent_type: "project-toolkit:orchestrator"` with prompt "..." | `/agent orchestrator` then the prompt text | `#runSubagent` with the matching `subagentType` |
 | Worker names | `orchestrator`, `implementer`, `qa` | same | same |
 | Read a memory file | `Read` this checkout's `.serena/memories/<name>.md` | `mcp__serena__read_memory(memory_file_name="<name>")` | `mcp__serena__read_memory(memory_file_name="<name>")` |
-| Edit a memory file | edit this checkout's `.serena/memories/` file, or return the change to the parent session | `mcp__serena__edit_memory` from the owning checkout only | `mcp__serena__edit_memory` from the owning checkout only |
+| Edit a memory file | follow Phase 9 in [coordinator-detail.md](coordinator-detail.md), which carries the linked-worktree guard for both harnesses | same | same |
 | Search memory | run the `memory` skill's `search_memory.py` with the topic (keyword match on file names, ADR-037) | the `mcp__serena__` memory tools | the `mcp__serena__` memory tools |
 | Plan tracking | `TodoWrite` | the harness task list | the harness task list |
 | Shell tool | `Bash` | `shell` | `execute` |
