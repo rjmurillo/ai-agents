@@ -244,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
             "Failed": 0,
             "Success": True,
         }
+        if args.dry_run:
+            result["DryRun"] = True
         print(json.dumps(result, indent=2))
         return 0
 

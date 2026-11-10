@@ -236,6 +236,17 @@ class TestDryRun:
         assert output["TotalResolved"] == 2
         mutate.assert_not_called()
 
+    def test_bulk_with_nothing_resolved_reports_the_noop_with_the_marker(self, capsys):
+        with (
+            patch("unresolve_pr_review_thread.assert_gh_authenticated"),
+            patch("unresolve_pr_review_thread.get_resolved_threads", return_value=[]),
+        ):
+            rc = main(["--pull-request", "10", "--all", "--dry-run"])
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert output["TotalResolved"] == 0
+        assert output["DryRun"] is True
+
     def test_dry_run_still_rejects_a_malformed_thread_id(self):
         with patch("unresolve_pr_review_thread.assert_gh_authenticated"):
             with pytest.raises(SystemExit) as exc:

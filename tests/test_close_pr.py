@@ -448,7 +448,7 @@ class TestDryRun:
         assert data["wouldComment"] is True
         assert run.call_count == 1
 
-    def test_closed_pr_is_still_a_noop(self, capsys):
+    def test_closed_pr_reports_the_same_noop_action_with_the_marker(self, capsys):
         rc, run = _run_dry(
             ["--pull-request", "5", "--dry-run"],
             [_completed(stdout=json.dumps({"state": "CLOSED"}))],
@@ -457,7 +457,7 @@ class TestDryRun:
         data = json.loads(capsys.readouterr().out)
         assert rc == 0
         assert data["action"] == "none"
-        assert "dryRun" not in data
+        assert data["dryRun"] is True
         assert run.call_count == 1
 
     def test_dry_run_without_comment_never_would_comment(self, capsys):

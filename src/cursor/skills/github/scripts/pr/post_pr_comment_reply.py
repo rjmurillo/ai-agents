@@ -99,7 +99,8 @@ def _check_target_exists(owner: str, repo: str, pr: int, comment_id: int) -> Non
     result = subprocess.run(
         ["gh", "api", endpoint],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )

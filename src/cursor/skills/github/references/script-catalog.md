@@ -57,11 +57,11 @@ reports the planned change and writes nothing. The result carries
 and a `would_*` action. A refusal fails the same way under `--dry-run`, with
 the same exit code.
 
-When there is nothing to change, a dry run reports the script's usual no-op
-result without the marker, and a real run reports the same result. Examples
-are `action: none` for a merged PR or a PR already up to date with its base,
-and `NoChange` for auto-merge that is already off. Read the action, not only
-the marker.
+The marker means the run was a preview, so it is present even when nothing
+needs to change. A dry run on such a target reports the same no-op action as a
+real run (`action: none` for a merged PR or a PR already up to date, `NoChange`
+for auto-merge that is already off, `already_closed` for a closed issue) and
+adds the marker. Read the action to learn whether a change would happen.
 
 | Script | Action reported | Note |
 |--------|-----------------|------|

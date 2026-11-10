@@ -3021,9 +3021,18 @@ class TestDryRun:
         assert fake.merge_calls() == []
         assert not any(c[:2] == ["gh", "api"] for c in fake.calls)
 
-    def test_already_merged_pr_is_reported_as_none_not_would_merge(self, capsys):
+    def test_already_merged_pr_reports_the_real_noop_action_with_the_marker(self, capsys):
         fake = _FakeGh(state=_pr_state(state="MERGED"))
         code, env = _run_main(fake, ["--dry-run"], capsys)
+
+        assert code == 0
+        assert env["Data"]["action"] == "none"
+        assert env["Data"]["dryRun"] is True
+        assert fake.merge_calls() == []
+
+    def test_already_merged_pr_without_dry_run_has_no_marker(self, capsys):
+        fake = _FakeGh(state=_pr_state(state="MERGED"))
+        code, env = _run_main(fake, [], capsys)
 
         assert code == 0
         assert env["Data"]["action"] == "none"

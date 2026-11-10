@@ -331,13 +331,13 @@ class TestDryRun:
         assert data["behind_by"] == 3
         assert fake.put_calls() == []
 
-    def test_up_to_date_pr_is_still_reported_as_none(self, capsys):
+    def test_up_to_date_pr_reports_the_real_noop_action_with_the_marker(self, capsys):
         fake = FakeGh(behind=["0"])
         rc = run_main(["--pull-request", "50", "--dry-run"], fake)
         data = envelope(capsys)["Data"]
         assert rc == 0
         assert data["action"] == "none"
-        assert "dry_run" not in data
+        assert data["dry_run"] is True
 
     def test_dry_run_still_refuses_a_closed_pr(self, capsys):
         fake = FakeGh(pr_views=[pr_json(state="CLOSED")])

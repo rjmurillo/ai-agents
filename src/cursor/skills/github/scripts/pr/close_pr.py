@@ -112,6 +112,8 @@ def main(argv: list[str] | None = None) -> int:
             "action": "none",
             "message": f"PR already {state.lower()}",
         }
+        if args.dry_run:
+            result["dryRun"] = True
         print(json.dumps(result, indent=2))
         return 0
 

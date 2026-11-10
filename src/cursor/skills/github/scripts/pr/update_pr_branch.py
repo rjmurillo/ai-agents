@@ -497,19 +497,20 @@ def _require_expected_head(ctx: _Context, snap: _PrSnapshot) -> None:
         )
 
 
-def _up_to_date_result(ctx: _Context, snap: _PrSnapshot, behind: int | None, msg: str) -> int:
-    return _emit_result(
-        ctx,
-        {
-            "action": "none",
-            "already_up_to_date": True,
-            "old_head_sha": snap.head_sha,
-            "new_head_sha": snap.head_sha,
-            "behind_by": behind,
-            "message": msg,
-        },
-        f"PR #{ctx.pr} is already up to date with {snap.base_ref}",
-    )
+def _up_to_date_result(
+    ctx: _Context, snap: _PrSnapshot, behind: int | None, msg: str, dry_run: bool = False
+) -> int:
+    data: dict[str, Any] = {
+        "action": "none",
+        "already_up_to_date": True,
+        "old_head_sha": snap.head_sha,
+        "new_head_sha": snap.head_sha,
+        "behind_by": behind,
+        "message": msg,
+    }
+    if dry_run:
+        data["dry_run"] = True
+    return _emit_result(ctx, data, f"PR #{ctx.pr} is already up to date with {snap.base_ref}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -529,7 +530,9 @@ def main(argv: list[str] | None = None) -> int:
     _require_expected_head(ctx, snap)
     behind, precheck = _behind_by(ctx, snap)
     if behind == 0:
-        return _up_to_date_result(ctx, snap, behind, "Head already contains the base")
+        return _up_to_date_result(
+            ctx, snap, behind, "Head already contains the base", dry_run=args.dry_run
+        )
 
     if args.dry_run:
         data = {

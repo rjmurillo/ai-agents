@@ -1508,18 +1508,21 @@ def _require_expected_head(
     )
 
 
-def _emit_already_merged(ctx: _MergeContext) -> int:
+def _emit_already_merged(ctx: _MergeContext, dry_run: bool = False) -> int:
     """Report an already merged PR without a second merge call (retry-safe)."""
     pr = ctx.pr
+    data: dict[str, Any] = {
+        "pull_request": pr,
+        "number": pr,
+        "state": "MERGED",
+        "action": "none",
+        "message": "PR already merged",
+        "audit": _build_audit(ctx, "none", "already merged; no merge call"),
+    }
+    if dry_run:
+        data["dryRun"] = True
     write_skill_output(
-        {
-            "pull_request": pr,
-            "number": pr,
-            "state": "MERGED",
-            "action": "none",
-            "message": "PR already merged",
-            "audit": _build_audit(ctx, "none", "already merged; no merge call"),
-        },
+        data,
         output_format=ctx.output_format,
         human_summary=f"PR #{pr} already merged",
         status="PASS",
@@ -1593,7 +1596,7 @@ def main(argv: list[str] | None = None) -> int:
     _require_expected_head(pr_data, args.expected_head_sha, ctx)
 
     if pr_data.get("state") == "MERGED":
-        return _emit_already_merged(ctx)
+        return _emit_already_merged(ctx, dry_run=args.dry_run)
 
     if pr_data.get("state") == "CLOSED":
         _emit_error(
