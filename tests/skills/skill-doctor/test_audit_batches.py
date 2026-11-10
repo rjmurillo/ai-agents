@@ -180,9 +180,10 @@ def _no_scores(rows: list[Row]) -> list[Row]:
     return rows
 
 
-def _not_an_object(rows: list[Row]) -> list[Row]:
-    rows[0] = "oops"  # type: ignore[call-overload]
-    return rows
+def _not_an_object(rows: list[Row]) -> list[Any]:
+    mixed: list[Any] = list(rows)
+    mixed[0] = "oops"
+    return mixed
 
 
 def _blank_id(rows: list[Row]) -> list[Row]:
