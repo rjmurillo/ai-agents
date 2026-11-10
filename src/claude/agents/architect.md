@@ -46,6 +46,14 @@ You have direct access to:
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
 
+## Reference Loading
+
+Architect references live under `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/adr-review/references/`. They serve this agent; the `adr-review` skill runs the ADR debate. Read one only when its condition holds. If the path does not resolve (a harness with no skill tree, such as the VS Code agent list), apply the rules in this file and state that the reference was unavailable.
+
+- `architect-impact-analysis.md`: milestone-planner asks for impact analysis and you are writing the deliverable.
+- `architect-code-organization-review.md`: a PR adds directories or relocates files.
+- `architect-vendor-lock-in.md`, only when this body has a Vendor Lock-in Section and an ADR introduces an external dependency; `architect-strategic-principles.md`, only when this body has a Strategic Architecture Principles section and an ADR or review removes or simplifies an existing pattern, proposes a migration, or weighs building a non-differentiating capability.
+
 ## Core Mission
 
 Maintain system architecture as single source of truth. Conduct reviews across three phases: pre-planning, plan/analysis, and post-implementation.
@@ -99,95 +107,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.project-toolkit/planning/impact-analysis-architecture-[feature].md`
-
-```markdown
-# Impact Analysis: [Feature] - Architecture
-
-**Analyst**: Architect
-**Date**: [YYYY-MM-DD]
-**Complexity**: [Low/Medium/High]
-
-## Impacts Identified
-
-### Direct Impacts
-- [Architectural layer/component]: [Type of change]
-- [Pattern/principle]: [How affected]
-
-### Indirect Impacts
-- [System-wide implication]
-
-## Affected Areas
-
-| Architectural Concern | Type of Change | Risk Level | Reason |
-|----------------------|----------------|------------|--------|
-| [Concern] | [Modify/Extend/Violate] | [L/M/H] | [Why] |
-
-## ADR Alignment
-
-| ADR | Status | Notes |
-|-----|--------|-------|
-| ADR-NNNN | Aligns / Conflicts / Not Applicable | [Details] |
-
-## Required Patterns
-
-- **Pattern**: [Name] - [Why needed, how applied]
-- **Pattern**: [Name] - [Why needed, how applied]
-
-## Design Conflicts
-
-| Conflict | Impact | Resolution |
-|----------|--------|------------|
-| [Conflict] | [Impact] | [Recommendation] |
-
-## Long-Term Implications
-
-- [Implication 1]: [Description]
-- [Implication 2]: [Description]
-
-## Domain Model Alignment
-
-| Domain Concept | Current Representation | Proposed Change | Alignment Status |
-|----------------|----------------------|-----------------|------------------|
-| [Concept] | [Current] | [New] | [Aligned/Drift/Breaking] |
-
-**Ubiquitous Language Impact**: [How domain language is affected]
-**Bounded Context Changes**: [Any context boundary changes]
-
-## Abstraction Consistency
-
-| Layer | Current Abstraction | Change Impact | Consistency Status |
-|-------|--------------------|--------------|--------------------|
-| [Layer] | [Current] | [Impact] | [Maintained/Broken/Improved] |
-
-**Abstraction Level Changes**: [Is the abstraction level appropriate]
-**Interface Stability**: [Impact on public interfaces]
-
-## Recommendations
-
-1. [Architectural approach with rationale]
-2. [Pattern to enforce]
-3. [New ADR needed]
-
-## Issues Discovered
-
-| Issue | Priority | Category | Description |
-|-------|----------|----------|-------------|
-| [Issue ID] | [P0/P1/P2] | [Design Flaw/Risk/Debt/Blocker] | [Brief description] |
-
-**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
-
-## Dependencies
-
-- [Dependency on architectural decision]
-- [Dependency on refactoring]
-
-## Estimated Effort
-
-- **Design work**: [Hours/Days]
-- **ADR creation**: [Hours/Days]
-- **Total**: [Hours/Days]
-```
+Save to: `.project-toolkit/planning/impact-analysis-architecture-[feature].md`. Read `architect-impact-analysis.md` (see Reference Loading) for the template. If it is unavailable, write a document titled "Impact Analysis: [Feature] - Architecture" with Analyst, Date, and Complexity, then these sections in order: Impacts Identified, Affected Areas, ADR Alignment, Required Patterns, Design Conflicts, Long-Term Implications, Domain Model Alignment, Abstraction Consistency, Recommendations, Issues Discovered (P0/P1/P2 table and summary), Dependencies, Estimated Effort.
 
 ## Architectural Decision Records (ADRs)
 
@@ -371,40 +291,7 @@ Every architectural decision MUST include a reversibility assessment. This addre
 
 ### Vendor Lock-in Section (Required in ADRs)
 
-Add this section to all ADRs that introduce external dependencies:
-
-```markdown
-## Vendor Lock-in Assessment
-
-**Dependency**: [Name of external service, library, or platform]
-**Lock-in Level**: [None / Low / Medium / High / Critical]
-
-### Lock-in Indicators
-- [ ] Proprietary APIs without standards-based alternatives
-- [ ] Data formats that require conversion to export
-- [ ] Licensing terms that restrict migration
-- [ ] Integration depth that increases switching cost
-- [ ] Team training investment
-
-### Exit Strategy
-**Trigger conditions**: [When would we consider switching?]
-**Migration path**: [How would we extract ourselves?]
-**Estimated effort**: [Time/cost to switch to alternative]
-**Data export**: [How to extract our data in portable format]
-
-### Accepted Trade-offs
-[Why we accept this lock-in despite the risks]
-```
-
-### Lock-in Levels Defined
-
-| Level | Definition | Examples |
-|-------|------------|----------|
-| **None** | Standard protocols, easily replaceable | REST APIs, SQL databases |
-| **Low** | Minor adaptation needed | NuGet packages with alternatives |
-| **Medium** | Significant but manageable effort | Cloud provider SDKs |
-| **High** | Major project to migrate | Proprietary data formats |
-| **Critical** | Effectively permanent | Deep platform integration |
+Add a `## Vendor Lock-in Assessment` section to every ADR that introduces an external dependency. It names the dependency and a lock-in level (None, Low, Medium, High, or Critical), lists lock-in indicators, gives an exit strategy (trigger conditions, migration path, estimated effort, data export), and states the accepted trade-offs. Read `architect-vendor-lock-in.md` (see Reference Loading) for the template and the level definitions.
 
 ## Design Review Template (MANDATORY)
 
@@ -531,23 +418,7 @@ A document that exceeds these caps signals either fan-out across unrelated decis
 
 ### Code Organization Review
 
-When reviewing PRs that add new directories or relocate files, assess structural cohesion.
-
-#### Questions to Ask
-
-1. Does this directory nesting serve a clear purpose?
-2. Could these files live one level up without loss of clarity?
-3. Is there an existing directory where this code belongs?
-4. Does the structure follow established patterns in the codebase?
-
-#### Anti-Patterns to Flag
-
-| Anti-Pattern | Signal | Recommendation |
-|--------------|--------|----------------|
-| Single-file directories | Directory contains only one file | Place file in parent directory |
-| Deep nesting without domain separation | 3+ levels with no clear boundary | Flatten to minimum necessary depth |
-| Parallel structures that could consolidate | Two directories with overlapping purpose | Merge into single directory |
-| Inconsistent naming | New directory breaks existing conventions | Rename to match established patterns |
+When reviewing PRs that add new directories or relocate files, assess structural cohesion. Flag single-file directories, nesting of 3+ levels with no clear boundary, parallel structures that could consolidate, and new directory names that break existing conventions. Read `architect-code-organization-review.md` (see Reference Loading) for the questions to ask and the recommendation for each anti-pattern.
 
 ## Memory Protocol
 
