@@ -4,9 +4,24 @@ import { dirname } from "node:path";
 export const BEGIN_MARKER = "<!-- ai-agents:begin -->";
 export const END_MARKER = "<!-- ai-agents:end -->";
 
+export class MarkerBlockError extends Error {
+  constructor(
+    readonly filePath: string,
+    present: string,
+    missing: string,
+  ) {
+    super(
+      `${filePath} has ${present} but no ${missing}. Restore the missing ` +
+        "marker or delete the ai-agents block, then run init again.",
+    );
+    this.name = "MarkerBlockError";
+  }
+}
+
 // Append a marker-delimited block to a markdown instruction file, preserving
 // existing content and CRLF line endings. Idempotent: a file that already
-// contains both markers is left untouched. The dry-run guard writes nothing.
+// contains both markers is left untouched. A file with only one marker throws
+// MarkerBlockError. The dry-run guard writes nothing.
 //
 // Shared by the CLAUDE.md (claude target) and copilot-instructions.md
 // (copilot target) writers so the CRLF and idempotency rules live in one place.
@@ -41,8 +56,19 @@ export async function appendMarkerBlock(
     // File does not exist yet, proceed with empty existing content
   }
 
-  if (existing.includes(BEGIN_MARKER) && existing.includes(END_MARKER)) {
+  const hasBegin = existing.includes(BEGIN_MARKER);
+  const hasEnd = existing.includes(END_MARKER);
+  if (hasBegin && hasEnd) {
     return;
+  }
+  if (hasBegin !== hasEnd) {
+    // Appending here would duplicate the surviving marker. Leave the file for
+    // the user to repair.
+    throw new MarkerBlockError(
+      filePath,
+      hasBegin ? BEGIN_MARKER : END_MARKER,
+      hasBegin ? END_MARKER : BEGIN_MARKER,
+    );
   }
 
   let blockToWrite = block;
