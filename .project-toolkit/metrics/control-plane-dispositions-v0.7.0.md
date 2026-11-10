@@ -1195,3 +1195,70 @@ this section does not record gate 1 as passing.
 ### Other gates
 
 This section does not close gates 3, 4, 5 to 7, or 10. Epic #5456 stays open.
+
+## Gate 6 pre-registration, 2026-11-10
+
+Written before any new paid launch, under owner decision D14 on epic #5456
+(measure first, then close). The rule below is fixed. A deviation is recorded
+as a deviation, never folded into the rule.
+
+Question: is `reduced` (no always-loaded control files) non-inferior to `full`
+on deterministic acceptance and residual defects, on the 5-task fixture corpus.
+
+Instrument: `scripts/eval/eval_control_ablation.py`, default task file
+(`duration-hours`, `config-loader-resume`, `split-bill-cents`,
+`docs-title-publish`, `slug-punctuation`), `--controls full,reduced`, model
+`claude-sonnet-5`, Claude Code 2.1.319, retry budget 0, no reviewer arm (one
+launch per run), `--real-home` with the stored login, no API key, no credential
+file copied or linked. Repeat indices start at 3 because 0 to 2 are the
+2026-11-06 run (PR #7122). Raw output goes to
+`evals/durable-outcome-live/claude-sonnet-5-2026-11-10-noninferiority/`.
+
+Spend cap: 150 harness launches in total, failed and rerun launches included.
+Plan: 14 repeats x 5 tasks x 2 controls = 140 launches, with 10 held back to
+rerun harness failures (a failure produces no record and is never scored as a
+rejection).
+
+Run-level success S: `execution.deterministic_acceptance` is `PASS` and
+`durable.followup_validation` is `PASS`. Run-level defect D: acceptance `PASS`
+and any of follow-up `FAIL`, `execution.scope_violations` above 0, or
+`durable.residual_defects` above 0.
+
+Margin: 0.10 (10 percentage points) on both endpoints. The owner has not set a
+margin; 0.10 was chosen by the agent and is the first thing to challenge.
+
+Test: Newcombe hybrid-score interval for the difference of two independent
+proportions (Wilson interval per arm, z = 1.959964, so a two-sided 95 percent
+interval and a one-sided 2.5 percent test). With d = p(reduced) minus
+p(full):
+
+- S: the lower bound of d must be above -0.10.
+- D: the upper bound of d must be below +0.10.
+
+Minimum n: 50 completed runs per arm from the new batch (10 complete repeats).
+A pure tie at 50 of 50 gives a lower bound of -0.0713, so the minimum is the
+smallest round n at which a clean tie can clear the margin.
+
+Task guard: if any single task has `reduced` passing S in 4 or more fewer runs
+than `full` across the new repeats, the verdict is NOT SHOWN whatever the pooled
+interval says.
+
+Verdicts:
+
+- SHOWN: n at least 50 per arm, both interval conditions hold, task guard clear.
+- NOT SHOWN: n at least 50 and any condition fails, or the cap, the credits, or
+  the login stop the run below 50 per arm. Counts gathered are reported either
+  way.
+- Inferior at 95 percent is noted if the upper bound of d for S is below 0. It
+  is a note, not a separate verdict.
+
+Scope of a SHOWN: this fixture corpus, one model, one harness version, and the
+ambient `~/.claude` load that applies to both controls under `--real-home`, so
+`reduced` is not AGENTS-free. If both arms pass every run, SHOWN means no
+difference was detectable on tasks that may not exercise the controls. It does
+not speak for real work.
+
+Data use: the verdict reads the new batch only. The 15 runs per arm from
+2026-11-06 are reported pooled as a secondary figure. Harness failures are
+rerun while launches remain. An unrecovered cell stays unmatched and each
+completed run counts in its own arm.
