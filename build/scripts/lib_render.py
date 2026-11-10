@@ -19,11 +19,17 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from atomic_write import read_bytes_no_redirect  # noqa: E402
-from lib_mirror import PACKAGES, SYNC_FILE_NAMES, _transform_file  # noqa: E402
+from lib_mirror import (  # noqa: E402
+    PACKAGES,
+    PLUGIN_LIB_FILES,
+    PLUGIN_LIB_SOURCE_DIR,
+    SYNC_FILE_NAMES,
+    _transform_file,
+)
 
-# Hand-maintained modules with no scripts/ source that live in the Claude
-# plugin's lib/ (ADR-119: skill scripts import paths.py from there). Byte copies.
-PLUGIN_LIB_FILES: tuple[str, ...] = ("paths.py",)
+# PLUGIN_LIB_FILES (hand-maintained modules with no scripts/ source that live in
+# the Claude plugin's lib/; ADR-119: skill scripts import paths.py from there)
+# comes from lib_mirror, so the Hermes packs and the lib trees name one list.
 
 # Hand-maintained modules that this renderer places only in the Claude
 # plugin's lib/, never in another plugin tree or the Hermes pack: the grouped
@@ -80,11 +86,12 @@ def render_lib_files(repo_root: Path) -> dict[str, bytes]:
         except OSError as exc:
             raise LibRenderError(f"Cannot read {src_rel}: {exc}") from exc
     for file_name in PLUGIN_LIB_FILES:
-        src_path = repo_root / "src" / "claude" / "lib" / file_name
+        src_rel = f"{PLUGIN_LIB_SOURCE_DIR}/{file_name}"
+        src_path = repo_root / src_rel
         if not src_path.is_file():
-            raise LibRenderError(f"Registered plugin lib file missing: src/claude/lib/{file_name}")
+            raise LibRenderError(f"Registered plugin lib file missing: {src_rel}")
         try:
             files[file_name] = read_bytes_no_redirect(src_path)
         except OSError as exc:
-            raise LibRenderError(f"Cannot read src/claude/lib/{file_name}: {exc}") from exc
+            raise LibRenderError(f"Cannot read {src_rel}: {exc}") from exc
     return files

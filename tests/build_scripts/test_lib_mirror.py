@@ -233,6 +233,10 @@ def _write_full_sources(root: Path) -> None:
     validation = root / "scripts" / "validation"
     validation.mkdir(parents=True)
     (validation / "validate_review_marker.py").write_text('"""Marker."""\n', encoding="utf-8")
+    claude_lib = root / lib_mirror.PLUGIN_LIB_SOURCE_DIR
+    claude_lib.mkdir(parents=True)
+    for name in lib_mirror.PLUGIN_LIB_FILES:
+        (claude_lib / name).write_text('"""Hand-maintained."""\n', encoding="utf-8")
 
 
 def test_compile_all_renders_every_package_into_both_plugin_roots(tmp_path: Path) -> None:
@@ -268,7 +272,8 @@ def test_compile_all_check_mode_writes_nothing(tmp_path: Path) -> None:
     result = lib_mirror.compile_all(tmp_path, check=True)
 
     assert not result.had_errors, result.errors
-    assert not (tmp_path / "src" / "claude" / "lib").exists()
+    assert not (tmp_path / "src" / "claude" / "lib" / "hook_utilities").exists()
+    assert not (tmp_path / "src" / "codex" / "lib").exists()
     # Every destination is missing, so check mode reports each as drift.
     assert result.had_drift
     assert all(line.startswith("created:") for line in result.drift), result.drift
@@ -322,3 +327,55 @@ def test_sync_pairs_constant_matches_packages() -> None:
     assert {dst for _, dst in lib_mirror.SYNC_PAIRS} == {
         f".claude/lib/{pkg}" for pkg in lib_mirror.PACKAGES
     }
+
+
+# --- hand-maintained lib files copied from src/claude/lib (issue #7221) ------
+
+
+def test_compile_all_copies_paths_py_into_codex_cursor_and_muse(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+
+    result = lib_mirror.compile_all(tmp_path)
+
+    assert not result.had_errors, result.errors
+    canonical = (tmp_path / "src/claude/lib/paths.py").read_bytes()
+    for root in ("src/codex/lib", "src/cursor/lib", "src/muse/lib"):
+        assert (tmp_path / root / "paths.py").read_bytes() == canonical, root
+
+
+def test_compile_all_leaves_the_copilot_paths_py_alone(tmp_path: Path) -> None:
+    """Copilot keeps a hand copy with an `.agents` root; the mirror must not touch it."""
+    _write_full_sources(tmp_path)
+    copilot = tmp_path / "src/copilot-cli/lib/paths.py"
+    copilot.parent.mkdir(parents=True)
+    copilot.write_text("# copilot copy\n", encoding="utf-8")
+
+    lib_mirror.compile_all(tmp_path)
+    result = lib_mirror.compile_all(tmp_path, check=True)
+
+    assert copilot.read_text(encoding="utf-8") == "# copilot copy\n"
+    assert "src/copilot-cli/lib" not in lib_mirror.PLUGIN_LIB_COPY_ROOTS
+    assert not result.had_drift, result.drift
+
+
+def test_compile_all_check_reports_a_missing_or_stale_paths_py(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+    lib_mirror.compile_all(tmp_path)
+    (tmp_path / "src/codex/lib/paths.py").unlink()
+    (tmp_path / "src/muse/lib/paths.py").write_text("# stale\n", encoding="utf-8")
+
+    result = lib_mirror.compile_all(tmp_path, check=True)
+
+    assert "created: src/codex/lib/paths.py" in [line.strip() for line in result.drift]
+    assert "updated: src/muse/lib/paths.py" in [line.strip() for line in result.drift]
+    assert not (tmp_path / "src/codex/lib/paths.py").exists()
+
+
+def test_compile_all_fails_closed_when_the_claude_paths_py_is_missing(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+    (tmp_path / "src/claude/lib/paths.py").unlink()
+
+    result = lib_mirror.compile_all(tmp_path)
+
+    assert result.had_errors
+    assert any("src/claude/lib/paths.py" in e for e in result.errors), result.errors

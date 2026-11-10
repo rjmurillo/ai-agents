@@ -35,8 +35,18 @@ and `src/codex/skills/review/scripts/`.
 differs from its source in `LibMirrorResult.drift`; `build_all.py --check`
 exits 2 on any (issue #6098).
 
+`paths.py` is hand-maintained in `src/claude/lib/` and has no `scripts/`
+source. Skill scripts in every tree import it (`from paths import ...`), so
+this module byte-copies it into the Codex, Cursor and Muse lib trees
+(`PLUGIN_LIB_FILES`, `PLUGIN_LIB_COPY_ROOTS`; issue #7221). Those skill scripts
+are byte copies of the Claude ones and write under `.project-toolkit/`, so the
+Claude content is the right one. The Copilot tree keeps its own hand copy
+because its consumer-side root is `.agents` (`surface-parity.yaml`,
+`lib-copilot-modules`); the Hermes packs get the Claude copy from
+`lib_render.render_lib_files`.
+
 `.claude/lib/` also carries hand-maintained files this module never touches
-(`claude_hook_dispatch.py`, `paths.py`, `qa_report.py`, and siblings; two
+(`claude_hook_dispatch.py`, `qa_report.py`, and siblings; two
 `CLAUDE.md` sidecars under `hook_utilities/` and `github_core/`): they have
 no `scripts/` canonical source, sync_plugin_lib.py never copied them either
 (its directory sync only ever looked at `.py` files inside its three
@@ -91,6 +101,18 @@ PLUGIN_ROOTS: tuple[str, ...] = (
 # module cannot use the package-relative rewrite (see `_imports_scripts_package`).
 SYNC_FILE_NAMES: tuple[tuple[str, str], ...] = (
     ("scripts/hook_utilities/bootstrap.py", "bootstrap.py"),
+)
+
+# Hand-maintained modules with no scripts/ source that live in the Claude
+# plugin's lib/ and that skill scripts import. They are byte-copied from
+# `src/claude/lib/` into each tree in `PLUGIN_LIB_COPY_ROOTS`. Copilot is not
+# listed: it keeps a hand copy that differs on purpose (`.agents` root).
+PLUGIN_LIB_SOURCE_DIR = "src/claude/lib"
+PLUGIN_LIB_FILES: tuple[str, ...] = ("paths.py",)
+PLUGIN_LIB_COPY_ROOTS: tuple[str, ...] = (
+    "src/codex/lib",
+    "src/cursor/lib",
+    "src/muse/lib",
 )
 
 # The one SYNC_FILE_PAIRS entry that lands under a skill directory: it sits in
@@ -459,6 +481,13 @@ def compile_all(repo_root: Path, *, check: bool = False) -> LibMirrorResult:
             changes, had_errors = sync_file(repo_root, src_rel, dst_rel, check_only=check)
             _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
 
+    for file_name in PLUGIN_LIB_FILES:
+        src_rel = f"{PLUGIN_LIB_SOURCE_DIR}/{file_name}"
+        for plugin_root in PLUGIN_LIB_COPY_ROOTS:
+            dst_rel = f"{plugin_root}/{file_name}"
+            changes, had_errors = sync_file(repo_root, src_rel, dst_rel, check_only=check)
+            _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
+
     for dst_rel in SKILLS_SIDECAR_PLUGIN_TREES:
         changes, had_errors = sync_file(repo_root, SKILLS_SIDECAR_SOURCE, dst_rel, check_only=check)
         _fold(result, SKILLS_SIDECAR_SOURCE, dst_rel, changes, had_errors, check=check)
@@ -466,6 +495,7 @@ def compile_all(repo_root: Path, *, check: bool = False) -> LibMirrorResult:
     result.inputs = (
         len(PACKAGES) * len(PLUGIN_ROOTS)
         + len(SYNC_FILE_NAMES) * len(PLUGIN_ROOTS)
+        + len(PLUGIN_LIB_FILES) * len(PLUGIN_LIB_COPY_ROOTS)
         + len(SKILLS_SIDECAR_PLUGIN_TREES)
     )
     result.outputs = len([c for c in result.changes if not c.strip().startswith("[")])
