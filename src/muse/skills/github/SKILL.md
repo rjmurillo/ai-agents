@@ -234,7 +234,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 
 ### More Scripts
 
-Parameters are in `references/script-catalog.md`. Usage and exit codes for the gate-dispatched scripts are in `references/gate-script-usage.md`. PR: `check_pr_live_state.py`, `check_pr_round_cap.py`, `run_completion_gate.py`, `check_review_thread_resolution_shas.py`, `check_suppressed_review_findings.py`, `detect_stale_pr_comments.py`, `get_pr_comments_by_reviewer.py`, `prepare_pr_body.py`. Issue: `check_existing_pr_for_issue.py`, `claim_issue.py`, `edit_issue_body.py`, `redact_secrets.py`.
+Parameters: `references/script-catalog.md`. Gate-script usage and exit codes: `references/gate-script-usage.md`. PR: `check_pr_live_state.py`, `get_pr_code_scanning_alerts.py`, `check_pr_round_cap.py`, `run_completion_gate.py`, `check_review_thread_resolution_shas.py`, `check_suppressed_review_findings.py`, `detect_stale_pr_comments.py`, `get_pr_comments_by_reviewer.py`, `prepare_pr_body.py`. Issue: `check_existing_pr_for_issue.py`, `claim_issue.py`, `edit_issue_body.py`, `redact_secrets.py`.
 
 ### Workflow Testing (`scripts/`)
 

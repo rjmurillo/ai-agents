@@ -22,6 +22,7 @@ of the skill's script directory, the last four in `issue`. Run every script with
 | `claim_issue.py` | Self-assign an issue; refuse (exit 1) when another login holds it; warn about pushed branches that name the issue | `--issue`, `--dry-run` |
 | `edit_issue_body.py` | Replace an issue body from `--body` or `--body-file` | `--issue`, `--body`, `--body-file` |
 | `redact_secrets.py` | Redact secret and PII shapes from text on stdin or `FILE`; writes the result to stdout | `FILE` |
+| `get_pr_code_scanning_alerts.py` | Read a PR's CodeQL alerts for `/review` (ADR-041 amendment). GET only, every page, JSON on stdout. `Data.outcome` is CURRENT, STALE, NOT ANALYZED, or SKIPPED. Alerts reduce to rule id, path, line. Exit 0 outcome read, exit 2 usage, exit 3 SKIPPED (request or paging failed), exit 4 SKIPPED (auth or not found) | `--pull-request`, `--head-sha`, `--tree-state`, `--changed-file`, `--changed-files-from` |
 
 ## Full text of shortened rows
 
