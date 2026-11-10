@@ -21,7 +21,7 @@ LintResult = mod.LintResult
 Violation = mod.Violation
 
 
-def _violation(index: int, severity: str = "error") -> Violation:
+def _violation(index: int, severity: str = "error"):
     return Violation(
         rule="file-size",
         severity=severity,

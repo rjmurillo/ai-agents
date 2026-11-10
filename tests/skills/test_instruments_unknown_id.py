@@ -20,6 +20,7 @@ def _run(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(script), "--repo", str(ROOT), *args],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
         timeout=60,
     )
