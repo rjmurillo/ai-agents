@@ -321,8 +321,6 @@ def test_generators_exit_zero_and_write_the_command_mirror() -> None:
     assert COMMAND_MIRROR_PATH.is_file(), "generate_skills.py did not write the mirror"
 
 
-import json  # noqa: E402 -- placed here to group with the AC3/4/5 block it serves
-
 # ---------------------------------------------------------------------------
 # AC 3/4/5 -- hook-redirect vs. manifest contract (Issue #4229)
 # ---------------------------------------------------------------------------
@@ -330,16 +328,11 @@ import json  # noqa: E402 -- placed here to group with the AC3/4/5 block it serv
 # and names replacement tools in its denial reason.  If those tools are absent
 # from the command's allowed-tools the agent lands in a dead end.
 #
-# These tests exercise that contract without requiring the plugin to be
-# installed at test time: they parse the hooks.json manifest the plugin
-# installs and compare the tool names it would inject against the research
-# command's allowed-tools line.  When the plugin is absent (e.g. on CI
-# runners) the tests skip gracefully.
+# These tests compare the tool names the hook would inject against the
+# research command's allowed-tools line. The AC3 check that reads the
+# installed plugin's own hook manifest lives in
+# test_context_mode_webfetch_matcher.py, beside its install resolver.
 # ---------------------------------------------------------------------------
-
-_CONTEXT_MODE_HOOKS_ROOT = (
-    Path.home() / ".claude" / "plugins" / "cache" / "context-mode" / "context-mode"
-)
 
 # Hard-coded tool base names the context-mode hook names when it denies
 # WebFetch.  Derived from routing.mjs line 879 ("ctx_fetch_and_index",
@@ -362,34 +355,6 @@ def _context_mode_tool_patterns() -> list[str]:
         "mcp__plugin_context-mode_context-mode__*",  # Claude Code prefix
         "context-mode_*",  # Copilot CLI prefix
     ]
-
-
-def _plugin_installed() -> bool:
-    return _context_mode_hooks_json() is not None
-
-
-def _context_mode_hooks_json() -> Path | None:
-    manifests = sorted(_CONTEXT_MODE_HOOKS_ROOT.glob("*/hooks/hooks.json"), reverse=True)
-    return manifests[0] if manifests else None
-
-
-def test_context_mode_plugin_hooks_json_contains_webfetch_matcher() -> None:
-    """AC3: the hook manifest registers a PreToolUse handler for WebFetch.
-
-    Skips when the plugin is absent so CI stays green without the local
-    install.
-    """
-    if not _plugin_installed():
-        pytest.skip("context-mode plugin not installed")
-
-    hooks_path = _context_mode_hooks_json()
-    assert hooks_path is not None
-    hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
-    matchers = [h.get("matcher", "") for h in hooks.get("hooks", {}).get("PreToolUse", [])]
-    assert any("WebFetch" in m for m in matchers), (
-        "hooks.json has no PreToolUse entry matching WebFetch; "
-        "the hook that triggers the reroute defect was removed or renamed"
-    )
 
 
 def test_context_mode_redirect_targets_absent_from_research_allowed_tools(
