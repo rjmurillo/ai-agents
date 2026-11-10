@@ -48,3 +48,32 @@ Parameters: `--pull-request`, `--base-branch`, `--output-format {json,human,auto
 CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green).
 
 Parameters: `--check-name`, `--branch`, `--history-depth`, `--pull-request`
+
+## Previewing a change with `--dry-run`
+
+Each script below runs its reads and validation as a real run does, then
+reports the planned change and writes nothing. The result carries
+`dryRun: true` (or `DryRun`/`dry_run` where the script already used that key)
+and a `would_*` action. A refusal fails the same way under `--dry-run`, with
+the same exit code.
+
+| Script | Action reported | Note |
+|--------|-----------------|------|
+| `close_issue.py` | `would_close` | `--verify-claims` still runs and can still refuse |
+| `new_issue.py` | `would_create` | no label, issue, or milestone write |
+| `edit_issue_body.py` | `would_update` | |
+| `set_issue_labels.py` | `would_set_labels` | reads label existence; lists `wouldCreate`, `wouldApply`, `wouldRemove` |
+| `set_issue_assignee.py` | `would_assign` | |
+| `close_pr.py` | `would_close` | |
+| `new_pr.py` | text line `Dry run: would create PR` | runs the pre-creation validations; writes no audit log |
+| `new_pr_review_comment.py` | `would_post` | reads the PR head commit |
+| `post_pr_comment_reply.py` | `would_post` | names the endpoint and body length |
+| `set_pr_auto_merge.py` | `WouldEnable`, `WouldDisable`, `NoChange` | |
+| `unresolve_pr_review_thread.py` | `would_unresolve` | lists the thread ids |
+| `update_pr_branch.py` | `would_update` | |
+| `invoke_pr_comment_processing.py` | `[dry-run]` lines | classifies every comment; posts no reaction or reply |
+| `check_pr_round_cap.py` | the usual verdict plus `dryRun` | records no round: no state marker, no escalation note |
+| `merge_pr.py` | `would_merge` | stops after the pre-merge refusals and before any merge call; the audit record says `dry run; no merge call`. Branch protection and stack readiness are evaluated by GitHub at merge time, so a dry run is not a merge-ready verdict |
+
+`unresolve_pr_review_thread.py --pull-request N` now requires `--all`, as the
+`SKILL.md` row already says. Without it the script exits 2.

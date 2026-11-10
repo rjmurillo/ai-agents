@@ -318,3 +318,43 @@ class TestErrorPaths:
         rc = run_main(["--pull-request", "50", "--wait", "--timeout-seconds", "0"], fake)
         assert rc == 1
         assert fake.calls == []
+
+
+class TestDryRun:
+    def test_behind_pr_reports_would_update_and_sends_no_put(self, capsys):
+        fake = FakeGh(behind=["3"])
+        rc = run_main(["--pull-request", "50", "--dry-run"], fake)
+        data = envelope(capsys)["Data"]
+        assert rc == 0
+        assert data["action"] == "would_update"
+        assert data["dry_run"] is True
+        assert data["behind_by"] == 3
+        assert fake.put_calls() == []
+
+    def test_up_to_date_pr_is_still_reported_as_none(self, capsys):
+        fake = FakeGh(behind=["0"])
+        rc = run_main(["--pull-request", "50", "--dry-run"], fake)
+        data = envelope(capsys)["Data"]
+        assert rc == 0
+        assert data["action"] == "none"
+        assert "dry_run" not in data
+
+    def test_dry_run_still_refuses_a_closed_pr(self, capsys):
+        fake = FakeGh(pr_views=[pr_json(state="CLOSED")])
+        rc = run_main(["--pull-request", "50", "--dry-run"], fake)
+        assert rc == 1
+        assert fake.put_calls() == []
+
+    def test_dry_run_still_enforces_the_expected_head_pin(self, capsys):
+        fake = FakeGh()
+        rc = run_main(
+            ["--pull-request", "50", "--expected-head-sha", OTHER_HEAD, "--dry-run"], fake
+        )
+        assert rc == 1
+        assert fake.put_calls() == []
+
+    def test_dry_run_still_rejects_a_malformed_sha_before_any_call(self, capsys):
+        fake = FakeGh()
+        rc = run_main(["--pull-request", "50", "--expected-head-sha", "xyz", "--dry-run"], fake)
+        assert rc == 1
+        assert fake.calls == []
