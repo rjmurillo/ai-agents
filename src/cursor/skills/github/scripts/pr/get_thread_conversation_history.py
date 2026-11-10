@@ -166,9 +166,24 @@ def fetch_thread_comments(thread_id: str) -> tuple[dict, list[dict]]:
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --thread-id PRRT_kwDOExample
+  %(prog)s --thread-id PRRT_kwDOExample --include-minimized
+
+exit codes:
+  0  success
+  2  config/usage error (invalid parameters, thread not found)
+  3  API error
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Get the full conversation history of a PR review thread.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

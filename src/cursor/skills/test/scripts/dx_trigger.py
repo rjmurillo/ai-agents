@@ -316,8 +316,23 @@ def decide(
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --changed-path src/cli.py
+  %(prog)s --changed-path src/cli.py --changed-path README.md
+
+exit codes:
+  0  decision emitted on stdout as JSON
+  2  the review-axis classifier could not be loaded
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--changed-path",
         action="append",

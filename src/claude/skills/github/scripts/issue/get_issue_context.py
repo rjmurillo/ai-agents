@@ -62,9 +62,24 @@ def _env_timeout_seconds(default: int = 30) -> int:
 GH_TIMEOUT_SECONDS = _env_timeout_seconds()
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --issue 123
+  %(prog)s --issue 123 --output-format json
+
+exit codes:
+  0  success
+  2  not found
+  3  external error (API failure)
+  4  auth error (not authenticated)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Get context and metadata for a GitHub Issue.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
