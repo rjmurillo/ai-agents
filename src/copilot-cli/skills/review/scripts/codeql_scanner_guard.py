@@ -11,14 +11,18 @@ The diff is the merge base with the default branch to HEAD, plus uncommitted
 changes (staged, unstaged, and untracked). It uses ``--no-renames`` so both sides
 of a rename are listed: a file moved out of a guarded directory still counts.
 
-Guarded paths (the rules file's list):
+Guarded paths (the rules file's list; ``GUARDED_*`` below is the single copy):
 
-* ``.codeql/**``
+* ``.codeql/**`` (and the ``.codeql`` entry itself)
 * ``.github/codeql/**``
 * ``.github/workflows/codeql-analysis.yml``
 * ``.github/actions/**`` (composite actions the workflow calls)
 * the ``codeql-scan`` skill scripts, in any tree that carries them
   (``.claude/skills/``, ``src/*/skills/``, a vendored ``skills/``)
+
+A changed symlink is guarded when its name is guarded or its resolved target is. A
+bare directory entry (a symlink or file standing where a guarded directory was) is
+guarded too.
 
 Matching is case-insensitive, because the default macOS and Windows file systems
 fold case and ``.CodeQL/`` would be the same directory there. That is stricter
@@ -29,16 +33,21 @@ Standard library only: this module ships in the plugin tree.
 
 from __future__ import annotations
 
+import os
 import posixpath
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 GIT_TIMEOUT_SECONDS = 20
 
-_GUARDED_PREFIXES = (".codeql/", ".github/codeql/", ".github/actions/")
-_GUARDED_FILES = frozenset({".github/workflows/codeql-analysis.yml"})
-_CODEQL_SCAN_SCRIPTS = "skills/codeql-scan/scripts/"
+#: The guarded paths, in one place. Directories match the directory entry itself and
+#: everything under it. ``GUARDED_SCRIPT_DIR`` matches under any parent (every tree that
+#: carries the ``codeql-scan`` skill). Change the guard here, nowhere else.
+GUARDED_DIRS = (".codeql", ".github/codeql", ".github/actions")
+GUARDED_FILES = frozenset({".github/workflows/codeql-analysis.yml"})
+GUARDED_SCRIPT_DIR = "skills/codeql-scan/scripts"
+SYMLINK_MODE = "120000"
 
 #: CodeQL language names the ``codeql-scan`` wrapper accepts (``--languages`` choices
 #: in ``codeql-scan/scripts/invoke_codeql_scan.py``) mapped from diff file types.
@@ -130,16 +139,74 @@ def changed_files(repo_root: Path, base_ref: str) -> list[str]:
 
 
 def is_guarded_path(path: str) -> bool:
-    """True when ``path`` is a scanner input the amendment guards."""
-    folded = posixpath.normpath(path.replace("\\", "/")).casefold()
-    if folded in _GUARDED_FILES or folded.startswith(_GUARDED_PREFIXES):
+    """True when ``path`` is a scanner input the amendment guards.
+
+    A directory entry matches as well as the files under it: a change to ``.codeql``
+    itself (a file or symlink replacing the directory) is a change to the scanner
+    input. Case is folded, separators and ``./`` are normalized.
+    """
+    folded = posixpath.normpath(path.replace("\\", "/")).casefold().rstrip("/")
+    if folded in GUARDED_FILES:
         return True
-    return f"/{_CODEQL_SCAN_SCRIPTS}" in f"/{folded}"
+    if any(folded == d or folded.startswith(d + "/") for d in GUARDED_DIRS):
+        return True
+    return f"/{GUARDED_SCRIPT_DIR}/" in f"/{folded}/"
 
 
-def guarded_paths(paths: Sequence[str]) -> list[str]:
-    """Return the guarded paths among ``paths``, in input order."""
-    return [path for path in paths if is_guarded_path(path)]
+def _symlink_target(repo_root: Path, path: str) -> str | None:
+    """Repo-relative POSIX target of the symlink at ``path``, or None.
+
+    Resolves chains. None when the link is gone, broken, or points outside the repo.
+    """
+    link = repo_root / path
+    if not link.is_symlink():
+        return None
+    real = Path(os.path.realpath(link))
+    relative = os.path.relpath(real, os.path.realpath(repo_root))
+    if relative == ".." or relative.startswith(".." + os.sep):
+        return None
+    return Path(relative).as_posix()
+
+
+def changed_symlinks(repo_root: Path, base_ref: str) -> dict[str, str | None]:
+    """Map each changed symlink entry to its resolved repo-relative target.
+
+    Reads ``git diff --raw`` modes: an entry whose old or new mode is ``120000`` is a
+    symlink (so a symlink replaced by a file, or the reverse, is seen). Untracked
+    symlinks are found on disk. A deleted or broken link maps to None.
+
+    Raises:
+        GitError: the merge base or the diff cannot be computed.
+    """
+    merge_base = run_git(repo_root, ["merge-base", "HEAD", base_ref]).strip()
+    raw = run_git(repo_root, ["diff", "--raw", "--no-renames", "-z", merge_base])
+    tokens = _split_z(raw)
+    found: dict[str, str | None] = {}
+    for header, path in zip(tokens[0::2], tokens[1::2], strict=False):
+        modes = header.lstrip(":").split()[:2]
+        if SYMLINK_MODE in modes:
+            found[path] = _symlink_target(repo_root, path)
+    for path in _split_z(run_git(repo_root, ["ls-files", "--others", "--exclude-standard", "-z"])):
+        if (repo_root / path).is_symlink():
+            found[path] = _symlink_target(repo_root, path)
+    return found
+
+
+def guarded_paths(
+    paths: Sequence[str], symlink_targets: Mapping[str, str | None] | None = None
+) -> list[str]:
+    """Return the guarded paths among ``paths``, in input order.
+
+    A path is guarded by its own name, or when it is a changed symlink whose resolved
+    target is a guarded path.
+    """
+    links = symlink_targets or {}
+    return [
+        path
+        for path in paths
+        if is_guarded_path(path)
+        or (links.get(path) is not None and is_guarded_path(str(links[path])))
+    ]
 
 
 def languages_for(paths: Sequence[str]) -> list[str]:

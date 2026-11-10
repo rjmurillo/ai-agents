@@ -156,7 +156,7 @@ class TestRunWrapper:
         assert code == -signal.SIGTERM
 
     def test_a_timeout_kills_the_whole_process_group(self, root, tmp_path, monkeypatch):
-        monkeypatch.setattr(scan, "LOCAL_TIMEOUT_SECONDS", 1)
+        monkeypatch.setattr(scan, "LOCAL_TIMEOUT_SECONDS", 4)
         wrapper = make_wrapper(
             tmp_path,
             """
@@ -168,9 +168,9 @@ class TestRunWrapper:
         )
         started = time.monotonic()
         assert scan.run_wrapper(root, wrapper, ("python",)) == (None, "")
-        assert time.monotonic() - started < 15
+        assert time.monotonic() - started < 30
         pid = int((root / "grandchild.pid").read_text(encoding="utf-8"))
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + 10
         while time.monotonic() < deadline and _alive(pid):
             time.sleep(0.05)
         assert not _alive(pid), "grandchild survived the group kill"

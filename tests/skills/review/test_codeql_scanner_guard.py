@@ -26,6 +26,17 @@ class TestIsGuardedPath:
             ".github\\codeql\\codeql-config.yml",
             "./.codeql/x.py",
             "docs/../.codeql/x.py",
+            ".codeql",
+            ".codeql/",
+            "./.codeql",
+            ".CodeQL",
+            ".github/codeql",
+            ".github/codeql/",
+            ".github/actions",
+            "./.github/Actions/",
+            "src/claude/skills/codeql-scan/scripts",
+            "src/claude/skills/codeql-scan/scripts/",
+            "skills/codeql-scan/scripts",
         ],
     )
     def test_guards_every_path_the_rules_file_lists(self, path):
@@ -46,6 +57,9 @@ class TestIsGuardedPath:
             "src/claude/skills/codeql-scan/references/a.md",
             "src/claude/skills/other/scripts/codeql.py",
             "docs/codeql-scan/scripts/a.md",
+            ".github/codeqlx",
+            ".github/actionsx",
+            "x/.codeql",
             "",
         ],
     )
@@ -196,3 +210,146 @@ def test_run_git_reports_a_missing_git_binary(monkeypatch, tmp_path):
     monkeypatch.setattr(guard.subprocess, "run", boom)
     with pytest.raises(guard.GitError, match="could not run"):
         guard.run_git(tmp_path, ["status"])
+
+
+def symlink(repo, name, target):
+    link = repo / name
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target)
+
+
+class TestSymlinks:
+    def _guarded(self, repo):
+        files = guard.changed_files(repo, "origin/main")
+        return guard.guarded_paths(files, guard.changed_symlinks(repo, "origin/main"))
+
+    def test_a_symlink_with_an_innocent_name_to_a_guarded_file_is_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "src/innocent.py", "../.codeql/scripts/old.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "link")
+        assert self._guarded(repo) == ["src/innocent.py"]
+
+    def test_a_symlink_to_a_guarded_directory_is_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "tools", ".codeql/scripts")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "link")
+        assert self._guarded(repo) == ["tools"]
+
+    def test_a_symlink_chain_is_followed_to_the_guarded_target(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "b.link", ".codeql/scripts/old.py")
+        symlink(repo, "a.link", "b.link")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "chain")
+        assert self._guarded(repo) == ["a.link", "b.link"]
+
+    def test_an_untracked_symlink_to_a_guarded_path_is_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "sneaky", ".github/workflows/codeql-analysis.yml")
+        write(repo, ".github/workflows/codeql-analysis.yml")
+        git(repo, "add", ".github/workflows/codeql-analysis.yml")
+        git(repo, "commit", "-m", "wf")
+        git(repo, "reset", "-q", "--soft", "HEAD~1")
+        git(repo, "reset", "-q")
+        links = guard.changed_symlinks(repo, "origin/main")
+        assert links["sneaky"] == ".github/workflows/codeql-analysis.yml"
+
+    def test_a_symlink_to_an_ordinary_file_is_not_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "alias.py", "src/app.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "alias")
+        assert self._guarded(repo) == []
+
+    def test_a_symlink_to_a_look_alike_is_not_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        write(repo, ".codeqlx/a.py")
+        symlink(repo, "alias", ".codeqlx/a.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "alias")
+        assert self._guarded(repo) == []
+
+    def test_a_symlink_pointing_outside_the_repository_has_no_target(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "out", "../../elsewhere")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "out")
+        assert guard.changed_symlinks(repo, "origin/main")["out"] is None
+        assert self._guarded(repo) == []
+
+    def test_a_dangling_symlink_to_an_ordinary_path_is_not_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "dangling", "nothing-here")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "dangling")
+        assert guard.changed_symlinks(repo, "origin/main")["dangling"] == "nothing-here"
+        assert self._guarded(repo) == []
+
+    def test_a_dangling_symlink_into_a_guarded_directory_is_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, "dangling", ".codeql/not-created-yet.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "dangling")
+        assert self._guarded(repo) == ["dangling"]
+
+    def test_a_symlink_named_inside_a_guarded_directory_is_guarded_by_name(self, tmp_path):
+        repo = make_repo(tmp_path)
+        symlink(repo, ".github/actions/setup", "../../src")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "link")
+        assert ".github/actions/setup" in self._guarded(repo)
+
+    def test_a_guarded_directory_replaced_by_a_symlink_is_guarded(self, tmp_path):
+        repo = make_repo(tmp_path)
+        git(repo, "rm", "-r", "-q", ".codeql")
+        symlink(repo, ".codeql", "src")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "swap")
+        guarded = self._guarded(repo)
+        assert ".codeql" in guarded
+        assert ".codeql/scripts/old.py" in guarded
+
+    def test_a_deleted_symlink_is_seen_by_its_old_mode(self, tmp_path):
+        repo = make_repo(tmp_path)
+        git(repo, "checkout", "-q", "main")
+        symlink(repo, "gone.link", ".codeql/scripts/old.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "add link on main")
+        git(repo, "push", "-q", "origin", "main")
+        git(repo, "checkout", "-q", "feature")
+        git(repo, "merge", "-q", "main", "--no-edit")
+        git(repo, "rm", "-q", "gone.link")
+        git(repo, "commit", "-m", "remove link")
+        git(repo, "reset", "-q", "--hard", "HEAD")
+        links = guard.changed_symlinks(repo, "origin/main")
+        assert links == {"gone.link": None}
+
+    def test_a_symlink_replaced_by_a_regular_file_still_counts_as_a_symlink_change(self, tmp_path):
+        repo = make_repo(tmp_path)
+        git(repo, "checkout", "-q", "main")
+        symlink(repo, "was.link", "src/app.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "link on main")
+        git(repo, "push", "-q", "origin", "main")
+        git(repo, "checkout", "-q", "feature")
+        git(repo, "merge", "-q", "main", "--no-edit")
+        (repo / "was.link").unlink()
+        write(repo, "was.link", "regular\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "swap to file")
+        assert "was.link" in guard.changed_symlinks(repo, "origin/main")
+
+    def test_no_symlinks_gives_an_empty_map(self, tmp_path):
+        assert guard.changed_symlinks(make_repo(tmp_path), "origin/main") == {}
+
+    def test_guarded_paths_without_a_map_uses_names_only(self):
+        assert guard.guarded_paths(["alias.py"], None) == []
+        assert guard.guarded_paths(["alias.py"], {"alias.py": ".codeql/x.py"}) == ["alias.py"]
+        assert guard.guarded_paths(["alias.py"], {"alias.py": None}) == []
+
+    def test_the_guarded_list_lives_in_named_constants(self):
+        assert ".codeql" in guard.GUARDED_DIRS
+        assert ".github/workflows/codeql-analysis.yml" in guard.GUARDED_FILES
+        assert guard.GUARDED_SCRIPT_DIR == "skills/codeql-scan/scripts"

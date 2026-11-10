@@ -87,6 +87,17 @@ class TestScannerInputGuard:
         assert path in out["guarded_paths"]
         assert reader.calls == []
 
+    def test_a_symlink_to_a_guarded_file_skips_the_step(self, repo, monkeypatch):
+        (repo / "innocent.py").symlink_to(".codeql/scripts/old.py")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "link")
+        reader = Reader(stdout=envelope(outcome="CURRENT"))
+        monkeypatch.setattr(pre.subprocess, "run", reader)
+        out = pre.run(args(repo, pull_request=7))
+        assert out["reason"] == "scanner inputs modified"
+        assert out["guarded_paths"] == ["innocent.py"]
+        assert reader.calls == []
+
     def test_an_uncommitted_guarded_change_also_skips(self, repo, monkeypatch):
         write(repo, ".github/codeql/codeql-config.yml")
         reader = Reader(stdout=envelope(outcome="CURRENT"))

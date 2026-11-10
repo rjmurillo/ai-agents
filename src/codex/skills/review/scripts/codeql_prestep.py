@@ -182,10 +182,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         root = guard.repo_toplevel(Path(args.repo_root))
         head = guard.head_sha(root)
         clean = guard.tree_is_clean(root)
-        files = guard.changed_files(root, guard.resolve_base_ref(root, args.base_branch))
+        base_ref = guard.resolve_base_ref(root, args.base_branch)
+        files = guard.changed_files(root, base_ref)
+        links = guard.changed_symlinks(root, base_ref)
     except guard.GitError:
         return skipped("diff could not be computed")
-    touched = guard.guarded_paths(files)
+    touched = guard.guarded_paths(files, links)
     if touched:
         return skipped("scanner inputs modified", guarded_paths=touched[:20])
     if args.pull_request is not None:
