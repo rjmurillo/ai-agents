@@ -221,6 +221,21 @@ def _unresolve_single(args: argparse.Namespace) -> int:
     return 0 if success else 1
 
 
+def _report_nothing_resolved(args: argparse.Namespace) -> int:
+    """Report a PR with no resolved threads; under --dry-run the result carries the marker."""
+    print(f"No resolved threads on PR #{args.pull_request} to unresolve", file=sys.stderr)
+    result: dict[str, object] = {
+        "TotalResolved": 0,
+        "Unresolved": 0,
+        "Failed": 0,
+        "Success": True,
+    }
+    if args.dry_run:
+        result["DryRun"] = True
+    print(json.dumps(result, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     _validate_scope_flags(args)
@@ -237,17 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     if not resolved_threads:
-        print(f"No resolved threads on PR #{args.pull_request} to unresolve", file=sys.stderr)
-        result = {
-            "TotalResolved": 0,
-            "Unresolved": 0,
-            "Failed": 0,
-            "Success": True,
-        }
-        if args.dry_run:
-            result["DryRun"] = True
-        print(json.dumps(result, indent=2))
-        return 0
+        return _report_nothing_resolved(args)
 
     print(
         f"Found {len(resolved_threads)} resolved thread(s) on PR #{args.pull_request}",
