@@ -12,6 +12,12 @@ from types import ModuleType
 from context_output_checker import regeneration_command
 from context_output_report import print_manifest_report, print_regeneration_hint
 
+_EXAMPLES = """\
+examples:
+  %(prog)s -i AGENTS.md -d detail -r detail -o index.md
+  %(prog)s --manifest manifest.json --check
+"""
+
 
 def _report_error(prefix: str, error: Exception, exit_code: int) -> int:
     """Print one CLI error and return its process exit code."""
@@ -24,7 +30,7 @@ def _build_parser(core: ModuleType) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Extract markdown sections and generate a pipe-delimited index",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=core.__doc__,
+        epilog=f"{core.__doc__}\n{_EXAMPLES}",
     )
     parser.add_argument("-i", "--input", type=Path, help="Input markdown file path")
     parser.add_argument(

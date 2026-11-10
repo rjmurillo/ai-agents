@@ -397,8 +397,24 @@ def non_negative(value: str) -> int:
     return number
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s build.log
+  %(prog)s build.log --out-dir distilled --max-matches 20 --format json
+
+exit codes:
+  0  artifact distilled
+  2  invalid arguments or missing file
+  3  unreadable input or output write failure
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0],
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("path", help='Input file, or "-" for stdin')
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--max-matches", type=non_negative, default=DEFAULT_MAX_MATCHES)

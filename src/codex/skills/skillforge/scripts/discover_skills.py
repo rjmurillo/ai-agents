@@ -663,10 +663,23 @@ def save_index(result: Result, output_path: Path | None = None) -> None:
 # ===========================================================================
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --json
+  %(prog)s --output skill-index.json
+
+exit codes:
+  0  index written
+  1  general failure
+  3  every skill source is missing and no skill was found
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Discover and index all available skills",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
 
     parser.add_argument(

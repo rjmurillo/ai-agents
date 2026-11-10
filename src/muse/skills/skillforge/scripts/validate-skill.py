@@ -870,7 +870,11 @@ def main():
     """Main entry point."""
     if len(sys.argv) >= 2 and sys.argv[1] == "--help":
         print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
-        print("Example: python validate-skill.py skills/my-skill/")
+        print("\nValidate a skill's structure and SKILL.md. The skill directory must be under the")
+        print("current directory, or under DIR when --root DIR is given.")
+        print("\nExamples:")
+        print("  python validate-skill.py skills/my-skill/")
+        print("  python validate-skill.py /other/repo/skills/my-skill --root /other/repo")
         print("\nExit codes: 0 all checks passed, 1 a check failed or no path given.")
         sys.exit(0)
 

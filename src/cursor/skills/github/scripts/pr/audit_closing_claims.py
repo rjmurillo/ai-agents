@@ -308,8 +308,26 @@ def _complete_commits(
         page_info = next_connection.get("pageInfo") or {}
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --artifact evidence.json
+
+exit codes:
+  0  no unsupported closing claim can reach a squash commit
+  1  an unsupported closing claim can reach a squash commit
+  2  invalid owner or repo, or plugin lib missing
+  3  repository setting or open-PR listing failed (needs an administration-read token)
+  4  not authenticated with gh
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Audit closing claims in open PRs.")
+    p = argparse.ArgumentParser(
+        description="Audit closing claims in open PRs.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--owner", default="")
     p.add_argument("--repo", default="")
     p.add_argument(

@@ -240,9 +240,24 @@ def join(
     }
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pr 123
+  %(prog)s --slug octo-org/octo-repo --sha abc1234 --base main
+
+exit codes:
+  0  every required context is produced by its required app
+  1  at least one is not, or no required context exists
+  2  configuration or bad arguments
+  3  gh failed or pagination could not complete
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_HELP_EPILOG,
     )
     p.add_argument(
         "--repo", default=".", help="path to the checkout (locates github_core); default ."

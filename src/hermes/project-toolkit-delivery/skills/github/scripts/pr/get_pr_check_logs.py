@@ -651,9 +651,25 @@ def _payload_from_pull_request(
 # ---------------------------------------------------------------------------
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --check-name "build" --max-lines 200
+
+exit codes:
+  0  success (logs retrieved, or no failing checks)
+  1  invalid parameters
+  2  PR not found
+  3  API error
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Fetch logs from failing GitHub Actions checks on a PR.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

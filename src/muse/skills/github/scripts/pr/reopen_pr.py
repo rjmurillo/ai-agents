@@ -68,9 +68,25 @@ class _Context:
     output_format: str
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123
+  %(prog)s --pull-request 123 --comment "Reopening: the fix regressed" --dry-run
+
+exit codes:
+  0  success (reopened, or already open)
+  1  invalid parameters / logic error (PR is merged or in an unknown state)
+  2  not found
+  3  external error (API failure, timeout, head branch deleted)
+  4  auth error
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Reopen a closed GitHub Pull Request with an optional comment.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")

@@ -377,10 +377,24 @@ def gather_evidence(
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --scope 2026-11-09 --since '1 day ago'
+
+exit codes:
+  0  evidence gathered (some sources may be marked absent)
+  2  bad project directory
+  3  external failure prevented any gather
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Gather Phase 0 evidence for a retrospective.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--scope",

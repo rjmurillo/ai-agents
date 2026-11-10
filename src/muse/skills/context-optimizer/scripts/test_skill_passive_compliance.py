@@ -793,10 +793,23 @@ def print_table_format(results: ComplianceResults) -> None:
         print("[FAIL] Compliance violations detected")
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --path skills --claude-md-path CLAUDE.md --format table
+
+exit codes:
+  0  all compliance checks passed
+  1  one or more violations detected
+"""
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Validate skill and passive context placement compliance"
+        description="Validate skill and passive context placement compliance",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--path",

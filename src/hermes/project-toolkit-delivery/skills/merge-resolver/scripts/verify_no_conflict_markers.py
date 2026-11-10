@@ -218,6 +218,19 @@ def _format_human(report: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s
+  %(prog)s --cwd /path/to/repo --json
+
+exit codes:
+  0  no unmerged files and no leftover conflict markers
+  1  markers remain or unmerged files exist
+  2  not in a git repository
+  3  git command failed
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="verify_no_conflict_markers",
@@ -226,6 +239,8 @@ def main(argv: list[str] | None = None) -> int:
             "markers and no still-unmerged files. Replaces 'git grep' "
             "false-positives on intentional fenced examples."
         ),
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--cwd",

@@ -97,8 +97,27 @@ _EXIT_NOT_MERGEABLE = 100
 _REPO_NOT_FOUND_MARKER = "could not resolve to a repository"
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s --pull-request 123 --strategy squash
+  %(prog)s --pull-request 123 --expected-head-sha 0123456789abcdef0123456789abcdef01234567
+
+exit codes:
+  0  success
+  1  invalid parameters / logic error
+  2  not found
+  3  external error (API failure)
+  4  auth error
+  100  not mergeable (script-specific code)
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Merge a GitHub Pull Request.")
+    parser = argparse.ArgumentParser(
+        description="Merge a GitHub Pull Request.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(

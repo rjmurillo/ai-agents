@@ -591,10 +591,24 @@ def _emit_json(results: dict[str, Scan], rules_path: Path | None, banned: set[st
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s draft.md
+  %(prog)s draft.md notes.md --json
+
+exit codes:
+  0  no high-severity findings (info findings may remain)
+  1  at least one high-severity finding
+  2  a named file does not exist or cannot be read
+"""
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(
         description="Run prose-self-check Layers 1 and 2 over an artifact",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("files", nargs="+", help="Files to check, or - for stdin")
     parser.add_argument("--rules", help="Path to the voice rule (default: auto-discover)")

@@ -243,10 +243,24 @@ def score_learning(learning: str) -> AtomicityScore:
     )
 
 
+_HELP_EPILOG = """\
+examples:
+  %(prog)s "Run pre_pr.py before every push to catch drift"
+  %(prog)s "Run pre_pr.py before every push" --json
+
+exit codes:
+  0  score is at or above the 70 percent persistence threshold
+  1  score is below the threshold (refine or reject)
+  2  no learning given, or the learning is empty
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Score a retrospective learning 0-100 for atomicity.",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "learning",
