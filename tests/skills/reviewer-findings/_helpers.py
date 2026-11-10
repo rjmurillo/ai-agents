@@ -89,7 +89,7 @@ FENCE_RE = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 TRIAGE_PHASE = "2"
-VERIFY_PHASE = "3"
+VERIFY_PHASE = "8"
 
 
 def _blank_fences(text: str) -> str:

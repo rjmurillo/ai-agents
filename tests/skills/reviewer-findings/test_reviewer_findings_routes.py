@@ -209,7 +209,7 @@ class TestTheRouteFiresWhileTheFindingIsStillBeingTriaged:
         synthetic = (
             "### Phase 2: Triage and Delegate\n"
             "Nothing routes here.\n"
-            "### Phase 3: Verify\n"
+            "### Phase 8: Verify\n"
             'Run `Skill(skill="some-later-skill")` now.\n'
         )
         assert _routed_skills(_phase_section(synthetic, TRIAGE_PHASE)) == set(), (
@@ -226,7 +226,7 @@ class TestTheRouteFiresWhileTheFindingIsStillBeingTriaged:
             "```\n"
             "### Phase 2: Triage and Delegate\n"
             "Nothing routes here.\n"
-            "### Phase 3: Verify\n"
+            "### Phase 8: Verify\n"
         )
         assert _routed_skills(_phase_section(synthetic, TRIAGE_PHASE)) == set(), (
             "a phase heading quoted inside a fenced example was treated as "
@@ -241,7 +241,7 @@ class TestTheRouteFiresWhileTheFindingIsStillBeingTriaged:
             f'Run `Skill(skill="{SKILL_NAME}")`.\n'
             "### Phase 2: Triage and Delegate\n"
             "Nothing routes here.\n"
-            "### Phase 3: Verify\n"
+            "### Phase 8: Verify\n"
         )
         assert _routed_skills(_phase_section(synthetic, TRIAGE_PHASE)) == set(), (
             "'### Phase 2.1' was captured as phase 2, so a route in any "
@@ -252,12 +252,12 @@ class TestTheRouteFiresWhileTheFindingIsStillBeingTriaged:
         """Negative control: a stray early mention must not stand in for Phase 2."""
         synthetic = (
             f'Mentioned early: `Skill(skill="{SKILL_NAME}")`.\n'
-            "### Phase 3: Verify\n"
+            "### Phase 8: Verify\n"
             "### Phase 2: Triage and Delegate\n"
         )
         triage = _phase_heading_start(synthetic, TRIAGE_PHASE)
         verify = _phase_heading_start(synthetic, VERIFY_PHASE)
         assert triage > verify, (
             "the heading offsets no longer reflect document order, so the "
-            "ordering assertion could not detect a swapped Phase 2 and Phase 3"
+            "ordering assertion could not detect a swapped Phase 2 and Phase 8"
         )
