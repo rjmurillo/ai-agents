@@ -50,6 +50,31 @@ def _is_limit_message(message: dict[str, Any]) -> bool:
     return bool(_LIMIT_NAME.search(text) and _LIMIT_VERB.search(text))
 
 
+def _start_meta(obj: dict[str, Any], path: Path) -> dict[str, Any]:
+    child = bool(obj.get("callingSessionId"))
+    return {
+        "id": obj.get("id") or path.stem,
+        "cwd": obj.get("cwd"),
+        "started_at": None,
+        "originator": "droid",
+        "thread_source": "subagent" if child else None,
+    }
+
+
+def _apply_message(state: SessionState, obj: dict[str, Any], seen: set[Any], ending: Any) -> Any:
+    state.timestamp(obj.get("timestamp"))
+    message = obj.get("message")
+    if not isinstance(message, dict):
+        return ending
+    wrapped = {"type": message.get("role"), "message": message, "uuid": obj.get("id")}
+    _claude_message(state, wrapped, seen)
+    # The last decisive record wins. A message with empty content, which Droid
+    # writes just before a usage-exhausted outcome, decides nothing.
+    if _is_limit_message(message):
+        return LIMIT_MESSAGE_VALUE
+    return None if message.get("content") else ending
+
+
 def parse_droid_session(path: Path, _skill_names: Any, include_subagents: bool) -> Any:
     try:
         records = iter_jsonl_records(path)
@@ -62,29 +87,11 @@ def parse_droid_session(path: Path, _skill_names: Any, include_subagents: bool) 
     for obj in records:
         kind = obj.get("type")
         if kind == "session_start":
-            child = bool(obj.get("callingSessionId"))
-            if child and not include_subagents:
+            meta = _start_meta(obj, path)
+            if meta["thread_source"] and not include_subagents:
                 return None
-            meta = {
-                "id": obj.get("id") or path.stem,
-                "cwd": obj.get("cwd"),
-                "started_at": None,
-                "originator": "droid",
-                "thread_source": "subagent" if child else None,
-            }
         elif kind == "message":
-            state.timestamp(obj.get("timestamp"))
-            message = obj.get("message")
-            if not isinstance(message, dict):
-                continue
-            wrapped = {"type": message.get("role"), "message": message, "uuid": obj.get("id")}
-            _claude_message(state, wrapped, seen)
-            # The last decisive record wins. A message with empty content, which
-            # Droid writes just before a usage-exhausted outcome, decides nothing.
-            if _is_limit_message(message):
-                ending = LIMIT_MESSAGE_VALUE
-            elif message.get("content"):
-                ending = None
+            ending = _apply_message(state, obj, seen, ending)
         elif kind == "agent_turn_outcome":
             reason = obj.get("reason")
             ending = str(reason) if reason in USAGE_LIMIT_REASONS else None
