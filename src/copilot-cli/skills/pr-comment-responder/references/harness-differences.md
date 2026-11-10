@@ -20,7 +20,8 @@ Claude Code carried these as `metadata.delegation` on the agent, checked by `che
 | Bound | Value |
 |-------|-------|
 | Delegations per task | 15, where a task is one review comment. Only your direct delegations count. The orchestrator spends its own budget inside each one, so the bounds multiply across two levels. At the limit, leave the comment unresolved with a stated reason and move to the next comment. |
-| Report schema | Each worker returns the orchestrator completion record: `artifacts`, `commands`, `deltas`, `residual_risks`, `confidence`, `acceptance_status`, `escalation_status`. |
+| Responsibility | Gathers review comments, delegates analysis and fixes, and verifies every thread is addressed. |
+| Report schema | Each worker returns the orchestrator's completion record, unchanged. Its keys and the escalation types live in the orchestrator agent, not here. |
 | Acceptance owner | This skill. Verify a thread is addressed before you resolve it. |
 | Retry limit | One retry of a failed delegation, and only after the approach or context changes. Never re-delegate unchanged work. |
 | Stop condition | Every review thread is addressed and verified, or left unresolved with a stated reason. |
