@@ -34,6 +34,11 @@ class TestTemplate:
     def test_step_runs_only_when_security_is_selected(self):
         assert "only when `security` is selected" in step_4d()
 
+    def test_step_runs_before_step_4_invokes_the_security_axis(self):
+        assert "Run it before step 4 calls that axis" in step_4d()
+        invoke = next(ln for ln in TEMPLATE.splitlines() if "For each selected axis" in ln)
+        assert "(`security`: after step 4d)" in invoke
+
     def test_step_points_at_the_procedure_page_and_names_the_adr(self):
         assert "resources/codeql-prestep.md" in step_4d()
         assert "ADR-041" in step_4d()
@@ -49,7 +54,7 @@ class TestTemplate:
 
     def test_output_section_prints_the_status_line(self):
         output = TEMPLATE.split("\n## Output\n", 1)[1]
-        assert "Print the CodeQL `status_line`" in output
+        assert "When step 4d ran, print the CodeQL `status_line`" in output
 
     def test_the_rendered_skill_stays_inside_the_byte_cap(self):
         assert len((REVIEW / "SKILL.md").read_bytes()) <= SKILL_MD_BYTE_CAP

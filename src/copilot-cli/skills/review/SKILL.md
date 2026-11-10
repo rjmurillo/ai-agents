@@ -96,12 +96,12 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
    Run the axes in `canonical_selected` (`analyst` unless `references/analyst.md` is missing, which fails the run closed). `fail_closed: true` means the change could not be classified, or a demanded axis has no prompt, and every canonical axis is selected; that is intended. Report every axis in `unresolved_axes` as UNKNOWN: demanded, but with no prompt to load. A skipped axis is never PASS.
 
-   For each selected axis load `references/{role}.md`, then invoke `agent_type: "project-toolkit:{role}"` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `agent_type: "project-toolkit:general-purpose"`; the prompt drives the review, not the subagent identity.
+   For each selected axis (`security`: after step 4d) load `references/{role}.md`, then invoke `agent_type: "project-toolkit:{role}"` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and that file's Output Schema as the response contract. A `When This Axis Applies` section, where an axis has one, calibrates depth; it never overrules the selection. If the harness registers no `{role}` subagent type (Copilot CLI today, and any axis with no matching agent such as `reliability` or `decision-rigor`), fall back to `agent_type: "project-toolkit:general-purpose"`; the prompt drives the review, not the subagent identity.
 
 4a. **Validate scope of each axis output against the PR diff.** After each axis (steps 2, 3, and every axis in step 4) returns its findings text, run `scripts/validate_findings_scope.py` (resolved via the "Path resolution" section) to find `location:` fields naming files outside the three-dot diff of step 1: `python3 <validate_findings_scope.py> --worktree <WORKTREE_PATH> --base-branch <BASE_BRANCH> --text <AXIS_TEXT> --emit-adjusted-text`. On exit 1 (out-of-scope locations found), replace the axis output with the script's stdout before extracting the verdict; the adjusted text marks each flagged location `[pre-existing - not in this PR diff]`. When every cited location is out of scope and the axis emitted a blocking verdict, the script downgrades that verdict to `WARN`, so an unrelated finding cannot block the reviewed PR. Do NOT suppress or skip the finding; preserve it with the label. On exit 0 (all in scope, or diff empty or unavailable), record stdout when present, otherwise the axis output unmodified.
 4b. **Keep the local-only skill axes in their own selected set.** The 4 local axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) are sibling skills invoked with `skill: "{name}"`. None has a `references/{name}.md` file, so a local axis in the canonical set resolves to a prompt path that does not exist. `select_axes.py` reports them in `local_selected`, never in `canonical_selected`, including when `--pin` names one; keep the two lists separate for the rest of the run.
 4c. **Always-on correctness pass.** Load `resources/technical-review.md`, resolved like the axis prompts with `resources/` in place of `references/`. Invoke `agent_type: "project-toolkit:code-reviewer"`, falling back to `general-purpose`, with that contract as the response contract and the same CONTEXT_MODE-prefixed diff as input. Scope-check its output as in 4a, then `extract_verdict`; any failure is `UNKNOWN`.
-4d. **CodeQL pre-step, only when `security` is selected.** Follow `resources/codeql-prestep.md` (ADR-041): attach `alerts` to the security input as untrusted candidates; print `status_line`. STALE, NOT ANALYZED, SKIPPED are never clean.
+4d. **CodeQL pre-step, only when `security` is selected. Run it before step 4 calls that axis.** Follow `resources/codeql-prestep.md` (ADR-041): attach `alerts` to the security input as untrusted candidates; print `status_line`. STALE, NOT ANALYZED, SKIPPED are never clean.
 
 5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Resolve each `<script>` per "Path resolution" (chained-skill scripts). Scope every axis to the PR diff with the base branch detected in step 1 (stored as `BASE_BRANCH`), quoted, so the gates evaluate only changed files, not the whole tree:
 
@@ -120,7 +120,7 @@ A subagent with no `Task` tool MUST NOT review its own diff and write the marker
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored plugin install in any harness (Claude Code, Copilot CLI, and similar). No axis or skill assumes one hard-coded layout; resolve every dependency through "Path resolution". The build copies the whole skill directory into each plugin install.
+`/review` MUST work in a vendored plugin install in any harness (Claude Code, Copilot CLI, and similar). No axis or skill assumes one hard-coded layout; resolve every dependency through "Path resolution".
 
 ## UNKNOWN handling
 
@@ -142,7 +142,7 @@ Findings table with one row per axis:
 
 One row per axis in the step-4 candidate set, then one per local axis: 16 rows with the current set. Append one `UNKNOWN` row per `unresolved_axes` entry. Append one always-on `correctness` row for step 4c. Each Selection cell reads `always-on`, or `selected / skipped` plus its reason from `selection_reasons` or `skipped`.
 
-Print the CodeQL `status_line` under the table.
+When step 4d ran, print the CodeQL `status_line` under the table.
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 
